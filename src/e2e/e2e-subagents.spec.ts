@@ -143,6 +143,43 @@ Break down tasks into steps.
     );
     expect(importedContent).toContain("planner");
   });
+
+  it("should round-trip nested Gemini CLI subagents", async () => {
+    const testDir = getTestDir();
+
+    const rulesyncContent = `---
+name: planner
+targets: ["geminicli"]
+description: "Plans nested implementation tasks"
+---
+You are the nested planner.`;
+    await writeFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "team", "planner.md"),
+      rulesyncContent,
+    );
+
+    await runGenerate({ target: "geminicli", features: "subagents", deleteFiles: true });
+
+    const generatedContent = await readFileContent(
+      join(testDir, ".gemini", "agents", "team", "planner.md"),
+    );
+    expect(generatedContent).toContain("planner");
+    expect(generatedContent).toContain("You are the nested planner.");
+
+    await runImport({ target: "geminicli", features: "subagents" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "team", "planner.md"),
+    );
+    expect(importedContent).toContain("Plans nested implementation tasks");
+
+    await runGenerate({ target: "geminicli", features: "subagents", deleteFiles: true });
+
+    const rerenderedContent = await readFileContent(
+      join(testDir, ".gemini", "agents", "team", "planner.md"),
+    );
+    expect(rerenderedContent).toContain("You are the nested planner.");
+  });
 });
 
 describe("E2E: subagents (global mode)", () => {

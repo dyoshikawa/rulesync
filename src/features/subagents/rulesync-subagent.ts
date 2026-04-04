@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { join } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -115,12 +115,10 @@ export class RulesyncSubagent extends RulesyncFile {
       throw new Error(`Invalid frontmatter in ${relativeFilePath}: ${formatError(result.error)}`);
     }
 
-    const filename = basename(relativeFilePath);
-
     return new RulesyncSubagent({
       baseDir: process.cwd(),
       relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: filename,
+      relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),
     });

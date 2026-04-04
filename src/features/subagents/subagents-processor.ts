@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -7,7 +7,7 @@ import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { directoryExists, findFilesByGlobs, listDirectoryFiles } from "../../utils/file.js";
+import { checkPathTraversal, directoryExists, findFilesByGlobs } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
@@ -52,6 +52,8 @@ type ToolSubagentFactory = {
     supportsGlobal: boolean;
     /** File pattern for import (e.g., "*.md", "*.json") */
     filePattern: string;
+    /** Whether the tool supports nested relative paths for subagents */
+    supportsSubdirectory: boolean;
   };
 };
 
@@ -91,105 +93,180 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     "agentsmd",
     {
       class: AgentsmdSubagent,
-      meta: { supportsSimulated: true, supportsGlobal: false, filePattern: "*.md" },
+      meta: {
+        supportsSimulated: true,
+        supportsGlobal: false,
+        filePattern: "*.md",
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "claudecode",
     {
       class: ClaudecodeSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "claudecode-legacy",
     {
       class: ClaudecodeSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "codexcli",
     {
       class: CodexCliSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.toml" },
+      meta: {
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.toml",
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "copilot",
     {
       class: CopilotSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
+      meta: {
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*.md",
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "cursor",
     {
       class: CursorSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "deepagents",
     {
       class: DeepagentsSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
+      meta: {
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*.md",
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "factorydroid",
     {
       class: FactorydroidSubagent,
-      meta: { supportsSimulated: true, supportsGlobal: false, filePattern: "*.md" },
+      meta: {
+        supportsSimulated: true,
+        supportsGlobal: false,
+        filePattern: "*.md",
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "geminicli",
     {
       class: GeminiCliSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
+      meta: {
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*.md",
+        supportsSubdirectory: true,
+      },
     },
   ],
   [
     "junie",
     {
       class: JunieSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
+      meta: {
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*.md",
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "kiro",
     {
       class: KiroSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.json" },
+      meta: {
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*.json",
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "kilo",
     {
       class: KiloSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "opencode",
     {
       class: OpenCodeSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "roo",
     {
       class: RooSubagent,
-      meta: { supportsSimulated: true, supportsGlobal: false, filePattern: "*.md" },
+      meta: {
+        supportsSimulated: true,
+        supportsGlobal: false,
+        filePattern: "*.md",
+        supportsSubdirectory: false,
+      },
     },
   ],
   [
     "rovodev",
     {
       class: RovodevSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+        supportsSubdirectory: false,
+      },
     },
   ],
 ]);
@@ -305,11 +382,18 @@ export class SubagentsProcessor extends FeatureProcessor {
     return rulesyncSubagents;
   }
 
+  private safeRelativePath(basePath: string, fullPath: string): string {
+    const relativePath = relative(basePath, fullPath);
+    checkPathTraversal({ relativePath, intendedRootDir: basePath });
+    return relativePath;
+  }
+
   /**
    * Implementation of abstract method from Processor
    * Load and parse rulesync subagent files from .rulesync/subagents/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
+    const factory = this.getFactory(this.toolTarget);
     const subagentsDir = join(process.cwd(), RulesyncSubagent.getSettablePaths().relativeDirPath);
 
     // Check if directory exists
@@ -319,9 +403,10 @@ export class SubagentsProcessor extends FeatureProcessor {
       return [];
     }
 
-    // Read all markdown files from the directory
-    const entries = await listDirectoryFiles(subagentsDir);
-    const mdFiles = entries.filter((file) => file.endsWith(".md"));
+    const globPattern = factory.meta.supportsSubdirectory
+      ? join(subagentsDir, "**", "*.md")
+      : join(subagentsDir, "*.md");
+    const mdFiles = await findFilesByGlobs(globPattern);
 
     if (mdFiles.length === 0) {
       this.logger.debug(`No markdown files found in rulesync subagents directory: ${subagentsDir}`);
@@ -333,19 +418,19 @@ export class SubagentsProcessor extends FeatureProcessor {
     // Parse all files and create RulesyncSubagent instances using fromFilePath
     const rulesyncSubagents: RulesyncSubagent[] = [];
 
-    for (const mdFile of mdFiles) {
-      const filepath = join(subagentsDir, mdFile);
+    for (const filePath of mdFiles) {
+      const relativeFilePath = this.safeRelativePath(subagentsDir, filePath);
 
       try {
         const rulesyncSubagent = await RulesyncSubagent.fromFile({
-          relativeFilePath: mdFile,
+          relativeFilePath,
           validate: true,
         });
 
         rulesyncSubagents.push(rulesyncSubagent);
-        this.logger.debug(`Successfully loaded subagent: ${mdFile}`);
+        this.logger.debug(`Successfully loaded subagent: ${relativeFilePath}`);
       } catch (error) {
-        this.logger.warn(`Failed to load subagent file ${filepath}: ${formatError(error)}`);
+        this.logger.warn(`Failed to load subagent file ${filePath}: ${formatError(error)}`);
         continue;
       }
     }
@@ -370,10 +455,12 @@ export class SubagentsProcessor extends FeatureProcessor {
   } = {}): Promise<ToolFile[]> {
     const factory = this.getFactory(this.toolTarget);
     const paths = factory.class.getSettablePaths({ global: this.global });
+    const baseDirFull = join(this.baseDir, paths.relativeDirPath);
+    const globPattern = factory.meta.supportsSubdirectory
+      ? join(baseDirFull, "**", factory.meta.filePattern)
+      : join(baseDirFull, factory.meta.filePattern);
 
-    const subagentFilePaths = await findFilesByGlobs(
-      join(this.baseDir, paths.relativeDirPath, factory.meta.filePattern),
-    );
+    const subagentFilePaths = await findFilesByGlobs(globPattern);
 
     if (forDeletion) {
       const toolSubagents = subagentFilePaths
@@ -381,7 +468,7 @@ export class SubagentsProcessor extends FeatureProcessor {
           factory.class.forDeletion({
             baseDir: this.baseDir,
             relativeDirPath: paths.relativeDirPath,
-            relativeFilePath: basename(path),
+            relativeFilePath: this.safeRelativePath(baseDirFull, path),
             global: this.global,
           }),
         )
@@ -397,7 +484,7 @@ export class SubagentsProcessor extends FeatureProcessor {
       subagentFilePaths.map((path) =>
         factory.class.fromFile({
           baseDir: this.baseDir,
-          relativeFilePath: basename(path),
+          relativeFilePath: this.safeRelativePath(baseDirFull, path),
           global: this.global,
         }),
       ),
