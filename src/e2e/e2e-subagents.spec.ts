@@ -85,6 +85,37 @@ You are a primary agent. You appear in the Tab rotation.
     expect(generatedContent).not.toContain("mode: subagent");
     expect(generatedContent).toContain("A primary mode agent");
   });
+
+  it.each([
+    { target: "claudecode", orphanPath: join(".claude", "agents", "orphan.md") },
+    { target: "cursor", orphanPath: join(".cursor", "agents", "orphan.md") },
+    { target: "geminicli", orphanPath: join(".gemini", "agents", "orphan.md") },
+  ])(
+    "should fail in check mode when delete would remove an orphan $target subagent file",
+    async ({ target, orphanPath }) => {
+      const testDir = getTestDir();
+
+      await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+      await writeFileContent(join(testDir, orphanPath), "# orphan\n");
+
+      await expect(
+        runGenerate({
+          target,
+          features: "subagents",
+          deleteFiles: true,
+          check: true,
+          env: { NODE_ENV: "e2e" },
+        }),
+      ).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining(
+          "Files are not up to date. Run 'rulesync generate' to update.",
+        ),
+      });
+
+      expect(await readFileContent(join(testDir, orphanPath))).toBe("# orphan\n");
+    },
+  );
 });
 
 describe("E2E: subagents (import)", () => {

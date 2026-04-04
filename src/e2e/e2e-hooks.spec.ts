@@ -60,6 +60,37 @@ describe("E2E: hooks", () => {
       }
     }
   });
+
+  it.each([
+    { target: "claudecode", orphanPath: join(".claude", "settings.json") },
+    { target: "cursor", orphanPath: join(".cursor", "hooks.json") },
+    { target: "opencode", orphanPath: join(".opencode", "plugins", "rulesync-hooks.js") },
+  ])(
+    "should fail in check mode when delete would remove an orphan $target hooks file",
+    async ({ target, orphanPath }) => {
+      const testDir = getTestDir();
+
+      await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+      await writeFileContent(join(testDir, orphanPath), "# orphan\n");
+
+      await expect(
+        runGenerate({
+          target,
+          features: "hooks",
+          deleteFiles: true,
+          check: true,
+          env: { NODE_ENV: "e2e" },
+        }),
+      ).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining(
+          "Files are not up to date. Run 'rulesync generate' to update.",
+        ),
+      });
+
+      expect(await readFileContent(join(testDir, orphanPath))).toBe("# orphan\n");
+    },
+  );
 });
 
 describe("E2E: hooks (import)", () => {

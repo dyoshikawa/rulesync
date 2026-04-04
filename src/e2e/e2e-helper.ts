@@ -44,12 +44,16 @@ export async function runGenerate({
   target,
   features,
   global = false,
+  deleteFiles = false,
+  check = false,
   simulateSubagents = false,
   env,
 }: {
   target: string;
   features: string;
   global?: boolean;
+  deleteFiles?: boolean;
+  check?: boolean;
   simulateSubagents?: boolean;
   env?: Record<string, string>;
 }): Promise<{ stdout: string; stderr: string }> {
@@ -61,6 +65,8 @@ export async function runGenerate({
     "--features",
     features,
     ...(global ? ["--global"] : []),
+    ...(deleteFiles ? ["--delete"] : []),
+    ...(check ? ["--check"] : []),
     ...(simulateSubagents ? ["--simulate-subagents"] : []),
   ];
   return execFileAsync(rulesyncCmd, args, env ? { env: { ...process.env, ...env } } : {});

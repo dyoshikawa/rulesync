@@ -46,6 +46,36 @@ This is the test skill body content.
     const generatedContent = await readFileContent(join(testDir, outputPath));
     expect(generatedContent).toContain("test skill body content");
   });
+
+  it.each([
+    { target: "claudecode", orphanPath: join(".claude", "skills", "orphan-skill", "SKILL.md") },
+    { target: "cursor", orphanPath: join(".cursor", "skills", "orphan-skill", "SKILL.md") },
+  ])(
+    "should fail in check mode when delete would remove an orphan $target skill file",
+    async ({ target, orphanPath }) => {
+      const testDir = getTestDir();
+
+      await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+      await writeFileContent(join(testDir, orphanPath), "# orphan\n");
+
+      await expect(
+        runGenerate({
+          target,
+          features: "skills",
+          deleteFiles: true,
+          check: true,
+          env: { NODE_ENV: "e2e" },
+        }),
+      ).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining(
+          "Files are not up to date. Run 'rulesync generate' to update.",
+        ),
+      });
+
+      expect(await readFileContent(join(testDir, orphanPath))).toBe("# orphan\n");
+    },
+  );
 });
 
 describe("E2E: skills (import)", () => {
