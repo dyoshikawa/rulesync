@@ -1,11 +1,10 @@
 ---
-name: commit-push-pr
+targets:
+  - "*"
 description: >-
   Commit current changes, push to remote, and create or update a pull request.
   Use when the user wants to commit and create a PR, push changes and open a
   pull request, or ship their current work as a PR.
-targets:
-  - "*"
 ---
 
 # Commit, Push, and PR Management

@@ -1,8 +1,7 @@
 ---
-name: explain-issue
-description: "Explain a GitHub issue: the background problem and the proposed solution"
 targets:
   - "*"
+description: "Explain a GitHub issue: the background problem and the proposed solution"
 ---
 
 target_issue = $ARGUMENTS
