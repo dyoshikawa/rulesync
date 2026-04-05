@@ -62,7 +62,6 @@
     "fmt:check": "oxfmt --check .",
     "generate": "pnpm run dev generate",
     "generate:schema": "tsx scripts/generate-json-schema.ts",
-    "implement-loop": "tsx scripts/implement-loop.ts",
     "knip": "knip",
     "oxlint": "oxlint . --max-warnings 0",
     "oxlint:fix": "oxlint . --fix --max-warnings 0",
