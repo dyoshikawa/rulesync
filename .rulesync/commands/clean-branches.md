@@ -14,15 +14,22 @@ Run the following:
 
 - `git branch --show-current`
 - `git branch --format='%(refname:short)'`
-- `git branch --merged`
+- `git remote show origin`
 - `git branch -vv`
 
 Identify:
 
 - The current branch
 - The default branch (for example `main` or `master`)
-- Branches already merged into the default branch
 - Branches whose upstream has been deleted
+
+After identifying the default branch, list branches already merged into it:
+
+- `git branch --merged <default-branch>`
+
+If you want to use the remote-tracking branch as the source of truth, use:
+
+- `git branch --merged origin/<default-branch>`
 
 ## Step 2: Refresh Remote State
 
@@ -44,7 +51,7 @@ Delete only branches that are clearly unnecessary.
 
 Safe candidates include:
 
-- Local branches already merged into the default branch
+- Local branches already merged into the default branch you identified above
 - Local branches whose upstream branch is gone and are no longer needed
 
 Never delete:
