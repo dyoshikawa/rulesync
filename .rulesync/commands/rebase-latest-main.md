@@ -1,11 +1,10 @@
 ---
-name: rebase-latest-main
+targets:
+  - "*"
 description: >-
   Fetch latest origin/main and rebase it onto the current branch, resolving
   conflicts if necessary. Use when the user wants to rebase on main, update
   their branch with latest main, or sync with upstream.
-targets:
-  - "*"
 ---
 
 # Rebase Latest Main

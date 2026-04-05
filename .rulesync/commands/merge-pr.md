@@ -1,8 +1,7 @@
 ---
-name: merge-pr
-description: Merge a pull request using gh pr merge --admin
 targets:
   - "*"
+description: Merge a pull request using gh pr merge --admin
 ---
 
 # Merge Pull Request

@@ -1,8 +1,7 @@
 ---
-name: clean-worktrees
-description: "Clean git worktrees created by git-worktree-runner"
 targets:
   - "*"
+description: Clean git worktrees created by git-worktree-runner
 ---
 
 1. Run `git gtr list` to list all worktrees.
