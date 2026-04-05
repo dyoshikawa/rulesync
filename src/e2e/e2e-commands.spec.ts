@@ -45,6 +45,37 @@ Check the PR diff and provide feedback.
       expect(generatedContent).toContain("Check the PR diff and provide feedback.");
     }
   });
+
+  it.each([
+    { target: "claudecode", orphanPath: join(".claude", "commands", "orphan.md") },
+    { target: "cursor", orphanPath: join(".cursor", "commands", "orphan.md") },
+    { target: "geminicli", orphanPath: join(".gemini", "commands", "orphan.toml") },
+  ])(
+    "should fail in check mode when delete would remove an orphan $target command file",
+    async ({ target, orphanPath }) => {
+      const testDir = getTestDir();
+
+      await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+      await writeFileContent(join(testDir, orphanPath), "# orphan\n");
+
+      await expect(
+        runGenerate({
+          target,
+          features: "commands",
+          deleteFiles: true,
+          check: true,
+          env: { NODE_ENV: "e2e" },
+        }),
+      ).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining(
+          "Files are not up to date. Run 'rulesync generate' to update.",
+        ),
+      });
+
+      expect(await readFileContent(join(testDir, orphanPath))).toBe("# orphan\n");
+    },
+  );
 });
 
 describe("E2E: commands (import)", () => {

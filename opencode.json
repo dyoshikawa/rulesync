@@ -3,19 +3,31 @@
   "lsp": false,
   "model": "github-copilot/gpt-5.4",
   "agent": {
+    "plan": {
+      "mode": "primary",
+      "variant": "high",
+      "tools": {
+        "write": false,
+        "edit": false,
+        "bash": true
+      }
+    },
     "build": {
       "mode": "primary",
+      "variant": "medium",
       "tools": {
         "write": true,
         "edit": true,
         "bash": true
       }
     },
-    "plan": {
+    "build-lite": {
+      "model": "github-copilot/gpt-5.4-mini",
+      "variant": "medium",
       "mode": "primary",
       "tools": {
-        "write": false,
-        "edit": false,
+        "write": true,
+        "edit": true,
         "bash": true
       }
     }
