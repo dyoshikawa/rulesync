@@ -240,9 +240,13 @@ export class HooksProcessor extends FeatureProcessor {
     }
   }
 
-  async loadToolFiles({ forDeletion = false }: { forDeletion?: boolean } = {}): Promise<
-    ToolFile[]
-  > {
+  async loadToolFiles({
+    forDeletion = false,
+    includeNonDeletable = false,
+  }: {
+    forDeletion?: boolean;
+    includeNonDeletable?: boolean;
+  } = {}): Promise<ToolFile[]> {
     try {
       const factory = toolHooksFactories.get(this.toolTarget);
       if (!factory) throw new Error(`Unsupported tool target: ${this.toolTarget}`);
@@ -255,7 +259,7 @@ export class HooksProcessor extends FeatureProcessor {
           relativeFilePath: paths.relativeFilePath,
           global: this.global,
         });
-        const list = toolHooks.isDeletable?.() !== false ? [toolHooks] : [];
+        const list = toolHooks.isDeletable?.() !== false || includeNonDeletable ? [toolHooks] : [];
         this.logger.debug(
           `Successfully loaded ${list.length} ${this.toolTarget} hooks files for deletion`,
         );

@@ -396,7 +396,9 @@ export class SkillsProcessor extends DirFeatureProcessor {
    * Implementation of abstract method from DirFeatureProcessor
    * Load tool-specific skill configurations and parse them into ToolSkill instances
    */
-  async loadToolDirs(): Promise<AiDir[]> {
+  async loadToolDirs({
+    includeNonDeletable: _includeNonDeletable = false,
+  }: { includeNonDeletable?: boolean } = {}): Promise<AiDir[]> {
     const factory = this.getFactory(this.toolTarget);
     const paths = factory.class.getSettablePaths({ global: this.global });
     const roots = toolSkillSearchRoots(paths);
@@ -437,7 +439,9 @@ export class SkillsProcessor extends DirFeatureProcessor {
     return toolSkills;
   }
 
-  async loadToolDirsToDelete(): Promise<AiDir[]> {
+  async loadToolDirsToDelete({
+    includeNonDeletable = false,
+  }: { includeNonDeletable?: boolean } = {}): Promise<AiDir[]> {
     const factory = this.getFactory(this.toolTarget);
     const paths = factory.class.getSettablePaths({ global: this.global });
     const roots = toolSkillSearchRoots(paths);
@@ -451,14 +455,14 @@ export class SkillsProcessor extends DirFeatureProcessor {
       const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
       for (const dirPath of dirPaths) {
         const dirName = basename(dirPath);
-        toolSkills.push(
-          factory.class.forDeletion({
-            baseDir: this.baseDir,
-            relativeDirPath: root,
-            dirName,
-            global: this.global,
-          }),
-        );
+        const toolSkill = factory.class.forDeletion({
+          baseDir: this.baseDir,
+          relativeDirPath: root,
+          dirName,
+          global: this.global,
+        });
+        void includeNonDeletable;
+        toolSkills.push(toolSkill);
       }
     }
 

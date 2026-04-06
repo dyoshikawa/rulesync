@@ -72,6 +72,7 @@ describe("generate", () => {
     getTargets: ReturnType<typeof vi.fn>;
     getFeatures: ReturnType<typeof vi.fn>;
     getDelete: ReturnType<typeof vi.fn>;
+    getCheck: ReturnType<typeof vi.fn>;
     getGlobal: ReturnType<typeof vi.fn>;
     getSimulateCommands: ReturnType<typeof vi.fn>;
     getSimulateSubagents: ReturnType<typeof vi.fn>;
@@ -87,6 +88,7 @@ describe("generate", () => {
       getTargets: vi.fn().mockReturnValue(["claudecode"]),
       getFeatures: vi.fn().mockReturnValue(["rules"]),
       getDelete: vi.fn().mockReturnValue(false),
+      getCheck: vi.fn().mockReturnValue(false),
       getGlobal: vi.fn().mockReturnValue(false),
       getSimulateCommands: vi.fn().mockReturnValue(false),
       getSimulateSubagents: vi.fn().mockReturnValue(false),

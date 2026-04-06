@@ -59,6 +59,21 @@ async function processFeatureGeneration<T extends AiFile>(params: {
   if (writeResult.count > 0) hasDiff = true;
 
   if (config.getDelete()) {
+    if (config.getCheck()) {
+      const existingToolFiles = await processor.loadToolFiles({
+        forDeletion: true,
+        includeNonDeletable: true,
+      });
+      if (toolFiles.length === 0 && existingToolFiles.length > 0) {
+        hasDiff = true;
+      }
+      const generatedPaths = new Set(toolFiles.map((file) => file.getFilePath()));
+      const orphanCount = existingToolFiles.filter(
+        (file) => !generatedPaths.has(file.getFilePath()),
+      ).length;
+      if (orphanCount > 0) hasDiff = true;
+    }
+
     const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
     const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
     if (orphanCount > 0) hasDiff = true;
@@ -84,6 +99,20 @@ async function processDirFeatureGeneration(params: {
   if (writeResult.count > 0) hasDiff = true;
 
   if (config.getDelete()) {
+    if (config.getCheck()) {
+      const existingToolDirs = await processor.loadToolDirsToDelete({
+        includeNonDeletable: true,
+      });
+      if (toolDirs.length === 0 && existingToolDirs.length > 0) {
+        hasDiff = true;
+      }
+      const generatedPaths = new Set(toolDirs.map((dir) => dir.getDirPath()));
+      const orphanCount = existingToolDirs.filter(
+        (dir) => !generatedPaths.has(dir.getDirPath()),
+      ).length;
+      if (orphanCount > 0) hasDiff = true;
+    }
+
     const existingToolDirs = await processor.loadToolDirsToDelete();
     const orphanCount = await processor.removeOrphanAiDirs(existingToolDirs, toolDirs);
     if (orphanCount > 0) hasDiff = true;
@@ -103,6 +132,16 @@ async function processEmptyFeatureGeneration(params: {
   let hasDiff = false;
 
   if (config.getDelete()) {
+    if (config.getCheck()) {
+      const existingToolFiles = await processor.loadToolFiles({
+        forDeletion: true,
+        includeNonDeletable: true,
+      });
+      if (existingToolFiles.length > 0) {
+        hasDiff = true;
+      }
+    }
+
     const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
     const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, []);
     if (orphanCount > 0) hasDiff = true;

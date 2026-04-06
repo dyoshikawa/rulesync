@@ -33,7 +33,10 @@ export abstract class FeatureProcessor {
 
   abstract loadRulesyncFiles(): Promise<RulesyncFile[]>;
 
-  abstract loadToolFiles(params?: { forDeletion?: boolean }): Promise<ToolFile[]>;
+  abstract loadToolFiles(params?: {
+    forDeletion?: boolean;
+    includeNonDeletable?: boolean;
+  }): Promise<ToolFile[]>;
 
   abstract convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]>;
 

@@ -119,17 +119,17 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
     logger.captureData("skills", result.skills ?? []);
   }
 
-  // Handle --check mode exit code
+  // Check mode must fail even when the change is delete-only and no files are written.
   if (check) {
     if (result.hasDiff) {
       throw new CLIError(
         "Files are not up to date. Run 'rulesync generate' to update.",
         ErrorCodes.GENERATION_FAILED,
       );
-    } else {
-      logger.success("✓ All files are up to date.");
-      return;
     }
+
+    logger.success("✓ All files are up to date.");
+    return;
   }
 
   if (totalGenerated === 0) {

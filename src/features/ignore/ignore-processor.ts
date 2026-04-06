@@ -142,8 +142,10 @@ export class IgnoreProcessor extends FeatureProcessor {
    */
   async loadToolFiles({
     forDeletion = false,
+    includeNonDeletable = false,
   }: {
     forDeletion?: boolean;
+    includeNonDeletable?: boolean;
   } = {}): Promise<ToolFile[]> {
     try {
       const factory = this.getFactory(this.toolTarget);
@@ -156,7 +158,7 @@ export class IgnoreProcessor extends FeatureProcessor {
           relativeFilePath: paths.relativeFilePath,
         });
 
-        const toolIgnores = toolIgnore.isDeletable() ? [toolIgnore] : [];
+        const toolIgnores = toolIgnore.isDeletable() || includeNonDeletable ? [toolIgnore] : [];
         return toolIgnores;
       }
 
