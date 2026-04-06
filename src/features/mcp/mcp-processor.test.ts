@@ -1177,7 +1177,7 @@ describe("McpProcessor", () => {
       expect(filesToDelete).toEqual([]);
     });
 
-    it("should filter out non-deletable files in global mode", async () => {
+    it("should include non-deletable files for orphan detection in global mode", async () => {
       // Mock forDeletion to return non-deletable instance
       (vi.mocked(ClaudecodeMcp).forDeletion as ReturnType<typeof vi.fn>).mockImplementation(
         (params: { relativeFilePath: string }) => ({
@@ -1196,8 +1196,10 @@ describe("McpProcessor", () => {
 
       const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
-      // loadToolFiles with forDeletion: true should filter out non-deletable files
-      expect(filesToDelete).toHaveLength(0);
+      // loadToolFiles with forDeletion: true should include all files for orphan detection
+      // isDeletable() will be checked during actual deletion in removeOrphanAiFiles
+      expect(filesToDelete).toHaveLength(1);
+      expect(filesToDelete[0].isDeletable()).toBe(false);
     });
 
     it("should not filter out deletable files in local mode", async () => {

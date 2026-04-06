@@ -378,9 +378,9 @@ export class McpProcessor extends FeatureProcessor {
           global: this.global,
         });
 
-        const toolMcps = toolMcp.isDeletable() ? [toolMcp] : [];
-        this.logger.debug(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
-        return toolMcps;
+        // Return the file for orphan detection; isDeletable() will be checked during actual deletion
+        this.logger.debug(`Successfully loaded 1 ${this.toolTarget} MCP file for deletion check`);
+        return [toolMcp];
       }
 
       const toolMcps = [

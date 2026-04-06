@@ -97,6 +97,11 @@ export abstract class FeatureProcessor {
     const orphanFiles = existingFiles.filter((f) => !generatedPaths.has(f.getFilePath()));
 
     for (const aiFile of orphanFiles) {
+      // Skip files that are not deletable (e.g., shared config files)
+      if (!aiFile.isDeletable()) {
+        continue;
+      }
+
       const filePath = aiFile.getFilePath();
       if (this.dryRun) {
         this.logger.info(`[DRY RUN] Would delete: ${filePath}`);
@@ -105,6 +110,7 @@ export abstract class FeatureProcessor {
       }
     }
 
+    // Return count of all orphan files, including non-deletable ones, for check mode
     return orphanFiles.length;
   }
 }

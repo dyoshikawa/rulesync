@@ -156,8 +156,8 @@ export class IgnoreProcessor extends FeatureProcessor {
           relativeFilePath: paths.relativeFilePath,
         });
 
-        const toolIgnores = toolIgnore.isDeletable() ? [toolIgnore] : [];
-        return toolIgnores;
+        // Return the file for orphan detection; isDeletable() will be checked during actual deletion
+        return [toolIgnore];
       }
 
       const toolIgnores = await this.loadToolIgnores();

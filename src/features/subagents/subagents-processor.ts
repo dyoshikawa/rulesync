@@ -376,16 +376,15 @@ export class SubagentsProcessor extends FeatureProcessor {
     );
 
     if (forDeletion) {
-      const toolSubagents = subagentFilePaths
-        .map((path) =>
-          factory.class.forDeletion({
-            baseDir: this.baseDir,
-            relativeDirPath: paths.relativeDirPath,
-            relativeFilePath: basename(path),
-            global: this.global,
-          }),
-        )
-        .filter((subagent) => subagent.isDeletable());
+      const toolSubagents = subagentFilePaths.map((path) =>
+        factory.class.forDeletion({
+          baseDir: this.baseDir,
+          relativeDirPath: paths.relativeDirPath,
+          relativeFilePath: basename(path),
+          global: this.global,
+        }),
+      );
+      // Don't filter by isDeletable() here; it will be checked during actual deletion
 
       this.logger.debug(
         `Successfully loaded ${toolSubagents.length} ${paths.relativeDirPath} subagents`,

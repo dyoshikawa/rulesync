@@ -940,7 +940,8 @@ export class RulesProcessor extends FeatureProcessor {
       };
 
       /**
-       * Build deletion rules from discovered file paths: resolve dir, check traversal, create forDeletion, filter isDeletable.
+       * Build deletion rules from discovered file paths: resolve dir, check traversal, create forDeletion.
+       * Don't filter by isDeletable() here; it will be checked during actual deletion.
        *
        * Two modes:
        * - Root mode (no opts): `relativeFilePath` = `basename(filePath)`, traversal checks `relativeDirPath` against `this.baseDir`.
@@ -953,26 +954,24 @@ export class RulesProcessor extends FeatureProcessor {
       ): ToolRule[] => {
         const isNonRoot = opts !== undefined;
         const effectiveBaseDir = isNonRoot ? opts.baseDirOverride : this.baseDir;
-        return filePaths
-          .map((filePath) => {
-            const relativeDirPath = isNonRoot
-              ? opts.relativeDirPathOverride
-              : resolveRelativeDirPath(filePath);
-            const relativeFilePath = isNonRoot
-              ? relative(effectiveBaseDir, filePath)
-              : basename(filePath);
-            checkPathTraversal({
-              relativePath: isNonRoot ? relativeFilePath : relativeDirPath,
-              intendedRootDir: effectiveBaseDir,
-            });
-            return factory.class.forDeletion({
-              baseDir: this.baseDir,
-              relativeDirPath,
-              relativeFilePath,
-              global: this.global,
-            });
-          })
-          .filter((rule) => rule.isDeletable());
+        return filePaths.map((filePath) => {
+          const relativeDirPath = isNonRoot
+            ? opts.relativeDirPathOverride
+            : resolveRelativeDirPath(filePath);
+          const relativeFilePath = isNonRoot
+            ? relative(effectiveBaseDir, filePath)
+            : basename(filePath);
+          checkPathTraversal({
+            relativePath: isNonRoot ? relativeFilePath : relativeDirPath,
+            intendedRootDir: effectiveBaseDir,
+          });
+          return factory.class.forDeletion({
+            baseDir: this.baseDir,
+            relativeDirPath,
+            relativeFilePath,
+            global: this.global,
+          });
+        });
       };
 
       const findFilesWithFallback = async (

@@ -173,10 +173,13 @@ describe("HooksProcessor", () => {
       expect(files[0]?.getRelativeFilePath()).toBe("hooks.json");
     });
 
-    it("should return empty array for claudecode when forDeletion (not deletable)", async () => {
+    it("should return file for claudecode when forDeletion (not deletable) for orphan detection", async () => {
       const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
       const files = await processor.loadToolFiles({ forDeletion: true });
-      expect(files).toHaveLength(0);
+      // Should return file even if not deletable, for orphan detection
+      // isDeletable() will be checked during actual deletion in removeOrphanAiFiles
+      expect(files).toHaveLength(1);
+      expect(files[0].isDeletable()).toBe(false);
     });
   });
 

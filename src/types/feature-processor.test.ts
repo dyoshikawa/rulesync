@@ -23,6 +23,7 @@ function createMockFile(filePath: string): AiFile {
     getFilePath: () => filePath,
     getFileContent: () => "content",
     getRelativePathFromCwd: () => filePath,
+    isDeletable: () => true,
   } as AiFile;
 }
 

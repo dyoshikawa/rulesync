@@ -405,7 +405,7 @@ describe("IgnoreProcessor", () => {
   });
 
   describe("loadToolFiles with forDeletion: true", () => {
-    it("should filter out non-deletable files when loading for deletion", async () => {
+    it("should include non-deletable files for orphan detection when loading for deletion", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(
         join(testDir, ".claude", "settings.json"),
@@ -423,9 +423,11 @@ describe("IgnoreProcessor", () => {
       expect(allFiles).toHaveLength(1);
       expect(allFiles[0]?.isDeletable()).toBe(false);
 
-      // Load tool files for deletion (should exclude non-deletable files)
-      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
-      expect(filesToDelete).toHaveLength(0);
+      // Load tool files for deletion checking - should include all files for orphan detection
+      // isDeletable() will be checked during actual deletion in removeOrphanAiFiles
+      const filesForDeletionCheck = await processor.loadToolFiles({ forDeletion: true });
+      expect(filesForDeletionCheck).toHaveLength(1);
+      expect(filesForDeletionCheck[0]?.isDeletable()).toBe(false);
     });
 
     it("should treat claudecode-legacy ignore files the same as claudecode", async () => {
@@ -450,8 +452,11 @@ describe("IgnoreProcessor", () => {
       expect(allFiles[0]).toBeInstanceOf(ClaudecodeIgnore);
       expect(allFiles[0]?.isDeletable()).toBe(false);
 
-      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
-      expect(filesToDelete).toHaveLength(0);
+      // loadToolFiles({ forDeletion: true }) should still include non-deletable files
+      // for orphan detection; isDeletable() is checked during actual deletion
+      const filesForDeletionCheck = await processor.loadToolFiles({ forDeletion: true });
+      expect(filesForDeletionCheck).toHaveLength(1);
+      expect(filesForDeletionCheck[0]?.isDeletable()).toBe(false);
     });
 
     it("should return deletable files with correct paths", async () => {

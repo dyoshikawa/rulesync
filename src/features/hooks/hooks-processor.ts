@@ -272,11 +272,11 @@ export class HooksProcessor extends FeatureProcessor {
           relativeFilePath: paths.relativeFilePath,
           global: this.global,
         });
-        const list = toolHooks.isDeletable?.() !== false ? [toolHooks] : [];
+        // Return the file for orphan detection; isDeletable() will be checked during actual deletion
         this.logger.debug(
-          `Successfully loaded ${list.length} ${this.toolTarget} hooks files for deletion`,
+          `Successfully loaded 1 ${this.toolTarget} hooks file for deletion check`,
         );
-        return list;
+        return [toolHooks];
       }
 
       const toolHooks = await factory.class.fromFile({

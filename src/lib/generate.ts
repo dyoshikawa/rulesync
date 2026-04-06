@@ -96,18 +96,14 @@ async function processDirFeatureGeneration(params: {
 async function processEmptyFeatureGeneration(params: {
   config: Config;
   processor: FeatureProcessor;
-  useAllExistingToolFilesForCheck?: boolean;
 }): Promise<FeatureGenerateResult> {
-  const { config, processor, useAllExistingToolFilesForCheck = false } = params;
+  const { config, processor } = params;
 
   const totalCount = 0;
   let hasDiff = false;
 
   if (config.getDelete()) {
-    const existingToolFiles =
-      config.getCheck() && useAllExistingToolFilesForCheck
-        ? await processor.loadToolFiles({ forDeletion: false })
-        : await processor.loadToolFiles({ forDeletion: true });
+    const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
     const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, []);
     if (orphanCount > 0) hasDiff = true;
   }
@@ -359,7 +355,6 @@ async function generateMcpCore(params: {
         result = await processEmptyFeatureGeneration({
           config,
           processor,
-          useAllExistingToolFilesForCheck: true,
         });
       } else {
         const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
@@ -597,7 +592,6 @@ async function generateHooksCore(params: {
         result = await processEmptyFeatureGeneration({
           config,
           processor,
-          useAllExistingToolFilesForCheck: true,
         });
       } else {
         const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);

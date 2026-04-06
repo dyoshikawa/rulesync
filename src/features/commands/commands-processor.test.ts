@@ -1221,7 +1221,7 @@ describe("CommandsProcessor", () => {
       }
     });
 
-    it("should filter out non-deletable files when forDeletion is true", async () => {
+    it("should include non-deletable files for orphan detection when forDeletion is true", async () => {
       processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
 
       mockFindFilesByGlobs.mockResolvedValue([
@@ -1239,8 +1239,13 @@ describe("CommandsProcessor", () => {
       );
 
       const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
-      expect(filesToDelete).toHaveLength(1);
-      expect(filesToDelete[0]?.getRelativeFilePath()).toBe("deletable.md");
+      // Should return all files for orphan detection, regardless of isDeletable()
+      // isDeletable() will be checked during actual deletion in removeOrphanAiFiles
+      expect(filesToDelete).toHaveLength(2);
+      const deletable = filesToDelete.find((f) => f.getRelativeFilePath() === "deletable.md");
+      const nonDeletable = filesToDelete.find((f) => f.getRelativeFilePath() === "non-deletable.md");
+      expect(deletable?.isDeletable()).toBe(true);
+      expect(nonDeletable?.isDeletable()).toBe(false);
     });
 
     it("should reject path traversal in loadToolFiles", async () => {

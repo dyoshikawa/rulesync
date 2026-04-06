@@ -453,16 +453,15 @@ export class CommandsProcessor extends FeatureProcessor {
     const commandFilePaths = await findFilesByGlobs(globPattern);
 
     if (forDeletion) {
-      const toolCommands = commandFilePaths
-        .map((path) =>
-          factory.class.forDeletion({
-            baseDir: this.baseDir,
-            relativeDirPath: paths.relativeDirPath,
-            relativeFilePath: this.safeRelativePath(baseDirFull, path),
-            global: this.global,
-          }),
-        )
-        .filter((cmd) => cmd.isDeletable());
+      const toolCommands = commandFilePaths.map((path) =>
+        factory.class.forDeletion({
+          baseDir: this.baseDir,
+          relativeDirPath: paths.relativeDirPath,
+          relativeFilePath: this.safeRelativePath(baseDirFull, path),
+          global: this.global,
+        }),
+      );
+      // Don't filter by isDeletable() here; it will be checked during actual deletion
 
       this.logger.debug(
         `Successfully loaded ${toolCommands.length} ${paths.relativeDirPath} commands`,
