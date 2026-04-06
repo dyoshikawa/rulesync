@@ -365,10 +365,8 @@ export class SubagentsProcessor extends FeatureProcessor {
    */
   async loadToolFiles({
     forDeletion = false,
-    includeNonDeletable = false,
   }: {
     forDeletion?: boolean;
-    includeNonDeletable?: boolean;
   } = {}): Promise<ToolFile[]> {
     const factory = this.getFactory(this.toolTarget);
     const paths = factory.class.getSettablePaths({ global: this.global });
@@ -387,7 +385,7 @@ export class SubagentsProcessor extends FeatureProcessor {
             global: this.global,
           }),
         )
-        .filter((subagent) => subagent.isDeletable() || includeNonDeletable);
+        .filter((subagent) => subagent.isDeletable());
 
       this.logger.debug(
         `Successfully loaded ${toolSubagents.length} ${paths.relativeDirPath} subagents`,

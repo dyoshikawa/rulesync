@@ -242,10 +242,8 @@ export class HooksProcessor extends FeatureProcessor {
 
   async loadToolFiles({
     forDeletion = false,
-    includeNonDeletable = false,
   }: {
     forDeletion?: boolean;
-    includeNonDeletable?: boolean;
   } = {}): Promise<ToolFile[]> {
     try {
       const factory = toolHooksFactories.get(this.toolTarget);
@@ -259,7 +257,7 @@ export class HooksProcessor extends FeatureProcessor {
           relativeFilePath: paths.relativeFilePath,
           global: this.global,
         });
-        const list = toolHooks.isDeletable?.() !== false || includeNonDeletable ? [toolHooks] : [];
+        const list = toolHooks.isDeletable?.() !== false ? [toolHooks] : [];
         this.logger.debug(
           `Successfully loaded ${list.length} ${this.toolTarget} hooks files for deletion`,
         );

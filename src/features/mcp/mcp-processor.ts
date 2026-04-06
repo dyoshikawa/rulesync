@@ -363,10 +363,8 @@ export class McpProcessor extends FeatureProcessor {
    */
   async loadToolFiles({
     forDeletion = false,
-    includeNonDeletable = false,
   }: {
     forDeletion?: boolean;
-    includeNonDeletable?: boolean;
   } = {}): Promise<ToolFile[]> {
     try {
       const factory = this.getFactory(this.toolTarget);
@@ -380,7 +378,7 @@ export class McpProcessor extends FeatureProcessor {
           global: this.global,
         });
 
-        const toolMcps = toolMcp.isDeletable() || includeNonDeletable ? [toolMcp] : [];
+        const toolMcps = toolMcp.isDeletable() ? [toolMcp] : [];
         this.logger.debug(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
         return toolMcps;
       }

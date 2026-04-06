@@ -39,9 +39,9 @@ export abstract class DirFeatureProcessor {
 
   abstract loadRulesyncDirs(): Promise<AiDir[]>;
 
-  abstract loadToolDirs(params?: { includeNonDeletable?: boolean }): Promise<AiDir[]>;
+  abstract loadToolDirs(): Promise<AiDir[]>;
 
-  abstract loadToolDirsToDelete(params?: { includeNonDeletable?: boolean }): Promise<AiDir[]>;
+  abstract loadToolDirsToDelete(): Promise<AiDir[]>;
 
   abstract convertRulesyncDirsToToolDirs(rulesyncDirs: AiDir[]): Promise<AiDir[]>;
 
