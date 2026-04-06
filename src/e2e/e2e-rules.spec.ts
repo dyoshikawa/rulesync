@@ -51,6 +51,63 @@ This is a test rule for E2E testing.
     const generatedContent = await readFileContent(join(testDir, outputPath));
     expect(generatedContent).toContain("Test Rule");
   });
+
+  it("should fail in check mode when delete would remove an orphan rule file", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+    await writeFileContent(join(testDir, "CLAUDE.md"), "# orphan\n");
+
+    await expect(
+      runGenerate({
+        target: "claudecode",
+        features: "rules",
+        deleteFiles: true,
+        check: true,
+        env: { NODE_ENV: "e2e" },
+      }),
+    ).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining(
+        "Files are not up to date. Run 'rulesync generate' to update.",
+      ),
+    });
+
+    expect(await readFileContent(join(testDir, "CLAUDE.md"))).toBe("# orphan\n");
+  });
+
+  it("should print a single up-to-date message in check mode when there is no diff", async () => {
+    const testDir = getTestDir();
+
+    const ruleContent = `---
+root: true
+targets: ["*"]
+description: "Test rule"
+globs: ["**/*"]
+---
+
+# Test Rule
+
+This is a test rule for E2E testing.
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      ruleContent,
+    );
+
+    await runGenerate({ target: "claudecode", features: "rules" });
+
+    const { stdout, stderr } = await runGenerate({
+      target: "claudecode",
+      features: "rules",
+      check: true,
+      env: { NODE_ENV: "e2e" },
+    });
+
+    expect(stderr).toBe("");
+    expect(stdout.match(/All files are up to date\./g)).toHaveLength(1);
+    expect(stdout).not.toContain("All files are up to date (rules)");
+  });
 });
 
 describe("E2E: rules (import)", () => {

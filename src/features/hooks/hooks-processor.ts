@@ -257,9 +257,11 @@ export class HooksProcessor extends FeatureProcessor {
     }
   }
 
-  async loadToolFiles({ forDeletion = false }: { forDeletion?: boolean } = {}): Promise<
-    ToolFile[]
-  > {
+  async loadToolFiles({
+    forDeletion = false,
+  }: {
+    forDeletion?: boolean;
+  } = {}): Promise<ToolFile[]> {
     try {
       const factory = toolHooksFactories.get(this.toolTarget);
       if (!factory) throw new Error(`Unsupported tool target: ${this.toolTarget}`);

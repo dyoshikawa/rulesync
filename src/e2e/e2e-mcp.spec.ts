@@ -55,8 +55,6 @@ describe("E2E: mcp", () => {
   it.each([
     { target: "claudecode", orphanPath: ".mcp.json" },
     { target: "cursor", orphanPath: join(".cursor", "mcp.json") },
-    { target: "geminicli", orphanPath: join(".gemini", "settings.json") },
-    { target: "codexcli", orphanPath: join(".codex", "config.toml") },
   ])(
     "should fail in check mode when delete would remove an orphan $target mcp file",
     async ({ target, orphanPath }) => {
@@ -81,6 +79,37 @@ describe("E2E: mcp", () => {
       });
 
       expect(await readFileContent(join(testDir, orphanPath))).toBe("# orphan\n");
+    },
+  );
+
+  it.each([
+    {
+      target: "geminicli",
+      outputPath: join(".gemini", "settings.json"),
+      content: JSON.stringify({ theme: "dark", mcpServers: {} }, null, 2),
+    },
+    {
+      target: "codexcli",
+      outputPath: join(".codex", "config.toml"),
+      content: '[ui]\ntheme = "dark"\n',
+    },
+  ])(
+    "should succeed in check mode when a $target mcp file is non-deletable",
+    async ({ target, outputPath, content }) => {
+      const testDir = getTestDir();
+
+      await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+      await writeFileContent(join(testDir, outputPath), content);
+
+      const { stdout } = await runGenerate({
+        target,
+        features: "mcp",
+        deleteFiles: true,
+        check: true,
+        env: { NODE_ENV: "e2e" },
+      });
+
+      expect(stdout).toContain("All files are up to date.");
     },
   );
 

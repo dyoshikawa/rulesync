@@ -451,14 +451,13 @@ export class SkillsProcessor extends DirFeatureProcessor {
       const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
       for (const dirPath of dirPaths) {
         const dirName = basename(dirPath);
-        toolSkills.push(
-          factory.class.forDeletion({
-            baseDir: this.baseDir,
-            relativeDirPath: root,
-            dirName,
-            global: this.global,
-          }),
-        );
+        const toolSkill = factory.class.forDeletion({
+          baseDir: this.baseDir,
+          relativeDirPath: root,
+          dirName,
+          global: this.global,
+        });
+        toolSkills.push(toolSkill);
       }
     }
 

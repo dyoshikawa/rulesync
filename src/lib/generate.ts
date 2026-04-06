@@ -17,6 +17,7 @@ import { AiFile } from "../types/ai-file.js";
 import { DirFeatureProcessor } from "../types/dir-feature-processor.js";
 import { FeatureProcessor } from "../types/feature-processor.js";
 import type { Feature } from "../types/features.js";
+import type { RulesyncFile } from "../types/rulesync-file.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
 import { fileExists } from "../utils/file.js";
@@ -60,6 +61,7 @@ async function processFeatureGeneration<T extends AiFile>(params: {
 
   if (config.getDelete()) {
     const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
+
     const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
     if (orphanCount > 0) hasDiff = true;
   }
@@ -85,6 +87,7 @@ async function processDirFeatureGeneration(params: {
 
   if (config.getDelete()) {
     const existingToolDirs = await processor.loadToolDirsToDelete();
+
     const orphanCount = await processor.removeOrphanAiDirs(existingToolDirs, toolDirs);
     if (orphanCount > 0) hasDiff = true;
   }
@@ -104,11 +107,29 @@ async function processEmptyFeatureGeneration(params: {
 
   if (config.getDelete()) {
     const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
+
     const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, []);
     if (orphanCount > 0) hasDiff = true;
   }
 
   return { count: totalCount, paths: [], hasDiff };
+}
+
+/**
+ * Dispatch to processEmptyFeatureGeneration or processFeatureGeneration
+ * based on whether rulesync files exist.
+ */
+async function processFeatureWithRulesyncFiles(params: {
+  config: Config;
+  processor: FeatureProcessor;
+  rulesyncFiles: RulesyncFile[];
+}): Promise<FeatureGenerateResult> {
+  const { config, processor, rulesyncFiles } = params;
+  if (rulesyncFiles.length === 0) {
+    return processEmptyFeatureGeneration({ config, processor });
+  }
+  const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+  return processFeatureGeneration({ config, processor, toolFiles });
 }
 
 const SIMULATE_OPTION_MAP: Partial<Record<Feature, string>> = {
@@ -228,13 +249,7 @@ async function generateRulesCore(params: {
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
-      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-
-      const result = await processFeatureGeneration({
-        config,
-        processor,
-        toolFiles,
-      });
+      const result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
 
       totalCount += result.count;
       allPaths.push(...result.paths);
@@ -283,21 +298,7 @@ async function generateIgnoreCore(params: {
         });
 
         const rulesyncFiles = await processor.loadRulesyncFiles();
-        let result;
-
-        if (rulesyncFiles.length > 0) {
-          const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-          result = await processFeatureGeneration({
-            config,
-            processor,
-            toolFiles,
-          });
-        } else {
-          result = await processEmptyFeatureGeneration({
-            config,
-            processor,
-          });
-        }
+        const result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
 
         totalCount += result.count;
         allPaths.push(...result.paths);
@@ -349,13 +350,7 @@ async function generateMcpCore(params: {
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
-      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-
-      const result = await processFeatureGeneration({
-        config,
-        processor,
-        toolFiles,
-      });
+      const result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
 
       totalCount += result.count;
       allPaths.push(...result.paths);
@@ -405,13 +400,7 @@ async function generateCommandsCore(params: {
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
-      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-
-      const result = await processFeatureGeneration({
-        config,
-        processor,
-        toolFiles,
-      });
+      const result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
 
       totalCount += result.count;
       allPaths.push(...result.paths);
@@ -461,13 +450,7 @@ async function generateSubagentsCore(params: {
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
-      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-
-      const result = await processFeatureGeneration({
-        config,
-        processor,
-        toolFiles,
-      });
+      const result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
 
       totalCount += result.count;
       allPaths.push(...result.paths);
@@ -577,21 +560,7 @@ async function generateHooksCore(params: {
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
-      let result;
-
-      if (rulesyncFiles.length === 0) {
-        result = await processEmptyFeatureGeneration({
-          config,
-          processor,
-        });
-      } else {
-        const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-        result = await processFeatureGeneration({
-          config,
-          processor,
-          toolFiles,
-        });
-      }
+      const result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
 
       totalCount += result.count;
       allPaths.push(...result.paths);
