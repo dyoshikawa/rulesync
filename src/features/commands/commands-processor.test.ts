@@ -1243,7 +1243,9 @@ describe("CommandsProcessor", () => {
       // isDeletable() will be checked during actual deletion in removeOrphanAiFiles
       expect(filesToDelete).toHaveLength(2);
       const deletable = filesToDelete.find((f) => f.getRelativeFilePath() === "deletable.md");
-      const nonDeletable = filesToDelete.find((f) => f.getRelativeFilePath() === "non-deletable.md");
+      const nonDeletable = filesToDelete.find(
+        (f) => f.getRelativeFilePath() === "non-deletable.md",
+      );
       expect(deletable?.isDeletable()).toBe(true);
       expect(nonDeletable?.isDeletable()).toBe(false);
     });

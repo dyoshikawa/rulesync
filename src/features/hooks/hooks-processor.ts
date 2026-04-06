@@ -273,9 +273,7 @@ export class HooksProcessor extends FeatureProcessor {
           global: this.global,
         });
         // Return the file for orphan detection; isDeletable() will be checked during actual deletion
-        this.logger.debug(
-          `Successfully loaded 1 ${this.toolTarget} hooks file for deletion check`,
-        );
+        this.logger.debug(`Successfully loaded 1 ${this.toolTarget} hooks file for deletion check`);
         return [toolHooks];
       }
 
