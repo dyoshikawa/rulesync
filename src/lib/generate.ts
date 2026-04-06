@@ -60,10 +60,7 @@ async function processFeatureGeneration<T extends AiFile>(params: {
 
   if (config.getDelete()) {
     if (config.getCheck()) {
-      const existingToolFiles = await processor.loadToolFiles({
-        forDeletion: true,
-        includeNonDeletable: true,
-      });
+      const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
       if (toolFiles.length === 0 && existingToolFiles.length > 0) {
         hasDiff = true;
       }
@@ -100,9 +97,7 @@ async function processDirFeatureGeneration(params: {
 
   if (config.getDelete()) {
     if (config.getCheck()) {
-      const existingToolDirs = await processor.loadToolDirsToDelete({
-        includeNonDeletable: true,
-      });
+      const existingToolDirs = await processor.loadToolDirsToDelete();
       if (toolDirs.length === 0 && existingToolDirs.length > 0) {
         hasDiff = true;
       }
@@ -133,10 +128,7 @@ async function processEmptyFeatureGeneration(params: {
 
   if (config.getDelete()) {
     if (config.getCheck()) {
-      const existingToolFiles = await processor.loadToolFiles({
-        forDeletion: true,
-        includeNonDeletable: true,
-      });
+      const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
       if (existingToolFiles.length > 0) {
         hasDiff = true;
       }

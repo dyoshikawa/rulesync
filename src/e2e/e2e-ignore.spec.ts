@@ -44,10 +44,7 @@ credentials/
     }
   });
 
-  it.each([
-    { target: "cursor", orphanPath: ".cursorignore" },
-    { target: "claudecode", orphanPath: join(".claude", "settings.json") },
-  ])(
+  it.each([{ target: "cursor", orphanPath: ".cursorignore" }])(
     "should fail in check mode when delete would remove an orphan $target ignore file",
     async ({ target, orphanPath }) => {
       const testDir = getTestDir();
@@ -73,6 +70,26 @@ credentials/
       expect(await readFileContent(join(testDir, orphanPath))).toBe("# orphan\n");
     },
   );
+
+  it("should succeed in check mode when a claudecode ignore file is non-deletable", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+    await writeFileContent(
+      join(testDir, ".claude", "settings.json"),
+      JSON.stringify({ permissions: { deny: ["tmp/"] }, theme: "dark" }, null, 2),
+    );
+
+    const { stdout } = await runGenerate({
+      target: "claudecode",
+      features: "ignore",
+      deleteFiles: true,
+      check: true,
+      env: { NODE_ENV: "e2e" },
+    });
+
+    expect(stdout).toContain("All files are up to date.");
+  });
 });
 
 describe("E2E: ignore (import)", () => {
