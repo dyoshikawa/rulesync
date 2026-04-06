@@ -365,6 +365,32 @@ describe("generate", () => {
       expect(result.mcpCount).toBe(0);
       expect(McpProcessor).not.toHaveBeenCalled();
     });
+
+    it("should remove orphan MCP files when delete option is enabled and source is empty", async () => {
+      mockConfig.getFeatures.mockReturnValue(["mcp"]);
+      mockConfig.getDelete.mockReturnValue(true);
+
+      const existingFiles = [{ file: "existing", getFilePath: () => "/path/to/existing" }];
+      const mockProcessor = {
+        loadToolFiles: vi.fn().mockResolvedValue(existingFiles),
+        removeOrphanAiFiles: vi.fn().mockResolvedValue(1),
+        loadRulesyncFiles: vi.fn().mockResolvedValue([]),
+        convertRulesyncFilesToToolFiles: vi.fn(),
+        writeAiFiles: vi.fn(),
+      };
+      vi.mocked(McpProcessor).mockImplementation(function () {
+        return mockProcessor as unknown as McpProcessor;
+      });
+
+      const result = await generate({ logger, config: mockConfig as never });
+
+      expect(result.mcpCount).toBe(0);
+      expect(result.hasDiff).toBe(true);
+      expect(mockProcessor.convertRulesyncFilesToToolFiles).not.toHaveBeenCalled();
+      expect(mockProcessor.writeAiFiles).not.toHaveBeenCalled();
+      expect(mockProcessor.loadToolFiles).toHaveBeenCalledWith({ forDeletion: true });
+      expect(mockProcessor.removeOrphanAiFiles).toHaveBeenCalledWith(existingFiles, []);
+    });
   });
 
   describe("commands feature", () => {

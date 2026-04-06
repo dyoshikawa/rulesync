@@ -96,14 +96,18 @@ async function processDirFeatureGeneration(params: {
 async function processEmptyFeatureGeneration(params: {
   config: Config;
   processor: FeatureProcessor;
+  useAllExistingToolFilesForCheck?: boolean;
 }): Promise<FeatureGenerateResult> {
-  const { config, processor } = params;
+  const { config, processor, useAllExistingToolFilesForCheck = false } = params;
 
   const totalCount = 0;
   let hasDiff = false;
 
   if (config.getDelete()) {
-    const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
+    const existingToolFiles =
+      config.getCheck() && useAllExistingToolFilesForCheck
+        ? await processor.loadToolFiles({ forDeletion: false })
+        : await processor.loadToolFiles({ forDeletion: true });
     const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, []);
     if (orphanCount > 0) hasDiff = true;
   }
@@ -349,13 +353,23 @@ async function generateMcpCore(params: {
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
-      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+      let result;
 
-      const result = await processFeatureGeneration({
-        config,
-        processor,
-        toolFiles,
-      });
+      if (rulesyncFiles.length === 0) {
+        result = await processEmptyFeatureGeneration({
+          config,
+          processor,
+          useAllExistingToolFilesForCheck: true,
+        });
+      } else {
+        const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+
+        result = await processFeatureGeneration({
+          config,
+          processor,
+          toolFiles,
+        });
+      }
 
       totalCount += result.count;
       allPaths.push(...result.paths);
@@ -583,6 +597,7 @@ async function generateHooksCore(params: {
         result = await processEmptyFeatureGeneration({
           config,
           processor,
+          useAllExistingToolFilesForCheck: true,
         });
       } else {
         const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);

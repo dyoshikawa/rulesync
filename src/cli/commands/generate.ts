@@ -120,6 +120,17 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
   }
 
   if (totalGenerated === 0) {
+    if (check) {
+      if (result.hasDiff) {
+        throw new CLIError(
+          "Files are not up to date. Run 'rulesync generate' to update.",
+          ErrorCodes.GENERATION_FAILED,
+        );
+      }
+      logger.success("✓ All files are up to date.");
+      return;
+    }
+
     const enabledFeatures = features.join(", ");
     logger.info(`✓ All files are up to date (${enabledFeatures})`);
     return;
