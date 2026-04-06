@@ -62,14 +62,6 @@ async function processFeatureGeneration<T extends AiFile>(params: {
   if (config.getDelete()) {
     const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
 
-    if (config.getCheck()) {
-      const generatedPaths = new Set(toolFiles.map((file) => file.getFilePath()));
-      const orphanCount = existingToolFiles.filter(
-        (file) => !generatedPaths.has(file.getFilePath()),
-      ).length;
-      if (orphanCount > 0) hasDiff = true;
-    }
-
     const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
     if (orphanCount > 0) hasDiff = true;
   }
@@ -96,14 +88,6 @@ async function processDirFeatureGeneration(params: {
   if (config.getDelete()) {
     const existingToolDirs = await processor.loadToolDirsToDelete();
 
-    if (config.getCheck()) {
-      const generatedPaths = new Set(toolDirs.map((dir) => dir.getDirPath()));
-      const orphanCount = existingToolDirs.filter(
-        (dir) => !generatedPaths.has(dir.getDirPath()),
-      ).length;
-      if (orphanCount > 0) hasDiff = true;
-    }
-
     const orphanCount = await processor.removeOrphanAiDirs(existingToolDirs, toolDirs);
     if (orphanCount > 0) hasDiff = true;
   }
@@ -123,10 +107,6 @@ async function processEmptyFeatureGeneration(params: {
 
   if (config.getDelete()) {
     const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
-
-    if (config.getCheck() && existingToolFiles.length > 0) {
-      hasDiff = true;
-    }
 
     const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, []);
     if (orphanCount > 0) hasDiff = true;
