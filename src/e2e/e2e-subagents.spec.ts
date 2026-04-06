@@ -27,6 +27,26 @@ describe("E2E: subagents", () => {
       target: "geminicli",
       outputPath: join(".gemini", "agents", "planner.md"),
     },
+    {
+      target: "codexcli",
+      outputPath: join(".codex", "agents", "planner.toml"),
+    },
+    {
+      target: "copilot",
+      outputPath: join(".github", "agents", "planner.md"),
+    },
+    {
+      target: "deepagents",
+      outputPath: join(".deepagents", "agents", "planner.md"),
+    },
+    {
+      target: "kiro",
+      outputPath: join(".kiro", "agents", "planner.json"),
+    },
+    {
+      target: "junie",
+      outputPath: join(".junie", "agents", "planner.md"),
+    },
   ])("should generate $target subagents", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -47,6 +67,32 @@ You are the planner. Analyze files and create a plan.
     await runGenerate({ target, features: "subagents" });
 
     // Verify that the expected output file was generated
+    const generatedContent = await readFileContent(join(testDir, outputPath));
+    expect(generatedContent).toContain("planner");
+    expect(generatedContent).toContain("Analyze files and create a plan.");
+  });
+
+  it.each([
+    { target: "agentsmd", outputPath: join(".agents", "subagents", "planner.md") },
+    { target: "factorydroid", outputPath: join(".factory", "droids", "planner.md") },
+    { target: "roo", outputPath: join(".roo", "subagents", "planner.md") },
+  ])("should generate $target simulated subagents", async ({ target, outputPath }) => {
+    const testDir = getTestDir();
+
+    const subagentContent = `---
+name: planner
+targets: ["*"]
+description: "Plans implementation tasks"
+---
+You are the planner. Analyze files and create a plan.
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+      subagentContent,
+    );
+
+    await runGenerate({ target, features: "subagents", simulateSubagents: true });
+
     const generatedContent = await readFileContent(join(testDir, outputPath));
     expect(generatedContent).toContain("planner");
     expect(generatedContent).toContain("Analyze files and create a plan.");
@@ -90,6 +136,11 @@ You are a primary agent. You appear in the Tab rotation.
     { target: "claudecode", orphanPath: join(".claude", "agents", "orphan.md") },
     { target: "cursor", orphanPath: join(".cursor", "agents", "orphan.md") },
     { target: "geminicli", orphanPath: join(".gemini", "agents", "orphan.md") },
+    { target: "codexcli", orphanPath: join(".codex", "agents", "orphan.toml") },
+    { target: "copilot", orphanPath: join(".github", "agents", "orphan.md") },
+    { target: "deepagents", orphanPath: join(".deepagents", "agents", "orphan.md") },
+    { target: "kiro", orphanPath: join(".kiro", "agents", "orphan.json") },
+    { target: "junie", orphanPath: join(".junie", "agents", "orphan.md") },
   ])(
     "should fail in check mode when delete would remove an orphan $target subagent file",
     async ({ target, orphanPath }) => {
@@ -121,23 +172,47 @@ You are a primary agent. You appear in the Tab rotation.
 describe("E2E: subagents (import)", () => {
   const { getTestDir } = useTestDirectory();
 
-  it("should import claudecode subagents", async () => {
+  it.each([
+    { target: "claudecode", sourcePath: join(".claude", "agents", "planner.md") },
+    { target: "cursor", sourcePath: join(".cursor", "agents", "planner.md") },
+    { target: "geminicli", sourcePath: join(".gemini", "agents", "planner.md") },
+    { target: "copilot", sourcePath: join(".github", "agents", "planner.md") },
+    { target: "opencode", sourcePath: join(".opencode", "agent", "planner.md") },
+    { target: "deepagents", sourcePath: join(".deepagents", "agents", "planner.md") },
+    { target: "junie", sourcePath: join(".junie", "agents", "planner.md") },
+  ])("should import $target subagents", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
-    // Setup: Create a Claude Code agent file
     const subagentContent = `---
 name: planner
+description: "Plans implementation tasks"
 roleDefinition: You are the planner. Analyze files and create a plan.
 ---
 # Instructions
 Break down tasks into steps.
 `;
-    await writeFileContent(join(testDir, ".claude", "agents", "planner.md"), subagentContent);
+    await writeFileContent(join(testDir, sourcePath), subagentContent);
 
-    // Execute: Import claudecode subagents
-    await runImport({ target: "claudecode", features: "subagents" });
+    await runImport({ target, features: "subagents" });
 
-    // Verify that the imported subagent file was created
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+    );
+    expect(importedContent).toContain("planner");
+  });
+
+  it("should import kiro subagents (JSON format)", async () => {
+    const testDir = getTestDir();
+
+    const subagentContent = JSON.stringify(
+      { name: "planner", description: "Plans tasks", prompt: "Break down tasks into steps." },
+      null,
+      2,
+    );
+    await writeFileContent(join(testDir, ".kiro", "agents", "planner.json"), subagentContent);
+
+    await runImport({ target: "kiro", features: "subagents" });
+
     const importedContent = await readFileContent(
       join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
     );
@@ -153,6 +228,7 @@ describe("E2E: subagents (global mode)", () => {
     { target: "codexcli", outputPath: join(".codex", "agents", "planner.toml") },
     { target: "cursor", outputPath: join(".cursor", "agents", "planner.md") },
     { target: "opencode", outputPath: join(".config", "opencode", "agent", "planner.md") },
+    { target: "rovodev", outputPath: join(".rovodev", "subagents", "planner.md") },
   ])("should generate $target subagents in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

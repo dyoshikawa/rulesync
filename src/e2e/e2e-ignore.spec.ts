@@ -16,6 +16,21 @@ describe("E2E: ignore", () => {
       outputPath: join(".claude", "settings.json"),
       format: "json" as const,
     },
+    { target: "geminicli", outputPath: ".geminiignore", format: "plaintext" as const },
+    { target: "goose", outputPath: ".gooseignore", format: "plaintext" as const },
+    { target: "cline", outputPath: ".clineignore", format: "plaintext" as const },
+    { target: "kilo", outputPath: ".kiloignore", format: "plaintext" as const },
+    { target: "roo", outputPath: ".rooignore", format: "plaintext" as const },
+    { target: "qwencode", outputPath: ".geminiignore", format: "plaintext" as const },
+    { target: "kiro", outputPath: ".aiignore", format: "plaintext" as const },
+    { target: "junie", outputPath: ".aiignore", format: "plaintext" as const },
+    { target: "augmentcode", outputPath: ".augmentignore", format: "plaintext" as const },
+    { target: "windsurf", outputPath: ".codeiumignore", format: "plaintext" as const },
+    {
+      target: "zed",
+      outputPath: join(".zed", "settings.json"),
+      format: "json" as const,
+    },
   ])("should generate $target ignore", async ({ target, outputPath, format }) => {
     const testDir = getTestDir();
 
@@ -34,11 +49,18 @@ credentials/
     if (format === "plaintext") {
       expect(generatedContent).toContain("tmp/");
       expect(generatedContent).toContain("credentials/");
-    } else {
+    } else if (format === "json" && target === "claudecode") {
       // Claude Code uses JSON format with permissions.deny
       const parsed = JSON.parse(generatedContent);
       expect(parsed.permissions.deny).toBeDefined();
       expect(parsed.permissions.deny).toEqual(
+        expect.arrayContaining([expect.stringContaining("tmp/")]),
+      );
+    } else if (format === "json" && target === "zed") {
+      // Zed uses JSON format with private_files
+      const parsed = JSON.parse(generatedContent);
+      expect(parsed.private_files).toBeDefined();
+      expect(parsed.private_files).toEqual(
         expect.arrayContaining([expect.stringContaining("tmp/")]),
       );
     }
@@ -46,7 +68,18 @@ credentials/
 
   it.each([
     { target: "cursor", orphanPath: ".cursorignore" },
-    { target: "claudecode", orphanPath: join(".claude", "settings.json") },
+    // claudecode uses settings.json (isDeletable=false) — excluded
+    { target: "geminicli", orphanPath: ".geminiignore" },
+    { target: "goose", orphanPath: ".gooseignore" },
+    { target: "cline", orphanPath: ".clineignore" },
+    { target: "kilo", orphanPath: ".kiloignore" },
+    { target: "roo", orphanPath: ".rooignore" },
+    { target: "qwencode", orphanPath: ".geminiignore" },
+    { target: "kiro", orphanPath: ".aiignore" },
+    { target: "junie", orphanPath: ".aiignore" },
+    { target: "augmentcode", orphanPath: ".augmentignore" },
+    { target: "windsurf", orphanPath: ".codeiumignore" },
+    // zed ignore uses .zed/settings.json which is not deletable by rulesync
   ])(
     "should fail in check mode when delete would remove an orphan $target ignore file",
     async ({ target, orphanPath }) => {
@@ -78,20 +111,29 @@ credentials/
 describe("E2E: ignore (import)", () => {
   const { getTestDir } = useTestDirectory();
 
-  it("should import cursor ignore", async () => {
+  it.each([
+    { target: "cursor", sourcePath: ".cursorignore" },
+    { target: "geminicli", sourcePath: ".geminiignore" },
+    { target: "goose", sourcePath: ".gooseignore" },
+    { target: "cline", sourcePath: ".clineignore" },
+    { target: "kilo", sourcePath: ".kiloignore" },
+    { target: "roo", sourcePath: ".rooignore" },
+    { target: "qwencode", sourcePath: ".geminiignore" },
+    { target: "kiro", sourcePath: ".aiignore" },
+    { target: "junie", sourcePath: ".aiignore" },
+    { target: "augmentcode", sourcePath: ".augmentignore" },
+    { target: "windsurf", sourcePath: ".codeiumignore" },
+  ])("should import $target ignore", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
-    // Setup: Create a .cursorignore file
     const ignoreContent = `tmp/
 credentials/
 *.secret
 `;
-    await writeFileContent(join(testDir, ".cursorignore"), ignoreContent);
+    await writeFileContent(join(testDir, sourcePath), ignoreContent);
 
-    // Execute: Import cursor ignore
-    await runImport({ target: "cursor", features: "ignore" });
+    await runImport({ target, features: "ignore" });
 
-    // Verify that the imported ignore file was created
     const importedContent = await readFileContent(
       join(testDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH),
     );

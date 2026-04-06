@@ -122,22 +122,23 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
   if (totalGenerated === 0) {
     const enabledFeatures = features.join(", ");
     logger.info(`✓ All files are up to date (${enabledFeatures})`);
-    return;
-  }
-
-  const parts = [];
-  if (result.rulesCount > 0) parts.push(`${result.rulesCount} rules`);
-  if (result.ignoreCount > 0) parts.push(`${result.ignoreCount} ignore files`);
-  if (result.mcpCount > 0) parts.push(`${result.mcpCount} MCP files`);
-  if (result.commandsCount > 0) parts.push(`${result.commandsCount} commands`);
-  if (result.subagentsCount > 0) parts.push(`${result.subagentsCount} subagents`);
-  if (result.skillsCount > 0) parts.push(`${result.skillsCount} skills`);
-  if (result.hooksCount > 0) parts.push(`${result.hooksCount} hooks`);
-
-  if (isPreview) {
-    logger.info(`${modePrefix} Would write ${totalGenerated} file(s) total (${parts.join(" + ")})`);
   } else {
-    logger.success(`🎉 All done! Written ${totalGenerated} file(s) total (${parts.join(" + ")})`);
+    const parts = [];
+    if (result.rulesCount > 0) parts.push(`${result.rulesCount} rules`);
+    if (result.ignoreCount > 0) parts.push(`${result.ignoreCount} ignore files`);
+    if (result.mcpCount > 0) parts.push(`${result.mcpCount} MCP files`);
+    if (result.commandsCount > 0) parts.push(`${result.commandsCount} commands`);
+    if (result.subagentsCount > 0) parts.push(`${result.subagentsCount} subagents`);
+    if (result.skillsCount > 0) parts.push(`${result.skillsCount} skills`);
+    if (result.hooksCount > 0) parts.push(`${result.hooksCount} hooks`);
+
+    if (isPreview) {
+      logger.info(
+        `${modePrefix} Would write ${totalGenerated} file(s) total (${parts.join(" + ")})`,
+      );
+    } else {
+      logger.success(`🎉 All done! Written ${totalGenerated} file(s) total (${parts.join(" + ")})`);
+    }
   }
 
   // Handle --check mode exit code
