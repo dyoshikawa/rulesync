@@ -409,6 +409,7 @@ describe("HooksProcessor", () => {
       expect(targets).toEqual([
         "cursor",
         "claudecode",
+        "codexcli",
         "copilot",
         "kilo",
         "opencode",
@@ -421,6 +422,7 @@ describe("HooksProcessor", () => {
       const targets = HooksProcessor.getToolTargets({ global: true });
       expect(targets).toEqual([
         "claudecode",
+        "codexcli",
         "kilo",
         "opencode",
         "factorydroid",
@@ -431,12 +433,25 @@ describe("HooksProcessor", () => {
 
     it("should exclude non-importable targets when importOnly is true", () => {
       const targets = HooksProcessor.getToolTargets({ global: false, importOnly: true });
-      expect(targets).toEqual(["cursor", "claudecode", "copilot", "factorydroid", "geminicli"]);
+      expect(targets).toEqual([
+        "cursor",
+        "claudecode",
+        "codexcli",
+        "copilot",
+        "factorydroid",
+        "geminicli",
+      ]);
     });
 
     it("should exclude non-importable targets when importOnly is true in global mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: true, importOnly: true });
-      expect(targets).toEqual(["claudecode", "factorydroid", "geminicli", "deepagents"]);
+      expect(targets).toEqual([
+        "claudecode",
+        "codexcli",
+        "factorydroid",
+        "geminicli",
+        "deepagents",
+      ]);
     });
   });
 });

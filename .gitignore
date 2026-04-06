@@ -249,6 +249,7 @@ rulesync.local.jsonc
 **/.codex/agents/
 **/.codex/memories/
 **/.codex/config.toml
+**/.codex/hooks.json
 **/.cursor/
 **/.cursorignore
 **/.deepagents/AGENTS.md
