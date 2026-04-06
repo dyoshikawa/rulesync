@@ -68,11 +68,19 @@ jobs:
         id: tag
         run: |
           if [ -n "$TAG_INPUT" ]; then
-            echo "tag=$TAG_INPUT" >> "$GITHUB_OUTPUT"
+            TAG="$TAG_INPUT"
           elif [ "$EVENT_NAME" = "pull_request" ]; then
             TAG="${HEAD_REF#release/}"
-            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           fi
+          if [ -z "$TAG" ]; then
+            echo "::error::Could not determine tag name"
+            exit 1
+          fi
+          if ! echo "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid tag format: $TAG"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
         env:
           TAG_INPUT: ${{ inputs.tag }}
           EVENT_NAME: ${{ github.event_name }}
@@ -80,7 +88,7 @@ jobs:
 
       - name: Create and push tag
         run: |
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
+          if [ -n "$(git tag -l "$TAG")" ]; then
             echo "Tag $TAG already exists, skipping creation"
           else
             git tag "$TAG"
