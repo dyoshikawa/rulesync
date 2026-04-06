@@ -78,6 +78,18 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
 
+      - name: Create and push tag
+        run: |
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists, skipping creation"
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+            echo "Tag $TAG created and pushed"
+          fi
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+
       - name: Upload assets to release
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
         with:
