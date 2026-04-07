@@ -54,7 +54,9 @@ export class JunieRule extends ToolRule {
     validate = true,
   }: ToolRuleFromFileParams): Promise<JunieRule> {
     const isRoot = relativeFilePath === "guidelines.md";
-    const relativePath = isRoot ? "guidelines.md" : join(".junie", "memories", relativeFilePath);
+    const relativePath = isRoot
+      ? join(".junie", "guidelines.md")
+      : join(".junie", "memories", relativeFilePath);
     const fileContent = await readFileContent(join(baseDir, relativePath));
 
     return new JunieRule({

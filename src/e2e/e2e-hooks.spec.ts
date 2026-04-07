@@ -66,9 +66,19 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks).toBeDefined();
         expect(parsed.hooks.sessionStart).toBeDefined();
         expect(parsed.hooks.stop).toBeDefined();
-      } else {
-        // codexcli, copilot, geminicli, factorydroid use JSON with hooks key
+      } else if (target === "copilot") {
+        // Copilot uses camelCase event names
         expect(parsed.hooks).toBeDefined();
+        expect(parsed.hooks.sessionStart).toBeDefined();
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+      } else {
+        // codexcli, geminicli, factorydroid: event-name casing/mapping varies
+        // per tool (e.g. geminicli maps `stop` to `AfterAgent`), so verify the
+        // configured hook command paths are preserved instead.
+        expect(parsed.hooks).toBeDefined();
+        const serialized = JSON.stringify(parsed.hooks);
+        expect(serialized).toContain(".rulesync/hooks/session-start.sh");
+        expect(serialized).toContain(".rulesync/hooks/audit.sh");
       }
     }
   });
@@ -144,7 +154,18 @@ describe("E2E: hooks (import)", () => {
         },
       },
     },
-    // copilot hooks import does not preserve hook entries — excluded
+    {
+      target: "copilot",
+      sourcePath: join(".github", "hooks", "copilot-hooks.json"),
+      // Copilot uses a flat entry schema: { type, bash, powershell, timeoutSec }
+      // rather than the canonical { matcher, hooks: [...] } shape.
+      sourceContent: {
+        version: 1,
+        hooks: {
+          sessionStart: [{ type: "command", bash: "echo session started" }],
+        },
+      },
+    },
     {
       target: "geminicli",
       sourcePath: join(".gemini", "settings.json"),
@@ -217,8 +238,15 @@ describe("E2E: hooks (global mode)", () => {
     const generatedContent = await readFileContent(join(homeDir, outputPath));
     if (target === "opencode") {
       expect(generatedContent).toContain("RulesyncHooksPlugin");
+      expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
+      expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
     } else {
-      expect(generatedContent).toContain("hooks");
+      const parsed = JSON.parse(generatedContent);
+      expect(parsed.hooks).toBeDefined();
+      // Event-name casing/mapping varies per tool, so verify command paths instead.
+      const serialized = JSON.stringify(parsed.hooks);
+      expect(serialized).toContain(".rulesync/hooks/session-start.sh");
+      expect(serialized).toContain(".rulesync/hooks/audit.sh");
     }
   });
 });

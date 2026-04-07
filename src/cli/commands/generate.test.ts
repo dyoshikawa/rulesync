@@ -1020,6 +1020,56 @@ describe("generateCommand", () => {
       );
     });
 
+    it("should fail in check mode when only orphan deletions occur (no new files)", async () => {
+      // Regression test: previously, generateCommand returned early when
+      // totalGenerated === 0, which skipped the --check mode hasDiff handling.
+      // This caused check mode to silently succeed when the only diff was an
+      // orphan file that would be deleted.
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      mockConfig.getCheck.mockReturnValue(true);
+      mockConfig.getDelete.mockReturnValue(true);
+
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([{ orphan: "file" }]),
+          removeOrphanAiFiles: vi.fn().mockResolvedValue(1),
+          loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+          convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
+        } as any;
+      });
+
+      const options: GenerateOptions = {};
+
+      await expect(generateCommand(mockLogger, options)).rejects.toMatchObject({
+        message: "Files are not up to date. Run 'rulesync generate' to update.",
+      });
+
+      // The summary line for zero generated files must still be logged before throwing
+      expect(mockLogger.info).toHaveBeenCalledWith("✓ All files are up to date (rules)");
+    });
+
+    it("should succeed in check mode when no diff exists", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      mockConfig.getCheck.mockReturnValue(true);
+
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+          loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+          convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
+        } as any;
+      });
+
+      const options: GenerateOptions = {};
+
+      await generateCommand(mockLogger, options);
+
+      expect(mockLogger.success).toHaveBeenCalledWith("✓ All files are up to date.");
+    });
+
     it("should handle multiple targets and base directories", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       mockConfig.getBaseDirs.mockReturnValue(["dir1", "dir2"]);

@@ -137,7 +137,11 @@ describe("E2E: rules (import)", () => {
       importedFileName: "overview.md",
     },
     { target: "qwencode", sourcePath: "QWEN.md", importedFileName: "overview.md" },
-    // junie rules import reads from root guidelines.md but generate writes to .junie/guidelines.md — excluded
+    {
+      target: "junie",
+      sourcePath: join(".junie", "guidelines.md"),
+      importedFileName: "overview.md",
+    },
     { target: "warp", sourcePath: "WARP.md", importedFileName: "overview.md" },
     { target: "replit", sourcePath: "replit.md", importedFileName: "overview.md" },
     {

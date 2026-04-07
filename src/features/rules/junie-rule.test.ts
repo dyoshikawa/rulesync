@@ -98,9 +98,9 @@ describe("JunieRule", () => {
 
   describe("fromFile", () => {
     it("should create instance from root guidelines file", async () => {
-      // Setup test file - for root, the file should be directly at baseDir/guidelines.md
+      // Setup test file - root guidelines live at baseDir/.junie/guidelines.md
       const testContent = "# Junie Guidelines\n\nGuidelines from file.";
-      await writeFileContent(join(testDir, "guidelines.md"), testContent);
+      await writeFileContent(join(testDir, ".junie", "guidelines.md"), testContent);
 
       const junieRule = await JunieRule.fromFile({
         baseDir: testDir,
@@ -136,7 +136,7 @@ describe("JunieRule", () => {
     it("should use default baseDir when not provided", async () => {
       // Setup test file in mocked current directory
       const testContent = "# Default BaseDir Test";
-      await writeFileContent(join(testDir, "guidelines.md"), testContent);
+      await writeFileContent(join(testDir, ".junie", "guidelines.md"), testContent);
 
       const junieRule = await JunieRule.fromFile({
         relativeFilePath: "guidelines.md",
@@ -149,7 +149,7 @@ describe("JunieRule", () => {
 
     it("should handle validation parameter", async () => {
       const testContent = "# Validation Test";
-      await writeFileContent(join(testDir, "guidelines.md"), testContent);
+      await writeFileContent(join(testDir, ".junie", "guidelines.md"), testContent);
 
       const junieRuleWithValidation = await JunieRule.fromFile({
         baseDir: testDir,
@@ -184,8 +184,8 @@ describe("JunieRule", () => {
       const rootContent = "# Root Guidelines";
       const memoryContent = "# Memory Rule";
 
-      // Root file goes directly in baseDir
-      await writeFileContent(join(testDir, "guidelines.md"), rootContent);
+      // Root file lives at .junie/guidelines.md
+      await writeFileContent(join(testDir, ".junie", "guidelines.md"), rootContent);
       // Memory file goes in .junie/memories
       await writeFileContent(join(memoriesDir, "memory.md"), memoryContent);
 
@@ -419,7 +419,7 @@ describe("JunieRule", () => {
     it("should handle complete workflow from file to rulesync rule", async () => {
       // Create original file
       const originalContent = "# Integration Test\n\nComplete workflow test.";
-      await writeFileContent(join(testDir, "guidelines.md"), originalContent);
+      await writeFileContent(join(testDir, ".junie", "guidelines.md"), originalContent);
 
       // Load from file
       const junieRule = await JunieRule.fromFile({
