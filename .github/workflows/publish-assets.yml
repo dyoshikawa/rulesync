@@ -30,7 +30,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
-          ref: main
+          # Pin to the merged commit SHA to avoid tagging a later commit if
+          # main advances between the PR merge and this workflow run.
+          # Falls back to main for workflow_dispatch runs.
+          ref: ${{ github.event.pull_request.merge_commit_sha || 'main' }}
+          # Fetch tags so the existence check below can see remote tags.
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Configure git
+        uses: ./.github/actions/git-config
 
       - name: Setup mise
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v2
@@ -88,8 +97,8 @@ jobs:
 
       - name: Create and push tag
         run: |
-          if [ -n "$(git tag -l "$TAG")" ]; then
-            echo "Tag $TAG already exists, skipping creation"
+          if [ -n "$(git tag -l "$TAG")" ] || [ -n "$(git ls-remote --tags origin "refs/tags/$TAG")" ]; then
+            echo "Tag $TAG already exists (locally or on remote), skipping creation"
           else
             git tag "$TAG"
             git push origin "$TAG"
