@@ -11,6 +11,20 @@ import {
   useTestDirectory,
 } from "./e2e-helper.js";
 
+/**
+ * Verify that a parsed hooks config preserves the canonical command paths
+ * configured in the rulesync source. Event-name casing/mapping varies per tool
+ * (e.g. claudecode uses PascalCase `Stop`, geminicli maps `stop` to
+ * `AfterAgent`), so checking command paths inside the serialized hooks block
+ * is the most tool-agnostic assertion.
+ */
+function assertHookCommandsPreserved(parsed: { hooks?: unknown }): void {
+  expect(parsed.hooks).toBeDefined();
+  const serialized = JSON.stringify(parsed.hooks);
+  expect(serialized).toContain(".rulesync/hooks/session-start.sh");
+  expect(serialized).toContain(".rulesync/hooks/audit.sh");
+}
+
 describe("E2E: hooks", () => {
   const { getTestDir } = useTestDirectory();
 
@@ -67,18 +81,17 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks.sessionStart).toBeDefined();
         expect(parsed.hooks.stop).toBeDefined();
       } else if (target === "copilot") {
-        // Copilot uses camelCase event names
+        // Copilot uses camelCase event names. Note: copilot does NOT support
+        // the `stop` hook event (see COPILOT_HOOK_EVENTS in src/types/hooks.ts),
+        // so audit.sh is intentionally dropped during generation and cannot be
+        // asserted here.
         expect(parsed.hooks).toBeDefined();
         expect(parsed.hooks.sessionStart).toBeDefined();
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
       } else {
         // codexcli, geminicli, factorydroid: event-name casing/mapping varies
-        // per tool (e.g. geminicli maps `stop` to `AfterAgent`), so verify the
-        // configured hook command paths are preserved instead.
-        expect(parsed.hooks).toBeDefined();
-        const serialized = JSON.stringify(parsed.hooks);
-        expect(serialized).toContain(".rulesync/hooks/session-start.sh");
-        expect(serialized).toContain(".rulesync/hooks/audit.sh");
+        // per tool, so verify the configured hook command paths are preserved.
+        assertHookCommandsPreserved(parsed);
       }
     }
   });
@@ -241,12 +254,7 @@ describe("E2E: hooks (global mode)", () => {
       expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
       expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
     } else {
-      const parsed = JSON.parse(generatedContent);
-      expect(parsed.hooks).toBeDefined();
-      // Event-name casing/mapping varies per tool, so verify command paths instead.
-      const serialized = JSON.stringify(parsed.hooks);
-      expect(serialized).toContain(".rulesync/hooks/session-start.sh");
-      expect(serialized).toContain(".rulesync/hooks/audit.sh");
+      assertHookCommandsPreserved(JSON.parse(generatedContent));
     }
   });
 });
