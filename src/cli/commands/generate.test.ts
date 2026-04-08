@@ -8,6 +8,7 @@ import { McpProcessor } from "../../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../../features/rules/rules-processor.js";
 import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
+import { ErrorCodes } from "../../types/json-output.js";
 import { fileExists } from "../../utils/file.js";
 import type { GenerateOptions } from "./generate.js";
 import { generateCommand } from "./generate.js";
@@ -1085,6 +1086,93 @@ describe("generateCommand", () => {
       expect(mockLogger.success).toHaveBeenCalledWith(
         "🎉 All done! Written 2 file(s) total (2 rules)",
       );
+    });
+
+    it("should fail in check mode when only orphan deletions occur (no new files)", async () => {
+      // Regression test: previously, generateCommand returned early when
+      // totalGenerated === 0, which skipped the --check mode hasDiff handling.
+      // This caused check mode to silently succeed when the only diff was an
+      // orphan file that would be deleted.
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      mockConfig.getCheck.mockReturnValue(true);
+      mockConfig.getDelete.mockReturnValue(true);
+
+      // Shape of the orphan entry is irrelevant — only the count returned by
+      // removeOrphanAiFiles drives the hasDiff branch under test.
+      const removeOrphanMock = vi.fn().mockResolvedValue(1);
+      const loadToolFilesMock = vi.fn().mockResolvedValue([{ orphan: "file" }]);
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: loadToolFilesMock,
+          removeOrphanAiFiles: removeOrphanMock,
+          loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+          convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
+        } as any;
+      });
+
+      const options: GenerateOptions = {};
+
+      await expect(generateCommand(mockLogger, options)).rejects.toMatchObject({
+        code: ErrorCodes.GENERATION_FAILED,
+        message: "Files are not up to date. Run 'rulesync generate' to update.",
+      });
+
+      // Guard the actual code path: orphan detection must have run before the
+      // check-mode hasDiff branch throws.
+      expect(loadToolFilesMock).toHaveBeenCalled();
+      expect(removeOrphanMock).toHaveBeenCalled();
+    });
+
+    it("should succeed in check mode when no diff exists and delete is enabled", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      mockConfig.getCheck.mockReturnValue(true);
+      mockConfig.getDelete.mockReturnValue(true);
+
+      const removeOrphanMock = vi.fn().mockResolvedValue(0);
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          removeOrphanAiFiles: removeOrphanMock,
+          loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+          convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
+        } as any;
+      });
+
+      const options: GenerateOptions = {};
+
+      await generateCommand(mockLogger, options);
+
+      // Orphan scan must run when delete is enabled, and report no diff.
+      expect(removeOrphanMock).toHaveBeenCalled();
+      expect(mockLogger.success).toHaveBeenCalledWith("✓ All files are up to date.");
+    });
+
+    it("should succeed in check mode when no diff exists and delete is disabled", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      mockConfig.getCheck.mockReturnValue(true);
+      mockConfig.getDelete.mockReturnValue(false);
+
+      const removeOrphanMock = vi.fn().mockResolvedValue(0);
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          removeOrphanAiFiles: removeOrphanMock,
+          loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+          convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ tool: "converted" }]),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
+        } as any;
+      });
+
+      const options: GenerateOptions = {};
+
+      await generateCommand(mockLogger, options);
+
+      // When delete is disabled, orphan removal must NOT run; the success log
+      // still fires from the no-diff branch.
+      expect(removeOrphanMock).not.toHaveBeenCalled();
+      expect(mockLogger.success).toHaveBeenCalledWith("✓ All files are up to date.");
     });
 
     it("should handle multiple targets and base directories", async () => {

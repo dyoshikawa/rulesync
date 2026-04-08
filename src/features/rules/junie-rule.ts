@@ -48,21 +48,34 @@ export class JunieRule extends ToolRule {
     };
   }
 
+  /**
+   * Determines whether a given relative file path refers to the root
+   * `guidelines.md` file. Memory files live under `.junie/memories/` and are
+   * passed in as bare filenames (e.g. `memo.md`), so a top-level
+   * `guidelines.md` is unambiguously the root entry.
+   */
+  private static isRootRelativeFilePath(relativeFilePath: string): boolean {
+    return relativeFilePath === "guidelines.md";
+  }
+
   static async fromFile({
     baseDir = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<JunieRule> {
-    const isRoot = relativeFilePath === "guidelines.md";
-    const relativePath = isRoot ? "guidelines.md" : join(".junie", "memories", relativeFilePath);
+    const isRoot = JunieRule.isRootRelativeFilePath(relativeFilePath);
+    const settablePaths = this.getSettablePaths();
+    const relativePath = isRoot
+      ? join(settablePaths.root.relativeDirPath, settablePaths.root.relativeFilePath)
+      : join(settablePaths.nonRoot.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(join(baseDir, relativePath));
 
     return new JunieRule({
       baseDir,
       relativeDirPath: isRoot
-        ? this.getSettablePaths().root.relativeDirPath
-        : this.getSettablePaths().nonRoot.relativeDirPath,
-      relativeFilePath: isRoot ? "guidelines.md" : relativeFilePath,
+        ? settablePaths.root.relativeDirPath
+        : settablePaths.nonRoot.relativeDirPath,
+      relativeFilePath: isRoot ? settablePaths.root.relativeFilePath : relativeFilePath,
       fileContent,
       validate,
       root: isRoot,
@@ -99,7 +112,7 @@ export class JunieRule extends ToolRule {
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): JunieRule {
-    const isRoot = relativeFilePath === "guidelines.md";
+    const isRoot = JunieRule.isRootRelativeFilePath(relativeFilePath);
 
     return new JunieRule({
       baseDir,

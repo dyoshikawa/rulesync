@@ -18,6 +18,14 @@ describe("E2E: commands", () => {
     { target: "claudecode", outputPath: join(".claude", "commands", "review-pr.md") },
     { target: "cursor", outputPath: join(".cursor", "commands", "review-pr.md") },
     { target: "geminicli", outputPath: join(".gemini", "commands", "review-pr.toml") },
+    { target: "copilot", outputPath: join(".github", "prompts", "review-pr.prompt.md") },
+    { target: "opencode", outputPath: join(".opencode", "command", "review-pr.md") },
+    { target: "cline", outputPath: join(".clinerules", "workflows", "review-pr.md") },
+    { target: "kilo", outputPath: join(".kilo", "commands", "review-pr.md") },
+    { target: "roo", outputPath: join(".roo", "commands", "review-pr.md") },
+    { target: "kiro", outputPath: join(".kiro", "prompts", "review-pr.md") },
+    { target: "antigravity", outputPath: join(".agent", "workflows", "review-pr.md") },
+    { target: "junie", outputPath: join(".junie", "commands", "review-pr.md") },
   ])("should generate $target commands", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -47,9 +55,40 @@ Check the PR diff and provide feedback.
   });
 
   it.each([
+    { target: "agentsmd", outputPath: join(".agents", "commands", "review-pr.md") },
+    { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
+  ])("should generate $target simulated commands", async ({ target, outputPath }) => {
+    const testDir = getTestDir();
+
+    const commandContent = `---
+description: "Review a pull request"
+targets: ["*"]
+---
+Check the PR diff and provide feedback.
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
+      commandContent,
+    );
+
+    await runGenerate({ target, features: "commands", simulateCommands: true });
+
+    const generatedContent = await readFileContent(join(testDir, outputPath));
+    expect(generatedContent).toContain("Check the PR diff and provide feedback.");
+  });
+
+  it.each([
     { target: "claudecode", orphanPath: join(".claude", "commands", "orphan.md") },
     { target: "cursor", orphanPath: join(".cursor", "commands", "orphan.md") },
     { target: "geminicli", orphanPath: join(".gemini", "commands", "orphan.toml") },
+    { target: "copilot", orphanPath: join(".github", "prompts", "orphan.prompt.md") },
+    { target: "opencode", orphanPath: join(".opencode", "command", "orphan.md") },
+    { target: "cline", orphanPath: join(".clinerules", "workflows", "orphan.md") },
+    { target: "kilo", orphanPath: join(".kilo", "commands", "orphan.md") },
+    { target: "roo", orphanPath: join(".roo", "commands", "orphan.md") },
+    { target: "kiro", orphanPath: join(".kiro", "prompts", "orphan.md") },
+    { target: "antigravity", orphanPath: join(".agent", "workflows", "orphan.md") },
+    { target: "junie", orphanPath: join(".junie", "commands", "orphan.md") },
   ])(
     "should fail in check mode when delete would remove an orphan $target command file",
     async ({ target, orphanPath }) => {
@@ -81,17 +120,25 @@ Check the PR diff and provide feedback.
 describe("E2E: commands (import)", () => {
   const { getTestDir } = useTestDirectory();
 
-  it("should import claudecode commands", async () => {
+  it.each([
+    { target: "claudecode", sourcePath: join(".claude", "commands", "review-pr.md") },
+    { target: "cursor", sourcePath: join(".cursor", "commands", "review-pr.md") },
+    { target: "copilot", sourcePath: join(".github", "prompts", "review-pr.prompt.md") },
+    { target: "opencode", sourcePath: join(".opencode", "command", "review-pr.md") },
+    { target: "cline", sourcePath: join(".clinerules", "workflows", "review-pr.md") },
+    { target: "kilo", sourcePath: join(".kilo", "commands", "review-pr.md") },
+    { target: "roo", sourcePath: join(".roo", "commands", "review-pr.md") },
+    { target: "kiro", sourcePath: join(".kiro", "prompts", "review-pr.md") },
+    { target: "antigravity", sourcePath: join(".agent", "workflows", "review-pr.md") },
+    { target: "junie", sourcePath: join(".junie", "commands", "review-pr.md") },
+  ])("should import $target commands", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
-    // Setup: Create a Claude Code command file
     const commandContent = `Review the PR diff and provide feedback.`;
-    await writeFileContent(join(testDir, ".claude", "commands", "review-pr.md"), commandContent);
+    await writeFileContent(join(testDir, sourcePath), commandContent);
 
-    // Execute: Import claudecode commands
-    await runImport({ target: "claudecode", features: "commands" });
+    await runImport({ target, features: "commands" });
 
-    // Verify that the imported command file was created
     const importedContent = await readFileContent(
       join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
     );
@@ -106,6 +153,11 @@ describe("E2E: commands (global mode)", () => {
     { target: "claudecode", outputPath: join(".claude", "commands", "review-pr.md") },
     { target: "cursor", outputPath: join(".cursor", "commands", "review-pr.md") },
     { target: "opencode", outputPath: join(".config", "opencode", "command", "review-pr.md") },
+    { target: "geminicli", outputPath: join(".gemini", "commands", "review-pr.toml") },
+    { target: "codexcli", outputPath: join(".codex", "prompts", "review-pr.md") },
+    { target: "cline", outputPath: join("Documents", "Cline", "Workflows", "review-pr.md") },
+    { target: "kilo", outputPath: join(".config", "kilo", "commands", "review-pr.md") },
+    { target: "junie", outputPath: join(".junie", "commands", "review-pr.md") },
   ])("should generate $target commands in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
@@ -133,7 +185,12 @@ Check the PR diff and provide feedback.
 
     // Verify that the expected output file was generated
     const generatedContent = await readFileContent(join(homeDir, outputPath));
-    expect(generatedContent).toContain("Check the PR diff and provide feedback.");
+    if (target === "geminicli") {
+      // Gemini CLI uses TOML format
+      expect(generatedContent).toContain('description = "Review a pull request"');
+    } else {
+      expect(generatedContent).toContain("Check the PR diff and provide feedback.");
+    }
   });
 
   it("should ignore non-root commands in global mode", async () => {

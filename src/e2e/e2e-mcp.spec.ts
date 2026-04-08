@@ -23,6 +23,16 @@ describe("E2E: mcp", () => {
     { target: "cursor", outputPath: join(".cursor", "mcp.json") },
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
     { target: "codexcli", outputPath: join(".codex", "config.toml") },
+    { target: "copilot", outputPath: join(".vscode", "mcp.json") },
+    { target: "copilotcli", outputPath: join(".copilot", "mcp-config.json") },
+    { target: "opencode", outputPath: "opencode.jsonc" },
+    { target: "deepagents", outputPath: join(".deepagents", ".mcp.json") },
+    { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
+    { target: "cline", outputPath: join(".cline", "mcp.json") },
+    { target: "kilo", outputPath: "kilo.jsonc" },
+    { target: "roo", outputPath: join(".roo", "mcp.json") },
+    { target: "kiro", outputPath: join(".kiro", "settings", "mcp.json") },
+    { target: "junie", outputPath: join(".junie", "mcp", "mcp.json") },
   ])("should generate $target mcp", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -53,15 +63,33 @@ describe("E2E: mcp", () => {
   });
 
   it.each([
+    // geminicli, codexcli, opencode, kilo use merged config files (isDeletable=false) — excluded
     { target: "claudecode", orphanPath: ".mcp.json" },
     { target: "cursor", orphanPath: join(".cursor", "mcp.json") },
+    { target: "copilot", orphanPath: join(".vscode", "mcp.json") },
+    { target: "copilotcli", orphanPath: join(".copilot", "mcp-config.json") },
+    { target: "deepagents", orphanPath: join(".deepagents", ".mcp.json") },
+    { target: "factorydroid", orphanPath: join(".factory", "mcp.json") },
+    { target: "cline", orphanPath: join(".cline", "mcp.json") },
+    { target: "roo", orphanPath: join(".roo", "mcp.json") },
+    { target: "kiro", orphanPath: join(".kiro", "settings", "mcp.json") },
+    { target: "junie", orphanPath: join(".junie", "mcp", "mcp.json") },
   ])(
     "should fail in check mode when delete would remove an orphan $target mcp file",
     async ({ target, orphanPath }) => {
       const testDir = getTestDir();
 
       await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
-      await writeFileContent(join(testDir, orphanPath), "# orphan\n");
+      await writeFileContent(
+        join(testDir, ".rulesync", "mcp.json"),
+        JSON.stringify({ mcpServers: {} }),
+      );
+      const orphanContent = JSON.stringify(
+        { mcpServers: { "orphan-server": { command: "echo", args: ["orphan"] } } },
+        null,
+        2,
+      );
+      await writeFileContent(join(testDir, orphanPath), orphanContent);
 
       await expect(
         runGenerate({
@@ -78,7 +106,7 @@ describe("E2E: mcp", () => {
         ),
       });
 
-      expect(await readFileContent(join(testDir, orphanPath))).toBe("# orphan\n");
+      expect(await readFileContent(join(testDir, orphanPath))).toBe(orphanContent);
     },
   );
 
@@ -154,10 +182,20 @@ describe("E2E: mcp", () => {
 describe("E2E: mcp (import)", () => {
   const { getTestDir } = useTestDirectory();
 
-  it("should import claudecode mcp", async () => {
+  it.each([
+    { target: "claudecode", sourcePath: ".mcp.json" },
+    { target: "cursor", sourcePath: join(".cursor", "mcp.json") },
+    // copilot MCP uses VS Code-specific format — excluded from import test
+    { target: "copilotcli", sourcePath: join(".copilot", "mcp-config.json") },
+    { target: "deepagents", sourcePath: join(".deepagents", ".mcp.json") },
+    { target: "factorydroid", sourcePath: join(".factory", "mcp.json") },
+    { target: "cline", sourcePath: join(".cline", "mcp.json") },
+    { target: "roo", sourcePath: join(".roo", "mcp.json") },
+    { target: "kiro", sourcePath: join(".kiro", "settings", "mcp.json") },
+    { target: "junie", sourcePath: join(".junie", "mcp", "mcp.json") },
+  ])("should import $target mcp", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
-    // Setup: Create a .mcp.json file (claudecode's MCP config)
     const mcpContent = JSON.stringify(
       {
         mcpServers: {
@@ -170,12 +208,10 @@ describe("E2E: mcp (import)", () => {
       null,
       2,
     );
-    await writeFileContent(join(testDir, ".mcp.json"), mcpContent);
+    await writeFileContent(join(testDir, sourcePath), mcpContent);
 
-    // Execute: Import claudecode mcp
-    await runImport({ target: "claudecode", features: "mcp" });
+    await runImport({ target, features: "mcp" });
 
-    // Verify that the imported MCP file was created
     const importedContent = await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH));
     expect(importedContent).toContain("test-server");
   });
@@ -189,6 +225,11 @@ describe("E2E: mcp (global mode)", () => {
     { target: "cursor", outputPath: join(".cursor", "mcp.json") },
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
     { target: "opencode", outputPath: join(".config", "opencode", "opencode.jsonc") },
+    { target: "codexcli", outputPath: join(".codex", "config.toml") },
+    { target: "copilotcli", outputPath: join(".copilot", "mcp-config.json") },
+    { target: "deepagents", outputPath: join(".deepagents", ".mcp.json") },
+    { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
+    { target: "rovodev", outputPath: join(".rovodev", "mcp.json") },
   ])("should generate $target mcp in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

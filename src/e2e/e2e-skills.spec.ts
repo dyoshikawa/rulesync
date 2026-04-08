@@ -23,6 +23,58 @@ describe("E2E: skills", () => {
       target: "cursor",
       outputPath: join(".cursor", "skills", "test-skill", "SKILL.md"),
     },
+    {
+      target: "codexcli",
+      outputPath: join(".codex", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "geminicli",
+      outputPath: join(".gemini", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "copilot",
+      outputPath: join(".github", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "deepagents",
+      outputPath: join(".deepagents", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "cline",
+      outputPath: join(".cline", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "kilo",
+      outputPath: join(".kilo", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "roo",
+      outputPath: join(".roo", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "rovodev",
+      outputPath: join(".rovodev", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "kiro",
+      outputPath: join(".kiro", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "antigravity",
+      outputPath: join(".agent", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "junie",
+      outputPath: join(".junie", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "replit",
+      outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "agentsskills",
+      outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
+    },
   ])("should generate $target skills", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -48,8 +100,51 @@ This is the test skill body content.
   });
 
   it.each([
+    {
+      target: "agentsmd",
+      outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "factorydroid",
+      outputPath: join(".factory", "skills", "test-skill", "SKILL.md"),
+    },
+  ])("should generate $target simulated skills", async ({ target, outputPath }) => {
+    const testDir = getTestDir();
+
+    const skillContent = `---
+name: test-skill
+description: "A test skill for E2E testing"
+targets: ["*"]
+---
+This is the test skill body content.
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill", "SKILL.md"),
+      skillContent,
+    );
+
+    await runGenerate({ target, features: "skills", simulateSkills: true });
+
+    const generatedContent = await readFileContent(join(testDir, outputPath));
+    expect(generatedContent).toContain("test skill body content");
+  });
+
+  it.each([
     { target: "claudecode", orphanPath: join(".claude", "skills", "orphan-skill", "SKILL.md") },
     { target: "cursor", orphanPath: join(".cursor", "skills", "orphan-skill", "SKILL.md") },
+    { target: "codexcli", orphanPath: join(".codex", "skills", "orphan-skill", "SKILL.md") },
+    { target: "geminicli", orphanPath: join(".gemini", "skills", "orphan-skill", "SKILL.md") },
+    { target: "copilot", orphanPath: join(".github", "skills", "orphan-skill", "SKILL.md") },
+    { target: "deepagents", orphanPath: join(".deepagents", "skills", "orphan-skill", "SKILL.md") },
+    { target: "cline", orphanPath: join(".cline", "skills", "orphan-skill", "SKILL.md") },
+    { target: "kilo", orphanPath: join(".kilo", "skills", "orphan-skill", "SKILL.md") },
+    { target: "roo", orphanPath: join(".roo", "skills", "orphan-skill", "SKILL.md") },
+    { target: "rovodev", orphanPath: join(".rovodev", "skills", "orphan-skill", "SKILL.md") },
+    { target: "kiro", orphanPath: join(".kiro", "skills", "orphan-skill", "SKILL.md") },
+    { target: "antigravity", orphanPath: join(".agent", "skills", "orphan-skill", "SKILL.md") },
+    { target: "junie", orphanPath: join(".junie", "skills", "orphan-skill", "SKILL.md") },
+    { target: "replit", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
+    { target: "agentsskills", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
   ])(
     "should fail in check mode when delete would remove an orphan $target skill file",
     async ({ target, orphanPath }) => {
@@ -81,24 +176,34 @@ This is the test skill body content.
 describe("E2E: skills (import)", () => {
   const { getTestDir } = useTestDirectory();
 
-  it("should import claudecode skills", async () => {
+  it.each([
+    { target: "claudecode", sourcePath: join(".claude", "skills", "test-skill", "SKILL.md") },
+    { target: "cursor", sourcePath: join(".cursor", "skills", "test-skill", "SKILL.md") },
+    { target: "codexcli", sourcePath: join(".codex", "skills", "test-skill", "SKILL.md") },
+    { target: "geminicli", sourcePath: join(".gemini", "skills", "test-skill", "SKILL.md") },
+    { target: "copilot", sourcePath: join(".github", "skills", "test-skill", "SKILL.md") },
+    { target: "opencode", sourcePath: join(".opencode", "skill", "test-skill", "SKILL.md") },
+    { target: "deepagents", sourcePath: join(".deepagents", "skills", "test-skill", "SKILL.md") },
+    { target: "cline", sourcePath: join(".cline", "skills", "test-skill", "SKILL.md") },
+    { target: "kilo", sourcePath: join(".kilo", "skills", "test-skill", "SKILL.md") },
+    { target: "roo", sourcePath: join(".roo", "skills", "test-skill", "SKILL.md") },
+    { target: "rovodev", sourcePath: join(".rovodev", "skills", "test-skill", "SKILL.md") },
+    { target: "kiro", sourcePath: join(".kiro", "skills", "test-skill", "SKILL.md") },
+    { target: "antigravity", sourcePath: join(".agent", "skills", "test-skill", "SKILL.md") },
+    { target: "junie", sourcePath: join(".junie", "skills", "test-skill", "SKILL.md") },
+    { target: "replit", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
+  ])("should import $target skills", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
-    // Setup: Create a Claude Code skill directory
     const skillContent = `---
 name: test-skill
 description: "A test skill for E2E testing"
 ---
 This is the test skill body content.`;
-    await writeFileContent(
-      join(testDir, ".claude", "skills", "test-skill", "SKILL.md"),
-      skillContent,
-    );
+    await writeFileContent(join(testDir, sourcePath), skillContent);
 
-    // Execute: Import claudecode skills
-    await runImport({ target: "claudecode", features: "skills" });
+    await runImport({ target, features: "skills" });
 
-    // Verify that the imported skill file was created
     const importedContent = await readFileContent(
       join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill", "SKILL.md"),
     );
@@ -121,6 +226,34 @@ describe("E2E: skills (global mode)", () => {
     {
       target: "opencode",
       outputPath: join(".config", "opencode", "skill", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "codexcli",
+      outputPath: join(".codex", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "geminicli",
+      outputPath: join(".gemini", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "cline",
+      outputPath: join(".cline", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "kilo",
+      outputPath: join(".config", "kilo", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "roo",
+      outputPath: join(".roo", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "rovodev",
+      outputPath: join(".rovodev", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "antigravity",
+      outputPath: join(".gemini", "antigravity", "skills", "test-skill", "SKILL.md"),
     },
   ])("should generate $target skills in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();

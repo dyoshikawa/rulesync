@@ -4,7 +4,26 @@ import { describe, expect, it } from "vitest";
 
 import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
-import { runGenerate, runImport, useTestDirectory } from "./e2e-helper.js";
+import {
+  runGenerate,
+  runImport,
+  useGlobalTestDirectories,
+  useTestDirectory,
+} from "./e2e-helper.js";
+
+/**
+ * Verify that a parsed hooks config preserves the canonical command paths
+ * configured in the rulesync source. Event-name casing/mapping varies per tool
+ * (e.g. claudecode uses PascalCase `Stop`, geminicli maps `stop` to
+ * `AfterAgent`), so checking command paths inside the serialized hooks block
+ * is the most tool-agnostic assertion.
+ */
+function assertHookCommandsPreserved(parsed: { hooks?: unknown }): void {
+  expect(parsed.hooks).toBeDefined();
+  const serialized = JSON.stringify(parsed.hooks);
+  expect(serialized).toContain(".rulesync/hooks/session-start.sh");
+  expect(serialized).toContain(".rulesync/hooks/audit.sh");
+}
 
 describe("E2E: hooks", () => {
   const { getTestDir } = useTestDirectory();
@@ -13,6 +32,10 @@ describe("E2E: hooks", () => {
     { target: "claudecode", outputPath: join(".claude", "settings.json") },
     { target: "cursor", outputPath: join(".cursor", "hooks.json") },
     { target: "opencode", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
+    { target: "codexcli", outputPath: join(".codex", "hooks.json") },
+    { target: "geminicli", outputPath: join(".gemini", "settings.json") },
+    { target: "copilot", outputPath: join(".github", "hooks", "copilot-hooks.json") },
+    { target: "factorydroid", outputPath: join(".factory", "settings.json") },
   ])("should generate $target hooks", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -52,18 +75,33 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks.SessionStart).toBeDefined();
         expect(parsed.hooks.Stop).toBeDefined();
         expect(JSON.stringify(parsed.hooks)).toContain("$CLAUDE_PROJECT_DIR/");
-      } else {
+      } else if (target === "cursor") {
         // Cursor uses camelCase event names
         expect(parsed.hooks).toBeDefined();
         expect(parsed.hooks.sessionStart).toBeDefined();
         expect(parsed.hooks.stop).toBeDefined();
+      } else if (target === "copilot") {
+        // Copilot uses camelCase event names. Note: copilot does NOT support
+        // the `stop` hook event (see COPILOT_HOOK_EVENTS in src/types/hooks.ts),
+        // so audit.sh is intentionally dropped during generation and cannot be
+        // asserted here.
+        expect(parsed.hooks).toBeDefined();
+        expect(parsed.hooks.sessionStart).toBeDefined();
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+      } else {
+        // codexcli, geminicli, factorydroid: event-name casing/mapping varies
+        // per tool, so verify the configured hook command paths are preserved.
+        assertHookCommandsPreserved(parsed);
       }
     }
   });
 
   it.each([
+    // claudecode, geminicli, factorydroid use settings.json (isDeletable=false) — excluded
     { target: "cursor", orphanPath: join(".cursor", "hooks.json") },
     { target: "opencode", orphanPath: join(".opencode", "plugins", "rulesync-hooks.js") },
+    { target: "codexcli", orphanPath: join(".codex", "hooks.json") },
+    { target: "copilot", orphanPath: join(".github", "hooks", "copilot-hooks.json") },
   ])(
     "should fail in check mode when delete would remove an orphan $target hooks file",
     async ({ target, orphanPath }) => {
@@ -124,31 +162,128 @@ describe("E2E: hooks", () => {
 describe("E2E: hooks (import)", () => {
   const { getTestDir } = useTestDirectory();
 
-  it("should import claudecode hooks", async () => {
-    const testDir = getTestDir();
-
-    // Setup: Create a Claude Code settings.json with hooks
-    const settingsContent = JSON.stringify(
-      {
+  it.each([
+    {
+      target: "claudecode",
+      sourcePath: join(".claude", "settings.json"),
+      sourceContent: {
         hooks: {
           SessionStart: [
-            {
-              matcher: "",
-              hooks: [{ type: "command", command: "echo session started" }],
-            },
+            { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
           ],
+        },
+      },
+    },
+    {
+      target: "cursor",
+      sourcePath: join(".cursor", "hooks.json"),
+      sourceContent: {
+        hooks: {
+          sessionStart: [
+            { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
+          ],
+        },
+      },
+    },
+    {
+      target: "codexcli",
+      sourcePath: join(".codex", "hooks.json"),
+      sourceContent: {
+        hooks: {
+          sessionStart: [
+            { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
+          ],
+        },
+      },
+    },
+    {
+      target: "copilot",
+      sourcePath: join(".github", "hooks", "copilot-hooks.json"),
+      // Copilot uses a flat entry schema: { type, bash, powershell, timeoutSec }
+      // rather than the canonical { matcher, hooks: [...] } shape.
+      sourceContent: {
+        version: 1,
+        hooks: {
+          sessionStart: [{ type: "command", bash: "echo session started" }],
+        },
+      },
+    },
+    {
+      target: "geminicli",
+      sourcePath: join(".gemini", "settings.json"),
+      sourceContent: {
+        hooks: {
+          sessionStart: [
+            { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
+          ],
+        },
+      },
+    },
+    {
+      target: "factorydroid",
+      sourcePath: join(".factory", "settings.json"),
+      sourceContent: {
+        hooks: {
+          sessionStart: [
+            { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
+          ],
+        },
+      },
+    },
+  ])("should import $target hooks", async ({ target, sourcePath, sourceContent }) => {
+    const testDir = getTestDir();
+
+    await writeFileContent(join(testDir, sourcePath), JSON.stringify(sourceContent, null, 2));
+
+    await runImport({ target, features: "hooks" });
+
+    const importedContent = await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
+    expect(importedContent).toContain("sessionStart");
+  });
+});
+
+describe("E2E: hooks (global mode)", () => {
+  const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
+
+  it.each([
+    { target: "claudecode", outputPath: join(".claude", "settings.json") },
+    { target: "codexcli", outputPath: join(".codex", "hooks.json") },
+    { target: "geminicli", outputPath: join(".gemini", "settings.json") },
+    { target: "opencode", outputPath: join(".config", "opencode", "plugins", "rulesync-hooks.js") },
+    { target: "factorydroid", outputPath: join(".factory", "settings.json") },
+    { target: "deepagents", outputPath: join(".deepagents", "hooks.json") },
+  ])("should generate $target hooks in home directory", async ({ target, outputPath }) => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    const hooksContent = JSON.stringify(
+      {
+        version: 1,
+        root: true,
+        hooks: {
+          sessionStart: [{ type: "command", command: ".rulesync/hooks/session-start.sh" }],
+          stop: [{ command: ".rulesync/hooks/audit.sh" }],
         },
       },
       null,
       2,
     );
-    await writeFileContent(join(testDir, ".claude", "settings.json"), settingsContent);
+    await writeFileContent(join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
 
-    // Execute: Import claudecode hooks
-    await runImport({ target: "claudecode", features: "hooks" });
+    await runGenerate({
+      target,
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
 
-    // Verify that the imported hooks file was created
-    const importedContent = await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
-    expect(importedContent).toContain("sessionStart");
+    const generatedContent = await readFileContent(join(homeDir, outputPath));
+    if (target === "opencode") {
+      expect(generatedContent).toContain("RulesyncHooksPlugin");
+      expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
+      expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+    } else {
+      assertHookCommandsPreserved(JSON.parse(generatedContent));
+    }
   });
 });

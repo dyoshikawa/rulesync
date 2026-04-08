@@ -46,7 +46,9 @@ export async function runGenerate({
   global = false,
   deleteFiles = false,
   check = false,
+  simulateCommands = false,
   simulateSubagents = false,
+  simulateSkills = false,
   env,
 }: {
   target: string;
@@ -54,7 +56,9 @@ export async function runGenerate({
   global?: boolean;
   deleteFiles?: boolean;
   check?: boolean;
+  simulateCommands?: boolean;
   simulateSubagents?: boolean;
+  simulateSkills?: boolean;
   env?: Record<string, string>;
 }): Promise<{ stdout: string; stderr: string }> {
   const args = [
@@ -67,7 +71,9 @@ export async function runGenerate({
     ...(global ? ["--global"] : []),
     ...(deleteFiles ? ["--delete"] : []),
     ...(check ? ["--check"] : []),
+    ...(simulateCommands ? ["--simulate-commands"] : []),
     ...(simulateSubagents ? ["--simulate-subagents"] : []),
+    ...(simulateSkills ? ["--simulate-skills"] : []),
   ];
   return execFileAsync(rulesyncCmd, args, env ? { env: { ...process.env, ...env } } : {});
 }

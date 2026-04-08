@@ -24,6 +24,18 @@ describe("E2E: rules", () => {
     { target: "codexcli", outputPath: "AGENTS.md" },
     { target: "copilot", outputPath: join(".github", "copilot-instructions.md") },
     { target: "opencode", outputPath: "AGENTS.md" },
+    { target: "geminicli", outputPath: "GEMINI.md" },
+    { target: "goose", outputPath: ".goosehints" },
+    { target: "copilotcli", outputPath: join(".github", "copilot-instructions.md") },
+    { target: "kilo", outputPath: "AGENTS.md" },
+    { target: "agentsmd", outputPath: "AGENTS.md" },
+    { target: "factorydroid", outputPath: "AGENTS.md" },
+    { target: "deepagents", outputPath: join(".deepagents", "AGENTS.md") },
+    { target: "rovodev", outputPath: join(".rovodev", "AGENTS.md") },
+    { target: "qwencode", outputPath: "QWEN.md" },
+    { target: "junie", outputPath: join(".junie", "guidelines.md") },
+    { target: "warp", outputPath: "WARP.md" },
+    { target: "replit", outputPath: "replit.md" },
   ])("should generate $target rules", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -33,6 +45,40 @@ root: true
 targets: ["*"]
 description: "Test rule"
 globs: ["**/*"]
+---
+
+# Test Rule
+
+This is a test rule for E2E testing.
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      ruleContent,
+    );
+
+    // Execute: Generate rules for the target
+    await runGenerate({ target, features: "rules" });
+
+    // Verify that the expected output file was generated
+    const generatedContent = await readFileContent(join(testDir, outputPath));
+    expect(generatedContent).toContain("Test Rule");
+  });
+
+  it.each([
+    { target: "cline", outputPath: join(".clinerules", "overview.md") },
+    { target: "roo", outputPath: join(".roo", "rules", "overview.md") },
+    { target: "kiro", outputPath: join(".kiro", "steering", "overview.md") },
+    { target: "antigravity", outputPath: join(".agent", "rules", "overview.md") },
+    { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },
+    { target: "windsurf", outputPath: join(".windsurf", "rules", "overview.md") },
+  ])("should generate $target rules (non-root)", async ({ target, outputPath }) => {
+    const testDir = getTestDir();
+
+    // Setup: Create a non-root rule file
+    const ruleContent = `---
+targets: ["*"]
+description: "Test rule"
+globs: ["src/**/*"]
 ---
 
 # Test Rule
@@ -113,23 +159,90 @@ This is a test rule for E2E testing.
 describe("E2E: rules (import)", () => {
   const { getTestDir } = useTestDirectory();
 
-  it("should import claudecode rules", async () => {
+  it.each([
+    { target: "claudecode", sourcePath: "CLAUDE.md", importedFileName: "CLAUDE.md" },
+    {
+      target: "cursor",
+      sourcePath: join(".cursor", "rules", "overview.mdc"),
+      importedFileName: "overview.md",
+    },
+    { target: "codexcli", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    {
+      target: "copilot",
+      sourcePath: join(".github", "copilot-instructions.md"),
+      importedFileName: "copilot-instructions.md",
+    },
+    { target: "opencode", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "geminicli", sourcePath: "GEMINI.md", importedFileName: "overview.md" },
+    { target: "goose", sourcePath: ".goosehints", importedFileName: "overview.md" },
+    {
+      target: "copilotcli",
+      sourcePath: join(".github", "copilot-instructions.md"),
+      importedFileName: "copilot-instructions.md",
+    },
+    { target: "kilo", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "agentsmd", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "factorydroid", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    {
+      target: "deepagents",
+      sourcePath: join(".deepagents", "AGENTS.md"),
+      importedFileName: "overview.md",
+    },
+    {
+      target: "rovodev",
+      sourcePath: join(".rovodev", "AGENTS.md"),
+      importedFileName: "overview.md",
+    },
+    { target: "qwencode", sourcePath: "QWEN.md", importedFileName: "overview.md" },
+    {
+      target: "junie",
+      sourcePath: join(".junie", "guidelines.md"),
+      importedFileName: "overview.md",
+    },
+    { target: "warp", sourcePath: "WARP.md", importedFileName: "overview.md" },
+    { target: "replit", sourcePath: "replit.md", importedFileName: "overview.md" },
+    {
+      target: "cline",
+      sourcePath: join(".clinerules", "overview.md"),
+      importedFileName: "overview.md",
+    },
+    {
+      target: "roo",
+      sourcePath: join(".roo", "rules", "overview.md"),
+      importedFileName: "overview.md",
+    },
+    {
+      target: "kiro",
+      sourcePath: join(".kiro", "steering", "overview.md"),
+      importedFileName: "overview.md",
+    },
+    {
+      target: "antigravity",
+      sourcePath: join(".agent", "rules", "overview.md"),
+      importedFileName: "overview.md",
+    },
+    {
+      target: "augmentcode",
+      sourcePath: join(".augment", "rules", "overview.md"),
+      importedFileName: "overview.md",
+    },
+    {
+      target: "windsurf",
+      sourcePath: join(".windsurf", "rules", "overview.md"),
+      importedFileName: "overview.md",
+    },
+  ])("should import $target rules", async ({ target, sourcePath, importedFileName }) => {
     const testDir = getTestDir();
 
-    // Setup: Create a CLAUDE.md file to import (modular rules format: ./CLAUDE.md)
-    const claudeMdContent = `# Project Overview
+    const ruleContent = `# Project Overview
 
 This is a test project for E2E testing.
 `;
-    const claudeMdPath = join(testDir, "CLAUDE.md");
-    await writeFileContent(claudeMdPath, claudeMdContent);
+    await writeFileContent(join(testDir, sourcePath), ruleContent);
 
-    // Execute: Import claudecode rules
-    await runImport({ target: "claudecode", features: "rules" });
+    await runImport({ target, features: "rules" });
 
-    // Verify that the imported rule file was created
-    // Note: The imported file keeps the original filename (CLAUDE.md), not overview.md
-    const importedRulePath = join(testDir, ".rulesync", "rules", "CLAUDE.md");
+    const importedRulePath = join(testDir, ".rulesync", "rules", importedFileName);
     const importedContent = await readFileContent(importedRulePath);
     expect(importedContent).toContain("Project Overview");
   });
@@ -142,6 +255,13 @@ describe("E2E: rules (global mode)", () => {
     { target: "claudecode", outputPath: join(".claude", "CLAUDE.md") },
     { target: "copilot", outputPath: join(".copilot", "copilot-instructions.md") },
     { target: "opencode", outputPath: join(".config", "opencode", "AGENTS.md") },
+    { target: "codexcli", outputPath: join(".codex", "AGENTS.md") },
+    { target: "geminicli", outputPath: join(".gemini", "GEMINI.md") },
+    { target: "goose", outputPath: ".goosehints" },
+    { target: "copilotcli", outputPath: join(".copilot", "copilot-instructions.md") },
+    { target: "factorydroid", outputPath: join(".factory", "AGENTS.md") },
+    { target: "kilo", outputPath: join(".config", "kilo", "AGENTS.md") },
+    { target: "rovodev", outputPath: join(".rovodev", "AGENTS.md") },
   ])("should generate $target rules in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
