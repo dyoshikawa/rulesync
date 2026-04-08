@@ -11,6 +11,7 @@ export type ToolHooksFromRulesyncHooksParams = Omit<
   "fileContent" | "relativeFilePath" | "relativeDirPath"
 > & {
   rulesyncHooks: RulesyncHooks;
+  logger?: Logger;
 };
 
 export type ToolHooksFromFileParams = Pick<AiFileFromFileParams, "baseDir" | "validate" | "global">;

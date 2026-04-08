@@ -378,6 +378,7 @@ export class HooksProcessor extends FeatureProcessor {
       rulesyncHooks,
       validate: true,
       global: this.global,
+      logger: this.logger,
     });
 
     const result: ToolFile[] = [toolHooks];

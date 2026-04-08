@@ -56,6 +56,14 @@ export type ToolHooksConverterConfig = {
    * config schema rejects empty event arrays.
    */
   omitEmptyEvents?: boolean;
+  /**
+   * If true, the canonical `name` and `description` fields are passed through in both
+   * directions. Disabled by default so tools whose schemas do not recognize these fields
+   * (e.g. Claude Code, Factory Droid) do not emit unknown keys into their config files.
+   * Currently enabled for tools whose schemas natively support these fields (e.g. Gemini
+   * CLI, Codex CLI).
+   */
+  passthroughNameDescription?: boolean;
 };
 
 /**
@@ -110,6 +118,7 @@ export function canonicalToToolHooks({
         ? defs.filter((def) => hookTypeFilter.has(def.type ?? "command"))
         : defs;
       if (filteredDefs.length === 0) continue;
+      const passthroughNameDescription = converterConfig.passthroughNameDescription ?? false;
       const hooks = filteredDefs.map((def) => {
         const commandText = def.command;
         const trimmedCommand =
@@ -129,8 +138,11 @@ export function canonicalToToolHooks({
           ...(command !== undefined && command !== null && { command }),
           ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
           ...(def.prompt !== undefined && def.prompt !== null && { prompt: def.prompt }),
-          ...(def.name !== undefined && def.name !== null && { name: def.name }),
-          ...(def.description !== undefined &&
+          ...(passthroughNameDescription &&
+            def.name !== undefined &&
+            def.name !== null && { name: def.name }),
+          ...(passthroughNameDescription &&
+            def.description !== undefined &&
             def.description !== null && { description: def.description }),
         };
       });
@@ -166,6 +178,7 @@ export function toolHooksToCanonical({
   for (const [toolEventName, matcherEntries] of Object.entries(hooks)) {
     const eventName = converterConfig.toolToCanonicalEventNames[toolEventName] ?? toolEventName;
     if (!Array.isArray(matcherEntries)) continue;
+    const passthroughNameDescription = converterConfig.passthroughNameDescription ?? false;
     const defs: HooksConfig["hooks"][string] = [];
     for (const rawEntry of matcherEntries) {
       if (!isToolMatcherEntry(rawEntry)) continue;
@@ -187,8 +200,11 @@ export function toolHooksToCanonical({
         const hookType = h.type === "command" || h.type === "prompt" ? h.type : "command";
         const timeout = typeof h.timeout === "number" ? h.timeout : undefined;
         const prompt = typeof h.prompt === "string" ? h.prompt : undefined;
-        const name = typeof h.name === "string" ? h.name : undefined;
-        const description = typeof h.description === "string" ? h.description : undefined;
+        const name = passthroughNameDescription && typeof h.name === "string" ? h.name : undefined;
+        const description =
+          passthroughNameDescription && typeof h.description === "string"
+            ? h.description
+            : undefined;
         defs.push({
           type: hookType,
           ...(command !== undefined && command !== null && { command }),

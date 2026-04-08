@@ -8,7 +8,6 @@ import {
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import { canonicalToToolHooks, toolHooksToCanonical } from "./tool-hooks-converter.js";
@@ -26,6 +25,7 @@ const GEMINICLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   toolToCanonicalEventNames: GEMINICLI_TO_CANONICAL_EVENT_NAMES,
   projectDirVar: "$GEMINI_PROJECT_DIR",
   prefixDotRelativeCommandsOnly: true,
+  passthroughNameDescription: true,
 };
 
 export class GeminicliHooks extends ToolHooks {
@@ -69,7 +69,6 @@ export class GeminicliHooks extends ToolHooks {
     logger,
   }: ToolHooksFromRulesyncHooksParams & {
     global?: boolean;
-    logger?: Logger;
   }): Promise<GeminicliHooks> {
     const paths = GeminicliHooks.getSettablePaths({ global });
     const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);

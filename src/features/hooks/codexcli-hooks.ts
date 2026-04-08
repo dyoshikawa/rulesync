@@ -11,7 +11,6 @@ import {
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import { canonicalToToolHooks, toolHooksToCanonical } from "./tool-hooks-converter.js";
@@ -28,13 +27,18 @@ import {
  *
  * Differences from Claude/Factory Droid:
  * - `projectDirVar: ""` — Codex CLI has no project directory variable, so commands are
- *   passed through verbatim with no prefixing.
+ *   passed through verbatim with no prefixing. Note that this means a hand-edited
+ *   `.codex/hooks.json` containing other tools' variables (e.g. `$CLAUDE_PROJECT_DIR/foo.sh`)
+ *   will be imported into canonical form verbatim and re-exported as-is. Such cross-tool
+ *   variables are not interpreted by Codex CLI itself; rulesync simply does not rewrite them.
  * - `supportedHookTypes: ["command"]` — Codex CLI only understands command-type hooks;
  *   prompt-type hooks are filtered out on export. (See `ToolHooksConverterConfig` for the
  *   intentional asymmetry with `toolHooksToCanonical`, which preserves prompt-type hooks
  *   on import to avoid silent round-trip data loss.)
  * - `omitEmptyEvents: true` — events whose entries become empty after filtering are
  *   dropped entirely from the output, since Codex CLI's schema rejects empty event arrays.
+ * - `passthroughNameDescription: true` — Codex CLI's hook schema accepts `name` and
+ *   `description` metadata fields, so they are preserved across the conversion.
  */
 const CODEXCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: CODEXCLI_HOOK_EVENTS,
@@ -43,6 +47,7 @@ const CODEXCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   projectDirVar: "",
   supportedHookTypes: new Set(["command"]),
   omitEmptyEvents: true,
+  passthroughNameDescription: true,
 };
 
 /**
@@ -138,7 +143,6 @@ export class CodexcliHooks extends ToolHooks {
     logger,
   }: ToolHooksFromRulesyncHooksParams & {
     global?: boolean;
-    logger?: Logger;
   }): Promise<CodexcliHooks> {
     const paths = CodexcliHooks.getSettablePaths({ global });
     const config = rulesyncHooks.getJson();
