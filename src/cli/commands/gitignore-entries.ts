@@ -2,6 +2,7 @@ import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rules
 import {
   ALL_FEATURES_WITH_WILDCARD,
   type Feature,
+  isFeatureValueEnabled,
   type RulesyncFeatures,
 } from "../../types/features.js";
 import { ALL_TOOL_TARGETS_WITH_WILDCARD, type ToolTarget } from "../../types/tool-targets.js";
@@ -282,11 +283,8 @@ const isFeatureSelectedForTarget = (
   }
   // Per-feature object form: feature is enabled when its value is truthy
   // (true or an options object). A wildcard "*" key enables all features.
-  const wildcardValue = targetFeatures["*"];
-  if (wildcardValue !== undefined && wildcardValue !== false) return true;
-  const value = targetFeatures[feature];
-  if (value === undefined || value === false) return false;
-  return true;
+  if (isFeatureValueEnabled(targetFeatures["*"])) return true;
+  return isFeatureValueEnabled(targetFeatures[feature]);
 };
 
 const isFeatureSelected = (

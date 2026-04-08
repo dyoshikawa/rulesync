@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import { uniq } from "es-toolkit";
+import { z } from "zod/mini";
 
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
@@ -38,13 +39,32 @@ export type ClaudecodeIgnoreFileMode = "shared" | "local";
 
 const SHARED_SETTINGS_FILE = "settings.json";
 const LOCAL_SETTINGS_FILE = "settings.local.json";
+const DEFAULT_FILE_MODE: ClaudecodeIgnoreFileMode = "shared";
+
+/**
+ * Schema for the per-feature options object that may be passed via
+ * `features.claudecode.ignore = { fileMode: "local" }`. Unknown keys are
+ * preserved (`z.looseObject`) so future tools can add their own keys without
+ * a coordinated migration, but `fileMode`, when present, must be one of the
+ * known literals — typos like `"LOCAL"` or `"private"` are rejected loudly
+ * rather than silently falling back to `"shared"`.
+ */
+const ClaudecodeIgnoreOptionsSchema = z.looseObject({
+  fileMode: z.optional(z.enum(["shared", "local"])),
+});
 
 const resolveFileMode = (
   options?: { fileMode?: unknown } | undefined,
 ): ClaudecodeIgnoreFileMode => {
-  const value = options?.fileMode;
-  if (value === "local") return "local";
-  return "shared";
+  if (!options) return DEFAULT_FILE_MODE;
+  const parsed = ClaudecodeIgnoreOptionsSchema.safeParse(options);
+  if (!parsed.success) {
+    throw new Error(
+      `Invalid options for claudecode ignore feature: ${parsed.error.message}. ` +
+        `\`fileMode\` must be either "shared" or "local".`,
+    );
+  }
+  return parsed.data.fileMode ?? DEFAULT_FILE_MODE;
 };
 
 const fileNameForMode = (fileMode: ClaudecodeIgnoreFileMode): string => {
@@ -151,9 +171,13 @@ export class ClaudecodeIgnore extends ToolIgnore {
     options,
   }: ToolIgnoreFromFileParams): Promise<ClaudecodeIgnore> {
     const paths = this.getSettablePaths({ options });
-    const fileContent = await readFileContent(
-      join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
-    );
+    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    // When `fileMode: "local"` is configured but the user has not yet created
+    // `.claude/settings.local.json` (a common case during `rulesync import`),
+    // gracefully fall back to an empty settings document instead of throwing.
+    // This mirrors the tolerant behavior of `fromRulesyncIgnore`.
+    const exists = await fileExists(filePath);
+    const fileContent = exists ? await readFileContent(filePath) : "{}";
 
     return new ClaudecodeIgnore({
       baseDir,

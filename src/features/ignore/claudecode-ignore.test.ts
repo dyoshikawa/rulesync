@@ -148,10 +148,24 @@ describe("ClaudecodeIgnore", () => {
       });
     });
 
-    it("should ignore unknown fileMode values and fall back to shared", () => {
-      const paths = ClaudecodeIgnore.getSettablePaths({ options: { fileMode: "weird" } });
+    it("should throw on unknown fileMode values rather than silently falling back", () => {
+      expect(() => ClaudecodeIgnore.getSettablePaths({ options: { fileMode: "weird" } })).toThrow(
+        /fileMode/,
+      );
+    });
+
+    it("should accept explicit fileMode: 'shared'", () => {
+      const paths = ClaudecodeIgnore.getSettablePaths({ options: { fileMode: "shared" } });
 
       expect(paths.relativeFilePath).toBe("settings.json");
+    });
+
+    it("should ignore unrelated keys in the options object", () => {
+      const paths = ClaudecodeIgnore.getSettablePaths({
+        options: { fileMode: "local", futureUnknown: 123 },
+      });
+
+      expect(paths.relativeFilePath).toBe("settings.local.json");
     });
   });
 
@@ -676,12 +690,51 @@ describe("ClaudecodeIgnore", () => {
       expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)"]);
     });
 
-    it("should throw error when file does not exist", async () => {
-      await expect(
-        ClaudecodeIgnore.fromFile({
-          baseDir: testDir,
-        }),
-      ).rejects.toThrow();
+    it("should fall back to empty settings when file does not exist", async () => {
+      const claudecodeIgnore = await ClaudecodeIgnore.fromFile({
+        baseDir: testDir,
+      });
+
+      expect(claudecodeIgnore).toBeInstanceOf(ClaudecodeIgnore);
+      expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.json");
+      expect(claudecodeIgnore.getPatterns()).toEqual([]);
+    });
+
+    it("should fall back to empty settings when settings.local.json is missing", async () => {
+      // The shared settings.json may exist on disk, but when fileMode is
+      // "local" we must read settings.local.json (which doesn't exist yet)
+      // and tolerate its absence rather than crashing.
+      const claudeDir = join(testDir, ".claude");
+      await ensureDir(claudeDir);
+      await writeFileContent(
+        join(claudeDir, "settings.json"),
+        JSON.stringify({ permissions: { deny: ["Read(shared.txt)"] } }),
+      );
+
+      const claudecodeIgnore = await ClaudecodeIgnore.fromFile({
+        baseDir: testDir,
+        options: { fileMode: "local" },
+      });
+
+      expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.local.json");
+      expect(claudecodeIgnore.getPatterns()).toEqual([]);
+    });
+
+    it("should read settings.local.json when fileMode is 'local'", async () => {
+      const claudeDir = join(testDir, ".claude");
+      await ensureDir(claudeDir);
+      await writeFileContent(
+        join(claudeDir, "settings.local.json"),
+        JSON.stringify({ permissions: { deny: ["Read(local-only.txt)"] } }),
+      );
+
+      const claudecodeIgnore = await ClaudecodeIgnore.fromFile({
+        baseDir: testDir,
+        options: { fileMode: "local" },
+      });
+
+      expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.local.json");
+      expect(claudecodeIgnore.getPatterns()).toEqual(["Read(local-only.txt)"]);
     });
   });
 

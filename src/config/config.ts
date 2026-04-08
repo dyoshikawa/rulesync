@@ -7,6 +7,7 @@ import {
   Feature,
   FeatureOptions,
   Features,
+  isFeatureValueEnabled,
   PerFeatureConfig,
   PerTargetFeatures,
   RulesyncFeatures,
@@ -216,14 +217,15 @@ export class Config {
       for (const features of Object.values(perTargetFeatures)) {
         if (!features) continue;
         const normalized = Config.normalizeTargetFeatures(features);
-        if (normalized.length === ALL_FEATURES.length) {
-          // Includes wildcard expansion
-          return [...ALL_FEATURES];
-        }
         for (const feature of normalized) {
           if (!allFeatures.includes(feature)) {
             allFeatures.push(feature);
           }
+        }
+        // Early-exit once we've already accumulated every known feature —
+        // no remaining target can contribute anything new.
+        if (allFeatures.length === ALL_FEATURES.length) {
+          return allFeatures;
         }
       }
       return allFeatures;
@@ -250,18 +252,15 @@ export class Config {
       return value.filter((feature): feature is Feature => feature !== "*");
     }
     // Per-feature object form: keys with truthy values are enabled.
-    if (value["*"] === true || (value["*"] !== undefined && value["*"] !== false)) {
+    if (isFeatureValueEnabled(value["*"])) {
       return [...ALL_FEATURES];
     }
     const enabled: Feature[] = [];
     for (const [key, val] of Object.entries(value)) {
       if (key === "*") continue;
-      if (val === false || val === undefined) continue;
-      // Truthy: true or an options object enables the feature.
-      if (val === true || (typeof val === "object" && val !== null)) {
-        // eslint-disable-next-line no-type-assertion/no-type-assertion
-        enabled.push(key as Feature);
-      }
+      if (!isFeatureValueEnabled(val)) continue;
+      // eslint-disable-next-line no-type-assertion/no-type-assertion
+      enabled.push(key as Feature);
     }
     return enabled;
   }
