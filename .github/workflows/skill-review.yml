@@ -1,0 +1,19 @@
+name: Skill Review
+
+on:
+  pull_request:
+    paths:
+      - "skills/**/skill.md"
+      - "**/skill.md"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  skill-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: tessl-lab/skill-review-action@d81583861aaf29d1da7f10e6539efef4e27b0dd5
