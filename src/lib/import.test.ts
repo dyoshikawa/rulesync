@@ -26,6 +26,7 @@ describe("importFromTool", () => {
     getSilent: ReturnType<typeof vi.fn>;
     getBaseDirs: ReturnType<typeof vi.fn>;
     getFeatures: ReturnType<typeof vi.fn>;
+    getFeatureOptions: ReturnType<typeof vi.fn>;
     getGlobal: ReturnType<typeof vi.fn>;
   };
 
@@ -35,6 +36,7 @@ describe("importFromTool", () => {
       getSilent: vi.fn().mockReturnValue(false),
       getBaseDirs: vi.fn().mockReturnValue(["."]),
       getFeatures: vi.fn().mockReturnValue(["rules"]),
+      getFeatureOptions: vi.fn().mockReturnValue(undefined),
       getGlobal: vi.fn().mockReturnValue(false),
     };
 

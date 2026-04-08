@@ -11,6 +11,7 @@ import {
   ToolIgnoreFromRulesyncIgnoreParams,
   ToolIgnoreParams,
   ToolIgnoreSettablePaths,
+  ToolIgnoreSettablePathsParams,
 } from "./tool-ignore.js";
 
 export type ClaudecodeIgnoreParams = ToolIgnoreParams;
@@ -21,6 +22,35 @@ type SettingsJsonValue = {
   } | null;
 };
 
+/**
+ * Controls which Claude Code settings file the ignore feature writes to.
+ *
+ * - `"shared"` (default): writes to `.claude/settings.json` so the deny list
+ *   can be committed and shared across the team.
+ * - `"local"`: writes to `.claude/settings.local.json`, which is ignored by
+ *   git by default and intended for per-developer overrides.
+ *
+ * History: prior to v7.x the ignore feature wrote to `settings.local.json`;
+ * see issue #1094 for the move to shared `settings.json` and #1374 for the
+ * follow-up that added this opt-out.
+ */
+export type ClaudecodeIgnoreFileMode = "shared" | "local";
+
+const SHARED_SETTINGS_FILE = "settings.json";
+const LOCAL_SETTINGS_FILE = "settings.local.json";
+
+const resolveFileMode = (
+  options?: { fileMode?: unknown } | undefined,
+): ClaudecodeIgnoreFileMode => {
+  const value = options?.fileMode;
+  if (value === "local") return "local";
+  return "shared";
+};
+
+const fileNameForMode = (fileMode: ClaudecodeIgnoreFileMode): string => {
+  return fileMode === "local" ? LOCAL_SETTINGS_FILE : SHARED_SETTINGS_FILE;
+};
+
 export class ClaudecodeIgnore extends ToolIgnore {
   constructor(params: ClaudecodeIgnoreParams) {
     super(params);
@@ -29,10 +59,11 @@ export class ClaudecodeIgnore extends ToolIgnore {
     this.patterns = jsonValue.permissions?.deny ?? [];
   }
 
-  static getSettablePaths(): ToolIgnoreSettablePaths {
+  static getSettablePaths(params?: ToolIgnoreSettablePathsParams): ToolIgnoreSettablePaths {
+    const fileMode = resolveFileMode(params?.options);
     return {
       relativeDirPath: ".claude",
-      relativeFilePath: "settings.json",
+      relativeFilePath: fileNameForMode(fileMode),
     };
   }
 
@@ -72,6 +103,7 @@ export class ClaudecodeIgnore extends ToolIgnore {
   static async fromRulesyncIgnore({
     baseDir = process.cwd(),
     rulesyncIgnore,
+    options,
   }: ToolIgnoreFromRulesyncIgnoreParams): Promise<ClaudecodeIgnore> {
     const fileContent = rulesyncIgnore.getFileContent();
 
@@ -81,11 +113,8 @@ export class ClaudecodeIgnore extends ToolIgnore {
       .filter((line) => line.length > 0 && !line.startsWith("#"));
     const deniedValues = patterns.map((pattern) => `Read(${pattern})`);
 
-    const filePath = join(
-      baseDir,
-      this.getSettablePaths().relativeDirPath,
-      this.getSettablePaths().relativeFilePath,
-    );
+    const paths = this.getSettablePaths({ options });
+    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
     const exists = await fileExists(filePath);
     const existingFileContent = exists ? await readFileContent(filePath) : "{}";
     const existingJsonValue: SettingsJsonValue = JSON.parse(existingFileContent);
@@ -109,8 +138,8 @@ export class ClaudecodeIgnore extends ToolIgnore {
 
     return new ClaudecodeIgnore({
       baseDir,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
       fileContent: JSON.stringify(jsonValue, null, 2),
       validate: true,
     });
@@ -119,19 +148,17 @@ export class ClaudecodeIgnore extends ToolIgnore {
   static async fromFile({
     baseDir = process.cwd(),
     validate = true,
+    options,
   }: ToolIgnoreFromFileParams): Promise<ClaudecodeIgnore> {
+    const paths = this.getSettablePaths({ options });
     const fileContent = await readFileContent(
-      join(
-        baseDir,
-        this.getSettablePaths().relativeDirPath,
-        this.getSettablePaths().relativeFilePath,
-      ),
+      join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
     );
 
     return new ClaudecodeIgnore({
       baseDir,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
       fileContent: fileContent,
       validate,
     });

@@ -2,6 +2,7 @@ import { z } from "zod/mini";
 
 import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
+import type { FeatureOptions } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
@@ -25,6 +26,7 @@ import {
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
   ToolIgnoreSettablePaths,
+  ToolIgnoreSettablePathsParams,
 } from "./tool-ignore.js";
 import { WindsurfIgnore } from "./windsurf-ignore.js";
 import { ZedIgnore } from "./zed-ignore.js";
@@ -57,7 +59,7 @@ type ToolIgnoreFactory = {
     ): ToolIgnore | Promise<ToolIgnore>;
     fromFile(params: ToolIgnoreFromFileParams): Promise<ToolIgnore>;
     forDeletion(params: ToolIgnoreForDeletionParams): ToolIgnore;
-    getSettablePaths(): ToolIgnoreSettablePaths;
+    getSettablePaths(params?: ToolIgnoreSettablePathsParams): ToolIgnoreSettablePaths;
   };
 };
 
@@ -91,6 +93,7 @@ const defaultGetFactory: GetFactory = (target) => {
 export class IgnoreProcessor extends FeatureProcessor {
   private readonly toolTarget: IgnoreProcessorToolTarget;
   private readonly getFactory: GetFactory;
+  private readonly featureOptions: FeatureOptions | undefined;
 
   constructor({
     baseDir = process.cwd(),
@@ -98,12 +101,14 @@ export class IgnoreProcessor extends FeatureProcessor {
     getFactory = defaultGetFactory,
     dryRun = false,
     logger,
+    featureOptions,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
     getFactory?: GetFactory;
     dryRun?: boolean;
     logger: Logger;
+    featureOptions?: FeatureOptions;
   }) {
     super({ baseDir, dryRun, logger });
     const result = IgnoreProcessorToolTargetSchema.safeParse(toolTarget);
@@ -114,6 +119,7 @@ export class IgnoreProcessor extends FeatureProcessor {
     }
     this.toolTarget = result.data;
     this.getFactory = getFactory;
+    this.featureOptions = featureOptions;
   }
 
   async writeToolIgnoresFromRulesyncIgnores(rulesyncIgnores: RulesyncIgnore[]): Promise<void> {
@@ -147,7 +153,7 @@ export class IgnoreProcessor extends FeatureProcessor {
   } = {}): Promise<ToolFile[]> {
     try {
       const factory = this.getFactory(this.toolTarget);
-      const paths = factory.class.getSettablePaths();
+      const paths = factory.class.getSettablePaths({ options: this.featureOptions });
 
       if (forDeletion) {
         const toolIgnore = factory.class.forDeletion({
@@ -175,7 +181,7 @@ export class IgnoreProcessor extends FeatureProcessor {
 
   async loadToolIgnores(): Promise<ToolIgnore[]> {
     const factory = this.getFactory(this.toolTarget);
-    return [await factory.class.fromFile({ baseDir: this.baseDir })];
+    return [await factory.class.fromFile({ baseDir: this.baseDir, options: this.featureOptions })];
   }
 
   /**
@@ -195,6 +201,7 @@ export class IgnoreProcessor extends FeatureProcessor {
     const toolIgnore = await factory.class.fromRulesyncIgnore({
       baseDir: this.baseDir,
       rulesyncIgnore,
+      options: this.featureOptions,
     });
 
     return [toolIgnore];

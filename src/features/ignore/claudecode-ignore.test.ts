@@ -132,6 +132,76 @@ describe("ClaudecodeIgnore", () => {
         relativeFilePath: "settings.json",
       });
     });
+
+    it("should default to shared settings.json when fileMode is omitted", () => {
+      const paths = ClaudecodeIgnore.getSettablePaths({ options: {} });
+
+      expect(paths.relativeFilePath).toBe("settings.json");
+    });
+
+    it("should resolve to settings.local.json when fileMode is 'local'", () => {
+      const paths = ClaudecodeIgnore.getSettablePaths({ options: { fileMode: "local" } });
+
+      expect(paths).toEqual({
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.local.json",
+      });
+    });
+
+    it("should ignore unknown fileMode values and fall back to shared", () => {
+      const paths = ClaudecodeIgnore.getSettablePaths({ options: { fileMode: "weird" } });
+
+      expect(paths.relativeFilePath).toBe("settings.json");
+    });
+  });
+
+  describe("fromRulesyncIgnore with fileMode option", () => {
+    it("should write to settings.local.json when fileMode is 'local'", async () => {
+      const rulesyncIgnore = new RulesyncIgnore({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+        fileContent: "*.log\nnode_modules/**",
+      });
+
+      const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
+        baseDir: testDir,
+        rulesyncIgnore,
+        options: { fileMode: "local" },
+      });
+
+      expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.local.json");
+      expect(claudecodeIgnore.getFilePath()).toBe(join(testDir, ".claude", "settings.local.json"));
+
+      const jsonValue = JSON.parse(claudecodeIgnore.getFileContent());
+      expect(jsonValue.permissions.deny).toEqual(["Read(*.log)", "Read(node_modules/**)"]);
+    });
+
+    it("should not touch settings.json when writing to local mode", async () => {
+      const sharedContent = JSON.stringify(
+        { permissions: { deny: ["Read(shared.txt)"] } },
+        null,
+        2,
+      );
+      const claudeDir = join(testDir, ".claude");
+      await ensureDir(claudeDir);
+      await writeFileContent(join(claudeDir, "settings.json"), sharedContent);
+
+      const rulesyncIgnore = new RulesyncIgnore({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+        fileContent: "*.log",
+      });
+
+      const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
+        baseDir: testDir,
+        rulesyncIgnore,
+        options: { fileMode: "local" },
+      });
+
+      // The returned tool file targets settings.local.json, leaving the
+      // existing shared settings.json untouched on disk.
+      expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.local.json");
+    });
   });
 
   describe("isDeletable", () => {

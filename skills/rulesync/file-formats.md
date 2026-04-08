@@ -311,3 +311,37 @@ Example:
 tmp/
 credentials/
 ```
+
+### Where ignore patterns are written per tool
+
+Most tools get a dedicated ignore file (for example `.cursorignore`,
+`.geminiignore`, `.clineignore`). Claude Code is the exception: it does not
+read a separate ignore file, so Rulesync writes the deny list into Claude
+Code's settings file as `permissions.deny` entries (`Read(<pattern>)`).
+
+By default, Claude Code's deny list is written to the **shared**
+`.claude/settings.json` so that the policy can be committed and reviewed by
+the team. This is intentional (see issue #1094), but it means that running
+`rulesync gitignore` will not add `.claude/settings.json` to `.gitignore` —
+that file may also contain other shared Claude config you actively want to
+commit.
+
+If you would rather keep the deny list out of version control, opt into the
+**local** mode using the per-feature options object form:
+
+```jsonc
+// rulesync.jsonc
+{
+  "targets": ["claudecode"],
+  "features": {
+    "claudecode": {
+      "ignore": { "fileMode": "local" },
+    },
+  },
+}
+```
+
+| `fileMode`           | Output file                   | Tracked by git by default                             |
+| -------------------- | ----------------------------- | ----------------------------------------------------- |
+| `"shared"` (default) | `.claude/settings.json`       | Yes — meant to be committed and shared with the team. |
+| `"local"`            | `.claude/settings.local.json` | No — `rulesync gitignore` already excludes this file. |

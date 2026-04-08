@@ -99,6 +99,34 @@ You can also use `*` (wildcard) for specific targets:
 }
 ```
 
+### Per-feature options
+
+Some features accept additional configuration. To pass options through, use
+the object form for a target's features instead of an array. Each feature key
+maps to either `true`/`false` (enable/disable) or an options object.
+
+```jsonc
+{
+  "targets": ["claudecode"],
+  "features": {
+    "claudecode": {
+      "rules": true,
+      "ignore": { "fileMode": "local" },
+    },
+  },
+}
+```
+
+The current per-feature options are:
+
+| Target       | Feature  | Option     | Values                                                       | Default    |
+| ------------ | -------- | ---------- | ------------------------------------------------------------ | ---------- |
+| `claudecode` | `ignore` | `fileMode` | `"shared"` (settings.json) / `"local"` (settings.local.json) | `"shared"` |
+
+See [`docs/reference/file-formats.md`](../reference/file-formats.md#where-ignore-patterns-are-written-per-tool)
+for the rationale behind the Claude Code default and when to switch to
+`"local"`.
+
 ## Local Configuration
 
 Rulesync supports a local configuration file (`rulesync.local.jsonc`) for machine-specific or developer-specific settings. This file is automatically added to `.gitignore` by `rulesync gitignore` and should not be committed to the repository.

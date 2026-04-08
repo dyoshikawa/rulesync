@@ -276,8 +276,17 @@ const isFeatureSelectedForTarget = (
   if (target === "common") return true;
   const targetFeatures = features[target];
   if (!targetFeatures) return true;
-  if (targetFeatures.includes("*")) return true;
-  return targetFeatures.includes(feature);
+  if (Array.isArray(targetFeatures)) {
+    if (targetFeatures.includes("*")) return true;
+    return targetFeatures.includes(feature);
+  }
+  // Per-feature object form: feature is enabled when its value is truthy
+  // (true or an options object). A wildcard "*" key enables all features.
+  const wildcardValue = targetFeatures["*"];
+  if (wildcardValue !== undefined && wildcardValue !== false) return true;
+  const value = targetFeatures[feature];
+  if (value === undefined || value === false) return false;
+  return true;
 };
 
 const isFeatureSelected = (
@@ -319,8 +328,14 @@ const warnInvalidFeatures = (features: RulesyncFeatures, logger?: Logger): void 
   } else {
     for (const targetFeatures of Object.values(features)) {
       if (!targetFeatures) continue;
-      for (const feature of targetFeatures) {
-        warnOnce(feature);
+      if (Array.isArray(targetFeatures)) {
+        for (const feature of targetFeatures) {
+          warnOnce(feature);
+        }
+      } else {
+        for (const feature of Object.keys(targetFeatures)) {
+          warnOnce(feature);
+        }
       }
     }
   }
