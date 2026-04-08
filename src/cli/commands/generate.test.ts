@@ -687,6 +687,73 @@ describe("generateCommand", () => {
     });
   });
 
+  describe("check mode", () => {
+    it("should fail when check mode would delete orphan files", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      mockConfig.getCheck.mockReturnValue(true);
+      mockConfig.getDelete.mockReturnValue(true);
+      mockConfig.isPreviewMode.mockReturnValue(true);
+
+      const rulesMock = {
+        loadToolFiles: vi.fn().mockResolvedValue([
+          {
+            getFilePath: () => "/path/to/orphan",
+          },
+        ]),
+        removeOrphanAiFiles: vi.fn().mockResolvedValue(1),
+        loadRulesyncFiles: vi.fn().mockResolvedValue([
+          {
+            getFilePath: () => "/path/to/rulesync",
+          },
+        ]),
+        convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([
+          {
+            getFilePath: () => "/path/to/converted",
+          },
+        ]),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
+      };
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return rulesMock as any;
+      });
+
+      await expect(generateCommand(mockLogger, {})).rejects.toThrow(
+        "Files are not up to date. Run 'rulesync generate' to update.",
+      );
+
+      expect(mockLogger.info).not.toHaveBeenCalledWith("✓ All files are up to date (rules)");
+    });
+
+    it("should succeed when check mode finds no diff", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      mockConfig.getCheck.mockReturnValue(true);
+      mockConfig.isPreviewMode.mockReturnValue(true);
+
+      const rulesMock = {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+        loadRulesyncFiles: vi.fn().mockResolvedValue([
+          {
+            getFilePath: () => "/path/to/rulesync",
+          },
+        ]),
+        convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([
+          {
+            getFilePath: () => "/path/to/converted",
+          },
+        ]),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
+      };
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return rulesMock as any;
+      });
+
+      await generateCommand(mockLogger, {});
+
+      expect(mockLogger.success).toHaveBeenCalledWith("✓ All files are up to date.");
+    });
+  });
+
   describe("error handling", () => {
     it("should handle ConfigResolver errors", async () => {
       vi.mocked(ConfigResolver.resolve).mockRejectedValue(new Error("Config error"));
@@ -1051,11 +1118,10 @@ describe("generateCommand", () => {
         message: "Files are not up to date. Run 'rulesync generate' to update.",
       });
 
-      // Guard the actual code path: orphan detection must have run, and the
-      // zero-generated summary must still be logged before throwing.
+      // Guard the actual code path: orphan detection must have run before the
+      // check-mode hasDiff branch throws.
       expect(loadToolFilesMock).toHaveBeenCalled();
       expect(removeOrphanMock).toHaveBeenCalled();
-      expect(mockLogger.info).toHaveBeenCalledWith("✓ All files are up to date (rules)");
     });
 
     it("should succeed in check mode when no diff exists and delete is enabled", async () => {

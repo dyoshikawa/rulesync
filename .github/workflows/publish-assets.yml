@@ -30,7 +30,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
-          ref: main
+          # Pin to the merged commit SHA to avoid tagging a later commit if
+          # main advances between the PR merge and this workflow run.
+          # Falls back to main for workflow_dispatch runs.
+          ref: ${{ github.event.pull_request.merge_commit_sha || 'main' }}
+          # Fetch tags so the existence check below can see remote tags.
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Configure git
+        uses: ./.github/actions/git-config
 
       - name: Setup mise
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v2
@@ -68,15 +77,35 @@ jobs:
         id: tag
         run: |
           if [ -n "$TAG_INPUT" ]; then
-            echo "tag=$TAG_INPUT" >> "$GITHUB_OUTPUT"
+            TAG="$TAG_INPUT"
           elif [ "$EVENT_NAME" = "pull_request" ]; then
             TAG="${HEAD_REF#release/}"
-            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           fi
+          if [ -z "$TAG" ]; then
+            echo "::error::Could not determine tag name"
+            exit 1
+          fi
+          if ! echo "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid tag format: $TAG"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
         env:
           TAG_INPUT: ${{ inputs.tag }}
           EVENT_NAME: ${{ github.event_name }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
+
+      - name: Create and push tag
+        run: |
+          if [ -n "$(git tag -l "$TAG")" ] || [ -n "$(git ls-remote --tags origin "refs/tags/$TAG")" ]; then
+            echo "Tag $TAG already exists (locally or on remote), skipping creation"
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+            echo "Tag $TAG created and pushed"
+          fi
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
 
       - name: Upload assets to release
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1

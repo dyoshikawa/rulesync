@@ -106,6 +106,26 @@ credentials/
       expect(await readFileContent(join(testDir, orphanPath))).toBe("# orphan\n");
     },
   );
+
+  it("should succeed in check mode when a claudecode ignore file is non-deletable", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+    await writeFileContent(
+      join(testDir, ".claude", "settings.json"),
+      JSON.stringify({ permissions: { deny: ["tmp/"] }, theme: "dark" }, null, 2),
+    );
+
+    const { stdout } = await runGenerate({
+      target: "claudecode",
+      features: "ignore",
+      deleteFiles: true,
+      check: true,
+      env: { NODE_ENV: "e2e" },
+    });
+
+    expect(stdout).toContain("All files are up to date.");
+  });
 });
 
 describe("E2E: ignore (import)", () => {

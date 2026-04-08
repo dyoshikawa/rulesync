@@ -110,6 +110,37 @@ describe("E2E: mcp", () => {
     },
   );
 
+  it.each([
+    {
+      target: "geminicli",
+      outputPath: join(".gemini", "settings.json"),
+      content: JSON.stringify({ theme: "dark", mcpServers: {} }, null, 2),
+    },
+    {
+      target: "codexcli",
+      outputPath: join(".codex", "config.toml"),
+      content: '[ui]\ntheme = "dark"\n',
+    },
+  ])(
+    "should succeed in check mode when a $target mcp file is non-deletable",
+    async ({ target, outputPath, content }) => {
+      const testDir = getTestDir();
+
+      await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+      await writeFileContent(join(testDir, outputPath), content);
+
+      const { stdout } = await runGenerate({
+        target,
+        features: "mcp",
+        deleteFiles: true,
+        check: true,
+        env: { NODE_ENV: "e2e" },
+      });
+
+      expect(stdout).toContain("All files are up to date.");
+    },
+  );
+
   it("should run mcp command as daemon without errors", async () => {
     const testDir = getTestDir();
 

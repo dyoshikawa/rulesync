@@ -128,6 +128,35 @@ describe("E2E: hooks", () => {
       expect(await readFileContent(join(testDir, orphanPath))).toBe("# orphan\n");
     },
   );
+
+  it("should succeed in check mode when a claudecode hooks file is non-deletable", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+    await writeFileContent(
+      join(testDir, ".claude", "settings.json"),
+      JSON.stringify(
+        {
+          hooks: {
+            SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "echo hi" }] }],
+          },
+          theme: "dark",
+        },
+        null,
+        2,
+      ),
+    );
+
+    const { stdout } = await runGenerate({
+      target: "claudecode",
+      features: "hooks",
+      deleteFiles: true,
+      check: true,
+      env: { NODE_ENV: "e2e" },
+    });
+
+    expect(stdout).toContain("All files are up to date.");
+  });
 });
 
 describe("E2E: hooks (import)", () => {

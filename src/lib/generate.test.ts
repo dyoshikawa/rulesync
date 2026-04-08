@@ -72,6 +72,7 @@ describe("generate", () => {
     getTargets: ReturnType<typeof vi.fn>;
     getFeatures: ReturnType<typeof vi.fn>;
     getDelete: ReturnType<typeof vi.fn>;
+    getCheck: ReturnType<typeof vi.fn>;
     getGlobal: ReturnType<typeof vi.fn>;
     getSimulateCommands: ReturnType<typeof vi.fn>;
     getSimulateSubagents: ReturnType<typeof vi.fn>;
@@ -87,6 +88,7 @@ describe("generate", () => {
       getTargets: vi.fn().mockReturnValue(["claudecode"]),
       getFeatures: vi.fn().mockReturnValue(["rules"]),
       getDelete: vi.fn().mockReturnValue(false),
+      getCheck: vi.fn().mockReturnValue(false),
       getGlobal: vi.fn().mockReturnValue(false),
       getSimulateCommands: vi.fn().mockReturnValue(false),
       getSimulateSubagents: vi.fn().mockReturnValue(false),
@@ -824,6 +826,29 @@ describe("generate", () => {
           .fn()
           .mockResolvedValue([createMockAiFile("/path/to/file", "content")]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }), // Has changes (file doesn't exist)
+      };
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return mockProcessor as unknown as RulesProcessor;
+      });
+
+      const result = await generate({ logger, config: mockConfig as never });
+
+      expect(result.hasDiff).toBe(true);
+    });
+
+    it("should return hasDiff: true when orphan files would be deleted in dry run mode", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      mockConfig.getDelete.mockReturnValue(true);
+      mockConfig.isPreviewMode.mockReturnValue(true);
+
+      const existingFiles = [createMockAiFile("/path/to/orphan", "orphan content")];
+      const generatedFiles = [createMockAiFile("/path/to/kept", "content")];
+      const mockProcessor = {
+        loadToolFiles: vi.fn().mockResolvedValue(existingFiles),
+        removeOrphanAiFiles: vi.fn().mockResolvedValue(1),
+        loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+        convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue(generatedFiles),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
       };
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return mockProcessor as unknown as RulesProcessor;
