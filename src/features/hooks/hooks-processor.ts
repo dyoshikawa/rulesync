@@ -21,7 +21,7 @@ import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
-import { CodexcliConfigToml, CodexcliHooks } from "./codexcli-hooks.js";
+import { CodexcliHooks } from "./codexcli-hooks.js";
 import { CopilotHooks } from "./copilot-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { DeepagentsHooks } from "./deepagents-hooks.js";
@@ -65,6 +65,14 @@ type ToolHooksFactory = {
       relativeFilePath: string;
     };
     isDeletable?: (instance: ToolHooks) => boolean;
+    /**
+     * Optional hook for tools that need to emit auxiliary files alongside the
+     * main hooks file (e.g. Codex CLI's `.codex/config.toml` feature flag).
+     * Called once per `convertRulesyncFilesToToolFiles` invocation; the returned
+     * files are appended to the result so they are written through the normal
+     * write phase and respect dry-run mode.
+     */
+    getAuxiliaryFiles?: (params: { baseDir: string }) => Promise<ToolFile[]>;
   };
   meta: {
     supportsProject: boolean;
@@ -374,9 +382,9 @@ export class HooksProcessor extends FeatureProcessor {
 
     const result: ToolFile[] = [toolHooks];
 
-    // For codexcli, also generate .codex/config.toml with the feature flag
-    if (this.toolTarget === "codexcli") {
-      result.push(await CodexcliConfigToml.fromBaseDir({ baseDir: this.baseDir }));
+    if (factory.class.getAuxiliaryFiles) {
+      const auxiliaryFiles = await factory.class.getAuxiliaryFiles({ baseDir: this.baseDir });
+      result.push(...auxiliaryFiles);
     }
 
     return result;
