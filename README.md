@@ -95,6 +95,8 @@ See [Quick Start guide](https://dyoshikawa.github.io/rulesync/getting-started/qu
 - 🎮: Supports simulated commands/subagents/skills (Project mode only)
 - 🔧: Supports MCP tool config (`enabledTools`/`disabledTools`)
 
+Some features accept per-feature options (e.g., Claude Code's `ignore` feature supports `fileMode: "local"` to write to `settings.local.json` instead of `settings.json`). See [Configuration > Per-feature options](https://dyoshikawa.github.io/rulesync/guide/configuration#per-feature-options) for details.
+
 ## Documentation
 
 For full documentation including configuration, CLI reference, file formats, programmatic API, and more, visit the **[documentation site](https://dyoshikawa.github.io/rulesync/)**.
