@@ -33,7 +33,7 @@ describe("E2E: subagents", () => {
     },
     {
       target: "copilot",
-      outputPath: join(".github", "agents", "planner.md"),
+      outputPath: join(".github", "agents", "planner.agent.md"),
     },
     {
       target: "deepagents",
@@ -176,7 +176,7 @@ describe("E2E: subagents (import)", () => {
     { target: "claudecode", sourcePath: join(".claude", "agents", "planner.md") },
     { target: "cursor", sourcePath: join(".cursor", "agents", "planner.md") },
     { target: "geminicli", sourcePath: join(".gemini", "agents", "planner.md") },
-    { target: "copilot", sourcePath: join(".github", "agents", "planner.md") },
+    { target: "copilot", sourcePath: join(".github", "agents", "planner.agent.md") },
     { target: "opencode", sourcePath: join(".opencode", "agent", "planner.md") },
     { target: "deepagents", sourcePath: join(".deepagents", "agents", "planner.md") },
     { target: "junie", sourcePath: join(".junie", "agents", "planner.md") },
