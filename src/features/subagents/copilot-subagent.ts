@@ -98,7 +98,7 @@ export class CopilotSubagent extends ToolSubagent {
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-      relativeFilePath: this.getRelativeFilePath(),
+      relativeFilePath: this.getRelativeFilePath().replace(/\.agent\.md$/, ".md"),
       validate: true,
     });
   }
@@ -128,13 +128,17 @@ export class CopilotSubagent extends ToolSubagent {
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, copilotFrontmatter);
     const paths = this.getSettablePaths({ global });
+    const rulesyncRelativeFilePath = rulesyncSubagent.getRelativeFilePath();
+    const relativeFilePath = rulesyncRelativeFilePath.endsWith(".agent.md")
+      ? rulesyncRelativeFilePath
+      : rulesyncRelativeFilePath.replace(/\.md$/, ".agent.md");
 
     return new CopilotSubagent({
       baseDir: baseDir,
       frontmatter: copilotFrontmatter,
       body,
       relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
+      relativeFilePath,
       fileContent,
       validate,
       global,
