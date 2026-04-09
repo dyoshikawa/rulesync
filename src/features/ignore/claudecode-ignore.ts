@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { uniq } from "es-toolkit";
 import { z } from "zod/mini";
 
+import { FeatureOptions } from "../../types/features.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
@@ -53,9 +54,7 @@ const ClaudecodeIgnoreOptionsSchema = z.looseObject({
   fileMode: z.optional(z.enum(["shared", "local"])),
 });
 
-const resolveFileMode = (
-  options?: { fileMode?: unknown } | undefined,
-): ClaudecodeIgnoreFileMode => {
+const resolveFileMode = (options?: FeatureOptions | undefined): ClaudecodeIgnoreFileMode => {
   if (!options) return DEFAULT_FILE_MODE;
   const parsed = ClaudecodeIgnoreOptionsSchema.safeParse(options);
   if (!parsed.success) {
@@ -170,13 +169,18 @@ export class ClaudecodeIgnore extends ToolIgnore {
     validate = true,
     options,
   }: ToolIgnoreFromFileParams): Promise<ClaudecodeIgnore> {
+    const fileMode = resolveFileMode(options);
     const paths = this.getSettablePaths({ options });
     const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
     // When `fileMode: "local"` is configured but the user has not yet created
     // `.claude/settings.local.json` (a common case during `rulesync import`),
     // gracefully fall back to an empty settings document instead of throwing.
-    // This mirrors the tolerant behavior of `fromRulesyncIgnore`.
+    // For "shared" mode, missing settings.json is still an error — it should
+    // exist if the user has configured shared ignore patterns.
     const exists = await fileExists(filePath);
+    if (!exists && fileMode === "shared") {
+      throw new Error(`File not found: ${filePath}`);
+    }
     const fileContent = exists ? await readFileContent(filePath) : "{}";
 
     return new ClaudecodeIgnore({

@@ -41,6 +41,9 @@ export type FeatureValue = boolean | FeatureOptions;
 //   { "claudecode": { "ignore": { "fileMode": "local" }, "rules": true } }
 const FeatureOptionsSchema = z.record(z.string(), z.unknown());
 const FeatureValueSchema = z.union([z.boolean(), FeatureOptionsSchema]);
+// NOTE: `z.record` with an enum key may not reject unknown keys at runtime in
+// all zod versions. Unknown feature names (typos) are caught by
+// `warnInvalidFeatures` in gitignore-entries.ts instead of at parse time.
 const PerFeatureConfigSchema = z.record(z.enum(ALL_FEATURES_WITH_WILDCARD), FeatureValueSchema);
 export const RulesyncFeaturesSchema = z.union([
   z.array(z.enum(ALL_FEATURES_WITH_WILDCARD)),
@@ -93,6 +96,6 @@ export const isPerFeatureConfig = (value: PerTargetFeaturesValue): value is PerF
  */
 export const isFeatureValueEnabled = (value: unknown): boolean => {
   if (value === true) return true;
-  if (typeof value === "object" && value !== null) return true;
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) return true;
   return false;
 };

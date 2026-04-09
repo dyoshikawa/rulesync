@@ -690,14 +690,12 @@ describe("ClaudecodeIgnore", () => {
       expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)"]);
     });
 
-    it("should fall back to empty settings when file does not exist", async () => {
-      const claudecodeIgnore = await ClaudecodeIgnore.fromFile({
-        baseDir: testDir,
-      });
-
-      expect(claudecodeIgnore).toBeInstanceOf(ClaudecodeIgnore);
-      expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.json");
-      expect(claudecodeIgnore.getPatterns()).toEqual([]);
+    it("should throw error when shared settings file does not exist", async () => {
+      await expect(
+        ClaudecodeIgnore.fromFile({
+          baseDir: testDir,
+        }),
+      ).rejects.toThrow("File not found");
     });
 
     it("should fall back to empty settings when settings.local.json is missing", async () => {

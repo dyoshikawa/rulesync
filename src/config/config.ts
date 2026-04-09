@@ -267,7 +267,8 @@ export class Config {
 
   /**
    * Returns the per-feature options object for a given target/feature, if any.
-   * Returns `undefined` when no per-feature options were provided.
+   * Returns `undefined` when no per-feature options were provided or when the
+   * feature is not enabled for the given target.
    */
   public getFeatureOptions(target: ToolTarget, feature: Feature): FeatureOptions | undefined {
     if (Array.isArray(this.features)) {
@@ -279,7 +280,7 @@ export class Config {
     }
     const perFeature: PerFeatureConfig = targetFeatures;
     const value = perFeature[feature];
-    if (value && typeof value === "object") {
+    if (value && typeof value === "object" && isFeatureValueEnabled(value)) {
       return value;
     }
     return undefined;
