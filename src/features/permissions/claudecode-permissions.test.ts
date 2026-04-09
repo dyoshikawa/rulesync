@@ -6,28 +6,11 @@ import {
   RULESYNC_PERMISSIONS_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-
-function createMockLogger(): Logger {
-  return {
-    configure: vi.fn(),
-    verbose: false,
-    silent: false,
-    jsonMode: false,
-    captureData: vi.fn(),
-    getJsonData: vi.fn().mockReturnValue({}),
-    outputJson: vi.fn(),
-    info: vi.fn(),
-    success: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  };
-}
 
 describe("ClaudecodePermissions", () => {
   let testDir: string;
