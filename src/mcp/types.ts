@@ -14,5 +14,6 @@ export type McpResultCounts = {
   subagentsCount: number;
   skillsCount: number;
   hooksCount: number;
+  permissionsCount: number;
   totalCount: number;
 };
