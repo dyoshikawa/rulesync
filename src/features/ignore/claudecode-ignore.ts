@@ -87,8 +87,13 @@ export class ClaudecodeIgnore extends ToolIgnore {
   }
 
   /**
-   * ClaudecodeIgnore uses settings.json, which can include non-ignore settings.
-   * It should not be deleted by rulesync.
+   * ClaudecodeIgnore uses settings.json (or settings.local.json), which can
+   * include non-ignore settings. It should not be deleted by rulesync.
+   *
+   * NOTE: Because this returns `false`, switching `fileMode` (e.g. from
+   * `"local"` to `"shared"`) will not automatically clean up deny patterns
+   * in the previously-used file. Users must manually remove stale deny
+   * entries from the old file when changing `fileMode`.
    */
   override isDeletable(): boolean {
     return false;

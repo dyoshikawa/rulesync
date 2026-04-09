@@ -300,5 +300,38 @@ describe("Config", () => {
       expect(features).toContain("permissions");
       expect(features).toHaveLength(ALL_FEATURES.length);
     });
+
+    it("should return undefined for getFeatureOptions when wildcard enables all features", () => {
+      const config = createConfig({
+        targets: ["claudecode"],
+        features: {
+          claudecode: { "*": true },
+        },
+      });
+
+      // Wildcard `true` is a boolean, not an options object, so individual
+      // features should not inherit options from it.
+      expect(config.getFeatureOptions("claudecode", "ignore")).toBeUndefined();
+      expect(config.getFeatureOptions("claudecode", "rules")).toBeUndefined();
+    });
+
+    it("should return specific options even when wildcard is also present", () => {
+      const config = createConfig({
+        targets: ["claudecode"],
+        features: {
+          claudecode: {
+            "*": true,
+            ignore: { fileMode: "local" },
+          },
+        },
+      });
+
+      // Explicitly provided options should still be returned
+      expect(config.getFeatureOptions("claudecode", "ignore")).toEqual({
+        fileMode: "local",
+      });
+      // Other features enabled via wildcard have no options
+      expect(config.getFeatureOptions("claudecode", "rules")).toBeUndefined();
+    });
   });
 });

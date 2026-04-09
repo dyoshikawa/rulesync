@@ -1,5 +1,7 @@
 import { z } from "zod/mini";
 
+import type { ToolTarget } from "./tool-targets.js";
+
 export const ALL_FEATURES = [
   "rules",
   "ignore",
@@ -67,7 +69,10 @@ export type PerFeatureConfig = Partial<z.infer<typeof PerFeatureConfigSchema>>;
 export type PerTargetFeaturesValue = Array<FeatureWithWildcard> | PerFeatureConfig;
 
 // Per-target features configuration - maps target to its features.
-export type PerTargetFeatures = Partial<Record<string, PerTargetFeaturesValue>>;
+// Uses `ToolTarget` as key to enforce compile-time safety for target names.
+// The Zod schema infers `Record<string, ...>`, but this is overridden via
+// the `ConfigParams` type alias (see config.ts) so TS catches typos.
+export type PerTargetFeatures = Partial<Record<ToolTarget, PerTargetFeaturesValue>>;
 
 export type RulesyncFeatures = Array<FeatureWithWildcard> | PerTargetFeatures;
 
