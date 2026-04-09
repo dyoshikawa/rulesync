@@ -46,7 +46,7 @@ Plan tasks`;
       const rulesyncSubagent = new RulesyncSubagent({
         baseDir: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-        relativeFilePath: "planner.agent.md",
+        relativeFilePath: "planner.md",
         frontmatter: {
           targets: ["copilot"],
           name: "planner",
@@ -70,6 +70,7 @@ Plan tasks`;
       expect(subagent.getFrontmatter().tools).toEqual(["agent/runSubagent", "web/fetch"]);
       expect(subagent.getFrontmatter()).toMatchObject({ permissions: "workspace" });
       expect(subagent.getRelativeDirPath()).toBe(".github/agents");
+      expect(subagent.getRelativeFilePath()).toBe("planner.agent.md");
     });
 
     it("adds required tool when user tools are missing", () => {
@@ -95,6 +96,7 @@ Plan tasks`;
       }) as CopilotSubagent;
 
       expect(subagent.getFrontmatter().tools).toEqual(["agent/runSubagent"]);
+      expect(subagent.getRelativeFilePath()).toBe("planner.agent.md");
     });
   });
 
@@ -123,6 +125,7 @@ Plan tasks`;
         copilot: { tools: ["agent/runSubagent", "web/fetch"] },
       });
       expect(rulesyncSubagent.getBody()).toBe("Plan tasks");
+      expect(rulesyncSubagent.getRelativeFilePath()).toBe("planner.md");
     });
   });
 
