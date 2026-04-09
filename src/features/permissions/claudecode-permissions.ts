@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { uniq } from "es-toolkit";
 
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
@@ -57,9 +58,12 @@ function parseClaudePermissionEntry(entry: string): { toolName: string; pattern:
     return { toolName: entry, pattern: "*" };
   }
   const toolName = entry.slice(0, parenIndex);
-  // Remove surrounding parentheses
+  // Verify closing parenthesis exists at the end before extracting the pattern
+  if (!entry.endsWith(")")) {
+    return { toolName, pattern: "*" };
+  }
   const pattern = entry.slice(parenIndex + 1, -1);
-  return { toolName, pattern };
+  return { toolName, pattern: pattern || "*" };
 }
 
 /**
@@ -72,15 +76,6 @@ function buildClaudePermissionEntry(toolName: string, pattern: string): string {
   }
   return `${toolName}(${pattern})`;
 }
-
-type SettingsJsonValue = {
-  permissions?: {
-    allow?: string[] | null;
-    ask?: string[] | null;
-    deny?: string[] | null;
-  } | null;
-  [key: string]: unknown;
-};
 
 export class ClaudecodePermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
@@ -128,7 +123,7 @@ export class ClaudecodePermissions extends ToolPermissions {
       filePath,
       JSON.stringify({}, null, 2),
     );
-    let settings: SettingsJsonValue;
+    let settings: ClaudeSettingsJson;
     try {
       settings = JSON.parse(existingContent);
     } catch (error) {
@@ -208,7 +203,7 @@ export class ClaudecodePermissions extends ToolPermissions {
   }
 
   toRulesyncPermissions(): RulesyncPermissions {
-    let settings: SettingsJsonValue;
+    let settings: ClaudeSettingsJson;
     try {
       settings = JSON.parse(this.getFileContent());
     } catch (error) {

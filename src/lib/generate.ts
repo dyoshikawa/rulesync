@@ -186,6 +186,10 @@ export async function generate(params: {
   const subagentsResult = await generateSubagentsCore({ config, logger });
   const skillsResult = await generateSkillsCore({ config, logger });
   const hooksResult = await generateHooksCore({ config, logger });
+  // NOTE: Permissions MUST run after ignore. Both features write to `.claude/settings.json`
+  // (ignore writes Read deny entries, permissions merges all permission arrays).
+  // Permissions reads the file written by ignore and preserves non-managed entries.
+  // Changing this order or parallelizing these calls will cause data loss.
   const permissionsResult = await generatePermissionsCore({ config, logger });
   const rulesResult = await generateRulesCore({ config, logger, skills: skillsResult.skills });
 

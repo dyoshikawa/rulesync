@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { uniq } from "es-toolkit";
 
+import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
@@ -15,17 +16,11 @@ import {
 
 export type ClaudecodeIgnoreParams = ToolIgnoreParams;
 
-type SettingsJsonValue = {
-  permissions?: {
-    deny?: string[] | null;
-  } | null;
-};
-
 export class ClaudecodeIgnore extends ToolIgnore {
   constructor(params: ClaudecodeIgnoreParams) {
     super(params);
 
-    const jsonValue: SettingsJsonValue = JSON.parse(this.fileContent);
+    const jsonValue: ClaudeSettingsJson = JSON.parse(this.fileContent);
     this.patterns = jsonValue.permissions?.deny ?? [];
   }
 
@@ -88,7 +83,7 @@ export class ClaudecodeIgnore extends ToolIgnore {
     );
     const exists = await fileExists(filePath);
     const existingFileContent = exists ? await readFileContent(filePath) : "{}";
-    const existingJsonValue: SettingsJsonValue = JSON.parse(existingFileContent);
+    const existingJsonValue: ClaudeSettingsJson = JSON.parse(existingFileContent);
     const existingDenies = existingJsonValue.permissions?.deny ?? [];
     const preservedDenies = existingDenies.filter((deny) => {
       const isReadPattern = deny.startsWith("Read(") && deny.endsWith(")");
@@ -99,7 +94,7 @@ export class ClaudecodeIgnore extends ToolIgnore {
       return true;
     });
 
-    const jsonValue: SettingsJsonValue = {
+    const jsonValue: ClaudeSettingsJson = {
       ...existingJsonValue,
       permissions: {
         ...existingJsonValue.permissions,

@@ -535,6 +535,27 @@ describe("ClaudecodePermissions", () => {
       expect(config.permission.webfetch).toEqual({ "*": "deny" });
     });
 
+    it("should handle malformed entries without closing parenthesis", () => {
+      const instance = new ClaudecodePermissions({
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          permissions: {
+            allow: ["Bash(npm run"],
+            deny: ["Read()"],
+          },
+        }),
+      });
+
+      const rulesyncPermissions = instance.toRulesyncPermissions();
+      const config = rulesyncPermissions.getJson();
+
+      // Malformed entry without closing paren treated as wildcard
+      expect(config.permission.bash).toEqual({ "*": "allow" });
+      // Empty parens treated as wildcard
+      expect(config.permission.read).toEqual({ "*": "deny" });
+    });
+
     it("should handle MCP tool names", () => {
       const instance = new ClaudecodePermissions({
         relativeDirPath: ".claude",
