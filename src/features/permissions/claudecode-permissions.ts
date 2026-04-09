@@ -120,6 +120,7 @@ export class ClaudecodePermissions extends ToolPermissions {
   static async fromRulesyncPermissions({
     baseDir = process.cwd(),
     rulesyncPermissions,
+    logger,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<ClaudecodePermissions> {
     const paths = ClaudecodePermissions.getSettablePaths();
     const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
@@ -156,6 +157,19 @@ export class ClaudecodePermissions extends ToolPermissions {
     const preservedDeny = (existingPermissions.deny ?? []).filter(
       (entry) => !managedToolNames.has(parseClaudePermissionEntry(entry).toolName),
     );
+
+    // Warn when permissions feature overwrites ignore-generated Read(...) deny entries
+    if (logger && managedToolNames.has("Read")) {
+      const droppedReadDenyEntries = (existingPermissions.deny ?? []).filter((entry) => {
+        const { toolName } = parseClaudePermissionEntry(entry);
+        return toolName === "Read";
+      });
+      if (droppedReadDenyEntries.length > 0) {
+        logger.warn(
+          `Permissions feature manages 'Read' tool and will overwrite ${droppedReadDenyEntries.length} existing Read deny entries (possibly from ignore feature). Permissions take precedence.`,
+        );
+      }
+    }
 
     const mergedPermissions: Record<string, unknown> = {
       ...existingPermissions,

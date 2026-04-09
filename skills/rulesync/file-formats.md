@@ -311,3 +311,41 @@ Example:
 tmp/
 credentials/
 ```
+
+## `.rulesync/permissions.json`
+
+Permissions define which tool actions are allowed, require confirmation, or are denied. The canonical format uses **lowercase tool category names** and **glob patterns** mapped to permission actions.
+
+**Permission actions:**
+
+- `allow` -- Automatically permitted without user confirmation
+- `ask` -- Requires user confirmation before execution
+- `deny` -- Blocked from execution
+
+**Supported tool categories:** `bash`, `read`, `edit`, `write`, `webfetch`, `websearch`, `grep`, `glob`, `notebookedit`, `agent`, and MCP-specific tool names (e.g., `mcp__puppeteer__puppeteer_navigate`)
+
+Example:
+
+```json
+{
+  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/permissions-schema.json",
+  "permission": {
+    "bash": {
+      "git *": "allow",
+      "npm run *": "allow",
+      "rm -rf *": "deny",
+      "*": "ask"
+    },
+    "edit": {
+      "src/**": "allow"
+    },
+    "read": {
+      ".env": "deny"
+    }
+  }
+}
+```
+
+For Claude Code, this generates `permissions.allow`, `permissions.ask`, and `permissions.deny` arrays in `.claude/settings.json` using PascalCase tool names (e.g., `Bash(git *)`, `Edit(src/**)`, `Read(.env)`).
+
+> **Note: Interaction with ignore feature.** Both the ignore feature and the permissions feature can manage `Read` tool deny entries in `.claude/settings.json`. When both features configure the `Read` tool, the **permissions feature takes precedence** and a warning is emitted. If you only need to restrict file reads based on glob patterns, use the ignore feature (`.rulesync/.aiignore`). Use permissions only when you need fine-grained `allow`/`ask`/`deny` control over the `Read` tool.

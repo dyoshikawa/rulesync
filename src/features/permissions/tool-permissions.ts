@@ -4,6 +4,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import type { AiFileFromFileParams, AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
+import type { Logger } from "../../utils/logger.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
 export type ToolPermissionsParams = AiFileParams;
@@ -13,6 +14,7 @@ export type ToolPermissionsFromRulesyncPermissionsParams = Omit<
   "fileContent" | "relativeFilePath" | "relativeDirPath"
 > & {
   rulesyncPermissions: RulesyncPermissions;
+  logger?: Logger;
 };
 
 export type ToolPermissionsSettablePaths = {

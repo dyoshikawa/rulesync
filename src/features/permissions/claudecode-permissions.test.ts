@@ -8,8 +8,26 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+
+function createMockLogger(): Logger {
+  return {
+    configure: vi.fn(),
+    verbose: false,
+    silent: false,
+    jsonMode: false,
+    captureData: vi.fn(),
+    getJsonData: vi.fn().mockReturnValue({}),
+    outputJson: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  };
+}
 
 describe("ClaudecodePermissions", () => {
   let testDir: string;
@@ -305,6 +323,111 @@ describe("ClaudecodePermissions", () => {
       expect(content.permissions.deny).toContain("Bash(rm *)");
       expect(content.permissions.deny).not.toContain("Bash(dangerous *)");
       expect(content.permissions.deny).toContain("Read(.env)");
+    });
+
+    it("should warn when permissions overwrites existing Read deny entries from ignore feature", async () => {
+      const settingsDir = join(testDir, ".claude");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({
+          permissions: {
+            deny: ["Read(.env)", "Read(*.secret)"],
+          },
+        }),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {
+            read: { "src/**": "allow" },
+          },
+        }),
+      });
+
+      const mockLogger = createMockLogger();
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        baseDir: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      // Permissions feature takes precedence: Read deny entries from ignore are replaced
+      expect(content.permissions.deny).toBeUndefined();
+      expect(content.permissions.allow).toContain("Read(src/**)");
+      // Warning should be emitted
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Permissions feature manages 'Read' tool"),
+      );
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("2 existing Read deny"));
+    });
+
+    it("should not warn when permissions does not manage Read tool", async () => {
+      const settingsDir = join(testDir, ".claude");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({
+          permissions: {
+            deny: ["Read(.env)", "Read(*.secret)"],
+          },
+        }),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {
+            bash: { "npm *": "allow" },
+          },
+        }),
+      });
+
+      const mockLogger = createMockLogger();
+      await ClaudecodePermissions.fromRulesyncPermissions({
+        baseDir: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      // No warning because Read is not managed by permissions
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should not warn when no logger is provided", async () => {
+      const settingsDir = join(testDir, ".claude");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({
+          permissions: {
+            deny: ["Read(.env)"],
+          },
+        }),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {
+            read: { "src/**": "allow" },
+          },
+        }),
+      });
+
+      // Should not throw even without logger
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        baseDir: testDir,
+        rulesyncPermissions,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.permissions.allow).toContain("Read(src/**)");
     });
 
     it("should handle empty permissions config", async () => {

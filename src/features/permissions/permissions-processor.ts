@@ -153,6 +153,7 @@ export class PermissionsProcessor extends FeatureProcessor {
     const toolPermissions = await factory.class.fromRulesyncPermissions({
       baseDir: this.baseDir,
       rulesyncPermissions,
+      logger: this.logger,
     });
 
     return [toolPermissions];
