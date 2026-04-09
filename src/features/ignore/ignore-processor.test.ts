@@ -480,6 +480,92 @@ describe("IgnoreProcessor", () => {
     });
   });
 
+  describe("featureOptions pass-through", () => {
+    it("should forward featureOptions to ClaudecodeIgnore and write to settings.local.json", async () => {
+      // Create .rulesync/.aiignore
+      await ensureDir(join(testDir, ".rulesync"));
+      await writeFileContent(join(testDir, ".rulesync", ".aiignore"), "*.secret");
+
+      const processor = new IgnoreProcessor({
+        logger,
+        baseDir: testDir,
+        toolTarget: "claudecode",
+        featureOptions: { fileMode: "local" },
+      });
+
+      // Create a proper RulesyncIgnore instance
+      const rulesyncIgnore = Object.create(RulesyncIgnore.prototype);
+      Object.assign(rulesyncIgnore, {
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+        fileContent: "*.secret",
+        getFileContent: () => "*.secret",
+      });
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncIgnore]);
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(ClaudecodeIgnore);
+
+      // Write the converted file
+      await processor.writeAiFiles(toolFiles);
+
+      // Verify it wrote to settings.local.json (local mode), not settings.json (shared mode)
+      const localPath = join(testDir, ".claude", "settings.local.json");
+      const localContent = await readFileContent(localPath);
+      const parsed = JSON.parse(localContent);
+      expect(parsed.permissions.deny).toContain("Read(*.secret)");
+    });
+
+    it("should use settings.json by default when no featureOptions provided", async () => {
+      const processor = new IgnoreProcessor({
+        logger,
+        baseDir: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const rulesyncIgnore = Object.create(RulesyncIgnore.prototype);
+      Object.assign(rulesyncIgnore, {
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+        fileContent: "*.secret",
+        getFileContent: () => "*.secret",
+      });
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncIgnore]);
+      expect(toolFiles).toHaveLength(1);
+
+      await processor.writeAiFiles(toolFiles);
+
+      // Verify it wrote to settings.json (shared mode)
+      const sharedPath = join(testDir, ".claude", "settings.json");
+      const sharedContent = await readFileContent(sharedPath);
+      const parsed = JSON.parse(sharedContent);
+      expect(parsed.permissions.deny).toContain("Read(*.secret)");
+    });
+
+    it("should forward featureOptions to getSettablePaths in loadToolFiles", async () => {
+      // Create settings.local.json for local mode
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(
+        join(testDir, ".claude", "settings.local.json"),
+        JSON.stringify({ permissions: { deny: ["Read(*.env)"] } }),
+      );
+
+      const processor = new IgnoreProcessor({
+        logger,
+        baseDir: testDir,
+        toolTarget: "claudecode",
+        featureOptions: { fileMode: "local" },
+      });
+
+      const files = await processor.loadToolFiles();
+      expect(files).toHaveLength(1);
+      expect(files[0]).toBeInstanceOf(ClaudecodeIgnore);
+    });
+  });
+
   describe("writeAiFiles with trailing newlines", () => {
     it("should write ignore files with exactly one trailing newline", async () => {
       const processor = new IgnoreProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });

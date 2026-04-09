@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { ALL_FEATURES } from "../types/features.js";
 import { ALL_TOOL_TARGETS } from "../types/tool-targets.js";
 import { Config, type ConfigParams } from "./config.js";
 
@@ -296,6 +297,8 @@ describe("Config", () => {
       expect(features).toContain("subagents");
       expect(features).toContain("skills");
       expect(features).toContain("hooks");
+      expect(features).toContain("permissions");
+      expect(features).toHaveLength(ALL_FEATURES.length);
     });
   });
 });
