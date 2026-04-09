@@ -128,7 +128,10 @@ export class CopilotSubagent extends ToolSubagent {
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, copilotFrontmatter);
     const paths = this.getSettablePaths({ global });
-    const relativeFilePath = rulesyncSubagent.getRelativeFilePath().replace(/\.md$/, ".agent.md");
+    const rulesyncRelativeFilePath = rulesyncSubagent.getRelativeFilePath();
+    const relativeFilePath = rulesyncRelativeFilePath.endsWith(".agent.md")
+      ? rulesyncRelativeFilePath
+      : rulesyncRelativeFilePath.replace(/\.md$/, ".agent.md");
 
     return new CopilotSubagent({
       baseDir: baseDir,
