@@ -198,6 +198,7 @@ targets: ["*"]
         subagentsCount: expect.any(Number),
         skillsCount: expect.any(Number),
         hooksCount: expect.any(Number),
+        permissionsCount: expect.any(Number),
         totalCount: expect.any(Number),
       });
     });

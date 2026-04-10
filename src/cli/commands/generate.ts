@@ -87,6 +87,7 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
     subagents: { count: result.subagentsCount, paths: result.subagentsPaths },
     skills: { count: result.skillsCount, paths: result.skillsPaths },
     hooks: { count: result.hooksCount, paths: result.hooksPaths },
+    permissions: { count: result.permissionsCount, paths: result.permissionsPaths },
     rules: { count: result.rulesCount, paths: result.rulesPaths },
   };
 
@@ -99,6 +100,7 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
     subagents: (count) => `${count === 1 ? "subagent" : "subagents"}`,
     skills: (count) => `${count === 1 ? "skill" : "skills"}`,
     hooks: (count) => `${count === 1 ? "hooks file" : "hooks files"}`,
+    permissions: (count) => `${count === 1 ? "permissions file" : "permissions files"}`,
   };
 
   for (const [feature, data] of Object.entries(featureResults)) {
@@ -146,6 +148,7 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
   if (result.subagentsCount > 0) parts.push(`${result.subagentsCount} subagents`);
   if (result.skillsCount > 0) parts.push(`${result.skillsCount} skills`);
   if (result.hooksCount > 0) parts.push(`${result.hooksCount} hooks`);
+  if (result.permissionsCount > 0) parts.push(`${result.permissionsCount} permissions`);
 
   if (isPreview) {
     logger.info(`${modePrefix} Would write ${totalGenerated} file(s) total (${parts.join(" + ")})`);

@@ -4,6 +4,7 @@ import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
+import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
@@ -19,6 +20,7 @@ vi.mock("../features/subagents/subagents-processor.js");
 vi.mock("../features/commands/commands-processor.js");
 vi.mock("../features/skills/skills-processor.js");
 vi.mock("../features/hooks/hooks-processor.js");
+vi.mock("../features/permissions/permissions-processor.js");
 
 describe("importFromTool", () => {
   let mockConfig: {
@@ -47,6 +49,7 @@ describe("importFromTool", () => {
     vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(SkillsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(HooksProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+    vi.mocked(PermissionsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
     const createMockProcessor = () => ({
       loadToolFiles: vi.fn().mockResolvedValue([{ file: "tool" }]),
@@ -80,6 +83,9 @@ describe("importFromTool", () => {
     });
     vi.mocked(HooksProcessor).mockImplementation(function () {
       return createMockProcessor() as unknown as HooksProcessor;
+    });
+    vi.mocked(PermissionsProcessor).mockImplementation(function () {
+      return createMockProcessor() as unknown as PermissionsProcessor;
     });
   });
 
@@ -643,6 +649,78 @@ describe("importFromTool", () => {
     });
   });
 
+  describe("permissions feature", () => {
+    it("should import permissions when feature is enabled", async () => {
+      mockConfig.getFeatures.mockReturnValue(["permissions"]);
+
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
+
+      expect(result.permissionsCount).toBe(1);
+      expect(PermissionsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+        }),
+      );
+    });
+
+    it("should return 0 permissions when feature is not enabled", async () => {
+      mockConfig.getFeatures.mockReturnValue([]);
+
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
+
+      expect(result.permissionsCount).toBe(0);
+      expect(PermissionsProcessor).not.toHaveBeenCalled();
+    });
+
+    it("should skip permissions import in global mode", async () => {
+      mockConfig.getFeatures.mockReturnValue(["permissions"]);
+      mockConfig.getGlobal.mockReturnValue(true);
+
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
+
+      expect(result.permissionsCount).toBe(0);
+      expect(PermissionsProcessor).not.toHaveBeenCalled();
+    });
+
+    it("should return 0 when no tool files found", async () => {
+      mockConfig.getFeatures.mockReturnValue(["permissions"]);
+
+      const mockProcessor = {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        convertToolFilesToRulesyncFiles: vi.fn(),
+        writeAiFiles: vi.fn(),
+      };
+      vi.mocked(PermissionsProcessor).mockImplementation(function () {
+        return mockProcessor as unknown as PermissionsProcessor;
+      });
+
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
+
+      expect(result.permissionsCount).toBe(0);
+      expect(mockProcessor.convertToolFilesToRulesyncFiles).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("No permissions files found for claudecode"),
+      );
+    });
+  });
+
   describe("all features combined", () => {
     it("should import all features when all are enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([
@@ -652,6 +730,7 @@ describe("importFromTool", () => {
         "commands",
         "subagents",
         "skills",
+        "permissions",
       ]);
 
       const result = await importFromTool({
@@ -667,6 +746,7 @@ describe("importFromTool", () => {
       expect(result.subagentsCount).toBe(1);
       expect(result.skillsCount).toBe(1);
       expect(result.hooksCount).toBe(0);
+      expect(result.permissionsCount).toBe(1);
     });
 
     it("should return empty result when no features are enabled", async () => {
@@ -685,6 +765,7 @@ describe("importFromTool", () => {
       expect(result.subagentsCount).toBe(0);
       expect(result.skillsCount).toBe(0);
       expect(result.hooksCount).toBe(0);
+      expect(result.permissionsCount).toBe(0);
     });
   });
 
