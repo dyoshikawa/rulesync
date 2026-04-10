@@ -49,6 +49,8 @@ const mockGenerateResult: GenerateResult = {
   skillsPaths: [],
   hooksCount: 0,
   hooksPaths: [],
+  permissionsCount: 0,
+  permissionsPaths: [],
   skills: [],
   hasDiff: false,
 };
@@ -61,6 +63,7 @@ const mockImportResult: ImportResult = {
   subagentsCount: 0,
   skillsCount: 0,
   hooksCount: 0,
+  permissionsCount: 0,
 };
 
 beforeEach(() => {

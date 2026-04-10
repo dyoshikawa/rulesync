@@ -8,6 +8,7 @@ import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
+import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
@@ -39,6 +40,8 @@ export type GenerateResult = {
   skillsPaths: string[];
   hooksCount: number;
   hooksPaths: string[];
+  permissionsCount: number;
+  permissionsPaths: string[];
   skills: RulesyncSkill[];
   hasDiff: boolean;
 };
@@ -183,6 +186,11 @@ export async function generate(params: {
   const subagentsResult = await generateSubagentsCore({ config, logger });
   const skillsResult = await generateSkillsCore({ config, logger });
   const hooksResult = await generateHooksCore({ config, logger });
+  // NOTE: Permissions MUST run after ignore. Both features write to `.claude/settings.json`
+  // (ignore writes Read deny entries, permissions merges all permission arrays).
+  // Permissions reads the file written by ignore and preserves non-managed entries.
+  // Changing this order or parallelizing these calls will cause data loss.
+  const permissionsResult = await generatePermissionsCore({ config, logger });
   const rulesResult = await generateRulesCore({ config, logger, skills: skillsResult.skills });
 
   const hasDiff =
@@ -192,6 +200,7 @@ export async function generate(params: {
     subagentsResult.hasDiff ||
     skillsResult.hasDiff ||
     hooksResult.hasDiff ||
+    permissionsResult.hasDiff ||
     rulesResult.hasDiff;
 
   return {
@@ -209,6 +218,8 @@ export async function generate(params: {
     skillsPaths: skillsResult.paths,
     hooksCount: hooksResult.count,
     hooksPaths: hooksResult.paths,
+    permissionsCount: permissionsResult.count,
+    permissionsPaths: permissionsResult.paths,
     skills: skillsResult.skills,
     hasDiff,
   };
@@ -565,6 +576,62 @@ async function generateHooksCore(params: {
       totalCount += result.count;
       allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
+    }
+  }
+
+  return { count: totalCount, paths: allPaths, hasDiff };
+}
+
+async function generatePermissionsCore(params: {
+  config: Config;
+  logger: Logger;
+}): Promise<FeatureGenerateResult> {
+  const { config, logger } = params;
+
+  const supportedPermissionsTargets = PermissionsProcessor.getToolTargets({
+    global: config.getGlobal(),
+  });
+  warnUnsupportedTargets({
+    config,
+    supportedTargets: supportedPermissionsTargets,
+    featureName: "permissions",
+    logger,
+  });
+
+  if (config.getGlobal()) {
+    return { count: 0, paths: [], hasDiff: false };
+  }
+
+  let totalCount = 0;
+  const allPaths: string[] = [];
+  let hasDiff = false;
+
+  for (const baseDir of config.getBaseDirs()) {
+    for (const toolTarget of intersection(config.getTargets(), supportedPermissionsTargets)) {
+      if (!config.getFeatures(toolTarget).includes("permissions")) {
+        continue;
+      }
+
+      try {
+        const processor = new PermissionsProcessor({
+          baseDir,
+          toolTarget,
+          dryRun: config.isPreviewMode(),
+          logger,
+        });
+
+        const rulesyncFiles = await processor.loadRulesyncFiles();
+        const result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
+
+        totalCount += result.count;
+        allPaths.push(...result.paths);
+        if (result.hasDiff) hasDiff = true;
+      } catch (error) {
+        logger.warn(
+          `Failed to generate ${toolTarget} permissions files for ${baseDir}: ${formatError(error)}`,
+        );
+        continue;
+      }
     }
   }
 

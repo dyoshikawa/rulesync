@@ -5,6 +5,7 @@ import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
+import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
@@ -22,6 +23,7 @@ vi.mock("../features/subagents/subagents-processor.js");
 vi.mock("../features/commands/commands-processor.js");
 vi.mock("../features/hooks/hooks-processor.js");
 vi.mock("../features/skills/skills-processor.js");
+vi.mock("../features/permissions/permissions-processor.js");
 vi.mock("../utils/file.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../utils/file.js")>();
   return {
@@ -108,6 +110,7 @@ describe("generate", () => {
     vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(HooksProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(SkillsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+    vi.mocked(PermissionsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
     const createMockProcessor = () => ({
       loadToolFiles: vi.fn().mockResolvedValue([]),
@@ -145,6 +148,9 @@ describe("generate", () => {
     });
     vi.mocked(HooksProcessor).mockImplementation(function () {
       return createMockProcessor() as unknown as HooksProcessor;
+    });
+    vi.mocked(PermissionsProcessor).mockImplementation(function () {
+      return createMockProcessor() as unknown as PermissionsProcessor;
     });
     vi.mocked(SkillsProcessor).mockImplementation(function () {
       return createMockSkillsProcessor() as unknown as SkillsProcessor;
@@ -542,6 +548,53 @@ describe("generate", () => {
     });
   });
 
+  describe("permissions feature", () => {
+    it("should generate permissions when feature is enabled", async () => {
+      mockConfig.getFeatures.mockReturnValue(["permissions"]);
+
+      const result = await generate({ logger, config: mockConfig as never });
+
+      expect(result.permissionsCount).toBe(1);
+      expect(PermissionsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          dryRun: false,
+        }),
+      );
+    });
+
+    it("should return 0 permissions when feature is not enabled", async () => {
+      mockConfig.getFeatures.mockReturnValue([]);
+
+      const result = await generate({ logger, config: mockConfig as never });
+
+      expect(result.permissionsCount).toBe(0);
+      expect(PermissionsProcessor).not.toHaveBeenCalled();
+    });
+
+    it("should skip permissions generation in global mode", async () => {
+      mockConfig.getFeatures.mockReturnValue(["permissions"]);
+      mockConfig.getGlobal.mockReturnValue(true);
+
+      const result = await generate({ logger, config: mockConfig as never });
+
+      expect(result.permissionsCount).toBe(0);
+      expect(PermissionsProcessor).not.toHaveBeenCalled();
+    });
+
+    it("should handle errors gracefully and continue", async () => {
+      mockConfig.getFeatures.mockReturnValue(["permissions"]);
+      vi.mocked(PermissionsProcessor).mockImplementation(function () {
+        throw new Error("Test error");
+      });
+
+      const result = await generate({ logger, config: mockConfig as never });
+
+      expect(result.permissionsCount).toBe(0);
+    });
+  });
+
   describe("all features combined", () => {
     it("should generate all features when all are enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([
@@ -552,6 +605,7 @@ describe("generate", () => {
         "subagents",
         "skills",
         "hooks",
+        "permissions",
       ]);
 
       const mockSkillsProcessor = {
@@ -574,6 +628,7 @@ describe("generate", () => {
       expect(result.subagentsCount).toBe(1);
       expect(result.skillsCount).toBe(1);
       expect(result.hooksCount).toBe(1);
+      expect(result.permissionsCount).toBe(1);
     });
 
     it("should return empty result when no features are enabled", async () => {
@@ -588,6 +643,7 @@ describe("generate", () => {
       expect(result.subagentsCount).toBe(0);
       expect(result.skillsCount).toBe(0);
       expect(result.hooksCount).toBe(0);
+      expect(result.permissionsCount).toBe(0);
       expect(result.skills).toEqual([]);
     });
   });
