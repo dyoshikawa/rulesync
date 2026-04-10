@@ -2,6 +2,7 @@ import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rules
 import {
   ALL_FEATURES_WITH_WILDCARD,
   type Feature,
+  isFeatureValueEnabled,
   type RulesyncFeatures,
 } from "../../types/features.js";
 import { ALL_TOOL_TARGETS_WITH_WILDCARD, type ToolTarget } from "../../types/tool-targets.js";
@@ -276,8 +277,14 @@ const isFeatureSelectedForTarget = (
   if (target === "common") return true;
   const targetFeatures = features[target];
   if (!targetFeatures) return true;
-  if (targetFeatures.includes("*")) return true;
-  return targetFeatures.includes(feature);
+  if (Array.isArray(targetFeatures)) {
+    if (targetFeatures.includes("*")) return true;
+    return targetFeatures.includes(feature);
+  }
+  // Per-feature object form: feature is enabled when its value is truthy
+  // (true or an options object). A wildcard "*" key enables all features.
+  if (isFeatureValueEnabled(targetFeatures["*"])) return true;
+  return isFeatureValueEnabled(targetFeatures[feature]);
 };
 
 const isFeatureSelected = (
@@ -319,8 +326,14 @@ const warnInvalidFeatures = (features: RulesyncFeatures, logger?: Logger): void 
   } else {
     for (const targetFeatures of Object.values(features)) {
       if (!targetFeatures) continue;
-      for (const feature of targetFeatures) {
-        warnOnce(feature);
+      if (Array.isArray(targetFeatures)) {
+        for (const feature of targetFeatures) {
+          warnOnce(feature);
+        }
+      } else {
+        for (const feature of Object.keys(targetFeatures)) {
+          warnOnce(feature);
+        }
       }
     }
   }

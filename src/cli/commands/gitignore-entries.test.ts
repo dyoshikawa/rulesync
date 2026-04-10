@@ -262,6 +262,48 @@ describe("filterGitignoreEntries", () => {
     });
   });
 
+  describe("features as per-feature object format (per-target)", () => {
+    it("should apply per-feature object form filtering", () => {
+      const result = filterGitignoreEntries({
+        features: {
+          claudecode: {
+            rules: true,
+            mcp: { someOption: true },
+            commands: false,
+          },
+        },
+      });
+
+      // claudecode rules enabled (boolean true)
+      expect(result).toContain("**/CLAUDE.md");
+      expect(result).toContain("**/.claude/rules/");
+
+      // claudecode mcp enabled (via options object)
+      expect(result).toContain("**/.mcp.json");
+
+      // claudecode commands disabled (boolean false)
+      expect(result).not.toContain("**/.claude/commands/");
+    });
+
+    it("should support wildcard in per-feature object form", () => {
+      const result = filterGitignoreEntries({
+        features: {
+          claudecode: { "*": true },
+          copilot: { rules: true },
+        },
+      });
+
+      // claudecode all features
+      expect(result).toContain("**/CLAUDE.md");
+      expect(result).toContain("**/.claude/commands/");
+      expect(result).toContain("**/.mcp.json");
+
+      // copilot rules only
+      expect(result).toContain("**/.github/copilot-instructions.md");
+      expect(result).not.toContain("**/.github/prompts/");
+    });
+  });
+
   describe("validation warnings", () => {
     let warnSpy: ReturnType<typeof vi.spyOn>;
 
@@ -324,6 +366,19 @@ describe("filterGitignoreEntries", () => {
       });
       expect(warnSpy).toHaveBeenCalledTimes(1);
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Unknown feature 'bogus'"));
+    });
+
+    it("should warn when an invalid feature key is provided (per-feature object format)", () => {
+      filterGitignoreEntries({
+        logger,
+        features: {
+          claudecode: { rules: true, "unknown-feat": true } as any,
+        },
+      });
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Unknown feature 'unknown-feat'"),
+      );
     });
   });
 

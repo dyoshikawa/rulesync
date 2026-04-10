@@ -5,7 +5,10 @@ import { minLength, optional, refine, z } from "zod/mini";
 import {
   ALL_FEATURES,
   Feature,
+  FeatureOptions,
   Features,
+  isFeatureValueEnabled,
+  PerFeatureConfig,
   PerTargetFeatures,
   RulesyncFeatures,
   RulesyncFeaturesSchema,
@@ -60,20 +63,37 @@ export const ConfigParamsSchema = z.object({
   // Declarative skill sources
   sources: optional(z.array(SourceEntrySchema)),
 });
-export type ConfigParams = z.infer<typeof ConfigParamsSchema>;
+// We override the inferred `features` type with the hand-written
+// `RulesyncFeatures` so that callers can supply a partial per-target /
+// per-feature object literal without TS demanding every key be present.
+// At runtime the zod schema still accepts the same shapes — `z.record`
+// allows missing keys — but the inferred TS type is non-partial.
+type InferredConfigParams = z.infer<typeof ConfigParamsSchema>;
+export type ConfigParams = Omit<InferredConfigParams, "features"> & {
+  features: RulesyncFeatures;
+};
 
 export const PartialConfigParamsSchema = z.partial(ConfigParamsSchema);
-export type PartialConfigParams = z.infer<typeof PartialConfigParamsSchema>;
+type InferredPartialConfigParams = z.infer<typeof PartialConfigParamsSchema>;
+export type PartialConfigParams = Omit<InferredPartialConfigParams, "features"> & {
+  features?: RulesyncFeatures;
+};
 
 // Schema for config file that includes $schema property for editor support
 export const ConfigFileSchema = z.object({
   $schema: optional(z.string()),
   ...z.partial(ConfigParamsSchema).shape,
 });
-export type ConfigFile = z.infer<typeof ConfigFileSchema>;
+type InferredConfigFile = z.infer<typeof ConfigFileSchema>;
+export type ConfigFile = Omit<InferredConfigFile, "features"> & {
+  features?: RulesyncFeatures;
+};
 
 export const RequiredConfigParamsSchema = z.required(ConfigParamsSchema);
-export type RequiredConfigParams = z.infer<typeof RequiredConfigParamsSchema>;
+type InferredRequiredConfigParams = z.infer<typeof RequiredConfigParamsSchema>;
+export type RequiredConfigParams = Omit<InferredRequiredConfigParams, "features"> & {
+  features: RulesyncFeatures;
+};
 
 /**
  * Conflicting target pairs that cannot be used together
@@ -187,27 +207,25 @@ export class Config {
       if (target) {
         // Return features for specific target, defaulting to empty array if not specified
         const targetFeatures = perTargetFeatures[target];
-        if (!targetFeatures || targetFeatures.length === 0) {
-          // If no features specified for this target, return empty array
+        if (!targetFeatures) {
           return [];
         }
-        if (targetFeatures.includes("*")) {
-          return [...ALL_FEATURES];
-        }
-        return targetFeatures.filter((feature): feature is Feature => feature !== "*");
+        return Config.normalizeTargetFeatures(targetFeatures);
       }
       // When no target specified but features is an object, collect all unique features
       const allFeatures: Feature[] = [];
       for (const features of Object.values(perTargetFeatures)) {
-        if (features && features.length > 0) {
-          if (features.includes("*")) {
-            return [...ALL_FEATURES];
+        if (!features) continue;
+        const normalized = Config.normalizeTargetFeatures(features);
+        for (const feature of normalized) {
+          if (!allFeatures.includes(feature)) {
+            allFeatures.push(feature);
           }
-          for (const feature of features) {
-            if (feature !== "*" && !allFeatures.includes(feature)) {
-              allFeatures.push(feature);
-            }
-          }
+        }
+        // Early-exit once we've already accumulated every known feature —
+        // no remaining target can contribute anything new.
+        if (allFeatures.length === ALL_FEATURES.length) {
+          return allFeatures;
         }
       }
       return allFeatures;
@@ -219,6 +237,53 @@ export class Config {
     }
 
     return this.features.filter((feature): feature is Feature => feature !== "*");
+  }
+
+  /**
+   * Normalize a per-target features value (array or per-feature object) into
+   * the flat list of enabled features.
+   */
+  private static normalizeTargetFeatures(
+    value: NonNullable<PerTargetFeatures[keyof PerTargetFeatures]>,
+  ): Features {
+    if (Array.isArray(value)) {
+      if (value.length === 0) return [];
+      if (value.includes("*")) return [...ALL_FEATURES];
+      return value.filter((feature): feature is Feature => feature !== "*");
+    }
+    // Per-feature object form: keys with truthy values are enabled.
+    if (isFeatureValueEnabled(value["*"])) {
+      return [...ALL_FEATURES];
+    }
+    const enabled: Feature[] = [];
+    for (const [key, val] of Object.entries(value)) {
+      if (key === "*") continue;
+      if (!isFeatureValueEnabled(val)) continue;
+      // eslint-disable-next-line no-type-assertion/no-type-assertion
+      enabled.push(key as Feature);
+    }
+    return enabled;
+  }
+
+  /**
+   * Returns the per-feature options object for a given target/feature, if any.
+   * Returns `undefined` when no per-feature options were provided or when the
+   * feature is not enabled for the given target.
+   */
+  public getFeatureOptions(target: ToolTarget, feature: Feature): FeatureOptions | undefined {
+    if (Array.isArray(this.features)) {
+      return undefined;
+    }
+    const targetFeatures = this.features[target];
+    if (!targetFeatures || Array.isArray(targetFeatures)) {
+      return undefined;
+    }
+    const perFeature: PerFeatureConfig = targetFeatures;
+    const value = perFeature[feature];
+    if (value && typeof value === "object" && isFeatureValueEnabled(value)) {
+      return value;
+    }
+    return undefined;
   }
 
   /**

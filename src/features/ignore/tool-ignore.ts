@@ -3,16 +3,25 @@ import {
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { AiFileFromFileParams, AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { FeatureOptions } from "../../types/features.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 
 export type ToolIgnoreParams = AiFileParams;
+
+/**
+ * Optional per-feature options forwarded from rulesync configuration
+ * (e.g. `features.<target>.ignore = { ... }`). Each tool decides how to
+ * interpret its own keys; unknown keys are ignored.
+ */
+export type ToolIgnoreFeatureOptions = FeatureOptions;
 
 export type ToolIgnoreFromRulesyncIgnoreParams = Omit<
   AiFileParams,
   "fileContent" | "relativeFilePath" | "relativeDirPath"
 > & {
   rulesyncIgnore: RulesyncIgnore;
+  options?: ToolIgnoreFeatureOptions;
 };
 
 export type ToolIgnoreSettablePaths = {
@@ -20,12 +29,18 @@ export type ToolIgnoreSettablePaths = {
   relativeFilePath: string;
 };
 
-export type ToolIgnoreFromFileParams = Pick<AiFileFromFileParams, "baseDir" | "validate">;
+export type ToolIgnoreFromFileParams = Pick<AiFileFromFileParams, "baseDir" | "validate"> & {
+  options?: ToolIgnoreFeatureOptions;
+};
 
 export type ToolIgnoreForDeletionParams = {
   baseDir?: string;
   relativeDirPath: string;
   relativeFilePath: string;
+};
+
+export type ToolIgnoreSettablePathsParams = {
+  options?: ToolIgnoreFeatureOptions;
 };
 export abstract class ToolIgnore extends ToolFile {
   protected patterns: string[];
@@ -49,7 +64,7 @@ export abstract class ToolIgnore extends ToolFile {
     }
   }
 
-  static getSettablePaths(): ToolIgnoreSettablePaths {
+  static getSettablePaths(_params?: ToolIgnoreSettablePathsParams): ToolIgnoreSettablePaths {
     throw new Error("Please implement this method in the subclass.");
   }
 

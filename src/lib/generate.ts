@@ -306,6 +306,7 @@ async function generateIgnoreCore(params: {
           toolTarget,
           dryRun: config.isPreviewMode(),
           logger,
+          featureOptions: config.getFeatureOptions(toolTarget, "ignore"),
         });
 
         const rulesyncFiles = await processor.loadRulesyncFiles();

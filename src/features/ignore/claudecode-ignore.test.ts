@@ -132,6 +132,90 @@ describe("ClaudecodeIgnore", () => {
         relativeFilePath: "settings.json",
       });
     });
+
+    it("should default to shared settings.json when fileMode is omitted", () => {
+      const paths = ClaudecodeIgnore.getSettablePaths({ options: {} });
+
+      expect(paths.relativeFilePath).toBe("settings.json");
+    });
+
+    it("should resolve to settings.local.json when fileMode is 'local'", () => {
+      const paths = ClaudecodeIgnore.getSettablePaths({ options: { fileMode: "local" } });
+
+      expect(paths).toEqual({
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.local.json",
+      });
+    });
+
+    it("should throw on unknown fileMode values rather than silently falling back", () => {
+      expect(() => ClaudecodeIgnore.getSettablePaths({ options: { fileMode: "weird" } })).toThrow(
+        /fileMode/,
+      );
+    });
+
+    it("should accept explicit fileMode: 'shared'", () => {
+      const paths = ClaudecodeIgnore.getSettablePaths({ options: { fileMode: "shared" } });
+
+      expect(paths.relativeFilePath).toBe("settings.json");
+    });
+
+    it("should ignore unrelated keys in the options object", () => {
+      const paths = ClaudecodeIgnore.getSettablePaths({
+        options: { fileMode: "local", futureUnknown: 123 },
+      });
+
+      expect(paths.relativeFilePath).toBe("settings.local.json");
+    });
+  });
+
+  describe("fromRulesyncIgnore with fileMode option", () => {
+    it("should write to settings.local.json when fileMode is 'local'", async () => {
+      const rulesyncIgnore = new RulesyncIgnore({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+        fileContent: "*.log\nnode_modules/**",
+      });
+
+      const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
+        baseDir: testDir,
+        rulesyncIgnore,
+        options: { fileMode: "local" },
+      });
+
+      expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.local.json");
+      expect(claudecodeIgnore.getFilePath()).toBe(join(testDir, ".claude", "settings.local.json"));
+
+      const jsonValue = JSON.parse(claudecodeIgnore.getFileContent());
+      expect(jsonValue.permissions.deny).toEqual(["Read(*.log)", "Read(node_modules/**)"]);
+    });
+
+    it("should not touch settings.json when writing to local mode", async () => {
+      const sharedContent = JSON.stringify(
+        { permissions: { deny: ["Read(shared.txt)"] } },
+        null,
+        2,
+      );
+      const claudeDir = join(testDir, ".claude");
+      await ensureDir(claudeDir);
+      await writeFileContent(join(claudeDir, "settings.json"), sharedContent);
+
+      const rulesyncIgnore = new RulesyncIgnore({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+        fileContent: "*.log",
+      });
+
+      const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
+        baseDir: testDir,
+        rulesyncIgnore,
+        options: { fileMode: "local" },
+      });
+
+      // The returned tool file targets settings.local.json, leaving the
+      // existing shared settings.json untouched on disk.
+      expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.local.json");
+    });
   });
 
   describe("isDeletable", () => {
@@ -606,12 +690,49 @@ describe("ClaudecodeIgnore", () => {
       expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)"]);
     });
 
-    it("should throw error when file does not exist", async () => {
+    it("should throw error when shared settings file does not exist", async () => {
       await expect(
         ClaudecodeIgnore.fromFile({
           baseDir: testDir,
         }),
-      ).rejects.toThrow();
+      ).rejects.toThrow("File not found");
+    });
+
+    it("should fall back to empty settings when settings.local.json is missing", async () => {
+      // The shared settings.json may exist on disk, but when fileMode is
+      // "local" we must read settings.local.json (which doesn't exist yet)
+      // and tolerate its absence rather than crashing.
+      const claudeDir = join(testDir, ".claude");
+      await ensureDir(claudeDir);
+      await writeFileContent(
+        join(claudeDir, "settings.json"),
+        JSON.stringify({ permissions: { deny: ["Read(shared.txt)"] } }),
+      );
+
+      const claudecodeIgnore = await ClaudecodeIgnore.fromFile({
+        baseDir: testDir,
+        options: { fileMode: "local" },
+      });
+
+      expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.local.json");
+      expect(claudecodeIgnore.getPatterns()).toEqual([]);
+    });
+
+    it("should read settings.local.json when fileMode is 'local'", async () => {
+      const claudeDir = join(testDir, ".claude");
+      await ensureDir(claudeDir);
+      await writeFileContent(
+        join(claudeDir, "settings.local.json"),
+        JSON.stringify({ permissions: { deny: ["Read(local-only.txt)"] } }),
+      );
+
+      const claudecodeIgnore = await ClaudecodeIgnore.fromFile({
+        baseDir: testDir,
+        options: { fileMode: "local" },
+      });
+
+      expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.local.json");
+      expect(claudecodeIgnore.getPatterns()).toEqual(["Read(local-only.txt)"]);
     });
   });
 

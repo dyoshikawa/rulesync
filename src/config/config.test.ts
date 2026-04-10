@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { ALL_FEATURES } from "../types/features.js";
 import { ALL_TOOL_TARGETS } from "../types/tool-targets.js";
 import { Config, type ConfigParams } from "./config.js";
 
@@ -223,6 +224,114 @@ describe("Config", () => {
         },
       });
       expect(objectConfig.hasPerTargetFeatures()).toBe(true);
+    });
+  });
+
+  describe("per-feature options object form", () => {
+    it("should treat truthy per-feature values as enabled features", () => {
+      const config = createConfig({
+        targets: ["claudecode"],
+        features: {
+          claudecode: {
+            rules: true,
+            ignore: { fileMode: "local" },
+            mcp: false,
+          },
+        },
+      });
+
+      const features = config.getFeatures("claudecode");
+      expect(features).toContain("rules");
+      expect(features).toContain("ignore");
+      expect(features).not.toContain("mcp");
+    });
+
+    it("should expose per-feature options via getFeatureOptions", () => {
+      const config = createConfig({
+        targets: ["claudecode"],
+        features: {
+          claudecode: {
+            ignore: { fileMode: "local" },
+          },
+        },
+      });
+
+      expect(config.getFeatureOptions("claudecode", "ignore")).toEqual({
+        fileMode: "local",
+      });
+    });
+
+    it("should return undefined for getFeatureOptions when feature is enabled with bare boolean", () => {
+      const config = createConfig({
+        targets: ["claudecode"],
+        features: {
+          claudecode: { ignore: true },
+        },
+      });
+
+      expect(config.getFeatureOptions("claudecode", "ignore")).toBeUndefined();
+    });
+
+    it("should return undefined for getFeatureOptions when features is array form", () => {
+      const config = createConfig({
+        targets: ["claudecode"],
+        features: ["ignore"],
+      });
+
+      expect(config.getFeatureOptions("claudecode", "ignore")).toBeUndefined();
+    });
+
+    it("should expand wildcard inside per-feature object form", () => {
+      const config = createConfig({
+        targets: ["claudecode"],
+        features: {
+          claudecode: { "*": true },
+        },
+      });
+
+      const features = config.getFeatures("claudecode");
+      expect(features).toContain("rules");
+      expect(features).toContain("ignore");
+      expect(features).toContain("mcp");
+      expect(features).toContain("commands");
+      expect(features).toContain("subagents");
+      expect(features).toContain("skills");
+      expect(features).toContain("hooks");
+      expect(features).toContain("permissions");
+      expect(features).toHaveLength(ALL_FEATURES.length);
+    });
+
+    it("should return undefined for getFeatureOptions when wildcard enables all features", () => {
+      const config = createConfig({
+        targets: ["claudecode"],
+        features: {
+          claudecode: { "*": true },
+        },
+      });
+
+      // Wildcard `true` is a boolean, not an options object, so individual
+      // features should not inherit options from it.
+      expect(config.getFeatureOptions("claudecode", "ignore")).toBeUndefined();
+      expect(config.getFeatureOptions("claudecode", "rules")).toBeUndefined();
+    });
+
+    it("should return specific options even when wildcard is also present", () => {
+      const config = createConfig({
+        targets: ["claudecode"],
+        features: {
+          claudecode: {
+            "*": true,
+            ignore: { fileMode: "local" },
+          },
+        },
+      });
+
+      // Explicitly provided options should still be returned
+      expect(config.getFeatureOptions("claudecode", "ignore")).toEqual({
+        fileMode: "local",
+      });
+      // Other features enabled via wildcard have no options
+      expect(config.getFeatureOptions("claudecode", "rules")).toBeUndefined();
     });
   });
 });

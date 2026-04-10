@@ -118,6 +118,7 @@ async function importIgnoreCore(params: {
     baseDir: config.getBaseDirs()[0] ?? ".",
     toolTarget: tool,
     logger,
+    featureOptions: config.getFeatureOptions(tool, "ignore"),
   });
 
   const toolFiles = await ignoreProcessor.loadToolFiles();
