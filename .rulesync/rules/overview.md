@@ -32,3 +32,4 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
   - It is NOT the same as `.rulesync/skills/`, which holds the project's own skill definitions used during generation.
   - Do not modify the root `skills/` directory unless you intend to change the official skills distributed to users.
 - The contents of `docs/` and `skills/rulesync/` are automatically synchronized by `scripts/sync-skill-docs.ts`. Be aware that their content may overlap.
+- Always preserve the existence of end-to-end happy-path test cases that cover the Tool × Feature matrix.
