@@ -8,6 +8,7 @@ import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
+import { OpencodePermissions } from "./opencode-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import type {
   ToolPermissionsForDeletionParams,
@@ -17,7 +18,7 @@ import type {
 } from "./tool-permissions.js";
 import { ToolPermissions } from "./tool-permissions.js";
 
-const permissionsProcessorToolTargetTuple = ["claudecode"] as const;
+const permissionsProcessorToolTargetTuple = ["claudecode", "opencode"] as const;
 
 export type PermissionsProcessorToolTarget = (typeof permissionsProcessorToolTargetTuple)[number];
 
@@ -30,7 +31,7 @@ type ToolPermissionsFactory = {
     ): ToolPermissions | Promise<ToolPermissions>;
     fromFile(params: ToolPermissionsFromFileParams): Promise<ToolPermissions>;
     forDeletion(params: ToolPermissionsForDeletionParams): ToolPermissions;
-    getSettablePaths(): ToolPermissionsSettablePaths;
+    getSettablePaths(options?: { global?: boolean }): ToolPermissionsSettablePaths;
   };
   meta: {
     supportsProject: boolean;
@@ -51,29 +52,33 @@ const toolPermissionsFactories = new Map<PermissionsProcessorToolTarget, ToolPer
       },
     },
   ],
+  [
+    "opencode",
+    {
+      class: OpencodePermissions,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
 ]);
-
-const permissionsProcessorToolTargets: ToolTarget[] = [...toolPermissionsFactories.entries()]
-  .filter(([, f]) => f.meta.supportsProject)
-  .map(([t]) => t);
-
-const permissionsProcessorToolTargetsImportable: ToolTarget[] = [
-  ...toolPermissionsFactories.entries(),
-]
-  .filter(([, f]) => f.meta.supportsProject && f.meta.supportsImport)
-  .map(([t]) => t);
 
 export class PermissionsProcessor extends FeatureProcessor {
   private readonly toolTarget: PermissionsProcessorToolTarget;
+  private readonly global: boolean;
 
   constructor({
     baseDir = process.cwd(),
     toolTarget,
+    global = false,
     dryRun = false,
     logger,
   }: {
     baseDir?: string;
     toolTarget: ToolTarget;
+    global?: boolean;
     dryRun?: boolean;
     logger: Logger;
   }) {
@@ -85,6 +90,7 @@ export class PermissionsProcessor extends FeatureProcessor {
       );
     }
     this.toolTarget = result.data;
+    this.global = global;
   }
 
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
@@ -111,13 +117,14 @@ export class PermissionsProcessor extends FeatureProcessor {
     try {
       const factory = toolPermissionsFactories.get(this.toolTarget);
       if (!factory) throw new Error(`Unsupported tool target: ${this.toolTarget}`);
-      const paths = factory.class.getSettablePaths();
+      const paths = factory.class.getSettablePaths({ global: this.global });
 
       if (forDeletion) {
         const toolPermissions = factory.class.forDeletion({
           baseDir: this.baseDir,
           relativeDirPath: paths.relativeDirPath,
           relativeFilePath: paths.relativeFilePath,
+          global: this.global,
         });
         const list = toolPermissions.isDeletable?.() !== false ? [toolPermissions] : [];
         return list;
@@ -126,6 +133,7 @@ export class PermissionsProcessor extends FeatureProcessor {
       const toolPermissions = await factory.class.fromFile({
         baseDir: this.baseDir,
         validate: true,
+        global: this.global,
       });
       return [toolPermissions];
     } catch (error) {
@@ -154,6 +162,7 @@ export class PermissionsProcessor extends FeatureProcessor {
       baseDir: this.baseDir,
       rulesyncPermissions,
       logger: this.logger,
+      global: this.global,
     });
 
     return [toolPermissions];
@@ -168,9 +177,9 @@ export class PermissionsProcessor extends FeatureProcessor {
     global = false,
     importOnly = false,
   }: { global?: boolean; importOnly?: boolean } = {}): ToolTarget[] {
-    if (global) {
-      return [];
-    }
-    return importOnly ? permissionsProcessorToolTargetsImportable : permissionsProcessorToolTargets;
+    return [...toolPermissionsFactories.entries()]
+      .filter(([, f]) => (global ? f.meta.supportsGlobal : f.meta.supportsProject))
+      .filter(([, f]) => (importOnly ? f.meta.supportsImport : true))
+      .map(([target]) => target);
   }
 }

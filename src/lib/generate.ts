@@ -599,10 +599,6 @@ async function generatePermissionsCore(params: {
     logger,
   });
 
-  if (config.getGlobal()) {
-    return { count: 0, paths: [], hasDiff: false };
-  }
-
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
@@ -617,6 +613,7 @@ async function generatePermissionsCore(params: {
         const processor = new PermissionsProcessor({
           baseDir,
           toolTarget,
+          global: config.getGlobal(),
           dryRun: config.isPreviewMode(),
           logger,
         });

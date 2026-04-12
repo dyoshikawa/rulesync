@@ -10,6 +10,7 @@ import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
+import { OpencodePermissions } from "./opencode-permissions.js";
 import { PermissionsProcessor } from "./permissions-processor.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
@@ -68,19 +69,19 @@ describe("PermissionsProcessor", () => {
   });
 
   describe("getToolTargets", () => {
-    it("should return claudecode for project mode", () => {
+    it("should return claudecode and opencode for project mode", () => {
       const targets = PermissionsProcessor.getToolTargets();
-      expect(targets).toEqual(["claudecode"]);
+      expect(targets).toEqual(["claudecode", "opencode"]);
     });
 
-    it("should return empty array for global mode", () => {
+    it("should return opencode for global mode", () => {
       const targets = PermissionsProcessor.getToolTargets({ global: true });
-      expect(targets).toEqual([]);
+      expect(targets).toEqual(["opencode"]);
     });
 
     it("should return importable targets", () => {
       const targets = PermissionsProcessor.getToolTargets({ importOnly: true });
-      expect(targets).toEqual(["claudecode"]);
+      expect(targets).toEqual(["claudecode", "opencode"]);
     });
   });
 
@@ -158,6 +159,28 @@ describe("PermissionsProcessor", () => {
 
       // ClaudecodePermissions.isDeletable() returns false, so should be empty
       expect(files).toHaveLength(0);
+    });
+
+    it("should load OpenCode opencode.jsonc", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.jsonc"),
+        JSON.stringify({
+          permission: {
+            bash: { "git *": "allow" },
+          },
+        }),
+      );
+
+      const processor = new PermissionsProcessor({
+        logger,
+        baseDir: testDir,
+        toolTarget: "opencode",
+      });
+
+      const files = await processor.loadToolFiles();
+
+      expect(files).toHaveLength(1);
+      expect(files[0]).toBeInstanceOf(OpencodePermissions);
     });
   });
 
