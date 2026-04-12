@@ -2,7 +2,7 @@
 root: false
 targets: ["*"]
 description: "When you write tests, must follow these guidelines."
-globs: ["**/*.test.ts"]
+globs: ["**/*.test.ts", "src/e2e/**/*.spec.ts"]
 ---
 
 # Testing Guidelines
