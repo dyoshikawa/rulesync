@@ -684,6 +684,9 @@ describe("importFromTool", () => {
     it("should skip permissions import in global mode", async () => {
       mockConfig.getFeatures.mockReturnValue(["permissions"]);
       mockConfig.getGlobal.mockReturnValue(true);
+      vi.mocked(PermissionsProcessor.getToolTargets).mockImplementation((params) =>
+        params?.global ? ["opencode"] : ["claudecode"],
+      );
 
       const result = await importFromTool({
         logger,

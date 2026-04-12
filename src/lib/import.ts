@@ -366,13 +366,11 @@ async function importPermissionsCore(params: {
     return 0;
   }
 
-  if (config.getGlobal()) {
-    logger.debug("Skipping permissions file import (not supported in global mode)");
-    return 0;
-  }
-
-  const allTargets = PermissionsProcessor.getToolTargets();
-  const importableTargets = PermissionsProcessor.getToolTargets({ importOnly: true });
+  const allTargets = PermissionsProcessor.getToolTargets({ global: config.getGlobal() });
+  const importableTargets = PermissionsProcessor.getToolTargets({
+    global: config.getGlobal(),
+    importOnly: true,
+  });
 
   if (!allTargets.includes(tool)) {
     return 0;
@@ -386,6 +384,7 @@ async function importPermissionsCore(params: {
   const permissionsProcessor = new PermissionsProcessor({
     baseDir: config.getBaseDirs()[0] ?? ".",
     toolTarget: tool,
+    global: config.getGlobal(),
     logger,
   });
 

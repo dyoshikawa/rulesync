@@ -15,6 +15,7 @@ export type ToolPermissionsFromRulesyncPermissionsParams = Omit<
 > & {
   rulesyncPermissions: RulesyncPermissions;
   logger?: Logger;
+  global?: boolean;
 };
 
 export type ToolPermissionsSettablePaths = {
@@ -22,16 +23,19 @@ export type ToolPermissionsSettablePaths = {
   relativeFilePath: string;
 };
 
-export type ToolPermissionsFromFileParams = Pick<AiFileFromFileParams, "baseDir" | "validate">;
+export type ToolPermissionsFromFileParams = Pick<AiFileFromFileParams, "baseDir" | "validate"> & {
+  global?: boolean;
+};
 
 export type ToolPermissionsForDeletionParams = {
   baseDir?: string;
   relativeDirPath: string;
   relativeFilePath: string;
+  global?: boolean;
 };
 
 export abstract class ToolPermissions extends ToolFile {
-  static getSettablePaths(): ToolPermissionsSettablePaths {
+  static getSettablePaths(_options?: { global?: boolean }): ToolPermissionsSettablePaths {
     throw new Error("Please implement this method in the subclass.");
   }
 
