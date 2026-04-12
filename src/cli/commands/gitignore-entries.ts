@@ -31,7 +31,6 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   },
   { target: "common", feature: "general", entry: ".rulesync/rules/*.local.md" },
   { target: "common", feature: "general", entry: "rulesync.local.jsonc" },
-  { target: "common", feature: "general", entry: "!.rulesync/.aiignore" },
   // AGENTS.local.md is placed in common scope (not rovodev-only) so that
   // local rule files are always gitignored regardless of which targets are enabled.
   // This prevents accidental commits when a user disables the rovodev target.
@@ -178,6 +177,8 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "kiro", feature: "subagents", entry: "**/.kiro/agents/" },
   { target: "kiro", feature: "mcp", entry: "**/.kiro/settings/mcp.json" },
   { target: "kiro", feature: "ignore", entry: "**/.aiignore" },
+  // Keep this after ignore entries like "**/.aiignore" so the exception remains effective.
+  { target: "common", feature: "general", entry: "!.rulesync/.aiignore" },
 
   // OpenCode
   { target: "opencode", feature: "commands", entry: "**/.opencode/command/" },

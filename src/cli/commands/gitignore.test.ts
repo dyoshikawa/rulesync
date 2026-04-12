@@ -92,6 +92,18 @@ describe("gitignoreCommand", () => {
       expect(content).not.toContain("**/.agent/skills/");
     });
 
+    it("should place .rulesync/.aiignore exception after .aiignore ignore entries", async () => {
+      vi.mocked(fileExists).mockResolvedValue(false);
+
+      await gitignoreCommand(mockLogger);
+
+      const writeCall = vi.mocked(writeFileContent).mock.calls[0];
+      expect(writeCall).toBeDefined();
+      const content = writeCall![1];
+
+      expect(content.indexOf("**/.aiignore")).toBeLessThan(content.indexOf("!.rulesync/.aiignore"));
+    });
+
     it("should format content properly with newline at end", async () => {
       vi.mocked(fileExists).mockResolvedValue(false);
 
