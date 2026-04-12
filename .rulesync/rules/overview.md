@@ -25,6 +25,7 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
   - You must run `pnpm cicheck` before committing to verify quality.
   - You must not use here documents because it causes a sandbox error.
   - You must not use `--no-verify` option because it skips pre-commit checks and causes serious security issues.
+  - When creating a PR, you should include a link in the PR description that associates the PR with its issue.
 - When you read or search the codebase:
   - You should check Serena MCP server tools, and use those actively.
 - About the `skills/` directory at the repository root:
