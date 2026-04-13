@@ -1,6 +1,6 @@
 ---
 description: 'When you write tests, must follow these guidelines.'
-applyTo: '**/*.test.ts'
+applyTo: '**/*.test.ts,src/e2e/**/*.spec.ts'
 ---
 # Testing Guidelines
 
