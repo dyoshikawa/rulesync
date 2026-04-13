@@ -170,7 +170,9 @@ describe("WindsurfRule", () => {
       expect(windsurfRule).toBeInstanceOf(WindsurfRule);
       expect(windsurfRule.getRelativeDirPath()).toBe(".windsurf/rules");
       expect(windsurfRule.getRelativeFilePath()).toBe("test-rule.md");
-      expect(windsurfRule.getFileContent()).toBe("# Test Rule Content");
+      expect(windsurfRule.getFileContent()).toBe(
+        "---\ntitle: Test Rule\ntrigger: always_on\n---\n# Test Rule Content\n",
+      );
     });
 
     it("should create instance from RulesyncRule with custom baseDir", () => {
@@ -188,7 +190,9 @@ describe("WindsurfRule", () => {
       }) as WindsurfRule;
 
       expect(windsurfRule.getFilePath()).toBe("/custom/path/.windsurf/rules/custom-rule.md");
-      expect(windsurfRule.getFileContent()).toBe("# Custom Content");
+      expect(windsurfRule.getFileContent()).toBe(
+        "---\ntitle: Custom Rule\ntrigger: always_on\n---\n# Custom Content\n",
+      );
     });
 
     it("should create instance from RulesyncRule with validate false", () => {
@@ -205,7 +209,9 @@ describe("WindsurfRule", () => {
       }) as WindsurfRule;
 
       expect(windsurfRule).toBeInstanceOf(WindsurfRule);
-      expect(windsurfRule.getFileContent()).toBe("# Content");
+      expect(windsurfRule.getFileContent()).toBe(
+        "---\ntitle: Test Rule\ntrigger: always_on\n---\n# Content\n",
+      );
     });
 
     it("should handle RulesyncRule with complex frontmatter", () => {
@@ -224,7 +230,7 @@ describe("WindsurfRule", () => {
       }) as WindsurfRule;
 
       expect(windsurfRule.getFileContent()).toBe(
-        "# Complex Rule\n\nThis is a complex rule with multiple targets.",
+        "---\ntitle: A complex rule with metadata\ntrigger: always_on\n---\n# Complex Rule\n\nThis is a complex rule with multiple targets.\n",
       );
     });
 
@@ -240,7 +246,29 @@ describe("WindsurfRule", () => {
         rulesyncRule,
       }) as WindsurfRule;
 
-      expect(windsurfRule.getFileContent()).toBe("");
+      expect(windsurfRule.getFileContent()).toBe(
+        "---\ntitle: Empty Content\ntrigger: always_on\n---\n\n",
+      );
+    });
+
+    it("should include glob trigger and globs when specific globs are set", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "globbed.md",
+        frontmatter: {
+          description: "Globbed Rule",
+          globs: ["src/**/*.ts", "test/**/*.ts"],
+        },
+        body: "# Globbed",
+      });
+
+      const windsurfRule = WindsurfRule.fromRulesyncRule({
+        rulesyncRule,
+      }) as WindsurfRule;
+
+      expect(windsurfRule.getFileContent()).toBe(
+        "---\ntitle: Globbed Rule\ntrigger: glob\nglobs:\n  - src/**/*.ts\n  - test/**/*.ts\n---\n# Globbed\n",
+      );
     });
   });
 
@@ -302,7 +330,7 @@ describe("WindsurfRule", () => {
       const rulesyncRule = windsurfRule.toRulesyncRule();
 
       expect(rulesyncRule.getFileContent()).toContain(
-        "---\nroot: false\ntargets:\n  - '*'\nglobs: []\n---\n",
+        "---\nroot: false\ntargets:\n  - '*'\nglobs: []\n---\n\n",
       );
     });
   });
