@@ -390,4 +390,11 @@ For Codex CLI, this generates a `rulesync` named profile in `.codex/config.toml`
 - `edit` / `write`: `allow` → `write`, `ask`/`deny` → `none` in `permissions.<profile>.filesystem`
 - `webfetch`: `allow`/`deny` map to `permissions.<profile>.network.domains` (Codex does not support `ask` for domain rules)
 
+For Gemini CLI, this generates `tools.allowed` and `tools.exclude` in `.gemini/settings.json` (project/global depending on mode):
+
+- `allow` rules are converted into `tools.allowed` entries
+- `deny` rules are converted into `tools.exclude` entries
+- `ask` rules are skipped with a warning (Gemini CLI settings do not support explicit ask entries)
+- Tool categories are mapped as: `bash` → `run_shell_command`, `read` → `read_file`, `edit` → `replace`, `write` → `write_file`, `webfetch` → `web_fetch`
+
 > **Note: Interaction with ignore feature.** Both the ignore feature and the permissions feature can manage `Read` tool deny entries in `.claude/settings.json`. When both features configure the `Read` tool, the **permissions feature takes precedence** and a warning is emitted. If you only need to restrict file reads based on glob patterns, use the ignore feature (`.rulesync/.aiignore`). Use permissions only when you need fine-grained `allow`/`ask`/`deny` control over the `Read` tool.
