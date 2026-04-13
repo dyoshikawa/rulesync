@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
+import { stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -14,6 +15,11 @@ import {
 } from "./tool-rule.js";
 
 export type WindsurfRuleParams = ToolRuleParams;
+type WindsurfRuleFrontmatter = {
+  title: string;
+  trigger: "always_on" | "glob";
+  globs?: string[];
+};
 
 export type WindsurfRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
   nonRoot: {
@@ -56,14 +62,23 @@ export class WindsurfRule extends ToolRule {
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): ToolRule {
-    return new WindsurfRule(
-      this.buildToolRuleParamsDefault({
-        baseDir,
-        rulesyncRule,
-        validate,
-        nonRootPath: this.getSettablePaths().nonRoot,
-      }),
-    );
+    const toolRuleParams = this.buildToolRuleParamsDefault({
+      baseDir,
+      rulesyncRule,
+      validate,
+      nonRootPath: this.getSettablePaths().nonRoot,
+    });
+
+    const windsurfFrontmatter = this.buildWindsurfFrontmatter({
+      relativeFilePath: rulesyncRule.getRelativeFilePath(),
+      description: rulesyncRule.getFrontmatter().description,
+      globs: rulesyncRule.getFrontmatter().globs,
+    });
+
+    return new WindsurfRule({
+      ...toolRuleParams,
+      fileContent: stringifyFrontmatter(rulesyncRule.getBody(), windsurfFrontmatter),
+    });
   }
 
   toRulesyncRule(): RulesyncRule {
@@ -93,5 +108,23 @@ export class WindsurfRule extends ToolRule {
       rulesyncRule,
       toolTarget: "windsurf",
     });
+  }
+
+  private static buildWindsurfFrontmatter({
+    relativeFilePath,
+    description,
+    globs,
+  }: {
+    relativeFilePath: string;
+    description: string | undefined;
+    globs: string[] | undefined;
+  }): WindsurfRuleFrontmatter {
+    const hasSpecificGlobs = Boolean(globs && globs.length > 0 && !globs.includes("**/*"));
+
+    return {
+      title: description ?? relativeFilePath.replace(/\.md$/, ""),
+      trigger: hasSpecificGlobs ? "glob" : "always_on",
+      ...(hasSpecificGlobs && { globs }),
+    };
   }
 }
