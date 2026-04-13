@@ -11,6 +11,7 @@ import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { CodexcliPermissions } from "./codexcli-permissions.js";
+import { GeminicliPermissions } from "./geminicli-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
 import { PermissionsProcessor } from "./permissions-processor.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -70,19 +71,19 @@ describe("PermissionsProcessor", () => {
   });
 
   describe("getToolTargets", () => {
-    it("should return claudecode, codexcli and opencode for project mode", () => {
+    it("should return claudecode, codexcli, geminicli and opencode for project mode", () => {
       const targets = PermissionsProcessor.getToolTargets();
-      expect(targets).toEqual(["claudecode", "codexcli", "opencode"]);
+      expect(targets).toEqual(["claudecode", "codexcli", "geminicli", "opencode"]);
     });
 
-    it("should return codexcli and opencode for global mode", () => {
+    it("should return codexcli, geminicli and opencode for global mode", () => {
       const targets = PermissionsProcessor.getToolTargets({ global: true });
-      expect(targets).toEqual(["codexcli", "opencode"]);
+      expect(targets).toEqual(["codexcli", "geminicli", "opencode"]);
     });
 
     it("should return importable targets", () => {
       const targets = PermissionsProcessor.getToolTargets({ importOnly: true });
-      expect(targets).toEqual(["claudecode", "codexcli", "opencode"]);
+      expect(targets).toEqual(["claudecode", "codexcli", "geminicli", "opencode"]);
     });
   });
 
@@ -207,6 +208,30 @@ default_permissions = "rulesync"
 
       expect(files).toHaveLength(1);
       expect(files[0]).toBeInstanceOf(CodexcliPermissions);
+    });
+
+    it("should load Gemini CLI .gemini/settings.json", async () => {
+      const geminiDir = join(testDir, ".gemini");
+      await ensureDir(geminiDir);
+      await writeFileContent(
+        join(geminiDir, "settings.json"),
+        JSON.stringify({
+          tools: {
+            allowed: ["run_shell_command(git status)"],
+          },
+        }),
+      );
+
+      const processor = new PermissionsProcessor({
+        logger,
+        baseDir: testDir,
+        toolTarget: "geminicli",
+      });
+
+      const files = await processor.loadToolFiles();
+
+      expect(files).toHaveLength(1);
+      expect(files[0]).toBeInstanceOf(GeminicliPermissions);
     });
   });
 

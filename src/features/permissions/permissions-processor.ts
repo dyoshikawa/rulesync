@@ -9,6 +9,7 @@ import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { CodexcliPermissions } from "./codexcli-permissions.js";
+import { GeminicliPermissions } from "./geminicli-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import type {
@@ -19,7 +20,12 @@ import type {
 } from "./tool-permissions.js";
 import { ToolPermissions } from "./tool-permissions.js";
 
-const permissionsProcessorToolTargetTuple = ["claudecode", "codexcli", "opencode"] as const;
+const permissionsProcessorToolTargetTuple = [
+  "claudecode",
+  "codexcli",
+  "geminicli",
+  "opencode",
+] as const;
 
 export type PermissionsProcessorToolTarget = (typeof permissionsProcessorToolTargetTuple)[number];
 
@@ -57,6 +63,17 @@ const toolPermissionsFactories = new Map<PermissionsProcessorToolTarget, ToolPer
     "codexcli",
     {
       class: CodexcliPermissions,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "geminicli",
+    {
+      class: GeminicliPermissions,
       meta: {
         supportsProject: true,
         supportsGlobal: true,
