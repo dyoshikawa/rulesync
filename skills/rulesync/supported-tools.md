@@ -7,7 +7,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | AGENTS.md           | agentsmd     |  ✅   |        |          |    🎮    |    🎮     |   🎮   |       |             |
 | AgentsSkills        | agentsskills |       |        |          |          |           |   ✅   |       |             |
 | Claude Code         | claudecode   | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |
-| Codex CLI           | codexcli     | ✅ 🌏 |        | ✅ 🌏 🔧 |    🌏    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |
+| Codex CLI           | codexcli     | ✅ 🌏 |        | ✅ 🌏 🔧 |    🌏    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
 | Gemini CLI          | geminicli    | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |    ✅     | ✅ 🌏  | ✅ 🌏 |             |
 | GitHub Copilot      | copilot      | ✅ 🌏 |        |    ✅    |    ✅    |    ✅     |   ✅   |  ✅   |             |
 | GitHub Copilot CLI  | copilotcli   | ✅ 🌏 |        |  ✅ 🌏   |          |           |        |       |             |

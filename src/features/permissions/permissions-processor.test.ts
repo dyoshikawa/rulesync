@@ -10,6 +10,7 @@ import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
+import { CodexcliPermissions } from "./codexcli-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
 import { PermissionsProcessor } from "./permissions-processor.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -69,19 +70,19 @@ describe("PermissionsProcessor", () => {
   });
 
   describe("getToolTargets", () => {
-    it("should return claudecode and opencode for project mode", () => {
+    it("should return claudecode, codexcli and opencode for project mode", () => {
       const targets = PermissionsProcessor.getToolTargets();
-      expect(targets).toEqual(["claudecode", "opencode"]);
+      expect(targets).toEqual(["claudecode", "codexcli", "opencode"]);
     });
 
-    it("should return opencode for global mode", () => {
+    it("should return codexcli and opencode for global mode", () => {
       const targets = PermissionsProcessor.getToolTargets({ global: true });
-      expect(targets).toEqual(["opencode"]);
+      expect(targets).toEqual(["codexcli", "opencode"]);
     });
 
     it("should return importable targets", () => {
       const targets = PermissionsProcessor.getToolTargets({ importOnly: true });
-      expect(targets).toEqual(["claudecode", "opencode"]);
+      expect(targets).toEqual(["claudecode", "codexcli", "opencode"]);
     });
   });
 
@@ -181,6 +182,31 @@ describe("PermissionsProcessor", () => {
 
       expect(files).toHaveLength(1);
       expect(files[0]).toBeInstanceOf(OpencodePermissions);
+    });
+
+    it("should load Codex CLI .codex/config.toml", async () => {
+      const codexDir = join(testDir, ".codex");
+      await ensureDir(codexDir);
+      await writeFileContent(
+        join(codexDir, "config.toml"),
+        `
+default_permissions = "rulesync"
+
+[permissions.rulesync.filesystem]
+"/workspace/project" = "read"
+`,
+      );
+
+      const processor = new PermissionsProcessor({
+        logger,
+        baseDir: testDir,
+        toolTarget: "codexcli",
+      });
+
+      const files = await processor.loadToolFiles();
+
+      expect(files).toHaveLength(1);
+      expect(files[0]).toBeInstanceOf(CodexcliPermissions);
     });
   });
 
