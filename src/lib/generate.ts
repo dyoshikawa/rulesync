@@ -255,6 +255,7 @@ async function generateRulesCore(params: {
         simulateSubagents: config.getSimulateSubagents(),
         simulateSkills: config.getSimulateSkills(),
         skills: skills,
+        featureOptions: config.getFeatureOptions(toolTarget, "rules"),
         dryRun: config.isPreviewMode(),
         logger,
       });
