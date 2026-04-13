@@ -71,6 +71,33 @@ describe("E2E: permissions", () => {
     expect(filesystem["/workspace/project/src/**"]).toBe("write");
     expect(domains["github.com"]).toBe("allow");
   });
+
+  it("should generate geminicli permissions into .gemini/settings.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow", "rm *": "deny" },
+            read: { "src/**": "allow" },
+            webfetch: { "example.com": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "geminicli", features: "permissions" });
+
+    const content = JSON.parse(await readFileContent(join(testDir, ".gemini", "settings.json")));
+    expect(content.tools.allowed).toContain("run_shell_command(git *)");
+    expect(content.tools.allowed).toContain("read_file(src/**)");
+    expect(content.tools.exclude).toContain("run_shell_command(rm *)");
+    expect(content.tools.exclude).toContain("web_fetch(example.com)");
+  });
 });
 
 describe("E2E: permissions (import)", () => {
@@ -130,6 +157,34 @@ default_permissions = "rulesync"
     expect(content.permission.edit["/workspace/project/src/**"]).toBe("allow");
     expect(content.permission.read["/workspace/project/.env"]).toBe("deny");
     expect(content.permission.webfetch["github.com"]).toBe("allow");
+    expect(content.permission.webfetch["example.com"]).toBe("deny");
+  });
+
+  it("should import geminicli permissions into .rulesync/permissions.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".gemini", "settings.json"),
+      JSON.stringify(
+        {
+          tools: {
+            allowed: ["run_shell_command(git *)", "read_file(src/**)"],
+            exclude: ["run_shell_command(rm *)", "web_fetch(example.com)"],
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runImport({ target: "geminicli", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.bash["git *"]).toBe("allow");
+    expect(content.permission.read["src/**"]).toBe("allow");
+    expect(content.permission.bash["rm *"]).toBe("deny");
     expect(content.permission.webfetch["example.com"]).toBe("deny");
   });
 });
@@ -203,6 +258,36 @@ describe("E2E: permissions (global mode)", () => {
     const domains = toTable(network.domains);
     expect(filesystem["/workspace/project/**"]).toBe("read");
     expect(domains["github.com"]).toBe("allow");
+  });
+
+  it("should generate geminicli permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git status *": "allow" },
+            read: { "src/**": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "geminicli",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(await readFileContent(join(homeDir, ".gemini", "settings.json")));
+    expect(generated.tools.allowed).toContain("run_shell_command(git status *)");
+    expect(generated.tools.exclude).toContain("read_file(src/**)");
   });
 });
 
