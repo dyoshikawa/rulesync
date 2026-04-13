@@ -319,6 +319,7 @@ describe("ClaudecodeMcp", () => {
       expect(claudecodeMcp).toBeInstanceOf(ClaudecodeMcp);
       expect(claudecodeMcp.getJson()).toEqual(jsonData);
       expect(claudecodeMcp.getFilePath()).toBe(join(testDir, ".claude/.claude.json"));
+      expect(claudecodeMcp.isDeletable()).toBe(false);
     });
 
     it("should create instance from file in local mode (default)", async () => {
@@ -535,6 +536,7 @@ describe("ClaudecodeMcp", () => {
       expect(claudecodeMcp.getJson()).toEqual(jsonData);
       expect(claudecodeMcp.getRelativeDirPath()).toBe(".claude");
       expect(claudecodeMcp.getRelativeFilePath()).toBe(".claude.json");
+      expect(claudecodeMcp.isDeletable()).toBe(false);
     });
 
     it("should create instance from RulesyncMcp in local mode (default)", async () => {

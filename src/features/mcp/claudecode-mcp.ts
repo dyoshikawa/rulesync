@@ -64,6 +64,7 @@ export class ClaudecodeMcp extends ToolMcp {
       relativeFilePath: paths.relativeFilePath,
       fileContent: JSON.stringify(newJson, null, 2),
       validate,
+      global,
     });
   }
 
@@ -89,6 +90,7 @@ export class ClaudecodeMcp extends ToolMcp {
       relativeFilePath: paths.relativeFilePath,
       fileContent: JSON.stringify(mcpJson, null, 2),
       validate,
+      global,
     });
   }
 
