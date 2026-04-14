@@ -273,8 +273,6 @@ rulesync.local.jsonc
 **/.goosehints
 **/.goose/
 **/.gooseignore
-**/.github/copilot-instructions.md
-**/.github/instructions/
 **/.github/prompts/
 **/.github/agents/
 **/.github/skills/
