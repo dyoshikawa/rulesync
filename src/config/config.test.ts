@@ -334,4 +334,21 @@ describe("Config", () => {
       expect(config.getFeatureOptions("claudecode", "rules")).toBeUndefined();
     });
   });
+
+  describe("gitignoreTargetsOnly", () => {
+    it("should default to true when not specified", () => {
+      const config = createConfig();
+      expect(config.getGitignoreTargetsOnly()).toBe(true);
+    });
+
+    it("should respect an explicit false value", () => {
+      const config = createConfig({ gitignoreTargetsOnly: false });
+      expect(config.getGitignoreTargetsOnly()).toBe(false);
+    });
+
+    it("should respect an explicit true value", () => {
+      const config = createConfig({ gitignoreTargetsOnly: true });
+      expect(config.getGitignoreTargetsOnly()).toBe(true);
+    });
+  });
 });

@@ -2,6 +2,7 @@
 
 import { Command } from "commander";
 
+import { ConfigResolver } from "../config/config-resolver.js";
 import { ALL_FEATURES, RulesyncFeatures } from "../types/features.js";
 import { FetchOptions } from "../types/fetch.js";
 import { formatError } from "../utils/error.js";
@@ -71,11 +72,22 @@ const main = async () => {
     .option("-s, --silent", "Suppress all output")
     .action(
       wrapCommand("gitignore", "GITIGNORE_FAILED", async (logger, options) => {
+        // eslint-disable-next-line no-type-assertion/no-type-assertion
+        const cliTargets = (options as { targets?: string[] }).targets;
+        // eslint-disable-next-line no-type-assertion/no-type-assertion
+        const cliFeatures = (options as { features?: RulesyncFeatures }).features;
+
+        let resolvedTargets = cliTargets;
+        if (resolvedTargets === undefined) {
+          const config = await ConfigResolver.resolve({});
+          if (config.getGitignoreTargetsOnly()) {
+            resolvedTargets = config.getTargets();
+          }
+        }
+
         await gitignoreCommand(logger, {
-          // eslint-disable-next-line no-type-assertion/no-type-assertion
-          targets: (options as { targets?: string[] }).targets,
-          // eslint-disable-next-line no-type-assertion/no-type-assertion
-          features: (options as { features?: RulesyncFeatures }).features,
+          targets: resolvedTargets,
+          features: cliFeatures,
         });
       }),
     );

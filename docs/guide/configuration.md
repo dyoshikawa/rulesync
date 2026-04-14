@@ -56,6 +56,11 @@ Example:
   "simulateSubagents": false, // Generate simulated subagents
   "simulateSkills": false, // Generate simulated skills
 
+  // When true (default), `rulesync gitignore` only emits entries for the
+  // tools listed in `targets`. Set to false to emit entries for all supported
+  // tools regardless of `targets`.
+  "gitignoreTargetsOnly": true,
+
   // Declarative skill sources — installed via 'rulesync install'
   // See the "Declarative Skill Sources" section for details.
   // "sources": [

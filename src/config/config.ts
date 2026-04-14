@@ -58,6 +58,7 @@ export const ConfigParamsSchema = z.object({
   simulateCommands: optional(z.boolean()),
   simulateSubagents: optional(z.boolean()),
   simulateSkills: optional(z.boolean()),
+  gitignoreTargetsOnly: optional(z.boolean()),
   dryRun: optional(z.boolean()),
   check: optional(z.boolean()),
   // Declarative skill sources
@@ -120,6 +121,7 @@ export class Config {
   private readonly simulateCommands: boolean;
   private readonly simulateSubagents: boolean;
   private readonly simulateSkills: boolean;
+  private readonly gitignoreTargetsOnly: boolean;
   private readonly dryRun: boolean;
   private readonly check: boolean;
   private readonly sources: SourceEntry[];
@@ -135,6 +137,7 @@ export class Config {
     simulateCommands,
     simulateSubagents,
     simulateSkills,
+    gitignoreTargetsOnly,
     dryRun,
     check,
     sources,
@@ -158,6 +161,7 @@ export class Config {
     this.simulateCommands = simulateCommands ?? false;
     this.simulateSubagents = simulateSubagents ?? false;
     this.simulateSkills = simulateSkills ?? false;
+    this.gitignoreTargetsOnly = gitignoreTargetsOnly ?? true;
     this.dryRun = dryRun ?? false;
     this.check = check ?? false;
     this.sources = sources ?? [];
@@ -319,6 +323,10 @@ export class Config {
 
   public getSimulateSkills(): boolean {
     return this.simulateSkills;
+  }
+
+  public getGitignoreTargetsOnly(): boolean {
+    return this.gitignoreTargetsOnly;
   }
 
   public getDryRun(): boolean {

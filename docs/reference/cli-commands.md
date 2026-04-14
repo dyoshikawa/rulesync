@@ -66,14 +66,14 @@ rulesync update --force
 
 ## Gitignore Command
 
-The `gitignore` command adds generated AI tool configuration files to `.gitignore`. By default, it includes entries for all supported tools and features. You can optionally filter the output to include only specific tools or features.
+The `gitignore` command adds generated AI tool configuration files to `.gitignore`. By default, it emits entries only for the tools listed in the `targets` of your `rulesync.jsonc` (controlled by the `gitignoreTargetsOnly` option, which defaults to `true`). Set `gitignoreTargetsOnly` to `false` to emit entries for all supported tools instead. You can also filter the output per-invocation with `--targets` / `--features`, which take precedence over the config.
 
 ### Options
 
-| Option                      | Description                                                                                          | Default   |
-| --------------------------- | ---------------------------------------------------------------------------------------------------- | --------- |
-| `--targets, -t <tools>`     | Comma-separated list of tools to include (e.g., `claudecode,copilot` or `*` for all)                 | `*` (all) |
-| `--features, -f <features>` | Comma-separated list of features to include (rules, commands, subagents, skills, ignore, mcp, hooks) | `*` (all) |
+| Option                      | Description                                                                                          | Default                                         |
+| --------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `--targets, -t <tools>`     | Comma-separated list of tools to include (e.g., `claudecode,copilot` or `*` for all)                 | Derived from `targets` / `gitignoreTargetsOnly` |
+| `--features, -f <features>` | Comma-separated list of features to include (rules, commands, subagents, skills, ignore, mcp, hooks) | `*` (all)                                       |
 
 ### Examples
 
