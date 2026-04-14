@@ -4,7 +4,32 @@
   // List of tools to generate configurations for
   "targets": ["copilot", "claudecode", "opencode"],
 
-  "features": ["rules", "ignore", "mcp", "commands", "subagents", "skills"],
+  "features": {
+    "copilot": {
+      "rules": {
+        "ruleDiscoveryMode": "explicit",
+        "rule"
+      },
+      "commands": true,
+      "mcp": false,
+      "subagents": true,
+      "skills": true
+    },
+    "claudecode": {
+      "rules": true,
+      "commands": true,
+      "mcp": true,
+      "subagents": true,
+      "skills": true
+    },
+    "opencode": {
+      "rules": true,
+      "commands": true,
+      "mcp": true,
+      "subagents": true,
+      "skills": true
+    }
+  },
 
   // Base directory or directories for generation.
   "baseDirs": ["."],
@@ -16,5 +41,5 @@
 
   "simulateCommands": true,
   "simulateSubagents": true,
-  "simulateSkills": true,
+  "simulateSkills": true
 }

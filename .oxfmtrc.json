@@ -20,6 +20,8 @@
     ".claude/settings.json",
     ".serena/project.yml",
     ".github/copilot-instructions.md",
-    ".github/instructions/**"
+    ".github/instructions/**",
+    "rulesync.jsonc",
+    "rulesync.local.jsonc"
   ]
 }
