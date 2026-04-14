@@ -60,11 +60,6 @@ const loadConfigFromFile = async (filePath: string): Promise<PartialConfigParams
   const parsed: ConfigFile = ConfigFileSchema.parse(jsonData);
   // Exclude $schema from config params
   const { $schema: _schema, ...configParams } = parsed;
-  // DEBUG: temporary diagnostic for CI failure investigation
-  // oxlint-disable-next-line no-console
-  console.error(
-    `[DEBUG loadConfigFromFile] file=${filePath} targets=${JSON.stringify(configParams.targets)} features=${JSON.stringify(configParams.features)?.slice(0, 200)}`,
-  );
   // Enforce mutual-exclusivity between object-form `targets` and
   // `features` on the user-authored file (before defaults are merged).
   assertTargetsFeaturesExclusive({
@@ -179,18 +174,28 @@ export class ConfigResolver {
       configByFile.gitignoreTargetsOnly ??
       getDefaults().gitignoreTargetsOnly;
 
-    // Resolve features/targets with awareness of the deprecated
-    // `features` object form: when the user provides `features` in object
-    // form *without* `targets`, leave `targets` undefined so the resulting
-    // `Config` can derive the target list from the features-object keys
-    // (see `Config.getTargets`). This keeps a single source of truth and
-    // avoids colliding with the new strict schema that rejects setting both.
-    const resolvedFeatures = features ?? configByFile.features ?? getDefaults().features;
+    // Resolve features/targets while honouring the strict mutual-exclusivity
+    // rule enforced by `assertTargetsFeaturesExclusive`:
+    //
+    // - When the user provides `targets` in object form, `features` must
+    //   stay undefined (the per-target feature config lives inside the
+    //   `targets` object itself); skip the `features` default.
+    // - When the user provides `features` in object form without `targets`,
+    //   leave `targets` undefined so `Config.getTargets` can derive the
+    //   target list from the `features` object keys; skip the `targets`
+    //   default.
+    // - Otherwise fall through to the array-form defaults.
+    const userProvidedFeatures = features ?? configByFile.features;
     const userProvidedTargets = targets ?? configByFile.targets;
-    const featuresIsObject = resolvedFeatures !== undefined && !Array.isArray(resolvedFeatures);
+    const targetsIsObject =
+      userProvidedTargets !== undefined && !Array.isArray(userProvidedTargets);
+    const featuresIsObject =
+      userProvidedFeatures !== undefined && !Array.isArray(userProvidedFeatures);
     if (featuresIsObject) {
       emitFeaturesObjectFormDeprecationWarning();
     }
+    const resolvedFeatures =
+      userProvidedFeatures ?? (targetsIsObject ? undefined : getDefaults().features);
     const resolvedTargets =
       userProvidedTargets ?? (featuresIsObject ? undefined : getDefaults().targets);
 
