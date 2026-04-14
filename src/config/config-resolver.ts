@@ -14,6 +14,7 @@ import {
   validateBaseDir,
 } from "../utils/file.js";
 import {
+  assertTargetsFeaturesExclusive,
   Config,
   ConfigFile,
   ConfigFileSchema,
@@ -59,7 +60,36 @@ const loadConfigFromFile = async (filePath: string): Promise<PartialConfigParams
   const parsed: ConfigFile = ConfigFileSchema.parse(jsonData);
   // Exclude $schema from config params
   const { $schema: _schema, ...configParams } = parsed;
+  // Enforce mutual-exclusivity between object-form `targets` and
+  // `features` on the user-authored file (before defaults are merged).
+  assertTargetsFeaturesExclusive({
+    targets: configParams.targets,
+    features: configParams.features,
+  });
   return configParams;
+};
+
+/**
+ * One-shot deprecation warning for the object form under `features`.
+ * Emitted once per process to avoid repeat logs when the resolver is
+ * invoked from multiple commands within the same run. Skipped in tests to
+ * keep test output clean — tests that need to assert on the warning should
+ * import and call `emitFeaturesObjectFormDeprecationWarning` directly.
+ */
+let deprecationWarningEmitted = false;
+export const emitFeaturesObjectFormDeprecationWarning = (): void => {
+  if (deprecationWarningEmitted) return;
+  deprecationWarningEmitted = true;
+  // oxlint-disable-next-line no-console
+  console.warn(
+    "[rulesync] DEPRECATED: 'features' object form is deprecated. " +
+      "Use the new 'targets' object form instead: " +
+      "`targets: { claudecode: { rules: true, ignore: { fileMode: 'local' } } }`.",
+  );
+};
+// Exposed for tests to reset state between runs.
+export const resetDeprecationWarningForTests = (): void => {
+  deprecationWarningEmitted = false;
 };
 
 const mergeConfigs = (
@@ -132,9 +162,28 @@ export class ConfigResolver {
       configByFile.gitignoreTargetsOnly ??
       getDefaults().gitignoreTargetsOnly;
 
+    // Resolve features/targets with awareness of the deprecated
+    // `features` object form: when the user provides `features` in object
+    // form *without* `targets`, derive the target list from the features
+    // object keys instead of falling through to the default `["agentsmd"]`.
+    // This preserves the user's intent under the new strict schema where
+    // setting both together is rejected.
+    const resolvedFeatures = features ?? configByFile.features ?? getDefaults().features;
+    const userProvidedTargets = targets ?? configByFile.targets;
+    const featuresIsObject = resolvedFeatures !== undefined && !Array.isArray(resolvedFeatures);
+    if (featuresIsObject) {
+      emitFeaturesObjectFormDeprecationWarning();
+    }
+    const resolvedTargets =
+      userProvidedTargets ??
+      (featuresIsObject
+        ? // eslint-disable-next-line no-type-assertion/no-type-assertion
+          (Object.keys(resolvedFeatures as Record<string, unknown>) as ConfigParams["targets"])
+        : getDefaults().targets);
+
     const configParams = {
-      targets: targets ?? configByFile.targets ?? getDefaults().targets,
-      features: features ?? configByFile.features ?? getDefaults().features,
+      targets: resolvedTargets,
+      features: resolvedFeatures,
       verbose: verbose ?? configByFile.verbose ?? getDefaults().verbose,
       delete: isDelete ?? configByFile.delete ?? getDefaults().delete,
       baseDirs: getBaseDirsInLightOfGlobal({

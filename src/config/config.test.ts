@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { ALL_FEATURES } from "../types/features.js";
 import { ALL_TOOL_TARGETS } from "../types/tool-targets.js";
-import { Config, type ConfigParams } from "./config.js";
+import { assertTargetsFeaturesExclusive, Config, type ConfigParams } from "./config.js";
 
 describe("Config", () => {
   const defaultConfig: ConfigParams = {
@@ -349,6 +349,159 @@ describe("Config", () => {
     it("should respect an explicit true value", () => {
       const config = createConfig({ gitignoreTargetsOnly: true });
       expect(config.getGitignoreTargetsOnly()).toBe(true);
+    });
+  });
+
+  describe("object-form targets (per-target configuration)", () => {
+    it("should derive target list from targets object keys", () => {
+      const config = createConfig({
+        targets: {
+          claudecode: ["rules", "commands"],
+          cursor: ["rules"],
+        },
+      });
+
+      expect(config.getTargets()).toEqual(["claudecode", "cursor"]);
+    });
+
+    it("should return per-target features from targets object values", () => {
+      const config = createConfig({
+        targets: {
+          claudecode: ["rules", "commands"],
+          cursor: ["rules", "mcp"],
+        },
+      });
+
+      expect(config.getFeatures("claudecode")).toEqual(["rules", "commands"]);
+      expect(config.getFeatures("cursor")).toEqual(["rules", "mcp"]);
+    });
+
+    it("should return per-feature options from targets object", () => {
+      const config = createConfig({
+        targets: {
+          claudecode: {
+            rules: true,
+            ignore: { fileMode: "local" },
+          },
+        },
+      });
+
+      expect(config.getFeatures("claudecode")).toEqual(["rules", "ignore"]);
+      expect(config.getFeatureOptions("claudecode", "ignore")).toEqual({ fileMode: "local" });
+      expect(config.getFeatureOptions("claudecode", "rules")).toBeUndefined();
+    });
+
+    it("should expand wildcard inside targets object value", () => {
+      const config = createConfig({
+        targets: {
+          claudecode: ["*"],
+          cursor: ["rules"],
+        },
+      });
+
+      const claudeFeatures = config.getFeatures("claudecode");
+      expect(claudeFeatures).toHaveLength(ALL_FEATURES.length);
+      expect(config.getFeatures("cursor")).toEqual(["rules"]);
+    });
+
+    it("should return empty array for target not present in targets object", () => {
+      const config = createConfig({
+        targets: {
+          claudecode: ["rules"],
+        },
+      });
+
+      expect(config.getFeatures("cursor")).toEqual([]);
+    });
+
+    it("should collect all unique features across targets object", () => {
+      const config = createConfig({
+        targets: {
+          claudecode: ["rules", "commands"],
+          cursor: ["rules", "mcp"],
+        },
+      });
+
+      const features = config.getFeatures();
+      expect(features).toContain("rules");
+      expect(features).toContain("commands");
+      expect(features).toContain("mcp");
+      expect(features).not.toContain("*");
+    });
+
+    it("should report hasPerTargetFeatures true for object-form targets", () => {
+      const config = createConfig({
+        targets: { claudecode: ["rules"] },
+      });
+      expect(config.hasPerTargetFeatures()).toBe(true);
+      expect(config.hasDeprecatedFeaturesObjectForm()).toBe(false);
+    });
+
+    it("should detect conflicting targets within the object form keys", () => {
+      expect(() =>
+        createConfig({
+          targets: {
+            claudecode: ["rules"],
+            "claudecode-legacy": ["rules"],
+          },
+        }),
+      ).toThrow(
+        "Conflicting targets: 'claudecode' and 'claudecode-legacy' cannot be used together. Please choose one.",
+      );
+    });
+  });
+
+  describe("assertTargetsFeaturesExclusive (schema-level mutual exclusivity)", () => {
+    it("rejects object-form targets combined with array-form features", () => {
+      expect(() =>
+        assertTargetsFeaturesExclusive({
+          targets: { claudecode: ["rules"] },
+          features: ["rules"],
+        }),
+      ).toThrow(/when 'targets' is in object form, 'features' must be omitted/);
+    });
+
+    it("rejects object-form targets combined with object-form features", () => {
+      expect(() =>
+        assertTargetsFeaturesExclusive({
+          targets: { claudecode: ["rules"] },
+          features: { claudecode: ["rules"] },
+        }),
+      ).toThrow(/when 'targets' is in object form, 'features' must be omitted/);
+    });
+
+    it("rejects object-form features combined with array-form targets", () => {
+      expect(() =>
+        assertTargetsFeaturesExclusive({
+          targets: ["claudecode"],
+          features: { claudecode: ["rules"] },
+        }),
+      ).toThrow(/when 'features' is in object form, 'targets' must be omitted/);
+    });
+
+    it("accepts object-form targets alone", () => {
+      expect(() =>
+        assertTargetsFeaturesExclusive({
+          targets: { claudecode: ["rules"] },
+        }),
+      ).not.toThrow();
+    });
+
+    it("accepts object-form features alone (still supported, deprecated)", () => {
+      expect(() =>
+        assertTargetsFeaturesExclusive({
+          features: { claudecode: ["rules"] },
+        }),
+      ).not.toThrow();
+    });
+
+    it("accepts array-form targets with array-form features", () => {
+      expect(() =>
+        assertTargetsFeaturesExclusive({
+          targets: ["claudecode"],
+          features: ["rules"],
+        }),
+      ).not.toThrow();
     });
   });
 });

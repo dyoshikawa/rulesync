@@ -72,13 +72,15 @@ Example:
 
 ## Per-Target Features
 
-The `features` option accepts both an array and an object format. Use the object format when you want to generate different features for different targets:
+The `targets` option accepts both an array and an object format. Use the
+object format when you want to declare per-target feature configuration in
+a single place — the object keys are the target tools, and each value
+carries the features to generate for that tool:
 
 ```jsonc
 // rulesync.jsonc
 {
-  "targets": ["claudecode", "cursor", "copilot"],
-  "features": {
+  "targets": {
     "claudecode": ["rules", "commands"],
     "cursor": ["rules", "mcp"],
     "copilot": ["rules", "subagents"],
@@ -92,12 +94,16 @@ In this example:
 - `cursor` generates rules and MCP configuration
 - `copilot` generates rules and subagents
 
-You can also use `*` (wildcard) for specific targets:
+> **Important:** When `targets` is in object form, the top-level `features`
+> field must be omitted. Declaring both would double-define the target
+> set, so the config loader rejects that combination.
+
+You can also use `*` (wildcard) inside a target's value to enable every
+feature for that tool:
 
 ```jsonc
 {
-  "targets": ["claudecode", "cursor"],
-  "features": {
+  "targets": {
     "claudecode": ["*"], // Generate all features for Claude Code
     "cursor": ["rules"], // Only rules for Cursor
   },
@@ -107,17 +113,34 @@ You can also use `*` (wildcard) for specific targets:
 ### Per-feature options
 
 Some features accept additional configuration. To pass options through, use
-the object form for a target's features instead of an array. Each feature key
+the object form for a target's value instead of an array. Each feature key
 maps to either `true`/`false` (enable/disable) or an options object.
 
 ```jsonc
 {
-  "targets": ["claudecode"],
-  "features": {
+  "targets": {
     "claudecode": {
       "rules": { "ruleDiscoveryMode": "explicit" },
       "ignore": { "fileMode": "local" },
     },
+  },
+}
+```
+
+### Deprecated: object form under `features`
+
+Earlier versions of Rulesync accepted per-target configuration under the
+top-level `features` field, paired with a `targets` array. That form is
+still parsed for backward compatibility but emits a deprecation warning;
+new configs should use the `targets` object form shown above. Note that
+mixing `targets` (array) with `features` (object) is no longer accepted —
+pick one form.
+
+```jsonc
+// ⚠️  Deprecated — still works, logs a warning
+{
+  "features": {
+    "claudecode": { "rules": true, "ignore": { "fileMode": "local" } },
   },
 }
 ```
