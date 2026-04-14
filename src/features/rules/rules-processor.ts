@@ -108,6 +108,7 @@ const formatRulePaths = (rules: RulesyncRule[]): string =>
 type RuleDiscoveryMode = "auto" | "toon" | "claudecode-legacy";
 const RulesFeatureOptionsSchema = z.looseObject({
   ruleDiscoveryMode: z.optional(z.enum(["none", "explicit"])),
+  includeLocalRoot: z.optional(z.boolean()),
 });
 
 const resolveRuleDiscoveryMode = ({
@@ -132,6 +133,22 @@ const resolveRuleDiscoveryMode = ({
     return defaultMode;
   }
   return parsed.data.ruleDiscoveryMode === "none" ? "auto" : "toon";
+};
+
+const IncludeLocalRootSchema = z.looseObject({
+  includeLocalRoot: z.optional(z.boolean()),
+});
+
+const resolveIncludeLocalRoot = (options?: FeatureOptions): boolean => {
+  if (!options) return true;
+  const parsed = IncludeLocalRootSchema.safeParse(options);
+  if (!parsed.success) {
+    throw new Error(
+      `Invalid options for rules feature: ${parsed.error.message}. ` +
+        "`includeLocalRoot` must be a boolean.",
+    );
+  }
+  return parsed.data.includeLocalRoot ?? true;
 };
 
 /**
@@ -614,8 +631,10 @@ export class RulesProcessor extends FeatureProcessor {
       })
       .filter((rule): rule is ToolRule => rule !== null);
 
-    // Handle localRoot rules (only in non-global mode)
-    if (localRootRules.length > 0 && !this.global) {
+    const includeLocalRoot = resolveIncludeLocalRoot(this.featureOptions);
+
+    // Handle localRoot rules (only in non-global mode and when enabled)
+    if (localRootRules.length > 0 && !this.global && includeLocalRoot) {
       const localRootRule = localRootRules[0];
       if (localRootRule && factory.class.isTargetedByRulesyncRule(localRootRule)) {
         this.handleLocalRootRule(toolRules, localRootRule, factory);

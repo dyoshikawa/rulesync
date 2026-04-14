@@ -1356,6 +1356,136 @@ targets: ["*"]
       expect(rootRule?.getFileContent()).toContain("\n\n# Local content");
     });
 
+    it("should skip localRoot content when includeLocalRoot is false", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        baseDir: testDir,
+        toolTarget: "copilot",
+        featureOptions: { includeLocalRoot: false },
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: {
+            root: true,
+            targets: ["*"],
+          },
+          body: "# Root content",
+        }),
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "local.md",
+          frontmatter: {
+            localRoot: true,
+            targets: ["*"],
+          },
+          body: "# Local content",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      expect(result).toHaveLength(1);
+      const rootRule = result.find((r) => r instanceof CopilotRule && r.isRoot());
+      expect(rootRule?.getFileContent()).toContain("# Root content");
+      expect(rootRule?.getFileContent()).not.toContain("# Local content");
+    });
+
+    it("should include localRoot content when includeLocalRoot is explicitly true", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        baseDir: testDir,
+        toolTarget: "copilot",
+        featureOptions: { includeLocalRoot: true },
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: { root: true, targets: ["*"] },
+          body: "# Root content",
+        }),
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "local.md",
+          frontmatter: { localRoot: true, targets: ["*"] },
+          body: "# Local content",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const rootRule = result.find((r) => r instanceof CopilotRule && r.isRoot());
+      expect(rootRule?.getFileContent()).toContain("# Root content");
+      expect(rootRule?.getFileContent()).toContain("# Local content");
+    });
+
+    it("should throw when includeLocalRoot is not a boolean", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        baseDir: testDir,
+        toolTarget: "copilot",
+        featureOptions: { includeLocalRoot: "false" as unknown as boolean },
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: { root: true, targets: ["*"] },
+          body: "# Root",
+        }),
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "local.md",
+          frontmatter: { localRoot: true, targets: ["*"] },
+          body: "# Local",
+        }),
+      ];
+
+      await expect(processor.convertRulesyncFilesToToolFiles(rulesyncRules)).rejects.toThrow(
+        /includeLocalRoot.*must be a boolean/,
+      );
+    });
+
+    it("should coexist with ruleDiscoveryMode option", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        baseDir: testDir,
+        toolTarget: "claudecode",
+        featureOptions: { includeLocalRoot: false, ruleDiscoveryMode: "explicit" },
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: { root: true, targets: ["*"] },
+          body: "# Root content",
+        }),
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "local.md",
+          frontmatter: { localRoot: true, targets: ["*"] },
+          body: "# Local content",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const localRule = result.find((r) => r.getRelativeFilePath() === "CLAUDE.local.md");
+      expect(localRule).toBeUndefined();
+    });
+
     it("should not generate localRoot rule in global mode", async () => {
       const processor = new RulesProcessor({
         logger,
