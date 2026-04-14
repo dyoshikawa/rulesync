@@ -60,6 +60,11 @@ const loadConfigFromFile = async (filePath: string): Promise<PartialConfigParams
   const parsed: ConfigFile = ConfigFileSchema.parse(jsonData);
   // Exclude $schema from config params
   const { $schema: _schema, ...configParams } = parsed;
+  // DEBUG: temporary diagnostic for CI failure investigation
+  // oxlint-disable-next-line no-console
+  console.error(
+    `[DEBUG loadConfigFromFile] file=${filePath} targets=${JSON.stringify(configParams.targets)} features=${JSON.stringify(configParams.features)?.slice(0, 200)}`,
+  );
   // Enforce mutual-exclusivity between object-form `targets` and
   // `features` on the user-authored file (before defaults are merged).
   assertTargetsFeaturesExclusive({
