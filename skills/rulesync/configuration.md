@@ -110,7 +110,7 @@ maps to either `true`/`false` (enable/disable) or an options object.
   "targets": ["claudecode"],
   "features": {
     "claudecode": {
-      "rules": { "ruleDiscoveryMode": "toon" },
+      "rules": { "ruleDiscoveryMode": "explicit" },
       "ignore": { "fileMode": "local" },
     },
   },
@@ -121,7 +121,7 @@ The current per-feature options are:
 
 | Target       | Feature  | Option              | Values                                                       | Default      |
 | ------------ | -------- | ------------------- | ------------------------------------------------------------ | ------------ |
-| `claudecode` | `rules`  | `ruleDiscoveryMode` | `"auto"` / `"toon"`                                          | tool default |
+| `claudecode` | `rules`  | `ruleDiscoveryMode` | `"none"` / `"explicit"`                                      | tool default |
 | `claudecode` | `ignore` | `fileMode`          | `"shared"` (settings.json) / `"local"` (settings.local.json) | `"shared"`   |
 
 See [`docs/reference/file-formats.md`](../reference/file-formats.md#where-ignore-patterns-are-written-per-tool)

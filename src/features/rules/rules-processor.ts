@@ -107,7 +107,7 @@ const formatRulePaths = (rules: RulesyncRule[]): string =>
  */
 type RuleDiscoveryMode = "auto" | "toon" | "claudecode-legacy";
 const RulesFeatureOptionsSchema = z.looseObject({
-  ruleDiscoveryMode: z.optional(z.enum(["auto", "toon"])),
+  ruleDiscoveryMode: z.optional(z.enum(["none", "explicit"])),
 });
 
 const resolveRuleDiscoveryMode = ({
@@ -125,10 +125,13 @@ const resolveRuleDiscoveryMode = ({
   if (!parsed.success) {
     throw new Error(
       `Invalid options for rules feature: ${parsed.error.message}. ` +
-        '`ruleDiscoveryMode` must be either "auto" or "toon".',
+        '`ruleDiscoveryMode` must be either "none" or "explicit".',
     );
   }
-  return parsed.data.ruleDiscoveryMode ?? defaultMode;
+  if (!parsed.data.ruleDiscoveryMode) {
+    return defaultMode;
+  }
+  return parsed.data.ruleDiscoveryMode === "none" ? "auto" : "toon";
 };
 
 /**

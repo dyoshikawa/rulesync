@@ -426,11 +426,11 @@ describe("RulesProcessor", () => {
       expect(content).not.toContain("@.claude/");
     });
 
-    it("should generate TOON references section for claudecode when ruleDiscoveryMode is overridden to toon", async () => {
+    it("should generate TOON references section for claudecode when ruleDiscoveryMode is overridden to explicit", async () => {
       const processor = new RulesProcessor({
         logger,
         toolTarget: "claudecode",
-        featureOptions: { ruleDiscoveryMode: "toon" },
+        featureOptions: { ruleDiscoveryMode: "explicit" },
       });
 
       const rulesyncRules = [
@@ -490,7 +490,7 @@ describe("RulesProcessor", () => {
       ];
 
       await expect(processor.convertRulesyncFilesToToolFiles(rulesyncRules)).rejects.toThrow(
-        '`ruleDiscoveryMode` must be either "auto" or "toon"',
+        '`ruleDiscoveryMode` must be either "none" or "explicit"',
       );
     });
 
