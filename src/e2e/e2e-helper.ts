@@ -15,6 +15,7 @@ export const execFileAsync = promisify(execFile);
 // Default to using Node.js directly with the CLI entry point
 const nodePath = process.execPath;
 const cliPath = join(originalCwd, "src", "cli", "index.ts");
+const stripTypesLoaderPath = join(originalCwd, "scripts", "strip-types-loader.mjs");
 
 // Validate process.env.RULESYNC_CMD
 if (process.env.RULESYNC_CMD) {
@@ -35,7 +36,9 @@ if (process.env.RULESYNC_CMD) {
 export const rulesyncCmd = process.env.RULESYNC_CMD
   ? join(originalCwd, process.env.RULESYNC_CMD)
   : nodePath;
-export const rulesyncArgs = process.env.RULESYNC_CMD ? [] : [cliPath];
+export const rulesyncArgs = process.env.RULESYNC_CMD
+  ? []
+  : ["--experimental-transform-types", "--experimental-loader", stripTypesLoaderPath, cliPath];
 
 /**
  * Runs the `rulesync generate` command with the given target and feature.
