@@ -8,7 +8,7 @@
     "copilot": {
       "rules": {
         "ruleDiscoveryMode": "explicit",
-        "rule"
+        "includeLocalRoot": false // 追加
       },
       "commands": true,
       "mcp": false,

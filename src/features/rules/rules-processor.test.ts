@@ -1356,6 +1356,45 @@ targets: ["*"]
       expect(rootRule?.getFileContent()).toContain("\n\n# Local content");
     });
 
+    it("should skip localRoot content when includeLocalRoot is false", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        baseDir: testDir,
+        toolTarget: "copilot",
+        featureOptions: { includeLocalRoot: false },
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: {
+            root: true,
+            targets: ["*"],
+          },
+          body: "# Root content",
+        }),
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "local.md",
+          frontmatter: {
+            localRoot: true,
+            targets: ["*"],
+          },
+          body: "# Local content",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      expect(result).toHaveLength(1);
+      const rootRule = result.find((r) => r instanceof CopilotRule && r.isRoot());
+      expect(rootRule?.getFileContent()).toContain("# Root content");
+      expect(rootRule?.getFileContent()).not.toContain("# Local content");
+    });
+
     it("should not generate localRoot rule in global mode", async () => {
       const processor = new RulesProcessor({
         logger,
