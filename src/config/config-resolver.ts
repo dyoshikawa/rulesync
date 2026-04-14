@@ -71,20 +71,32 @@ const loadConfigFromFile = async (filePath: string): Promise<PartialConfigParams
 
 /**
  * One-shot deprecation warning for the object form under `features`.
- * Emitted once per process to avoid repeat logs when the resolver is
- * invoked from multiple commands within the same run. Skipped in tests to
- * keep test output clean — tests that need to assert on the warning should
- * import and call `emitFeaturesObjectFormDeprecationWarning` directly.
+ *
+ * Emitted at most once per Node.js process to avoid repeat logs when the
+ * resolver is invoked from multiple commands within the same run.
+ *
+ * NOTE: Vitest runs all tests within a single Node process and does not
+ * reset module state between test files by default, so the "once" guard
+ * would carry across tests. Tests that need to assert on the warning must
+ * call `resetDeprecationWarningForTests()` in a `beforeEach` hook. See the
+ * related tests in `config-resolver.test.ts`.
+ *
+ * When built into a user-facing build (non-test environment), we also
+ * suppress the warning when `RULESYNC_SILENT_DEPRECATION` is set so CI
+ * pipelines that intentionally run on the deprecated form can opt out.
  */
 let deprecationWarningEmitted = false;
 export const emitFeaturesObjectFormDeprecationWarning = (): void => {
   if (deprecationWarningEmitted) return;
+  if (process.env.RULESYNC_SILENT_DEPRECATION) return;
   deprecationWarningEmitted = true;
   // oxlint-disable-next-line no-console
   console.warn(
     "[rulesync] DEPRECATED: 'features' object form is deprecated. " +
       "Use the new 'targets' object form instead: " +
-      "`targets: { claudecode: { rules: true, ignore: { fileMode: 'local' } } }`.",
+      "`targets: { claudecode: { rules: true, ignore: { fileMode: 'local' } } }`. " +
+      "See https://github.com/dyoshikawa/rulesync/blob/main/docs/guide/configuration.md " +
+      "for the migration guide.",
   );
 };
 // Exposed for tests to reset state between runs.
@@ -164,10 +176,10 @@ export class ConfigResolver {
 
     // Resolve features/targets with awareness of the deprecated
     // `features` object form: when the user provides `features` in object
-    // form *without* `targets`, derive the target list from the features
-    // object keys instead of falling through to the default `["agentsmd"]`.
-    // This preserves the user's intent under the new strict schema where
-    // setting both together is rejected.
+    // form *without* `targets`, leave `targets` undefined so the resulting
+    // `Config` can derive the target list from the features-object keys
+    // (see `Config.getTargets`). This keeps a single source of truth and
+    // avoids colliding with the new strict schema that rejects setting both.
     const resolvedFeatures = features ?? configByFile.features ?? getDefaults().features;
     const userProvidedTargets = targets ?? configByFile.targets;
     const featuresIsObject = resolvedFeatures !== undefined && !Array.isArray(resolvedFeatures);
@@ -175,11 +187,7 @@ export class ConfigResolver {
       emitFeaturesObjectFormDeprecationWarning();
     }
     const resolvedTargets =
-      userProvidedTargets ??
-      (featuresIsObject
-        ? // eslint-disable-next-line no-type-assertion/no-type-assertion
-          (Object.keys(resolvedFeatures as Record<string, unknown>) as ConfigParams["targets"])
-        : getDefaults().targets);
+      userProvidedTargets ?? (featuresIsObject ? undefined : getDefaults().targets);
 
     const configParams = {
       targets: resolvedTargets,

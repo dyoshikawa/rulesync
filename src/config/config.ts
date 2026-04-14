@@ -73,10 +73,16 @@ export const ConfigParamsSchema = z.object({
 // literal without TS demanding every key be present. At runtime the zod
 // schema still accepts the same shapes — `z.record` allows missing keys —
 // but the inferred TS type is non-partial.
+//
+// `targets` and `features` are made optional here because the two fields are
+// mutually-exclusive when either is in object form (see
+// `assertTargetsFeaturesExclusive`): callers that set one in object form must
+// leave the other undefined, so both fields must be representable as absent
+// at the type level.
 type InferredConfigParams = z.infer<typeof ConfigParamsSchema>;
 export type ConfigParams = Omit<InferredConfigParams, "targets" | "features"> & {
-  targets: RulesyncConfigTargets;
-  features: RulesyncFeatures;
+  targets?: RulesyncConfigTargets;
+  features?: RulesyncFeatures;
 };
 
 export const PartialConfigParamsSchema = z.partial(ConfigParamsSchema);
@@ -100,8 +106,8 @@ export type ConfigFile = Omit<InferredConfigFile, "targets" | "features"> & {
 export const RequiredConfigParamsSchema = z.required(ConfigParamsSchema);
 type InferredRequiredConfigParams = z.infer<typeof RequiredConfigParamsSchema>;
 export type RequiredConfigParams = Omit<InferredRequiredConfigParams, "targets" | "features"> & {
-  targets: RulesyncConfigTargets;
-  features: RulesyncFeatures;
+  targets?: RulesyncConfigTargets;
+  features?: RulesyncFeatures;
 };
 
 /**
@@ -188,8 +194,20 @@ export class Config {
     check,
     sources,
   }: ConfigParams) {
+    // Defense-in-depth: enforce the same mutual-exclusivity rule that the
+    // file loader applies, so programmatic `new Config(...)` callers can't
+    // silently enter the double-defined state.
+    assertTargetsFeaturesExclusive({ targets, features });
+
+    const resolvedTargets: RulesyncConfigTargets = targets ?? [];
+    const resolvedFeatures: RulesyncFeatures = features ?? [];
+
+    // Reject unknown keys in the object form of `targets`. Array-form values
+    // are already validated at the Zod schema level.
+    this.validateObjectFormTargetKeys(resolvedTargets);
+
     // Validate conflicting targets (accepts array and object forms)
-    this.validateConflictingTargets(targets);
+    this.validateConflictingTargets(resolvedTargets);
 
     // Validate --dry-run and --check are mutually exclusive
     if (dryRun && check) {
@@ -197,8 +215,8 @@ export class Config {
     }
 
     this.baseDirs = baseDirs;
-    this.targets = targets;
-    this.features = features;
+    this.targets = resolvedTargets;
+    this.features = resolvedFeatures;
     this.verbose = verbose;
     this.delete = isDelete;
 
@@ -211,6 +229,30 @@ export class Config {
     this.dryRun = dryRun ?? false;
     this.check = check ?? false;
     this.sources = sources ?? [];
+  }
+
+  /**
+   * Rejects unknown keys (and the special `*` key) in the object form of
+   * `targets`. For the array form this is already enforced at the Zod schema
+   * level via `z.enum(ALL_TOOL_TARGETS_WITH_WILDCARD)`; for the object form
+   * `z.record(z.string(), ...)` intentionally accepts any string key (to work
+   * around zod's `z.record(z.enum(...))` requiring ALL enum members), so
+   * runtime validation lives here instead.
+   */
+  private validateObjectFormTargetKeys(targets: RulesyncConfigTargets): void {
+    if (Array.isArray(targets)) return;
+    const validTargets = new Set<string>(ALL_TOOL_TARGETS);
+    for (const key of Object.keys(targets)) {
+      if (key === "*") {
+        throw new Error(
+          "Invalid target '*' in object form: wildcard is only supported in the " +
+            "array form `targets: ['*']`. Per-target options cannot be attached to a wildcard.",
+        );
+      }
+      if (!validTargets.has(key)) {
+        throw new Error(`Unknown target '${key}'. Valid targets: ${ALL_TOOL_TARGETS.join(", ")}.`);
+      }
+    }
   }
 
   private validateConflictingTargets(targets: RulesyncConfigTargets): void {
@@ -238,17 +280,28 @@ export class Config {
     return this.baseDirs;
   }
 
+  /**
+   * Filter an arbitrary string-key list down to the known `ToolTarget` set,
+   * skipping `*` (which is only meaningful as an array element, not a key).
+   */
+  private static filterValidToolTargets(keys: Iterable<string>): ToolTarget[] {
+    const validTargets = new Set<string>(ALL_TOOL_TARGETS);
+    const result: ToolTarget[] = [];
+    for (const key of keys) {
+      if (key === "*") continue;
+      if (!validTargets.has(key)) continue;
+      // eslint-disable-next-line no-type-assertion/no-type-assertion
+      result.push(key as ToolTarget);
+    }
+    return result;
+  }
+
   public getTargets(): ToolTargets {
-    // Object form on `targets`: object keys define the target list. `*` is
-    // not meaningful as an object key (there are no per-target options to
-    // attach to a wildcard) so we filter it out defensively.
+    // Object form on `targets`: object keys define the target list. Keys are
+    // already validated in the constructor, so this filter is a defensive
+    // no-op for well-formed input.
     if (isRulesyncConfigTargetsObject(this.targets)) {
-      return Object.keys(this.targets).filter(
-        (key): key is ToolTarget =>
-          key !== "*" &&
-          // eslint-disable-next-line no-type-assertion/no-type-assertion
-          (ALL_TOOL_TARGETS as readonly string[]).includes(key),
-      );
+      return Config.filterValidToolTargets(Object.keys(this.targets));
     }
 
     // At this point `this.targets` is narrowed to the array form (the
@@ -260,12 +313,7 @@ export class Config {
     // list from the `features` object keys to stay consistent with the
     // user's per-target config.
     if (!Array.isArray(this.features)) {
-      const featureKeys = Object.keys(this.features).filter(
-        (key): key is ToolTarget =>
-          key !== "*" &&
-          // eslint-disable-next-line no-type-assertion/no-type-assertion
-          (ALL_TOOL_TARGETS as readonly string[]).includes(key),
-      );
+      const featureKeys = Config.filterValidToolTargets(Object.keys(this.features));
       if (featureKeys.length > 0) {
         // Intersect with the array-form targets when non-wildcard, to
         // preserve the pre-existing behavior where the targets array could
