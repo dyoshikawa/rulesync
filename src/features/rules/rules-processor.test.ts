@@ -426,6 +426,74 @@ describe("RulesProcessor", () => {
       expect(content).not.toContain("@.claude/");
     });
 
+    it("should generate TOON references section for claudecode when ruleDiscoveryMode is overridden to explicit", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        toolTarget: "claudecode",
+        featureOptions: { ruleDiscoveryMode: "explicit" },
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: {
+            root: true,
+            targets: ["*"],
+          },
+          body: "# Root content",
+        }),
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "feature.md",
+          frontmatter: {
+            root: false,
+            targets: ["*"],
+            description: "Feature rule",
+            globs: ["src/**/*.ts"],
+          },
+          body: "# Feature content",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const rootRule = result.find((rule) => rule instanceof ClaudecodeRule && rule.isRoot());
+      const content = rootRule?.getFileContent();
+
+      expect(content).toContain("Please also reference the following rules as needed.");
+      expect(content).toContain("rules[1]:");
+      expect(content).toContain("- path: @.claude/rules/feature.md");
+      expect(content).toContain("applyTo[1]: src/**/*.ts");
+      expect(content).toContain("# Root content");
+    });
+
+    it("should throw for invalid rules feature options", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        toolTarget: "claudecode",
+        featureOptions: { ruleDiscoveryMode: "invalid" },
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          baseDir: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: {
+            root: true,
+            targets: ["*"],
+          },
+          body: "# Root content",
+        }),
+      ];
+
+      await expect(processor.convertRulesyncFilesToToolFiles(rulesyncRules)).rejects.toThrow(
+        '`ruleDiscoveryMode` must be either "none" or "explicit"',
+      );
+    });
+
     it("should handle multiple globs correctly for claudecode-legacy", async () => {
       const processor = new RulesProcessor({ logger, toolTarget: "claudecode-legacy" });
 

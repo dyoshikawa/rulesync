@@ -10,6 +10,7 @@ import {
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
+import type { FeatureOptions } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
@@ -105,6 +106,33 @@ const formatRulePaths = (rules: RulesyncRule[]): string =>
  * - `claudecode-legacy`: Uses Claude Code specific reference format (legacy mode only)
  */
 type RuleDiscoveryMode = "auto" | "toon" | "claudecode-legacy";
+const RulesFeatureOptionsSchema = z.looseObject({
+  ruleDiscoveryMode: z.optional(z.enum(["none", "explicit"])),
+});
+
+const resolveRuleDiscoveryMode = ({
+  defaultMode,
+  options,
+}: {
+  defaultMode: RuleDiscoveryMode;
+  options?: FeatureOptions;
+}): RuleDiscoveryMode => {
+  if (defaultMode === "claudecode-legacy") {
+    return defaultMode;
+  }
+  if (!options) return defaultMode;
+  const parsed = RulesFeatureOptionsSchema.safeParse(options);
+  if (!parsed.success) {
+    throw new Error(
+      `Invalid options for rules feature: ${parsed.error.message}. ` +
+        '`ruleDiscoveryMode` must be either "none" or "explicit".',
+    );
+  }
+  if (!parsed.data.ruleDiscoveryMode) {
+    return defaultMode;
+  }
+  return parsed.data.ruleDiscoveryMode === "none" ? "auto" : "toon";
+};
 
 /**
  * Type for command class that provides settable paths.
@@ -516,6 +544,7 @@ export class RulesProcessor extends FeatureProcessor {
   private readonly global: boolean;
   private readonly getFactory: GetFactory;
   private readonly skills?: RulesyncSkill[];
+  private readonly featureOptions?: FeatureOptions;
 
   constructor({
     baseDir = process.cwd(),
@@ -526,6 +555,7 @@ export class RulesProcessor extends FeatureProcessor {
     global = false,
     getFactory = defaultGetFactory,
     skills,
+    featureOptions,
     dryRun = false,
     logger,
   }: {
@@ -537,6 +567,7 @@ export class RulesProcessor extends FeatureProcessor {
     simulateSkills?: boolean;
     getFactory?: GetFactory;
     skills?: RulesyncSkill[];
+    featureOptions?: FeatureOptions;
     dryRun?: boolean;
     logger: Logger;
   }) {
@@ -554,6 +585,7 @@ export class RulesProcessor extends FeatureProcessor {
     this.simulateSkills = simulateSkills;
     this.getFactory = getFactory;
     this.skills = skills;
+    this.featureOptions = featureOptions;
   }
 
   async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
@@ -766,7 +798,11 @@ export class RulesProcessor extends FeatureProcessor {
     meta: ToolRuleFactory["meta"],
     toolRules: ToolRule[],
   ): string {
-    switch (meta.ruleDiscoveryMode) {
+    const mode = resolveRuleDiscoveryMode({
+      defaultMode: meta.ruleDiscoveryMode,
+      options: this.featureOptions,
+    });
+    switch (mode) {
       case "toon":
         return this.generateToonReferencesSection(toolRules);
       case "claudecode-legacy":
