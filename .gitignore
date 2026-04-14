@@ -234,6 +234,7 @@ rulesync.local.jsonc
 **/.mcp.json
 **/.claude/memories/
 **/.claude/settings.local.json
+**/.claude/*.lock
 **/.github/copilot-instructions.md
 **/.github/instructions/
 **/.github/prompts/
@@ -247,3 +248,4 @@ rulesync.local.jsonc
 **/.opencode/skill/
 **/.opencode/plugins/
 **/.opencode/memories/
+**/.opencode/package-lock.json
