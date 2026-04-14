@@ -27,7 +27,7 @@ jobs:
         run: pnpm install
 
       - name: Generate toon files
-        run: node scripts/generate-repomix-toon.ts
+        run: node --experimental-transform-types --experimental-loader ./scripts/strip-types-loader.mjs scripts/generate-repomix-toon.ts
 
       - name: Run security scan
         env:
@@ -37,4 +37,4 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
           SECURITY_SCAN_RECIPIENT: ${{ secrets.SECURITY_SCAN_RECIPIENT }}
-        run: node scripts/security-scan-toon.ts
+        run: node --experimental-transform-types --experimental-loader ./scripts/strip-types-loader.mjs scripts/security-scan-toon.ts
