@@ -3,6 +3,7 @@ import { checkRulesyncDirExists, generate } from "../../lib/generate.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import type { Logger } from "../../utils/logger.js";
 import { calculateTotalCount } from "../../utils/result.js";
+import { warnDeprecatedConfigPatterns } from "./config-deprecation-warning.js";
 
 export type GenerateOptions = ConfigResolverResolveParams;
 
@@ -34,6 +35,7 @@ function logFeatureResult(
 
 export async function generateCommand(logger: Logger, options: GenerateOptions): Promise<void> {
   const config = await ConfigResolver.resolve(options);
+  warnDeprecatedConfigPatterns({ config, logger });
 
   const check = config.getCheck();
 

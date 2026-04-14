@@ -3,6 +3,7 @@ import { importFromTool } from "../../lib/import.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import type { Logger } from "../../utils/logger.js";
 import { calculateTotalCount } from "../../utils/result.js";
+import { warnDeprecatedConfigPatterns } from "./config-deprecation-warning.js";
 
 export type ImportOptions = Omit<ConfigResolverResolveParams, "delete" | "baseDirs">;
 
@@ -16,6 +17,7 @@ export async function importCommand(logger: Logger, options: ImportOptions): Pro
   }
 
   const config = await ConfigResolver.resolve(options);
+  warnDeprecatedConfigPatterns({ config, logger });
 
   // eslint-disable-next-line no-type-assertion/no-type-assertion
   const tool = config.getTargets()[0]!;

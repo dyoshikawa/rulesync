@@ -67,6 +67,10 @@ Example:
 
 ## Per-Target Features
 
+> [!WARNING]
+> The root `features` object format is deprecated. If you still use it, Rulesync emits a warning log.
+> For fine-grained per-target settings, use `root.targets` configuration instead.
+
 The `features` option accepts both an array and an object format. Use the object format when you want to generate different features for different targets:
 
 ```jsonc

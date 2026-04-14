@@ -1,6 +1,7 @@
 import { ConfigResolver } from "../../config/config-resolver.js";
 import { resolveAndFetchSources } from "../../lib/sources.js";
 import type { Logger } from "../../utils/logger.js";
+import { warnDeprecatedConfigPatterns } from "./config-deprecation-warning.js";
 
 export type InstallCommandOptions = {
   update?: boolean;
@@ -20,6 +21,7 @@ export async function installCommand(
     verbose: options.verbose,
     silent: options.silent,
   });
+  warnDeprecatedConfigPatterns({ config, logger });
 
   const sources = config.getSources();
 
