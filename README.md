@@ -28,7 +28,7 @@ npm install -g rulesync
 brew install rulesync
 ```
 
-### Single Binary (Experimental)
+### Single Binary
 
 ```bash
 curl -fsSL https://github.com/dyoshikawa/rulesync/releases/latest/download/install.sh | bash
