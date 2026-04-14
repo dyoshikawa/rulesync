@@ -2,7 +2,6 @@
 
 import { Command } from "commander";
 
-import { ConfigResolver } from "../config/config-resolver.js";
 import { ALL_FEATURES, RulesyncFeatures } from "../types/features.js";
 import { FetchOptions } from "../types/fetch.js";
 import { formatError } from "../utils/error.js";
@@ -15,6 +14,7 @@ import { importCommand, ImportOptions } from "./commands/import.js";
 import { initCommand } from "./commands/init.js";
 import { installCommand } from "./commands/install.js";
 import { mcpCommand } from "./commands/mcp.js";
+import { resolveGitignoreTargets } from "./commands/resolve-gitignore-targets.js";
 import { updateCommand, UpdateCommandOptions } from "./commands/update.js";
 import { wrapCommand as _wrapCommand } from "./wrap-command.js";
 
@@ -77,16 +77,10 @@ const main = async () => {
         // eslint-disable-next-line no-type-assertion/no-type-assertion
         const cliFeatures = (options as { features?: RulesyncFeatures }).features;
 
-        let resolvedTargets = cliTargets;
-        if (resolvedTargets === undefined) {
-          const config = await ConfigResolver.resolve({});
-          if (config.getGitignoreTargetsOnly()) {
-            resolvedTargets = config.getTargets();
-          }
-        }
+        const resolvedTargets = await resolveGitignoreTargets({ cliTargets });
 
         await gitignoreCommand(logger, {
-          targets: resolvedTargets,
+          targets: resolvedTargets ? [...resolvedTargets] : undefined,
           features: cliFeatures,
         });
       }),
