@@ -12,8 +12,8 @@ const originalCwd = process.cwd();
 export const execFileAsync = promisify(execFile);
 
 // Get the command to run from environment variable
-// Default to using tsx directly with the CLI entry point
-const tsxPath = join(originalCwd, "node_modules", ".bin", "tsx");
+// Default to using Node.js directly with the CLI entry point
+const nodePath = process.execPath;
 const cliPath = join(originalCwd, "src", "cli", "index.ts");
 
 // Validate process.env.RULESYNC_CMD
@@ -34,7 +34,7 @@ if (process.env.RULESYNC_CMD) {
 // For execFile, we need to separate command and arguments
 export const rulesyncCmd = process.env.RULESYNC_CMD
   ? join(originalCwd, process.env.RULESYNC_CMD)
-  : tsxPath;
+  : nodePath;
 export const rulesyncArgs = process.env.RULESYNC_CMD ? [] : [cliPath];
 
 /**
