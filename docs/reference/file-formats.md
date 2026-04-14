@@ -380,6 +380,17 @@ Example:
 }
 ```
 
+#### JSON Schema Support
+
+Rulesync provides a JSON Schema for editor validation and autocompletion. Add the `$schema` property to your `.rulesync/permissions.json`:
+
+```json
+{
+  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/permissions-schema.json",
+  "permission": {}
+}
+```
+
 For Claude Code, this generates `permissions.allow`, `permissions.ask`, and `permissions.deny` arrays in `.claude/settings.json` using PascalCase tool names (e.g., `Bash(git *)`, `Edit(src/**)`, `Read(.env)`).
 
 For OpenCode, this generates the `permission` object in `opencode.json` / `opencode.jsonc` (project mode) or `.config/opencode/opencode.json` / `.config/opencode/opencode.jsonc` (global mode), preserving other existing OpenCode config fields.

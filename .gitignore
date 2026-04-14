@@ -208,6 +208,7 @@ bun.lock
 
 # Generated JSON Schemas (published as release assets)
 config-schema.json
+permissions-schema.json
 mcp-schema.json
 
 **/.agent/rules/

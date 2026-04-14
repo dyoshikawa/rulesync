@@ -122,4 +122,5 @@ jobs:
             dist-bun/SHA256SUMS
             repomix-toon.zip
             config-schema.json
+            permissions-schema.json
             mcp-schema.json
