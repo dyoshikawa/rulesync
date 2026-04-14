@@ -14,6 +14,7 @@ import { importCommand, ImportOptions } from "./commands/import.js";
 import { initCommand } from "./commands/init.js";
 import { installCommand } from "./commands/install.js";
 import { mcpCommand } from "./commands/mcp.js";
+import { resolveGitignoreTargets } from "./commands/resolve-gitignore-targets.js";
 import { updateCommand, UpdateCommandOptions } from "./commands/update.js";
 import { wrapCommand as _wrapCommand } from "./wrap-command.js";
 
@@ -71,11 +72,16 @@ const main = async () => {
     .option("-s, --silent", "Suppress all output")
     .action(
       wrapCommand("gitignore", "GITIGNORE_FAILED", async (logger, options) => {
+        // eslint-disable-next-line no-type-assertion/no-type-assertion
+        const cliTargets = (options as { targets?: string[] }).targets;
+        // eslint-disable-next-line no-type-assertion/no-type-assertion
+        const cliFeatures = (options as { features?: RulesyncFeatures }).features;
+
+        const resolvedTargets = await resolveGitignoreTargets({ cliTargets });
+
         await gitignoreCommand(logger, {
-          // eslint-disable-next-line no-type-assertion/no-type-assertion
-          targets: (options as { targets?: string[] }).targets,
-          // eslint-disable-next-line no-type-assertion/no-type-assertion
-          features: (options as { features?: RulesyncFeatures }).features,
+          targets: resolvedTargets ? [...resolvedTargets] : undefined,
+          features: cliFeatures,
         });
       }),
     );

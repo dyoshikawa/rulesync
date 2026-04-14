@@ -43,6 +43,7 @@ const getDefaults = (): RequiredConfigParams & { configPath: string } => ({
   simulateCommands: false,
   simulateSubagents: false,
   simulateSkills: false,
+  gitignoreTargetsOnly: true,
   dryRun: false,
   check: false,
   sources: [],
@@ -78,6 +79,7 @@ const mergeConfigs = (
     simulateCommands: localConfig.simulateCommands ?? baseConfig.simulateCommands,
     simulateSubagents: localConfig.simulateSubagents ?? baseConfig.simulateSubagents,
     simulateSkills: localConfig.simulateSkills ?? baseConfig.simulateSkills,
+    gitignoreTargetsOnly: localConfig.gitignoreTargetsOnly ?? baseConfig.gitignoreTargetsOnly,
     dryRun: localConfig.dryRun ?? baseConfig.dryRun,
     check: localConfig.check ?? baseConfig.check,
     sources: localConfig.sources ?? baseConfig.sources,
@@ -98,6 +100,7 @@ export class ConfigResolver {
     simulateCommands,
     simulateSubagents,
     simulateSkills,
+    gitignoreTargetsOnly,
     dryRun,
     check,
   }: ConfigResolverResolveParams): Promise<Config> {
@@ -124,6 +127,10 @@ export class ConfigResolver {
 
     const resolvedSimulateSkills =
       simulateSkills ?? configByFile.simulateSkills ?? getDefaults().simulateSkills;
+    const resolvedGitignoreTargetsOnly =
+      gitignoreTargetsOnly ??
+      configByFile.gitignoreTargetsOnly ??
+      getDefaults().gitignoreTargetsOnly;
 
     const configParams = {
       targets: targets ?? configByFile.targets ?? getDefaults().targets,
@@ -139,6 +146,7 @@ export class ConfigResolver {
       simulateCommands: resolvedSimulateCommands,
       simulateSubagents: resolvedSimulateSubagents,
       simulateSkills: resolvedSimulateSkills,
+      gitignoreTargetsOnly: resolvedGitignoreTargetsOnly,
       dryRun: dryRun ?? configByFile.dryRun ?? getDefaults().dryRun,
       check: check ?? configByFile.check ?? getDefaults().check,
       sources: configByFile.sources ?? getDefaults().sources,

@@ -63,6 +63,7 @@ async function createConfigFile(): Promise<InitFileResult> {
         simulateCommands: false,
         simulateSubagents: false,
         simulateSkills: false,
+        gitignoreTargetsOnly: true,
       } satisfies ConfigFile,
       null,
       2,

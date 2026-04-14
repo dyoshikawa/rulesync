@@ -65,6 +65,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
     feature: "general",
     entry: "**/.claude/settings.local.json",
   },
+  { target: "claudecode", feature: "general", entry: "**/.claude/*.lock" },
 
   // Cline
   { target: "cline", feature: "rules", entry: "**/.clinerules/" },
@@ -186,6 +187,11 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "opencode", feature: "skills", entry: "**/.opencode/skill/" },
   { target: "opencode", feature: "mcp", entry: "**/.opencode/plugins/" },
   { target: "opencode", feature: "general", entry: "**/.opencode/memories/" },
+  {
+    target: "opencode",
+    feature: "general",
+    entry: "**/.opencode/package-lock.json",
+  },
 
   // Qwen Code
   { target: "qwencode", feature: "rules", entry: "**/QWEN.md" },

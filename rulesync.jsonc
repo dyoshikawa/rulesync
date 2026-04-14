@@ -41,5 +41,9 @@
 
   "simulateCommands": true,
   "simulateSubagents": true,
-  "simulateSkills": true
+  "simulateSkills": true,
+
+  // When true (default), `rulesync gitignore` only emits entries for the
+  // tools listed in `targets`.
+  "gitignoreTargetsOnly": true
 }
