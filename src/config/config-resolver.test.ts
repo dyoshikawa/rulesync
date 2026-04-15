@@ -366,6 +366,22 @@ describe("config-resolver", () => {
       expect(config.getFeatureOptions("claudecode", "ignore")).toEqual({ fileMode: "local" });
     });
 
+    it("should reject merged config when base has array-form features and local has object-form targets", async () => {
+      const baseConfigContent = JSON.stringify({
+        baseDirs: ["./"],
+        features: ["rules"],
+      });
+      const localConfigContent = JSON.stringify({
+        targets: { claudecode: ["rules"] },
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), baseConfigContent);
+      await writeFileContent(join(testDir, "rulesync.local.jsonc"), localConfigContent);
+
+      await expect(
+        ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") }),
+      ).rejects.toThrow(/detected after merging .* with .* the two files combined/);
+    });
+
     it("should reject object-form targets combined with features from a config file", async () => {
       const configContent = JSON.stringify({
         baseDirs: ["./"],

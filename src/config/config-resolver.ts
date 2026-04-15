@@ -134,6 +134,25 @@ export class ConfigResolver {
     // Priority: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
     const configByFile = mergeConfigs(baseConfig, localConfig);
 
+    // Per-file `assertTargetsFeaturesExclusive` in `loadConfigFromFile` only
+    // sees one file at a time, so a base file with array-form `features` plus
+    // a local file with object-form `targets` (each valid in isolation) can
+    // merge into an invalid `{ targets: object, features: array }` state.
+    // Re-check after the merge and throw with a message that names both files
+    // so the user knows where to look.
+    try {
+      assertTargetsFeaturesExclusive({
+        targets: configByFile.targets,
+        features: configByFile.features,
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `${detail} (detected after merging '${validatedConfigPath}' with '${localConfigPath}' — the two files combined produce the invalid combination; remove the conflicting field from one of them).`,
+        { cause: error },
+      );
+    }
+
     const resolvedGlobal = global ?? configByFile.global ?? getDefaults().global;
     const resolvedSimulateCommands =
       simulateCommands ?? configByFile.simulateCommands ?? getDefaults().simulateCommands;
