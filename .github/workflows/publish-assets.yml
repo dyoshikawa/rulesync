@@ -97,13 +97,31 @@ jobs:
 
       - name: Create and push tag
         run: |
-          if [ -n "$(git tag -l "$TAG")" ] || [ -n "$(git ls-remote --tags origin "refs/tags/$TAG")" ]; then
-            echo "Tag $TAG already exists (locally or on remote), skipping creation"
-          else
-            git tag "$TAG"
-            git push origin "$TAG"
-            echo "Tag $TAG created and pushed"
+          CURRENT_SHA="$(git rev-parse HEAD)"
+
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            TAG_SHA="$(git rev-list -n 1 "$TAG")"
+            if [ "$TAG_SHA" != "$CURRENT_SHA" ]; then
+              echo "::error::Tag $TAG already exists locally but points to $TAG_SHA instead of $CURRENT_SHA"
+              exit 1
+            fi
+            echo "Tag $TAG already exists locally and points to the current commit, skipping creation"
+            exit 0
           fi
+
+          REMOTE_SHA="$(git ls-remote --tags origin "refs/tags/$TAG^{}" | awk '{print $1}' | head -n 1)"
+          if [ -n "$REMOTE_SHA" ]; then
+            if [ "$REMOTE_SHA" != "$CURRENT_SHA" ]; then
+              echo "::error::Tag $TAG already exists on origin but points to $REMOTE_SHA instead of $CURRENT_SHA"
+              exit 1
+            fi
+            echo "Tag $TAG already exists on origin and points to the current commit, skipping creation"
+            exit 0
+          fi
+
+          git tag "$TAG"
+          git push origin "$TAG"
+          echo "Tag $TAG created and pushed"
         env:
           TAG: ${{ steps.tag.outputs.tag }}
 
