@@ -33,7 +33,7 @@ describe("E2E: subagents", () => {
     },
     {
       target: "copilot",
-      outputPath: join(".github", "agents", "planner.md"),
+      outputPath: join(".github", "agents", "planner.agent.md"),
     },
     {
       target: "deepagents",
