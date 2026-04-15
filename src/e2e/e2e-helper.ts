@@ -12,10 +12,9 @@ const originalCwd = process.cwd();
 export const execFileAsync = promisify(execFile);
 
 // Get the command to run from environment variable
-// Default to using Node.js directly with the CLI entry point
-const nodePath = process.execPath;
+// Default to running the TypeScript CLI entry point via tsx
+const tsxPath = join(originalCwd, "node_modules", ".bin", "tsx");
 const cliPath = join(originalCwd, "src", "cli", "index.ts");
-const stripTypesLoaderPath = join(originalCwd, "scripts", "strip-types-loader.mjs");
 
 // Validate process.env.RULESYNC_CMD
 if (process.env.RULESYNC_CMD) {
@@ -35,10 +34,8 @@ if (process.env.RULESYNC_CMD) {
 // For execFile, we need to separate command and arguments
 export const rulesyncCmd = process.env.RULESYNC_CMD
   ? join(originalCwd, process.env.RULESYNC_CMD)
-  : nodePath;
-export const rulesyncArgs = process.env.RULESYNC_CMD
-  ? []
-  : ["--experimental-transform-types", "--experimental-loader", stripTypesLoaderPath, cliPath];
+  : tsxPath;
+export const rulesyncArgs = process.env.RULESYNC_CMD ? [] : [cliPath];
 
 /**
  * Runs the `rulesync generate` command with the given target and feature.
