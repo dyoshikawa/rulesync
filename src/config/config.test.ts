@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { ALL_FEATURES } from "../types/features.js";
 import { ALL_TOOL_TARGETS } from "../types/tool-targets.js";
-import { Config, type ConfigParams } from "./config.js";
+import { assertTargetsFeaturesExclusive, Config, type ConfigParams } from "./config.js";
 
 describe("Config", () => {
   const defaultConfig: ConfigParams = {
@@ -15,10 +15,21 @@ describe("Config", () => {
   };
 
   const createConfig = (overrides: Partial<ConfigParams> = {}) => {
+    // The new schema-level mutual-exclusivity rule rejects any config that
+    // mixes an object-form side with a defined value on the other side
+    // (e.g., object-form `targets` + array-form `features`). The helper
+    // therefore strips the conflicting default automatically so individual
+    // tests can focus on the override they care about without repeating
+    // `features: undefined` / `targets: undefined` boilerplate.
+    const targetsIsObject = overrides.targets !== undefined && !Array.isArray(overrides.targets);
+    const featuresIsObject = overrides.features !== undefined && !Array.isArray(overrides.features);
+    const base: Partial<ConfigParams> = { ...defaultConfig };
+    if (targetsIsObject) delete base.features;
+    if (featuresIsObject) delete base.targets;
     return new Config({
-      ...defaultConfig,
+      ...base,
       ...overrides,
-    });
+    } as ConfigParams);
   };
 
   describe("conflicting targets validation", () => {
@@ -136,7 +147,6 @@ describe("Config", () => {
 
     it("should return target-specific features when using object format", () => {
       const config = createConfig({
-        targets: ["copilot", "agentsmd"],
         features: {
           copilot: ["commands"],
           agentsmd: ["rules", "mcp"],
@@ -149,7 +159,6 @@ describe("Config", () => {
 
     it("should return empty array for target not in per-target features", () => {
       const config = createConfig({
-        targets: ["copilot", "cursor"],
         features: {
           copilot: ["commands"],
         },
@@ -160,7 +169,6 @@ describe("Config", () => {
 
     it("should handle wildcard in per-target features", () => {
       const config = createConfig({
-        targets: ["copilot", "agentsmd"],
         features: {
           copilot: ["*"],
           agentsmd: ["rules"],
@@ -181,7 +189,6 @@ describe("Config", () => {
 
     it("should collect all unique features when calling getFeatures() without target in object mode", () => {
       const config = createConfig({
-        targets: ["copilot", "agentsmd"],
         features: {
           copilot: ["commands", "rules"],
           agentsmd: ["rules", "mcp"],
@@ -197,7 +204,6 @@ describe("Config", () => {
 
     it("should return all features when per-target has wildcard and getFeatures() is called without target", () => {
       const config = createConfig({
-        targets: ["copilot", "agentsmd"],
         features: {
           copilot: ["commands"],
           agentsmd: ["*"],
@@ -230,7 +236,6 @@ describe("Config", () => {
   describe("per-feature options object form", () => {
     it("should treat truthy per-feature values as enabled features", () => {
       const config = createConfig({
-        targets: ["claudecode"],
         features: {
           claudecode: {
             rules: true,
@@ -248,7 +253,6 @@ describe("Config", () => {
 
     it("should expose per-feature options via getFeatureOptions", () => {
       const config = createConfig({
-        targets: ["claudecode"],
         features: {
           claudecode: {
             ignore: { fileMode: "local" },
@@ -263,7 +267,6 @@ describe("Config", () => {
 
     it("should return undefined for getFeatureOptions when feature is enabled with bare boolean", () => {
       const config = createConfig({
-        targets: ["claudecode"],
         features: {
           claudecode: { ignore: true },
         },
@@ -283,7 +286,6 @@ describe("Config", () => {
 
     it("should expand wildcard inside per-feature object form", () => {
       const config = createConfig({
-        targets: ["claudecode"],
         features: {
           claudecode: { "*": true },
         },
@@ -303,7 +305,6 @@ describe("Config", () => {
 
     it("should return undefined for getFeatureOptions when wildcard enables all features", () => {
       const config = createConfig({
-        targets: ["claudecode"],
         features: {
           claudecode: { "*": true },
         },
@@ -317,7 +318,6 @@ describe("Config", () => {
 
     it("should return specific options even when wildcard is also present", () => {
       const config = createConfig({
-        targets: ["claudecode"],
         features: {
           claudecode: {
             "*": true,
@@ -349,6 +349,203 @@ describe("Config", () => {
     it("should respect an explicit true value", () => {
       const config = createConfig({ gitignoreTargetsOnly: true });
       expect(config.getGitignoreTargetsOnly()).toBe(true);
+    });
+  });
+
+  describe("object-form targets (per-target configuration)", () => {
+    it("should derive target list from targets object keys", () => {
+      const config = createConfig({
+        targets: {
+          claudecode: ["rules", "commands"],
+          cursor: ["rules"],
+        },
+      });
+
+      expect(config.getTargets()).toEqual(["claudecode", "cursor"]);
+    });
+
+    it("should return per-target features from targets object values", () => {
+      const config = createConfig({
+        targets: {
+          claudecode: ["rules", "commands"],
+          cursor: ["rules", "mcp"],
+        },
+      });
+
+      expect(config.getFeatures("claudecode")).toEqual(["rules", "commands"]);
+      expect(config.getFeatures("cursor")).toEqual(["rules", "mcp"]);
+    });
+
+    it("should return per-feature options from targets object", () => {
+      const config = createConfig({
+        targets: {
+          claudecode: {
+            rules: true,
+            ignore: { fileMode: "local" },
+          },
+        },
+      });
+
+      expect(config.getFeatures("claudecode")).toEqual(["rules", "ignore"]);
+      expect(config.getFeatureOptions("claudecode", "ignore")).toEqual({ fileMode: "local" });
+      expect(config.getFeatureOptions("claudecode", "rules")).toBeUndefined();
+    });
+
+    it("should expand wildcard inside targets object value", () => {
+      const config = createConfig({
+        targets: {
+          claudecode: ["*"],
+          cursor: ["rules"],
+        },
+      });
+
+      const claudeFeatures = config.getFeatures("claudecode");
+      expect(claudeFeatures).toHaveLength(ALL_FEATURES.length);
+      expect(config.getFeatures("cursor")).toEqual(["rules"]);
+    });
+
+    it("should return empty array for target not present in targets object", () => {
+      const config = createConfig({
+        targets: {
+          claudecode: ["rules"],
+        },
+      });
+
+      expect(config.getFeatures("cursor")).toEqual([]);
+    });
+
+    it("should collect all unique features across targets object", () => {
+      const config = createConfig({
+        targets: {
+          claudecode: ["rules", "commands"],
+          cursor: ["rules", "mcp"],
+        },
+      });
+
+      const features = config.getFeatures();
+      expect(features).toContain("rules");
+      expect(features).toContain("commands");
+      expect(features).toContain("mcp");
+      expect(features).not.toContain("*");
+    });
+
+    it("should report hasPerTargetFeatures true for object-form targets", () => {
+      const config = createConfig({
+        targets: { claudecode: ["rules"] },
+      });
+      expect(config.hasPerTargetFeatures()).toBe(true);
+      expect(config.hasDeprecatedFeaturesObjectForm()).toBe(false);
+    });
+
+    it("should detect conflicting targets within the object form keys", () => {
+      expect(() =>
+        createConfig({
+          targets: {
+            claudecode: ["rules"],
+            "claudecode-legacy": ["rules"],
+          },
+        }),
+      ).toThrow(
+        "Conflicting targets: 'claudecode' and 'claudecode-legacy' cannot be used together. Please choose one.",
+      );
+    });
+
+    it("should reject '*' as a key in object-form targets", () => {
+      expect(() =>
+        createConfig({
+          targets: { "*": ["rules"] } as unknown as ConfigParams["targets"],
+        }),
+      ).toThrow(/wildcard is only supported in the array form/);
+    });
+
+    it("should reject unknown target keys in the object form", () => {
+      expect(
+        () =>
+          createConfig({
+            // cspell:disable-next-line
+            targets: { cloudecode: ["rules"] } as unknown as ConfigParams["targets"],
+          }),
+        // cspell:disable-next-line
+      ).toThrow(/Unknown target 'cloudecode'/);
+    });
+
+    it("should reject object-form targets combined with any features (constructor-level guard)", () => {
+      // The helper only strips the *default* when an object form is detected,
+      // so an explicit `features` override still reaches the Config constructor.
+      expect(() =>
+        createConfig({
+          targets: { claudecode: ["rules"] },
+          features: ["rules"],
+        }),
+      ).toThrow(/when 'targets' is in object form, 'features' must be omitted/);
+    });
+  });
+
+  describe("assertTargetsFeaturesExclusive (schema-level mutual exclusivity)", () => {
+    it("rejects object-form targets combined with array-form features", () => {
+      expect(() =>
+        assertTargetsFeaturesExclusive({
+          targets: { claudecode: ["rules"] },
+          features: ["rules"],
+        }),
+      ).toThrow(/when 'targets' is in object form, 'features' must be omitted/);
+    });
+
+    it("rejects object-form targets combined with object-form features", () => {
+      expect(() =>
+        assertTargetsFeaturesExclusive({
+          targets: { claudecode: ["rules"] },
+          features: { claudecode: ["rules"] },
+        }),
+      ).toThrow(/when 'targets' is in object form, 'features' must be omitted/);
+    });
+
+    it("rejects object-form features combined with array-form targets", () => {
+      expect(() =>
+        assertTargetsFeaturesExclusive({
+          targets: ["claudecode"],
+          features: { claudecode: ["rules"] },
+        }),
+      ).toThrow(/when 'features' is in object form, 'targets' must be omitted/);
+    });
+
+    it("accepts object-form targets alone", () => {
+      expect(() =>
+        assertTargetsFeaturesExclusive({
+          targets: { claudecode: ["rules"] },
+        }),
+      ).not.toThrow();
+    });
+
+    it("accepts object-form features alone (still supported, deprecated)", () => {
+      expect(() =>
+        assertTargetsFeaturesExclusive({
+          features: { claudecode: ["rules"] },
+        }),
+      ).not.toThrow();
+    });
+
+    it("accepts array-form targets with array-form features", () => {
+      expect(() =>
+        assertTargetsFeaturesExclusive({
+          targets: ["claudecode"],
+          features: ["rules"],
+        }),
+      ).not.toThrow();
+    });
+  });
+
+  describe("constructor-level guard for missing targets and features", () => {
+    it("should throw when both 'targets' and 'features' are undefined", () => {
+      expect(
+        () =>
+          new Config({
+            baseDirs: ["."],
+            verbose: false,
+            delete: false,
+            silent: false,
+          } as unknown as ConfigParams),
+      ).toThrow(/at least one of 'targets' or 'features' must be provided/);
     });
   });
 });

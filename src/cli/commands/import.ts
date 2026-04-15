@@ -11,6 +11,15 @@ export async function importCommand(logger: Logger, options: ImportOptions): Pro
     throw new CLIError("No tools found in --targets", ErrorCodes.IMPORT_FAILED);
   }
 
+  // The CLI only provides the array form for --targets; the object form is
+  // config-file-only. Defend with a runtime check so TS can narrow safely.
+  if (!Array.isArray(options.targets)) {
+    throw new CLIError(
+      "--targets object form is not supported on the command line",
+      ErrorCodes.IMPORT_FAILED,
+    );
+  }
+
   if (options.targets.length > 1) {
     throw new CLIError("Only one tool can be imported at a time", ErrorCodes.IMPORT_FAILED);
   }

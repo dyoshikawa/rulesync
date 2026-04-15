@@ -14,6 +14,7 @@ import {
   validateBaseDir,
 } from "../utils/file.js";
 import {
+  assertTargetsFeaturesExclusive,
   Config,
   ConfigFile,
   ConfigFileSchema,
@@ -21,6 +22,7 @@ import {
   PartialConfigParams,
   RequiredConfigParams,
 } from "./config.js";
+import { emitFeaturesObjectFormDeprecationWarning } from "./deprecation-warnings.js";
 
 /**
  * CLI-resolvable params exclude `sources` — sources are config-file-only.
@@ -59,8 +61,21 @@ const loadConfigFromFile = async (filePath: string): Promise<PartialConfigParams
   const parsed: ConfigFile = ConfigFileSchema.parse(jsonData);
   // Exclude $schema from config params
   const { $schema: _schema, ...configParams } = parsed;
+  // Enforce mutual-exclusivity between object-form `targets` and
+  // `features` on the user-authored file (before defaults are merged).
+  assertTargetsFeaturesExclusive({
+    targets: configParams.targets,
+    features: configParams.features,
+  });
   return configParams;
 };
+
+// Re-exported from `./deprecation-warnings.js` so existing test code that
+// imports the helpers from this module keeps working. The helper itself
+// lives in a separate module so `Config` (in `./config.js`) can also invoke
+// it without creating a circular import on the resolver.
+export { resetDeprecationWarningForTests } from "./deprecation-warnings.js";
+export { emitFeaturesObjectFormDeprecationWarning };
 
 const mergeConfigs = (
   baseConfig: PartialConfigParams,
@@ -119,6 +134,25 @@ export class ConfigResolver {
     // Priority: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
     const configByFile = mergeConfigs(baseConfig, localConfig);
 
+    // Per-file `assertTargetsFeaturesExclusive` in `loadConfigFromFile` only
+    // sees one file at a time, so a base file with array-form `features` plus
+    // a local file with object-form `targets` (each valid in isolation) can
+    // merge into an invalid `{ targets: object, features: array }` state.
+    // Re-check after the merge and throw with a message that names both files
+    // so the user knows where to look.
+    try {
+      assertTargetsFeaturesExclusive({
+        targets: configByFile.targets,
+        features: configByFile.features,
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `${detail} (detected after merging '${validatedConfigPath}' with '${localConfigPath}' — the two files combined produce the invalid combination; remove the conflicting field from one of them).`,
+        { cause: error },
+      );
+    }
+
     const resolvedGlobal = global ?? configByFile.global ?? getDefaults().global;
     const resolvedSimulateCommands =
       simulateCommands ?? configByFile.simulateCommands ?? getDefaults().simulateCommands;
@@ -132,9 +166,34 @@ export class ConfigResolver {
       configByFile.gitignoreTargetsOnly ??
       getDefaults().gitignoreTargetsOnly;
 
+    // Resolve features/targets while honouring the strict mutual-exclusivity
+    // rule enforced by `assertTargetsFeaturesExclusive`:
+    //
+    // - When the user provides `targets` in object form, `features` must
+    //   stay undefined (the per-target feature config lives inside the
+    //   `targets` object itself); skip the `features` default.
+    // - When the user provides `features` in object form without `targets`,
+    //   leave `targets` undefined so `Config.getTargets` can derive the
+    //   target list from the `features` object keys; skip the `targets`
+    //   default.
+    // - Otherwise fall through to the array-form defaults.
+    const userProvidedFeatures = features ?? configByFile.features;
+    const userProvidedTargets = targets ?? configByFile.targets;
+    const targetsIsObject =
+      userProvidedTargets !== undefined && !Array.isArray(userProvidedTargets);
+    const featuresIsObject =
+      userProvidedFeatures !== undefined && !Array.isArray(userProvidedFeatures);
+    if (featuresIsObject) {
+      emitFeaturesObjectFormDeprecationWarning();
+    }
+    const resolvedFeatures =
+      userProvidedFeatures ?? (targetsIsObject ? undefined : getDefaults().features);
+    const resolvedTargets =
+      userProvidedTargets ?? (featuresIsObject ? undefined : getDefaults().targets);
+
     const configParams = {
-      targets: targets ?? configByFile.targets ?? getDefaults().targets,
-      features: features ?? configByFile.features ?? getDefaults().features,
+      targets: resolvedTargets,
+      features: resolvedFeatures,
       verbose: verbose ?? configByFile.verbose ?? getDefaults().verbose,
       delete: isDelete ?? configByFile.delete ?? getDefaults().delete,
       baseDirs: getBaseDirsInLightOfGlobal({

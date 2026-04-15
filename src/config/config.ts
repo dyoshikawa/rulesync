@@ -10,13 +10,17 @@ import {
   isFeatureValueEnabled,
   PerFeatureConfig,
   PerTargetFeatures,
+  PerTargetFeaturesValue,
   RulesyncFeatures,
   RulesyncFeaturesSchema,
 } from "../types/features.js";
 import {
   ALL_TOOL_TARGETS,
+  isRulesyncConfigTargetsObject,
+  RulesyncConfigTargets,
+  RulesyncConfigTargetsObject,
+  RulesyncConfigTargetsSchema,
   RulesyncTargets,
-  RulesyncTargetsSchema,
   ToolTarget,
   ToolTargets,
 } from "../types/tool-targets.js";
@@ -48,7 +52,7 @@ export type SourceEntry = z.infer<typeof SourceEntrySchema>;
 
 export const ConfigParamsSchema = z.object({
   baseDirs: z.array(z.string()),
-  targets: RulesyncTargetsSchema,
+  targets: RulesyncConfigTargetsSchema,
   features: RulesyncFeaturesSchema,
   verbose: z.boolean(),
   delete: z.boolean(),
@@ -64,19 +68,36 @@ export const ConfigParamsSchema = z.object({
   // Declarative skill sources
   sources: optional(z.array(SourceEntrySchema)),
 });
-// We override the inferred `features` type with the hand-written
-// `RulesyncFeatures` so that callers can supply a partial per-target /
-// per-feature object literal without TS demanding every key be present.
-// At runtime the zod schema still accepts the same shapes — `z.record`
-// allows missing keys — but the inferred TS type is non-partial.
+// We override the inferred `targets` / `features` types with the hand-written
+// unions so that callers can supply a partial per-target / per-feature object
+// literal without TS demanding every key be present. At runtime the zod
+// schema still accepts the same shapes — `z.record` allows missing keys —
+// but the inferred TS type is non-partial.
+//
+// `targets` and `features` are made optional here because the two fields are
+// mutually-exclusive when either is in object form (see
+// `assertTargetsFeaturesExclusive`): callers that set one in object form must
+// leave the other undefined, so both fields must be representable as absent
+// at the type level.
+//
+// Note: we could have expressed the mutual-exclusivity at the type level via
+// a discriminated union, but that would ripple into every `ConfigParams`
+// consumer (CLI option types, resolver internals, tests) and complicate
+// merge-style code paths in `ConfigResolver` that treat `targets`/`features`
+// uniformly. Instead we keep the uniform optional shape and enforce the
+// invariant at runtime via `assertTargetsFeaturesExclusive` +
+// `assertTargetsOrFeaturesProvided`. Programmatic callers constructing
+// `Config` directly must respect these invariants.
 type InferredConfigParams = z.infer<typeof ConfigParamsSchema>;
-export type ConfigParams = Omit<InferredConfigParams, "features"> & {
-  features: RulesyncFeatures;
+export type ConfigParams = Omit<InferredConfigParams, "targets" | "features"> & {
+  targets?: RulesyncConfigTargets;
+  features?: RulesyncFeatures;
 };
 
 export const PartialConfigParamsSchema = z.partial(ConfigParamsSchema);
 type InferredPartialConfigParams = z.infer<typeof PartialConfigParamsSchema>;
-export type PartialConfigParams = Omit<InferredPartialConfigParams, "features"> & {
+export type PartialConfigParams = Omit<InferredPartialConfigParams, "targets" | "features"> & {
+  targets?: RulesyncConfigTargets;
   features?: RulesyncFeatures;
 };
 
@@ -86,14 +107,16 @@ export const ConfigFileSchema = z.object({
   ...z.partial(ConfigParamsSchema).shape,
 });
 type InferredConfigFile = z.infer<typeof ConfigFileSchema>;
-export type ConfigFile = Omit<InferredConfigFile, "features"> & {
+export type ConfigFile = Omit<InferredConfigFile, "targets" | "features"> & {
+  targets?: RulesyncConfigTargets;
   features?: RulesyncFeatures;
 };
 
 export const RequiredConfigParamsSchema = z.required(ConfigParamsSchema);
 type InferredRequiredConfigParams = z.infer<typeof RequiredConfigParamsSchema>;
-export type RequiredConfigParams = Omit<InferredRequiredConfigParams, "features"> & {
-  features: RulesyncFeatures;
+export type RequiredConfigParams = Omit<InferredRequiredConfigParams, "targets" | "features"> & {
+  targets?: RulesyncConfigTargets;
+  features?: RulesyncFeatures;
 };
 
 /**
@@ -110,10 +133,76 @@ const CONFLICTING_TARGET_PAIRS: Array<[string, string]> = [
  */
 const LEGACY_TARGETS = ["augmentcode-legacy", "claudecode-legacy"] as const;
 
+/**
+ * Validates that the user-authored config does not double-define the
+ * target set in both `targets` and `features` object forms.
+ *
+ * Rules:
+ * - If `targets` is in object form, `features` must be omitted.
+ * - If `features` is in object form, `targets` must be omitted.
+ *
+ * This is called on *user-authored* config (a file load or an explicit
+ * programmatic construction) before defaults are merged in — the defaults
+ * only ever use the array forms, so they cannot trigger a false positive.
+ *
+ * Throws with a message naming the field to remove.
+ */
+export const assertTargetsFeaturesExclusive = ({
+  targets,
+  features,
+}: {
+  targets?: RulesyncConfigTargets;
+  features?: RulesyncFeatures;
+}): void => {
+  const targetsIsObject = targets !== undefined && !Array.isArray(targets);
+  const featuresIsObject = features !== undefined && !Array.isArray(features);
+
+  if (targetsIsObject && features !== undefined) {
+    throw new Error(
+      "Invalid config: when 'targets' is in object form, 'features' must be omitted. " +
+        "Declare per-target features inside the 'targets' object instead.",
+    );
+  }
+  if (featuresIsObject && targets !== undefined) {
+    throw new Error(
+      "Invalid config: when 'features' is in object form, 'targets' must be omitted. " +
+        "Migrate to the 'targets' object form, e.g. `targets: { claudecode: [...] }`.",
+    );
+  }
+};
+
+/**
+ * Normalizes a post-resolution `ConfigParams` input by rejecting the case
+ * where both `targets` and `features` are undefined — a degenerate state
+ * that would silently produce a no-op config (no targets, no features).
+ *
+ * Defaults applied by `ConfigResolver` always supply at least one of the
+ * two, so this guard only fires for programmatic `new Config(...)` callers
+ * that forgot to pass either field.
+ */
+const assertTargetsOrFeaturesProvided = ({
+  targets,
+  features,
+}: {
+  targets?: RulesyncConfigTargets;
+  features?: RulesyncFeatures;
+}): void => {
+  if (targets === undefined && features === undefined) {
+    throw new Error("Invalid config: at least one of 'targets' or 'features' must be provided.");
+  }
+};
+
 export class Config {
   private readonly baseDirs: string[];
-  private readonly targets: RulesyncTargets;
+  private readonly targets: RulesyncConfigTargets;
   private readonly features: RulesyncFeatures;
+  /**
+   * Cached list of validated `ToolTarget` keys for the object form of
+   * `targets`. Populated in the constructor after `validateObjectFormTargetKeys`
+   * so `getTargets()` does not rebuild the `ALL_TOOL_TARGETS` set on every call.
+   * Undefined when `this.targets` is in array form.
+   */
+  private readonly objectFormTargetKeys: ToolTarget[] | undefined;
   private readonly verbose: boolean;
   private readonly delete: boolean;
   private readonly global: boolean;
@@ -142,8 +231,32 @@ export class Config {
     check,
     sources,
   }: ConfigParams) {
-    // Validate conflicting targets
-    this.validateConflictingTargets(targets);
+    // Defense-in-depth: enforce the same mutual-exclusivity rule that the
+    // file loader applies, so programmatic `new Config(...)` callers can't
+    // silently enter the double-defined state. `assertTargetsFeaturesExclusive`
+    // is safe to run twice on file-loader inputs — the check is idempotent.
+    assertTargetsFeaturesExclusive({ targets, features });
+    // Reject the degenerate "both undefined" state so `new Config(...)` callers
+    // can't accidentally produce a no-op config. Defaults in `ConfigResolver`
+    // always populate at least one side, so this only fires for programmatic
+    // construction paths.
+    assertTargetsOrFeaturesProvided({ targets, features });
+
+    // Note: the deprecation warning for the object form under `features` is
+    // emitted once by `ConfigResolver` after merging configs. We intentionally
+    // do NOT emit it from the constructor to avoid surprise logs in tests or
+    // programmatic callers that construct `Config` directly; callers wanting
+    // the warning should go through `ConfigResolver.resolve`.
+
+    const resolvedTargets: RulesyncConfigTargets = targets ?? [];
+    const resolvedFeatures: RulesyncFeatures = features ?? [];
+
+    // Reject unknown keys in the object form of `targets`. Array-form values
+    // are already validated at the Zod schema level.
+    this.validateObjectFormTargetKeys(resolvedTargets);
+
+    // Validate conflicting targets (accepts array and object forms)
+    this.validateConflictingTargets(resolvedTargets);
 
     // Validate --dry-run and --check are mutually exclusive
     if (dryRun && check) {
@@ -151,8 +264,11 @@ export class Config {
     }
 
     this.baseDirs = baseDirs;
-    this.targets = targets;
-    this.features = features;
+    this.targets = resolvedTargets;
+    this.features = resolvedFeatures;
+    this.objectFormTargetKeys = isRulesyncConfigTargetsObject(resolvedTargets)
+      ? Config.filterValidToolTargets(Object.keys(resolvedTargets))
+      : undefined;
     this.verbose = verbose;
     this.delete = isDelete;
 
@@ -167,16 +283,44 @@ export class Config {
     this.sources = sources ?? [];
   }
 
-  private validateConflictingTargets(targets: RulesyncTargets): void {
-    // Check for explicitly specified conflicting targets
-    // Note: Wildcard (*) doesn't include legacy targets, so conflicts can only occur
-    // when both targets are explicitly specified
+  /**
+   * Rejects unknown keys (and the special `*` key) in the object form of
+   * `targets`. For the array form this is already enforced at the Zod schema
+   * level via `z.enum(ALL_TOOL_TARGETS_WITH_WILDCARD)`; for the object form
+   * `z.record(z.string(), ...)` intentionally accepts any string key (to work
+   * around zod's `z.record(z.enum(...))` requiring ALL enum members), so
+   * runtime validation lives here instead.
+   */
+  private validateObjectFormTargetKeys(targets: RulesyncConfigTargets): void {
+    if (Array.isArray(targets)) return;
+    const validTargets = new Set<string>(ALL_TOOL_TARGETS);
+    for (const key of Object.keys(targets)) {
+      if (key === "*") {
+        throw new Error(
+          "Invalid target '*' in object form: wildcard is only supported in the " +
+            "array form `targets: ['*']`. Per-target options cannot be attached to a wildcard.",
+        );
+      }
+      if (!validTargets.has(key)) {
+        throw new Error(`Unknown target '${key}'. Valid targets: ${ALL_TOOL_TARGETS.join(", ")}.`);
+      }
+    }
+  }
+
+  private validateConflictingTargets(targets: RulesyncConfigTargets): void {
+    // Wildcard (*) doesn't include legacy targets, so conflicts can only
+    // occur when both sides of a conflicting pair are explicitly present.
+    // For the object form this means "both keys are present"; for the
+    // array form this means "both values are present".
+    const has = (target: string): boolean => {
+      if (Array.isArray(targets)) {
+        // eslint-disable-next-line no-type-assertion/no-type-assertion
+        return targets.includes(target as RulesyncTargets[number]);
+      }
+      return Object.prototype.hasOwnProperty.call(targets, target);
+    };
     for (const [target1, target2] of CONFLICTING_TARGET_PAIRS) {
-      // eslint-disable-next-line no-type-assertion/no-type-assertion
-      const hasTarget1 = targets.includes(target1 as RulesyncTargets[number]);
-      // eslint-disable-next-line no-type-assertion/no-type-assertion
-      const hasTarget2 = targets.includes(target2 as RulesyncTargets[number]);
-      if (hasTarget1 && hasTarget2) {
+      if (has(target1) && has(target2)) {
         throw new Error(
           `Conflicting targets: '${target1}' and '${target2}' cannot be used together. Please choose one.`,
         );
@@ -188,8 +332,42 @@ export class Config {
     return this.baseDirs;
   }
 
+  /**
+   * Filter an arbitrary string-key list down to the known `ToolTarget` set,
+   * skipping `*` (which is only meaningful as an array element, not a key).
+   */
+  private static filterValidToolTargets(keys: Iterable<string>): ToolTarget[] {
+    const validTargets = new Set<string>(ALL_TOOL_TARGETS);
+    const result: ToolTarget[] = [];
+    for (const key of keys) {
+      if (key === "*") continue;
+      if (!validTargets.has(key)) continue;
+      // eslint-disable-next-line no-type-assertion/no-type-assertion
+      result.push(key as ToolTarget);
+    }
+    return result;
+  }
+
   public getTargets(): ToolTargets {
-    if (this.targets.includes("*")) {
+    // Object form on `targets`: the validated key list was cached in the
+    // constructor, so this returns the pre-computed array without re-scanning.
+    if (this.objectFormTargetKeys !== undefined) {
+      return this.objectFormTargetKeys;
+    }
+
+    // At this point `this.targets` is narrowed to the array form (the
+    // object form was handled above).
+    const arrayTargets: RulesyncTargets = Array.isArray(this.targets) ? this.targets : [];
+
+    // Object form on `features` (legacy / deprecated path): derive the
+    // target list from the `features` object keys. `assertTargetsFeaturesExclusive`
+    // guarantees that when `features` is an object, the user cannot also have
+    // provided `targets`, so there is no intersection to compute here.
+    if (!Array.isArray(this.features)) {
+      return Config.filterValidToolTargets(Object.keys(this.features));
+    }
+
+    if (arrayTargets.includes("*")) {
       // Exclude legacy targets from wildcard expansion
       // Legacy targets must be explicitly specified
       return ALL_TOOL_TARGETS.filter(
@@ -198,41 +376,34 @@ export class Config {
       );
     }
 
-    return this.targets.filter((target) => target !== "*");
+    return arrayTargets.filter((target): target is ToolTarget => target !== "*");
   }
 
   public getFeatures(): Features;
   public getFeatures(target: ToolTarget): Features;
   public getFeatures(target?: ToolTarget): Features {
-    // Check if features is in object format (per-target configuration)
+    // New object form on `targets`: per-target features come from the
+    // targets object values.
+    if (isRulesyncConfigTargetsObject(this.targets)) {
+      if (target) {
+        const value = this.targets[target];
+        if (!value) return [];
+        return Config.normalizeTargetFeatures(value);
+      }
+      return Config.collectAllFeatures(Object.values(this.targets));
+    }
+
+    // Legacy object form on `features` (deprecated).
     if (!Array.isArray(this.features)) {
-      // Safe: we've verified it's not an array, so it must be PerTargetFeatures
       const perTargetFeatures: PerTargetFeatures = this.features;
       if (target) {
-        // Return features for specific target, defaulting to empty array if not specified
         const targetFeatures = perTargetFeatures[target];
         if (!targetFeatures) {
           return [];
         }
         return Config.normalizeTargetFeatures(targetFeatures);
       }
-      // When no target specified but features is an object, collect all unique features
-      const allFeatures: Feature[] = [];
-      for (const features of Object.values(perTargetFeatures)) {
-        if (!features) continue;
-        const normalized = Config.normalizeTargetFeatures(features);
-        for (const feature of normalized) {
-          if (!allFeatures.includes(feature)) {
-            allFeatures.push(feature);
-          }
-        }
-        // Early-exit once we've already accumulated every known feature —
-        // no remaining target can contribute anything new.
-        if (allFeatures.length === ALL_FEATURES.length) {
-          return allFeatures;
-        }
-      }
-      return allFeatures;
+      return Config.collectAllFeatures(Object.values(perTargetFeatures));
     }
 
     // Array format - traditional behavior
@@ -247,9 +418,7 @@ export class Config {
    * Normalize a per-target features value (array or per-feature object) into
    * the flat list of enabled features.
    */
-  private static normalizeTargetFeatures(
-    value: NonNullable<PerTargetFeatures[keyof PerTargetFeatures]>,
-  ): Features {
+  private static normalizeTargetFeatures(value: PerTargetFeaturesValue): Features {
     if (Array.isArray(value)) {
       if (value.length === 0) return [];
       if (value.includes("*")) return [...ALL_FEATURES];
@@ -270,22 +439,46 @@ export class Config {
   }
 
   /**
+   * Collect the union of features across all per-target values.
+   * Used when `getFeatures()` is called without a target in object mode.
+   */
+  private static collectAllFeatures(
+    values: Iterable<PerTargetFeaturesValue | undefined>,
+  ): Features {
+    const allFeatures: Feature[] = [];
+    for (const value of values) {
+      if (!value) continue;
+      const normalized = Config.normalizeTargetFeatures(value);
+      for (const feature of normalized) {
+        if (!allFeatures.includes(feature)) {
+          allFeatures.push(feature);
+        }
+      }
+      if (allFeatures.length === ALL_FEATURES.length) {
+        return allFeatures;
+      }
+    }
+    return allFeatures;
+  }
+
+  /**
    * Returns the per-feature options object for a given target/feature, if any.
    * Returns `undefined` when no per-feature options were provided or when the
    * feature is not enabled for the given target.
    */
   public getFeatureOptions(target: ToolTarget, feature: Feature): FeatureOptions | undefined {
-    if (Array.isArray(this.features)) {
+    const value = isRulesyncConfigTargetsObject(this.targets)
+      ? this.targets[target]
+      : !Array.isArray(this.features)
+        ? this.features[target]
+        : undefined;
+    if (!value || Array.isArray(value)) {
       return undefined;
     }
-    const targetFeatures = this.features[target];
-    if (!targetFeatures || Array.isArray(targetFeatures)) {
-      return undefined;
-    }
-    const perFeature: PerFeatureConfig = targetFeatures;
-    const value = perFeature[feature];
-    if (value && typeof value === "object" && isFeatureValueEnabled(value)) {
-      return value;
+    const perFeature: PerFeatureConfig = value;
+    const featureValue = perFeature[feature];
+    if (featureValue && typeof featureValue === "object" && isFeatureValueEnabled(featureValue)) {
+      return featureValue;
     }
     return undefined;
   }
@@ -294,6 +487,14 @@ export class Config {
    * Check if per-target features configuration is being used.
    */
   public hasPerTargetFeatures(): boolean {
+    return isRulesyncConfigTargetsObject(this.targets) || !Array.isArray(this.features);
+  }
+
+  /**
+   * Returns true if the deprecated object form under `features` is in use.
+   * Callers can use this to emit a migration warning.
+   */
+  public hasDeprecatedFeaturesObjectForm(): boolean {
     return !Array.isArray(this.features);
   }
 
@@ -349,3 +550,7 @@ export class Config {
     return this.dryRun || this.check;
   }
 }
+
+// Exported for use by callers that need to reference the object form
+// explicitly (e.g., docs generators, type-narrowing outside this module).
+export type { RulesyncConfigTargetsObject };
