@@ -37,7 +37,7 @@ describe("resolveGitignoreTargets", () => {
     expect(result).toBeUndefined();
   });
 
-  it("returns config targets when gitignoreTargetsOnly is true (default)", async () => {
+  it("returns config targets with agentsmd appended when gitignoreTargetsOnly is true (default)", async () => {
     await writeFileContent(
       join(testDir, "rulesync.jsonc"),
       JSON.stringify({ targets: ["claudecode", "copilot"] }),
@@ -45,7 +45,26 @@ describe("resolveGitignoreTargets", () => {
 
     const result = await resolveGitignoreTargets({ cliTargets: undefined });
 
-    expect(result).toEqual(["claudecode", "copilot"]);
+    expect(result).toEqual(["claudecode", "copilot", "agentsmd"]);
+  });
+
+  it("does not duplicate agentsmd when already listed in config targets", async () => {
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({ targets: ["agentsmd", "claudecode"] }),
+    );
+
+    const result = await resolveGitignoreTargets({ cliTargets: undefined });
+
+    expect(result).toEqual(["agentsmd", "claudecode"]);
+  });
+
+  it("expands wildcard targets and still includes agentsmd", async () => {
+    await writeFileContent(join(testDir, "rulesync.jsonc"), JSON.stringify({ targets: ["*"] }));
+
+    const result = await resolveGitignoreTargets({ cliTargets: undefined });
+
+    expect(result).toContain("agentsmd");
   });
 
   it("returns undefined when gitignoreTargetsOnly is explicitly false", async () => {
@@ -70,6 +89,6 @@ describe("resolveGitignoreTargets", () => {
 
     const result = await resolveGitignoreTargets({ cliTargets: undefined });
 
-    expect(result).toEqual(["cursor"]);
+    expect(result).toEqual(["cursor", "agentsmd"]);
   });
 });

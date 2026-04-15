@@ -224,6 +224,8 @@ docs/.vitepress/cache
 .rulesync/rules/*.local.md
 rulesync.local.jsonc
 **/AGENTS.local.md
+**/AGENTS.md
+**/.agents/
 **/CLAUDE.md
 **/CLAUDE.local.md
 **/.claude/CLAUDE.md

@@ -22,7 +22,10 @@ export type ResolveGitignoreTargetsParams = {
  *      user without a config file would silently get only the default
  *      `["agentsmd"]` target, which is a surprising behavior change.
  *   3. If `gitignoreTargetsOnly` is true (the default), return the config's
- *      `targets`.
+ *      `targets` with `agentsmd` always appended. `AGENTS.md` is a de facto
+ *      standard file read by many AI tools regardless of which targets the
+ *      user selected, so its gitignore entries must always be emitted to
+ *      prevent accidental commits of generated rule files.
  *   4. Otherwise return `undefined` to emit entries for every supported tool.
  */
 export const resolveGitignoreTargets = async ({
@@ -46,7 +49,11 @@ export const resolveGitignoreTargets = async ({
 
   const config = await ConfigResolver.resolve({});
   if (config.getGitignoreTargetsOnly()) {
-    return config.getTargets();
+    const targets = config.getTargets();
+    if (targets.includes("agentsmd")) {
+      return targets;
+    }
+    return [...targets, "agentsmd"];
   }
   return undefined;
 };

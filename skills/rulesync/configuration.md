@@ -59,6 +59,12 @@ Example:
   // When true (default), `rulesync gitignore` only emits entries for the
   // tools listed in `targets`. Set to false to emit entries for all supported
   // tools regardless of `targets`.
+  //
+  // Note: Entries for `agentsmd` (AGENTS.md and related paths) are always
+  // appended even when `gitignoreTargetsOnly` is true and `agentsmd` is
+  // absent from `targets`. AGENTS.md is a de facto standard read by many AI
+  // tools regardless of the target set, so its gitignore entries are emitted
+  // unconditionally to prevent accidental commits of generated rule files.
   "gitignoreTargetsOnly": true,
 
   // Declarative skill sources — installed via 'rulesync install'
