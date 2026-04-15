@@ -76,9 +76,9 @@ describe("PermissionsProcessor", () => {
       expect(targets).toEqual(["claudecode", "codexcli", "geminicli", "opencode"]);
     });
 
-    it("should return codexcli, geminicli and opencode for global mode", () => {
+    it("should return claudecode, codexcli, geminicli and opencode for global mode", () => {
       const targets = PermissionsProcessor.getToolTargets({ global: true });
-      expect(targets).toEqual(["codexcli", "geminicli", "opencode"]);
+      expect(targets).toEqual(["claudecode", "codexcli", "geminicli", "opencode"]);
     });
 
     it("should return importable targets", () => {

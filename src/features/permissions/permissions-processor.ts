@@ -54,7 +54,7 @@ const toolPermissionsFactories = new Map<PermissionsProcessorToolTarget, ToolPer
       class: ClaudecodePermissions,
       meta: {
         supportsProject: true,
-        supportsGlobal: false,
+        supportsGlobal: true,
         supportsImport: true,
       },
     },
