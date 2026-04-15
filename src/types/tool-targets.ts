@@ -56,8 +56,9 @@ export type RulesyncTargets = z.infer<typeof RulesyncTargetsSchema>;
 // target, and the values carry the per-tool feature configuration.
 // NOTE: We use `z.string()` for the key schema (not `z.enum(...)`) for the
 // same reason as `RulesyncFeaturesSchema`: `z.record(z.enum(...))` requires
-// ALL enum members to be present. Unknown target names are caught at
-// runtime by the existing `warnInvalidTargets` validation.
+// ALL enum members to be present. Unknown target names (and the `*` key) are
+// rejected at runtime by `Config#validateObjectFormTargetKeys`, which throws
+// with a descriptive message listing the valid targets.
 export const RulesyncConfigTargetsObjectSchema = z.record(z.string(), PerTargetFeaturesValueSchema);
 export const RulesyncConfigTargetsSchema = z.union([
   RulesyncTargetsSchema,

@@ -25,7 +25,6 @@ import {
   ToolTargets,
 } from "../types/tool-targets.js";
 import { hasControlCharacters } from "../utils/validation.js";
-import { emitFeaturesObjectFormDeprecationWarning } from "./deprecation-warnings.js";
 
 /**
  * Schema for a single source entry in the sources array.
@@ -80,6 +79,15 @@ export const ConfigParamsSchema = z.object({
 // `assertTargetsFeaturesExclusive`): callers that set one in object form must
 // leave the other undefined, so both fields must be representable as absent
 // at the type level.
+//
+// Note: we could have expressed the mutual-exclusivity at the type level via
+// a discriminated union, but that would ripple into every `ConfigParams`
+// consumer (CLI option types, resolver internals, tests) and complicate
+// merge-style code paths in `ConfigResolver` that treat `targets`/`features`
+// uniformly. Instead we keep the uniform optional shape and enforce the
+// invariant at runtime via `assertTargetsFeaturesExclusive` +
+// `assertTargetsOrFeaturesProvided`. Programmatic callers constructing
+// `Config` directly must respect these invariants.
 type InferredConfigParams = z.infer<typeof ConfigParamsSchema>;
 export type ConfigParams = Omit<InferredConfigParams, "targets" | "features"> & {
   targets?: RulesyncConfigTargets;
@@ -188,6 +196,13 @@ export class Config {
   private readonly baseDirs: string[];
   private readonly targets: RulesyncConfigTargets;
   private readonly features: RulesyncFeatures;
+  /**
+   * Cached list of validated `ToolTarget` keys for the object form of
+   * `targets`. Populated in the constructor after `validateObjectFormTargetKeys`
+   * so `getTargets()` does not rebuild the `ALL_TOOL_TARGETS` set on every call.
+   * Undefined when `this.targets` is in array form.
+   */
+  private readonly objectFormTargetKeys: ToolTarget[] | undefined;
   private readonly verbose: boolean;
   private readonly delete: boolean;
   private readonly global: boolean;
@@ -227,13 +242,11 @@ export class Config {
     // construction paths.
     assertTargetsOrFeaturesProvided({ targets, features });
 
-    // Emit the deprecation warning for the object form under `features` as
-    // soon as a `Config` is constructed so programmatic callers see it too,
-    // not just the `ConfigResolver` path. The emission is one-shot per
-    // process, so this does not double-log when the resolver also triggers.
-    if (features !== undefined && !Array.isArray(features)) {
-      emitFeaturesObjectFormDeprecationWarning();
-    }
+    // Note: the deprecation warning for the object form under `features` is
+    // emitted once by `ConfigResolver` after merging configs. We intentionally
+    // do NOT emit it from the constructor to avoid surprise logs in tests or
+    // programmatic callers that construct `Config` directly; callers wanting
+    // the warning should go through `ConfigResolver.resolve`.
 
     const resolvedTargets: RulesyncConfigTargets = targets ?? [];
     const resolvedFeatures: RulesyncFeatures = features ?? [];
@@ -253,6 +266,9 @@ export class Config {
     this.baseDirs = baseDirs;
     this.targets = resolvedTargets;
     this.features = resolvedFeatures;
+    this.objectFormTargetKeys = isRulesyncConfigTargetsObject(resolvedTargets)
+      ? Config.filterValidToolTargets(Object.keys(resolvedTargets))
+      : undefined;
     this.verbose = verbose;
     this.delete = isDelete;
 
@@ -333,11 +349,10 @@ export class Config {
   }
 
   public getTargets(): ToolTargets {
-    // Object form on `targets`: object keys define the target list. Keys are
-    // already validated in the constructor, so this filter is a defensive
-    // no-op for well-formed input.
-    if (isRulesyncConfigTargetsObject(this.targets)) {
-      return Config.filterValidToolTargets(Object.keys(this.targets));
+    // Object form on `targets`: the validated key list was cached in the
+    // constructor, so this returns the pre-computed array without re-scanning.
+    if (this.objectFormTargetKeys !== undefined) {
+      return this.objectFormTargetKeys;
     }
 
     // At this point `this.targets` is narrowed to the array form (the
