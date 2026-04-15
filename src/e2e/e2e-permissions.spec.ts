@@ -192,6 +192,52 @@ default_permissions = "rulesync"
 describe("E2E: permissions (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
 
+  it("should generate claudecode permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git status *": "allow" },
+            read: { ".env": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await writeFileContent(
+      join(homeDir, ".claude", "settings.json"),
+      JSON.stringify(
+        {
+          hooks: {
+            PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo test" }] }],
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "claudecode",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(await readFileContent(join(homeDir, ".claude", "settings.json")));
+    expect(generated.permissions.allow).toContain("Bash(git status *)");
+    expect(generated.permissions.deny).toContain("Read(.env)");
+    expect(generated.hooks).toEqual({
+      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo test" }] }],
+    });
+  });
+
   it("should generate opencode permissions in home directory with --global", async () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
