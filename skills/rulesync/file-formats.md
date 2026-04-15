@@ -36,7 +36,7 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
 
 ## `.rulesync/hooks.json`
 
-Hooks run scripts at lifecycle events (e.g. session start, before tool use). Events use **canonical camelCase** in this file; Cursor uses them as-is; Claude Code gets PascalCase in `.claude/settings.json`; OpenCode hooks are generated as a JavaScript plugin at `.opencode/plugins/rulesync-hooks.js`; Gemini CLI gets PascalCase (with some specific name mappings) in `.gemini/settings.json`.
+Hooks run scripts at lifecycle events (e.g. session start, before tool use). Events use **canonical camelCase** in this file, and Rulesync translates them per tool: Cursor uses them as-is; Claude Code, Factory Droid, Codex CLI, and Gemini CLI get PascalCase (with a few tool-specific name mappings) in their settings files; OpenCode and Kilo hooks are emitted as JavaScript plugins (`.opencode/plugins/rulesync-hooks.js`, `.kilo/plugins/rulesync-hooks.js`); Copilot maps event names to its own camelCase (e.g. `beforeSubmitPrompt` → `userPromptSubmitted`, `afterError` → `errorOccurred`) and uses `powershell`/`bash` command fields; deepagents-cli uses a dot-notation (e.g. `session.start`, `tool.error`).
 
 Example:
 
@@ -86,7 +86,7 @@ Example:
 
 - `version`: Schema version (currently `1`).
 - `hooks`: Map of canonical event names to an array of hook entries. These are dispatched to every tool that supports the given event.
-- `cursor.hooks`, `claudecode.hooks`, `opencode.hooks`, `copilot.hooks`, `geminicli.hooks`: Tool-specific **override keys**. Entries under these keys are emitted only for the corresponding tool, so tool-only events (e.g. `afterFileEdit` for Cursor, `worktreeCreate` for Claude Code, `afterError` for Copilot) can coexist with shared ones without leaking to other tools.
+- `cursor.hooks`, `claudecode.hooks`, `opencode.hooks`, `kilo.hooks`, `copilot.hooks`, `factorydroid.hooks`, `geminicli.hooks`, `codexcli.hooks`, `deepagents.hooks`: Tool-specific **override keys**. Entries under these keys are emitted only for the corresponding tool, so tool-only events (e.g. `afterFileEdit` for Cursor/OpenCode/Kilo, `worktreeCreate` for Claude Code, `afterError` for Copilot) can coexist with shared ones without leaking to other tools.
 
 **Hook entry keys:**
 
@@ -99,40 +99,40 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 
 ### Hook event × tool matrix
 
-| Event                  | Cursor | Claude Code | OpenCode | Copilot | Gemini CLI |
-| ---------------------- | :----: | :---------: | :------: | :-----: | :--------: |
-| `sessionStart`         |   ✅   |     ✅      |    ✅    |   ✅    |     ✅     |
-| `sessionEnd`           |   ✅   |     ✅      |    —     |   ✅    |     ✅     |
-| `beforeSubmitPrompt`   |   ✅   |     ✅      |    —     |   ✅    |     ✅     |
-| `preToolUse`           |   ✅   |     ✅      |    ✅    |   ✅    |     ✅     |
-| `postToolUse`          |   ✅   |     ✅      |    ✅    |   ✅    |     ✅     |
-| `postToolUseFailure`   |   ✅   |      —      |    —     |    —    |     —      |
-| `stop`                 |   ✅   |     ✅      |    ✅    |    —    |     ✅     |
-| `subagentStart`        |   ✅   |      —      |    —     |    —    |     —      |
-| `subagentStop`         |   ✅   |     ✅      |    —     |    —    |     —      |
-| `preCompact`           |   ✅   |     ✅      |    —     |    —    |     ✅     |
-| `afterFileEdit`        |   ✅   |      —      |    ✅    |    —    |     —      |
-| `beforeShellExecution` |   ✅   |      —      |    —     |    —    |     —      |
-| `afterShellExecution`  |   ✅   |      —      |    ✅    |    —    |     —      |
-| `beforeMCPExecution`   |   ✅   |      —      |    —     |    —    |     —      |
-| `afterMCPExecution`    |   ✅   |      —      |    —     |    —    |     —      |
-| `beforeReadFile`       |   ✅   |      —      |    —     |    —    |     —      |
-| `beforeAgentResponse`  |   —    |      —      |    —     |    —    |     ✅     |
-| `afterAgentResponse`   |   ✅   |      —      |    —     |    —    |     ✅     |
-| `afterAgentThought`    |   ✅   |      —      |    —     |    —    |     —      |
-| `beforeTabFileRead`    |   ✅   |      —      |    —     |    —    |     —      |
-| `afterTabFileEdit`     |   ✅   |      —      |    —     |    —    |     —      |
-| `beforeToolSelection`  |   —    |      —      |    —     |    —    |     ✅     |
-| `permissionRequest`    |   —    |     ✅      |    ✅    |    —    |     —      |
-| `notification`         |   —    |     ✅      |    —     |    —    |     ✅     |
-| `setup`                |   —    |     ✅      |    —     |    —    |     —      |
-| `worktreeCreate`       |   —    |     ✅      |    —     |    —    |     —      |
-| `worktreeRemove`       |   —    |     ✅      |    —     |    —    |     —      |
-| `afterError`           |   —    |      —      |    —     |   ✅    |     —      |
+| Event                  | Cursor | Claude Code | OpenCode | Kilo | Copilot | Factory Droid | Gemini CLI | Codex CLI | deepagents |
+| ---------------------- | :----: | :---------: | :------: | :--: | :-----: | :-----------: | :--------: | :-------: | :--------: |
+| `sessionStart`         |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |      ✅       |     ✅     |    ✅     |     ✅     |
+| `sessionEnd`           |   ✅   |     ✅      |    —     |  —   |   ✅    |      ✅       |     ✅     |     —     |     ✅     |
+| `beforeSubmitPrompt`   |   ✅   |     ✅      |    —     |  —   |   ✅    |      ✅       |     ✅     |    ✅     |     ✅     |
+| `preToolUse`           |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |      ✅       |     ✅     |    ✅     |     —      |
+| `postToolUse`          |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |      ✅       |     ✅     |    ✅     |     —      |
+| `postToolUseFailure`   |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     ✅     |
+| `stop`                 |   ✅   |     ✅      |    ✅    |  ✅  |    —    |      ✅       |     ✅     |    ✅     |     ✅     |
+| `subagentStart`        |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
+| `subagentStop`         |   ✅   |     ✅      |    —     |  —   |    —    |      ✅       |     —      |     —     |     —      |
+| `preCompact`           |   ✅   |     ✅      |    —     |  —   |    —    |      ✅       |     ✅     |     —     |     ✅     |
+| `afterFileEdit`        |   ✅   |      —      |    ✅    |  ✅  |    —    |       —       |     —      |     —     |     —      |
+| `beforeShellExecution` |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
+| `afterShellExecution`  |   ✅   |      —      |    ✅    |  ✅  |    —    |       —       |     —      |     —     |     —      |
+| `beforeMCPExecution`   |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
+| `afterMCPExecution`    |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
+| `beforeReadFile`       |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
+| `beforeAgentResponse`  |   —    |      —      |    —     |  —   |    —    |       —       |     ✅     |     —     |     —      |
+| `afterAgentResponse`   |   ✅   |      —      |    —     |  —   |    —    |       —       |     ✅     |     —     |     —      |
+| `afterAgentThought`    |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
+| `beforeTabFileRead`    |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
+| `afterTabFileEdit`     |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
+| `beforeToolSelection`  |   —    |      —      |    —     |  —   |    —    |       —       |     ✅     |     —     |     —      |
+| `permissionRequest`    |   —    |     ✅      |    ✅    |  ✅  |    —    |      ✅       |     —      |     —     |     ✅     |
+| `notification`         |   —    |     ✅      |    —     |  —   |    —    |      ✅       |     ✅     |     —     |     —      |
+| `setup`                |   —    |     ✅      |    —     |  —   |    —    |      ✅       |     —      |     —     |     —      |
+| `worktreeCreate`       |   —    |     ✅      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
+| `worktreeRemove`       |   —    |     ✅      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
+| `afterError`           |   —    |      —      |    —     |  —   |   ✅    |       —       |     —      |     —     |     —      |
 
 > **Note:** `worktreeCreate` and `worktreeRemove` are Claude Code-specific events and do not support the `matcher` field. Any matcher defined in the config is ignored for these events.
 
-> **Note:** Rulesync implements OpenCode hooks as a plugin at `.opencode/plugins/rulesync-hooks.js`, so importing from OpenCode to rulesync is not supported. OpenCode only supports command-type hooks (not prompt-type).
+> **Note:** Rulesync implements OpenCode hooks as a plugin at `.opencode/plugins/rulesync-hooks.js` and Kilo hooks as a plugin at `.kilo/plugins/rulesync-hooks.js`, so importing from OpenCode/Kilo to rulesync is not supported. Both only support command-type hooks (not prompt-type).
 
 > **Note:** GitHub Copilot's format uses separate `powershell` and `bash` fields for hooks. Rulesync supports only a single `command` field and resolves this by emitting the command under the `powershell` key on Windows, and under the `bash` key on all other platforms.
 
