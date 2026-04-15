@@ -99,23 +99,33 @@ jobs:
         run: |
           CURRENT_SHA="$(git rev-parse HEAD)"
 
+          LOCAL_TAG_EXISTS=0
           if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            LOCAL_TAG_EXISTS=1
             TAG_SHA="$(git rev-list -n 1 "$TAG")"
             if [ "$TAG_SHA" != "$CURRENT_SHA" ]; then
               echo "::error::Tag $TAG already exists locally but points to $TAG_SHA instead of $CURRENT_SHA"
               exit 1
             fi
-            echo "Tag $TAG already exists locally and points to the current commit, skipping creation"
-            exit 0
           fi
 
-          REMOTE_SHA="$(git ls-remote --tags origin "refs/tags/$TAG^{}" | awk '{print $1}' | head -n 1)"
+          # Query both peeled (annotated) and plain (lightweight) refs, preferring
+          # the peeled form when present so annotated tags resolve to their commit.
+          REMOTE_SHA="$(git ls-remote --tags origin "refs/tags/$TAG^{}" "refs/tags/$TAG" \
+            | awk '$2 ~ /\^\{\}$/ {peeled=$1} $2 !~ /\^\{\}$/ {plain=$1} END {print (peeled ? peeled : plain)}')"
           if [ -n "$REMOTE_SHA" ]; then
             if [ "$REMOTE_SHA" != "$CURRENT_SHA" ]; then
               echo "::error::Tag $TAG already exists on origin but points to $REMOTE_SHA instead of $CURRENT_SHA"
               exit 1
             fi
             echo "Tag $TAG already exists on origin and points to the current commit, skipping creation"
+            exit 0
+          fi
+
+          if [ "$LOCAL_TAG_EXISTS" -eq 1 ]; then
+            echo "Tag $TAG already exists locally and points to the current commit, pushing to origin"
+            git push origin "$TAG"
+            echo "Tag $TAG pushed"
             exit 0
           fi
 
