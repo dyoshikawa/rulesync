@@ -129,12 +129,19 @@ export class CopilotSubagent extends ToolSubagent {
     const fileContent = stringifyFrontmatter(body, copilotFrontmatter);
     const paths = this.getSettablePaths({ global });
 
+    // Ensure .agent.md extension — required by VSCode Copilot Chat
+    // See: https://github.com/microsoft/vscode-copilot-chat/blob/main/src/platform/customInstructions/common/promptTypes.ts
+    let relativeFilePath = rulesyncSubagent.getRelativeFilePath();
+    if (!relativeFilePath.endsWith(".agent.md")) {
+      relativeFilePath = relativeFilePath.replace(/\.md$/, ".agent.md");
+    }
+
     return new CopilotSubagent({
       baseDir: baseDir,
       frontmatter: copilotFrontmatter,
       body,
       relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
+      relativeFilePath,
       fileContent,
       validate,
       global,
