@@ -534,4 +534,18 @@ describe("Config", () => {
       ).not.toThrow();
     });
   });
+
+  describe("constructor-level guard for missing targets and features", () => {
+    it("should throw when both 'targets' and 'features' are undefined", () => {
+      expect(
+        () =>
+          new Config({
+            baseDirs: ["."],
+            verbose: false,
+            delete: false,
+            silent: false,
+          } as unknown as ConfigParams),
+      ).toThrow(/at least one of 'targets' or 'features' must be provided/);
+    });
+  });
 });

@@ -132,9 +132,15 @@ maps to either `true`/`false` (enable/disable) or an options object.
 Earlier versions of Rulesync accepted per-target configuration under the
 top-level `features` field, paired with a `targets` array. That form is
 still parsed for backward compatibility but emits a deprecation warning;
-new configs should use the `targets` object form shown above. Note that
-mixing `targets` (array) with `features` (object) is no longer accepted —
-pick one form.
+new configs should use the `targets` object form shown above.
+
+> **⚠️ Breaking change in v8.0.0:** mixing `targets` (array) with
+> `features` (object) is no longer accepted — the config loader throws.
+> If your config previously looked like
+> `targets: ["claudecode"], features: { claudecode: {...} }`, migrate to
+> the `targets` object form (recommended) or drop the `targets` array and
+> keep only the `features` object (deprecated path). The migration is
+> mechanical — see the example below.
 
 ```jsonc
 // ⚠️  Deprecated — still works, logs a warning
@@ -143,6 +149,15 @@ pick one form.
     "claudecode": { "rules": true, "ignore": { "fileMode": "local" } },
   },
 }
+```
+
+To silence the deprecation warning (for example, in CI pipelines that
+intentionally run on the deprecated form until the migration is scheduled),
+set the `RULESYNC_SILENT_DEPRECATION` environment variable to any truthy
+value:
+
+```bash
+RULESYNC_SILENT_DEPRECATION=1 npx rulesync generate
 ```
 
 The current per-feature options are:

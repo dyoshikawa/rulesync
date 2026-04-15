@@ -343,4 +343,102 @@ describe("config-resolver", () => {
       ).rejects.toThrow("Path traversal detected");
     });
   });
+
+  describe("object-form targets end-to-end", () => {
+    it("should load object-form targets from rulesync.jsonc without reintroducing default features", async () => {
+      const configContent = JSON.stringify({
+        baseDirs: ["./"],
+        targets: {
+          claudecode: { rules: true, ignore: { fileMode: "local" } },
+          cursor: ["rules", "mcp"],
+        },
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getTargets()).toEqual(["claudecode", "cursor"]);
+      expect(config.getFeatures("claudecode")).toEqual(["rules", "ignore"]);
+      expect(config.getFeatures("cursor")).toEqual(["rules", "mcp"]);
+      expect(config.getFeatureOptions("claudecode", "ignore")).toEqual({ fileMode: "local" });
+    });
+
+    it("should reject object-form targets combined with features from a config file", async () => {
+      const configContent = JSON.stringify({
+        baseDirs: ["./"],
+        targets: { claudecode: ["rules"] },
+        features: ["rules"],
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      await expect(
+        ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") }),
+      ).rejects.toThrow(/when 'targets' is in object form, 'features' must be omitted/);
+    });
+  });
+
+  describe("deprecation warning for object-form features", () => {
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(async () => {
+      const { resetDeprecationWarningForTests } = await import("./deprecation-warnings.js");
+      resetDeprecationWarningForTests();
+      warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+      delete process.env.RULESYNC_SILENT_DEPRECATION;
+    });
+
+    it("emits the deprecation warning once when features is in object form", async () => {
+      const configContent = JSON.stringify({
+        baseDirs: ["./"],
+        features: { claudecode: ["rules"] },
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      await ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") });
+      await ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") });
+
+      const deprecationCalls = warnSpy.mock.calls.filter((call: unknown[]) =>
+        String(call[0]).includes("DEPRECATED: 'features' object form"),
+      );
+      expect(deprecationCalls).toHaveLength(1);
+    });
+
+    it("does not emit the warning when features is in array form", async () => {
+      const configContent = JSON.stringify({
+        baseDirs: ["./"],
+        targets: ["claudecode"],
+        features: ["rules"],
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      await ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") });
+
+      const deprecationCalls = warnSpy.mock.calls.filter((call: unknown[]) =>
+        String(call[0]).includes("DEPRECATED: 'features' object form"),
+      );
+      expect(deprecationCalls).toHaveLength(0);
+    });
+
+    it("suppresses the warning when RULESYNC_SILENT_DEPRECATION is set", async () => {
+      process.env.RULESYNC_SILENT_DEPRECATION = "1";
+      const configContent = JSON.stringify({
+        baseDirs: ["./"],
+        features: { claudecode: ["rules"] },
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      await ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") });
+
+      const deprecationCalls = warnSpy.mock.calls.filter((call: unknown[]) =>
+        String(call[0]).includes("DEPRECATED: 'features' object form"),
+      );
+      expect(deprecationCalls).toHaveLength(0);
+    });
+  });
 });

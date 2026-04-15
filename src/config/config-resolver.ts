@@ -22,6 +22,7 @@ import {
   PartialConfigParams,
   RequiredConfigParams,
 } from "./config.js";
+import { emitFeaturesObjectFormDeprecationWarning } from "./deprecation-warnings.js";
 
 /**
  * CLI-resolvable params exclude `sources` — sources are config-file-only.
@@ -69,40 +70,12 @@ const loadConfigFromFile = async (filePath: string): Promise<PartialConfigParams
   return configParams;
 };
 
-/**
- * One-shot deprecation warning for the object form under `features`.
- *
- * Emitted at most once per Node.js process to avoid repeat logs when the
- * resolver is invoked from multiple commands within the same run.
- *
- * NOTE: Vitest runs all tests within a single Node process and does not
- * reset module state between test files by default, so the "once" guard
- * would carry across tests. Tests that need to assert on the warning must
- * call `resetDeprecationWarningForTests()` in a `beforeEach` hook. See the
- * related tests in `config-resolver.test.ts`.
- *
- * When built into a user-facing build (non-test environment), we also
- * suppress the warning when `RULESYNC_SILENT_DEPRECATION` is set so CI
- * pipelines that intentionally run on the deprecated form can opt out.
- */
-let deprecationWarningEmitted = false;
-export const emitFeaturesObjectFormDeprecationWarning = (): void => {
-  if (deprecationWarningEmitted) return;
-  if (process.env.RULESYNC_SILENT_DEPRECATION) return;
-  deprecationWarningEmitted = true;
-  // oxlint-disable-next-line no-console
-  console.warn(
-    "[rulesync] DEPRECATED: 'features' object form is deprecated. " +
-      "Use the new 'targets' object form instead: " +
-      "`targets: { claudecode: { rules: true, ignore: { fileMode: 'local' } } }`. " +
-      "See https://github.com/dyoshikawa/rulesync/blob/main/docs/guide/configuration.md " +
-      "for the migration guide.",
-  );
-};
-// Exposed for tests to reset state between runs.
-export const resetDeprecationWarningForTests = (): void => {
-  deprecationWarningEmitted = false;
-};
+// Re-exported from `./deprecation-warnings.js` so existing test code that
+// imports the helpers from this module keeps working. The helper itself
+// lives in a separate module so `Config` (in `./config.js`) can also invoke
+// it without creating a circular import on the resolver.
+export { resetDeprecationWarningForTests } from "./deprecation-warnings.js";
+export { emitFeaturesObjectFormDeprecationWarning };
 
 const mergeConfigs = (
   baseConfig: PartialConfigParams,

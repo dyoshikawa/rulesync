@@ -25,6 +25,7 @@ import {
   ToolTargets,
 } from "../types/tool-targets.js";
 import { hasControlCharacters } from "../utils/validation.js";
+import { emitFeaturesObjectFormDeprecationWarning } from "./deprecation-warnings.js";
 
 /**
  * Schema for a single source entry in the sources array.
@@ -162,6 +163,27 @@ export const assertTargetsFeaturesExclusive = ({
   }
 };
 
+/**
+ * Normalizes a post-resolution `ConfigParams` input by rejecting the case
+ * where both `targets` and `features` are undefined — a degenerate state
+ * that would silently produce a no-op config (no targets, no features).
+ *
+ * Defaults applied by `ConfigResolver` always supply at least one of the
+ * two, so this guard only fires for programmatic `new Config(...)` callers
+ * that forgot to pass either field.
+ */
+const assertTargetsOrFeaturesProvided = ({
+  targets,
+  features,
+}: {
+  targets?: RulesyncConfigTargets;
+  features?: RulesyncFeatures;
+}): void => {
+  if (targets === undefined && features === undefined) {
+    throw new Error("Invalid config: at least one of 'targets' or 'features' must be provided.");
+  }
+};
+
 export class Config {
   private readonly baseDirs: string[];
   private readonly targets: RulesyncConfigTargets;
@@ -196,8 +218,22 @@ export class Config {
   }: ConfigParams) {
     // Defense-in-depth: enforce the same mutual-exclusivity rule that the
     // file loader applies, so programmatic `new Config(...)` callers can't
-    // silently enter the double-defined state.
+    // silently enter the double-defined state. `assertTargetsFeaturesExclusive`
+    // is safe to run twice on file-loader inputs — the check is idempotent.
     assertTargetsFeaturesExclusive({ targets, features });
+    // Reject the degenerate "both undefined" state so `new Config(...)` callers
+    // can't accidentally produce a no-op config. Defaults in `ConfigResolver`
+    // always populate at least one side, so this only fires for programmatic
+    // construction paths.
+    assertTargetsOrFeaturesProvided({ targets, features });
+
+    // Emit the deprecation warning for the object form under `features` as
+    // soon as a `Config` is constructed so programmatic callers see it too,
+    // not just the `ConfigResolver` path. The emission is one-shot per
+    // process, so this does not double-log when the resolver also triggers.
+    if (features !== undefined && !Array.isArray(features)) {
+      emitFeaturesObjectFormDeprecationWarning();
+    }
 
     const resolvedTargets: RulesyncConfigTargets = targets ?? [];
     const resolvedFeatures: RulesyncFeatures = features ?? [];
@@ -308,24 +344,12 @@ export class Config {
     // object form was handled above).
     const arrayTargets: RulesyncTargets = Array.isArray(this.targets) ? this.targets : [];
 
-    // Object form on `features` (legacy / deprecated path): when no explicit
-    // targets array is in use OR targets is the wildcard, derive the target
-    // list from the `features` object keys to stay consistent with the
-    // user's per-target config.
+    // Object form on `features` (legacy / deprecated path): derive the
+    // target list from the `features` object keys. `assertTargetsFeaturesExclusive`
+    // guarantees that when `features` is an object, the user cannot also have
+    // provided `targets`, so there is no intersection to compute here.
     if (!Array.isArray(this.features)) {
-      const featureKeys = Config.filterValidToolTargets(Object.keys(this.features));
-      if (featureKeys.length > 0) {
-        // Intersect with the array-form targets when non-wildcard, to
-        // preserve the pre-existing behavior where the targets array could
-        // narrow the set (e.g., legacy tests supply both).
-        if (!arrayTargets.includes("*")) {
-          return featureKeys.filter((key) =>
-            // eslint-disable-next-line no-type-assertion/no-type-assertion
-            arrayTargets.includes(key as RulesyncTargets[number]),
-          );
-        }
-        return featureKeys;
-      }
+      return Config.filterValidToolTargets(Object.keys(this.features));
     }
 
     if (arrayTargets.includes("*")) {

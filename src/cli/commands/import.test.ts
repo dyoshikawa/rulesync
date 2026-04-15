@@ -105,6 +105,16 @@ describe("importCommand", () => {
         "Only one tool can be imported at a time",
       );
     });
+
+    it("should throw error when targets is given in object form", async () => {
+      const options: ImportOptions = {
+        targets: { claudecode: ["rules"] } as unknown as ImportOptions["targets"],
+      };
+
+      await expect(importCommand(mockLogger, options)).rejects.toThrow(
+        "--targets object form is not supported on the command line",
+      );
+    });
   });
 
   describe("successful import", () => {
