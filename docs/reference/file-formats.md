@@ -458,4 +458,12 @@ For Gemini CLI, this generates `tools.allowed` and `tools.exclude` in `.gemini/s
 - `ask` rules are skipped with a warning (Gemini CLI settings do not support explicit ask entries)
 - Tool categories are mapped as: `bash` → `run_shell_command`, `read` → `read_file`, `edit` → `replace`, `write` → `write_file`, `webfetch` → `web_fetch`
 
+For Kiro, this generates tool permission settings in `.kiro/agents/default.json` (project mode):
+
+- `bash` maps to `toolsSettings.shell.allowedCommands` / `toolsSettings.shell.deniedCommands`
+- `read` maps to `toolsSettings.read.allowedPaths` / `toolsSettings.read.deniedPaths`
+- `edit` / `write` map to `toolsSettings.write.allowedPaths` / `toolsSettings.write.deniedPaths`
+- `webfetch` / `websearch` with pattern `*` map to `allowedTools` entries (`web_fetch` / `web_search`)
+- `ask` rules are skipped with a warning (Kiro config does not support explicit ask entries)
+
 > **Note: Interaction with ignore feature.** Both the ignore feature and the permissions feature can manage `Read` tool deny entries in `.claude/settings.json`. When both features configure the `Read` tool, the **permissions feature takes precedence** and a warning is emitted. If you only need to restrict file reads based on glob patterns, use the ignore feature (`.rulesync/.aiignore`). Use permissions only when you need fine-grained `allow`/`ask`/`deny` control over the `Read` tool.

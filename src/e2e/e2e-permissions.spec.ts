@@ -98,6 +98,37 @@ describe("E2E: permissions", () => {
     expect(content.tools.exclude).toContain("run_shell_command(rm *)");
     expect(content.tools.exclude).toContain("web_fetch(example.com)");
   });
+
+  it("should generate kiro permissions into .kiro/agents/default.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow", "rm *": "deny" },
+            read: { "src/**": "allow" },
+            write: { "docs/**": "allow" },
+            webfetch: { "*": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "kiro", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, ".kiro", "agents", "default.json")),
+    );
+    expect(content.toolsSettings.shell.allowedCommands).toContain("git *");
+    expect(content.toolsSettings.shell.deniedCommands).toContain("rm *");
+    expect(content.toolsSettings.read.allowedPaths).toContain("src/**");
+    expect(content.toolsSettings.write.allowedPaths).toContain("docs/**");
+    expect(content.allowedTools).toContain("web_fetch");
+  });
 });
 
 describe("E2E: permissions (import)", () => {
@@ -186,6 +217,42 @@ default_permissions = "rulesync"
     expect(content.permission.read["src/**"]).toBe("allow");
     expect(content.permission.bash["rm *"]).toBe("deny");
     expect(content.permission.webfetch["example.com"]).toBe("deny");
+  });
+
+  it("should import kiro permissions into .rulesync/permissions.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".kiro", "agents", "default.json"),
+      JSON.stringify(
+        {
+          allowedTools: ["web_fetch"],
+          toolsSettings: {
+            shell: {
+              allowedCommands: ["git *"],
+              deniedCommands: ["rm *"],
+            },
+            read: {
+              allowedPaths: ["src/**"],
+              deniedPaths: [".env"],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runImport({ target: "kiro", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.bash["git *"]).toBe("allow");
+    expect(content.permission.bash["rm *"]).toBe("deny");
+    expect(content.permission.read["src/**"]).toBe("allow");
+    expect(content.permission.read[".env"]).toBe("deny");
+    expect(content.permission.webfetch["*"]).toBe("allow");
   });
 });
 

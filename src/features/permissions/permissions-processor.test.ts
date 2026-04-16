@@ -12,6 +12,7 @@ import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.j
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { CodexcliPermissions } from "./codexcli-permissions.js";
 import { GeminicliPermissions } from "./geminicli-permissions.js";
+import { KiroPermissions } from "./kiro-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
 import { PermissionsProcessor } from "./permissions-processor.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -71,9 +72,9 @@ describe("PermissionsProcessor", () => {
   });
 
   describe("getToolTargets", () => {
-    it("should return claudecode, codexcli, geminicli and opencode for project mode", () => {
+    it("should return claudecode, codexcli, geminicli, kiro and opencode for project mode", () => {
       const targets = PermissionsProcessor.getToolTargets();
-      expect(targets).toEqual(["claudecode", "codexcli", "geminicli", "opencode"]);
+      expect(targets).toEqual(["claudecode", "codexcli", "geminicli", "kiro", "opencode"]);
     });
 
     it("should return claudecode, codexcli, geminicli and opencode for global mode", () => {
@@ -83,7 +84,7 @@ describe("PermissionsProcessor", () => {
 
     it("should return importable targets", () => {
       const targets = PermissionsProcessor.getToolTargets({ importOnly: true });
-      expect(targets).toEqual(["claudecode", "codexcli", "geminicli", "opencode"]);
+      expect(targets).toEqual(["claudecode", "codexcli", "geminicli", "kiro", "opencode"]);
     });
   });
 
@@ -232,6 +233,32 @@ default_permissions = "rulesync"
 
       expect(files).toHaveLength(1);
       expect(files[0]).toBeInstanceOf(GeminicliPermissions);
+    });
+
+    it("should load Kiro .kiro/agents/default.json", async () => {
+      const kiroDir = join(testDir, ".kiro", "agents");
+      await ensureDir(kiroDir);
+      await writeFileContent(
+        join(kiroDir, "default.json"),
+        JSON.stringify({
+          toolsSettings: {
+            shell: {
+              allowedCommands: ["git *"],
+            },
+          },
+        }),
+      );
+
+      const processor = new PermissionsProcessor({
+        logger,
+        baseDir: testDir,
+        toolTarget: "kiro",
+      });
+
+      const files = await processor.loadToolFiles();
+
+      expect(files).toHaveLength(1);
+      expect(files[0]).toBeInstanceOf(KiroPermissions);
     });
   });
 

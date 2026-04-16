@@ -10,6 +10,7 @@ import type { Logger } from "../../utils/logger.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { CodexcliPermissions } from "./codexcli-permissions.js";
 import { GeminicliPermissions } from "./geminicli-permissions.js";
+import { KiroPermissions } from "./kiro-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import type {
@@ -24,6 +25,7 @@ const permissionsProcessorToolTargetTuple = [
   "claudecode",
   "codexcli",
   "geminicli",
+  "kiro",
   "opencode",
 ] as const;
 
@@ -77,6 +79,17 @@ const toolPermissionsFactories = new Map<PermissionsProcessorToolTarget, ToolPer
       meta: {
         supportsProject: true,
         supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "kiro",
+    {
+      class: KiroPermissions,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
         supportsImport: true,
       },
     },
