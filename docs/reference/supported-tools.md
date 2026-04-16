@@ -20,7 +20,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Roo Code            | roo          |  ✅   |   ✅   |    ✅    |    ✅    |    🎮     | ✅ 🌏  |       |             |
 | Rovodev (Atlassian) | rovodev      | ✅ 🌏 |        |    🌏    |          |   ✅ 🌏   | ✅ 🌏  |       |             |
 | Qwen Code           | qwencode     |  ✅   |   ✅   |          |          |           |        |       |             |
-| Kiro                | kiro         |  ✅   |   ✅   |    ✅    |    ✅    |    ✅     |   ✅   |       |             |
+| Kiro                | kiro         |  ✅   |   ✅   |    ✅    |    ✅    |    ✅     |   ✅   |       |     ✅      |
 | Google Antigravity  | antigravity  |  ✅   |        |          |    ✅    |           | ✅ 🌏  |       |             |
 | JetBrains Junie     | junie        |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |    ✅     |   ✅   |       |             |
 | AugmentCode         | augmentcode  |  ✅   |   ✅   |          |          |           |        |       |             |
