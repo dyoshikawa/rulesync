@@ -277,6 +277,37 @@ default_permissions = "rulesync"
         "No .rulesync/permissions.json found.",
       );
     });
+
+    it("should generate .codex/config.toml and .codex/rules/rulesync.rules for Codex CLI", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {
+            bash: { "git status": "allow", "rm -rf /": "deny" },
+            read: { ".env": "deny" },
+          },
+        }),
+      });
+
+      const processor = new PermissionsProcessor({
+        logger,
+        baseDir: testDir,
+        toolTarget: "codexcli",
+      });
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncPermissions]);
+
+      expect(toolFiles).toHaveLength(2);
+      expect(toolFiles[0]).toBeInstanceOf(CodexcliPermissions);
+
+      const ruleFile = toolFiles.find((file) => file.getRelativeFilePath() === "rulesync.rules");
+      expect(ruleFile).toBeDefined();
+      expect(ruleFile?.getRelativeDirPath()).toBe(".codex/rules");
+      expect(ruleFile?.getFileContent()).toContain('pattern = ["git", "status"]');
+      expect(ruleFile?.getFileContent()).toContain('decision = "forbidden"');
+    });
   });
 
   describe("convertToolFilesToRulesyncFiles", () => {

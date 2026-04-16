@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
-import { CodexcliPermissions } from "./codexcli-permissions.js";
+import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
 describe("CodexcliPermissions", () => {
@@ -91,5 +91,30 @@ default_permissions = "rulesync"
     const loaded = await CodexcliPermissions.fromFile({ baseDir: testDir });
     expect(loaded).toBeInstanceOf(CodexcliPermissions);
     expect(loaded.getFileContent()).toContain('default_permissions = "rulesync"');
+  });
+
+  it("should convert rulesync bash permissions to Codex CLI .rules file", () => {
+    const rulesFile = createCodexcliBashRulesFile({
+      baseDir: testDir,
+      config: {
+        permission: {
+          bash: {
+            "git status": "allow",
+            "gh pr view": "ask",
+            "rm -rf /": "deny",
+          },
+        },
+      },
+    });
+
+    const content = rulesFile.getFileContent();
+    expect(rulesFile.getRelativeDirPath()).toBe(".codex/rules");
+    expect(rulesFile.getRelativeFilePath()).toBe("rulesync.rules");
+    expect(content).toContain('pattern = ["git", "status"]');
+    expect(content).toContain('decision = "allow"');
+    expect(content).toContain('pattern = ["gh", "pr", "view"]');
+    expect(content).toContain('decision = "prompt"');
+    expect(content).toContain('pattern = ["rm", "-rf", "/"]');
+    expect(content).toContain('decision = "forbidden"');
   });
 });
