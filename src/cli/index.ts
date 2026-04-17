@@ -231,7 +231,7 @@ const main = async () => {
     )
     .option("--delete", "Delete all existing files in output directories before generating")
     .option(
-      "-b, --base-dir <paths>",
+      "-b, --base-dirs <paths>",
       "Base directories to generate files (comma-separated for multiple paths)",
       parseCommaSeparatedList,
     )
@@ -251,6 +251,7 @@ const main = async () => {
       "--simulate-skills",
       "Generate simulated skills. This feature is only available for copilot, cursor and codexcli.",
     )
+    .option("--rulesync-dir <path>", "Custom path to the .rulesync source directory")
     .option("--dry-run", "Dry run: show changes without writing files")
     .option("--check", "Check if files are up to date (exits with code 1 if changes needed)")
     .action(

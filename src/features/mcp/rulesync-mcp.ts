@@ -35,7 +35,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
 
 export type RulesyncMcpParams = RulesyncFileParams;
 
-export type RulesyncMcpFromFileParams = Pick<RulesyncFileFromFileParams, "validate">;
+export type RulesyncMcpFromFileParams = Pick<RulesyncFileFromFileParams, "baseDir" | "validate">;
 
 export type RulesyncMcpSettablePaths = {
   recommended: {
@@ -86,10 +86,10 @@ export class RulesyncMcp extends RulesyncFile {
   }
 
   static async fromFile({
+    baseDir = process.cwd(),
     validate = true,
     logger,
   }: RulesyncMcpFromFileParams & { logger?: Logger }): Promise<RulesyncMcp> {
-    const baseDir = process.cwd();
     const paths = this.getSettablePaths();
     const recommendedPath = join(
       baseDir,

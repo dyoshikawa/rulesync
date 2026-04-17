@@ -20,7 +20,6 @@ import {
   ConfigFileSchema,
   ConfigParams,
   PartialConfigParams,
-  RequiredConfigParams,
 } from "./config.js";
 import { emitFeaturesObjectFormDeprecationWarning } from "./deprecation-warnings.js";
 
@@ -33,7 +32,7 @@ export type ConfigResolverResolveParams = Partial<
   }
 >;
 
-const getDefaults = (): RequiredConfigParams & { configPath: string } => ({
+const getDefaults = (): ConfigParams & { configPath: string } => ({
   targets: ["agentsmd"],
   features: ["rules"],
   verbose: false,
@@ -49,6 +48,7 @@ const getDefaults = (): RequiredConfigParams & { configPath: string } => ({
   gitignoreDestination: "gitignore",
   dryRun: false,
   check: false,
+  rulesyncDir: undefined,
   sources: [],
 });
 
@@ -121,9 +121,13 @@ export class ConfigResolver {
     dryRun,
     check,
     gitignoreDestination,
+    rulesyncDir,
   }: ConfigResolverResolveParams): Promise<Config> {
     // Validate configPath to prevent path traversal attacks
-    const validatedConfigPath = resolvePath(configPath, process.cwd());
+    // When rulesyncDir is set, resolve the config path relative to it so that
+    // the user's central .rulesync source dir is also the config source.
+    const configBaseDir = rulesyncDir ?? process.cwd();
+    const validatedConfigPath = resolvePath(configPath, configBaseDir);
 
     // Load base config (rulesync.jsonc)
     const baseConfig = await loadConfigFromFile(validatedConfigPath);
@@ -156,7 +160,11 @@ export class ConfigResolver {
       );
     }
 
-    const resolvedGlobal = global ?? configByFile.global ?? getDefaults().global;
+    // When --rulesync-dir is explicitly provided the user is decoupling source
+    // from output, so "global: true" from the config file must not apply unless
+    // the caller also explicitly passes --global.
+    const configGlobal = rulesyncDir !== undefined ? false : configByFile.global;
+    const resolvedGlobal = global ?? configGlobal ?? getDefaults().global ?? false;
     const resolvedSimulateCommands =
       simulateCommands ?? configByFile.simulateCommands ?? getDefaults().simulateCommands;
     const resolvedSimulateSubagents =
@@ -215,6 +223,7 @@ export class ConfigResolver {
         getDefaults().gitignoreDestination,
       dryRun: dryRun ?? configByFile.dryRun ?? getDefaults().dryRun,
       check: check ?? configByFile.check ?? getDefaults().check,
+      rulesyncDir: rulesyncDir ?? configByFile.rulesyncDir ?? getDefaults().rulesyncDir,
       sources: configByFile.sources ?? getDefaults().sources,
     };
     return new Config(configParams);

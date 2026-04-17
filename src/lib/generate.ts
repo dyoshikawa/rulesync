@@ -250,6 +250,7 @@ async function generateRulesCore(params: {
 
       const processor = new RulesProcessor({
         baseDir: baseDir,
+        rulesyncDir: config.getRulesyncDir(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
         simulateCommands: config.getSimulateCommands(),
@@ -305,6 +306,7 @@ async function generateIgnoreCore(params: {
       try {
         const processor = new IgnoreProcessor({
           baseDir: baseDir === process.cwd() ? "." : baseDir,
+          rulesyncDir: config.getRulesyncDir(),
           toolTarget,
           dryRun: config.isPreviewMode(),
           logger,
@@ -357,6 +359,7 @@ async function generateMcpCore(params: {
 
       const processor = new McpProcessor({
         baseDir: baseDir,
+        rulesyncDir: config.getRulesyncDir(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
@@ -407,6 +410,7 @@ async function generateCommandsCore(params: {
 
       const processor = new CommandsProcessor({
         baseDir: baseDir,
+        rulesyncDir: config.getRulesyncDir(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
@@ -462,6 +466,7 @@ async function generateSubagentsCore(params: {
 
       const processor = new SubagentsProcessor({
         baseDir: baseDir,
+        rulesyncDir: config.getRulesyncDir(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
@@ -513,6 +518,7 @@ async function generateSkillsCore(params: {
 
       const processor = new SkillsProcessor({
         baseDir: baseDir,
+        rulesyncDir: config.getRulesyncDir(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),

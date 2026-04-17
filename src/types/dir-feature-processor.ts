@@ -16,22 +16,26 @@ import { ToolTarget } from "./tool-targets.js";
 
 export abstract class DirFeatureProcessor {
   protected readonly baseDir: string;
+  protected readonly rulesyncDir: string;
   protected readonly dryRun: boolean;
   protected readonly avoidBlockScalars: boolean;
   protected readonly logger: Logger;
 
   constructor({
     baseDir = process.cwd(),
+    rulesyncDir = process.cwd(),
     dryRun = false,
     avoidBlockScalars = false,
     logger,
   }: {
     baseDir?: string;
+    rulesyncDir?: string;
     dryRun?: boolean;
     avoidBlockScalars?: boolean;
     logger: Logger;
   }) {
     this.baseDir = baseDir;
+    this.rulesyncDir = rulesyncDir;
     this.dryRun = dryRun;
     this.avoidBlockScalars = avoidBlockScalars;
     this.logger = logger;

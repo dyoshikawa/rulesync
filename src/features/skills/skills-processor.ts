@@ -300,6 +300,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
 
   constructor({
     baseDir = process.cwd(),
+    rulesyncDir = process.cwd(),
     toolTarget,
     global = false,
     getFactory = defaultGetFactory,
@@ -307,13 +308,14 @@ export class SkillsProcessor extends DirFeatureProcessor {
     logger,
   }: {
     baseDir?: string;
+    rulesyncDir?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     getFactory?: GetFactory;
     dryRun?: boolean;
     logger: Logger;
   }) {
-    super({ baseDir, dryRun, avoidBlockScalars: toolTarget === "cursor", logger });
+    super({ baseDir, rulesyncDir, dryRun, avoidBlockScalars: toolTarget === "cursor", logger });
     const result = SkillsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -372,18 +374,18 @@ export class SkillsProcessor extends DirFeatureProcessor {
    */
   async loadRulesyncDirs(): Promise<AiDir[]> {
     // Load local skills (directly under .rulesync/skills/)
-    const localDirNames = [...(await getLocalSkillDirNames(process.cwd()))];
+    const localDirNames = [...(await getLocalSkillDirNames(this.rulesyncDir))];
 
     const localSkills = await Promise.all(
       localDirNames.map((dirName) =>
-        RulesyncSkill.fromDir({ baseDir: process.cwd(), dirName, global: this.global }),
+        RulesyncSkill.fromDir({ baseDir: this.rulesyncDir, dirName, global: this.global }),
       ),
     );
 
     const localSkillNames = new Set(localDirNames);
 
     // Load curated (remote) skills from .curated/ subdirectory
-    const curatedDirPath = join(process.cwd(), RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+    const curatedDirPath = join(this.rulesyncDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
     let curatedSkills: RulesyncSkill[] = [];
 
     if (await directoryExists(curatedDirPath)) {
@@ -403,7 +405,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       curatedSkills = await Promise.all(
         nonConflicting.map((dirName) =>
           RulesyncSkill.fromDir({
-            baseDir: process.cwd(),
+            baseDir: this.rulesyncDir,
             relativeDirPath: curatedRelativeDirPath,
             dirName,
             global: this.global,

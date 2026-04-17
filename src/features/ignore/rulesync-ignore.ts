@@ -38,8 +38,9 @@ export class RulesyncIgnore extends RulesyncFile {
     };
   }
 
-  static async fromFile(): Promise<RulesyncIgnore> {
-    const baseDir = process.cwd();
+  static async fromFile({
+    baseDir = process.cwd(),
+  }: { baseDir?: string } = {}): Promise<RulesyncIgnore> {
     const paths = this.getSettablePaths();
     const recommendedPath = join(
       baseDir,

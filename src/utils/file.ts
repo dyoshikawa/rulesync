@@ -1,6 +1,6 @@
 import { lstat, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 import { kebabCase } from "es-toolkit";
 import { globbySync } from "globby";
@@ -284,7 +284,11 @@ export function validateBaseDir(baseDir: string): void {
     throw new Error("baseDir cannot be an empty string");
   }
 
-  checkPathTraversal({ relativePath: baseDir, intendedRootDir: process.cwd() });
+  // Traversal check only applies to relative paths; absolute paths are
+  // explicitly provided by the caller and may point anywhere on the filesystem.
+  if (!isAbsolute(baseDir)) {
+    checkPathTraversal({ relativePath: baseDir, intendedRootDir: process.cwd() });
+  }
 }
 
 /**
