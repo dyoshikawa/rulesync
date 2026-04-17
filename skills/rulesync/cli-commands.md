@@ -68,6 +68,8 @@ rulesync update --force
 
 The `gitignore` command adds generated AI tool configuration files to `.gitignore`. By default, it emits entries only for the tools listed in the `targets` of your `rulesync.jsonc` (controlled by the `gitignoreTargetsOnly` option, which defaults to `true`). Set `gitignoreTargetsOnly` to `false` to emit entries for all supported tools instead. You can also filter the output per-invocation with `--targets` / `--features`, which take precedence over the config.
 
+When using object-form `targets`, you can route entries to `.gitattributes` instead by setting `$gitignoreDestination` to `"gitattributes"` at tool level or tool × feature level. Tool × feature settings take precedence.
+
 > **No `rulesync.jsonc` in the project?** Entries for all supported tools are emitted. `gitignoreTargetsOnly` is only applied when a config file exists, so users without a config still get useful `.gitignore` coverage.
 
 > **`agentsmd` entries are always included.** Even when `gitignoreTargetsOnly` is `true` and `agentsmd` is not listed in `targets`, entries for `AGENTS.md` (and related paths) are appended automatically. Because `AGENTS.md` is a de facto standard file read by many AI tools regardless of the target set, its gitignore entries are emitted unconditionally to prevent accidental commits of generated rule files. To opt out of this behavior, pass an explicit `--targets` option that omits `agentsmd`.
