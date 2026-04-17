@@ -58,6 +58,23 @@ describe("WindsurfSkill", () => {
         description: "Test skill description",
       });
     });
+
+    it("should throw error when frontmatter is invalid", () => {
+      expect(
+        () =>
+          new WindsurfSkill({
+            baseDir: testDir,
+            relativeDirPath: join(".windsurf", "skills"),
+            dirName: "invalid-skill",
+            frontmatter: {
+              name: 123,
+              description: "Valid description",
+            } as unknown as { name: string; description: string },
+            body: "Body content",
+            validate: true,
+          }),
+      ).toThrow();
+    });
   });
 
   describe("fromDir", () => {
@@ -95,6 +112,32 @@ This is the body of the windsurf skill.`;
           dirName: "empty-skill",
         }),
       ).rejects.toThrow(/SKILL\.md not found/);
+    });
+
+    it("should create instance from global skill directory", async () => {
+      const skillDir = join(testDir, ".codeium", "windsurf", "skills", "global-skill");
+      await ensureDir(skillDir);
+      const skillContent = `---
+name: Global Skill
+description: A global windsurf skill
+---
+
+Global skill body content.`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      const skill = await WindsurfSkill.fromDir({
+        baseDir: testDir,
+        dirName: "global-skill",
+        global: true,
+      });
+
+      expect(skill).toBeInstanceOf(WindsurfSkill);
+      expect(skill.getBody()).toBe("Global skill body content.");
+      expect(skill.getFrontmatter()).toEqual({
+        name: "Global Skill",
+        description: "A global windsurf skill",
+      });
+      expect(skill.getRelativeDirPath()).toBe(join(".codeium", "windsurf", "skills"));
     });
   });
 
