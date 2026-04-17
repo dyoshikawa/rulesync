@@ -7,6 +7,7 @@ import {
   Feature,
   FeatureOptions,
   Features,
+  GitignoreDestination,
   isFeatureValueEnabled,
   PerFeatureConfig,
   PerTargetFeatures,
@@ -25,6 +26,8 @@ import {
   ToolTargets,
 } from "../types/tool-targets.js";
 import { hasControlCharacters } from "../utils/validation.js";
+
+export const TARGET_GITIGNORE_DESTINATION_KEY = "$gitignoreDestination";
 
 /**
  * Schema for a single source entry in the sources array.
@@ -479,6 +482,40 @@ export class Config {
     const featureValue = perFeature[feature];
     if (featureValue && typeof featureValue === "object" && isFeatureValueEnabled(featureValue)) {
       return featureValue;
+    }
+    return undefined;
+  }
+
+  public getGitignoreDestination(target: ToolTarget, feature?: Feature): GitignoreDestination {
+    if (!isRulesyncConfigTargetsObject(this.targets)) {
+      return "gitignore";
+    }
+    const targetValue = this.targets[target];
+    if (!targetValue || Array.isArray(targetValue)) {
+      return "gitignore";
+    }
+
+    const perFeature: PerFeatureConfig = targetValue;
+    const toolLevel = Config.parseGitignoreDestination(
+      perFeature[TARGET_GITIGNORE_DESTINATION_KEY],
+    );
+    if (feature) {
+      const featureValue = perFeature[feature];
+      if (featureValue && typeof featureValue === "object" && !Array.isArray(featureValue)) {
+        const featureLevel = Config.parseGitignoreDestination(
+          featureValue[TARGET_GITIGNORE_DESTINATION_KEY],
+        );
+        if (featureLevel) {
+          return featureLevel;
+        }
+      }
+    }
+    return toolLevel ?? "gitignore";
+  }
+
+  private static parseGitignoreDestination(value: unknown): GitignoreDestination | undefined {
+    if (value === "gitignore" || value === "gitattributes") {
+      return value;
     }
     return undefined;
   }

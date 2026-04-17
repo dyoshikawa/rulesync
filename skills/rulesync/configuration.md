@@ -126,12 +126,30 @@ maps to either `true`/`false` (enable/disable) or an options object.
 {
   "targets": {
     "claudecode": {
+      "$gitignoreDestination": "gitattributes",
       "rules": { "ruleDiscoveryMode": "explicit" },
-      "ignore": { "fileMode": "local" },
+      "ignore": {
+        "fileMode": "local",
+        "$gitignoreDestination": "gitignore",
+      },
     },
   },
 }
 ```
+
+`$gitignoreDestination` controls where `rulesync gitignore` writes path entries.
+You can set it:
+
+- at **tool level** (`targets.<tool>.$gitignoreDestination`)
+- or at **tool × feature level**
+  (`targets.<tool>.<feature>.$gitignoreDestination`)
+
+Allowed values:
+
+- `"gitignore"` (default)
+- `"gitattributes"`
+
+If both tool-level and tool × feature-level values are present, the **tool × feature-level value wins**.
 
 ### Deprecated: object form under `features`
 
@@ -168,11 +186,12 @@ RULESYNC_SILENT_DEPRECATION=1 npx rulesync generate
 
 The current per-feature options are:
 
-| Target       | Feature  | Option              | Values                                                                         | Default      |
-| ------------ | -------- | ------------------- | ------------------------------------------------------------------------------ | ------------ |
-| `claudecode` | `rules`  | `ruleDiscoveryMode` | `"none"` / `"explicit"`                                                        | tool default |
-| any          | `rules`  | `includeLocalRoot`  | `true` / `false` (when `false`, `localRoot` rules are skipped for this target) | `true`       |
-| `claudecode` | `ignore` | `fileMode`          | `"shared"` (settings.json) / `"local"` (settings.local.json)                   | `"shared"`   |
+| Target       | Feature  | Option                  | Values                                                                         | Default       |
+| ------------ | -------- | ----------------------- | ------------------------------------------------------------------------------ | ------------- |
+| `claudecode` | `rules`  | `ruleDiscoveryMode`     | `"none"` / `"explicit"`                                                        | tool default  |
+| any          | `rules`  | `includeLocalRoot`      | `true` / `false` (when `false`, `localRoot` rules are skipped for this target) | `true`        |
+| `claudecode` | `ignore` | `fileMode`              | `"shared"` (settings.json) / `"local"` (settings.local.json)                   | `"shared"`    |
+| any          | any      | `$gitignoreDestination` | `"gitignore"` / `"gitattributes"`                                              | `"gitignore"` |
 
 See [`docs/reference/file-formats.md`](../reference/file-formats.md#where-ignore-patterns-are-written-per-tool)
 for the rationale behind the Claude Code default and when to switch to
