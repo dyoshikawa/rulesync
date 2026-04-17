@@ -681,11 +681,11 @@ describe("importFromTool", () => {
       expect(PermissionsProcessor).not.toHaveBeenCalled();
     });
 
-    it("should skip permissions import in global mode", async () => {
+    it("should import permissions in global mode when target supports it", async () => {
       mockConfig.getFeatures.mockReturnValue(["permissions"]);
       mockConfig.getGlobal.mockReturnValue(true);
       vi.mocked(PermissionsProcessor.getToolTargets).mockImplementation((params) =>
-        params?.global ? ["opencode"] : ["claudecode"],
+        params?.global ? ["claudecode"] : ["claudecode"],
       );
 
       const result = await importFromTool({
@@ -694,8 +694,14 @@ describe("importFromTool", () => {
         tool: "claudecode",
       });
 
-      expect(result.permissionsCount).toBe(0);
-      expect(PermissionsProcessor).not.toHaveBeenCalled();
+      expect(result.permissionsCount).toBe(1);
+      expect(PermissionsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: ".",
+          toolTarget: "claudecode",
+          global: true,
+        }),
+      );
     });
 
     it("should return 0 when no tool files found", async () => {

@@ -12,6 +12,7 @@ import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.j
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { CodexcliPermissions } from "./codexcli-permissions.js";
 import { GeminicliPermissions } from "./geminicli-permissions.js";
+import { KiroPermissions } from "./kiro-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
 import { PermissionsProcessor } from "./permissions-processor.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -71,19 +72,19 @@ describe("PermissionsProcessor", () => {
   });
 
   describe("getToolTargets", () => {
-    it("should return claudecode, codexcli, geminicli and opencode for project mode", () => {
+    it("should return claudecode, codexcli, geminicli, kiro and opencode for project mode", () => {
       const targets = PermissionsProcessor.getToolTargets();
-      expect(targets).toEqual(["claudecode", "codexcli", "geminicli", "opencode"]);
+      expect(targets).toEqual(["claudecode", "codexcli", "geminicli", "kiro", "opencode"]);
     });
 
-    it("should return codexcli, geminicli and opencode for global mode", () => {
+    it("should return claudecode, codexcli, geminicli and opencode for global mode", () => {
       const targets = PermissionsProcessor.getToolTargets({ global: true });
-      expect(targets).toEqual(["codexcli", "geminicli", "opencode"]);
+      expect(targets).toEqual(["claudecode", "codexcli", "geminicli", "opencode"]);
     });
 
     it("should return importable targets", () => {
       const targets = PermissionsProcessor.getToolTargets({ importOnly: true });
-      expect(targets).toEqual(["claudecode", "codexcli", "geminicli", "opencode"]);
+      expect(targets).toEqual(["claudecode", "codexcli", "geminicli", "kiro", "opencode"]);
     });
   });
 
@@ -233,6 +234,32 @@ default_permissions = "rulesync"
       expect(files).toHaveLength(1);
       expect(files[0]).toBeInstanceOf(GeminicliPermissions);
     });
+
+    it("should load Kiro .kiro/agents/default.json", async () => {
+      const kiroDir = join(testDir, ".kiro", "agents");
+      await ensureDir(kiroDir);
+      await writeFileContent(
+        join(kiroDir, "default.json"),
+        JSON.stringify({
+          toolsSettings: {
+            shell: {
+              allowedCommands: ["git *"],
+            },
+          },
+        }),
+      );
+
+      const processor = new PermissionsProcessor({
+        logger,
+        baseDir: testDir,
+        toolTarget: "kiro",
+      });
+
+      const files = await processor.loadToolFiles();
+
+      expect(files).toHaveLength(1);
+      expect(files[0]).toBeInstanceOf(KiroPermissions);
+    });
   });
 
   describe("convertRulesyncFilesToToolFiles", () => {
@@ -276,6 +303,37 @@ default_permissions = "rulesync"
       await expect(processor.convertRulesyncFilesToToolFiles([])).rejects.toThrow(
         "No .rulesync/permissions.json found.",
       );
+    });
+
+    it("should generate .codex/config.toml and .codex/rules/rulesync.rules for Codex CLI", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {
+            bash: { "git status": "allow", "rm -rf /": "deny" },
+            read: { ".env": "deny" },
+          },
+        }),
+      });
+
+      const processor = new PermissionsProcessor({
+        logger,
+        baseDir: testDir,
+        toolTarget: "codexcli",
+      });
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncPermissions]);
+
+      expect(toolFiles).toHaveLength(2);
+      expect(toolFiles[0]).toBeInstanceOf(CodexcliPermissions);
+
+      const ruleFile = toolFiles.find((file) => file.getRelativeFilePath() === "rulesync.rules");
+      expect(ruleFile).toBeDefined();
+      expect(ruleFile?.getRelativeDirPath()).toBe(".codex/rules");
+      expect(ruleFile?.getFileContent()).toContain('pattern = ["git", "status"]');
+      expect(ruleFile?.getFileContent()).toContain('decision = "forbidden"');
     });
   });
 

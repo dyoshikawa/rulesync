@@ -1,0 +1,56 @@
+name: Auto Close Stale Maintainer Scrap Issues
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  close-stale-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close stale maintainer-scrap issues
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const STALE_DAYS = 30;
+            const staleThresholdMs = STALE_DAYS * 24 * 60 * 60 * 1000;
+            const now = Date.now();
+
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "maintainer-scrap",
+              per_page: 100,
+            });
+
+            const staleIssues = issues.filter((issue) => {
+              if (issue.pull_request) {
+                return false;
+              }
+
+              const updatedAt = new Date(issue.updated_at).getTime();
+              return now - updatedAt >= staleThresholdMs;
+            });
+
+            core.info(
+              `Found ${staleIssues.length} stale maintainer-scrap issue(s) older than ${STALE_DAYS} days.`
+            );
+
+            for (const issue of staleIssues) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: "closed",
+              });
+
+              core.info(
+                `Closed issue #${issue.number} (updated at ${issue.updated_at}).`
+              );
+            }

@@ -47,6 +47,7 @@ describe("E2E: permissions", () => {
       JSON.stringify(
         {
           permission: {
+            bash: { "git status": "allow", "npm publish": "ask", "rm -rf": "deny" },
             read: { "/workspace/project/**": "allow", "/workspace/project/.env": "deny" },
             write: { "/workspace/project/src/**": "allow" },
             webfetch: { "github.com": "allow", "example.com": "deny" },
@@ -70,6 +71,14 @@ describe("E2E: permissions", () => {
     expect(filesystem["/workspace/project/**"]).toBe("read");
     expect(filesystem["/workspace/project/src/**"]).toBe("write");
     expect(domains["github.com"]).toBe("allow");
+
+    const rulesContent = await readFileContent(join(testDir, ".codex", "rules", "rulesync.rules"));
+    expect(rulesContent).toContain('pattern = ["git", "status"]');
+    expect(rulesContent).toContain('decision = "allow"');
+    expect(rulesContent).toContain('pattern = ["npm", "publish"]');
+    expect(rulesContent).toContain('decision = "prompt"');
+    expect(rulesContent).toContain('pattern = ["rm", "-rf"]');
+    expect(rulesContent).toContain('decision = "forbidden"');
   });
 
   it("should generate geminicli permissions into .gemini/settings.json", async () => {
@@ -97,6 +106,37 @@ describe("E2E: permissions", () => {
     expect(content.tools.allowed).toContain("read_file(src/**)");
     expect(content.tools.exclude).toContain("run_shell_command(rm *)");
     expect(content.tools.exclude).toContain("web_fetch(example.com)");
+  });
+
+  it("should generate kiro permissions into .kiro/agents/default.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow", "rm *": "deny" },
+            read: { "src/**": "allow" },
+            write: { "docs/**": "allow" },
+            webfetch: { "*": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "kiro", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, ".kiro", "agents", "default.json")),
+    );
+    expect(content.toolsSettings.shell.allowedCommands).toContain("git *");
+    expect(content.toolsSettings.shell.deniedCommands).toContain("rm *");
+    expect(content.toolsSettings.read.allowedPaths).toContain("src/**");
+    expect(content.toolsSettings.write.allowedPaths).toContain("docs/**");
+    expect(content.allowedTools).toContain("web_fetch");
   });
 });
 
@@ -187,10 +227,92 @@ default_permissions = "rulesync"
     expect(content.permission.bash["rm *"]).toBe("deny");
     expect(content.permission.webfetch["example.com"]).toBe("deny");
   });
+
+  it("should import kiro permissions into .rulesync/permissions.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".kiro", "agents", "default.json"),
+      JSON.stringify(
+        {
+          allowedTools: ["web_fetch"],
+          toolsSettings: {
+            shell: {
+              allowedCommands: ["git *"],
+              deniedCommands: ["rm *"],
+            },
+            read: {
+              allowedPaths: ["src/**"],
+              deniedPaths: [".env"],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runImport({ target: "kiro", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.bash["git *"]).toBe("allow");
+    expect(content.permission.bash["rm *"]).toBe("deny");
+    expect(content.permission.read["src/**"]).toBe("allow");
+    expect(content.permission.read[".env"]).toBe("deny");
+    expect(content.permission.webfetch["*"]).toBe("allow");
+  });
 });
 
 describe("E2E: permissions (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
+
+  it("should generate claudecode permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git status *": "allow" },
+            read: { ".env": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await writeFileContent(
+      join(homeDir, ".claude", "settings.json"),
+      JSON.stringify(
+        {
+          hooks: {
+            PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo test" }] }],
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "claudecode",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(await readFileContent(join(homeDir, ".claude", "settings.json")));
+    expect(generated.permissions.allow).toContain("Bash(git status *)");
+    expect(generated.permissions.deny).toContain("Read(.env)");
+    expect(generated.hooks).toEqual({
+      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo test" }] }],
+    });
+  });
 
   it("should generate opencode permissions in home directory with --global", async () => {
     const projectDir = getProjectDir();
@@ -232,6 +354,7 @@ describe("E2E: permissions (global mode)", () => {
       JSON.stringify(
         {
           permission: {
+            bash: { "pnpm lint": "allow" },
             read: { "/workspace/project/**": "allow" },
             webfetch: { "github.com": "allow" },
           },
@@ -258,6 +381,10 @@ describe("E2E: permissions (global mode)", () => {
     const domains = toTable(network.domains);
     expect(filesystem["/workspace/project/**"]).toBe("read");
     expect(domains["github.com"]).toBe("allow");
+
+    const rulesContent = await readFileContent(join(homeDir, ".codex", "rules", "rulesync.rules"));
+    expect(rulesContent).toContain('pattern = ["pnpm", "lint"]');
+    expect(rulesContent).toContain('decision = "allow"');
   });
 
   it("should generate geminicli permissions in home directory with --global", async () => {
