@@ -24,7 +24,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Google Antigravity  | antigravity  |  ✅   |        |          |    ✅    |           | ✅ 🌏  |       |             |
 | JetBrains Junie     | junie        |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |    ✅     |   ✅   |       |             |
 | AugmentCode         | augmentcode  |  ✅   |   ✅   |          |          |           |        |       |             |
-| Windsurf            | windsurf     |  ✅   |   ✅   |          |          |           |        |       |             |
+| Windsurf            | windsurf     |  ✅   |   ✅   |          |          |           | ✅ 🌏  |       |             |
 | Warp                | warp         |  ✅   |        |          |          |           |        |       |             |
 | Replit              | replit       |  ✅   |        |          |          |           |   ✅   |       |             |
 | Zed                 | zed          |       |   ✅   |          |          |           |        |       |             |

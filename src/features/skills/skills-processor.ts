@@ -38,6 +38,7 @@ import {
   ToolSkillSettablePaths,
   toolSkillSearchRoots,
 } from "./tool-skill.js";
+import { WindsurfSkill } from "./windsurf-skill.js";
 
 /**
  * Factory entry for each tool skill class.
@@ -85,6 +86,7 @@ const skillsProcessorToolTargetTuple = [
   "replit",
   "roo",
   "rovodev",
+  "windsurf",
 ] as const;
 
 export type SkillsProcessorToolTarget = (typeof skillsProcessorToolTargetTuple)[number];
@@ -227,6 +229,13 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     "rovodev",
     {
       class: RovodevSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "windsurf",
+    {
+      class: WindsurfSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

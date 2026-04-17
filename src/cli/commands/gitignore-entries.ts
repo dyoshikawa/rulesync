@@ -222,6 +222,10 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   },
   { target: "rovodev", feature: "skills", entry: "**/.agents/skills/" },
 
+  // Windsurf
+  { target: "windsurf", feature: "skills", entry: "**/.windsurf/skills/" },
+  { target: "windsurf", feature: "skills", entry: "**/.codeium/windsurf/skills/" },
+
   // Warp
   { target: "warp", feature: "rules", entry: "**/.warp/" },
   { target: "warp", feature: "rules", entry: "**/WARP.md" },

@@ -85,7 +85,7 @@ See [Quick Start guide](https://dyoshikawa.github.io/rulesync/getting-started/qu
 | Google Antigravity  | antigravity  |  ✅   |        |          |    ✅    |           | ✅ 🌏  |       |             |
 | JetBrains Junie     | junie        |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |    ✅     |   ✅   |       |             |
 | AugmentCode         | augmentcode  |  ✅   |   ✅   |          |          |           |        |       |             |
-| Windsurf            | windsurf     |  ✅   |   ✅   |          |          |           |        |       |             |
+| Windsurf            | windsurf     |  ✅   |   ✅   |          |          |           | ✅ 🌏  |       |             |
 | Warp                | warp         |  ✅   |        |          |          |           |        |       |             |
 | Replit              | replit       |  ✅   |        |          |          |           |   ✅   |       |             |
 | Zed                 | zed          |       |   ✅   |          |          |           |        |       |             |
