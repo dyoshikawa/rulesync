@@ -47,6 +47,7 @@ describe("E2E: permissions", () => {
       JSON.stringify(
         {
           permission: {
+            bash: { "git status": "allow", "npm publish": "ask", "rm -rf": "deny" },
             read: { "/workspace/project/**": "allow", "/workspace/project/.env": "deny" },
             write: { "/workspace/project/src/**": "allow" },
             webfetch: { "github.com": "allow", "example.com": "deny" },
@@ -70,6 +71,14 @@ describe("E2E: permissions", () => {
     expect(filesystem["/workspace/project/**"]).toBe("read");
     expect(filesystem["/workspace/project/src/**"]).toBe("write");
     expect(domains["github.com"]).toBe("allow");
+
+    const rulesContent = await readFileContent(join(testDir, ".codex", "rules", "rulesync.rules"));
+    expect(rulesContent).toContain('pattern = ["git", "status"]');
+    expect(rulesContent).toContain('decision = "allow"');
+    expect(rulesContent).toContain('pattern = ["npm", "publish"]');
+    expect(rulesContent).toContain('decision = "prompt"');
+    expect(rulesContent).toContain('pattern = ["rm", "-rf"]');
+    expect(rulesContent).toContain('decision = "forbidden"');
   });
 
   it("should generate geminicli permissions into .gemini/settings.json", async () => {
@@ -232,6 +241,7 @@ describe("E2E: permissions (global mode)", () => {
       JSON.stringify(
         {
           permission: {
+            bash: { "pnpm lint": "allow" },
             read: { "/workspace/project/**": "allow" },
             webfetch: { "github.com": "allow" },
           },
@@ -258,6 +268,10 @@ describe("E2E: permissions (global mode)", () => {
     const domains = toTable(network.domains);
     expect(filesystem["/workspace/project/**"]).toBe("read");
     expect(domains["github.com"]).toBe("allow");
+
+    const rulesContent = await readFileContent(join(homeDir, ".codex", "rules", "rulesync.rules"));
+    expect(rulesContent).toContain('pattern = ["pnpm", "lint"]');
+    expect(rulesContent).toContain('decision = "allow"');
   });
 
   it("should generate geminicli permissions in home directory with --global", async () => {
