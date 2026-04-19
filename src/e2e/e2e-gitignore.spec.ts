@@ -17,7 +17,7 @@ describe("E2E: gitignore command", () => {
       `{
   "targets": {
     "claudecode": {
-      "$gitignoreDestination": "gitattributes",
+      "gitignoreDestination": "gitattributes",
       "rules": true
     }
   }
@@ -35,6 +35,29 @@ describe("E2E: gitignore command", () => {
     expect(gitattributesContent).toContain("**/CLAUDE.md");
   });
 
+  it("should write entries to .gitattributes when root-level destination is configured", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+      `{
+  "gitignoreDestination": "gitattributes",
+  "targets": {
+    "claudecode": ["rules"]
+  }
+}
+`,
+    );
+
+    await execFileAsync(rulesyncCmd, [...rulesyncArgs, "gitignore"]);
+
+    const gitignoreContent = await readFileContent(join(testDir, ".gitignore"));
+    const gitattributesContent = await readFileContent(join(testDir, ".gitattributes"));
+
+    expect(gitignoreContent).not.toContain("**/CLAUDE.md");
+    expect(gitattributesContent).toContain("**/CLAUDE.md");
+  });
+
   it("should prefer tool x feature destination over tool-level destination", async () => {
     const testDir = getTestDir();
 
@@ -43,8 +66,8 @@ describe("E2E: gitignore command", () => {
       `{
   "targets": {
     "claudecode": {
-      "$gitignoreDestination": "gitattributes",
-      "rules": { "$gitignoreDestination": "gitignore" }
+      "gitignoreDestination": "gitattributes",
+      "rules": { "gitignoreDestination": "gitignore" }
     }
   }
 }

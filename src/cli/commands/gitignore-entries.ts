@@ -1,4 +1,4 @@
-import { TARGET_GITIGNORE_DESTINATION_KEY } from "../../config/config.js";
+import { GITIGNORE_DESTINATION_KEY } from "../../config/config.js";
 import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import {
   ALL_FEATURES_WITH_WILDCARD,
@@ -346,7 +346,7 @@ const warnInvalidFeatures = (features: RulesyncFeatures, logger?: Logger): void 
         }
       } else {
         for (const feature of Object.keys(targetFeatures)) {
-          if (feature === TARGET_GITIGNORE_DESTINATION_KEY) continue;
+          if (feature === GITIGNORE_DESTINATION_KEY) continue;
           warnOnce(feature);
         }
       }

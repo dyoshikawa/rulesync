@@ -8,6 +8,7 @@ import {
   FeatureOptions,
   Features,
   GitignoreDestination,
+  GitignoreDestinationSchema,
   isFeatureValueEnabled,
   PerFeatureConfig,
   PerTargetFeatures,
@@ -27,7 +28,7 @@ import {
 } from "../types/tool-targets.js";
 import { hasControlCharacters } from "../utils/validation.js";
 
-export const TARGET_GITIGNORE_DESTINATION_KEY = "$gitignoreDestination";
+export const GITIGNORE_DESTINATION_KEY = "gitignoreDestination";
 
 /**
  * Schema for a single source entry in the sources array.
@@ -66,6 +67,7 @@ export const ConfigParamsSchema = z.object({
   simulateSubagents: optional(z.boolean()),
   simulateSkills: optional(z.boolean()),
   gitignoreTargetsOnly: optional(z.boolean()),
+  gitignoreDestination: optional(GitignoreDestinationSchema),
   dryRun: optional(z.boolean()),
   check: optional(z.boolean()),
   // Declarative skill sources
@@ -214,6 +216,7 @@ export class Config {
   private readonly simulateSubagents: boolean;
   private readonly simulateSkills: boolean;
   private readonly gitignoreTargetsOnly: boolean;
+  private readonly gitignoreDestination: GitignoreDestination;
   private readonly dryRun: boolean;
   private readonly check: boolean;
   private readonly sources: SourceEntry[];
@@ -230,6 +233,7 @@ export class Config {
     simulateSubagents,
     simulateSkills,
     gitignoreTargetsOnly,
+    gitignoreDestination,
     dryRun,
     check,
     sources,
@@ -281,6 +285,7 @@ export class Config {
     this.simulateSubagents = simulateSubagents ?? false;
     this.simulateSkills = simulateSkills ?? false;
     this.gitignoreTargetsOnly = gitignoreTargetsOnly ?? true;
+    this.gitignoreDestination = gitignoreDestination ?? "gitignore";
     this.dryRun = dryRun ?? false;
     this.check = check ?? false;
     this.sources = sources ?? [];
@@ -487,30 +492,29 @@ export class Config {
   }
 
   public getGitignoreDestination(target: ToolTarget, feature?: Feature): GitignoreDestination {
+    const rootLevel = this.gitignoreDestination;
     if (!isRulesyncConfigTargetsObject(this.targets)) {
-      return "gitignore";
+      return rootLevel;
     }
     const targetValue = this.targets[target];
     if (!targetValue || Array.isArray(targetValue)) {
-      return "gitignore";
+      return rootLevel;
     }
 
     const perFeature: PerFeatureConfig = targetValue;
-    const toolLevel = Config.parseGitignoreDestination(
-      perFeature[TARGET_GITIGNORE_DESTINATION_KEY],
-    );
+    const toolLevel = Config.parseGitignoreDestination(perFeature[GITIGNORE_DESTINATION_KEY]);
     if (feature) {
       const featureValue = perFeature[feature];
       if (featureValue && typeof featureValue === "object" && !Array.isArray(featureValue)) {
         const featureLevel = Config.parseGitignoreDestination(
-          featureValue[TARGET_GITIGNORE_DESTINATION_KEY],
+          featureValue[GITIGNORE_DESTINATION_KEY],
         );
         if (featureLevel) {
           return featureLevel;
         }
       }
     }
-    return toolLevel ?? "gitignore";
+    return toolLevel ?? rootLevel;
   }
 
   private static parseGitignoreDestination(value: unknown): GitignoreDestination | undefined {
