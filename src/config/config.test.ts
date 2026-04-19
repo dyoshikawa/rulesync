@@ -366,7 +366,7 @@ describe("Config", () => {
       const config = createConfig({
         targets: {
           claudecode: {
-            $gitignoreDestination: "gitattributes",
+            gitignoreDestination: "gitattributes",
             rules: true,
           },
         },
@@ -378,8 +378,28 @@ describe("Config", () => {
       const config = createConfig({
         targets: {
           claudecode: {
-            $gitignoreDestination: "gitignore",
-            rules: { $gitignoreDestination: "gitattributes" },
+            gitignoreDestination: "gitignore",
+            rules: { gitignoreDestination: "gitattributes" },
+          },
+        },
+      });
+      expect(config.getGitignoreDestination("claudecode", "rules")).toBe("gitattributes");
+    });
+
+    it("supports root-level destination", () => {
+      const config = createConfig({
+        gitignoreDestination: "gitattributes",
+      });
+      expect(config.getGitignoreDestination("claudecode", "rules")).toBe("gitattributes");
+    });
+
+    it("prefers tool-level destination over root-level destination", () => {
+      const config = createConfig({
+        gitignoreDestination: "gitignore",
+        targets: {
+          claudecode: {
+            gitignoreDestination: "gitattributes",
+            rules: true,
           },
         },
       });
