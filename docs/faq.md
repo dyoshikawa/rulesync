@@ -35,3 +35,22 @@ echo "**/.agent/skills/" >> .git/info/exclude
 `.git/info/exclude` works like `.gitignore` but is local-only, so it won't affect Antigravity's ability to load the rules while still excluding these directories from Git.
 
 Note: `.git/info/exclude` can't be shared with your team since it's not committed to the repository.
+
+## Generated rule files create noise in pull request diffs
+
+Because many AI coding tools (Claude Code, Cursor, Copilot, Antigravity, etc.) need to read their rule files directly from the working tree, the files rulesync generates are intentionally not `.gitignore`d. On repositories with many targets, the generated files can dominate a pull request diff and make code review harder.
+
+**Workaround:** Add the generated paths to `.gitattributes` with the [`linguist-generated`](https://docs.github.com/en/repositories/working-with-files/managing-files/customizing-how-changed-files-appear-on-github#marking-files-as-generated) attribute. GitHub's PR UI will then collapse those files by default while still keeping them visible and loadable by the tools themselves.
+
+Example `.gitattributes` for a repo that uses `.agent/`, Claude Code, Cursor, and Copilot targets:
+
+```
+.agent/rules/**           linguist-generated
+.agent/skills/**          linguist-generated
+.agent/workflows/**       linguist-generated
+CLAUDE.md                 linguist-generated
+.cursor/rules/**          linguist-generated
+.github/copilot-instructions.md linguist-generated
+```
+
+Adjust the list to match the targets you have configured. These entries only affect how GitHub displays the files in diffs — they don't change how Git tracks them, and they don't interfere with the tools reading the rules.
