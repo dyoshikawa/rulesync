@@ -260,9 +260,8 @@ describe("CodexCliSubagent", () => {
       // Verify TOML body contains expected fields
       expect(codexcliSubagent.getBody()).toContain('name = "reviewer"');
       expect(codexcliSubagent.getBody()).toContain('description = "Code reviewer"');
-      expect(codexcliSubagent.getBody()).toContain(
-        'developer_instructions = "Review code changes"',
-      );
+      expect(codexcliSubagent.getBody()).toContain("developer_instructions =");
+      expect(codexcliSubagent.getBody()).toContain("Review code changes");
       expect(codexcliSubagent.getBody()).toContain('model = "gpt-5"');
       expect(codexcliSubagent.getBody()).toContain('sandbox_mode = "full"');
     });
@@ -646,6 +645,31 @@ describe("CodexCliSubagent", () => {
       const rulesyncSubagent = subagent.toRulesyncSubagent();
       expect(rulesyncSubagent.getBody()).toContain("Line 1");
       expect(rulesyncSubagent.getBody()).toContain("Line 2");
+    });
+
+    it("should preserve multiline body when generating developer_instructions", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "multiline.md",
+        frontmatter: {
+          targets: ["codexcli"],
+          name: "multiline-agent",
+        },
+        body: ["## English", "", "Stay in exploration mode...", "", "1. Step one"].join("\n"),
+        validate: true,
+      });
+
+      const codexcliSubagent = CodexCliSubagent.fromRulesyncSubagent({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        rulesyncSubagent,
+      }) as CodexCliSubagent;
+
+      expect(codexcliSubagent.getBody()).toContain("developer_instructions =");
+      expect(codexcliSubagent.getBody()).toContain("## English");
+      expect(codexcliSubagent.getBody()).toContain("1. Step one");
+      expect(codexcliSubagent.getBody()).not.toContain("\\n\\nStay in exploration mode");
     });
 
     it("should handle special characters in TOML values", () => {
