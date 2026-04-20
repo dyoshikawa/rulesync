@@ -396,6 +396,158 @@ describe("config-resolver", () => {
     });
   });
 
+  describe("rulesyncDir — configPath resolution", () => {
+    it("should resolve a relative configPath against rulesyncDir, not cwd", async () => {
+      const rulesyncDir = join(testDir, "central-rules");
+      await writeFileContent(
+        join(rulesyncDir, "rulesync.jsonc"),
+        JSON.stringify({ targets: ["claudecode"], verbose: true }),
+      );
+      // A differently-configured file in cwd that must NOT be picked up.
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ targets: ["cursor"], verbose: false }),
+      );
+
+      const config = await ConfigResolver.resolve({
+        configPath: "rulesync.jsonc",
+        rulesyncDir,
+      });
+
+      expect(config.getTargets()).toEqual(["claudecode"]);
+      expect(config.getVerbose()).toBe(true);
+    });
+
+    it("should resolve the default configPath against rulesyncDir when no configPath is provided", async () => {
+      const rulesyncDir = join(testDir, "central-rules");
+      await writeFileContent(
+        join(rulesyncDir, "rulesync.jsonc"),
+        JSON.stringify({ targets: ["claudecode"] }),
+      );
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ targets: ["cursor"] }),
+      );
+
+      const config = await ConfigResolver.resolve({ rulesyncDir });
+
+      expect(config.getTargets()).toEqual(["claudecode"]);
+    });
+
+    it("should load rulesync.local.jsonc from rulesyncDir alongside the base config", async () => {
+      const rulesyncDir = join(testDir, "central-rules");
+      await writeFileContent(
+        join(rulesyncDir, "rulesync.jsonc"),
+        JSON.stringify({ targets: ["cursor"], verbose: false }),
+      );
+      await writeFileContent(
+        join(rulesyncDir, "rulesync.local.jsonc"),
+        JSON.stringify({ targets: ["claudecode"], verbose: true }),
+      );
+
+      const config = await ConfigResolver.resolve({
+        configPath: "rulesync.jsonc",
+        rulesyncDir,
+      });
+
+      expect(config.getTargets()).toEqual(["claudecode"]);
+      expect(config.getVerbose()).toBe(true);
+    });
+
+    it("should reject a relative configPath that escapes rulesyncDir", async () => {
+      const rulesyncDir = join(testDir, "central-rules");
+      // Ensure parent contains a tempting target.
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ targets: ["cursor"] }),
+      );
+
+      await expect(
+        ConfigResolver.resolve({
+          configPath: "../rulesync.jsonc",
+          rulesyncDir,
+        }),
+      ).rejects.toThrow("Path traversal detected");
+    });
+  });
+
+  describe("rulesyncDir — global precedence", () => {
+    it("should force global to false when rulesyncDir is set and config file has global: true", async () => {
+      const rulesyncDir = join(testDir, "central-rules");
+      await writeFileContent(
+        join(rulesyncDir, "rulesync.jsonc"),
+        JSON.stringify({ baseDirs: ["./"], global: true }),
+      );
+
+      const config = await ConfigResolver.resolve({
+        configPath: "rulesync.jsonc",
+        rulesyncDir,
+      });
+
+      expect(config.getGlobal()).toBe(false);
+    });
+
+    it("should honor config file global: true when rulesyncDir is omitted", async () => {
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ baseDirs: ["./"], global: true }),
+      );
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getGlobal()).toBe(true);
+    });
+
+    it("should allow CLI --global true to re-enable global even when rulesyncDir is set", async () => {
+      const rulesyncDir = join(testDir, "central-rules");
+      await writeFileContent(
+        join(rulesyncDir, "rulesync.jsonc"),
+        JSON.stringify({ baseDirs: ["./"], global: true }),
+      );
+
+      const config = await ConfigResolver.resolve({
+        configPath: "rulesync.jsonc",
+        rulesyncDir,
+        global: true,
+      });
+
+      expect(config.getGlobal()).toBe(true);
+    });
+
+    it("should let explicit CLI --global false win over config file global: true with rulesyncDir set", async () => {
+      const rulesyncDir = join(testDir, "central-rules");
+      await writeFileContent(
+        join(rulesyncDir, "rulesync.jsonc"),
+        JSON.stringify({ baseDirs: ["./"], global: true }),
+      );
+
+      const config = await ConfigResolver.resolve({
+        configPath: "rulesync.jsonc",
+        rulesyncDir,
+        global: false,
+      });
+
+      expect(config.getGlobal()).toBe(false);
+    });
+
+    it("should keep global false by default when rulesyncDir is set and config file does not set global", async () => {
+      const rulesyncDir = join(testDir, "central-rules");
+      await writeFileContent(
+        join(rulesyncDir, "rulesync.jsonc"),
+        JSON.stringify({ baseDirs: ["./"] }),
+      );
+
+      const config = await ConfigResolver.resolve({
+        configPath: "rulesync.jsonc",
+        rulesyncDir,
+      });
+
+      expect(config.getGlobal()).toBe(false);
+    });
+  });
+
   describe("deprecation warning for object-form features", () => {
     let warnSpy: ReturnType<typeof vi.spyOn>;
 
