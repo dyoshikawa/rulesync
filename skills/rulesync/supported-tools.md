@@ -33,3 +33,5 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 - 🌏: Supports global mode
 - 🎮: Supports simulated commands/subagents/skills (Project mode only)
 - 🔧: Supports MCP tool config (`enabledTools`/`disabledTools`)
+
+In addition to the matrix above, Claude Code supports the `scheduledTasks` feature in global mode (`.rulesync/scheduled-tasks/*/SKILL.md` ↔ `~/.claude/scheduled-tasks/*/SKILL.md`).

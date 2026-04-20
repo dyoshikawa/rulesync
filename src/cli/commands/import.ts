@@ -51,6 +51,7 @@ export async function importCommand(logger: Logger, options: ImportOptions): Pro
       commands: { count: result.commandsCount },
       subagents: { count: result.subagentsCount },
       skills: { count: result.skillsCount },
+      scheduledTasks: { count: result.scheduledTasksCount },
       hooks: { count: result.hooksCount },
       permissions: { count: result.permissionsCount },
     });
@@ -64,6 +65,7 @@ export async function importCommand(logger: Logger, options: ImportOptions): Pro
   if (result.commandsCount > 0) parts.push(`${result.commandsCount} commands`);
   if (result.subagentsCount > 0) parts.push(`${result.subagentsCount} subagents`);
   if (result.skillsCount > 0) parts.push(`${result.skillsCount} skills`);
+  if (result.scheduledTasksCount > 0) parts.push(`${result.scheduledTasksCount} scheduled tasks`);
   if (result.hooksCount > 0) parts.push(`${result.hooksCount} hooks`);
   if (result.permissionsCount > 0) parts.push(`${result.permissionsCount} permissions`);
 

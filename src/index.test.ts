@@ -47,6 +47,8 @@ const mockGenerateResult: GenerateResult = {
   subagentsPaths: [],
   skillsCount: 0,
   skillsPaths: [],
+  scheduledTasksCount: 0,
+  scheduledTasksPaths: [],
   hooksCount: 0,
   hooksPaths: [],
   permissionsCount: 0,
@@ -62,6 +64,7 @@ const mockImportResult: ImportResult = {
   commandsCount: 0,
   subagentsCount: 0,
   skillsCount: 0,
+  scheduledTasksCount: 0,
   hooksCount: 0,
   permissionsCount: 0,
 };

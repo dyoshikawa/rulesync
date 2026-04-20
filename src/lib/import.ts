@@ -5,6 +5,7 @@ import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
+import { ScheduledTasksProcessor } from "../features/skills/scheduled-tasks-processor.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import type { ToolTarget } from "../types/tool-targets.js";
@@ -17,6 +18,7 @@ export type ImportResult = {
   commandsCount: number;
   subagentsCount: number;
   skillsCount: number;
+  scheduledTasksCount: number;
   hooksCount: number;
   permissionsCount: number;
 };
@@ -37,6 +39,7 @@ export async function importFromTool(params: {
   const commandsCount = await importCommandsCore({ config, tool, logger });
   const subagentsCount = await importSubagentsCore({ config, tool, logger });
   const skillsCount = await importSkillsCore({ config, tool, logger });
+  const scheduledTasksCount = await importScheduledTasksCore({ config, tool, logger });
   const hooksCount = await importHooksCore({ config, tool, logger });
   const permissionsCount = await importPermissionsCore({ config, tool, logger });
 
@@ -47,6 +50,7 @@ export async function importFromTool(params: {
     commandsCount,
     subagentsCount,
     skillsCount,
+    scheduledTasksCount,
     hooksCount,
     permissionsCount,
   };
@@ -350,6 +354,43 @@ async function importHooksCore(params: {
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} hooks file(s)`);
+  }
+
+  return writtenCount;
+}
+
+async function importScheduledTasksCore(params: {
+  config: Config;
+  tool: ToolTarget;
+  logger: Logger;
+}): Promise<number> {
+  const { config, tool, logger } = params;
+
+  if (!config.getFeatures(tool).includes("scheduledTasks")) {
+    return 0;
+  }
+
+  const supportedTargets = ScheduledTasksProcessor.getToolTargets({ global: config.getGlobal() });
+  if (!supportedTargets.includes(tool)) {
+    return 0;
+  }
+
+  const processor = new ScheduledTasksProcessor({
+    baseDir: config.getBaseDirs()[0] ?? ".",
+    logger,
+  });
+
+  const toolDirs = await processor.loadToolDirs();
+  if (toolDirs.length === 0) {
+    logger.warn(`No scheduled task directories found for ${tool}. Skipping import.`);
+    return 0;
+  }
+
+  const rulesyncDirs = await processor.convertToolDirsToRulesyncDirs(toolDirs);
+  const { count: writtenCount } = await processor.writeAiDirs(rulesyncDirs);
+
+  if (config.getVerbose() && writtenCount > 0) {
+    logger.success(`Created ${writtenCount} scheduled task directories`);
   }
 
   return writtenCount;

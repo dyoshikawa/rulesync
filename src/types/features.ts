@@ -9,6 +9,7 @@ export const ALL_FEATURES = [
   "subagents",
   "commands",
   "skills",
+  "scheduledTasks",
   "hooks",
   "permissions",
 ] as const;

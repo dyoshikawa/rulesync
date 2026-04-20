@@ -21,6 +21,7 @@ export type CountableResult = {
   commandsCount: number;
   subagentsCount: number;
   skillsCount: number;
+  scheduledTasksCount: number;
   hooksCount: number;
   permissionsCount: number;
 };
@@ -36,6 +37,7 @@ export function calculateTotalCount(result: CountableResult): number {
     result.commandsCount +
     result.subagentsCount +
     result.skillsCount +
+    result.scheduledTasksCount +
     result.hooksCount +
     result.permissionsCount
   );

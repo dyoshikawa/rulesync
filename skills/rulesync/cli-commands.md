@@ -76,10 +76,10 @@ You can route entries to `.gitattributes` instead by setting `gitignoreDestinati
 
 ### Options
 
-| Option                      | Description                                                                                          | Default                                         |
-| --------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `--targets, -t <tools>`     | Comma-separated list of tools to include (e.g., `claudecode,copilot` or `*` for all)                 | Derived from `targets` / `gitignoreTargetsOnly` |
-| `--features, -f <features>` | Comma-separated list of features to include (rules, commands, subagents, skills, ignore, mcp, hooks) | `*` (all)                                       |
+| Option                      | Description                                                                                                                       | Default                                         |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `--targets, -t <tools>`     | Comma-separated list of tools to include (e.g., `claudecode,copilot` or `*` for all)                                              | Derived from `targets` / `gitignoreTargetsOnly` |
+| `--features, -f <features>` | Comma-separated list of features to include (rules, commands, subagents, skills, scheduledTasks, ignore, mcp, hooks, permissions) | `*` (all)                                       |
 
 ### Examples
 
@@ -134,15 +134,15 @@ rulesync fetch owner/repo@ref:path   # Both ref and path
 
 ### Options
 
-| Option                  | Description                                                                                | Default                          |
-| ----------------------- | ------------------------------------------------------------------------------------------ | -------------------------------- |
-| `--target, -t <target>` | Target format to interpret files as (e.g., 'rulesync', 'claudecode')                       | `rulesync`                       |
-| `--features <features>` | Comma-separated features to fetch (rules, commands, subagents, skills, ignore, mcp, hooks) | `*` (all)                        |
-| `--output <dir>`        | Output directory relative to project root                                                  | `.rulesync`                      |
-| `--conflict <strategy>` | Conflict resolution: `overwrite` or `skip`                                                 | `overwrite`                      |
-| `--ref <ref>`           | Git ref (branch/tag/commit) to fetch from                                                  | Default branch                   |
-| `--path <path>`         | Subdirectory in the repository                                                             | `.` (root)                       |
-| `--token <token>`       | Git provider token for private repositories                                                | `GITHUB_TOKEN` or `GH_TOKEN` env |
+| Option                  | Description                                                                                                             | Default                          |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `--target, -t <target>` | Target format to interpret files as (e.g., 'rulesync', 'claudecode')                                                    | `rulesync`                       |
+| `--features <features>` | Comma-separated features to fetch (rules, commands, subagents, skills, scheduledTasks, ignore, mcp, hooks, permissions) | `*` (all)                        |
+| `--output <dir>`        | Output directory relative to project root                                                                               | `.rulesync`                      |
+| `--conflict <strategy>` | Conflict resolution: `overwrite` or `skip`                                                                              | `overwrite`                      |
+| `--ref <ref>`           | Git ref (branch/tag/commit) to fetch from                                                                               | Default branch                   |
+| `--path <path>`         | Subdirectory in the repository                                                                                          | `.` (root)                       |
+| `--token <token>`       | Git provider token for private repositories                                                                             | `GITHUB_TOKEN` or `GH_TOKEN` env |
 
 ### Examples
 

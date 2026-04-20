@@ -68,6 +68,9 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
   if (features.includes("skills")) {
     logger.debug("Generating skill files...");
   }
+  if (features.includes("scheduledTasks")) {
+    logger.debug("Generating scheduled task files...");
+  }
   if (features.includes("hooks")) {
     logger.debug("Generating hooks...");
   }
@@ -86,6 +89,7 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
     commands: { count: result.commandsCount, paths: result.commandsPaths },
     subagents: { count: result.subagentsCount, paths: result.subagentsPaths },
     skills: { count: result.skillsCount, paths: result.skillsPaths },
+    scheduledTasks: { count: result.scheduledTasksCount, paths: result.scheduledTasksPaths },
     hooks: { count: result.hooksCount, paths: result.hooksPaths },
     permissions: { count: result.permissionsCount, paths: result.permissionsPaths },
     rules: { count: result.rulesCount, paths: result.rulesPaths },
@@ -99,6 +103,7 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
     commands: (count) => `${count === 1 ? "command" : "commands"}`,
     subagents: (count) => `${count === 1 ? "subagent" : "subagents"}`,
     skills: (count) => `${count === 1 ? "skill" : "skills"}`,
+    scheduledTasks: (count) => `${count === 1 ? "scheduled task" : "scheduled tasks"}`,
     hooks: (count) => `${count === 1 ? "hooks file" : "hooks files"}`,
     permissions: (count) => `${count === 1 ? "permissions file" : "permissions files"}`,
   };
@@ -147,6 +152,7 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
   if (result.commandsCount > 0) parts.push(`${result.commandsCount} commands`);
   if (result.subagentsCount > 0) parts.push(`${result.subagentsCount} subagents`);
   if (result.skillsCount > 0) parts.push(`${result.skillsCount} skills`);
+  if (result.scheduledTasksCount > 0) parts.push(`${result.scheduledTasksCount} scheduled tasks`);
   if (result.hooksCount > 0) parts.push(`${result.hooksCount} hooks`);
   if (result.permissionsCount > 0) parts.push(`${result.permissionsCount} permissions`);
 

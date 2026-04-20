@@ -269,6 +269,25 @@ The skill can include:
 Skills are directory-based and can include additional files alongside SKILL.md.
 ```
 
+## `.rulesync/scheduled-tasks/*/SKILL.md`
+
+Claude Code Desktop scheduled tasks use the same SKILL.md structure as skills, but are generated to a different destination directory in global mode.
+
+- Source: `.rulesync/scheduled-tasks/<task-name>/SKILL.md`
+- Output (Claude Code global mode): `~/.claude/scheduled-tasks/<task-name>/SKILL.md`
+
+Example:
+
+```md
+---
+name: daily-review
+description: Review and summarize today's changes
+targets: ["claudecode"]
+---
+
+Collect updates and provide a concise status summary.
+```
+
 ## `.rulesync/mcp.json`
 
 Example:

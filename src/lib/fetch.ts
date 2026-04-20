@@ -51,6 +51,7 @@ const FEATURE_PATHS: Record<Feature, string[]> = {
   commands: ["commands"],
   subagents: ["subagents"],
   skills: ["skills"],
+  scheduledTasks: ["scheduled-tasks"],
   ignore: [RULESYNC_AIIGNORE_FILE_NAME],
   mcp: [RULESYNC_MCP_FILE_NAME],
   hooks: [RULESYNC_HOOKS_FILE_NAME],

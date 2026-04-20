@@ -11,6 +11,7 @@ import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
+import { ScheduledTasksProcessor } from "../features/skills/scheduled-tasks-processor.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { AiDir } from "../types/ai-dir.js";
@@ -38,6 +39,8 @@ export type GenerateResult = {
   subagentsPaths: string[];
   skillsCount: number;
   skillsPaths: string[];
+  scheduledTasksCount: number;
+  scheduledTasksPaths: string[];
   hooksCount: number;
   hooksPaths: string[];
   permissionsCount: number;
@@ -185,6 +188,7 @@ export async function generate(params: {
   const commandsResult = await generateCommandsCore({ config, logger });
   const subagentsResult = await generateSubagentsCore({ config, logger });
   const skillsResult = await generateSkillsCore({ config, logger });
+  const scheduledTasksResult = await generateScheduledTasksCore({ config, logger });
   const hooksResult = await generateHooksCore({ config, logger });
   // NOTE: Permissions MUST run after ignore. Both features write to `.claude/settings.json`
   // (ignore writes Read deny entries, permissions merges all permission arrays).
@@ -199,6 +203,7 @@ export async function generate(params: {
     commandsResult.hasDiff ||
     subagentsResult.hasDiff ||
     skillsResult.hasDiff ||
+    scheduledTasksResult.hasDiff ||
     hooksResult.hasDiff ||
     permissionsResult.hasDiff ||
     rulesResult.hasDiff;
@@ -216,6 +221,8 @@ export async function generate(params: {
     subagentsPaths: subagentsResult.paths,
     skillsCount: skillsResult.count,
     skillsPaths: skillsResult.paths,
+    scheduledTasksCount: scheduledTasksResult.count,
+    scheduledTasksPaths: scheduledTasksResult.paths,
     hooksCount: hooksResult.count,
     hooksPaths: hooksResult.paths,
     permissionsCount: permissionsResult.count,
@@ -574,6 +581,49 @@ async function generateHooksCore(params: {
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
       const result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
+
+      totalCount += result.count;
+      allPaths.push(...result.paths);
+      if (result.hasDiff) hasDiff = true;
+    }
+  }
+
+  return { count: totalCount, paths: allPaths, hasDiff };
+}
+
+async function generateScheduledTasksCore(params: {
+  config: Config;
+  logger: Logger;
+}): Promise<FeatureGenerateResult> {
+  const { config, logger } = params;
+
+  let totalCount = 0;
+  const allPaths: string[] = [];
+  let hasDiff = false;
+
+  const supportedTargets = ScheduledTasksProcessor.getToolTargets({ global: config.getGlobal() });
+  const toolTargets = intersection(config.getTargets(), supportedTargets);
+  warnUnsupportedTargets({ config, supportedTargets, featureName: "scheduledTasks", logger });
+
+  for (const baseDir of config.getBaseDirs()) {
+    for (const toolTarget of toolTargets) {
+      if (!config.getFeatures(toolTarget).includes("scheduledTasks")) {
+        continue;
+      }
+
+      const processor = new ScheduledTasksProcessor({
+        baseDir,
+        dryRun: config.isPreviewMode(),
+        logger,
+      });
+
+      const rulesyncDirs = await processor.loadRulesyncDirs();
+      const toolDirs = await processor.convertRulesyncDirsToToolDirs(rulesyncDirs);
+      const result = await processDirFeatureGeneration({
+        config,
+        processor,
+        toolDirs,
+      });
 
       totalCount += result.count;
       allPaths.push(...result.paths);
