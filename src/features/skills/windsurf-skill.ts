@@ -35,7 +35,8 @@ export type WindsurfSkillParams = {
 
 /**
  * Represents a Windsurf skill directory.
- * Skills are stored under the .windsurf/skills directory with SKILL.md files.
+ * Windsurf supports skills in both project mode under .windsurf/skills/
+ * and global mode under ~/.codeium/windsurf/skills/
  */
 export class WindsurfSkill extends ToolSkill {
   constructor({

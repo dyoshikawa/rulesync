@@ -526,6 +526,8 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
         extension: "md",
         supportsGlobal: false,
         ruleDiscoveryMode: "auto",
+        // No additionalConventions.skills needed: Windsurf Cascade auto-discovers
+        // skills from .windsurf/skills/ and ~/.codeium/windsurf/skills/ directories.
       },
     },
   ],

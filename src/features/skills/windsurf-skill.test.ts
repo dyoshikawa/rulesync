@@ -114,6 +114,24 @@ This is the body of the windsurf skill.`;
       ).rejects.toThrow(/SKILL\.md not found/);
     });
 
+    it("should throw when frontmatter is invalid", async () => {
+      const skillDir = join(testDir, ".windsurf", "skills", "bad-fm");
+      await ensureDir(skillDir);
+      const skillContent = `---
+name: Bad Skill
+---
+
+Missing description field.`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      await expect(
+        WindsurfSkill.fromDir({
+          baseDir: testDir,
+          dirName: "bad-fm",
+        }),
+      ).rejects.toThrow(/Invalid frontmatter/);
+    });
+
     it("should create instance from global skill directory", async () => {
       const skillDir = join(testDir, ".codeium", "windsurf", "skills", "global-skill");
       await ensureDir(skillDir);
