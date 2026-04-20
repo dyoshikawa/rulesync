@@ -25,6 +25,8 @@ export type Features = z.infer<typeof FeaturesSchema>;
 
 // Type for individual feature array with wildcard support
 export type FeatureWithWildcard = Feature | "*";
+export const GitignoreDestinationSchema = z.enum(["gitignore", "gitattributes"]);
+export type GitignoreDestination = z.infer<typeof GitignoreDestinationSchema>;
 
 // Free-form options object that may be passed for a specific feature.
 // Each tool/feature is responsible for parsing and validating its own keys.
@@ -34,7 +36,7 @@ export type FeatureOptions = Record<string, unknown>;
 // - true: enable with default options
 // - false: disable
 // - object: enable with the given options
-export type FeatureValue = boolean | FeatureOptions;
+export type FeatureValue = boolean | FeatureOptions | GitignoreDestination;
 
 // Schema for features - supports both array and per-target object formats
 // Array format: ["rules", "ignore", ...] or ["*"]
@@ -42,7 +44,11 @@ export type FeatureValue = boolean | FeatureOptions;
 // Object format (per-feature options per target):
 //   { "claudecode": { "ignore": { "fileMode": "local" }, "rules": true } }
 export const FeatureOptionsSchema = z.record(z.string(), z.unknown());
-export const FeatureValueSchema = z.union([z.boolean(), FeatureOptionsSchema]);
+export const FeatureValueSchema = z.union([
+  z.boolean(),
+  FeatureOptionsSchema,
+  GitignoreDestinationSchema,
+]);
 // NOTE: We use `z.string()` as the key schema instead of `z.enum(...)` because
 // `z.record(z.enum(...))` requires ALL enum members to be present, which
 // rejects valid partial configs like `{ ignore: { fileMode: "local" } }`.

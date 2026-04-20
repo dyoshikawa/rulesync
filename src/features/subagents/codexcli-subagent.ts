@@ -26,6 +26,23 @@ export const CodexCliSubagentTomlSchema = z.looseObject({
 
 type CodexCliSubagentToml = z.infer<typeof CodexCliSubagentTomlSchema>;
 
+function stringifyCodexCliSubagentToml(tomlObj: CodexCliSubagentToml): string {
+  const { developer_instructions, ...restFields } = tomlObj;
+  const restToml = smolToml.stringify(restFields).trimEnd();
+
+  if (developer_instructions === undefined) {
+    return restToml;
+  }
+
+  const developerInstructionsToml = developer_instructions.includes("\n")
+    ? developer_instructions.includes("'''")
+      ? smolToml.stringify({ developer_instructions }).trimEnd()
+      : `developer_instructions = '''\n${developer_instructions}\n'''`
+    : smolToml.stringify({ developer_instructions }).trimEnd();
+
+  return [restToml, developerInstructionsToml].filter((value) => value.length > 0).join("\n");
+}
+
 export type CodexCliSubagentParams = {
   body: string;
 } & AiFileParams;
@@ -124,7 +141,7 @@ export class CodexCliSubagent extends ToolSubagent {
       ...codexcliSection,
     };
 
-    const body = smolToml.stringify(tomlObj);
+    const body = stringifyCodexCliSubagentToml(tomlObj);
     const paths = this.getSettablePaths({ global });
     const relativeFilePath = rulesyncSubagent.getRelativeFilePath().replace(/\.md$/, ".toml");
 

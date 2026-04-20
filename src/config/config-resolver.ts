@@ -46,6 +46,7 @@ const getDefaults = (): RequiredConfigParams & { configPath: string } => ({
   simulateSubagents: false,
   simulateSkills: false,
   gitignoreTargetsOnly: true,
+  gitignoreDestination: "gitignore",
   dryRun: false,
   check: false,
   sources: [],
@@ -95,6 +96,7 @@ const mergeConfigs = (
     simulateSubagents: localConfig.simulateSubagents ?? baseConfig.simulateSubagents,
     simulateSkills: localConfig.simulateSkills ?? baseConfig.simulateSkills,
     gitignoreTargetsOnly: localConfig.gitignoreTargetsOnly ?? baseConfig.gitignoreTargetsOnly,
+    gitignoreDestination: localConfig.gitignoreDestination ?? baseConfig.gitignoreDestination,
     dryRun: localConfig.dryRun ?? baseConfig.dryRun,
     check: localConfig.check ?? baseConfig.check,
     sources: localConfig.sources ?? baseConfig.sources,
@@ -118,6 +120,7 @@ export class ConfigResolver {
     gitignoreTargetsOnly,
     dryRun,
     check,
+    gitignoreDestination,
   }: ConfigResolverResolveParams): Promise<Config> {
     // Validate configPath to prevent path traversal attacks
     const validatedConfigPath = resolvePath(configPath, process.cwd());
@@ -206,6 +209,10 @@ export class ConfigResolver {
       simulateSubagents: resolvedSimulateSubagents,
       simulateSkills: resolvedSimulateSkills,
       gitignoreTargetsOnly: resolvedGitignoreTargetsOnly,
+      gitignoreDestination:
+        gitignoreDestination ??
+        configByFile.gitignoreDestination ??
+        getDefaults().gitignoreDestination,
       dryRun: dryRun ?? configByFile.dryRun ?? getDefaults().dryRun,
       check: check ?? configByFile.check ?? getDefaults().check,
       sources: configByFile.sources ?? getDefaults().sources,
