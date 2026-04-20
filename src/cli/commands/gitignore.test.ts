@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ConfigResolver } from "../../config/config-resolver.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
 import { ALL_GITIGNORE_ENTRIES, filterGitignoreEntries } from "./gitignore-entries.js";
@@ -11,6 +12,13 @@ const buildRulesyncBlock = (): string => {
 };
 
 vi.mock("../../utils/file.js");
+vi.mock("../../config/config-resolver.js", () => ({
+  ConfigResolver: {
+    resolve: vi.fn().mockResolvedValue({
+      getGitignoreDestination: vi.fn().mockReturnValue("gitignore"),
+    }),
+  },
+}));
 
 describe("gitignore entries", () => {
   it("should use forward slashes only in all entries for .gitignore compatibility", () => {
@@ -222,15 +230,19 @@ dist/`;
     it("should report that .gitignore is already up to date", async () => {
       const rulesyncBlock = buildRulesyncBlock();
 
-      vi.mocked(fileExists).mockResolvedValue(true);
-      vi.mocked(readFileContent).mockResolvedValue(rulesyncBlock);
+      vi.mocked(fileExists).mockImplementation(async (path: string) => path.endsWith(".gitignore"));
+      vi.mocked(readFileContent).mockImplementation(async (path: string) =>
+        path.endsWith(".gitignore") ? rulesyncBlock : "",
+      );
       vi.mocked(writeFileContent).mockClear();
       vi.mocked(mockLogger.success).mockClear();
       vi.mocked(mockLogger.info).mockClear();
 
       await gitignoreCommand(mockLogger);
 
-      expect(mockLogger.success).toHaveBeenCalledWith(".gitignore is already up to date");
+      expect(mockLogger.success).toHaveBeenCalledWith(
+        ".gitignore / .gitattributes are already up to date",
+      );
       expect(writeFileContent).not.toHaveBeenCalled();
     });
   });
@@ -269,8 +281,10 @@ dist/`;
     it("should not log Antigravity workaround info when already up to date", async () => {
       const rulesyncBlock = buildRulesyncBlock();
 
-      vi.mocked(fileExists).mockResolvedValue(true);
-      vi.mocked(readFileContent).mockResolvedValue(rulesyncBlock);
+      vi.mocked(fileExists).mockImplementation(async (path: string) => path.endsWith(".gitignore"));
+      vi.mocked(readFileContent).mockImplementation(async (path: string) =>
+        path.endsWith(".gitignore") ? rulesyncBlock : "",
+      );
       vi.mocked(mockLogger.info).mockClear();
 
       await gitignoreCommand(mockLogger);
@@ -460,6 +474,27 @@ dist/`;
       expect(content).toContain("**/.github/prompts/");
       expect(content).not.toContain("**/.github/agents/");
       expect(content).not.toContain("**/CLAUDE.md");
+    });
+  });
+
+  describe("gitattributes destination", () => {
+    it("writes entries to .gitattributes when target destination is configured", async () => {
+      const getGitignoreDestination = vi
+        .fn()
+        .mockImplementation((target: string) =>
+          target === "claudecode" ? "gitattributes" : "gitignore",
+        );
+      vi.mocked(ConfigResolver.resolve).mockResolvedValueOnce({
+        getGitignoreDestination,
+      } as never);
+      vi.mocked(fileExists).mockResolvedValue(false);
+
+      await gitignoreCommand(mockLogger, { targets: ["claudecode"], features: ["rules"] });
+
+      expect(writeFileContent).toHaveBeenCalledWith(
+        "/workspace/.gitattributes",
+        expect.stringContaining("**/CLAUDE.md"),
+      );
     });
   });
 });

@@ -1,3 +1,4 @@
+import { GITIGNORE_DESTINATION_KEY } from "../../config/config.js";
 import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import {
   ALL_FEATURES_WITH_WILDCARD,
@@ -236,6 +237,12 @@ type FilterGitignoreEntriesParams = {
   readonly features?: RulesyncFeatures;
 };
 
+export type ResolvedGitignoreEntry = {
+  readonly entry: string;
+  readonly target: ReadonlyArray<GitignoreEntryTarget>;
+  readonly feature: Feature | "general";
+};
+
 const isTargetSelected = (
   target: GitignoreEntryTag["target"],
   selectedTargets: ReadonlyArray<string> | undefined,
@@ -339,6 +346,7 @@ const warnInvalidFeatures = (features: RulesyncFeatures, logger?: Logger): void 
         }
       } else {
         for (const feature of Object.keys(targetFeatures)) {
+          if (feature === GITIGNORE_DESTINATION_KEY) continue;
           warnOnce(feature);
         }
       }
@@ -349,6 +357,12 @@ const warnInvalidFeatures = (features: RulesyncFeatures, logger?: Logger): void 
 export const filterGitignoreEntries = (
   params?: FilterGitignoreEntriesParams & { logger?: Logger },
 ): string[] => {
+  return resolveGitignoreEntries(params).map((entry) => entry.entry);
+};
+
+export const resolveGitignoreEntries = (
+  params?: FilterGitignoreEntriesParams & { logger?: Logger },
+): ResolvedGitignoreEntry[] => {
   const { targets, features, logger } = params ?? {};
 
   if (targets && targets.length > 0) {
@@ -359,7 +373,7 @@ export const filterGitignoreEntries = (
   }
 
   const seen = new Set<string>();
-  const result: string[] = [];
+  const result: ResolvedGitignoreEntry[] = [];
 
   for (const tag of GITIGNORE_ENTRY_REGISTRY) {
     if (!isTargetSelected(tag.target, targets)) continue;
@@ -367,7 +381,11 @@ export const filterGitignoreEntries = (
     if (!isFeatureSelected(tag.feature, selectedTagTargets, features)) continue;
     if (seen.has(tag.entry)) continue;
     seen.add(tag.entry);
-    result.push(tag.entry);
+    result.push({
+      entry: tag.entry,
+      target: selectedTagTargets,
+      feature: tag.feature,
+    });
   }
 
   return result;
