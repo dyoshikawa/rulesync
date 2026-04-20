@@ -452,11 +452,11 @@ For Codex CLI, this generates a `rulesync` named profile in `.codex/config.toml`
 - `edit` / `write`: `allow` → `write`, `ask`/`deny` → `none` in `permissions.<profile>.filesystem`
 - `webfetch`: `allow`/`deny` map to `permissions.<profile>.network.domains` (Codex does not support `ask` for domain rules)
 
-For Gemini CLI, this generates `tools.allowed` and `tools.exclude` in `.gemini/settings.json` (project/global depending on mode):
+For Gemini CLI, this generates a Policy Engine file `.gemini/rulesync-permissions.toml` and appends that file path to `policyPaths` in `.gemini/settings.json` (project/global depending on mode):
 
-- `allow` rules are converted into `tools.allowed` entries
-- `deny` rules are converted into `tools.exclude` entries
-- `ask` rules are skipped with a warning (Gemini CLI settings do not support explicit ask entries)
+- `allow` / `deny` / `ask` rules are converted into Policy Engine `decision` values `allow` / `deny` / `ask_user`
+- `bash` rules are generated with `toolName = "run_shell_command"` (using `commandPrefix` when the rule pattern is not `*`)
+- Non-`bash` rules are generated with `toolName` + `argsPattern`
 - Tool categories are mapped as: `bash` → `run_shell_command`, `read` → `read_file`, `edit` → `replace`, `write` → `write_file`, `webfetch` → `web_fetch`
 
 For Kiro, this generates tool permission settings in `.kiro/agents/default.json` (project mode):

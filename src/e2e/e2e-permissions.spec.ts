@@ -81,7 +81,7 @@ describe("E2E: permissions", () => {
     expect(rulesContent).toContain('decision = "forbidden"');
   });
 
-  it("should generate geminicli permissions into .gemini/settings.json", async () => {
+  it("should generate geminicli permissions into .gemini/settings.json and policy TOML", async () => {
     const testDir = getTestDir();
 
     await writeFileContent(
@@ -101,11 +101,20 @@ describe("E2E: permissions", () => {
 
     await runGenerate({ target: "geminicli", features: "permissions" });
 
-    const content = JSON.parse(await readFileContent(join(testDir, ".gemini", "settings.json")));
-    expect(content.tools.allowed).toContain("run_shell_command(git *)");
-    expect(content.tools.allowed).toContain("read_file(src/**)");
-    expect(content.tools.exclude).toContain("run_shell_command(rm *)");
-    expect(content.tools.exclude).toContain("web_fetch(example.com)");
+    const settingsContent = JSON.parse(
+      await readFileContent(join(testDir, ".gemini", "settings.json")),
+    );
+    expect(settingsContent.policyPaths).toContain(".gemini/rulesync-permissions.toml");
+    expect(settingsContent.tools?.allowed).toBeUndefined();
+    expect(settingsContent.tools?.exclude).toBeUndefined();
+
+    const policyContent = await readFileContent(
+      join(testDir, ".gemini", "rulesync-permissions.toml"),
+    );
+    expect(policyContent).toContain('toolName = "run_shell_command"');
+    expect(policyContent).toContain('commandPrefix = "git"');
+    expect(policyContent).toContain('decision = "deny"');
+    expect(policyContent).toContain('toolName = "web_fetch"');
   });
 
   it("should generate kiro permissions into .kiro/agents/default.json", async () => {

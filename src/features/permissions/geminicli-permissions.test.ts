@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
-import { GeminicliPermissions } from "./geminicli-permissions.js";
+import { createGeminicliPolicyFile, GeminicliPermissions } from "./geminicli-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
 describe("GeminicliPermissions", () => {
@@ -21,7 +21,7 @@ describe("GeminicliPermissions", () => {
     vi.restoreAllMocks();
   });
 
-  it("should convert rulesync permissions to Gemini CLI tools allowed/exclude", async () => {
+  it("should convert rulesync permissions to Gemini CLI policyPaths", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
       baseDir: testDir,
       relativeDirPath: ".rulesync",
@@ -40,9 +40,29 @@ describe("GeminicliPermissions", () => {
     });
 
     const content = JSON.parse(geminiPermissions.getFileContent());
-    expect(content.tools.allowed).toContain("run_shell_command(git *)");
-    expect(content.tools.allowed).toContain("read_file(src/**)");
-    expect(content.tools.exclude).toContain("run_shell_command(rm *)");
+    expect(content.policyPaths).toContain(".gemini/rulesync-permissions.toml");
+    expect(content.tools?.allowed).toBeUndefined();
+    expect(content.tools?.exclude).toBeUndefined();
+  });
+
+  it("should create Gemini CLI policy TOML from rulesync permissions", () => {
+    const policyFile = createGeminicliPolicyFile({
+      baseDir: testDir,
+      config: {
+        permission: {
+          bash: { "git *": "allow", "rm *": "deny", "*": "ask" },
+          read: { "src/**": "allow" },
+        },
+      },
+    });
+
+    expect(policyFile.getRelativeDirPath()).toBe(".gemini");
+    expect(policyFile.getRelativeFilePath()).toBe("rulesync-permissions.toml");
+    expect(policyFile.getFileContent()).toContain('toolName = "run_shell_command"');
+    expect(policyFile.getFileContent()).toContain('commandPrefix = "git"');
+    expect(policyFile.getFileContent()).toContain('decision = "ask_user"');
+    expect(policyFile.getFileContent()).toContain('toolName = "read_file"');
+    expect(policyFile.getFileContent()).toContain('argsPattern = "src/.*"');
   });
 
   it("should convert Gemini CLI tools allowed/exclude to rulesync format", () => {

@@ -1,9 +1,11 @@
 import { join } from "node:path";
 
+import * as smolToml from "smol-toml";
 import { z } from "zod/mini";
 
 import type { ValidationResult } from "../../types/ai-file.js";
 import type { PermissionsConfig } from "../../types/permissions.js";
+import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -16,6 +18,7 @@ import {
 } from "./tool-permissions.js";
 
 const GeminiCliSettingsSchema = z.looseObject({
+  policyPaths: z.optional(z.array(z.string())),
   tools: z.optional(
     z.looseObject({
       allowed: z.optional(z.array(z.string())),
@@ -81,17 +84,22 @@ export class GeminicliPermissions extends ToolPermissions {
       );
     }
 
-    const { allowed, exclude } = convertRulesyncToGeminicliTools({
+    const { allowed: _allowed, exclude: _exclude } = convertRulesyncToGeminicliTools({
       config: rulesyncPermissions.getJson(),
       logger,
     });
+    void _allowed;
+    void _exclude;
+    const { allowed, exclude, ...restTools } = settingsResult.data.tools ?? {};
+    void allowed;
+    void exclude;
     const merged = {
       ...settingsResult.data,
-      tools: {
-        ...settingsResult.data.tools,
-        ...(allowed.length > 0 ? { allowed } : {}),
-        ...(exclude.length > 0 ? { exclude } : {}),
-      },
+      ...(Object.keys(restTools).length > 0 ? { tools: restTools } : {}),
+      policyPaths: mergePolicyPaths({
+        policyPaths: settingsResult.data.policyPaths,
+        rulesyncPolicyPath: join(".gemini", "rulesync-permissions.toml"),
+      }),
     };
 
     return new GeminicliPermissions({
@@ -151,6 +159,99 @@ export class GeminicliPermissions extends ToolPermissions {
       validate: false,
     });
   }
+}
+
+export class GeminicliPolicyFile extends ToolFile {
+  validate(): ValidationResult {
+    return { success: true, error: null };
+  }
+}
+
+export function createGeminicliPolicyFile({
+  baseDir = process.cwd(),
+  config,
+}: {
+  baseDir?: string;
+  config: PermissionsConfig;
+}): GeminicliPolicyFile {
+  return new GeminicliPolicyFile({
+    baseDir,
+    relativeDirPath: ".gemini",
+    relativeFilePath: "rulesync-permissions.toml",
+    fileContent: buildGeminicliPolicyContent(config),
+  });
+}
+
+function buildGeminicliPolicyContent(config: PermissionsConfig): string {
+  const rule: Record<string, unknown>[] = [];
+  for (const [toolName, rules] of Object.entries(config.permission)) {
+    const mappedToolName = RULESYNC_TO_GEMINICLI_TOOL_NAME[toolName] ?? toolName;
+    for (const [pattern, action] of Object.entries(rules)) {
+      const currentRule: Record<string, unknown> = {
+        toolName: mappedToolName,
+        decision: mapToGeminicliDecision(action),
+        priority: 100,
+      };
+      if (mappedToolName === "run_shell_command") {
+        if (pattern !== "*") {
+          currentRule.commandPrefix = pattern.endsWith(" *") ? pattern.slice(0, -2) : pattern;
+        }
+      } else if (pattern !== "*") {
+        currentRule.argsPattern = globPatternToRegex(pattern);
+      }
+      rule.push(currentRule);
+    }
+  }
+  return smolToml.stringify({ rule });
+}
+
+function mapToGeminicliDecision(action: "allow" | "deny" | "ask"): "allow" | "deny" | "ask_user" {
+  if (action === "ask") {
+    return "ask_user";
+  }
+  return action;
+}
+
+function globPatternToRegex(pattern: string): string {
+  let regex = "";
+  for (let i = 0; i < pattern.length; i += 1) {
+    const char = pattern[i];
+    if (char === undefined) {
+      continue;
+    }
+    const next = pattern[i + 1];
+    if (char === "*" && next === "*") {
+      regex += ".*";
+      i += 1;
+      continue;
+    }
+    if (char === "*") {
+      regex += '[^\\"]*';
+      continue;
+    }
+    if (/[.+?^${}()|[\]\\]/.test(char)) {
+      regex += `\\${char}`;
+      continue;
+    }
+    regex += char;
+  }
+  return regex;
+}
+
+function mergePolicyPaths({
+  policyPaths,
+  rulesyncPolicyPath,
+}: {
+  policyPaths: unknown;
+  rulesyncPolicyPath: string;
+}): string[] {
+  const existingPolicyPaths = Array.isArray(policyPaths)
+    ? policyPaths.filter((value): value is string => typeof value === "string")
+    : [];
+  if (existingPolicyPaths.includes(rulesyncPolicyPath)) {
+    return existingPolicyPaths;
+  }
+  return [...existingPolicyPaths, rulesyncPolicyPath];
 }
 
 function convertRulesyncToGeminicliTools({
