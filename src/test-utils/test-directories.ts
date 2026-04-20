@@ -14,7 +14,9 @@ export async function setupTestDirectory({ home }: { home: boolean } = { home: f
   testDir: string;
   cleanup: () => Promise<void>;
 }> {
-  const testsDir = join(originalCwd, "tmp", "tests");
+  // Use TMPDIR environment variable to ensure writes are sandboxed-friendly
+  const baseTmpDir = process.env.TMPDIR || join(originalCwd, "tmp", "tests");
+  const testsDir = join(baseTmpDir, "rulesync-tests");
   const testDir = home
     ? join(testsDir, "home", randomString(16))
     : join(testsDir, "projects", randomString(16));
