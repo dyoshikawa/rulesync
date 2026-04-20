@@ -175,6 +175,8 @@ package-lock.json
 .rulesync/rules/my-instructions.md
 
 .cspellcache
+node-compile-cache/
+tsx-0/
 
 .serena/
 
