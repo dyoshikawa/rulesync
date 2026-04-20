@@ -49,4 +49,4 @@ They can be combined. For example, to read rules from `~/.aiglobal` and write th
 rulesync generate --rulesync-dir ~/.aiglobal --global --targets claudecode --features rules
 ```
 
-> **Note:** Passing `--rulesync-dir` does not automatically enable `--global`. If the `rulesync.jsonc` inside `--rulesync-dir` sets `"global": true`, that value is respected — but if you are running from a project directory and want project-scope output, omit `--global`.
+> **Note:** Passing `--rulesync-dir` does not automatically enable `--global`. When `--rulesync-dir` is explicitly provided, Rulesync reads `.rulesync/` from that directory, but output scope still follows the CLI flags: use `--global` for user-scope output, and omit it for project-scope output. A `"global": true` setting in the `rulesync.jsonc` under `--rulesync-dir` is not applied unless you also pass `--global`.

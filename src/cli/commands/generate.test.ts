@@ -1059,6 +1059,133 @@ describe("generateCommand", () => {
     });
   });
 
+  describe("rulesyncDir decoupling", () => {
+    // Rules source dir (where .rulesync/ lives) is independent of output baseDirs.
+    const rulesyncDir = "/central/rulesync-source";
+    const baseDirs = ["/project/app-one", "/project/app-two"];
+
+    beforeEach(() => {
+      mockConfig.getRulesyncDir.mockReturnValue(rulesyncDir);
+      mockConfig.getBaseDirs.mockReturnValue(baseDirs);
+    });
+
+    it("should check for .rulesync under rulesyncDir, not under baseDirs", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+
+      await generateCommand(mockLogger, {});
+
+      expect(fileExists).toHaveBeenCalledWith("/central/rulesync-source/.rulesync");
+      expect(fileExists).not.toHaveBeenCalledWith("/project/app-one/.rulesync");
+      expect(fileExists).not.toHaveBeenCalledWith("/project/app-two/.rulesync");
+    });
+
+    it("should construct RulesProcessor with rulesyncDir distinct from baseDir for each output dir", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+
+      await generateCommand(mockLogger, {});
+
+      expect(RulesProcessor).toHaveBeenCalledTimes(2);
+      expect(RulesProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-one",
+          rulesyncDir,
+          toolTarget: "claudecode",
+        }),
+      );
+      expect(RulesProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-two",
+          rulesyncDir,
+          toolTarget: "claudecode",
+        }),
+      );
+    });
+
+    it("should pass rulesyncDir to IgnoreProcessor independently of baseDir", async () => {
+      mockConfig.getFeatures.mockReturnValue(["ignore"]);
+
+      await generateCommand(mockLogger, {});
+
+      expect(IgnoreProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-one",
+          rulesyncDir,
+          toolTarget: "claudecode",
+        }),
+      );
+      expect(IgnoreProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-two",
+          rulesyncDir,
+          toolTarget: "claudecode",
+        }),
+      );
+    });
+
+    it("should pass rulesyncDir to McpProcessor independently of baseDir", async () => {
+      mockConfig.getFeatures.mockReturnValue(["mcp"]);
+
+      await generateCommand(mockLogger, {});
+
+      expect(McpProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-one",
+          rulesyncDir,
+          toolTarget: "claudecode",
+        }),
+      );
+      expect(McpProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-two",
+          rulesyncDir,
+          toolTarget: "claudecode",
+        }),
+      );
+    });
+
+    it("should pass rulesyncDir to CommandsProcessor independently of baseDir", async () => {
+      mockConfig.getFeatures.mockReturnValue(["commands"]);
+
+      await generateCommand(mockLogger, {});
+
+      expect(CommandsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-one",
+          rulesyncDir,
+          toolTarget: "claudecode",
+        }),
+      );
+      expect(CommandsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-two",
+          rulesyncDir,
+          toolTarget: "claudecode",
+        }),
+      );
+    });
+
+    it("should pass rulesyncDir to SubagentsProcessor independently of baseDir", async () => {
+      mockConfig.getFeatures.mockReturnValue(["subagents"]);
+
+      await generateCommand(mockLogger, {});
+
+      expect(SubagentsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-one",
+          rulesyncDir,
+          toolTarget: "claudecode",
+        }),
+      );
+      expect(SubagentsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-two",
+          rulesyncDir,
+          toolTarget: "claudecode",
+        }),
+      );
+    });
+  });
+
   describe("integration scenarios", () => {
     it("should handle mixed success and failure scenarios", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules", "ignore"]);
