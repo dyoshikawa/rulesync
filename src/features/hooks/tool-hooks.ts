@@ -68,4 +68,11 @@ export abstract class ToolHooks extends ToolFile {
   static forDeletion(_params: ToolHooksForDeletionParams): ToolHooks {
     throw new Error("Please implement this method in the subclass.");
   }
+
+  static async getAuxiliaryFiles(_params: {
+    baseDir?: string;
+    global?: boolean;
+  }): Promise<ToolFile[]> {
+    return [];
+  }
 }

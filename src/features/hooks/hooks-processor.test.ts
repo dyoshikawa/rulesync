@@ -8,6 +8,7 @@ import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
+import { CodexcliConfigToml, CodexcliHooks } from "./codexcli-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { HooksProcessor } from "./hooks-processor.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -236,6 +237,28 @@ describe("HooksProcessor", () => {
       const parsed = JSON.parse(content);
       expect(parsed.hooks.SessionStart).toBeDefined();
       expect(Array.isArray(parsed.hooks.SessionStart)).toBe(true);
+    });
+
+    it("should convert rulesync hooks to Codex CLI hooks and include auxiliary config.toml", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          sessionStart: [{ type: "command", command: "echo codex" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        baseDir: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ logger, baseDir: testDir, toolTarget: "codexcli" });
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+      expect(toolFiles).toHaveLength(2);
+      expect(toolFiles[0]).toBeInstanceOf(CodexcliHooks);
+      expect(toolFiles[1]).toBeInstanceOf(CodexcliConfigToml);
     });
 
     it("should throw when no rulesync hooks file in list", async () => {

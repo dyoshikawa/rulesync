@@ -24,6 +24,8 @@ export type ToolHooksConverterConfig = {
   canonicalToToolEventNames: Record<string, string>;
   toolToCanonicalEventNames: Record<string, string>;
   projectDirVar: string;
+  supportedHookTypes?: ReadonlySet<"command" | "prompt">;
+  passthroughFields?: ReadonlyArray<"name" | "description">;
   /**
    * When true, only dot-relative commands (e.g. ./script.sh, ../script.sh, .rulesync/hooks/x.sh)
    * are prefixed with projectDirVar. Bare executable commands like `npx prettier ...` are left intact.
@@ -82,11 +84,20 @@ export function canonicalToToolHooks({
           `matcher "${matcherKey}" on "${eventName}" hook will be ignored — this event does not support matchers`,
         );
       }
-      const hooks = defs.map((def) => {
+      const hooks: Array<Record<string, unknown>> = [];
+      for (const def of defs) {
+        const hookType = def.type ?? "command";
+        if (
+          converterConfig.supportedHookTypes &&
+          !converterConfig.supportedHookTypes.has(hookType)
+        ) {
+          continue;
+        }
         const commandText = def.command;
         const trimmedCommand =
           typeof commandText === "string" ? commandText.trimStart() : undefined;
         const shouldPrefix =
+          converterConfig.projectDirVar !== "" &&
           typeof trimmedCommand === "string" &&
           !trimmedCommand.startsWith("$") &&
           (!converterConfig.prefixDotRelativeCommandsOnly || trimmedCommand.startsWith("."));
@@ -95,17 +106,28 @@ export function canonicalToToolHooks({
           shouldPrefix && typeof trimmedCommand === "string"
             ? `${converterConfig.projectDirVar}/${trimmedCommand.replace(/^\.\//, "")}`
             : def.command;
-        return {
-          type: def.type ?? "command",
+        hooks.push({
+          type: hookType,
           ...(command !== undefined && command !== null && { command }),
           ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
           ...(def.prompt !== undefined && def.prompt !== null && { prompt: def.prompt }),
-        };
-      });
+          ...(converterConfig.passthroughFields?.includes("name") &&
+            def.name !== undefined &&
+            def.name !== null && { name: def.name }),
+          ...(converterConfig.passthroughFields?.includes("description") &&
+            def.description !== undefined &&
+            def.description !== null && { description: def.description }),
+        });
+      }
+      if (hooks.length === 0) {
+        continue;
+      }
       const includeMatcher = matcherKey && !isNoMatcherEvent;
       entries.push(includeMatcher ? { matcher: matcherKey, hooks } : { hooks });
     }
-    result[toolEventName] = entries;
+    if (entries.length > 0) {
+      result[toolEventName] = entries;
+    }
   }
   return result;
 }
@@ -140,7 +162,9 @@ export function toolHooksToCanonical({
       for (const h of hookDefs) {
         const cmd = typeof h.command === "string" ? h.command : undefined;
         const command =
-          typeof cmd === "string" && cmd.includes(`${converterConfig.projectDirVar}/`)
+          converterConfig.projectDirVar !== "" &&
+          typeof cmd === "string" &&
+          cmd.includes(`${converterConfig.projectDirVar}/`)
             ? cmd.replace(
                 new RegExp(
                   `^${converterConfig.projectDirVar.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/?`,
@@ -156,6 +180,10 @@ export function toolHooksToCanonical({
           ...(command !== undefined && command !== null && { command }),
           ...(timeout !== undefined && timeout !== null && { timeout }),
           ...(prompt !== undefined && prompt !== null && { prompt }),
+          ...(converterConfig.passthroughFields?.includes("name") &&
+            typeof h.name === "string" && { name: h.name }),
+          ...(converterConfig.passthroughFields?.includes("description") &&
+            typeof h.description === "string" && { description: h.description }),
           ...(rawEntry.matcher !== undefined &&
             rawEntry.matcher !== null &&
             rawEntry.matcher !== "" && { matcher: rawEntry.matcher }),

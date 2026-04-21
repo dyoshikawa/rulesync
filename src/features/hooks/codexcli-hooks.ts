@@ -1,11 +1,8 @@
 import { join } from "node:path";
 
 import * as smolToml from "smol-toml";
-import { z } from "zod/mini";
 
-import type { AiFileParams } from "../../types/ai-file.js";
-import type { ValidationResult } from "../../types/ai-file.js";
-import type { HooksConfig } from "../../types/hooks.js";
+import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import {
   CODEXCLI_HOOK_EVENTS,
   CODEXCLI_TO_CANONICAL_EVENT_NAMES,
@@ -15,6 +12,8 @@ import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
+import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
+import { canonicalToToolHooks, toolHooksToCanonical } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
@@ -23,108 +22,14 @@ import {
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
-/**
- * Convert canonical hooks config to Codex CLI format.
- * Filters shared hooks to CODEXCLI_HOOK_EVENTS, merges config.codexcli?.hooks,
- * then converts to PascalCase and Codex CLI matcher/hooks structure.
- * Unlike Claude Code or Gemini CLI, Codex CLI has no project directory variable,
- * so commands are passed through as-is.
- */
-function canonicalToCodexcliHooks(config: HooksConfig): Record<string, unknown[]> {
-  const codexSupported: Set<string> = new Set(CODEXCLI_HOOK_EVENTS);
-  const sharedHooks: HooksConfig["hooks"] = {};
-  for (const [event, defs] of Object.entries(config.hooks)) {
-    if (codexSupported.has(event)) {
-      sharedHooks[event] = defs;
-    }
-  }
-  const effectiveHooks: HooksConfig["hooks"] = {
-    ...sharedHooks,
-    ...config.codexcli?.hooks,
-  };
-  const codex: Record<string, unknown[]> = {};
-  for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
-    const codexEventName = CANONICAL_TO_CODEXCLI_EVENT_NAMES[eventName] ?? eventName;
-    const byMatcher = new Map<string, HooksConfig["hooks"][string]>();
-    for (const def of definitions) {
-      const key = def.matcher ?? "";
-      const list = byMatcher.get(key);
-      if (list) list.push(def);
-      else byMatcher.set(key, [def]);
-    }
-    const entries: unknown[] = [];
-    for (const [matcherKey, defs] of byMatcher) {
-      const commandDefs = defs.filter((def) => !def.type || def.type === "command");
-      if (commandDefs.length === 0) continue;
-      const hooks = commandDefs.map((def) => ({
-        type: "command" as const,
-        ...(def.command !== undefined && def.command !== null && { command: def.command }),
-        ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
-      }));
-      entries.push(matcherKey ? { matcher: matcherKey, hooks } : { hooks });
-    }
-    if (entries.length > 0) {
-      codex[codexEventName] = entries;
-    }
-  }
-  return codex;
-}
-
-/**
- * Codex CLI hook entry as stored in each matcher group's `hooks` array.
- * Uses `z.looseObject` so that unknown fields added by future Codex CLI
- * versions are accepted and silently ignored during import.
- */
-const CodexHookEntrySchema = z.looseObject({
-  type: z.optional(z.string()),
-  command: z.optional(z.string()),
-  timeout: z.optional(z.number()),
-});
-
-/**
- * A matcher group entry in a Codex CLI event array.
- * Each event maps to an array of these groups.
- */
-const CodexMatcherEntrySchema = z.looseObject({
-  matcher: z.optional(z.string()),
-  hooks: z.optional(z.array(CodexHookEntrySchema)),
-});
-
-/**
- * Extract hooks from Codex CLI hooks.json into canonical format.
- */
-function codexcliHooksToCanonical(codexHooks: unknown): HooksConfig["hooks"] {
-  if (codexHooks === null || codexHooks === undefined || typeof codexHooks !== "object") {
-    return {};
-  }
-  const canonical: HooksConfig["hooks"] = {};
-  for (const [codexEventName, matcherEntries] of Object.entries(codexHooks)) {
-    const eventName = CODEXCLI_TO_CANONICAL_EVENT_NAMES[codexEventName] ?? codexEventName;
-    if (!Array.isArray(matcherEntries)) continue;
-    const defs: HooksConfig["hooks"][string] = [];
-    for (const rawEntry of matcherEntries) {
-      const parseResult = CodexMatcherEntrySchema.safeParse(rawEntry);
-      if (!parseResult.success) continue;
-      const entry = parseResult.data;
-      const hooks = entry.hooks ?? [];
-      for (const h of hooks) {
-        const hookType = h.type === "command" || h.type === "prompt" ? h.type : "command";
-        defs.push({
-          type: hookType,
-          ...(h.command !== undefined && h.command !== null && { command: h.command }),
-          ...(h.timeout !== undefined && h.timeout !== null && { timeout: h.timeout }),
-          ...(entry.matcher !== undefined &&
-            entry.matcher !== null &&
-            entry.matcher !== "" && { matcher: entry.matcher }),
-        });
-      }
-    }
-    if (defs.length > 0) {
-      canonical[eventName] = defs;
-    }
-  }
-  return canonical;
-}
+const CODEXCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
+  supportedEvents: CODEXCLI_HOOK_EVENTS,
+  canonicalToToolEventNames: CANONICAL_TO_CODEXCLI_EVENT_NAMES,
+  toolToCanonicalEventNames: CODEXCLI_TO_CANONICAL_EVENT_NAMES,
+  projectDirVar: "",
+  supportedHookTypes: new Set(["command"]),
+  passthroughFields: ["name", "description"],
+};
 
 /**
  * Build the content for `.codex/config.toml` with `[features] codex_hooks = true`.
@@ -134,7 +39,17 @@ function codexcliHooksToCanonical(codexHooks: unknown): HooksConfig["hooks"] {
 async function buildCodexConfigTomlContent({ baseDir }: { baseDir: string }): Promise<string> {
   const configPath = join(baseDir, ".codex", "config.toml");
   const existingContent = (await readFileContentOrNull(configPath)) ?? smolToml.stringify({});
-  const configToml = smolToml.parse(existingContent);
+  let configToml: smolToml.TomlPrimitive;
+  try {
+    configToml = smolToml.parse(existingContent);
+  } catch (error) {
+    throw new Error(
+      `Failed to parse existing Codex CLI config at ${configPath}: ${formatError(error)}`,
+      {
+        cause: error,
+      },
+    );
+  }
 
   if (typeof configToml.features !== "object" || configToml.features === null) {
     // eslint-disable-next-line no-type-assertion/no-type-assertion
@@ -203,7 +118,11 @@ export class CodexcliHooks extends ToolHooks {
   }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): Promise<CodexcliHooks> {
     const paths = CodexcliHooks.getSettablePaths({ global });
     const config = rulesyncHooks.getJson();
-    const codexHooks = canonicalToCodexcliHooks(config);
+    const codexHooks = canonicalToToolHooks({
+      config,
+      toolOverrideHooks: config.codexcli?.hooks,
+      converterConfig: CODEXCLI_CONVERTER_CONFIG,
+    });
     const fileContent = JSON.stringify({ hooks: codexHooks }, null, 2);
 
     return new CodexcliHooks({
@@ -227,7 +146,10 @@ export class CodexcliHooks extends ToolHooks {
         },
       );
     }
-    const hooks = codexcliHooksToCanonical(parsed.hooks);
+    const hooks = toolHooksToCanonical({
+      hooks: parsed.hooks,
+      converterConfig: CODEXCLI_CONVERTER_CONFIG,
+    });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify({ version: 1, hooks }, null, 2),
     });
@@ -249,5 +171,14 @@ export class CodexcliHooks extends ToolHooks {
       fileContent: JSON.stringify({ hooks: {} }, null, 2),
       validate: false,
     });
+  }
+
+  static async getAuxiliaryFiles({
+    baseDir = process.cwd(),
+  }: {
+    baseDir?: string;
+    global?: boolean;
+  } = {}): Promise<ToolFile[]> {
+    return [await CodexcliConfigToml.fromBaseDir({ baseDir })];
   }
 }

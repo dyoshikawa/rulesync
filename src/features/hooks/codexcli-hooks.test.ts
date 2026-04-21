@@ -363,6 +363,25 @@ describe("CodexcliConfigToml", () => {
     expect(content).toContain("myserver");
   });
 
+  it("should preserve existing [features] values when enabling codex_hooks", async () => {
+    await ensureDir(join(testDir, ".codex"));
+    await writeFileContent(join(testDir, ".codex", "config.toml"), "[features]\nverbose = true\n");
+
+    const configToml = await CodexcliConfigToml.fromBaseDir({ baseDir: testDir });
+    const content = configToml.getFileContent();
+    expect(content).toContain("codex_hooks = true");
+    expect(content).toContain("verbose = true");
+  });
+
+  it("should throw a readable error when existing config.toml is invalid", async () => {
+    await ensureDir(join(testDir, ".codex"));
+    await writeFileContent(join(testDir, ".codex", "config.toml"), "[features");
+
+    await expect(CodexcliConfigToml.fromBaseDir({ baseDir: testDir })).rejects.toThrow(
+      "Failed to parse existing Codex CLI config",
+    );
+  });
+
   it("should set correct file paths", async () => {
     const configToml = await CodexcliConfigToml.fromBaseDir({ baseDir: testDir });
     expect(configToml.getRelativeDirPath()).toBe(".codex");
