@@ -339,7 +339,7 @@ describe("installApm", () => {
     );
     mockClientInstance.listDirectory.mockResolvedValue([]);
     await installApm({ baseDir: testDir, logger });
-    const lockBefore = await readFileContent(getApmLockPath(testDir));
+    const lockBefore = await readApmLock(testDir);
 
     mockClientInstance.resolveRefToSha.mockRejectedValue(new Error("network error"));
 
@@ -350,8 +350,189 @@ describe("installApm", () => {
     });
     expect(result.failedDependencyCount).toBe(1);
 
-    // The lockfile on disk must be untouched so the previous SHA survives.
-    const lockAfter = await readFileContent(getApmLockPath(testDir));
-    expect(lockAfter).toBe(lockBefore);
+    // The previously pinned SHA must survive the failed re-install: the
+    // lockfile is rewritten (only `generated_at` drifts) but the dependency
+    // entry itself is preserved verbatim.
+    const lockAfter = await readApmLock(testDir);
+    expect(lockAfter?.dependencies).toEqual(lockBefore?.dependencies);
+  });
+
+  it("removes files that were deployed previously but are no longer in the upstream tree", async () => {
+    await writeManifest(
+      `dependencies:
+  apm:
+    - acme/security#v1.0.0
+`,
+    );
+
+    // First install: two instruction files A and B.
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === ".apm/instructions") {
+          return [
+            {
+              name: "a.instructions.md",
+              path: ".apm/instructions/a.instructions.md",
+              type: "file",
+              size: 10,
+            },
+            {
+              name: "b.instructions.md",
+              path: ".apm/instructions/b.instructions.md",
+              type: "file",
+              size: 10,
+            },
+          ];
+        }
+        return [];
+      },
+    );
+    mockClientInstance.getFileContent.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => `content of ${path}`,
+    );
+
+    await installApm({ baseDir: testDir, logger });
+    expect(await fileExists(join(testDir, ".github/instructions/a.instructions.md"))).toBe(true);
+    expect(await fileExists(join(testDir, ".github/instructions/b.instructions.md"))).toBe(true);
+
+    // Second install: only A remains upstream.
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === ".apm/instructions") {
+          return [
+            {
+              name: "a.instructions.md",
+              path: ".apm/instructions/a.instructions.md",
+              type: "file",
+              size: 10,
+            },
+          ];
+        }
+        return [];
+      },
+    );
+
+    await installApm({ baseDir: testDir, logger, options: { update: true } });
+
+    expect(await fileExists(join(testDir, ".github/instructions/a.instructions.md"))).toBe(true);
+    // B must be removed both from disk and from the lockfile.
+    expect(await fileExists(join(testDir, ".github/instructions/b.instructions.md"))).toBe(false);
+    const lock = await readApmLock(testDir);
+    expect(lock?.dependencies[0]?.deployed_files).toEqual([
+      ".github/instructions/a.instructions.md",
+    ]);
+  });
+
+  it("--frozen refuses tampered content WITHOUT overwriting the on-disk file", async () => {
+    await writeManifest(
+      `dependencies:
+  apm:
+    - acme/security#v1.0.0
+`,
+    );
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === ".apm/instructions") {
+          return [
+            {
+              name: "a.instructions.md",
+              path: ".apm/instructions/a.instructions.md",
+              type: "file",
+              size: 100,
+            },
+          ];
+        }
+        return [];
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("original content");
+    await installApm({ baseDir: testDir, logger });
+
+    const deployedPath = join(testDir, ".github/instructions/a.instructions.md");
+    const before = await readFileContent(deployedPath);
+    expect(before).toBe("original content");
+
+    // Upstream starts returning tampered bytes under the same SHA.
+    mockClientInstance.getFileContent.mockResolvedValue("tampered content");
+
+    await expect(
+      installApm({ baseDir: testDir, logger, options: { frozen: true } }),
+    ).rejects.toThrow(/content_hash mismatch/);
+
+    // The on-disk file must still contain the original bytes, not the
+    // tampered payload.
+    const after = await readFileContent(deployedPath);
+    expect(after).toBe("original content");
+  });
+
+  it("deploys files from under dep.path (object-form path field)", async () => {
+    await writeManifest(
+      `dependencies:
+  apm:
+    - git: https://github.com/acme/mono.git
+      path: packages/security
+      ref: v1.0.0
+`,
+    );
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "packages/security/.apm/instructions") {
+          return [
+            {
+              name: "s.instructions.md",
+              path: "packages/security/.apm/instructions/s.instructions.md",
+              type: "file",
+              size: 20,
+            },
+          ];
+        }
+        return [];
+      },
+    );
+    mockClientInstance.getFileContent.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => `content of ${path}`,
+    );
+
+    const result = await installApm({ baseDir: testDir, logger });
+    expect(result.deployedFileCount).toBe(1);
+    const deployed = await readFileContent(join(testDir, ".github/instructions/s.instructions.md"));
+    expect(deployed).toBe("content of packages/security/.apm/instructions/s.instructions.md");
+    const lock = await readApmLock(testDir);
+    expect(lock?.dependencies[0]?.virtual_path).toBe("packages/security");
+  });
+
+  it("skips tree entries whose path escapes remoteBase with a warning", async () => {
+    await writeManifest(
+      `dependencies:
+  apm:
+    - acme/security#v1.0.0
+`,
+    );
+
+    // A malicious tree entry pretends to live under .apm/instructions but
+    // its `path` actually resolves outside of it. Such entries must be
+    // skipped rather than written to disk.
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === ".apm/instructions") {
+          return [
+            {
+              name: "escape.md",
+              path: "../escape.md",
+              type: "file",
+              size: 10,
+            },
+          ];
+        }
+        return [];
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("evil");
+
+    const result = await installApm({ baseDir: testDir, logger });
+    expect(result.deployedFileCount).toBe(0);
+    // The escape payload must not appear anywhere under baseDir.
+    expect(await fileExists(join(testDir, "escape.md"))).toBe(false);
+    expect(await fileExists(join(testDir, ".github/instructions/escape.md"))).toBe(false);
   });
 });

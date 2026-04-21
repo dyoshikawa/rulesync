@@ -207,8 +207,9 @@ function normalizeStringDependency(entry: string, index: number): ApmDependency 
       `apm.yml dependency #${index + 1}: FQDN shorthand or sub-path shorthand ("${entry}") is not yet supported. Use the object form with an explicit "git" URL.`,
     );
   }
-  const owner = ownerRepo.substring(0, slashIndex);
-  const repo = ownerRepo.substring(slashIndex + 1);
+  // Canonicalize owner/repo to lower-case for case-insensitive matching.
+  const owner = ownerRepo.substring(0, slashIndex).toLowerCase();
+  const repo = ownerRepo.substring(slashIndex + 1).toLowerCase();
   return {
     gitUrl: `https://github.com/${owner}/${repo}.git`,
     owner,
@@ -250,12 +251,16 @@ function parseHttpsGitHubUrl(url: string): { gitUrl: string; owner: string; repo
   if (segments.length < 2) {
     return null;
   }
-  const owner = segments[0];
+  const rawOwner = segments[0];
   const rawRepo = segments[1];
-  if (!owner || !rawRepo) {
+  if (!rawOwner || !rawRepo) {
     return null;
   }
-  const repo = rawRepo.replace(/\.git$/, "");
+  // GitHub treats owner/repo names case-insensitively for routing. Canonicalize
+  // to lower-case so that lockfile comparisons and frozen-mode checks are not
+  // tripped up by a user re-casing their manifest.
+  const owner = rawOwner.toLowerCase();
+  const repo = rawRepo.replace(/\.git$/, "").toLowerCase();
   return {
     gitUrl: `https://github.com/${owner}/${repo}.git`,
     owner,

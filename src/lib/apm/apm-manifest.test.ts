@@ -168,6 +168,33 @@ dependencies:
     ).toThrow(/must be a non-empty relative path without a leading slash/);
   });
 
+  it("canonicalizes owner and repo to lower-case (shorthand)", () => {
+    const manifest = parseApmManifest(
+      `dependencies:
+  apm:
+    - Owner/Repo#v1.0.0
+`,
+    );
+    expect(manifest.dependencies[0]).toMatchObject({
+      owner: "owner",
+      repo: "repo",
+      gitUrl: "https://github.com/owner/repo.git",
+    });
+  });
+
+  it("canonicalizes owner and repo to lower-case (object form URL)", () => {
+    const manifest = parseApmManifest(
+      `dependencies:
+  apm:
+    - git: https://github.com/Acme/Coding-Standards.git
+`,
+    );
+    expect(manifest.dependencies[0]).toMatchObject({
+      owner: "acme",
+      repo: "coding-standards",
+    });
+  });
+
   it("rejects object-form entries missing the git field", () => {
     expect(() =>
       parseApmManifest(

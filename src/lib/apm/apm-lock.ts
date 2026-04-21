@@ -1,12 +1,12 @@
 import { join } from "node:path";
 
 import { dump, load } from "js-yaml";
-import { optional, refine, z } from "zod/mini";
+import { nonnegative, optional, refine, regex, z } from "zod/mini";
 
 import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
 
 export const APM_LOCKFILE_FILE_NAME = "apm.lock.yaml";
-export const APM_LOCKFILE_VERSION = "1";
+export const APM_LOCKFILE_VERSION = "1" as const;
 
 /**
  * Single dependency entry in `apm.lock.yaml`. Mirrors the subset of the
@@ -24,10 +24,12 @@ export const ApmLockDependencySchema = z.looseObject({
   ),
   resolved_ref: optional(z.string()),
   version: optional(z.string()),
-  depth: z.number(),
+  depth: z.int().check(nonnegative()),
   resolved_by: optional(z.string()),
   package_type: z.string(),
-  content_hash: optional(z.string()),
+  content_hash: optional(
+    z.string().check(regex(/^sha256:[0-9a-f]{64}$/, "content_hash must be sha256:<64-char-hex>")),
+  ),
   is_dev: optional(z.boolean()),
   deployed_files: z.array(z.string()),
   source: optional(z.string()),
@@ -38,7 +40,7 @@ export const ApmLockDependencySchema = z.looseObject({
 export type ApmLockDependency = z.infer<typeof ApmLockDependencySchema>;
 
 export const ApmLockSchema = z.looseObject({
-  lockfile_version: z.string(),
+  lockfile_version: z.literal("1"),
   generated_at: z.string(),
   apm_version: z.string(),
   dependencies: z.array(ApmLockDependencySchema),
@@ -69,8 +71,11 @@ export function createEmptyApmLock(params: { apmVersion: string }): ApmLock {
 }
 
 /**
- * Parse `apm.lock.yaml` content into an `ApmLock`. Returns `null` if the
- * content is empty or invalid so callers can fall back to an empty lock.
+ * Parse `apm.lock.yaml` content into an `ApmLock`. Returns `null` when the
+ * content is absent / empty / non-YAML-object so callers can treat the lock
+ * as missing. A *structurally* present lockfile that fails schema validation
+ * throws a descriptive error rather than being silently dropped — silently
+ * discarding a corrupt lockfile would erase previously pinned commits.
  */
 export function parseApmLock(content: string): ApmLock | null {
   if (!content.trim()) {
@@ -87,7 +92,10 @@ export function parseApmLock(content: string): ApmLock | null {
   }
   const parsed = ApmLockSchema.safeParse(loaded);
   if (!parsed.success) {
-    return null;
+    const issues = parsed.error.issues
+      .map((issue) => `  - ${issue.path.join(".") || "<root>"}: ${issue.message}`)
+      .join("\n");
+    throw new Error(`Invalid ${APM_LOCKFILE_FILE_NAME}:\n${issues}`);
   }
   return parsed.data;
 }
@@ -114,11 +122,15 @@ export function serializeApmLock(lock: ApmLock): string {
 }
 
 /**
- * Find the locked entry for a repo_url (case-sensitive), if any.
+ * Find the locked entry for a repo_url. GitHub routes `owner/repo` path
+ * components case-insensitively, so the comparison here is case-insensitive
+ * to match `apm-manifest.ts` canonicalization and avoid frozen-mode false
+ * positives when users re-case their manifest.
  */
 export function findApmLockDependency(
   lock: ApmLock,
   repoUrl: string,
 ): ApmLockDependency | undefined {
-  return lock.dependencies.find((d) => d.repo_url === repoUrl);
+  const target = repoUrl.toLowerCase();
+  return lock.dependencies.find((d) => d.repo_url.toLowerCase() === target);
 }

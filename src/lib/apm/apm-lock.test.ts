@@ -65,6 +65,7 @@ dependencies:
     });
 
     it("preserves unknown fields via looseObject", () => {
+      const validHash = `sha256:${"0".repeat(64)}`;
       const content = `lockfile_version: "1"
 generated_at: "2026-04-20T00:00:00Z"
 apm_version: "0.7.7"
@@ -76,7 +77,7 @@ dependencies:
     resolved_ref: main
     depth: 1
     package_type: apm_package
-    content_hash: sha256:abc
+    content_hash: ${validHash}
     deployed_files: []
     future_field: preserved
 `;
@@ -84,12 +85,12 @@ dependencies:
       expect(parsed).not.toBeNull();
       expect(parsed?.mcp_servers).toEqual(["security-scanner"]);
       expect(parsed?.dependencies[0]).toMatchObject({
-        content_hash: "sha256:abc",
+        content_hash: validHash,
         future_field: "preserved",
       });
     });
 
-    it("rejects dependencies with a non-SHA resolved_commit", () => {
+    it("throws when a dependency has a non-SHA resolved_commit", () => {
       const content = `lockfile_version: "1"
 generated_at: "2026-04-20T00:00:00Z"
 apm_version: "0.7.7"
@@ -101,7 +102,47 @@ dependencies:
     package_type: apm_package
     deployed_files: []
 `;
-      expect(parseApmLock(content)).toBeNull();
+      expect(() => parseApmLock(content)).toThrow(/resolved_commit/);
+    });
+
+    it("throws when depth is negative", () => {
+      const content = `lockfile_version: "1"
+generated_at: "2026-04-20T00:00:00Z"
+apm_version: "0.7.7"
+dependencies:
+  - repo_url: https://github.com/owner/repo
+    resolved_commit: ${VALID_SHA}
+    resolved_ref: main
+    depth: -1
+    package_type: apm_package
+    deployed_files: []
+`;
+      expect(() => parseApmLock(content)).toThrow(/Invalid apm\.lock\.yaml/);
+    });
+
+    it("throws when content_hash does not match sha256:<64-hex>", () => {
+      const content = `lockfile_version: "1"
+generated_at: "2026-04-20T00:00:00Z"
+apm_version: "0.7.7"
+dependencies:
+  - repo_url: https://github.com/owner/repo
+    resolved_commit: ${VALID_SHA}
+    resolved_ref: main
+    depth: 1
+    package_type: apm_package
+    content_hash: sha256:abc
+    deployed_files: []
+`;
+      expect(() => parseApmLock(content)).toThrow(/content_hash/);
+    });
+
+    it('throws when lockfile_version is not "1"', () => {
+      const content = `lockfile_version: "2"
+generated_at: "2026-04-20T00:00:00Z"
+apm_version: "0.7.7"
+dependencies: []
+`;
+      expect(() => parseApmLock(content)).toThrow(/Invalid apm\.lock\.yaml/);
     });
   });
 

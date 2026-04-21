@@ -6,7 +6,7 @@ import { Semaphore } from "es-toolkit/promise";
 import { FETCH_CONCURRENCY_LIMIT, MAX_FILE_SIZE } from "../../constants/rulesync-paths.js";
 import type { GitHubFileEntry } from "../../types/fetch.js";
 import { formatError } from "../../utils/error.js";
-import { checkPathTraversal, toPosixPath, writeFileContent } from "../../utils/file.js";
+import { checkPathTraversal, removeFile, toPosixPath, writeFileContent } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "../github-client.js";
 import { listDirectoryRecursive, withSemaphore } from "../github-utils.js";
@@ -121,54 +121,112 @@ export async function installApm(params: {
     apmVersion: existingLock?.apm_version ?? RULESYNC_APM_COMPAT_VERSION,
   });
 
+  // Dependencies are independent, so install them in parallel. The within-dep
+  // tree walk is already rate-limited by the shared FETCH_CONCURRENCY_LIMIT
+  // semaphore, so top-level parallelism is bounded naturally.
+  //
+  // Semantics:
+  //   frozen=true  — any failure aborts the whole install (Promise.all
+  //                   rejects on the first rejection).
+  //   frozen=false — each dep's promise resolves to a result object so that
+  //                   one failing dep does not abort the others.
+  type DepResult =
+    | { status: "ok"; lockEntry: ApmLockDependency; deployedCount: number }
+    | { status: "failed" };
+
+  const frozen = options.frozen ?? false;
+
+  const runOne = async (dep: ApmDependency): Promise<DepResult> => {
+    const installed = await installDependency({
+      dep,
+      client,
+      semaphore,
+      baseDir,
+      existingLock,
+      frozen,
+      update: options.update ?? false,
+      logger,
+    });
+    return {
+      status: "ok",
+      lockEntry: installed.lockEntry,
+      deployedCount: installed.deployedFiles.length,
+    };
+  };
+
+  const results: DepResult[] = frozen
+    ? await Promise.all(manifest.dependencies.map(runOne))
+    : await Promise.all(
+        manifest.dependencies.map(async (dep): Promise<DepResult> => {
+          try {
+            return await runOne(dep);
+          } catch (error) {
+            logger.error(`Failed to install apm dependency "${dep.gitUrl}": ${formatError(error)}`);
+            if (error instanceof GitHubClientError) {
+              logGitHubAuthHints({ error, logger });
+            }
+            // Preserve the prior lock entry for failed deps so that a
+            // transient network error does not destroy a previously pinned
+            // commit SHA.
+            const previous = existingLock
+              ? findApmLockDependency(existingLock, canonicalRepoUrl(dep))
+              : undefined;
+            if (previous) {
+              newLock.dependencies.push(previous);
+            }
+            return { status: "failed" };
+          }
+        }),
+      );
+
   let totalDeployed = 0;
   let failedCount = 0;
-  for (const dep of manifest.dependencies) {
-    try {
-      const deployed = await installDependency({
-        dep,
-        client,
-        semaphore,
-        baseDir,
-        existingLock,
-        frozen: options.frozen ?? false,
-        update: options.update ?? false,
-        logger,
-      });
-      newLock.dependencies.push(deployed.lockEntry);
-      totalDeployed += deployed.deployedFiles.length;
-    } catch (error) {
-      // Under --frozen, any failure is a hard error — we must not silently
-      // degrade an integrity check into a warning.
-      if (options.frozen) {
-        throw error;
-      }
+  // Iterate in manifest order to keep the lockfile deterministic.
+  for (const result of results) {
+    if (result.status === "ok") {
+      newLock.dependencies.push(result.lockEntry);
+      totalDeployed += result.deployedCount;
+    } else {
       failedCount += 1;
-      logger.error(`Failed to install apm dependency "${dep.gitUrl}": ${formatError(error)}`);
-      if (error instanceof GitHubClientError) {
-        logGitHubAuthHints({ error, logger });
-      }
-      // Preserve the prior lock entry for failed deps so that a transient
-      // network error does not destroy a previously pinned commit SHA.
-      const previous = existingLock
-        ? findApmLockDependency(existingLock, canonicalRepoUrl(dep))
-        : undefined;
-      if (previous) {
-        newLock.dependencies.push(previous);
-      }
     }
   }
 
-  // Only rewrite the lockfile on a clean run. If any dep failed, keep the
-  // existing file untouched so users retain a known-good state.
-  if (!options.frozen && failedCount === 0) {
+  // Remove files that were deployed by a previous install but are no longer
+  // part of any current dependency's deployed_files. Without this, stale
+  // artifacts would accumulate on disk forever as upstream content changes.
+  if (existingLock) {
+    const newDeployedFiles = new Set(newLock.dependencies.flatMap((d) => d.deployed_files));
+    const toDelete: string[] = [];
+    for (const prev of existingLock.dependencies) {
+      for (const deployed of prev.deployed_files) {
+        if (!newDeployedFiles.has(deployed)) {
+          toDelete.push(deployed);
+        }
+      }
+    }
+    for (const relativePath of toDelete) {
+      const absolute = join(baseDir, relativePath);
+      // `removeFile` is best-effort and swallows ENOENT, so missing files are
+      // a no-op. This keeps a corrupted partial-install from blowing up here.
+      await removeFile(absolute);
+      logger.debug(`Removed stale apm file: ${relativePath}`);
+    }
+  }
+
+  // Always rewrite the lockfile (except under --frozen, which is a verify-only
+  // mode). Even on a partially successful install we persist the union of
+  // newly pinned entries and preserved previous entries so that first-ever
+  // runs with mixed results still record the successful pins.
+  if (!frozen) {
     newLock.generated_at = new Date().toISOString();
     await writeApmLock({ baseDir, lock: newLock });
-    logger.debug("apm.lock.yaml updated.");
-  } else if (failedCount > 0) {
-    logger.warn(
-      `Skipping apm.lock.yaml rewrite: ${failedCount} dependency(ies) failed to install.`,
-    );
+    if (failedCount === 0) {
+      logger.debug("apm.lock.yaml updated.");
+    } else {
+      logger.warn(
+        `apm.lock.yaml written with partially successful installs (${failedCount} dep(s) failed).`,
+      );
+    }
   }
 
   return {
@@ -204,6 +262,10 @@ async function installDependency(params: {
     logger.debug(`Resolved ${repoUrl} ref "${resolvedRef}" -> ${resolvedSha}`);
   }
 
+  // Collect (path, content) pairs before writing to disk. This lets us hash
+  // them up-front and, under --frozen, refuse to overwrite good files with
+  // tampered bytes. Under non-frozen we still write as we go for incremental
+  // progress feedback on large dep trees.
   const deployed: Array<{ path: string; content: string }> = [];
   for (const primitive of APM_PRIMITIVES) {
     const remoteBase = dep.path
@@ -242,8 +304,19 @@ async function installDependency(params: {
       const content = await withSemaphore(semaphore, () =>
         client.getFileContent(dep.owner, dep.repo, file.path, resolvedSha),
       );
-      await writeFileContent(join(baseDir, deployRelative), content);
+      // The tree-listing size can lie (LFS pointers, filter-driver output),
+      // so enforce the cap on the fetched bytes as well.
+      const byteLength = Buffer.byteLength(content, "utf8");
+      if (byteLength > MAX_FILE_SIZE) {
+        logger.warn(
+          `Skipping "${file.path}" from ${repoUrl}: fetched ${(byteLength / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`,
+        );
+        continue;
+      }
       deployed.push({ path: deployRelative, content });
+      if (!frozen) {
+        await writeFileContent(join(baseDir, deployRelative), content);
+      }
     }
   }
 
@@ -254,11 +327,19 @@ async function installDependency(params: {
   // Verify integrity against the lockfile when running frozen and the prior
   // lock recorded a hash. A mismatch means either the upstream content moved
   // under the same SHA (unlikely with git) or someone tampered with the
-  // lockfile / deployed files.
+  // lockfile / deployed files. We do this *before* writing anything to disk
+  // under --frozen so that tampered bytes never hit the filesystem.
   if (frozen && locked?.content_hash && locked.content_hash !== contentHash) {
     throw new Error(
       `content_hash mismatch for ${repoUrl}: lock=${locked.content_hash} computed=${contentHash}. Refuse to trust the deployment under --frozen.`,
     );
+  }
+
+  // Under --frozen we deferred all writes until after the hash check passed.
+  if (frozen) {
+    for (const { path: deployRelative, content } of deployed) {
+      await writeFileContent(join(baseDir, deployRelative), content);
+    }
   }
 
   const lockEntry: ApmLockDependency = {
