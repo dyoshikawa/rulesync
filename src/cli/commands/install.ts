@@ -1,6 +1,7 @@
 import { ConfigResolver } from "../../config/config-resolver.js";
 import { installApm } from "../../lib/apm/apm-install.js";
 import { apmManifestExists } from "../../lib/apm/apm-manifest.js";
+import { installGh } from "../../lib/gh/gh-install.js";
 import { resolveAndFetchSources } from "../../lib/sources.js";
 import type { Logger } from "../../utils/logger.js";
 
@@ -24,9 +25,8 @@ export async function installCommand(
   const mode: InstallMode = options.mode ?? "rulesync";
 
   if (mode === "gh") {
-    throw new Error(
-      "--mode gh is not yet implemented. Use --mode rulesync (default) or --mode apm.",
-    );
+    await runGhInstall(logger, options);
+    return;
   }
 
   if (mode === "apm") {
@@ -132,5 +132,55 @@ async function runApmInstall(logger: Logger, options: InstallCommandOptions): Pr
     );
   } else {
     logger.success(`All apm dependencies up to date (${result.dependenciesProcessed} checked).`);
+  }
+}
+
+async function runGhInstall(logger: Logger, options: InstallCommandOptions): Promise<void> {
+  const baseDir = process.cwd();
+
+  // gh mode reads sources from `rulesync.jsonc`, never from `apm.yml`. The
+  // disambiguation between rulesync/apm modes lives in `runRulesyncInstall`;
+  // here the user has already opted into gh mode explicitly.
+  const config = await ConfigResolver.resolve({
+    configPath: options.configPath,
+    verbose: options.verbose,
+    silent: options.silent,
+  });
+  const sources = config.getSources();
+
+  if (sources.length === 0) {
+    logger.warn("No sources defined in configuration. Nothing to install.");
+    return;
+  }
+
+  const result = await installGh({
+    baseDir,
+    sources,
+    options: {
+      update: options.update,
+      frozen: options.frozen,
+      token: options.token,
+    },
+    logger,
+  });
+
+  if (logger.jsonMode) {
+    logger.captureData("sourcesProcessed", result.sourcesProcessed);
+    logger.captureData("installedSkillCount", result.installedSkillCount);
+    logger.captureData("failedSourceCount", result.failedSourceCount);
+  }
+
+  if (result.failedSourceCount > 0) {
+    throw new Error(
+      `Failed to install ${result.failedSourceCount} of ${result.sourcesProcessed} gh source(s). See the log above for details.`,
+    );
+  }
+
+  if (result.installedSkillCount > 0) {
+    logger.success(
+      `Installed ${result.installedSkillCount} skill(s) from ${result.sourcesProcessed} gh source(s).`,
+    );
+  } else {
+    logger.success(`All gh sources up to date (${result.sourcesProcessed} checked).`);
   }
 }

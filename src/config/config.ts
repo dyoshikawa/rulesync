@@ -51,6 +51,12 @@ export const SourceEntrySchema = z.object({
       refine((v) => !hasControlCharacters(v), "path must not contain control characters"),
     ),
   ),
+  // gh-mode-only fields. Ignored by --mode rulesync. Defaults applied at the
+  // gh install site (`agent` defaults to "github-copilot", `scope` to "project").
+  agent: optional(
+    z.enum(["github-copilot", "claude-code", "cursor", "codex", "gemini", "antigravity"]),
+  ),
+  scope: optional(z.enum(["project", "user"])),
 });
 export type SourceEntry = z.infer<typeof SourceEntrySchema>;
 
