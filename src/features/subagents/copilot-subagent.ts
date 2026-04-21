@@ -44,6 +44,26 @@ const ensureRequiredTool = (tools: string[]): string[] => {
   return Array.from(mergedTools);
 };
 
+const toCopilotAgentFilePath = (relativeFilePath: string): string => {
+  if (relativeFilePath.endsWith(".agent.md")) {
+    return relativeFilePath;
+  }
+
+  if (relativeFilePath.endsWith(".md")) {
+    return relativeFilePath.replace(/\.md$/, ".agent.md");
+  }
+
+  return relativeFilePath;
+};
+
+const toRulesyncFilePath = (relativeFilePath: string): string => {
+  if (relativeFilePath.endsWith(".agent.md")) {
+    return relativeFilePath.replace(/\.agent\.md$/, ".md");
+  }
+
+  return relativeFilePath;
+};
+
 export class CopilotSubagent extends ToolSubagent {
   private readonly frontmatter: CopilotSubagentFrontmatter;
   private readonly body: string;
@@ -98,7 +118,7 @@ export class CopilotSubagent extends ToolSubagent {
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-      relativeFilePath: this.getRelativeFilePath(),
+      relativeFilePath: toRulesyncFilePath(this.getRelativeFilePath()),
       validate: true,
     });
   }
@@ -129,19 +149,12 @@ export class CopilotSubagent extends ToolSubagent {
     const fileContent = stringifyFrontmatter(body, copilotFrontmatter);
     const paths = this.getSettablePaths({ global });
 
-    // Ensure .agent.md extension — required by VSCode Copilot Chat
-    // See: https://github.com/microsoft/vscode-copilot-chat/blob/main/src/platform/customInstructions/common/promptTypes.ts
-    let relativeFilePath = rulesyncSubagent.getRelativeFilePath();
-    if (!relativeFilePath.endsWith(".agent.md")) {
-      relativeFilePath = relativeFilePath.replace(/\.md$/, ".agent.md");
-    }
-
     return new CopilotSubagent({
       baseDir: baseDir,
       frontmatter: copilotFrontmatter,
       body,
       relativeDirPath: paths.relativeDirPath,
-      relativeFilePath,
+      relativeFilePath: toCopilotAgentFilePath(rulesyncSubagent.getRelativeFilePath()),
       fileContent,
       validate,
       global,
