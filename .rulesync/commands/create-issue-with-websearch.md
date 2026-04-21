@@ -81,7 +81,7 @@ The problem or opportunity, grounded in what the research revealed (user impact,
 
 ## Background from Research
 
-Key findings from the web research that shape the proposal. Keep it tight — cite sources with links and, where useful, exact version numbers.
+Key findings from the web research that shape the proposal. Keep it tight, but every non-trivial factual claim must be backed by an inline link to its source (e.g., `[official docs](https://...)`). Include exact version numbers where relevant. Do not paraphrase a source without linking to it.
 
 ## Proposed Specification
 
@@ -100,6 +100,18 @@ Unresolved points that need a maintainer decision, each phrased as a concrete qu
 
 Bulleted list of the primary sources used, with links.
 ```
+
+### Reference URL Requirements
+
+The `References` section is mandatory — an issue created by this command must never ship without it. Follow these rules:
+
+- List every URL consulted during research that materially shaped the proposal, not just the top one or two. Err on the side of including more.
+- Use full, clickable URLs (e.g., `https://example.com/docs/foo`). Do not shorten, redirect, or paraphrase the link target.
+- Annotate each entry with a short description so the reader understands _why_ it is cited (e.g., `- https://example.com/docs/foo — official schema reference for the `foo` config`).
+- Prefer primary sources (official docs, specs, source code, release notes, RFCs) over blog posts or AI-generated summaries. If a secondary source is cited, pair it with the primary source it references.
+- Include version numbers, commit SHAs, or access dates when the page is likely to change (e.g., pre-release docs, changelogs, `main`-branch source links).
+- When a claim in `Background from Research` or `Proposed Specification` comes from a specific source, link to it inline as well — the `References` section lists all sources, but the inline links make it auditable which claim came from where.
+- If research yielded no usable external sources, say so explicitly in `References` rather than omitting the section — this signals that the proposal rests on codebase inspection and maintainer judgement alone.
 
 Be faithful to the research: do not assert behavior that was not confirmed. If a claim is inferred rather than verified, label it as such.
 
