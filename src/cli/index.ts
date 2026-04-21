@@ -12,7 +12,7 @@ import { generateCommand, GenerateOptions } from "./commands/generate.js";
 import { gitignoreCommand } from "./commands/gitignore.js";
 import { importCommand, ImportOptions } from "./commands/import.js";
 import { initCommand } from "./commands/init.js";
-import { installCommand } from "./commands/install.js";
+import { INSTALL_MODES, InstallMode, installCommand } from "./commands/install.js";
 import { mcpCommand } from "./commands/mcp.js";
 import { resolveGitignoreTargets } from "./commands/resolve-gitignore-targets.js";
 import { updateCommand, UpdateCommandOptions } from "./commands/update.js";
@@ -151,7 +151,11 @@ const main = async () => {
 
   program
     .command("install")
-    .description("Install skills from declarative sources in rulesync.jsonc")
+    .description("Install skills/primitives from declarative sources (rulesync.jsonc) or apm.yml")
+    .option(
+      "--mode <mode>",
+      `Install layout to produce (${INSTALL_MODES.join("|")}). Default: rulesync`,
+    )
     .option("--update", "Force re-resolve all source refs, ignoring lockfile")
     .option(
       "--frozen",
@@ -163,7 +167,11 @@ const main = async () => {
     .option("-s, --silent", "Suppress all output")
     .action(
       wrapCommand("install", "INSTALL_FAILED", async (logger, options) => {
+        // eslint-disable-next-line no-type-assertion/no-type-assertion
+        const rawMode = (options as { mode?: string }).mode;
+        const mode = parseInstallMode(rawMode);
         await installCommand(logger, {
+          mode,
           // eslint-disable-next-line no-type-assertion/no-type-assertion
           update: (options as { update?: boolean }).update,
           // eslint-disable-next-line no-type-assertion/no-type-assertion
@@ -241,6 +249,15 @@ const main = async () => {
 
   program.parse();
 };
+
+function parseInstallMode(raw: string | undefined): InstallMode | undefined {
+  if (raw === undefined) return undefined;
+  const match = INSTALL_MODES.find((m) => m === raw);
+  if (!match) {
+    throw new Error(`Invalid --mode value "${raw}". Expected one of: ${INSTALL_MODES.join(", ")}.`);
+  }
+  return match;
+}
 
 main().catch((error) => {
   console.error(formatError(error));
