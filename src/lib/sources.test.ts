@@ -1008,4 +1008,81 @@ describe("resolveAndFetchSources", () => {
     expect(sourceEntry.skills).toHaveProperty("new-skill");
     expect(sourceEntry.skills).not.toHaveProperty("old-skill");
   });
+
+  it("should install single-skill repo with SKILL.md at path root", async () => {
+    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "a".repeat(40) });
+    vi.mocked(fetchSkillFiles).mockResolvedValue([
+      { relativePath: "SKILL.md", content: "# Humanizer", size: 50 },
+      { relativePath: "README.md", content: "docs", size: 20 },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [
+        {
+          source: "https://dev.azure.com/org/_git/humanizer",
+          transport: "git",
+          path: "",
+          skills: ["humanizer"],
+        },
+      ],
+      baseDir: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(1);
+    expect(writeFileContent).toHaveBeenCalledWith(
+      join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "humanizer", "SKILL.md"),
+      "# Humanizer",
+    );
+  });
+
+  it("should still handle classic subdirectory skill structure", async () => {
+    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "b".repeat(40) });
+    vi.mocked(fetchSkillFiles).mockResolvedValue([
+      { relativePath: "humanizer/SKILL.md", content: "# Humanizer", size: 50 },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [
+        {
+          source: "https://dev.azure.com/org/_git/repo",
+          transport: "git",
+          skills: ["humanizer"],
+        },
+      ],
+      baseDir: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(1);
+    expect(writeFileContent).toHaveBeenCalledWith(
+      join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "humanizer", "SKILL.md"),
+      "# Humanizer",
+    );
+  });
+
+  it("should not install root-level files when skills filter is wildcard", async () => {
+    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "c".repeat(40) });
+    vi.mocked(fetchSkillFiles).mockResolvedValue([
+      { relativePath: "SKILL.md", content: "# Skill", size: 50 },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [
+        {
+          source: "https://dev.azure.com/org/_git/single-skill-repo",
+          transport: "git",
+          // no skills → defaults to ["*"]
+        },
+      ],
+      baseDir: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(0);
+    expect(writeFileContent).not.toHaveBeenCalled();
+  });
 });

@@ -628,6 +628,22 @@ async function fetchSourceViaGit(params: {
     skillFileMap.set(name, arr);
   }
 
+  // Fallback: single-skill repo where all files sit at the root of skillsPath.
+  // Only applies when the skills filter names exactly one non-wildcard skill.
+  // Wildcard is intentionally excluded — the skill name would be ambiguous.
+  if (skillFileMap.size === 0 && !isWildcard && skillFilter.length === 1) {
+    const [singleSkillName] = skillFilter;
+    if (singleSkillName !== undefined) {
+      const rootFiles = remoteFiles.filter((f) => f.relativePath.indexOf("/") === -1);
+      if (rootFiles.length > 0) {
+        skillFileMap.set(
+          singleSkillName,
+          rootFiles.map((f) => ({ relativePath: f.relativePath, content: f.content })),
+        );
+      }
+    }
+  }
+
   const allNames = [...skillFileMap.keys()];
   const filteredNames = isWildcard ? allNames : allNames.filter((n) => skillFilter.includes(n));
 
