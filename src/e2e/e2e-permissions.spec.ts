@@ -422,8 +422,18 @@ describe("E2E: permissions (global mode)", () => {
     });
 
     const generated = JSON.parse(await readFileContent(join(homeDir, ".gemini", "settings.json")));
-    expect(generated.tools.allowed).toContain("run_shell_command(git status *)");
-    expect(generated.tools.exclude).toContain("read_file(src/**)");
+    expect(generated.policyPaths).toContain(".gemini/rulesync-permissions.toml");
+    expect(generated.tools?.allowed).toBeUndefined();
+    expect(generated.tools?.exclude).toBeUndefined();
+
+    const policyContent = await readFileContent(
+      join(homeDir, ".gemini", "rulesync-permissions.toml"),
+    );
+    expect(policyContent).toContain('toolName = "run_shell_command"');
+    expect(policyContent).toContain('commandPrefix = "git status"');
+    expect(policyContent).toContain('decision = "allow"');
+    expect(policyContent).toContain('toolName = "read_file"');
+    expect(policyContent).toContain('decision = "deny"');
   });
 });
 
