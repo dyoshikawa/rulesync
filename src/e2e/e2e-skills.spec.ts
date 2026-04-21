@@ -56,6 +56,10 @@ describe("E2E: skills", () => {
       outputPath: join(".rovodev", "skills", "test-skill", "SKILL.md"),
     },
     {
+      target: "windsurf",
+      outputPath: join(".windsurf", "skills", "test-skill", "SKILL.md"),
+    },
+    {
       target: "kiro",
       outputPath: join(".kiro", "skills", "test-skill", "SKILL.md"),
     },
@@ -140,6 +144,7 @@ This is the test skill body content.
     { target: "kilo", orphanPath: join(".kilo", "skills", "orphan-skill", "SKILL.md") },
     { target: "roo", orphanPath: join(".roo", "skills", "orphan-skill", "SKILL.md") },
     { target: "rovodev", orphanPath: join(".rovodev", "skills", "orphan-skill", "SKILL.md") },
+    { target: "windsurf", orphanPath: join(".windsurf", "skills", "orphan-skill", "SKILL.md") },
     { target: "kiro", orphanPath: join(".kiro", "skills", "orphan-skill", "SKILL.md") },
     { target: "antigravity", orphanPath: join(".agent", "skills", "orphan-skill", "SKILL.md") },
     { target: "junie", orphanPath: join(".junie", "skills", "orphan-skill", "SKILL.md") },
@@ -188,6 +193,7 @@ describe("E2E: skills (import)", () => {
     { target: "kilo", sourcePath: join(".kilo", "skills", "test-skill", "SKILL.md") },
     { target: "roo", sourcePath: join(".roo", "skills", "test-skill", "SKILL.md") },
     { target: "rovodev", sourcePath: join(".rovodev", "skills", "test-skill", "SKILL.md") },
+    { target: "windsurf", sourcePath: join(".windsurf", "skills", "test-skill", "SKILL.md") },
     { target: "kiro", sourcePath: join(".kiro", "skills", "test-skill", "SKILL.md") },
     { target: "antigravity", sourcePath: join(".agent", "skills", "test-skill", "SKILL.md") },
     { target: "junie", sourcePath: join(".junie", "skills", "test-skill", "SKILL.md") },
@@ -250,6 +256,10 @@ describe("E2E: skills (global mode)", () => {
     {
       target: "rovodev",
       outputPath: join(".rovodev", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "windsurf",
+      outputPath: join(".codeium", "windsurf", "skills", "test-skill", "SKILL.md"),
     },
     {
       target: "antigravity",
