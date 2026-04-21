@@ -5,6 +5,7 @@ import type { SourceEntry } from "../../config/config.js";
 import { Config } from "../../config/config.js";
 import { installApm } from "../../lib/apm/apm-install.js";
 import { apmManifestExists } from "../../lib/apm/apm-manifest.js";
+import { installGh } from "../../lib/gh/gh-install.js";
 import { resolveAndFetchSources } from "../../lib/sources.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { installCommand } from "./install.js";
@@ -14,6 +15,7 @@ vi.mock("../../config/config-resolver.js");
 vi.mock("../../lib/sources.js");
 vi.mock("../../lib/apm/apm-install.js");
 vi.mock("../../lib/apm/apm-manifest.js");
+vi.mock("../../lib/gh/gh-install.js");
 
 function createMockConfig(sources: SourceEntry[]): Config {
   return {
@@ -219,9 +221,49 @@ describe("installCommand", () => {
   });
 
   describe("gh mode", () => {
-    it("errors with a not-yet-implemented message", async () => {
+    it("invokes installGh with sources from rulesync.jsonc and reports success", async () => {
+      const sources: SourceEntry[] = [{ source: "owner/repo", agent: "claude-code" }];
+      vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
+      vi.mocked(installGh).mockResolvedValue({
+        sourcesProcessed: 1,
+        installedSkillCount: 2,
+        failedSourceCount: 0,
+      });
+
+      await installCommand(mockLogger, { mode: "gh" });
+
+      expect(installGh).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sources,
+          baseDir: process.cwd(),
+          options: { update: undefined, frozen: undefined, token: undefined },
+        }),
+      );
+      expect(mockLogger.success).toHaveBeenCalledWith("Installed 2 skill(s) from 1 gh source(s).");
+    });
+
+    it("warns when no sources are defined", async () => {
+      vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig([]));
+
+      await installCommand(mockLogger, { mode: "gh" });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        "No sources defined in configuration. Nothing to install.",
+      );
+      expect(installGh).not.toHaveBeenCalled();
+    });
+
+    it("throws when installGh reports failed sources", async () => {
+      const sources: SourceEntry[] = [{ source: "owner/repo" }];
+      vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
+      vi.mocked(installGh).mockResolvedValue({
+        sourcesProcessed: 1,
+        installedSkillCount: 0,
+        failedSourceCount: 1,
+      });
+
       await expect(installCommand(mockLogger, { mode: "gh" })).rejects.toThrow(
-        /not yet implemented/,
+        /Failed to install 1 of 1 gh source/,
       );
     });
   });
