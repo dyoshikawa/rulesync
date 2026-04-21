@@ -197,8 +197,12 @@ function buildKiroPermissionsFromRulesync({
           );
           continue;
         }
-        if (action === "allow")
-          nextAllowedTools.add(category === "webfetch" ? "web_fetch" : "web_search");
+        const toolName = category === "webfetch" ? "web_fetch" : "web_search";
+        if (action === "allow") {
+          nextAllowedTools.add(toolName);
+        } else {
+          nextAllowedTools.delete(toolName);
+        }
       } else {
         logger?.warn(`Kiro permissions do not support category: ${category}. Skipping.`);
       }
