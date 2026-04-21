@@ -47,9 +47,10 @@
   "scripts": {
     "build": "tsup src/cli/index.ts src/index.ts --format cjs,esm --dts --clean",
     "check": "pnpm run fmt:check && pnpm run oxlint && pnpm run eslint && pnpm run typecheck",
+    "check:sync-skill-docs": "tsx scripts/check-skill-docs-sync.ts",
     "cicheck": "pnpm run cicheck:code && pnpm run cicheck:content",
     "cicheck:code": "pnpm run check && pnpm run test",
-    "cicheck:content": "pnpm run cspell && pnpm run secretlint",
+    "cicheck:content": "pnpm run check:sync-skill-docs && pnpm run cspell && pnpm run secretlint",
     "cspell": "cspell --no-progress --gitignore .",
     "dev": "tsx src/cli/index.ts",
     "docs:build": "vitepress build docs",
