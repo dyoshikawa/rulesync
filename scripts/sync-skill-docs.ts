@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import vitepressConfig from "../docs/.vitepress/config.js";
 
@@ -88,7 +89,7 @@ function assertNoFileNameCollision(
   seenFileNames.set(fileName, link);
 }
 
-function main(): void {
+export function syncSkillDocs(): void {
   const sidebar = vitepressConfig.themeConfig?.sidebar;
   if (!isSidebarItemArray(sidebar)) {
     throw new Error("No sidebar array found in VitePress config");
@@ -207,4 +208,7 @@ function main(): void {
   console.log(`Synced docs/ to ${SKILL_DIR}/ (${String(fileCount)} content files + SKILL.md)`);
 }
 
-main();
+const entryPointPath = process.argv[1];
+if (entryPointPath && fileURLToPath(import.meta.url) === entryPointPath) {
+  syncSkillDocs();
+}
