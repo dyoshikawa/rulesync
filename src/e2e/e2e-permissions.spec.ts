@@ -81,7 +81,7 @@ describe("E2E: permissions", () => {
     expect(rulesContent).toContain('decision = "forbidden"');
   });
 
-  it("should generate geminicli permissions into .gemini/settings.json and policy TOML", async () => {
+  it("should generate geminicli permissions into .gemini/policies/rulesync.toml", async () => {
     const testDir = getTestDir();
 
     await writeFileContent(
@@ -101,15 +101,8 @@ describe("E2E: permissions", () => {
 
     await runGenerate({ target: "geminicli", features: "permissions" });
 
-    const settingsContent = JSON.parse(
-      await readFileContent(join(testDir, ".gemini", "settings.json")),
-    );
-    expect(settingsContent.policyPaths).toContain(".gemini/rulesync-permissions.toml");
-    expect(settingsContent.tools?.allowed).toBeUndefined();
-    expect(settingsContent.tools?.exclude).toBeUndefined();
-
     const policyContent = await readFileContent(
-      join(testDir, ".gemini", "rulesync-permissions.toml"),
+      join(testDir, ".gemini", "policies", "rulesync.toml"),
     );
     expect(policyContent).toContain('toolName = "run_shell_command"');
     expect(policyContent).toContain('commandPrefix = "git"');
@@ -213,17 +206,33 @@ default_permissions = "rulesync"
     const testDir = getTestDir();
 
     await writeFileContent(
-      join(testDir, ".gemini", "settings.json"),
-      JSON.stringify(
-        {
-          tools: {
-            allowed: ["run_shell_command(git *)", "read_file(src/**)"],
-            exclude: ["run_shell_command(rm *)", "web_fetch(example.com)"],
-          },
-        },
-        null,
-        2,
-      ),
+      join(testDir, ".gemini", "policies", "rulesync.toml"),
+      [
+        "[[rule]]",
+        'toolName = "run_shell_command"',
+        'decision = "allow"',
+        'commandPrefix = "git"',
+        "priority = 100",
+        "",
+        "[[rule]]",
+        'toolName = "read_file"',
+        'decision = "allow"',
+        'argsPattern = "src/.*"',
+        "priority = 100",
+        "",
+        "[[rule]]",
+        'toolName = "run_shell_command"',
+        'decision = "deny"',
+        'commandPrefix = "rm"',
+        "priority = 100",
+        "",
+        "[[rule]]",
+        'toolName = "web_fetch"',
+        'decision = "deny"',
+        'argsPattern = "example\\\\.com"',
+        "priority = 100",
+        "",
+      ].join("\n"),
     );
 
     await runImport({ target: "geminicli", features: "permissions" });
@@ -421,13 +430,8 @@ describe("E2E: permissions (global mode)", () => {
       env: { HOME_DIR: homeDir },
     });
 
-    const generated = JSON.parse(await readFileContent(join(homeDir, ".gemini", "settings.json")));
-    expect(generated.policyPaths).toContain(".gemini/rulesync-permissions.toml");
-    expect(generated.tools?.allowed).toBeUndefined();
-    expect(generated.tools?.exclude).toBeUndefined();
-
     const policyContent = await readFileContent(
-      join(homeDir, ".gemini", "rulesync-permissions.toml"),
+      join(homeDir, ".gemini", "policies", "rulesync.toml"),
     );
     expect(policyContent).toContain('toolName = "run_shell_command"');
     expect(policyContent).toContain('commandPrefix = "git status"');

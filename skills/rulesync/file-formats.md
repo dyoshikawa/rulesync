@@ -452,7 +452,7 @@ For Codex CLI, this generates a `rulesync` named profile in `.codex/config.toml`
 - `edit` / `write`: `allow` → `write`, `ask`/`deny` → `none` in `permissions.<profile>.filesystem`
 - `webfetch`: `allow`/`deny` map to `permissions.<profile>.network.domains` (Codex does not support `ask` for domain rules)
 
-For Gemini CLI, this generates a Policy Engine file `.gemini/rulesync-permissions.toml` and appends that file path to `policyPaths` in `.gemini/settings.json` (project/global depending on mode):
+For Gemini CLI, this generates a Policy Engine file at `.gemini/policies/rulesync.toml` (project mode) or `~/.gemini/policies/rulesync.toml` (global mode). Gemini CLI auto-discovers any `*.toml` file under the `policies/` directory, so no `settings.json` modification is required:
 
 - `allow` / `deny` / `ask` rules are converted into Policy Engine `decision` values `allow` / `deny` / `ask_user`
 - `bash` rules are generated with `toolName = "run_shell_command"` (using `commandPrefix` when the rule pattern is not `*`)

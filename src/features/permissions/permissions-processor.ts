@@ -9,7 +9,7 @@ import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
-import { createGeminicliPolicyFile, GeminicliPermissions } from "./geminicli-permissions.js";
+import { GeminicliPermissions } from "./geminicli-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -206,14 +206,6 @@ export class PermissionsProcessor extends FeatureProcessor {
       logger: this.logger,
       global: this.global,
     });
-    if (this.toolTarget === "geminicli") {
-      const geminicliPolicyFile = createGeminicliPolicyFile({
-        baseDir: this.baseDir,
-        config: rulesyncPermissions.getJson(),
-      });
-      return [toolPermissions, geminicliPolicyFile];
-    }
-
     if (this.toolTarget !== "codexcli") {
       return [toolPermissions];
     }
