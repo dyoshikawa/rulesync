@@ -117,6 +117,13 @@ async function runApmInstall(logger: Logger, options: InstallCommandOptions): Pr
   if (logger.jsonMode) {
     logger.captureData("dependenciesProcessed", result.dependenciesProcessed);
     logger.captureData("deployedFileCount", result.deployedFileCount);
+    logger.captureData("failedDependencyCount", result.failedDependencyCount);
+  }
+
+  if (result.failedDependencyCount > 0) {
+    throw new Error(
+      `Failed to install ${result.failedDependencyCount} of ${result.dependenciesProcessed} apm dependency(ies). See the log above for details.`,
+    );
   }
 
   if (result.deployedFileCount > 0) {

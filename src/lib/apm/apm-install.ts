@@ -1,4 +1,5 @@
-import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { join, posix } from "node:path";
 
 import { Semaphore } from "es-toolkit/promise";
 
@@ -54,6 +55,7 @@ export type ApmInstallOptions = {
 export type ApmInstallResult = {
   dependenciesProcessed: number;
   deployedFileCount: number;
+  failedDependencyCount: number;
 };
 
 /**
@@ -71,7 +73,7 @@ export async function installApm(params: {
   const manifest = await readApmManifest(baseDir);
   if (manifest.dependencies.length === 0) {
     logger.warn("apm.yml has no dependencies.apm entries. Nothing to install.");
-    return { dependenciesProcessed: 0, deployedFileCount: 0 };
+    return { dependenciesProcessed: 0, deployedFileCount: 0, failedDependencyCount: 0 };
   }
 
   const existingLock = await readApmLock(baseDir);
@@ -90,6 +92,25 @@ export async function installApm(params: {
         `Frozen install failed: apm.lock.yaml is missing entries for: ${names}. Run 'rulesync install --mode apm' to update the lockfile.`,
       );
     }
+    // Detect manifest drift: when the user edited `ref` in apm.yml without
+    // re-running install, the locked ref no longer matches the declared one.
+    // In frozen mode we refuse rather than silently install the locked SHA.
+    const drifted = manifest.dependencies.filter((dep) => {
+      if (dep.ref === undefined) return false;
+      const locked = findApmLockDependency(existingLock, canonicalRepoUrl(dep));
+      return locked?.resolved_ref !== undefined && locked.resolved_ref !== dep.ref;
+    });
+    if (drifted.length > 0) {
+      const names = drifted
+        .map((d) => {
+          const locked = findApmLockDependency(existingLock, canonicalRepoUrl(d));
+          return `${d.gitUrl} (manifest=${d.ref}, lock=${locked?.resolved_ref})`;
+        })
+        .join(", ");
+      throw new Error(
+        `Frozen install failed: manifest ref does not match apm.lock.yaml for: ${names}. Run 'rulesync install --mode apm' to update the lockfile.`,
+      );
+    }
   }
 
   const token = GitHubClient.resolveToken(options.token);
@@ -101,6 +122,7 @@ export async function installApm(params: {
   });
 
   let totalDeployed = 0;
+  let failedCount = 0;
   for (const dep of manifest.dependencies) {
     try {
       const deployed = await installDependency({
@@ -109,28 +131,50 @@ export async function installApm(params: {
         semaphore,
         baseDir,
         existingLock,
+        frozen: options.frozen ?? false,
         update: options.update ?? false,
         logger,
       });
       newLock.dependencies.push(deployed.lockEntry);
       totalDeployed += deployed.deployedFiles.length;
     } catch (error) {
+      // Under --frozen, any failure is a hard error — we must not silently
+      // degrade an integrity check into a warning.
+      if (options.frozen) {
+        throw error;
+      }
+      failedCount += 1;
       logger.error(`Failed to install apm dependency "${dep.gitUrl}": ${formatError(error)}`);
       if (error instanceof GitHubClientError) {
         logGitHubAuthHints({ error, logger });
       }
+      // Preserve the prior lock entry for failed deps so that a transient
+      // network error does not destroy a previously pinned commit SHA.
+      const previous = existingLock
+        ? findApmLockDependency(existingLock, canonicalRepoUrl(dep))
+        : undefined;
+      if (previous) {
+        newLock.dependencies.push(previous);
+      }
     }
   }
 
-  if (!options.frozen) {
+  // Only rewrite the lockfile on a clean run. If any dep failed, keep the
+  // existing file untouched so users retain a known-good state.
+  if (!options.frozen && failedCount === 0) {
     newLock.generated_at = new Date().toISOString();
     await writeApmLock({ baseDir, lock: newLock });
     logger.debug("apm.lock.yaml updated.");
+  } else if (failedCount > 0) {
+    logger.warn(
+      `Skipping apm.lock.yaml rewrite: ${failedCount} dependency(ies) failed to install.`,
+    );
   }
 
   return {
     dependenciesProcessed: manifest.dependencies.length,
     deployedFileCount: totalDeployed,
+    failedDependencyCount: failedCount,
   };
 }
 
@@ -140,10 +184,11 @@ async function installDependency(params: {
   semaphore: Semaphore;
   baseDir: string;
   existingLock: ApmLock | null;
+  frozen: boolean;
   update: boolean;
   logger: Logger;
 }): Promise<{ lockEntry: ApmLockDependency; deployedFiles: string[] }> {
-  const { dep, client, semaphore, baseDir, existingLock, update, logger } = params;
+  const { dep, client, semaphore, baseDir, existingLock, frozen, update, logger } = params;
   const repoUrl = canonicalRepoUrl(dep);
   const locked = existingLock ? findApmLockDependency(existingLock, repoUrl) : undefined;
 
@@ -159,10 +204,10 @@ async function installDependency(params: {
     logger.debug(`Resolved ${repoUrl} ref "${resolvedRef}" -> ${resolvedSha}`);
   }
 
-  const deployedFiles: string[] = [];
+  const deployed: Array<{ path: string; content: string }> = [];
   for (const primitive of APM_PRIMITIVES) {
     const remoteBase = dep.path
-      ? toPosixPath(join(dep.path, primitive.sourceDir))
+      ? toPosixPath(posix.join(dep.path, primitive.sourceDir))
       : primitive.sourceDir;
     const files = await listPrimitiveFiles({
       client,
@@ -182,7 +227,13 @@ async function installDependency(params: {
         );
         continue;
       }
-      const relativeToBase = file.path.substring(remoteBase.length + 1);
+      const relativeToBase = posix.relative(remoteBase, toPosixPath(file.path));
+      if (!relativeToBase || relativeToBase.startsWith("..") || posix.isAbsolute(relativeToBase)) {
+        logger.warn(
+          `Skipping "${file.path}" from ${repoUrl}: resolved outside of "${remoteBase}".`,
+        );
+        continue;
+      }
       const deployRelative = toPosixPath(join(primitive.deployDir, relativeToBase));
       checkPathTraversal({
         relativePath: deployRelative,
@@ -192,11 +243,23 @@ async function installDependency(params: {
         client.getFileContent(dep.owner, dep.repo, file.path, resolvedSha),
       );
       await writeFileContent(join(baseDir, deployRelative), content);
-      deployedFiles.push(deployRelative);
+      deployed.push({ path: deployRelative, content });
     }
   }
 
-  deployedFiles.sort();
+  deployed.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  const deployedFiles = deployed.map((d) => d.path);
+  const contentHash = computeContentHash(deployed);
+
+  // Verify integrity against the lockfile when running frozen and the prior
+  // lock recorded a hash. A mismatch means either the upstream content moved
+  // under the same SHA (unlikely with git) or someone tampered with the
+  // lockfile / deployed files.
+  if (frozen && locked?.content_hash && locked.content_hash !== contentHash) {
+    throw new Error(
+      `content_hash mismatch for ${repoUrl}: lock=${locked.content_hash} computed=${contentHash}. Refuse to trust the deployment under --frozen.`,
+    );
+  }
 
   const lockEntry: ApmLockDependency = {
     repo_url: repoUrl,
@@ -204,6 +267,7 @@ async function installDependency(params: {
     resolved_ref: resolvedRef,
     depth: 1,
     package_type: "apm_package",
+    content_hash: contentHash,
     deployed_files: deployedFiles,
   };
   if (dep.path) {
@@ -213,6 +277,22 @@ async function installDependency(params: {
   logger.info(`Installed ${deployedFiles.length} file(s) from ${repoUrl}@${shortSha(resolvedSha)}`);
 
   return { lockEntry, deployedFiles };
+}
+
+/**
+ * SHA-256 over a canonical, order-independent representation of the deployed
+ * files. Written into `content_hash` so that `--frozen` installs can refuse
+ * to trust tampered output.
+ */
+function computeContentHash(files: Array<{ path: string; content: string }>): string {
+  const hash = createHash("sha256");
+  for (const { path, content } of files) {
+    hash.update(path);
+    hash.update("\0");
+    hash.update(content);
+    hash.update("\0");
+  }
+  return `sha256:${hash.digest("hex")}`;
 }
 
 async function listPrimitiveFiles(params: {

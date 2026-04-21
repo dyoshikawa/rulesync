@@ -173,6 +173,7 @@ describe("installCommand", () => {
       vi.mocked(installApm).mockResolvedValue({
         dependenciesProcessed: 2,
         deployedFileCount: 5,
+        failedDependencyCount: 0,
       });
 
       await installCommand(mockLogger, { mode: "apm", update: true, token: "tok" });
@@ -193,12 +194,26 @@ describe("installCommand", () => {
       vi.mocked(installApm).mockResolvedValue({
         dependenciesProcessed: 2,
         deployedFileCount: 0,
+        failedDependencyCount: 0,
       });
 
       await installCommand(mockLogger, { mode: "apm" });
 
       expect(mockLogger.success).toHaveBeenCalledWith(
         "All apm dependencies up to date (2 checked).",
+      );
+    });
+
+    it("throws when installApm reports failed dependencies", async () => {
+      vi.mocked(apmManifestExists).mockResolvedValue(true);
+      vi.mocked(installApm).mockResolvedValue({
+        dependenciesProcessed: 2,
+        deployedFileCount: 1,
+        failedDependencyCount: 1,
+      });
+
+      await expect(installCommand(mockLogger, { mode: "apm" })).rejects.toThrow(
+        /Failed to install 1 of 2 apm dependency/,
       );
     });
   });

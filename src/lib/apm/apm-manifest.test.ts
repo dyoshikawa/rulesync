@@ -144,6 +144,30 @@ dependencies:
     ).toThrow(/Only HTTPS GitHub URLs/);
   });
 
+  it("rejects object-form entries with a '..' segment in path", () => {
+    expect(() =>
+      parseApmManifest(
+        `dependencies:
+  apm:
+    - git: https://github.com/acme/rules.git
+      path: ../escape
+`,
+      ),
+    ).toThrow(/"path" must not contain ".." segments/);
+  });
+
+  it("rejects object-form entries with an absolute path", () => {
+    expect(() =>
+      parseApmManifest(
+        `dependencies:
+  apm:
+    - git: https://github.com/acme/rules.git
+      path: /etc/passwd
+`,
+      ),
+    ).toThrow(/must be a non-empty relative path without a leading slash/);
+  });
+
   it("rejects object-form entries missing the git field", () => {
     expect(() =>
       parseApmManifest(

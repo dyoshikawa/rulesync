@@ -71,7 +71,11 @@ describe("installApm", () => {
 
     const result = await installApm({ baseDir: testDir, logger });
 
-    expect(result).toEqual({ dependenciesProcessed: 0, deployedFileCount: 0 });
+    expect(result).toEqual({
+      dependenciesProcessed: 0,
+      deployedFileCount: 0,
+      failedDependencyCount: 0,
+    });
     expect(await fileExists(getApmLockPath(testDir))).toBe(false);
   });
 
@@ -153,6 +157,7 @@ describe("installApm", () => {
         ".github/skills/git-commit/SKILL.md",
       ],
     });
+    expect(lock?.dependencies[0]?.content_hash).toMatch(/^sha256:[0-9a-f]{64}$/);
   });
 
   it("uses the default branch when no ref is given", async () => {
@@ -267,5 +272,86 @@ describe("installApm", () => {
     await installApm({ baseDir: testDir, logger, options: { frozen: true } });
     const after = await readFileContent(getApmLockPath(testDir));
     expect(after).toBe(before);
+  });
+
+  it("--frozen fails when the manifest ref drifts from the locked ref", async () => {
+    await writeManifest(
+      `dependencies:
+  apm:
+    - acme/security#v1.0.0
+`,
+    );
+    mockClientInstance.listDirectory.mockResolvedValue([]);
+    await installApm({ baseDir: testDir, logger });
+
+    await writeManifest(
+      `dependencies:
+  apm:
+    - acme/security#v2.0.0
+`,
+    );
+    await expect(
+      installApm({ baseDir: testDir, logger, options: { frozen: true } }),
+    ).rejects.toThrow(/manifest ref does not match/);
+  });
+
+  it("--frozen fails when deployed content no longer matches content_hash", async () => {
+    await writeManifest(
+      `dependencies:
+  apm:
+    - acme/security#v1.0.0
+`,
+    );
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === ".apm/instructions") {
+          return [
+            {
+              name: "a.instructions.md",
+              path: ".apm/instructions/a.instructions.md",
+              type: "file",
+              size: 100,
+            },
+          ];
+        }
+        // Other primitive dirs (e.g., .apm/skills) are absent.
+        return [];
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("original content");
+
+    await installApm({ baseDir: testDir, logger });
+
+    // Simulate tampered upstream: same SHA, different bytes on next install.
+    mockClientInstance.getFileContent.mockResolvedValue("tampered content");
+
+    await expect(
+      installApm({ baseDir: testDir, logger, options: { frozen: true } }),
+    ).rejects.toThrow(/content_hash mismatch/);
+  });
+
+  it("preserves the existing lock entry when a dependency fails to install", async () => {
+    await writeManifest(
+      `dependencies:
+  apm:
+    - acme/security#v1.0.0
+`,
+    );
+    mockClientInstance.listDirectory.mockResolvedValue([]);
+    await installApm({ baseDir: testDir, logger });
+    const lockBefore = await readFileContent(getApmLockPath(testDir));
+
+    mockClientInstance.resolveRefToSha.mockRejectedValue(new Error("network error"));
+
+    const result = await installApm({
+      baseDir: testDir,
+      logger,
+      options: { update: true },
+    });
+    expect(result.failedDependencyCount).toBe(1);
+
+    // The lockfile on disk must be untouched so the previous SHA survives.
+    const lockAfter = await readFileContent(getApmLockPath(testDir));
+    expect(lockAfter).toBe(lockBefore);
   });
 });

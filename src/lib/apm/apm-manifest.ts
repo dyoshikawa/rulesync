@@ -141,6 +141,9 @@ function normalizeDependency(
       `apm.yml dependency #${index + 1}: unsupported git URL "${gitUrl}". Only HTTPS GitHub URLs (https://github.com/owner/repo[.git]) are supported in this version. SSH, GitLab, Bitbucket, and other hosts are not yet supported.`,
     );
   }
+  if (entry.path !== undefined) {
+    validateSubPath(entry.path, index);
+  }
   return {
     gitUrl: parsedUrl.gitUrl,
     owner: parsedUrl.owner,
@@ -149,6 +152,24 @@ function normalizeDependency(
     path: entry.path,
     alias: entry.alias,
   };
+}
+
+/**
+ * Reject `dep.path` values that could escape the repository root or be
+ * interpreted as an absolute path on the remote tree.
+ */
+function validateSubPath(subPath: string, index: number): void {
+  if (subPath === "" || subPath.startsWith("/") || subPath.startsWith("\\")) {
+    throw new Error(
+      `apm.yml dependency #${index + 1}: "path" must be a non-empty relative path without a leading slash. Received: ${JSON.stringify(subPath)}.`,
+    );
+  }
+  const segments = subPath.split(/[/\\]/);
+  if (segments.includes("..")) {
+    throw new Error(
+      `apm.yml dependency #${index + 1}: "path" must not contain ".." segments. Received: ${JSON.stringify(subPath)}.`,
+    );
+  }
 }
 
 function normalizeStringDependency(entry: string, index: number): ApmDependency {
