@@ -14,7 +14,7 @@
     "allow": [
       "mcp__serena"
     ],
-    "defaultMode": "acceptEdits"
+    "defaultMode": "auto"
   },
   "statusLine": {
     "type": "command",
