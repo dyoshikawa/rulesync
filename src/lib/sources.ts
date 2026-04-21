@@ -57,6 +57,11 @@ export type ResolveAndFetchSourcesResult = {
   sourcesProcessed: number;
 };
 
+type RemoteSkillFile = {
+  relativePath: string;
+  content: string;
+};
+
 /**
  * Resolve declared sources, fetch remote skills into .rulesync/skills/.curated/,
  * and update the lockfile.
@@ -358,6 +363,51 @@ function buildLockUpdate(params: {
   return { updatedLock, fetchedNames };
 }
 
+function getFirstPathSeparatorIndex(path: string): number {
+  const slashIndex = path.indexOf("/");
+  const backslashIndex = path.indexOf("\\");
+  if (slashIndex === -1) return backslashIndex;
+  if (backslashIndex === -1) return slashIndex;
+  return Math.min(slashIndex, backslashIndex);
+}
+
+function groupRemoteFilesBySkillRoot(params: {
+  remoteFiles: RemoteSkillFile[];
+  skillFilter: string[];
+  isWildcard: boolean;
+}): Map<string, RemoteSkillFile[]> {
+  const { remoteFiles, skillFilter, isWildcard } = params;
+  const grouped = new Map<string, RemoteSkillFile[]>();
+  const rootLevelFiles: RemoteSkillFile[] = [];
+
+  for (const file of remoteFiles) {
+    const separatorIndex = getFirstPathSeparatorIndex(file.relativePath);
+    if (separatorIndex === -1) {
+      rootLevelFiles.push(file);
+      continue;
+    }
+
+    const skillName = file.relativePath.substring(0, separatorIndex);
+    if (skillName.length === 0) {
+      continue;
+    }
+
+    const innerPath = file.relativePath.substring(separatorIndex + 1);
+    const groupedFiles = grouped.get(skillName) ?? [];
+    groupedFiles.push({ relativePath: innerPath, content: file.content });
+    grouped.set(skillName, groupedFiles);
+  }
+
+  if (grouped.size === 0 && !isWildcard && skillFilter.length === 1) {
+    const [singleSkillName] = skillFilter;
+    if (singleSkillName !== undefined && rootLevelFiles.length > 0) {
+      grouped.set(singleSkillName, rootLevelFiles);
+    }
+  }
+
+  return grouped;
+}
+
 // ---------------------------------------------------------------------------
 // Transport-specific fetch functions
 // ---------------------------------------------------------------------------
@@ -438,18 +488,72 @@ async function fetchSource(params: {
   // Determine which skills to fetch
   const skillFilter = sourceEntry.skills ?? ["*"];
   const isWildcard = skillFilter.length === 1 && skillFilter[0] === "*";
+  const semaphore = new Semaphore(FETCH_CONCURRENCY_LIMIT);
+  const fetchedSkills: Record<string, LockedSkill> = {};
 
   // List the skills/ directory in the remote repo.
   // If a path is given in the source URL, it points directly to the skills directory.
   // Otherwise, look for "skills/" at the repo root.
   const skillsBasePath = parsed.path ?? "skills";
   let remoteSkillDirs: Array<{ name: string; path: string }>;
+  let remoteSkillNames: string[] = [];
+  let fallbackHandled = false;
 
   try {
     const entries = await client.listDirectory(parsed.owner, parsed.repo, skillsBasePath, ref);
     remoteSkillDirs = entries
       .filter((e) => e.type === "dir")
       .map((e) => ({ name: e.name, path: e.path }));
+
+    if (remoteSkillDirs.length === 0 && !isWildcard && skillFilter.length === 1) {
+      const rootFiles = entries.filter((entry) => entry.type === "file");
+      const rootSkillFiles: RemoteSkillFile[] = [];
+
+      for (const file of rootFiles) {
+        if (file.size > MAX_FILE_SIZE) {
+          logger.warn(
+            `Skipping file "${file.path}" (${(file.size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit).`,
+          );
+          continue;
+        }
+        const content = await withSemaphore(semaphore, () =>
+          client.getFileContent(parsed.owner, parsed.repo, file.path, ref),
+        );
+        rootSkillFiles.push({ relativePath: file.name, content });
+      }
+
+      const groupedRootFiles = groupRemoteFilesBySkillRoot({
+        remoteFiles: rootSkillFiles,
+        skillFilter,
+        isWildcard,
+      });
+      const [fallbackSkillName] = groupedRootFiles.keys();
+      if (fallbackSkillName !== undefined) {
+        fallbackHandled = true;
+        remoteSkillNames = [fallbackSkillName];
+
+        if (
+          !shouldSkipSkill({
+            skillName: fallbackSkillName,
+            sourceKey,
+            localSkillNames,
+            alreadyFetchedSkillNames,
+            logger,
+          })
+        ) {
+          fetchedSkills[fallbackSkillName] = await writeSkillAndComputeIntegrity({
+            skillName: fallbackSkillName,
+            files: groupedRootFiles.get(fallbackSkillName) ?? [],
+            curatedDir,
+            locked,
+            resolvedSha,
+            sourceKey,
+            logger,
+          });
+          logger.debug(`Fetched skill "${fallbackSkillName}" from ${sourceKey}`);
+        }
+      }
+    }
   } catch (error) {
     if (error instanceof GitHubClientError && error.statusCode === 404) {
       logger.warn(`No skills/ directory found in ${sourceKey}. Skipping.`);
@@ -462,9 +566,9 @@ async function fetchSource(params: {
   const filteredDirs = isWildcard
     ? remoteSkillDirs
     : remoteSkillDirs.filter((d) => skillFilter.includes(d.name));
-
-  const semaphore = new Semaphore(FETCH_CONCURRENCY_LIMIT);
-  const fetchedSkills: Record<string, LockedSkill> = {};
+  if (!fallbackHandled) {
+    remoteSkillNames = filteredDirs.map((d) => d.name);
+  }
 
   if (locked) {
     await cleanPreviousCuratedSkills({ curatedDir, lockedSkillNames, logger });
@@ -533,7 +637,7 @@ async function fetchSource(params: {
     locked,
     requestedRef,
     resolvedSha,
-    remoteSkillNames: filteredDirs.map((d) => d.name),
+    remoteSkillNames,
     logger,
   });
 
@@ -616,33 +720,7 @@ async function fetchSourceViaGit(params: {
     skillsPath: sourceEntry.path ?? "skills",
   });
 
-  // Group files by skill directory (first path component)
-  const skillFileMap = new Map<string, Array<{ relativePath: string; content: string }>>();
-  for (const file of remoteFiles) {
-    const idx = file.relativePath.indexOf("/");
-    if (idx === -1) continue;
-    const name = file.relativePath.substring(0, idx);
-    const inner = file.relativePath.substring(idx + 1);
-    const arr = skillFileMap.get(name) ?? [];
-    arr.push({ relativePath: inner, content: file.content });
-    skillFileMap.set(name, arr);
-  }
-
-  // Fallback: single-skill repo where all files sit at the root of skillsPath.
-  // Only applies when the skills filter names exactly one non-wildcard skill.
-  // Wildcard is intentionally excluded — the skill name would be ambiguous.
-  if (skillFileMap.size === 0 && !isWildcard && skillFilter.length === 1) {
-    const [singleSkillName] = skillFilter;
-    if (singleSkillName !== undefined) {
-      const rootFiles = remoteFiles.filter((f) => f.relativePath.indexOf("/") === -1);
-      if (rootFiles.length > 0) {
-        skillFileMap.set(
-          singleSkillName,
-          rootFiles.map((f) => ({ relativePath: f.relativePath, content: f.content })),
-        );
-      }
-    }
-  }
+  const skillFileMap = groupRemoteFilesBySkillRoot({ remoteFiles, skillFilter, isWildcard });
 
   const allNames = [...skillFileMap.keys()];
   const filteredNames = isWildcard ? allNames : allNames.filter((n) => skillFilter.includes(n));
