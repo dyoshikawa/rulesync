@@ -142,7 +142,7 @@ dependencies:
     package_type: apm_package
     deployed_files: []
 `;
-      expect(() => parseApmLock(content)).toThrow(/Invalid apm\.lock\.yaml/);
+      expect(() => parseApmLock(content)).toThrow(/Invalid rulesync-apm\.lock\.yaml/);
     });
 
     it("accepts content_hash values that do not match the rulesync regex (upstream apm interop)", () => {
@@ -173,7 +173,7 @@ generated_at: "2026-04-20T00:00:00Z"
 apm_version: "0.7.7"
 dependencies: []
 `;
-      expect(() => parseApmLock(content)).toThrow(/Invalid apm\.lock\.yaml/);
+      expect(() => parseApmLock(content)).toThrow(/Invalid rulesync-apm\.lock\.yaml/);
     });
   });
 

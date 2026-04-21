@@ -65,7 +65,7 @@ describe("installCommand --mode apm (happy path)", () => {
     vi.clearAllMocks();
   });
 
-  it("installs declared dependencies into .github/ and writes apm.lock.yaml", async () => {
+  it("installs declared dependencies into .github/ and writes rulesync-apm.lock.yaml", async () => {
     await writeFileContent(
       getApmManifestPath(testDir),
       `name: demo

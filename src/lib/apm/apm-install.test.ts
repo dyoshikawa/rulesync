@@ -232,7 +232,7 @@ describe("installApm", () => {
 
     await expect(
       installApm({ baseDir: testDir, logger, options: { frozen: true } }),
-    ).rejects.toThrow(/apm.lock.yaml is missing/);
+    ).rejects.toThrow(/rulesync-apm.lock.yaml is missing/);
   });
 
   it("--frozen fails when the lockfile is missing a declared dependency", async () => {

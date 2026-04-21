@@ -5,7 +5,13 @@ import { nonnegative, optional, refine, z } from "zod/mini";
 
 import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
 
-export const APM_LOCKFILE_FILE_NAME = "apm.lock.yaml";
+/**
+ * Filename of the rulesync-managed apm-compatible lockfile. Rulesync uses a
+ * lockfile name distinct from the upstream `apm` CLI's `apm.lock.yaml` so the
+ * two tools do not fight over the same file: the schema is still the apm v1
+ * lockfile format, but rulesync only reads/writes its own file.
+ */
+export const APM_LOCKFILE_FILE_NAME = "rulesync-apm.lock.yaml";
 export const APM_LOCKFILE_VERSION = "1" as const;
 
 /**
@@ -17,7 +23,7 @@ export const APM_LOCKFILE_VERSION = "1" as const;
 export const RULESYNC_CONTENT_HASH_REGEX = /^sha256:[0-9a-f]{64}$/;
 
 /**
- * Single dependency entry in `apm.lock.yaml`. Mirrors the subset of the
+ * Single dependency entry in `rulesync-apm.lock.yaml`. Mirrors the subset of the
  * APM v1 lockfile schema that rulesync currently populates. Extra fields
  * from the spec (content_hash, is_dev, virtual_path, ...) are preserved
  * verbatim so that rulesync does not strip them out when re-writing a
@@ -94,7 +100,7 @@ export function createEmptyApmLock(params: {
 }
 
 /**
- * Parse `apm.lock.yaml` content into an `ApmLock`. Returns `null` when the
+ * Parse `rulesync-apm.lock.yaml` content into an `ApmLock`. Returns `null` when the
  * content is absent / empty / non-YAML-object so callers can treat the lock
  * as missing. A *structurally* present lockfile that fails schema validation
  * throws a descriptive error rather than being silently dropped — silently

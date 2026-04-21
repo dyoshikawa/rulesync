@@ -62,7 +62,7 @@ export type ApmInstallResult = {
 /**
  * Entry point for `rulesync install --mode apm`. Reads `apm.yml`, resolves
  * every declared APM dependency, fetches the subset of primitives rulesync
- * currently understands (Instructions and Skills), and updates `apm.lock.yaml`.
+ * currently understands (Instructions and Skills), and updates `rulesync-apm.lock.yaml`.
  */
 export async function installApm(params: {
   baseDir: string;
@@ -81,7 +81,7 @@ export async function installApm(params: {
   if (options.frozen) {
     if (!existingLock) {
       throw new Error(
-        "Frozen install failed: apm.lock.yaml is missing. Run 'rulesync install --mode apm' to create it.",
+        "Frozen install failed: rulesync-apm.lock.yaml is missing. Run 'rulesync install --mode apm' to create it.",
       );
     }
     const missing = manifest.dependencies.filter(
@@ -90,7 +90,7 @@ export async function installApm(params: {
     if (missing.length > 0) {
       const names = missing.map((d) => d.gitUrl).join(", ");
       throw new Error(
-        `Frozen install failed: apm.lock.yaml is missing entries for: ${names}. Run 'rulesync install --mode apm' to update the lockfile.`,
+        `Frozen install failed: rulesync-apm.lock.yaml is missing entries for: ${names}. Run 'rulesync install --mode apm' to update the lockfile.`,
       );
     }
     // Detect manifest drift: when the user edited `ref` in apm.yml without
@@ -109,7 +109,7 @@ export async function installApm(params: {
         })
         .join(", ");
       throw new Error(
-        `Frozen install failed: manifest ref does not match apm.lock.yaml for: ${names}. Run 'rulesync install --mode apm' to update the lockfile.`,
+        `Frozen install failed: manifest ref does not match rulesync-apm.lock.yaml for: ${names}. Run 'rulesync install --mode apm' to update the lockfile.`,
       );
     }
   }
@@ -244,10 +244,10 @@ export async function installApm(params: {
     newLock.generated_at = new Date().toISOString();
     await writeApmLock({ baseDir, lock: newLock });
     if (failedCount === 0) {
-      logger.debug("apm.lock.yaml updated.");
+      logger.debug("rulesync-apm.lock.yaml updated.");
     } else {
       logger.warn(
-        `apm.lock.yaml written with partially successful installs (${failedCount} dep(s) failed).`,
+        `rulesync-apm.lock.yaml written with partially successful installs (${failedCount} dep(s) failed).`,
       );
     }
   }
