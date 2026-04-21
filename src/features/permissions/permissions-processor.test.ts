@@ -211,16 +211,12 @@ default_permissions = "rulesync"
       expect(files[0]).toBeInstanceOf(CodexcliPermissions);
     });
 
-    it("should load Gemini CLI .gemini/settings.json", async () => {
-      const geminiDir = join(testDir, ".gemini");
-      await ensureDir(geminiDir);
+    it("should load Gemini CLI .gemini/policies/rulesync.toml", async () => {
+      const policyDir = join(testDir, ".gemini", "policies");
+      await ensureDir(policyDir);
       await writeFileContent(
-        join(geminiDir, "settings.json"),
-        JSON.stringify({
-          tools: {
-            allowed: ["run_shell_command(git status)"],
-          },
-        }),
+        join(policyDir, "rulesync.toml"),
+        '[[rule]]\ntoolName = "run_shell_command"\ndecision = "allow"\ncommandPrefix = "git status"\npriority = 100\n',
       );
 
       const processor = new PermissionsProcessor({

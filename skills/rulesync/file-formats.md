@@ -452,11 +452,17 @@ For Codex CLI, this generates a `rulesync` named profile in `.codex/config.toml`
 - `edit` / `write`: `allow` → `write`, `ask`/`deny` → `none` in `permissions.<profile>.filesystem`
 - `webfetch`: `allow`/`deny` map to `permissions.<profile>.network.domains` (Codex does not support `ask` for domain rules)
 
-For Gemini CLI, this generates `tools.allowed` and `tools.exclude` in `.gemini/settings.json` (project/global depending on mode):
+For Gemini CLI, this generates a Policy Engine file at `.gemini/policies/rulesync.toml` (project mode) or `~/.gemini/policies/rulesync.toml` (global mode). Gemini CLI auto-discovers any `*.toml` file under the `policies/` directory, so no `settings.json` modification is required:
 
-- `allow` rules are converted into `tools.allowed` entries
-- `deny` rules are converted into `tools.exclude` entries
-- `ask` rules are skipped with a warning (Gemini CLI settings do not support explicit ask entries)
+- `allow` / `deny` / `ask` rules are converted into Policy Engine `decision` values `allow` / `deny` / `ask_user`
+- Rule `priority` is assigned per decision so that `deny` (1000000) beats `ask_user` (1000) beats `allow` (1) in the engine's first-match ordering. This matches intuitive allow-with-narrow-deny authoring (e.g. `bash: { "git *": "allow", "git push --force *": "deny" }`) without relying on array order. The spread is wide on purpose so a hand-authored rule in a sibling `.toml` under `policies/` is unlikely to outrank a rulesync-managed deny by accident.
+- `bash` rules are generated with `toolName = "run_shell_command"`. When the pattern ends with a trailing ` *` (or has no glob metacharacters), the rule uses `commandPrefix` with the trailing ` *` stripped, so `"git *"` and `"git"` both serialize as `commandPrefix = "git"`. The reverse import canonicalizes these to `"<prefix> *"`.
+- When a `bash` pattern contains interior glob metacharacters (anything other than a trailing ` *`, e.g. `"rm -rf /tmp/*"`), rulesync emits `argsPattern` with a `"command":"` JSON-anchor instead of `commandPrefix`, because Gemini CLI treats `commandPrefix` as a literal string prefix.
+- Non-`bash` rules are generated with `toolName` + `argsPattern`. The pattern is anchored at both ends of the JSON string value (leading `"` and trailing `\"`) so a match cannot leak across JSON fields. Glob translation: `*` → `[^/\"]*` (single segment), `**` → `[^\"]*` (cross segment but still inside the string), `?` → `[^/\"]` (single non-separator character). Glob character classes (e.g. `[abc]`) are emitted as regex literals (the brackets themselves become `\[` / `\]`), because a translated class such as `[^a]` or `[!-~]` can bypass the JSON-boundary guard.
+- Patterns that contain an unescaped `"` or `\` are skipped with a warning, because smol-toml escaping would let the pattern hijack the surrounding regex anchor and silently disable deny rules.
+- Empty patterns (`""`) are skipped with a warning, since they would match every invocation on `bash` and never match anything on other tools.
+- `bash` patterns `*` and `**` are skipped when paired with `allow` or `deny`, because either would silently grant or revoke permission for every shell command. They are still honored with `ask` (interactive prompt on every invocation).
+- Imported policy rules whose `toolName` maps to a reserved JavaScript object key (`__proto__`, `constructor`, `prototype`) are skipped with a warning to prevent prototype pollution when round-tripping untrusted TOML.
 - Tool categories are mapped as: `bash` → `run_shell_command`, `read` → `read_file`, `edit` → `replace`, `write` → `write_file`, `webfetch` → `web_fetch`
 
 For Kiro, this generates tool permission settings in `.kiro/agents/default.json` (project mode):
