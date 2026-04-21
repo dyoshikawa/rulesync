@@ -33,19 +33,26 @@ const GEMINICLI_TO_RULESYNC_TOOL_NAME: Record<string, string> = Object.fromEntri
 );
 
 // Priority values chosen so `deny` beats `ask` beats `allow` in first-match order, which
-// the Gemini CLI Policy Engine does not otherwise enforce.
-const PRIORITY_DENY = 300;
-const PRIORITY_ASK = 200;
-const PRIORITY_ALLOW = 100;
+// the Gemini CLI Policy Engine does not otherwise enforce. The spread is wide enough that
+// a hand-authored rule in a sibling `.toml` under `.gemini/policies/` is unlikely to outrank
+// a rulesync-managed deny by accident.
+const PRIORITY_DENY = 1_000_000;
+const PRIORITY_ASK = 1_000;
+const PRIORITY_ALLOW = 1;
 
-// Regex fragments emitted for glob wildcards. `*` is single-segment (no `/`, no `"`),
-// `**` spans segments. `"` is excluded so the pattern cannot leak out of a JSON string
-// value (the Policy Engine matches argsPattern against a JSON-stringified args object).
+// Regex fragments emitted for glob wildcards. Both exclude `"` so the pattern cannot leak
+// across a JSON string boundary when the Policy Engine matches argsPattern against a
+// JSON-stringified args object. `*` additionally excludes `/` to stay within a single path
+// segment; `**` spans segments but still stops at the closing string quote.
 const SINGLE_STAR_REGEX = '[^/\\"]*';
-const DOUBLE_STAR_REGEX = ".*";
-// Legacy emission prior to segment-aware encoding; accepted on import for compatibility.
-const LEGACY_STAR_REGEX = '[^\\"]*';
+const DOUBLE_STAR_REGEX = '[^\\"]*';
+const SINGLE_CHAR_REGEX = '[^/\\"]';
+// Legacy encodings accepted on import for backward compatibility with earlier iterations
+// of this PR that emitted un-segmented or un-bounded wildcards.
+const LEGACY_SINGLE_STAR_REGEX = '[^\\"]*';
+const LEGACY_DOUBLE_STAR_REGEX = ".*";
 const COMMAND_ARGS_ANCHOR = '"command":"';
+const VALUE_END_ANCHOR = '\\"';
 
 const moduleLogger: Logger = new ConsoleLogger();
 
@@ -114,9 +121,18 @@ export class GeminicliPermissions extends ToolPermissions {
         const action = mapFromGeminicliDecision(rule.decision);
         if (!action) {
           moduleLogger.warn(
-            `Skipping rule #${index} in ${this.getRelativeFilePath()}: unknown decision ${JSON.stringify(rule.decision)}`,
+            `Skipping rule #${index} (toolName="${rule.toolName}", commandPrefix=${JSON.stringify(rule.commandPrefix)}, argsPattern=${JSON.stringify(rule.argsPattern)}) in ${this.getRelativeFilePath()}: unknown decision ${JSON.stringify(rule.decision)}`,
           );
           continue;
+        }
+        if (
+          rule.toolName === "run_shell_command" &&
+          rule.commandPrefix !== undefined &&
+          rule.argsPattern !== undefined
+        ) {
+          moduleLogger.warn(
+            `Rule #${index} in ${this.getRelativeFilePath()} sets both commandPrefix and argsPattern; rulesync will honor argsPattern and ignore commandPrefix=${JSON.stringify(rule.commandPrefix)}.`,
+          );
         }
         const pattern = extractPattern(rule);
         const target = (permission[category] ??= {});
@@ -149,10 +165,17 @@ export class GeminicliPermissions extends ToolPermissions {
 }
 
 function buildGeminicliPolicyContent(config: PermissionsConfig, logger: Logger): string {
-  const rules: Record<string, unknown>[] = [];
+  const rules: { rule: Record<string, unknown>; order: number }[] = [];
+  let order = 0;
   for (const [toolName, entries] of Object.entries(config.permission)) {
     const mappedToolName = RULESYNC_TO_GEMINICLI_TOOL_NAME[toolName] ?? toolName;
     for (const [pattern, action] of Object.entries(entries)) {
+      if (hasUnsafeAnchorChar(pattern)) {
+        logger.warn(
+          `Skipping rule "${toolName}: ${pattern}": pattern contains a character (" or \\) that would break JSON-anchor matching in the Gemini CLI Policy Engine.`,
+        );
+        continue;
+      }
       const decision = mapToGeminicliDecision(action);
       const currentRule: Record<string, unknown> = {
         toolName: mappedToolName,
@@ -162,14 +185,26 @@ function buildGeminicliPolicyContent(config: PermissionsConfig, logger: Logger):
       if (mappedToolName === "run_shell_command") {
         applyShellPattern({ rule: currentRule, pattern, toolName, logger });
       } else if (pattern !== "*") {
-        currentRule.argsPattern = `"${globPatternToRegex(pattern)}`;
+        currentRule.argsPattern = buildNonShellArgsPattern(pattern, logger);
       }
-      rules.push(currentRule);
+      rules.push({ rule: currentRule, order: order++ });
     }
   }
-  // Stable-sort by priority descending so deny rules win the engine's first-match.
-  rules.sort((a, b) => toNumber(b.priority) - toNumber(a.priority));
-  return smolToml.stringify({ rule: rules });
+  // Sort by priority descending; preserve input order within the same priority band by
+  // using the explicit secondary key rather than relying on Array.prototype.sort stability.
+  rules.sort((a, b) => {
+    const diff = toNumber(b.rule.priority) - toNumber(a.rule.priority);
+    return diff !== 0 ? diff : a.order - b.order;
+  });
+  return smolToml.stringify({ rule: rules.map((entry) => entry.rule) });
+}
+
+function buildNonShellArgsPattern(pattern: string, logger: Logger): string {
+  return `"${globPatternToRegex(pattern, logger)}${VALUE_END_ANCHOR}`;
+}
+
+function hasUnsafeAnchorChar(pattern: string): boolean {
+  return pattern.includes('"') || pattern.includes("\\");
 }
 
 function toNumber(value: unknown): number {
@@ -194,7 +229,7 @@ function applyShellPattern({
   if (hasGlobMetacharacter(trailingWildcardStripped)) {
     // Interior wildcards are meaningless inside commandPrefix (Gemini CLI escapes the
     // string as a literal), so emit argsPattern with a JSON-anchor instead.
-    rule.argsPattern = `${COMMAND_ARGS_ANCHOR}${globPatternToRegex(pattern)}`;
+    rule.argsPattern = `${COMMAND_ARGS_ANCHOR}${globPatternToRegex(pattern, logger)}`;
     logger.warn(
       `Gemini CLI does not support glob metacharacters inside a bash command prefix; emitting argsPattern for rule "${toolName}: ${pattern}".`,
     );
@@ -227,54 +262,105 @@ function mapFromGeminicliDecision(decision: unknown): "allow" | "deny" | "ask" |
   return null;
 }
 
-function globPatternToRegex(pattern: string): string {
+function globPatternToRegex(pattern: string, logger: Logger): string {
   let regex = "";
-  for (let i = 0; i < pattern.length; i += 1) {
+  let i = 0;
+  while (i < pattern.length) {
     const char = pattern[i];
     if (char === undefined) {
-      continue;
+      break;
     }
-    const next = pattern[i + 1];
-    if (char === "*" && next === "*") {
+    if (char === "*" && pattern[i + 1] === "*") {
       regex += DOUBLE_STAR_REGEX;
-      i += 1;
+      i += 2;
       continue;
     }
     if (char === "*") {
       regex += SINGLE_STAR_REGEX;
+      i += 1;
       continue;
     }
-    if (/[.+?^${}()|[\]\\]/.test(char)) {
+    if (char === "?") {
+      regex += SINGLE_CHAR_REGEX;
+      i += 1;
+      continue;
+    }
+    if (char === "[") {
+      const closeIdx = pattern.indexOf("]", i + 1);
+      if (closeIdx > i + 1) {
+        const classBody = pattern.slice(i + 1, closeIdx);
+        if (classBody.includes("/") || classBody.includes('"')) {
+          logger.warn(
+            `Glob character class "${pattern.slice(i, closeIdx + 1)}" contains a path separator or quote; treating it as a literal character to avoid breaking JSON-string boundaries.`,
+          );
+          regex += escapeRegexChar(char);
+          i += 1;
+          continue;
+        }
+        regex += `[${classBody}]`;
+        i = closeIdx + 1;
+        continue;
+      }
+      regex += escapeRegexChar(char);
+      i += 1;
+      continue;
+    }
+    if (isRegexMetacharacter(char)) {
       regex += `\\${char}`;
+      i += 1;
       continue;
     }
     regex += char;
+    i += 1;
   }
   return regex;
 }
 
+function escapeRegexChar(char: string): string {
+  return `\\${char}`;
+}
+
+function isRegexMetacharacter(char: string): boolean {
+  return /[.+^${}()|\\]/.test(char);
+}
+
 function regexToGlobPattern(regex: string): string {
+  // Strip the emitter's trailing value-end anchor so imported patterns round-trip cleanly.
+  let source = regex;
+  if (source.endsWith(VALUE_END_ANCHOR)) {
+    source = source.slice(0, -VALUE_END_ANCHOR.length);
+  }
   let glob = "";
   let i = 0;
-  while (i < regex.length) {
-    if (regex.startsWith(SINGLE_STAR_REGEX, i)) {
-      glob += "*";
-      i += SINGLE_STAR_REGEX.length;
-      continue;
-    }
-    if (regex.startsWith(LEGACY_STAR_REGEX, i)) {
-      glob += "*";
-      i += LEGACY_STAR_REGEX.length;
-      continue;
-    }
-    if (regex.startsWith(DOUBLE_STAR_REGEX, i)) {
+  while (i < source.length) {
+    if (source.startsWith(DOUBLE_STAR_REGEX, i)) {
       glob += "**";
       i += DOUBLE_STAR_REGEX.length;
       continue;
     }
-    const char = regex[i];
+    if (source.startsWith(LEGACY_DOUBLE_STAR_REGEX, i)) {
+      glob += "**";
+      i += LEGACY_DOUBLE_STAR_REGEX.length;
+      continue;
+    }
+    if (source.startsWith(SINGLE_STAR_REGEX, i)) {
+      glob += "*";
+      i += SINGLE_STAR_REGEX.length;
+      continue;
+    }
+    if (source.startsWith(LEGACY_SINGLE_STAR_REGEX, i)) {
+      glob += "*";
+      i += LEGACY_SINGLE_STAR_REGEX.length;
+      continue;
+    }
+    if (source.startsWith(SINGLE_CHAR_REGEX, i)) {
+      glob += "?";
+      i += SINGLE_CHAR_REGEX.length;
+      continue;
+    }
+    const char = source[i];
     if (char === "\\") {
-      const escaped = regex[i + 1];
+      const escaped = source[i + 1];
       if (escaped !== undefined) {
         glob += escaped;
         i += 2;
