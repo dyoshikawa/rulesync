@@ -54,6 +54,15 @@ const LEGACY_DOUBLE_STAR_REGEX = ".*";
 const COMMAND_ARGS_ANCHOR = '"command":"';
 const VALUE_END_ANCHOR = '\\"';
 
+// Reserved JavaScript object keys that would either alias the prototype chain (prototype
+// pollution) or be silently swallowed when used as a plain-object key. We reject these on
+// both the `category` (tool name) and `pattern` sides when importing.
+const RESERVED_OBJECT_KEYS: ReadonlySet<string> = new Set([
+  "__proto__",
+  "constructor",
+  "prototype",
+]);
+
 const moduleLogger: Logger = new ConsoleLogger();
 
 export class GeminicliPermissions extends ToolPermissions {
@@ -117,7 +126,19 @@ export class GeminicliPermissions extends ToolPermissions {
 
       const rules = extractRules(parsed, moduleLogger);
       for (const [index, rule] of rules.entries()) {
-        const category = GEMINICLI_TO_RULESYNC_TOOL_NAME[rule.toolName] ?? rule.toolName;
+        // Use Object.hasOwn to avoid inheriting accessors (e.g., `__proto__`) from the
+        // mapping object; falling back to the raw toolName preserves behavior for tools
+        // we don't know about yet.
+        const mappedCategory = Object.hasOwn(GEMINICLI_TO_RULESYNC_TOOL_NAME, rule.toolName)
+          ? GEMINICLI_TO_RULESYNC_TOOL_NAME[rule.toolName]
+          : undefined;
+        const category = mappedCategory ?? rule.toolName;
+        if (RESERVED_OBJECT_KEYS.has(category)) {
+          moduleLogger.warn(
+            `Skipping rule #${index} in ${this.getRelativeFilePath()}: toolName "${rule.toolName}" maps to a reserved object key ("${category}") and would risk prototype pollution.`,
+          );
+          continue;
+        }
         const action = mapFromGeminicliDecision(rule.decision);
         if (!action) {
           moduleLogger.warn(
@@ -135,7 +156,19 @@ export class GeminicliPermissions extends ToolPermissions {
           );
         }
         const pattern = extractPattern(rule);
-        const target = (permission[category] ??= {});
+        if (RESERVED_OBJECT_KEYS.has(pattern)) {
+          moduleLogger.warn(
+            `Skipping rule #${index} in ${this.getRelativeFilePath()}: pattern "${pattern}" is a reserved object key.`,
+          );
+          continue;
+        }
+        // Use Object.hasOwn to avoid touching inherited accessors like `__proto__` when
+        // the Set guard above is ever bypassed (e.g., future tool-name mapping changes).
+        const existing = Object.hasOwn(permission, category) ? permission[category] : undefined;
+        const target = existing ?? {};
+        if (existing === undefined) {
+          permission[category] = target;
+        }
         target[pattern] = action;
       }
     }
@@ -170,6 +203,12 @@ function buildGeminicliPolicyContent(config: PermissionsConfig, logger: Logger):
   for (const [toolName, entries] of Object.entries(config.permission)) {
     const mappedToolName = RULESYNC_TO_GEMINICLI_TOOL_NAME[toolName] ?? toolName;
     for (const [pattern, action] of Object.entries(entries)) {
+      if (pattern === "") {
+        logger.warn(
+          `Skipping rule "${toolName}: "": empty pattern is not a valid permission target and would silently match every invocation (bash) or nothing (other tools).`,
+        );
+        continue;
+      }
       if (hasUnsafeAnchorChar(pattern)) {
         logger.warn(
           `Skipping rule "${toolName}: ${pattern}": pattern contains a character (" or \\) that would break JSON-anchor matching in the Gemini CLI Policy Engine.`,
@@ -177,6 +216,20 @@ function buildGeminicliPolicyContent(config: PermissionsConfig, logger: Logger):
         continue;
       }
       const decision = mapToGeminicliDecision(action);
+      if (
+        mappedToolName === "run_shell_command" &&
+        (pattern === "*" || pattern === "**") &&
+        decision !== "ask_user"
+      ) {
+        // `*` / `**` on bash would emit a rule with no commandPrefix / argsPattern, which
+        // the Policy Engine treats as "match every shell command". At PRIORITY_DENY this is
+        // a global shell lockout; at PRIORITY_ALLOW it silently opens arbitrary execution.
+        // Catch-all is only meaningful at `ask_user` (interactive prompting).
+        logger.warn(
+          `Skipping rule "${toolName}: ${pattern}" with decision ${decision}: bash match-all patterns are only supported with "ask" because they would otherwise affect every shell command.`,
+        );
+        continue;
+      }
       const currentRule: Record<string, unknown> = {
         toolName: mappedToolName,
         decision,
@@ -185,7 +238,7 @@ function buildGeminicliPolicyContent(config: PermissionsConfig, logger: Logger):
       if (mappedToolName === "run_shell_command") {
         applyShellPattern({ rule: currentRule, pattern, toolName, logger });
       } else if (pattern !== "*") {
-        currentRule.argsPattern = buildNonShellArgsPattern(pattern, logger);
+        currentRule.argsPattern = buildNonShellArgsPattern(pattern);
       }
       rules.push({ rule: currentRule, order: order++ });
     }
@@ -199,8 +252,8 @@ function buildGeminicliPolicyContent(config: PermissionsConfig, logger: Logger):
   return smolToml.stringify({ rule: rules.map((entry) => entry.rule) });
 }
 
-function buildNonShellArgsPattern(pattern: string, logger: Logger): string {
-  return `"${globPatternToRegex(pattern, logger)}${VALUE_END_ANCHOR}`;
+function buildNonShellArgsPattern(pattern: string): string {
+  return `"${globPatternToRegex(pattern)}${VALUE_END_ANCHOR}`;
 }
 
 function hasUnsafeAnchorChar(pattern: string): boolean {
@@ -229,7 +282,7 @@ function applyShellPattern({
   if (hasGlobMetacharacter(trailingWildcardStripped)) {
     // Interior wildcards are meaningless inside commandPrefix (Gemini CLI escapes the
     // string as a literal), so emit argsPattern with a JSON-anchor instead.
-    rule.argsPattern = `${COMMAND_ARGS_ANCHOR}${globPatternToRegex(pattern, logger)}`;
+    rule.argsPattern = `${COMMAND_ARGS_ANCHOR}${globPatternToRegex(pattern)}`;
     logger.warn(
       `Gemini CLI does not support glob metacharacters inside a bash command prefix; emitting argsPattern for rule "${toolName}: ${pattern}".`,
     );
@@ -262,7 +315,7 @@ function mapFromGeminicliDecision(decision: unknown): "allow" | "deny" | "ask" |
   return null;
 }
 
-function globPatternToRegex(pattern: string, logger: Logger): string {
+function globPatternToRegex(pattern: string): string {
   let regex = "";
   let i = 0;
   while (i < pattern.length) {
@@ -286,21 +339,17 @@ function globPatternToRegex(pattern: string, logger: Logger): string {
       continue;
     }
     if (char === "[") {
-      const closeIdx = pattern.indexOf("]", i + 1);
-      if (closeIdx > i + 1) {
-        const classBody = pattern.slice(i + 1, closeIdx);
-        if (classBody.includes("/") || classBody.includes('"')) {
-          logger.warn(
-            `Glob character class "${pattern.slice(i, closeIdx + 1)}" contains a path separator or quote; treating it as a literal character to avoid breaking JSON-string boundaries.`,
-          );
-          regex += escapeRegexChar(char);
-          i += 1;
-          continue;
-        }
-        regex += `[${classBody}]`;
-        i = closeIdx + 1;
-        continue;
-      }
+      // Character classes are emitted as regex literals. A class body can easily bypass the
+      // JSON-field-boundary guard via negation (`[^a]` matches `"`) or ranges that include
+      // the `"` (34) or `/` (47) code points (e.g. `[!-~]`). Rather than attempt to enumerate
+      // every unsafe form, we treat `[` as a literal character. Glob character classes are
+      // extremely rare in permission rules and are not a feature users are expected to rely
+      // on here.
+      regex += escapeRegexChar(char);
+      i += 1;
+      continue;
+    }
+    if (char === "]") {
       regex += escapeRegexChar(char);
       i += 1;
       continue;

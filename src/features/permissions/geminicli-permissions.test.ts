@@ -313,6 +313,136 @@ describe("GeminicliPermissions", () => {
     expect(rules.find((rule) => rule.decision === "ask_user")).toBeUndefined();
   });
 
+  it("should not pollute Object.prototype when importing a rule with toolName __proto__", () => {
+    const geminiPermissions = new GeminicliPermissions({
+      baseDir: testDir,
+      relativeDirPath: join(".gemini", "policies"),
+      relativeFilePath: "rulesync.toml",
+      fileContent: [
+        "[[rule]]",
+        'toolName = "__proto__"',
+        'decision = "allow"',
+        'argsPattern = "pwned"',
+        "priority = 999999",
+        "",
+        "[[rule]]",
+        'toolName = "constructor"',
+        'decision = "allow"',
+        'argsPattern = "pwned2"',
+        "priority = 999999",
+        "",
+      ].join("\n"),
+    });
+
+    const json = geminiPermissions.toRulesyncPermissions().getJson();
+
+    expect(json.permission).not.toHaveProperty("__proto__");
+    expect(json.permission).not.toHaveProperty("constructor");
+    // Smoke-check: a freshly-created object must not inherit a polluted "pwned" / "pwned2" key.
+    const probe: Record<string, unknown> = {};
+    expect(probe.pwned).toBeUndefined();
+    expect(probe.pwned2).toBeUndefined();
+  });
+
+  it("should treat glob character classes as regex literals to prevent JSON-boundary bypass", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      baseDir: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          // Negated class `[^a]` would match `"` (34) and could cross JSON-field boundaries.
+          // After the fix, `[` and `]` are treated as literals and the `^` is also literal,
+          // so the resulting regex does not span fields.
+          read: { "[^a]*.ts": "allow" },
+        },
+      }),
+    });
+
+    const geminiPermissions = await GeminicliPermissions.fromRulesyncPermissions({
+      baseDir: testDir,
+      rulesyncPermissions,
+    });
+
+    const rule = parseRules(geminiPermissions.getFileContent()).find(
+      (entry) => entry.toolName === "read_file",
+    );
+    expect(rule?.argsPattern).toBe('"\\[\\^a\\][^/\\"]*\\.ts\\"');
+    // The emitted regex must still match literal "[^a]..." only, not exploit field hops.
+    const regex = new RegExp(rule?.argsPattern ?? "");
+    expect(regex.test('{"path":"[^a]foo.ts"}')).toBe(true);
+    expect(regex.test('{"path":"other","hop":"x"}')).toBe(false);
+  });
+
+  it("should skip bash match-all patterns with allow or deny decisions", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      baseDir: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          bash: {
+            "": "allow",
+            "*": "allow",
+            "**": "deny",
+            "git *": "allow",
+          },
+        },
+      }),
+    });
+
+    const geminiPermissions = await GeminicliPermissions.fromRulesyncPermissions({
+      baseDir: testDir,
+      rulesyncPermissions,
+    });
+
+    const rules = parseRules(geminiPermissions.getFileContent());
+    expect(rules).toHaveLength(1);
+    expect(rules[0]?.commandPrefix).toBe("git");
+  });
+
+  it("should still allow bash catch-all with ask decision", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      baseDir: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: { bash: { "*": "ask" } },
+      }),
+    });
+
+    const geminiPermissions = await GeminicliPermissions.fromRulesyncPermissions({
+      baseDir: testDir,
+      rulesyncPermissions,
+    });
+
+    const rules = parseRules(geminiPermissions.getFileContent());
+    expect(rules).toHaveLength(1);
+    expect(rules[0]?.decision).toBe("ask_user");
+    expect(rules[0]?.commandPrefix).toBeUndefined();
+    expect(rules[0]?.argsPattern).toBeUndefined();
+  });
+
+  it("should skip empty pattern for non-bash tools", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      baseDir: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: { read: { "": "deny", "src/**": "allow" } },
+      }),
+    });
+
+    const geminiPermissions = await GeminicliPermissions.fromRulesyncPermissions({
+      baseDir: testDir,
+      rulesyncPermissions,
+    });
+
+    const rules = parseRules(geminiPermissions.getFileContent());
+    expect(rules).toHaveLength(1);
+    expect(rules[0]?.decision).toBe("allow");
+  });
+
   it("should be deletable because rulesync.toml is exclusively owned by rulesync", async () => {
     const geminiPermissions = GeminicliPermissions.forDeletion({
       baseDir: testDir,
