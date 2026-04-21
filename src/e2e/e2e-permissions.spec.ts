@@ -140,6 +140,41 @@ describe("E2E: permissions", () => {
     expect(content.toolsSettings.write.allowedPaths).toContain("docs/**");
     expect(content.allowedTools).toContain("web_fetch");
   });
+
+  it("should remove denied Kiro web tools from existing allowedTools", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            webfetch: { "*": "deny" },
+            websearch: { "*": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    await writeFileContent(
+      join(testDir, ".kiro", "agents", "default.json"),
+      JSON.stringify(
+        {
+          allowedTools: ["web_fetch", "web_search", "read"],
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "kiro", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, ".kiro", "agents", "default.json")),
+    );
+    expect(content.allowedTools).toEqual(["read"]);
+  });
 });
 
 describe("E2E: permissions (import)", () => {
