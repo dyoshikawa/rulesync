@@ -1085,4 +1085,63 @@ describe("resolveAndFetchSources", () => {
     expect(result.fetchedSkillCount).toBe(0);
     expect(writeFileContent).not.toHaveBeenCalled();
   });
+
+  it("should install single-skill repo with SKILL.md at path root via github transport", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [
+            { name: "SKILL.md", path: "skills/SKILL.md", type: "file", size: 50 },
+            { name: "README.md", path: "skills/README.md", type: "file", size: 20 },
+          ];
+        }
+        return [];
+      },
+    );
+    mockClientInstance.getFileContent.mockImplementation(
+      async (_o: string, _r: string, path: string) => {
+        if (path === "skills/SKILL.md") return "# Humanizer";
+        if (path === "skills/README.md") return "docs";
+        return "";
+      },
+    );
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/humanizer:skills", skills: ["humanizer"] }],
+      baseDir: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(1);
+    expect(writeFileContent).toHaveBeenCalledWith(
+      join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "humanizer", "SKILL.md"),
+      "# Humanizer",
+    );
+  });
+
+  it("should treat backslash-separated git paths as nested skill files", async () => {
+    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "d".repeat(40) });
+    vi.mocked(fetchSkillFiles).mockResolvedValue([
+      { relativePath: "humanizer\\SKILL.md", content: "# Humanizer", size: 50 },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [
+        {
+          source: "https://dev.azure.com/org/_git/repo",
+          transport: "git",
+          skills: ["humanizer"],
+        },
+      ],
+      baseDir: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(1);
+    expect(writeFileContent).toHaveBeenCalledWith(
+      join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "humanizer", "SKILL.md"),
+      "# Humanizer",
+    );
+  });
 });
