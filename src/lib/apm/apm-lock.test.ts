@@ -28,6 +28,31 @@ describe("apm-lock", () => {
       expect(lock.dependencies).toEqual([]);
       expect(typeof lock.generated_at).toBe("string");
     });
+
+    it("preserves top-level fields from existingLock", () => {
+      const existing = parseApmLock(
+        `lockfile_version: "1"
+generated_at: "2026-04-20T00:00:00Z"
+apm_version: "0.7.7"
+mcp_servers:
+  - security-scanner
+custom_top_level:
+  any: thing
+dependencies: []
+`,
+      );
+      expect(existing).not.toBeNull();
+      const lock = createEmptyApmLock({
+        apmVersion: "rulesync-compat/0.1",
+        existingLock: existing,
+      });
+      expect(lock.mcp_servers).toEqual(["security-scanner"]);
+      expect((lock as unknown as { custom_top_level: unknown }).custom_top_level).toEqual({
+        any: "thing",
+      });
+      expect(lock.dependencies).toEqual([]);
+      expect(lock.apm_version).toBe("rulesync-compat/0.1");
+    });
   });
 
   describe("parseApmLock", () => {
@@ -120,7 +145,12 @@ dependencies:
       expect(() => parseApmLock(content)).toThrow(/Invalid apm\.lock\.yaml/);
     });
 
-    it("throws when content_hash does not match sha256:<64-hex>", () => {
+    it("accepts content_hash values that do not match the rulesync regex (upstream apm interop)", () => {
+      // The strict regex was relaxed at the parse site so that a lockfile
+      // produced by the upstream `apm` CLI with a different content_hash
+      // shape can still be read. Rulesync itself always writes the strict
+      // form; the `--frozen` integrity check is responsible for deciding
+      // whether a recorded hash is comparable.
       const content = `lockfile_version: "1"
 generated_at: "2026-04-20T00:00:00Z"
 apm_version: "0.7.7"
@@ -130,10 +160,11 @@ dependencies:
     resolved_ref: main
     depth: 1
     package_type: apm_package
-    content_hash: sha256:abc
+    content_hash: sha256:legacy
     deployed_files: []
 `;
-      expect(() => parseApmLock(content)).toThrow(/content_hash/);
+      const parsed = parseApmLock(content);
+      expect(parsed?.dependencies[0]?.content_hash).toBe("sha256:legacy");
     });
 
     it('throws when lockfile_version is not "1"', () => {

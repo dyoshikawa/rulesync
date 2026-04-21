@@ -1,12 +1,20 @@
 import { join } from "node:path";
 
 import { dump, load } from "js-yaml";
-import { nonnegative, optional, refine, regex, z } from "zod/mini";
+import { nonnegative, optional, refine, z } from "zod/mini";
 
 import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
 
 export const APM_LOCKFILE_FILE_NAME = "apm.lock.yaml";
 export const APM_LOCKFILE_VERSION = "1" as const;
+
+/**
+ * Shape of content_hash values that rulesync writes. Used by `--frozen`
+ * integrity checks to decide whether a prior hash is comparable: any value
+ * not matching this regex (e.g. written by the upstream `apm` CLI) is
+ * skipped rather than throwing so that cross-tool interop works.
+ */
+export const RULESYNC_CONTENT_HASH_REGEX = /^sha256:[0-9a-f]{64}$/;
 
 /**
  * Single dependency entry in `apm.lock.yaml`. Mirrors the subset of the
@@ -27,9 +35,13 @@ export const ApmLockDependencySchema = z.looseObject({
   depth: z.int().check(nonnegative()),
   resolved_by: optional(z.string()),
   package_type: z.string(),
-  content_hash: optional(
-    z.string().check(regex(/^sha256:[0-9a-f]{64}$/, "content_hash must be sha256:<64-char-hex>")),
-  ),
+  // Intentionally loose: the upstream `apm` CLI may write content_hash values
+  // that do not match the strict rulesync format. We accept any string on read
+  // so that a lockfile produced by `apm` round-trips through rulesync without
+  // throwing. Rulesync itself always writes values matching
+  // `RULESYNC_CONTENT_HASH_REGEX`, and `--frozen` integrity checks only
+  // enforce the comparison when the recorded hash matches that shape.
+  content_hash: optional(z.string()),
   is_dev: optional(z.boolean()),
   deployed_files: z.array(z.string()),
   source: optional(z.string()),
@@ -60,9 +72,20 @@ export async function apmLockExists(baseDir: string): Promise<boolean> {
  * Create an empty lockfile structure. `apm_version` is set to the rulesync
  * compatibility-marker string so downstream tooling can tell this lockfile
  * was produced by rulesync rather than the upstream `apm` CLI.
+ *
+ * When `existingLock` is provided, all top-level fields from that lock (e.g.
+ * `mcp_servers` and any looseObject extras written by the upstream `apm`
+ * CLI) are carried forward. `dependencies` is always reset to an empty array
+ * and `generated_at` is refreshed; `apm_version` is overwritten by the value
+ * passed in `params.apmVersion`.
  */
-export function createEmptyApmLock(params: { apmVersion: string }): ApmLock {
+export function createEmptyApmLock(params: {
+  apmVersion: string;
+  existingLock?: ApmLock | null;
+}): ApmLock {
+  const base = params.existingLock ? { ...params.existingLock } : {};
   return {
+    ...base,
     lockfile_version: APM_LOCKFILE_VERSION,
     generated_at: new Date().toISOString(),
     apm_version: params.apmVersion,

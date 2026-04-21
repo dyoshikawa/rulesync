@@ -330,6 +330,52 @@ describe("installApm", () => {
     ).rejects.toThrow(/content_hash mismatch/);
   });
 
+  it("writes preserved-for-failure lock entries in manifest order, not completion order", async () => {
+    // Seed lockfile with two deps in a known manifest order.
+    await writeManifest(
+      `dependencies:
+  apm:
+    - acme/first#v1.0.0
+    - acme/second#v1.0.0
+`,
+    );
+    mockClientInstance.listDirectory.mockResolvedValue([]);
+    mockClientInstance.resolveRefToSha.mockImplementation(async (_owner: string, repo: string) =>
+      repo === "first" ? VALID_SHA : SECOND_SHA,
+    );
+    await installApm({ baseDir: testDir, logger });
+    const lockBefore = await readApmLock(testDir);
+    expect(lockBefore?.dependencies.map((d) => d.repo_url)).toEqual([
+      "https://github.com/acme/first",
+      "https://github.com/acme/second",
+    ]);
+
+    // Now make the FIRST dep fail slowly while the SECOND dep succeeds fast.
+    // Without ordering logic, the failed-first dep's preserved entry would
+    // land after the succeeded-second dep in the rewritten lockfile.
+    mockClientInstance.resolveRefToSha.mockImplementation(async (_owner: string, repo: string) => {
+      if (repo === "first") {
+        await new Promise((r) => setTimeout(r, 20));
+        throw new Error("network error on first");
+      }
+      return SECOND_SHA;
+    });
+
+    const result = await installApm({
+      baseDir: testDir,
+      logger,
+      options: { update: true },
+    });
+    expect(result.failedDependencyCount).toBe(1);
+
+    const lockAfter = await readApmLock(testDir);
+    // Manifest-order preservation: "first" (preserved) must stay at index 0.
+    expect(lockAfter?.dependencies.map((d) => d.repo_url)).toEqual([
+      "https://github.com/acme/first",
+      "https://github.com/acme/second",
+    ]);
+  });
+
   it("preserves the existing lock entry when a dependency fails to install", async () => {
     await writeManifest(
       `dependencies:
@@ -499,6 +545,160 @@ describe("installApm", () => {
     expect(deployed).toBe("content of packages/security/.apm/instructions/s.instructions.md");
     const lock = await readApmLock(testDir);
     expect(lock?.dependencies[0]?.virtual_path).toBe("packages/security");
+  });
+
+  it("refuses to remove stale files whose recorded path escapes baseDir", async () => {
+    // Hand-craft a lockfile whose deployed_files contains attacker-controlled
+    // paths. `deployed_files` is only schema-validated as a string array, so
+    // a hostile repo could plant this and trigger arbitrary `removeFile` on
+    // the next `rulesync install` run. The guard must skip such entries
+    // with a warn log so that the remove never actually happens.
+    //
+    // We cannot safely write a file *outside* testDir from a test (the
+    // testing guidelines forbid polluting anything outside the project
+    // test directory), so we prove the defense by asserting (a) the guard
+    // warns for each offending entry and (b) legitimate in-baseDir cleanup
+    // still proceeds as a control.
+    const absoluteOutside = "/tmp/rulesync-apm-test-absolute-target.md";
+    const lockYaml = `lockfile_version: "1"
+generated_at: "2026-04-20T00:00:00Z"
+apm_version: "0.7.7"
+dependencies:
+  - repo_url: https://github.com/acme/security
+    resolved_commit: ${VALID_SHA}
+    resolved_ref: v1.0.0
+    depth: 1
+    package_type: apm_package
+    deployed_files:
+      - ../escape-one.md
+      - ${absoluteOutside}
+      - .github/instructions/old.instructions.md
+`;
+    await writeFileContent(getApmLockPath(testDir), lockYaml);
+
+    // Plant the "clean" stale file that lives inside baseDir so we can
+    // verify the normal cleanup path still works even when the guard skips
+    // its neighbors.
+    await writeFileContent(
+      join(testDir, ".github/instructions/old.instructions.md"),
+      "stale legit",
+    );
+
+    await writeManifest(
+      `dependencies:
+  apm:
+    - acme/security#v1.0.0
+`,
+    );
+    // New install returns no files, so prior entries become stale.
+    mockClientInstance.listDirectory.mockResolvedValue([]);
+
+    const localLogger = createMockLogger();
+    await installApm({ baseDir: testDir, logger: localLogger, options: { update: true } });
+
+    // Legit in-baseDir stale file is still removed (control: cleanup works).
+    expect(await fileExists(join(testDir, ".github/instructions/old.instructions.md"))).toBe(false);
+    // Warn logs were emitted for the two refused entries.
+    const warnMessages = localLogger.warn.mock.calls.map((args) => String(args[0]));
+    expect(warnMessages.some((m) => m.includes("../escape-one.md"))).toBe(true);
+    expect(warnMessages.some((m) => m.includes(absoluteOutside))).toBe(true);
+  });
+
+  it("preserves top-level mcp_servers and other loose fields across install rewrites", async () => {
+    // A lockfile produced by the upstream `apm` CLI may carry extra top-level
+    // fields (mcp_servers, custom extensions, etc.). Rulesync must not wipe
+    // these when it rewrites the lockfile — only dependencies/generated_at
+    // should be owned by us.
+    const validHash = `sha256:${"0".repeat(64)}`;
+    const lockYaml = `lockfile_version: "1"
+generated_at: "2026-04-20T00:00:00Z"
+apm_version: "0.7.7"
+mcp_servers:
+  - security-scanner
+  - code-reviewer
+custom_extension:
+  foo: bar
+dependencies:
+  - repo_url: https://github.com/acme/security
+    resolved_commit: ${VALID_SHA}
+    resolved_ref: v1.0.0
+    depth: 1
+    package_type: apm_package
+    content_hash: ${validHash}
+    deployed_files: []
+`;
+    await writeFileContent(getApmLockPath(testDir), lockYaml);
+
+    await writeManifest(
+      `dependencies:
+  apm:
+    - acme/security#v1.0.0
+`,
+    );
+    mockClientInstance.listDirectory.mockResolvedValue([]);
+
+    await installApm({ baseDir: testDir, logger, options: { update: true } });
+
+    const after = await readApmLock(testDir);
+    expect(after?.mcp_servers).toEqual(["security-scanner", "code-reviewer"]);
+    expect((after as unknown as { custom_extension: unknown }).custom_extension).toEqual({
+      foo: "bar",
+    });
+  });
+
+  it("tolerates a non-rulesync content_hash under --frozen without tripping integrity", async () => {
+    // The upstream `apm` CLI may write content_hash values that do not match
+    // the rulesync regex. readApmLock must accept them (regression for the
+    // hard regex) AND frozen installs must not throw `content_hash mismatch`
+    // for such entries — the commit SHA is still the integrity anchor.
+    const lockYaml = `lockfile_version: "1"
+generated_at: "2026-04-20T00:00:00Z"
+apm_version: "0.7.7"
+dependencies:
+  - repo_url: https://github.com/acme/security
+    resolved_commit: ${VALID_SHA}
+    resolved_ref: v1.0.0
+    depth: 1
+    package_type: apm_package
+    content_hash: "sha256:legacy"
+    deployed_files:
+      - .github/instructions/a.instructions.md
+`;
+    await writeFileContent(getApmLockPath(testDir), lockYaml);
+
+    // readApmLock must not throw on the legacy-shape hash.
+    const parsed = await readApmLock(testDir);
+    expect(parsed?.dependencies[0]?.content_hash).toBe("sha256:legacy");
+
+    await writeManifest(
+      `dependencies:
+  apm:
+    - acme/security#v1.0.0
+`,
+    );
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === ".apm/instructions") {
+          return [
+            {
+              name: "a.instructions.md",
+              path: ".apm/instructions/a.instructions.md",
+              type: "file",
+              size: 100,
+            },
+          ];
+        }
+        return [];
+      },
+    );
+    // Content is totally different from what the legacy hash supposedly
+    // covered. Rulesync must NOT raise `content_hash mismatch` here because
+    // the recorded hash is not a rulesync-written value.
+    mockClientInstance.getFileContent.mockResolvedValue("arbitrary content");
+
+    await expect(
+      installApm({ baseDir: testDir, logger, options: { frozen: true } }),
+    ).resolves.toBeDefined();
   });
 
   it("skips tree entries whose path escapes remoteBase with a warning", async () => {

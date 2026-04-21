@@ -16,6 +16,7 @@ import {
   createEmptyApmLock,
   findApmLockDependency,
   readApmLock,
+  RULESYNC_CONTENT_HASH_REGEX,
   writeApmLock,
 } from "./apm-lock.js";
 import { type ApmDependency, readApmManifest } from "./apm-manifest.js";
@@ -119,6 +120,7 @@ export async function installApm(params: {
 
   const newLock: ApmLock = createEmptyApmLock({
     apmVersion: existingLock?.apm_version ?? RULESYNC_APM_COMPAT_VERSION,
+    existingLock,
   });
 
   // Dependencies are independent, so install them in parallel. The within-dep
@@ -132,7 +134,7 @@ export async function installApm(params: {
   //                   one failing dep does not abort the others.
   type DepResult =
     | { status: "ok"; lockEntry: ApmLockDependency; deployedCount: number }
-    | { status: "failed" };
+    | { status: "failed"; previous: ApmLockDependency | undefined };
 
   const frozen = options.frozen ?? false;
 
@@ -167,33 +169,44 @@ export async function installApm(params: {
             }
             // Preserve the prior lock entry for failed deps so that a
             // transient network error does not destroy a previously pinned
-            // commit SHA.
+            // commit SHA. We return it rather than pushing here so that the
+            // post-loop pushes preserved entries in manifest order, not in
+            // promise-completion order.
             const previous = existingLock
               ? findApmLockDependency(existingLock, canonicalRepoUrl(dep))
               : undefined;
-            if (previous) {
-              newLock.dependencies.push(previous);
-            }
-            return { status: "failed" };
+            return { status: "failed", previous };
           }
         }),
       );
 
   let totalDeployed = 0;
   let failedCount = 0;
-  // Iterate in manifest order to keep the lockfile deterministic.
+  // Iterate in manifest order to keep the lockfile deterministic regardless
+  // of promise-completion timing.
   for (const result of results) {
     if (result.status === "ok") {
       newLock.dependencies.push(result.lockEntry);
       totalDeployed += result.deployedCount;
     } else {
       failedCount += 1;
+      if (result.previous) {
+        newLock.dependencies.push(result.previous);
+      }
     }
   }
 
   // Remove files that were deployed by a previous install but are no longer
   // part of any current dependency's deployed_files. Without this, stale
   // artifacts would accumulate on disk forever as upstream content changes.
+  //
+  // SECURITY: `deployed_files` is only schema-validated as `z.array(z.string())`,
+  // so a hostile lockfile (planted in a repo and processed by CI) could try
+  // to make us `removeFile("../../etc/passwd")`. We defense-in-depth guard
+  // each entry: (a) reject absolute paths and `..` segments by shape, then
+  // (b) run `checkPathTraversal` for the canonical check used on the write
+  // path. Offending entries are skipped with a warn log rather than fatal so
+  // that a single bad row cannot brick the install.
   if (existingLock) {
     const newDeployedFiles = new Set(newLock.dependencies.flatMap((d) => d.deployed_files));
     const toDelete: string[] = [];
@@ -205,6 +218,16 @@ export async function installApm(params: {
       }
     }
     for (const relativePath of toDelete) {
+      if (posix.isAbsolute(relativePath) || relativePath.split(/[/\\]/).includes("..")) {
+        logger.warn(`Refusing to remove stale apm file with suspicious path: "${relativePath}".`);
+        continue;
+      }
+      try {
+        checkPathTraversal({ relativePath, intendedRootDir: baseDir });
+      } catch {
+        logger.warn(`Refusing to remove stale apm file outside baseDir: "${relativePath}".`);
+        continue;
+      }
       const absolute = join(baseDir, relativePath);
       // `removeFile` is best-effort and swallows ENOENT, so missing files are
       // a no-op. This keeps a corrupted partial-install from blowing up here.
@@ -325,14 +348,29 @@ async function installDependency(params: {
   const contentHash = computeContentHash(deployed);
 
   // Verify integrity against the lockfile when running frozen and the prior
-  // lock recorded a hash. A mismatch means either the upstream content moved
-  // under the same SHA (unlikely with git) or someone tampered with the
-  // lockfile / deployed files. We do this *before* writing anything to disk
-  // under --frozen so that tampered bytes never hit the filesystem.
-  if (frozen && locked?.content_hash && locked.content_hash !== contentHash) {
-    throw new Error(
-      `content_hash mismatch for ${repoUrl}: lock=${locked.content_hash} computed=${contentHash}. Refuse to trust the deployment under --frozen.`,
-    );
+  // lock recorded a hash rulesync itself wrote. A mismatch means either the
+  // upstream content moved under the same SHA (unlikely with git) or someone
+  // tampered with the lockfile / deployed files. We do this *before* writing
+  // anything to disk under --frozen so that tampered bytes never hit the
+  // filesystem.
+  //
+  // If the recorded hash does not match the rulesync format (e.g. the
+  // lockfile was produced by the upstream `apm` CLI which writes a different
+  // shape), we skip the integrity check rather than fail — the commit SHA
+  // pin is still enforced, and this preserves interop for users migrating
+  // from `apm` to `rulesync install --mode apm`.
+  if (frozen && locked?.content_hash) {
+    if (RULESYNC_CONTENT_HASH_REGEX.test(locked.content_hash)) {
+      if (locked.content_hash !== contentHash) {
+        throw new Error(
+          `content_hash mismatch for ${repoUrl}: lock=${locked.content_hash} computed=${contentHash}. Refuse to trust the deployment under --frozen.`,
+        );
+      }
+    } else {
+      logger.debug(
+        `Skipping content_hash integrity check for ${repoUrl}: recorded hash "${locked.content_hash}" was not written by rulesync.`,
+      );
+    }
   }
 
   // Under --frozen we deferred all writes until after the hash check passed.
