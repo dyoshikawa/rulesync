@@ -48,7 +48,62 @@ describe("GeminicliPermissions", () => {
     expect(content).toContain('decision = "deny"');
     expect(content).toContain('decision = "ask_user"');
     expect(content).toContain('toolName = "read_file"');
-    expect(content).toContain('argsPattern = "src/.*"');
+    expect(content).toContain('argsPattern = "\\"src/.*"');
+  });
+
+  it("should assign higher priority to deny rules than ask or allow rules", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      baseDir: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          bash: { "git *": "allow", "git push --force *": "deny", "*": "ask" },
+        },
+      }),
+    });
+
+    const geminiPermissions = await GeminicliPermissions.fromRulesyncPermissions({
+      baseDir: testDir,
+      rulesyncPermissions,
+    });
+
+    const content = geminiPermissions.getFileContent();
+    const denyIndex = content.indexOf('decision = "deny"');
+    const askIndex = content.indexOf('decision = "ask_user"');
+    const allowIndex = content.indexOf('decision = "allow"');
+    expect(denyIndex).toBeGreaterThanOrEqual(0);
+    expect(askIndex).toBeGreaterThanOrEqual(0);
+    expect(allowIndex).toBeGreaterThanOrEqual(0);
+    // Deny must appear before allow so that first-match wins goes to deny.
+    expect(denyIndex).toBeLessThan(allowIndex);
+    expect(askIndex).toBeLessThan(allowIndex);
+    expect(content).toContain("priority = 300");
+    expect(content).toContain("priority = 200");
+    expect(content).toContain("priority = 100");
+  });
+
+  it("should emit argsPattern for bash patterns with interior glob metacharacters", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      baseDir: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          bash: { "rm -rf /tmp/*": "deny" },
+        },
+      }),
+    });
+
+    const geminiPermissions = await GeminicliPermissions.fromRulesyncPermissions({
+      baseDir: testDir,
+      rulesyncPermissions,
+    });
+
+    const content = geminiPermissions.getFileContent();
+    expect(content).toContain('toolName = "run_shell_command"');
+    expect(content).toContain('argsPattern = "\\"command\\":\\"rm -rf /tmp/');
+    expect(content).not.toContain('commandPrefix = "rm -rf /tmp/*"');
   });
 
   it("should convert Gemini CLI policy TOML back to rulesync format", () => {
@@ -67,12 +122,12 @@ describe("GeminicliPermissions", () => {
         'toolName = "run_shell_command"',
         'decision = "deny"',
         'commandPrefix = "rm"',
-        "priority = 100",
+        "priority = 300",
         "",
         "[[rule]]",
         'toolName = "read_file"',
         'decision = "allow"',
-        'argsPattern = "src/.*"',
+        'argsPattern = "\\"src/.*"',
         "priority = 100",
         "",
       ].join("\n"),
@@ -83,6 +138,25 @@ describe("GeminicliPermissions", () => {
 
     expect(json.permission.bash?.["git *"]).toBe("allow");
     expect(json.permission.bash?.["rm *"]).toBe("deny");
+    expect(json.permission.read?.["src/**"]).toBe("allow");
+  });
+
+  it("should accept legacy unanchored argsPattern encoding for backward compatibility", () => {
+    const geminiPermissions = new GeminicliPermissions({
+      baseDir: testDir,
+      relativeDirPath: join(".gemini", "policies"),
+      relativeFilePath: "rulesync.toml",
+      fileContent: [
+        "[[rule]]",
+        'toolName = "read_file"',
+        'decision = "allow"',
+        'argsPattern = "src/.*"',
+        "priority = 100",
+        "",
+      ].join("\n"),
+    });
+
+    const json = geminiPermissions.toRulesyncPermissions().getJson();
     expect(json.permission.read?.["src/**"]).toBe("allow");
   });
 
@@ -103,5 +177,28 @@ describe("GeminicliPermissions", () => {
     const loaded = await GeminicliPermissions.fromFile({ baseDir: testDir });
     const json = loaded.toRulesyncPermissions().getJson();
     expect(json.permission).toEqual({});
+  });
+
+  it("should throw a descriptive error on malformed TOML", () => {
+    const geminiPermissions = new GeminicliPermissions({
+      baseDir: testDir,
+      relativeDirPath: join(".gemini", "policies"),
+      relativeFilePath: "rulesync.toml",
+      fileContent: "[[rule]]\ninvalid !!! :: broken",
+    });
+
+    expect(() => geminiPermissions.toRulesyncPermissions()).toThrow(
+      /Failed to parse Gemini CLI policy TOML/,
+    );
+  });
+
+  it("should be deletable because rulesync.toml is exclusively owned by rulesync", async () => {
+    const geminiPermissions = GeminicliPermissions.forDeletion({
+      baseDir: testDir,
+      relativeDirPath: join(".gemini", "policies"),
+      relativeFilePath: "rulesync.toml",
+    });
+
+    expect(geminiPermissions.isDeletable()).toBe(true);
   });
 });

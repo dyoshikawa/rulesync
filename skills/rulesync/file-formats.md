@@ -455,8 +455,10 @@ For Codex CLI, this generates a `rulesync` named profile in `.codex/config.toml`
 For Gemini CLI, this generates a Policy Engine file at `.gemini/policies/rulesync.toml` (project mode) or `~/.gemini/policies/rulesync.toml` (global mode). Gemini CLI auto-discovers any `*.toml` file under the `policies/` directory, so no `settings.json` modification is required:
 
 - `allow` / `deny` / `ask` rules are converted into Policy Engine `decision` values `allow` / `deny` / `ask_user`
-- `bash` rules are generated with `toolName = "run_shell_command"` (using `commandPrefix` when the rule pattern is not `*`)
-- Non-`bash` rules are generated with `toolName` + `argsPattern`
+- Rule `priority` is assigned per decision so that `deny` (300) beats `ask_user` (200) beats `allow` (100) in the engine's first-match ordering. This matches intuitive allow-with-narrow-deny authoring (e.g. `bash: { "git *": "allow", "git push --force *": "deny" }`) without relying on array order.
+- `bash` rules are generated with `toolName = "run_shell_command"`. When the pattern ends with a trailing ` *` (or has no glob metacharacters), the rule uses `commandPrefix` with the trailing ` *` stripped, so `"git *"` and `"git"` both serialize as `commandPrefix = "git"`. The reverse import canonicalizes these to `"<prefix> *"`.
+- When a `bash` pattern contains interior glob metacharacters (anything other than a trailing ` *`, e.g. `"rm -rf /tmp/*"`), rulesync emits `argsPattern` with a `"command":"` JSON-anchor instead of `commandPrefix`, because Gemini CLI treats `commandPrefix` as a literal string prefix.
+- Non-`bash` rules are generated with `toolName` + `argsPattern`. The pattern is anchored with a leading `"` so it only matches inside a JSON string value; a single `*` translates to `[^/\"]*` (single-segment, mirroring shell-glob semantics) and `**` translates to `.*` (cross-segment).
 - Tool categories are mapped as: `bash` → `run_shell_command`, `read` → `read_file`, `edit` → `replace`, `write` → `write_file`, `webfetch` → `web_fetch`
 
 For Kiro, this generates tool permission settings in `.kiro/agents/default.json` (project mode):
