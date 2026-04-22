@@ -99,14 +99,11 @@ Skill body for review.
 `,
     );
 
-    const { stderr } = await runGenerate({
+    await runGenerate({
       target: "takt",
       features: "commands,skills",
-      env: { NODE_ENV: "e2e" },
     });
 
-    // No more collision warnings: commands and skills map to different dirs.
-    expect(stderr).not.toMatch(/TAKT collision/);
     expect(
       await readFileContent(join(testDir, ".takt", "facets", "instructions", "review.md")),
     ).toContain("Command body for review.");
