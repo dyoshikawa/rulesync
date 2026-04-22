@@ -24,10 +24,9 @@ const TARGETS_WITHOUT_GITIGNORE_ENTRIES = new Set([
 describe("GITIGNORE_ENTRY_REGISTRY", () => {
   it("should have no duplicate entries within a single feature tag", () => {
     // The registry intentionally allows the SAME entry to be registered under
-    // different feature tags (e.g. `.takt/facets/instructions/` is shared by
-    // both `commands` and `skills` for the takt target). The `resolveGitignoreEntries`
-    // writer dedupes the final output. What we want to forbid is the same
-    // (target, feature, entry) triple appearing twice.
+    // different feature tags. The `resolveGitignoreEntries` writer dedupes the
+    // final output. What we want to forbid is the same (target, feature, entry)
+    // triple appearing twice.
     const seen = new Set<string>();
     const collisions: string[] = [];
     for (const tag of GITIGNORE_ENTRY_REGISTRY) {

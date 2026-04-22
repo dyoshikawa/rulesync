@@ -25,8 +25,7 @@ antigravity: # antigravity specific parameters
   trigger: "always_on" # always_on, glob, manual, or model_decision
   globs: ["**/*"] # (optional) file patterns to match when trigger is "glob"
   description: "When to apply this rule" # (optional) used with "model_decision" trigger
-takt: # takt specific parameters (optional, plain Markdown only — frontmatter is dropped on emit)
-  facet: "policy" # (optional) "policy" (default), "knowledge", or "output-contract"
+takt: # takt specific parameters (optional; emitted under .takt/facets/policies/ — frontmatter is dropped on emit)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
 ---
 
@@ -186,7 +185,7 @@ copilot: # copilot specific parameters (optional)
 antigravity: # antigravity specific parameters
   trigger: "/review" # Specific trigger for workflow (renames file to review.md)
   turbo: true # (Optional, default: true) Append // turbo for auto-execution
-takt: # takt specific parameters (optional; only `name` is honored — `facet` is fixed to "instruction")
+takt: # takt specific parameters (optional; emitted under .takt/facets/instructions/)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
 ---
 
@@ -227,7 +226,7 @@ opencode: # for OpenCode-specific parameters
   permission:
     bash:
       "git diff": allow
-takt: # takt specific parameters (optional; only `name` is honored — `facet` is fixed to "persona")
+takt: # takt specific parameters (optional; emitted under .takt/facets/personas/)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
 ---
 
@@ -260,8 +259,7 @@ claudecode: # for claudecode-specific parameters
   disable-model-invocation: true # (optional) disable model invocation for this skill
 codexcli: # for codexcli-specific parameters
   short-description: A brief user-facing description
-takt: # takt specific parameters (optional, plain Markdown only — frontmatter is dropped on emit)
-  facet: "instruction" # (optional) "instruction" (default), "knowledge", or "output-contract"
+takt: # takt specific parameters (optional; emitted under .takt/facets/knowledge/ — frontmatter is dropped on emit)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
 ---
 

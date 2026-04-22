@@ -1,5 +1,3 @@
-import { z } from "zod/mini";
-
 /**
  * Shared utilities for all TAKT-* tool file classes.
  *
@@ -45,47 +43,4 @@ export function assertSafeTaktName({
         `filename stems may not contain path separators or ".." segments.`,
     );
   }
-}
-
-/**
- * Resolve a TAKT facet directory from an optional `takt.facet` value.
- *
- * Generic helper used by all four TAKT-* tool file classes (rule, subagent,
- * command, skill). Each feature defines its own allowed values and default;
- * this helper validates the supplied value and returns the corresponding
- * directory name.
- *
- * @throws when `value` is non-string or not in `allowed`.
- */
-export function resolveTaktFacetDir<TAllowed extends string>({
-  value,
-  allowed,
-  defaultDir,
-  dirMap,
-  featureLabel,
-  sourceLabel,
-}: {
-  value: unknown;
-  allowed: ReadonlyArray<TAllowed>;
-  defaultDir: string;
-  dirMap: Readonly<Record<TAllowed, string>>;
-  featureLabel: string;
-  sourceLabel: string;
-}): string {
-  if (value === undefined || value === null) {
-    return defaultDir;
-  }
-  if (typeof value !== "string") {
-    throw new Error(
-      `Invalid takt.facet for ${featureLabel} "${sourceLabel}": expected a string, got ${typeof value}.`,
-    );
-  }
-  const parsed = z.enum(allowed).safeParse(value);
-  if (!parsed.success) {
-    throw new Error(
-      `Invalid takt.facet "${value}" for ${featureLabel} "${sourceLabel}". ` +
-        `Allowed values for ${featureLabel}s: ${allowed.join(", ")}.`,
-    );
-  }
-  return dirMap[parsed.data];
 }

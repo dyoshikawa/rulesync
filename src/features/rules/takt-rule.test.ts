@@ -9,12 +9,7 @@ import {
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import {
-  DEFAULT_TAKT_RULE_DIR,
-  resolveTaktRuleFacetDir,
-  TAKT_RULE_FACET_VALUES,
-  TaktRule,
-} from "./takt-rule.js";
+import { DEFAULT_TAKT_RULE_DIR, TaktRule } from "./takt-rule.js";
 
 describe("TaktRule", () => {
   let testDir: string;
@@ -31,11 +26,12 @@ describe("TaktRule", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("returns a non-root facet path in project mode", () => {
+    it("returns the fixed policies facet path in project mode", () => {
       const paths = TaktRule.getSettablePaths();
       expect("nonRoot" in paths && paths.nonRoot?.relativeDirPath).toBe(
         join(".takt", "facets", DEFAULT_TAKT_RULE_DIR),
       );
+      expect(DEFAULT_TAKT_RULE_DIR).toBe("policies");
     });
 
     it("returns a root path in global mode", () => {
@@ -46,26 +42,8 @@ describe("TaktRule", () => {
     });
   });
 
-  describe("resolveTaktRuleFacetDir", () => {
-    it("defaults to policies when facet is missing", () => {
-      expect(resolveTaktRuleFacetDir(undefined, "x.md")).toBe("policies");
-    });
-
-    it.each(TAKT_RULE_FACET_VALUES.map((v) => [v]))("accepts allowed facet %s", (value) => {
-      expect(typeof resolveTaktRuleFacetDir(value, "x.md")).toBe("string");
-    });
-
-    it("rejects disallowed facet values", () => {
-      expect(() => resolveTaktRuleFacetDir("persona", "x.md")).toThrow(/Invalid takt\.facet/);
-    });
-
-    it("rejects non-string facet values", () => {
-      expect(() => resolveTaktRuleFacetDir(42, "x.md")).toThrow(/expected a string/);
-    });
-  });
-
   describe("fromRulesyncRule", () => {
-    it("emits a plain Markdown body under the default facet", () => {
+    it("emits a plain Markdown body under policies/", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -78,27 +56,7 @@ describe("TaktRule", () => {
 
       expect(rule.getRelativeDirPath()).toBe(join(".takt", "facets", "policies"));
       expect(rule.getRelativeFilePath()).toBe("style.md");
-      // No frontmatter — body only
       expect(rule.getFileContent()).toBe("# Style policy");
-    });
-
-    it("respects the takt.facet override", () => {
-      const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
-        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-        relativeFilePath: "arch.md",
-        frontmatter: {
-          targets: ["*"],
-          // looseObject schema preserves unknown keys
-          ...({ takt: { facet: "knowledge" } } as Record<string, unknown>),
-        },
-        body: "# Architecture",
-      });
-
-      const rule = TaktRule.fromRulesyncRule({ baseDir: testDir, rulesyncRule });
-
-      expect(rule.getRelativeDirPath()).toBe(join(".takt", "facets", "knowledge"));
-      expect(rule.getRelativeFilePath()).toBe("arch.md");
     });
 
     it("renames the emitted stem with takt.name", () => {
@@ -114,6 +72,7 @@ describe("TaktRule", () => {
       });
 
       const rule = TaktRule.fromRulesyncRule({ baseDir: testDir, rulesyncRule });
+      expect(rule.getRelativeDirPath()).toBe(join(".takt", "facets", "policies"));
       expect(rule.getRelativeFilePath()).toBe("short.md");
     });
 
@@ -130,23 +89,6 @@ describe("TaktRule", () => {
       });
       expect(() => TaktRule.fromRulesyncRule({ baseDir: testDir, rulesyncRule })).toThrow(
         /Invalid takt\.name/,
-      );
-    });
-
-    it("throws on a disallowed takt.facet value", () => {
-      const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
-        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-        relativeFilePath: "bad.md",
-        frontmatter: {
-          targets: ["*"],
-          ...({ takt: { facet: "persona" } } as Record<string, unknown>),
-        },
-        body: "x",
-      });
-
-      expect(() => TaktRule.fromRulesyncRule({ baseDir: testDir, rulesyncRule })).toThrow(
-        /Invalid takt\.facet/,
       );
     });
   });
