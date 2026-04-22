@@ -47,6 +47,10 @@ describe("E2E: subagents", () => {
       target: "junie",
       outputPath: join(".junie", "agents", "planner.md"),
     },
+    {
+      target: "takt",
+      outputPath: join(".takt", "facets", "personas", "planner.md"),
+    },
   ])("should generate $target subagents", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -229,6 +233,7 @@ describe("E2E: subagents (global mode)", () => {
     { target: "cursor", outputPath: join(".cursor", "agents", "planner.md") },
     { target: "opencode", outputPath: join(".config", "opencode", "agent", "planner.md") },
     { target: "rovodev", outputPath: join(".rovodev", "subagents", "planner.md") },
+    { target: "takt", outputPath: join(".takt", "facets", "personas", "planner.md") },
   ])("should generate $target subagents in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

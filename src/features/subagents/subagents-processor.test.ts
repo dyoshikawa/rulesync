@@ -930,6 +930,7 @@ Second global content`;
         "kilo",
         "opencode",
         "rovodev",
+        "takt",
       ]);
     });
 
@@ -974,6 +975,7 @@ Second global content`;
           "opencode",
           "roo",
           "rovodev",
+          "takt",
         ]),
       );
       expect(Array.isArray(subagentsProcessorToolTargets)).toBe(true);

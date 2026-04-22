@@ -5,6 +5,8 @@ import { intersection } from "es-toolkit";
 import { Config } from "../config/config.js";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
+import { RulesyncCommand } from "../features/commands/rulesync-command.js";
+import { TaktCommand } from "../features/commands/takt-command.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
@@ -12,6 +14,7 @@ import { PermissionsProcessor } from "../features/permissions/permissions-proces
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
+import { TaktSkill } from "../features/skills/takt-skill.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { AiDir } from "../types/ai-dir.js";
 import { AiFile } from "../types/ai-file.js";
@@ -182,9 +185,20 @@ export async function generate(params: {
 
   const ignoreResult = await generateIgnoreCore({ config, logger });
   const mcpResult = await generateMcpCore({ config, logger });
-  const commandsResult = await generateCommandsCore({ config, logger });
+
+  // For the TAKT target, commands and skills can both write to
+  // `.takt/facets/instructions/<stem>.md`. Pre-compute the set of colliding
+  // stems per baseDir so both `generateCommandsCore` and `generateSkillsCore`
+  // can SKIP the colliding files and continue with everything else.
+  const taktInstructionsCollisions = await computeTaktInstructionsCollisions({ config, logger });
+
+  const commandsResult = await generateCommandsCore({
+    config,
+    logger,
+    taktInstructionsCollisions,
+  });
   const subagentsResult = await generateSubagentsCore({ config, logger });
-  const skillsResult = await generateSkillsCore({ config, logger });
+  const skillsResult = await generateSkillsCore({ config, logger, taktInstructionsCollisions });
   const hooksResult = await generateHooksCore({ config, logger });
   // NOTE: Permissions MUST run after ignore. Both features write to `.claude/settings.json`
   // (ignore writes Read deny entries, permissions merges all permission arrays).
@@ -377,8 +391,9 @@ async function generateMcpCore(params: {
 async function generateCommandsCore(params: {
   config: Config;
   logger: Logger;
+  taktInstructionsCollisions?: Map<string, Set<string>>;
 }): Promise<FeatureGenerateResult> {
-  const { config, logger } = params;
+  const { config, logger, taktInstructionsCollisions } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -413,7 +428,19 @@ async function generateCommandsCore(params: {
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
-      const result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
+
+      let result: FeatureGenerateResult;
+      if (toolTarget === "takt" && taktInstructionsCollisions) {
+        const collisionStems = taktInstructionsCollisions.get(baseDir) ?? new Set<string>();
+        result = await processTaktCommandsWithCollisionFilter({
+          config,
+          processor,
+          rulesyncFiles,
+          collisionStems,
+        });
+      } else {
+        result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
+      }
 
       totalCount += result.count;
       allPaths.push(...result.paths);
@@ -477,8 +504,9 @@ async function generateSubagentsCore(params: {
 async function generateSkillsCore(params: {
   config: Config;
   logger: Logger;
+  taktInstructionsCollisions?: Map<string, Set<string>>;
 }): Promise<FeatureGenerateResult & { skills: RulesyncSkill[] }> {
-  const { config, logger } = params;
+  const { config, logger, taktInstructionsCollisions } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -521,7 +549,15 @@ async function generateSkillsCore(params: {
         }
       }
 
-      const toolDirs = await processor.convertRulesyncDirsToToolDirs(rulesyncDirs);
+      const allToolDirs = await processor.convertRulesyncDirsToToolDirs(rulesyncDirs);
+
+      const toolDirs =
+        toolTarget === "takt" && taktInstructionsCollisions
+          ? filterTaktSkillsCollisions({
+              toolDirs: allToolDirs,
+              collisionStems: taktInstructionsCollisions.get(baseDir) ?? new Set<string>(),
+            })
+          : allToolDirs;
 
       const result = await processDirFeatureGeneration({
         config,
@@ -635,4 +671,212 @@ async function generatePermissionsCore(params: {
   }
 
   return { count: totalCount, paths: allPaths, hasDiff };
+}
+
+/**
+ * Pre-compute the set of TAKT instruction-facet filename stems that would
+ * collide between commands and skills (both can write to
+ * `.takt/facets/instructions/<stem>.md`).
+ *
+ * Returns a Map keyed by `baseDir`. The set inside contains stems (no `.md`)
+ * that should be SKIPPED by both `generateCommandsCore` and
+ * `generateSkillsCore`. Warnings for each collision are logged from this
+ * function so the warning fires exactly once per collision regardless of
+ * which feature runs first.
+ *
+ * Called once from `generate()` before the per-feature passes. If the takt
+ * target is not selected, returns an empty map and the per-feature filtering
+ * paths become no-ops.
+ */
+async function computeTaktInstructionsCollisions(params: {
+  config: Config;
+  logger: Logger;
+}): Promise<Map<string, Set<string>>> {
+  const { config, logger } = params;
+  const result = new Map<string, Set<string>>();
+
+  if (!config.getTargets().includes("takt")) {
+    return result;
+  }
+
+  const taktFeatures = config.getFeatures("takt");
+  const taktHasCommands = taktFeatures.includes("commands");
+  const taktHasSkills = taktFeatures.includes("skills");
+  if (!taktHasCommands || !taktHasSkills) {
+    return result;
+  }
+
+  for (const baseDir of config.getBaseDirs()) {
+    try {
+      const collisionStems = await detectTaktInstructionsCollisionsForBaseDir({
+        baseDir,
+        global: config.getGlobal(),
+        logger,
+      });
+      result.set(baseDir, collisionStems);
+    } catch (error) {
+      logger.warn(
+        `Failed to detect TAKT instruction-facet collisions for ${baseDir}: ${formatError(error)}`,
+      );
+      continue;
+    }
+  }
+
+  return result;
+}
+
+async function detectTaktInstructionsCollisionsForBaseDir(params: {
+  baseDir: string;
+  global: boolean;
+  logger: Logger;
+}): Promise<Set<string>> {
+  const { baseDir, global, logger } = params;
+
+  // Load both candidate sources and pre-compute their planned filenames
+  // by running them through TAKT's own conversion functions. This guarantees
+  // the collision check operates on the EXACT filenames TAKT would write,
+  // including any `takt.name` overrides.
+  const commandsProcessor = new CommandsProcessor({
+    baseDir,
+    toolTarget: "takt",
+    global,
+    dryRun: true,
+    logger,
+  });
+  const skillsProcessor = new SkillsProcessor({
+    baseDir,
+    toolTarget: "takt",
+    global,
+    dryRun: true,
+    logger,
+  });
+
+  const rulesyncCommandFiles = await commandsProcessor.loadRulesyncFiles();
+  const rulesyncSkillDirs = await skillsProcessor.loadRulesyncDirs();
+
+  const commandStems = new Map<string, string>(); // stem → source label
+  for (const file of rulesyncCommandFiles) {
+    if (!(file instanceof RulesyncCommand)) continue;
+    if (!TaktCommand.isTargetedByRulesyncCommand(file)) continue;
+    try {
+      const tool = TaktCommand.fromRulesyncCommand({
+        baseDir,
+        rulesyncCommand: file,
+        validate: false,
+      });
+      const stem = tool.getRelativeFilePath().replace(/\.md$/u, "");
+      commandStems.set(stem, file.getRelativeFilePath());
+    } catch {
+      // Validation errors are already surfaced during the real generation pass.
+      continue;
+    }
+  }
+
+  const skillStems = new Map<string, string>();
+  for (const dir of rulesyncSkillDirs) {
+    if (!(dir instanceof RulesyncSkill)) continue;
+    if (!TaktSkill.isTargetedByRulesyncSkill(dir)) continue;
+    try {
+      const tool = TaktSkill.fromRulesyncSkill({
+        baseDir,
+        rulesyncSkill: dir,
+        validate: false,
+      });
+      // For skills, the "stem" written to disk is the file name without `.md`.
+      const stem = tool.getFileName().replace(/\.md$/u, "");
+      // Skills only collide with commands when their facet directory is the
+      // shared "instructions" directory. Other facets (knowledge / output-contracts)
+      // are not shared with commands.
+      if (tool.getRelativeDirPath().endsWith(join("facets", "instructions"))) {
+        skillStems.set(stem, dir.getDirName());
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  const collisions = new Set<string>();
+  for (const [stem, commandSource] of commandStems) {
+    const skillSource = skillStems.get(stem);
+    if (skillSource === undefined) continue;
+    const targetPath = join(".takt", "facets", "instructions", `${stem}.md`);
+    logger.warn(
+      `TAKT collision: command "${commandSource}" and skill "${skillSource}" both target ` +
+        `"${targetPath}". Skipping both files. Rename one source via "takt.name" to disambiguate.`,
+    );
+    collisions.add(stem);
+  }
+
+  return collisions;
+}
+
+/**
+ * Filter out colliding TAKT command files (run for the takt target inside
+ * `generateCommandsCore`).
+ */
+async function processTaktCommandsWithCollisionFilter(params: {
+  config: Config;
+  processor: CommandsProcessor;
+  rulesyncFiles: RulesyncFile[];
+  collisionStems: Set<string>;
+}): Promise<FeatureGenerateResult> {
+  const { config, processor, rulesyncFiles, collisionStems } = params;
+  if (rulesyncFiles.length === 0) {
+    if (config.getDelete()) {
+      const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
+      const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, []);
+      return { count: 0, paths: [], hasDiff: orphanCount > 0 };
+    }
+    return { count: 0, paths: [], hasDiff: false };
+  }
+  const allToolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+  const filteredToolFiles =
+    collisionStems.size === 0
+      ? allToolFiles
+      : allToolFiles.filter((file) => {
+          const fileName = file.getRelativeFilePath();
+          const stem = fileName.replace(/\.md$/u, "");
+          return !collisionStems.has(stem);
+        });
+
+  let totalCount = 0;
+  const allPaths: string[] = [];
+  let hasDiff = false;
+
+  const writeResult = await processor.writeAiFiles(filteredToolFiles);
+  totalCount += writeResult.count;
+  allPaths.push(...writeResult.paths);
+  if (writeResult.count > 0) hasDiff = true;
+
+  if (config.getDelete()) {
+    const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
+    // Use the FILTERED list for the orphan diff so that the previously-written
+    // colliding file is treated as orphan and removed (rather than retained).
+    const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, filteredToolFiles);
+    if (orphanCount > 0) hasDiff = true;
+  }
+
+  return { count: totalCount, paths: allPaths, hasDiff };
+}
+
+/**
+ * Filter out colliding TAKT skill dirs. The collision warning is logged once
+ * up-front from `computeTaktInstructionsCollisions`; this helper only filters.
+ */
+function filterTaktSkillsCollisions(params: {
+  toolDirs: AiDir[];
+  collisionStems: Set<string>;
+}): AiDir[] {
+  const { toolDirs, collisionStems } = params;
+  if (collisionStems.size === 0) return toolDirs;
+  return toolDirs.filter((dir) => {
+    if (!(dir instanceof TaktSkill)) return true;
+    const stem = dir.getFileName().replace(/\.md$/u, "");
+    // Only filter when the skill targets the shared `instructions` dir; other
+    // facets (knowledge / output-contracts) cannot collide with commands.
+    if (!dir.getRelativeDirPath().endsWith(join("facets", "instructions"))) {
+      return true;
+    }
+    return !collisionStems.has(stem);
+  });
 }

@@ -79,6 +79,10 @@ describe("E2E: skills", () => {
       target: "agentsskills",
       outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
     },
+    {
+      target: "takt",
+      outputPath: join(".takt", "facets", "instructions", "test-skill.md"),
+    },
   ])("should generate $target skills", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -264,6 +268,10 @@ describe("E2E: skills (global mode)", () => {
     {
       target: "antigravity",
       outputPath: join(".gemini", "antigravity", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "takt",
+      outputPath: join(".takt", "facets", "instructions", "test-skill.md"),
     },
   ])("should generate $target skills in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();

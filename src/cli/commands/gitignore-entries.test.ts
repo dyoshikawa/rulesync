@@ -22,10 +22,25 @@ const TARGETS_WITHOUT_GITIGNORE_ENTRIES = new Set([
 ]);
 
 describe("GITIGNORE_ENTRY_REGISTRY", () => {
-  it("should have no duplicate entries", () => {
-    const entries = GITIGNORE_ENTRY_REGISTRY.map((tag) => tag.entry);
-    const unique = new Set(entries);
-    expect(entries.length).toBe(unique.size);
+  it("should have no duplicate entries within a single feature tag", () => {
+    // The registry intentionally allows the SAME entry to be registered under
+    // different feature tags (e.g. `.takt/facets/instructions/` is shared by
+    // both `commands` and `skills` for the takt target). The `resolveGitignoreEntries`
+    // writer dedupes the final output. What we want to forbid is the same
+    // (target, feature, entry) triple appearing twice.
+    const seen = new Set<string>();
+    const collisions: string[] = [];
+    for (const tag of GITIGNORE_ENTRY_REGISTRY) {
+      const targets = Array.isArray(tag.target) ? tag.target : [tag.target];
+      for (const target of targets) {
+        const key = `${target}::${tag.feature}::${tag.entry}`;
+        if (seen.has(key)) {
+          collisions.push(key);
+        }
+        seen.add(key);
+      }
+    }
+    expect(collisions).toEqual([]);
   });
 
   it("should cover all tool targets except intentionally excluded ones", () => {
@@ -45,8 +60,12 @@ describe("GITIGNORE_ENTRY_REGISTRY", () => {
 });
 
 describe("ALL_GITIGNORE_ENTRIES", () => {
-  it("should contain all entries from the registry", () => {
-    expect(ALL_GITIGNORE_ENTRIES.length).toBe(GITIGNORE_ENTRY_REGISTRY.length);
+  it("should contain every distinct entry from the registry", () => {
+    // The registry can register the same entry under multiple feature tags;
+    // `ALL_GITIGNORE_ENTRIES` is the deduplicated view, so its length matches
+    // the unique entry count rather than the raw registry length.
+    const distinctRegistryEntries = new Set(GITIGNORE_ENTRY_REGISTRY.map((tag) => tag.entry));
+    expect(ALL_GITIGNORE_ENTRIES.length).toBe(distinctRegistryEntries.size);
     for (const tag of GITIGNORE_ENTRY_REGISTRY) {
       expect(ALL_GITIGNORE_ENTRIES).toContain(tag.entry);
     }

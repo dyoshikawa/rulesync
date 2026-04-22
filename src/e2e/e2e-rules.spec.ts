@@ -71,6 +71,7 @@ This is a test rule for E2E testing.
     { target: "antigravity", outputPath: join(".agent", "rules", "overview.md") },
     { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },
     { target: "windsurf", outputPath: join(".windsurf", "rules", "overview.md") },
+    { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
   ])("should generate $target rules (non-root)", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -262,6 +263,7 @@ describe("E2E: rules (global mode)", () => {
     { target: "factorydroid", outputPath: join(".factory", "AGENTS.md") },
     { target: "kilo", outputPath: join(".config", "kilo", "AGENTS.md") },
     { target: "rovodev", outputPath: join(".rovodev", "AGENTS.md") },
+    { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
   ])("should generate $target rules in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

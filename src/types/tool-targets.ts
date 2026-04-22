@@ -28,6 +28,7 @@ export const ALL_TOOL_TARGETS = [
   "replit",
   "roo",
   "rovodev",
+  "takt",
   "warp",
   "windsurf",
   "zed",

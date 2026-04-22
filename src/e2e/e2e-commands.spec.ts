@@ -26,6 +26,7 @@ describe("E2E: commands", () => {
     { target: "kiro", outputPath: join(".kiro", "prompts", "review-pr.md") },
     { target: "antigravity", outputPath: join(".agent", "workflows", "review-pr.md") },
     { target: "junie", outputPath: join(".junie", "commands", "review-pr.md") },
+    { target: "takt", outputPath: join(".takt", "facets", "instructions", "review-pr.md") },
   ])("should generate $target commands", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -158,6 +159,10 @@ describe("E2E: commands (global mode)", () => {
     { target: "cline", outputPath: join("Documents", "Cline", "Workflows", "review-pr.md") },
     { target: "kilo", outputPath: join(".config", "kilo", "commands", "review-pr.md") },
     { target: "junie", outputPath: join(".junie", "commands", "review-pr.md") },
+    {
+      target: "takt",
+      outputPath: join(".takt", "facets", "instructions", "review-pr.md"),
+    },
   ])("should generate $target commands in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

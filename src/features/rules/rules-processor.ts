@@ -55,6 +55,7 @@ import { ReplitRule } from "./replit-rule.js";
 import { RooRule } from "./roo-rule.js";
 import { RovodevRule } from "./rovodev-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
+import { TaktRule } from "./takt-rule.js";
 import {
   ToolRule,
   ToolRuleForDeletionParams,
@@ -90,6 +91,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "replit",
   "roo",
   "rovodev",
+  "takt",
   "warp",
   "windsurf",
 ];
@@ -504,6 +506,20 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
           subagents: { subagentClass: RovodevSubagent },
           skills: { skillClass: RovodevSkill },
         },
+      },
+    },
+  ],
+  [
+    "takt",
+    {
+      class: TaktRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        // No `additionalConventions` here: TAKT does not synthesize a root
+        // overview rule (TaktRule.fromRulesyncRule always emits non-root files),
+        // so the conventions block would never be rendered anywhere.
       },
     },
   ],
