@@ -95,4 +95,35 @@ describe("KiroPermissions", () => {
     expect(loaded).toBeInstanceOf(KiroPermissions);
     expect(JSON.parse(loaded.getFileContent()).model).toBe("x");
   });
+
+  it("should remove web tools from allowedTools when denied", async () => {
+    const kiroDir = join(testDir, ".kiro", "agents");
+    await ensureDir(kiroDir);
+    await writeFileContent(
+      join(kiroDir, "default.json"),
+      JSON.stringify({
+        allowedTools: ["web_fetch", "web_search", "read"],
+      }),
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      baseDir: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          webfetch: { "*": "deny" },
+          websearch: { "*": "deny" },
+        },
+      }),
+    });
+
+    const kiroPermissions = await KiroPermissions.fromRulesyncPermissions({
+      baseDir: testDir,
+      rulesyncPermissions,
+    });
+
+    const content = JSON.parse(kiroPermissions.getFileContent());
+    expect(content.allowedTools).toEqual(["read"]);
+  });
 });
