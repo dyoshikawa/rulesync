@@ -6,7 +6,7 @@ import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-pa
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { RulesyncCommand } from "./rulesync-command.js";
-import { resolveTaktCommandFacetDir, TaktCommand } from "./takt-command.js";
+import { TaktCommand } from "./takt-command.js";
 
 describe("TaktCommand", () => {
   let testDir: string;
@@ -27,18 +27,6 @@ describe("TaktCommand", () => {
       expect(TaktCommand.getSettablePaths().relativeDirPath).toBe(
         join(".takt", "facets", "instructions"),
       );
-    });
-  });
-
-  describe("resolveTaktCommandFacetDir", () => {
-    it("defaults to instructions", () => {
-      expect(resolveTaktCommandFacetDir(undefined, "x.md")).toBe("instructions");
-    });
-    it("accepts instruction", () => {
-      expect(resolveTaktCommandFacetDir("instruction", "x.md")).toBe("instructions");
-    });
-    it("rejects other values", () => {
-      expect(() => resolveTaktCommandFacetDir("knowledge", "x.md")).toThrow(/Invalid takt\.facet/);
     });
   });
 
@@ -73,6 +61,7 @@ describe("TaktCommand", () => {
       });
       const cmd = TaktCommand.fromRulesyncCommand({ baseDir: testDir, rulesyncCommand });
       expect(cmd.getRelativeFilePath()).toBe("short.md");
+      expect(cmd.getRelativeDirPath()).toBe(join(".takt", "facets", "instructions"));
     });
 
     it("throws on an unsafe takt.name value", () => {
@@ -89,23 +78,6 @@ describe("TaktCommand", () => {
       });
       expect(() => TaktCommand.fromRulesyncCommand({ baseDir: testDir, rulesyncCommand })).toThrow(
         /Invalid takt\.name/,
-      );
-    });
-
-    it("throws on a disallowed takt.facet", () => {
-      const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
-        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
-        relativeFilePath: "p.md",
-        frontmatter: {
-          targets: ["*"],
-          ...({ takt: { facet: "policy" } } as Record<string, unknown>),
-        },
-        body: "x",
-        fileContent: "",
-      });
-      expect(() => TaktCommand.fromRulesyncCommand({ baseDir: testDir, rulesyncCommand })).toThrow(
-        /Invalid takt\.facet/,
       );
     });
   });

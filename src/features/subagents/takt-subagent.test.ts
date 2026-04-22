@@ -6,7 +6,7 @@ import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-p
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
-import { resolveTaktSubagentFacetDir, TaktSubagent } from "./takt-subagent.js";
+import { TaktSubagent } from "./takt-subagent.js";
 
 describe("TaktSubagent", () => {
   let testDir: string;
@@ -27,18 +27,6 @@ describe("TaktSubagent", () => {
       expect(TaktSubagent.getSettablePaths().relativeDirPath).toBe(
         join(".takt", "facets", "personas"),
       );
-    });
-  });
-
-  describe("resolveTaktSubagentFacetDir", () => {
-    it("defaults to personas", () => {
-      expect(resolveTaktSubagentFacetDir(undefined, "x.md")).toBe("personas");
-    });
-    it("accepts persona", () => {
-      expect(resolveTaktSubagentFacetDir("persona", "x.md")).toBe("personas");
-    });
-    it("rejects other values", () => {
-      expect(() => resolveTaktSubagentFacetDir("policy", "x.md")).toThrow(/Invalid takt\.facet/);
     });
   });
 
@@ -85,6 +73,7 @@ describe("TaktSubagent", () => {
         rulesyncSubagent,
       });
       expect(sub.getRelativeFilePath()).toBe("short.md");
+      expect(sub.getRelativeDirPath()).toBe(join(".takt", "facets", "personas"));
     });
 
     it("throws on an unsafe takt.name value", () => {
@@ -106,27 +95,6 @@ describe("TaktSubagent", () => {
           rulesyncSubagent,
         }),
       ).toThrow(/Invalid takt\.name/);
-    });
-
-    it("throws on a disallowed takt.facet", () => {
-      const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
-        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-        relativeFilePath: "p.md",
-        frontmatter: {
-          targets: ["*"],
-          name: "p",
-          ...({ takt: { facet: "policy" } } as Record<string, unknown>),
-        },
-        body: "x",
-      });
-      expect(() =>
-        TaktSubagent.fromRulesyncSubagent({
-          baseDir: testDir,
-          relativeDirPath: join(".takt", "facets", "personas"),
-          rulesyncSubagent,
-        }),
-      ).toThrow(/Invalid takt\.facet/);
     });
   });
 

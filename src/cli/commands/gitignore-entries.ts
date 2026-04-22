@@ -224,21 +224,11 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "rovodev", feature: "skills", entry: "**/.agents/skills/" },
 
   // TAKT
-  // The `knowledge/` and `output-contracts/` facets are shared between the
-  // `rules` and `skills` features (both can opt into them via `takt.facet`).
-  // Register them under both feature tags so the entry survives when the
-  // user enables only one of the two.
+  // Each rulesync feature maps one-to-one onto a TAKT facet directory.
   { target: "takt", feature: "rules", entry: "**/.takt/facets/policies/" },
-  { target: "takt", feature: "rules", entry: "**/.takt/facets/knowledge/" },
   { target: "takt", feature: "skills", entry: "**/.takt/facets/knowledge/" },
-  { target: "takt", feature: "rules", entry: "**/.takt/facets/output-contracts/" },
-  { target: "takt", feature: "skills", entry: "**/.takt/facets/output-contracts/" },
   { target: "takt", feature: "subagents", entry: "**/.takt/facets/personas/" },
-  // Both commands and skills emit into `.takt/facets/instructions/`; register
-  // under both features so enabling either one is enough to gitignore the dir.
-  // The gitignore writer dedupes the entries on output.
   { target: "takt", feature: "commands", entry: "**/.takt/facets/instructions/" },
-  { target: "takt", feature: "skills", entry: "**/.takt/facets/instructions/" },
   { target: "takt", feature: "general", entry: "**/.takt/runs/" },
   { target: "takt", feature: "general", entry: "**/.takt/tasks/" },
   { target: "takt", feature: "general", entry: "**/.takt/.cache/" },
@@ -255,9 +245,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
 
 export const ALL_GITIGNORE_ENTRIES: ReadonlyArray<string> = (() => {
   // The registry may register the SAME entry under multiple feature tags
-  // (e.g. `.takt/facets/instructions/` is shared by both `commands` and
-  // `skills` for the takt target). The exported list dedupes while
-  // preserving the original insertion order.
+  // The exported list dedupes while preserving the original insertion order.
   const seen = new Set<string>();
   const result: string[] = [];
   for (const tag of GITIGNORE_ENTRY_REGISTRY) {

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
-import { assertSafeTaktName, resolveTaktFacetDir } from "../takt-shared.js";
+import { assertSafeTaktName } from "../takt-shared.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -17,53 +17,24 @@ import {
 } from "./tool-rule.js";
 
 /**
- * Allowed `facet` values for TAKT rule files.
+ * Fixed facet directory for TAKT rule files.
  *
- * - `policy`: hard rules and constraints (default)
- * - `knowledge`: factual context (architecture, glossaries, references)
- * - `output-contract`: output formatting / contract specifications
+ * Rulesync rules map one-to-one to TAKT's `policies/` facet. No override
+ * is supported; the directory is always `.takt/facets/policies/`.
  */
-export const TAKT_RULE_FACET_VALUES = ["policy", "knowledge", "output-contract"] as const;
-export type TaktRuleFacet = (typeof TAKT_RULE_FACET_VALUES)[number];
-
-const TAKT_RULE_FACET_TO_DIR: Record<TaktRuleFacet, string> = {
-  policy: "policies",
-  knowledge: "knowledge",
-  "output-contract": "output-contracts",
-};
-
-const DEFAULT_TAKT_RULE_FACET: TaktRuleFacet = "policy";
-
-/** Default facet directory used when `takt.facet` is not provided. */
-export const DEFAULT_TAKT_RULE_DIR = TAKT_RULE_FACET_TO_DIR[DEFAULT_TAKT_RULE_FACET];
+export const DEFAULT_TAKT_RULE_DIR = "policies";
 
 export type TaktRuleParams = Omit<ToolRuleParams, "fileContent"> & {
   body: string;
 };
 
 /**
- * Resolve the TAKT facet directory for a rules-feature file.
- *
- * @throws when an explicit `takt.facet` value is not allowed for the rules feature
- */
-export function resolveTaktRuleFacetDir(facetValue: unknown, sourceLabel: string): string {
-  return resolveTaktFacetDir({
-    value: facetValue,
-    allowed: TAKT_RULE_FACET_VALUES,
-    defaultDir: DEFAULT_TAKT_RULE_DIR,
-    dirMap: TAKT_RULE_FACET_TO_DIR,
-    featureLabel: "rule",
-    sourceLabel,
-  });
-}
-
-/**
  * Rule generator for TAKT (https://github.com/dyoshikawa/takt).
  *
  * TAKT organizes prompts into faceted directories under `.takt/facets/`.
- * Rulesync rules map to TAKT *policy* facets by default; the source frontmatter
- * may override the facet via `takt.facet` (`policy`, `knowledge`, or
- * `output-contract`) and may rename the emitted stem via `takt.name`.
+ * Rulesync rules always map to TAKT's `policies/` facet; the source
+ * frontmatter may rename the emitted stem via `takt.name`, but the facet
+ * directory is fixed.
  *
  * The emitted files are plain Markdown — frontmatter is always dropped, and
  * the body is written verbatim.
@@ -153,15 +124,13 @@ export class TaktRule extends ToolRule {
     const taktSection = rulesyncFrontmatter.takt;
     const sourceLabel = rulesyncRule.getRelativeFilePath();
 
-    const facetDir = resolveTaktRuleFacetDir(taktSection?.facet, sourceLabel);
-
     const overrideName = typeof taktSection?.name === "string" ? taktSection.name : undefined;
     const sourceStem = rulesyncRule.getRelativeFilePath().replace(/\.md$/u, "");
     const stem = overrideName ?? sourceStem;
     assertSafeTaktName({ name: stem, featureLabel: "rule", sourceLabel });
     const relativeFilePath = `${stem}.md`;
 
-    const relativeDirPath = join(".takt", "facets", facetDir);
+    const relativeDirPath = join(".takt", "facets", DEFAULT_TAKT_RULE_DIR);
 
     return new TaktRule({
       baseDir,

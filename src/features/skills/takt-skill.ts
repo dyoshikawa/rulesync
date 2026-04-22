@@ -2,7 +2,7 @@ import path, { join, relative, resolve } from "node:path";
 
 import { ValidationResult } from "../../types/ai-dir.js";
 import { toPosixPath } from "../../utils/file.js";
-import { assertSafeTaktName, resolveTaktFacetDir } from "../takt-shared.js";
+import { assertSafeTaktName } from "../takt-shared.js";
 import { RulesyncSkill, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -13,41 +13,12 @@ import {
 } from "./tool-skill.js";
 
 /**
- * Allowed `facet` values for TAKT skill files.
+ * Fixed facet directory for TAKT skill files.
  *
- * - `instruction`: behavioral instructions (default)
- * - `knowledge`: factual context
- * - `output-contract`: output formatting / contract specifications
+ * Rulesync skills map one-to-one to TAKT's `knowledge/` facet. No override
+ * is supported; the directory is always `.takt/facets/knowledge/`.
  */
-export const TAKT_SKILL_FACET_VALUES = ["instruction", "knowledge", "output-contract"] as const;
-export type TaktSkillFacet = (typeof TAKT_SKILL_FACET_VALUES)[number];
-
-const TAKT_SKILL_FACET_TO_DIR: Record<TaktSkillFacet, string> = {
-  instruction: "instructions",
-  knowledge: "knowledge",
-  "output-contract": "output-contracts",
-};
-
-const DEFAULT_TAKT_SKILL_FACET: TaktSkillFacet = "instruction";
-
-/** Default facet directory used when `takt.facet` is not provided. */
-export const DEFAULT_TAKT_SKILL_DIR = TAKT_SKILL_FACET_TO_DIR[DEFAULT_TAKT_SKILL_FACET];
-
-/**
- * Resolve the TAKT facet directory for a skills-feature file.
- *
- * @throws when an explicit `takt.facet` value is not allowed for skills
- */
-export function resolveTaktSkillFacetDir(facetValue: unknown, sourceLabel: string): string {
-  return resolveTaktFacetDir({
-    value: facetValue,
-    allowed: TAKT_SKILL_FACET_VALUES,
-    defaultDir: DEFAULT_TAKT_SKILL_DIR,
-    dirMap: TAKT_SKILL_FACET_TO_DIR,
-    featureLabel: "skill",
-    sourceLabel,
-  });
-}
+export const DEFAULT_TAKT_SKILL_DIR = "knowledge";
 
 export type TaktSkillParams = {
   baseDir?: string;
@@ -65,15 +36,15 @@ export type TaktSkillParams = {
  * Skill generator for TAKT.
  *
  * Unlike most other tools, TAKT skills are emitted as flat Markdown files
- * (one `.md` per skill) under `.takt/facets/instructions/` (default),
- * `.takt/facets/knowledge/`, or `.takt/facets/output-contracts/`.
+ * (one `.md` per skill) under `.takt/facets/knowledge/`. The facet directory
+ * is fixed — no `takt.facet` override is supported.
  *
  * To remain compatible with the directory-based `AiDir` abstraction this
  * class still tracks a `dirName` (used for routing and deletion), but
  * `getDirPath()` is overridden to drop the trailing directory segment so
  * that the emitted main file lands directly under the facet directory:
  *
- *   `.takt/facets/{facet}/{stem}.md`
+ *   `.takt/facets/knowledge/{stem}.md`
  *
  * The original frontmatter is dropped — only the body is written verbatim.
  */
@@ -161,9 +132,9 @@ export class TaktSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     // Reverse-mapping from the flat TAKT layout into a directory-based
-    // `RulesyncSkill` cannot recover the original `description`/`facet`
-    // metadata (TAKT files are plain Markdown). Fail loudly rather than
-    // silently emit a synthetic stub.
+    // `RulesyncSkill` cannot recover the original `description` metadata
+    // (TAKT files are plain Markdown). Fail loudly rather than silently
+    // emit a synthetic stub.
     throw new Error(
       "Importing existing TAKT facet files into rulesync is not supported: " +
         "TAKT files are plain Markdown and the original skill metadata cannot be recovered.",
@@ -180,14 +151,12 @@ export class TaktSkill extends ToolSkill {
     const taktSection = rulesyncFrontmatter.takt;
     const sourceLabel = rulesyncSkill.getDirName();
 
-    const facetDir = resolveTaktSkillFacetDir(taktSection?.facet, sourceLabel);
-
     const overrideName = typeof taktSection?.name === "string" ? taktSection.name : undefined;
     const stem = overrideName ?? rulesyncSkill.getDirName();
     assertSafeTaktName({ name: stem, featureLabel: "skill", sourceLabel });
     const fileName = `${stem}.md`;
 
-    const relativeDirPath = join(".takt", "facets", facetDir);
+    const relativeDirPath = join(".takt", "facets", DEFAULT_TAKT_SKILL_DIR);
 
     return new TaktSkill({
       baseDir,

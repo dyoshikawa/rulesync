@@ -22,7 +22,6 @@ export const RulesyncSubagentFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   takt: z.optional(
     z.looseObject({
-      facet: z.optional(z.string()),
       name: z.optional(z.string()),
     }),
   ),

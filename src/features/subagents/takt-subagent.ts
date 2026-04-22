@@ -4,7 +4,7 @@ import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-p
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
-import { assertSafeTaktName, resolveTaktFacetDir } from "../takt-shared.js";
+import { assertSafeTaktName } from "../takt-shared.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
@@ -14,35 +14,7 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
-/**
- * Allowed `facet` values for TAKT subagent files. Subagents are always
- * placed in the `personas/` directory; no override is permitted.
- */
-export const TAKT_SUBAGENT_FACET_VALUES = ["persona"] as const;
-export type TaktSubagentFacet = (typeof TAKT_SUBAGENT_FACET_VALUES)[number];
-
 const DEFAULT_TAKT_SUBAGENT_DIR = "personas";
-
-const TAKT_SUBAGENT_FACET_TO_DIR: Record<TaktSubagentFacet, string> = {
-  persona: DEFAULT_TAKT_SUBAGENT_DIR,
-};
-
-/**
- * Validate the optional `takt.facet` value supplied on a subagent and return
- * the corresponding directory name.
- *
- * @throws when an explicit `takt.facet` value is not allowed for subagents
- */
-export function resolveTaktSubagentFacetDir(facetValue: unknown, sourceLabel: string): string {
-  return resolveTaktFacetDir({
-    value: facetValue,
-    allowed: TAKT_SUBAGENT_FACET_VALUES,
-    defaultDir: DEFAULT_TAKT_SUBAGENT_DIR,
-    dirMap: TAKT_SUBAGENT_FACET_TO_DIR,
-    featureLabel: "subagent",
-    sourceLabel,
-  });
-}
 
 export type TaktSubagentParams = {
   body: string;
@@ -53,7 +25,8 @@ export type TaktSubagentParams = {
  *
  * Subagents are emitted as plain Markdown files under `.takt/facets/personas/`.
  * The original frontmatter is dropped; the body is written verbatim. The
- * filename stem is preserved unless overridden via `takt.name`.
+ * filename stem is preserved unless overridden via `takt.name`. The facet
+ * directory is fixed — no `takt.facet` override is supported.
  */
 export class TaktSubagent extends ToolSubagent {
   private readonly body: string;
@@ -100,9 +73,6 @@ export class TaktSubagent extends ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const taktSection = rulesyncFrontmatter.takt;
     const sourceLabel = rulesyncSubagent.getRelativeFilePath();
-
-    // Validate facet override (only `persona` is allowed; default is also `persona`)
-    resolveTaktSubagentFacetDir(taktSection?.facet, sourceLabel);
 
     const overrideName = typeof taktSection?.name === "string" ? taktSection.name : undefined;
     const sourceStem = rulesyncSubagent.getRelativeFilePath().replace(/\.md$/u, "");

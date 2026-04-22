@@ -56,9 +56,6 @@ export const RulesyncRuleFrontmatterSchema = z.object({
   ),
   takt: z.optional(
     z.looseObject({
-      // Override the default facet directory. Allowed values vary per feature
-      // (see takt-{feature}.ts for per-feature validation).
-      facet: z.optional(z.string()),
       // Rename the emitted file stem (e.g. "coder.md" → "{name}.md").
       name: z.optional(z.string()),
     }),
