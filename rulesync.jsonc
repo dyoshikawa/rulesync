@@ -28,6 +28,12 @@
       "subagents": true,
       "skills": true,
     },
+    "takt": {
+      "rules": true,
+      "commands": true,
+      "subagents": true,
+      "skills": true,
+    }
   },
 
   // Base directory or directories for generation.

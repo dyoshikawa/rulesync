@@ -254,3 +254,11 @@ rulesync.local.jsonc
 **/.opencode/plugins/
 **/.opencode/memories/
 **/.opencode/package-lock.json
+**/.takt/facets/policies/
+**/.takt/facets/knowledge/
+**/.takt/facets/personas/
+**/.takt/facets/instructions/
+**/.takt/runs/
+**/.takt/tasks/
+**/.takt/.cache/
+**/.takt/config.yaml
