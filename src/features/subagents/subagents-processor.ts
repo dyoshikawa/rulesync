@@ -25,6 +25,7 @@ import { RooSubagent } from "./roo-subagent.js";
 import { RovodevSubagent } from "./rovodev-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SimulatedSubagent } from "./simulated-subagent.js";
+import { TaktSubagent } from "./takt-subagent.js";
 import {
   ToolSubagent,
   ToolSubagentForDeletionParams,
@@ -75,6 +76,7 @@ const subagentsProcessorToolTargetTuple = [
   "opencode",
   "roo",
   "rovodev",
+  "takt",
 ] as const;
 
 export type SubagentsProcessorToolTarget = (typeof subagentsProcessorToolTargetTuple)[number];
@@ -189,6 +191,13 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     "rovodev",
     {
       class: RovodevSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+    },
+  ],
+  [
+    "takt",
+    {
+      class: TaktSubagent,
       meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
     },
   ],

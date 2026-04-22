@@ -774,6 +774,7 @@ Content that would fail parsing`;
           "replit",
           "roo",
           "rovodev",
+          "takt",
           "windsurf",
         ]),
       );
@@ -802,6 +803,7 @@ Content that would fail parsing`;
           "replit",
           "roo",
           "rovodev",
+          "takt",
           "windsurf",
         ]),
       );
@@ -828,6 +830,7 @@ Content that would fail parsing`;
           "replit",
           "roo",
           "rovodev",
+          "takt",
           "windsurf",
         ]),
       );
@@ -860,6 +863,7 @@ Content that would fail parsing`;
         "opencode",
         "roo",
         "rovodev",
+        "takt",
         "windsurf",
       ]);
       expect(targets).toEqual(skillsProcessorToolTargetsGlobal);
@@ -881,6 +885,7 @@ Content that would fail parsing`;
         "opencode",
         "roo",
         "rovodev",
+        "takt",
         "windsurf",
       ]);
       expect(targets).toEqual(skillsProcessorToolTargetsGlobal);

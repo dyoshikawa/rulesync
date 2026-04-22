@@ -36,6 +36,7 @@ describe("tool targets", () => {
         "replit",
         "roo",
         "rovodev",
+        "takt",
         "warp",
         "windsurf",
         "zed",

@@ -20,6 +20,12 @@ export const RulesyncSubagentFrontmatterSchema = z.looseObject({
   targets: z._default(RulesyncTargetsSchema, ["*"]),
   name: z.string(),
   description: z.optional(z.string()),
+  takt: z.optional(
+    z.looseObject({
+      facet: z.optional(z.string()),
+      name: z.optional(z.string()),
+    }),
+  ),
 });
 
 // Input type allows targets to be omitted (will use default value)

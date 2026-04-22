@@ -30,6 +30,7 @@ import { RovodevSkill } from "./rovodev-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 import { SimulatedSkill } from "./simulated-skill.js";
 import { getLocalSkillDirNames } from "./skills-utils.js";
+import { TaktSkill } from "./takt-skill.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -86,6 +87,7 @@ const skillsProcessorToolTargetTuple = [
   "replit",
   "roo",
   "rovodev",
+  "takt",
   "windsurf",
 ] as const;
 
@@ -229,6 +231,13 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     "rovodev",
     {
       class: RovodevSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "takt",
+    {
+      class: TaktSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

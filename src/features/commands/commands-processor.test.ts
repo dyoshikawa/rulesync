@@ -1136,6 +1136,7 @@ describe("CommandsProcessor", () => {
           "kiro",
           "opencode",
           "roo",
+          "takt",
         ]),
       );
     });
@@ -1158,6 +1159,7 @@ describe("CommandsProcessor", () => {
           "kiro",
           "opencode",
           "roo",
+          "takt",
         ]),
       );
     });
@@ -1177,6 +1179,7 @@ describe("CommandsProcessor", () => {
           "codexcli",
           "kilo",
           "opencode",
+          "takt",
         ]),
       );
     });

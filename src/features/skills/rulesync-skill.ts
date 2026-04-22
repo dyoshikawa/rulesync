@@ -48,6 +48,15 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   ),
   cline: z.optional(z.looseObject({})),
   roo: z.optional(z.looseObject({})),
+  takt: z.optional(
+    z.looseObject({
+      // Override the default facet directory. Allowed values: "instruction",
+      // "knowledge", "output-contract" (validation lives in takt-skill.ts).
+      facet: z.optional(z.string()),
+      // Rename the emitted file stem (e.g. "test-skill.md" → "{name}.md").
+      name: z.optional(z.string()),
+    }),
+  ),
 });
 
 // Export schema with targets optional for input but guaranteed in output
@@ -80,6 +89,10 @@ export type RulesyncSkillFrontmatterInput = {
   };
   roo?: Record<string, unknown>;
   cline?: Record<string, unknown>;
+  takt?: {
+    facet?: string;
+    name?: string;
+  };
 };
 
 // Type for output/validated data (targets is always present after validation)

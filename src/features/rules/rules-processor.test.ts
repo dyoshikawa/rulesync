@@ -702,6 +702,7 @@ describe("RulesProcessor", () => {
         "opencode",
         "qwencode",
         "roo",
+        "takt",
         "warp",
         "windsurf",
       ];
@@ -872,6 +873,7 @@ Content that would fail parsing`;
         "kilo",
         "opencode",
         "rovodev",
+        "takt",
       ]);
     });
 
@@ -903,7 +905,8 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("goose");
       expect(globalTargets).toContain("opencode");
       expect(globalTargets).toContain("rovodev");
-      expect(globalTargets.length).toBe(11);
+      expect(globalTargets).toContain("takt");
+      expect(globalTargets.length).toBe(12);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

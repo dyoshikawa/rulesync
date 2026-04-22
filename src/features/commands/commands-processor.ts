@@ -24,6 +24,7 @@ import { KiroCommand } from "./kiro-command.js";
 import { OpenCodeCommand } from "./opencode-command.js";
 import { RooCommand } from "./roo-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
+import { TaktCommand } from "./takt-command.js";
 import {
   ToolCommand,
   ToolCommandForDeletionParams,
@@ -78,6 +79,7 @@ const commandsProcessorToolTargetTuple = [
   "kiro",
   "opencode",
   "roo",
+  "takt",
 ] as const;
 
 export type CommandsProcessorToolTarget = (typeof commandsProcessorToolTargetTuple)[number];
@@ -282,6 +284,19 @@ const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFac
         supportsGlobal: false,
         isSimulated: false,
         supportsSubdirectory: true,
+      },
+    },
+  ],
+  [
+    "takt",
+    {
+      class: TaktCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
       },
     },
   ],
