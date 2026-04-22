@@ -766,8 +766,10 @@ async function detectTaktInstructionsCollisionsForBaseDir(params: {
       });
       const stem = tool.getRelativeFilePath().replace(/\.md$/u, "");
       commandStems.set(stem, file.getRelativeFilePath());
-    } catch {
-      // Validation errors are already surfaced during the real generation pass.
+    } catch (error) {
+      logger.debug(
+        `TAKT collision pre-pass: skipping command "${file.getRelativeFilePath()}" due to conversion error: ${formatError(error)}`,
+      );
       continue;
     }
   }
@@ -790,7 +792,10 @@ async function detectTaktInstructionsCollisionsForBaseDir(params: {
       if (tool.getRelativeDirPath().endsWith(join("facets", "instructions"))) {
         skillStems.set(stem, dir.getDirName());
       }
-    } catch {
+    } catch (error) {
+      logger.debug(
+        `TAKT collision pre-pass: skipping skill "${dir.getDirName()}" due to conversion error: ${formatError(error)}`,
+      );
       continue;
     }
   }

@@ -1,6 +1,7 @@
 import path, { join, relative, resolve } from "node:path";
 
 import { ValidationResult } from "../../types/ai-dir.js";
+import { toPosixPath } from "../../utils/file.js";
 import { assertSafeTaktName, resolveTaktFacetDir } from "../takt-shared.js";
 import { RulesyncSkill, SkillFile } from "./rulesync-skill.js";
 import {
@@ -143,7 +144,7 @@ export class TaktSkill extends ToolSkill {
   }
 
   override getRelativePathFromCwd(): string {
-    return this.relativeDirPath;
+    return toPosixPath(this.relativeDirPath);
   }
 
   getBody(): string {
