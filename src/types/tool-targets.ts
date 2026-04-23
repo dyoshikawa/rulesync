@@ -24,6 +24,7 @@ export const ALL_TOOL_TARGETS = [
   "kilo",
   "kiro",
   "opencode",
+  "pi",
   "qwencode",
   "replit",
   "roo",

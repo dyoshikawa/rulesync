@@ -20,8 +20,10 @@ import type { Logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
 import { FactorydroidCommand } from "../commands/factorydroid-command.js";
+import { PiCommand } from "../commands/pi-command.js";
 import { AgentsmdSkill } from "../skills/agentsmd-skill.js";
 import { FactorydroidSkill } from "../skills/factorydroid-skill.js";
+import { PiSkill } from "../skills/pi-skill.js";
 import { RovodevSkill } from "../skills/rovodev-skill.js";
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { SkillsProcessor } from "../skills/skills-processor.js";
@@ -50,6 +52,7 @@ import { JunieRule } from "./junie-rule.js";
 import { KiloRule } from "./kilo-rule.js";
 import { KiroRule } from "./kiro-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
+import { PiRule } from "./pi-rule.js";
 import { QwencodeRule } from "./qwencode-rule.js";
 import { ReplitRule } from "./replit-rule.js";
 import { RooRule } from "./roo-rule.js";
@@ -87,6 +90,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "kilo",
   "kiro",
   "opencode",
+  "pi",
   "qwencode",
   "replit",
   "roo",
@@ -454,6 +458,21 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
+      },
+    },
+  ],
+  [
+    "pi",
+    {
+      class: PiRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "toon",
+        additionalConventions: {
+          commands: { commandClass: PiCommand },
+          skills: { skillClass: PiSkill },
+        },
       },
     },
   ],

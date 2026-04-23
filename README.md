@@ -89,6 +89,7 @@ See [Quick Start guide](https://dyoshikawa.github.io/rulesync/getting-started/qu
 | Windsurf            | windsurf     |  ✅   |   ✅   |          |          |           | ✅ 🌏  |       |             |
 | Warp                | warp         |  ✅   |        |          |          |           |        |       |             |
 | Replit              | replit       |  ✅   |        |          |          |           |   ✅   |       |             |
+| Pi Coding Agent     | pi           | ✅ 🌏 |        |          |  ✅ 🌏   |           | ✅ 🌏  |       |             |
 | Zed                 | zed          |       |   ✅   |          |          |           |        |       |             |
 
 - ✅: Supports project mode

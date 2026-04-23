@@ -27,6 +27,7 @@ describe("E2E: commands", () => {
     { target: "antigravity", outputPath: join(".agent", "workflows", "review-pr.md") },
     { target: "junie", outputPath: join(".junie", "commands", "review-pr.md") },
     { target: "takt", outputPath: join(".takt", "facets", "instructions", "review-pr.md") },
+    { target: "pi", outputPath: join(".pi", "prompts", "review-pr.md") },
   ])("should generate $target commands", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -90,6 +91,7 @@ Check the PR diff and provide feedback.
     { target: "kiro", orphanPath: join(".kiro", "prompts", "orphan.md") },
     { target: "antigravity", orphanPath: join(".agent", "workflows", "orphan.md") },
     { target: "junie", orphanPath: join(".junie", "commands", "orphan.md") },
+    { target: "pi", orphanPath: join(".pi", "prompts", "orphan.md") },
   ])(
     "should fail in check mode when delete would remove an orphan $target command file",
     async ({ target, orphanPath }) => {
@@ -132,6 +134,7 @@ describe("E2E: commands (import)", () => {
     { target: "kiro", sourcePath: join(".kiro", "prompts", "review-pr.md") },
     { target: "antigravity", sourcePath: join(".agent", "workflows", "review-pr.md") },
     { target: "junie", sourcePath: join(".junie", "commands", "review-pr.md") },
+    { target: "pi", sourcePath: join(".pi", "prompts", "review-pr.md") },
   ])("should import $target commands", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
@@ -163,6 +166,7 @@ describe("E2E: commands (global mode)", () => {
       target: "takt",
       outputPath: join(".takt", "facets", "instructions", "review-pr.md"),
     },
+    { target: "pi", outputPath: join(".pi", "agent", "prompts", "review-pr.md") },
   ])("should generate $target commands in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
