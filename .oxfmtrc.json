@@ -21,7 +21,14 @@
     ".serena/project.yml",
     ".github/copilot-instructions.md",
     ".github/instructions/**",
-    "rulesync.jsonc",
     "rulesync.local.jsonc"
+  ],
+  "overrides": [
+    {
+      "files": ["**/*.json", "**/*.jsonc"],
+      "options": {
+        "trailingComma": "none"
+      }
+    }
   ]
 }
