@@ -1,0 +1,88 @@
+import { ConfigResolver, ConfigResolverResolveParams } from "../../config/config-resolver.js";
+import { convertFromTool } from "../../lib/convert.js";
+import type { RulesyncFeatures } from "../../types/features.js";
+import { CLIError, ErrorCodes } from "../../types/json-output.js";
+import { ALL_TOOL_TARGETS, type ToolTarget, ToolTargetSchema } from "../../types/tool-targets.js";
+import type { Logger } from "../../utils/logger.js";
+import { calculateTotalCount } from "../../utils/result.js";
+
+export type ConvertOptions = Omit<
+  ConfigResolverResolveParams,
+  "delete" | "baseDirs" | "targets"
+> & {
+  from?: string;
+  to?: string[];
+  features?: RulesyncFeatures;
+};
+
+function parseToolTarget(value: string, label: string): ToolTarget {
+  const result = ToolTargetSchema.safeParse(value);
+  if (!result.success) {
+    throw new CLIError(
+      `Invalid ${label} tool '${value}'. Must be one of: ${ALL_TOOL_TARGETS.join(", ")}`,
+      ErrorCodes.CONVERT_FAILED,
+    );
+  }
+  return result.data;
+}
+
+export async function convertCommand(logger: Logger, options: ConvertOptions): Promise<void> {
+  // Note: `--from` and `--to` presence is enforced by commander's
+  // `requiredOption(...)` in `src/cli/index.ts`, so we only need to validate
+  // the tool names here.
+  const fromTool = parseToolTarget(options.from ?? "", "source");
+  const toTools = (options.to ?? []).map((t) => parseToolTarget(t, "destination"));
+
+  // Resolve Config primarily for feature filtering; default to `*` when no
+  // features are provided so all features both tools support are tried.
+  // We use `targets: [fromTool]` so `config.getFeatures(fromTool)` works
+  // consistently with how `import`/`generate` resolve features.
+  const config = await ConfigResolver.resolve({
+    ...options,
+    targets: [fromTool],
+    features: options.features ?? ["*"],
+  });
+
+  logger.debug(`Converting files from ${fromTool} to ${toTools.join(", ")}...`);
+
+  const result = await convertFromTool({ config, fromTool, toTools, logger });
+
+  const totalConverted = calculateTotalCount(result);
+
+  if (totalConverted === 0) {
+    const enabledFeatures = config.getFeatures(fromTool).join(", ");
+    logger.warn(`No files converted for enabled features: ${enabledFeatures}`);
+    return;
+  }
+
+  // Capture JSON data if in JSON mode
+  if (logger.jsonMode) {
+    logger.captureData("from", fromTool);
+    logger.captureData("to", toTools);
+    logger.captureData("features", {
+      rules: { count: result.rulesCount },
+      ignore: { count: result.ignoreCount },
+      mcp: { count: result.mcpCount },
+      commands: { count: result.commandsCount },
+      subagents: { count: result.subagentsCount },
+      skills: { count: result.skillsCount },
+      hooks: { count: result.hooksCount },
+      permissions: { count: result.permissionsCount },
+    });
+    logger.captureData("totalFiles", totalConverted);
+  }
+
+  const parts = [];
+  if (result.rulesCount > 0) parts.push(`${result.rulesCount} rules`);
+  if (result.ignoreCount > 0) parts.push(`${result.ignoreCount} ignore files`);
+  if (result.mcpCount > 0) parts.push(`${result.mcpCount} MCP files`);
+  if (result.commandsCount > 0) parts.push(`${result.commandsCount} commands`);
+  if (result.subagentsCount > 0) parts.push(`${result.subagentsCount} subagents`);
+  if (result.skillsCount > 0) parts.push(`${result.skillsCount} skills`);
+  if (result.hooksCount > 0) parts.push(`${result.hooksCount} hooks`);
+  if (result.permissionsCount > 0) parts.push(`${result.permissionsCount} permissions`);
+
+  logger.success(
+    `Converted ${totalConverted} file(s) total from ${fromTool} to ${toTools.join(", ")} (${parts.join(" + ")})`,
+  );
+}

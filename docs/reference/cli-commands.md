@@ -9,6 +9,10 @@ rulesync init
 # Import existing configurations (to .rulesync/rules/ by default)
 rulesync import --targets claudecode --features rules,ignore,mcp,commands,subagents,skills
 
+# Convert configurations from one tool to other tools (skips .rulesync/)
+rulesync convert --from cursor --to copilot,claudecode
+rulesync convert --from cursor --to copilot,claudecode --features rules,mcp
+
 # Fetch configurations from a Git repository
 rulesync fetch owner/repo
 rulesync fetch owner/repo@v1.0.0 --features rules,commands
@@ -170,3 +174,43 @@ rulesync fetch owner/repo --conflict skip
 # Fetch from a monorepo subdirectory
 rulesync fetch owner/repo:packages/my-package
 ```
+
+## Convert Command
+
+The `convert` command converts configuration files from one AI tool directly to one or more destination tools **without creating `.rulesync/` files on disk**. The intermediate rulesync representation is kept in memory only.
+
+This is useful when you want to translate a one-shot tool-to-tool conversion (e.g., "I have Cursor rules, give me Claude Code and Copilot equivalents") without adopting rulesync's managed source-of-truth workflow.
+
+### Options
+
+| Option                      | Description                                                                                                       | Default   |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------- |
+| `--from <tool>`             | Source tool to convert from (single tool, e.g., `cursor`, `claudecode`)                                           | Required  |
+| `--to <tools>`              | Comma-separated list of destination tools (e.g., `copilot,claudecode`)                                            | Required  |
+| `--features, -f <features>` | Comma-separated list of features to convert (rules, commands, subagents, skills, ignore, mcp, hooks, permissions) | `*` (all) |
+| `--verbose, -V`             | Verbose output                                                                                                    | `false`   |
+| `--silent, -s`              | Suppress all output                                                                                               | `false`   |
+| `--global, -g`              | Convert for global (user scope) configuration files                                                               | `false`   |
+| `--dry-run`                 | Show changes without writing files                                                                                | `false`   |
+
+### Examples
+
+```bash
+# Convert Cursor rules to Copilot and Claude Code
+rulesync convert --from cursor --to copilot,claudecode --features rules
+
+# Convert all features Cursor and Copilot both support
+rulesync convert --from cursor --to copilot
+
+# Convert MCP configuration from Claude Code to Cursor
+rulesync convert --from claudecode --to cursor --features mcp
+
+# Dry run to preview the conversion
+rulesync convert --from cursor --to copilot,claudecode --dry-run
+```
+
+### Behavior
+
+- The intermediate rulesync files produced during conversion are **never** written to disk. Only destination tool files are written.
+- Features that exist for the source tool but are not supported by a given destination tool are skipped with a warning.
+- When `--features` is omitted, the command attempts every feature the source tool supports.
