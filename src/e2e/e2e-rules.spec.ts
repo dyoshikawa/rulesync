@@ -36,6 +36,7 @@ describe("E2E: rules", () => {
     { target: "junie", outputPath: join(".junie", "guidelines.md") },
     { target: "warp", outputPath: "WARP.md" },
     { target: "replit", outputPath: "replit.md" },
+    { target: "pi", outputPath: "AGENTS.md" },
   ])("should generate $target rules", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -202,6 +203,7 @@ describe("E2E: rules (import)", () => {
     },
     { target: "warp", sourcePath: "WARP.md", importedFileName: "overview.md" },
     { target: "replit", sourcePath: "replit.md", importedFileName: "overview.md" },
+    { target: "pi", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     {
       target: "cline",
       sourcePath: join(".clinerules", "overview.md"),
@@ -264,6 +266,7 @@ describe("E2E: rules (global mode)", () => {
     { target: "kilo", outputPath: join(".config", "kilo", "AGENTS.md") },
     { target: "rovodev", outputPath: join(".rovodev", "AGENTS.md") },
     { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
+    { target: "pi", outputPath: join(".pi", "agent", "AGENTS.md") },
   ])("should generate $target rules in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

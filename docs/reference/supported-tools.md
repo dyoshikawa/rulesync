@@ -28,6 +28,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Windsurf            | windsurf     |  ✅   |   ✅   |          |          |           | ✅ 🌏  |       |             |
 | Warp                | warp         |  ✅   |        |          |          |           |        |       |             |
 | Replit              | replit       |  ✅   |        |          |          |           |   ✅   |       |             |
+| Pi Coding Agent     | pi           | ✅ 🌏 |        |          |  ✅ 🌏   |           | ✅ 🌏  |       |             |
 | Zed                 | zed          |       |   ✅   |          |          |           |        |       |             |
 
 - ✅: Supports project mode

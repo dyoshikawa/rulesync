@@ -1135,6 +1135,7 @@ describe("CommandsProcessor", () => {
           "kilo",
           "kiro",
           "opencode",
+          "pi",
           "roo",
           "takt",
         ]),
@@ -1158,6 +1159,7 @@ describe("CommandsProcessor", () => {
           "kilo",
           "kiro",
           "opencode",
+          "pi",
           "roo",
           "takt",
         ]),
@@ -1179,6 +1181,7 @@ describe("CommandsProcessor", () => {
           "codexcli",
           "kilo",
           "opencode",
+          "pi",
           "takt",
         ]),
       );

@@ -22,6 +22,7 @@ import { JunieCommand } from "./junie-command.js";
 import { KiloCommand } from "./kilo-command.js";
 import { KiroCommand } from "./kiro-command.js";
 import { OpenCodeCommand } from "./opencode-command.js";
+import { PiCommand } from "./pi-command.js";
 import { RooCommand } from "./roo-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { TaktCommand } from "./takt-command.js";
@@ -78,6 +79,7 @@ const commandsProcessorToolTargetTuple = [
   "kilo",
   "kiro",
   "opencode",
+  "pi",
   "roo",
   "takt",
 ] as const;
@@ -271,6 +273,19 @@ const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFac
         supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: true,
+      },
+    },
+  ],
+  [
+    "pi",
+    {
+      class: PiCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
       },
     },
   ],

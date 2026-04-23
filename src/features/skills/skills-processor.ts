@@ -24,6 +24,7 @@ import { JunieSkill } from "./junie-skill.js";
 import { KiloSkill } from "./kilo-skill.js";
 import { KiroSkill } from "./kiro-skill.js";
 import { OpenCodeSkill } from "./opencode-skill.js";
+import { PiSkill } from "./pi-skill.js";
 import { ReplitSkill } from "./replit-skill.js";
 import { RooSkill } from "./roo-skill.js";
 import { RovodevSkill } from "./rovodev-skill.js";
@@ -84,6 +85,7 @@ const skillsProcessorToolTargetTuple = [
   "kilo",
   "kiro",
   "opencode",
+  "pi",
   "replit",
   "roo",
   "rovodev",
@@ -210,6 +212,13 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     "opencode",
     {
       class: OpenCodeSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "pi",
+    {
+      class: PiSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

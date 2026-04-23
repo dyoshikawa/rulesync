@@ -38,7 +38,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "common", feature: "general", entry: "**/AGENTS.local.md" },
 
   // AGENTS.md
-  { target: "agentsmd", feature: "rules", entry: "**/AGENTS.md" },
+  { target: ["agentsmd", "pi"], feature: "rules", entry: "**/AGENTS.md" },
   { target: "agentsmd", feature: "rules", entry: "**/.agents/" },
 
   // Augment Code
@@ -193,6 +193,11 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
     feature: "general",
     entry: "**/.opencode/package-lock.json",
   },
+
+  // Pi Coding Agent
+  { target: "pi", feature: "rules", entry: "**/.agents/memories/" },
+  { target: "pi", feature: "commands", entry: "**/.pi/prompts/" },
+  { target: "pi", feature: "skills", entry: "**/.pi/skills/" },
 
   // Qwen Code
   { target: "qwencode", feature: "rules", entry: "**/QWEN.md" },
