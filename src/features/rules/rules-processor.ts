@@ -20,10 +20,8 @@ import type { Logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
 import { FactorydroidCommand } from "../commands/factorydroid-command.js";
-import { PiCommand } from "../commands/pi-command.js";
 import { AgentsmdSkill } from "../skills/agentsmd-skill.js";
 import { FactorydroidSkill } from "../skills/factorydroid-skill.js";
-import { PiSkill } from "../skills/pi-skill.js";
 import { RovodevSkill } from "../skills/rovodev-skill.js";
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { SkillsProcessor } from "../skills/skills-processor.js";
@@ -469,10 +467,6 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
-        additionalConventions: {
-          commands: { commandClass: PiCommand },
-          skills: { skillClass: PiSkill },
-        },
       },
     },
   ],

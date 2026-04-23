@@ -187,6 +187,8 @@ antigravity: # antigravity specific parameters
   turbo: true # (Optional, default: true) Append // turbo for auto-execution
 takt: # takt specific parameters (optional; emitted under .takt/facets/instructions/)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
+pi: # pi coding agent specific parameters (optional)
+  argument-hint: "[message]" # Hint shown in Pi's command palette
 ---
 
 target_pr = $ARGUMENTS
