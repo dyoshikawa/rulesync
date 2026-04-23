@@ -7,32 +7,32 @@
     "copilot": {
       "rules": {
         "ruleDiscoveryMode": "explicit",
-        "includeLocalRoot": false,
+        "includeLocalRoot": false
       },
       "commands": true,
       "mcp": false,
       "subagents": true,
-      "skills": true,
+      "skills": true
     },
     "claudecode": {
       "rules": true,
       "commands": true,
       "mcp": true,
       "subagents": true,
-      "skills": true,
+      "skills": true
     },
     "opencode": {
       "rules": true,
       "commands": true,
       "mcp": true,
       "subagents": true,
-      "skills": true,
+      "skills": true
     },
     "takt": {
       "rules": true,
       "commands": true,
       "subagents": true,
-      "skills": true,
+      "skills": true
     }
   },
 
@@ -50,5 +50,5 @@
 
   // When true (default), `rulesync gitignore` only emits entries for the
   // tools listed in `targets`.
-  "gitignoreTargetsOnly": true,
+  "gitignoreTargetsOnly": true
 }
