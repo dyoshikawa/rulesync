@@ -95,19 +95,14 @@ export class PiCommand extends ToolCommand {
   }
 
   toRulesyncCommand(): RulesyncCommand {
-    const { description, "argument-hint": argumentHint, ...restFields } = this.frontmatter;
-
-    // Preserve Pi-specific fields under a `pi:` section so round-trips
-    // retain tool-specific metadata like `argument-hint`.
-    const piSection: Record<string, unknown> = {
-      ...(argumentHint !== undefined && { "argument-hint": argumentHint }),
-      ...restFields,
-    };
+    const { description, ...restFields } = this.frontmatter;
 
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["*"],
       description,
-      ...(Object.keys(piSection).length > 0 && { pi: piSection }),
+      // Preserve Pi-specific fields (e.g. `argument-hint`) under a `pi:`
+      // section so round-trips retain tool-specific metadata.
+      ...(Object.keys(restFields).length > 0 && { pi: restFields }),
     };
 
     const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { ensureDir, writeFileBuffer, writeFileContent } from "../../utils/file.js";
 import { PiSkill } from "./pi-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 
@@ -118,6 +118,40 @@ Body content`,
         description: "Global demo",
       });
       expect(skill.getRelativeDirPath()).toBe(join(".pi", "agent", "skills"));
+    });
+
+    it("should preserve other files through fromDir and round-trip", async () => {
+      const skillDir = join(testDir, ".pi", "skills", "demo");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---
+name: demo
+description: Demo skill
+---
+
+Body content`,
+      );
+      await writeFileBuffer(join(skillDir, "ref.md"), Buffer.from("# Reference\nAuxiliary file."));
+
+      const skill = await PiSkill.fromDir({
+        baseDir: testDir,
+        dirName: "demo",
+      });
+
+      const otherFiles = skill.getOtherFiles();
+      expect(otherFiles).toHaveLength(1);
+      expect(otherFiles[0]?.relativeFilePathToDirPath).toBe("ref.md");
+      expect(otherFiles[0]?.fileBuffer.toString()).toBe("# Reference\nAuxiliary file.");
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getOtherFiles()).toEqual(otherFiles);
+
+      const restored = PiSkill.fromRulesyncSkill({
+        baseDir: testDir,
+        rulesyncSkill,
+      });
+      expect(restored.getOtherFiles()).toEqual(otherFiles);
     });
 
     it("should throw when the frontmatter is invalid", async () => {

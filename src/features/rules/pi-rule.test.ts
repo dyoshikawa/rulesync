@@ -169,6 +169,27 @@ describe("PiRule", () => {
       expect(rule.getRelativeFilePath()).toBe("memory.md");
     });
 
+    it("should throw for non-root rule in global mode", () => {
+      const rulesyncRule = new RulesyncRule({
+        baseDir: testDir,
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "memory.md",
+        frontmatter: {
+          root: false,
+          targets: ["pi"],
+        },
+        body: "# Memory\nBody.",
+      });
+
+      expect(() =>
+        PiRule.fromRulesyncRule({
+          baseDir: testDir,
+          rulesyncRule,
+          global: true,
+        }),
+      ).toThrow(/global mode/i);
+    });
+
     it("should use global root paths when global is true", () => {
       const rulesyncRule = new RulesyncRule({
         baseDir: testDir,

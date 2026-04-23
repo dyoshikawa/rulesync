@@ -112,6 +112,13 @@ export class PiRule extends ToolRule {
     global = false,
   }: ToolRuleFromRulesyncRuleParams): PiRule {
     const paths = this.getSettablePaths({ global });
+
+    if (global && !rulesyncRule.getFrontmatter().root) {
+      throw new Error(
+        `PiRule does not support non-root rules in global mode; expected a root rule but got '${rulesyncRule.getRelativeFilePath()}'`,
+      );
+    }
+
     return new PiRule(
       this.buildToolRuleParamsAgentsmd({
         baseDir,

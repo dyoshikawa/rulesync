@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { PiCommand, PiCommandFrontmatterSchema } from "./pi-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 
@@ -327,6 +328,16 @@ Body`,
       });
 
       const rulesyncCommand = original.toRulesyncCommand();
+
+      // Re-parse the serialized file content to guard against regressions in
+      // frontmatter serialization (the in-memory getter alone could miss them).
+      const { frontmatter: serialized } = parseFrontmatter(rulesyncCommand.getFileContent());
+      expect(serialized).toMatchObject({
+        targets: ["*"],
+        description: "Desc",
+        pi: { "argument-hint": "[arg]" },
+      });
+
       const restored = PiCommand.fromRulesyncCommand({
         baseDir: testDir,
         rulesyncCommand,
