@@ -17,6 +17,18 @@ The single `rulesyncTool` multiplexes by `feature` and `operation`:
 
 The `permissions` feature operates on `.rulesync/permissions.json` and the `hooks` feature operates on `.rulesync/hooks.json`. Both accept a `content` string (valid JSON) on `put`.
 
+### `convert` / `run` options
+
+When invoking `feature: "convert"` with `operation: "run"`, pass `convertOptions` with the following shape:
+
+| Option     | Type       | Required | Description                                                                        |
+| ---------- | ---------- | -------- | ---------------------------------------------------------------------------------- |
+| `from`     | `string`   | Yes      | Source tool name (e.g. `"claudecode"`). Must be a valid `ToolTarget`.              |
+| `to`       | `string[]` | Yes      | One or more destination tool names. Must not be empty and must not include `from`. |
+| `features` | `string[]` | No       | Features to convert (e.g. `["rules", "commands"]`). Defaults to `["*"]`.           |
+| `global`   | `boolean`  | No       | Convert global (user-scope) configurations. Defaults to `false`.                   |
+| `dryRun`   | `boolean`  | No       | Preview changes without writing files. Defaults to `false`.                        |
+
 ## Usage
 
 ### Starting the MCP Server

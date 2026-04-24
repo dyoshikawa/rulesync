@@ -20,12 +20,18 @@ const importResult = await importFromTool({
 console.log(`Imported ${importResult.rulesCount} rules`);
 
 // Convert configurations between AI tools without writing intermediate .rulesync/ files
-const convertResult = await convertFromTool({
-  from: "claudecode",
-  to: ["cursor", "copilot"],
-  features: ["rules"],
-});
-console.log(`Converted ${convertResult.rulesCount} rule file(s)`);
+try {
+  const convertResult = await convertFromTool({
+    from: "claudecode",
+    to: ["cursor", "copilot"],
+    features: ["rules"],
+  });
+  console.log(`Converted ${convertResult.rulesCount} rule file(s)`);
+} catch (error) {
+  // Thrown when `from` is empty, `to` is empty, `to` includes `from`,
+  // a source file cannot be parsed, or write fails.
+  console.error("convert failed:", error);
+}
 ```
 
 ## `generate(options?)`
@@ -65,13 +71,13 @@ Imports existing tool configurations into `.rulesync/` directory.
 
 Converts configuration files between AI tools without writing intermediate `.rulesync/` files to disk.
 
-| Option       | Type           | Default          | Description                                |
-| ------------ | -------------- | ---------------- | ------------------------------------------ |
-| `from`       | `ToolTarget`   | (required)       | Source tool to convert configurations from |
-| `to`         | `ToolTarget[]` | (required)       | Destination tools to convert to            |
-| `features`   | `Feature[]`    | from config file | Features to convert                        |
-| `configPath` | `string`       | auto-detected    | Path to `rulesync.jsonc`                   |
-| `verbose`    | `boolean`      | `false`          | Enable verbose logging                     |
-| `silent`     | `boolean`      | `true`           | Suppress all output                        |
-| `global`     | `boolean`      | `false`          | Convert global (user scope) configurations |
-| `dryRun`     | `boolean`      | `false`          | Show changes without writing files         |
+| Option       | Type           | Default       | Description                                                                                 |
+| ------------ | -------------- | ------------- | ------------------------------------------------------------------------------------------- |
+| `from`       | `ToolTarget`   | (required)    | Source tool to convert configurations from                                                  |
+| `to`         | `ToolTarget[]` | (required)    | Destination tools to convert to                                                             |
+| `features`   | `Feature[]`    | `["*"]`       | Features to convert. Matches CLI behavior and overrides any `features` in `rulesync.jsonc`. |
+| `configPath` | `string`       | auto-detected | Path to `rulesync.jsonc`                                                                    |
+| `verbose`    | `boolean`      | `false`       | Enable verbose logging                                                                      |
+| `silent`     | `boolean`      | `true`        | Suppress all output                                                                         |
+| `global`     | `boolean`      | `false`       | Convert global (user scope) configurations                                                  |
+| `dryRun`     | `boolean`      | `false`       | Show changes without writing files                                                          |

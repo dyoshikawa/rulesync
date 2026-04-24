@@ -183,8 +183,34 @@ describe("importFromTool", () => {
 });
 
 describe("convertFromTool", () => {
+  it("should throw when from is empty", async () => {
+    await expect(
+      convertFromTool({ from: "" as unknown as "claudecode", to: ["cursor"] }),
+    ).rejects.toThrow("from is required");
+  });
+
   it("should throw when to is empty", async () => {
     await expect(convertFromTool({ from: "claudecode", to: [] })).rejects.toThrow("to is required");
+  });
+
+  it("should throw when to includes from (self-conversion)", async () => {
+    await expect(
+      convertFromTool({ from: "claudecode", to: ["cursor", "claudecode"] }),
+    ).rejects.toThrow("Destination tools must not include the source tool 'claudecode'");
+  });
+
+  it("should deduplicate to array before forwarding to core convertFromTool", async () => {
+    await convertFromTool({
+      from: "claudecode",
+      to: ["cursor", "cursor", "copilot", "cursor"],
+    });
+
+    expect(coreConvertFromTool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromTool: "claudecode",
+        toTools: ["cursor", "copilot"],
+      }),
+    );
   });
 
   it("should default silent to true", async () => {
@@ -199,6 +225,16 @@ describe("convertFromTool", () => {
     expect(ConfigResolver.resolve).toHaveBeenCalledWith(
       expect.objectContaining({
         targets: ["claudecode"],
+      }),
+    );
+  });
+
+  it("should default features to ['*'] when not provided (matches CLI behavior)", async () => {
+    await convertFromTool({ from: "claudecode", to: ["cursor"] });
+
+    expect(ConfigResolver.resolve).toHaveBeenCalledWith(
+      expect.objectContaining({
+        features: ["*"],
       }),
     );
   });
