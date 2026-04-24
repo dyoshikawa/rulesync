@@ -6,8 +6,10 @@ import {
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
-import { RulesyncFile } from "../../types/rulesync-file.js";
+import { RulesyncFile, RulesyncFileFromFileParams } from "../../types/rulesync-file.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
+
+export type RulesyncIgnoreFromFileParams = Pick<RulesyncFileFromFileParams, "baseDir">;
 
 export type RulesyncIgnoreSettablePaths = {
   recommended: {
@@ -40,7 +42,7 @@ export class RulesyncIgnore extends RulesyncFile {
 
   static async fromFile({
     baseDir = process.cwd(),
-  }: { baseDir?: string } = {}): Promise<RulesyncIgnore> {
+  }: RulesyncIgnoreFromFileParams = {}): Promise<RulesyncIgnore> {
     const paths = this.getSettablePaths();
     const recommendedPath = join(
       baseDir,
