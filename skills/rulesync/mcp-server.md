@@ -13,6 +13,7 @@ The single `rulesyncTool` multiplexes by `feature` and `operation`:
 - `ignore`, `mcp`, `permissions`, `hooks`: `get`, `put`, `delete`
 - `generate`: `run`
 - `import`: `run`
+- `convert`: `run`
 
 The `permissions` feature operates on `.rulesync/permissions.json` and the `hooks` feature operates on `.rulesync/hooks.json`. Both accept a `content` string (valid JSON) on `put`.
 

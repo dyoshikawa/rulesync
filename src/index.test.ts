@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConfigResolver } from "./config/config-resolver.js";
 import type { Config } from "./config/config.js";
-import { generate, importFromTool } from "./index.js";
+import { convertFromTool, generate, importFromTool } from "./index.js";
+import type { ConvertResult } from "./lib/convert.js";
+import { convertFromTool as coreConvertFromTool } from "./lib/convert.js";
 import type { GenerateResult } from "./lib/generate.js";
 import { checkRulesyncDirExists, generate as coreGenerate } from "./lib/generate.js";
 import type { ImportResult } from "./lib/import.js";
@@ -12,6 +14,7 @@ import { ConsoleLogger } from "./utils/logger.js";
 vi.mock("./config/config-resolver.js");
 vi.mock("./lib/generate.js");
 vi.mock("./lib/import.js");
+vi.mock("./lib/convert.js");
 vi.mock("./utils/logger.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./utils/logger.js")>();
   const MockConsoleLogger = vi.fn().mockImplementation(function () {
@@ -66,11 +69,23 @@ const mockImportResult: ImportResult = {
   permissionsCount: 0,
 };
 
+const mockConvertResult: ConvertResult = {
+  rulesCount: 1,
+  ignoreCount: 0,
+  mcpCount: 0,
+  commandsCount: 0,
+  subagentsCount: 0,
+  skillsCount: 0,
+  hooksCount: 0,
+  permissionsCount: 0,
+};
+
 beforeEach(() => {
   vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig as never);
   vi.mocked(checkRulesyncDirExists).mockResolvedValue(true);
   vi.mocked(coreGenerate).mockResolvedValue(mockGenerateResult);
   vi.mocked(coreImportFromTool).mockResolvedValue(mockImportResult);
+  vi.mocked(coreConvertFromTool).mockResolvedValue(mockConvertResult);
 });
 
 afterEach(() => {
@@ -162,6 +177,65 @@ describe("importFromTool", () => {
         features: ["rules", "commands"],
         verbose: true,
         silent: false,
+      }),
+    );
+  });
+});
+
+describe("convertFromTool", () => {
+  it("should throw when to is empty", async () => {
+    await expect(convertFromTool({ from: "claudecode", to: [] })).rejects.toThrow("to is required");
+  });
+
+  it("should default silent to true", async () => {
+    await convertFromTool({ from: "claudecode", to: ["cursor"] });
+
+    expect(ConsoleLogger).toHaveBeenCalledWith({ verbose: false, silent: true });
+  });
+
+  it("should pass from as a single-element targets array to ConfigResolver", async () => {
+    await convertFromTool({ from: "claudecode", to: ["cursor"] });
+
+    expect(ConfigResolver.resolve).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targets: ["claudecode"],
+      }),
+    );
+  });
+
+  it("should call core convertFromTool with correct arguments and return result", async () => {
+    const result = await convertFromTool({
+      from: "claudecode",
+      to: ["cursor", "copilot"],
+    });
+
+    expect(coreConvertFromTool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: mockConfig,
+        fromTool: "claudecode",
+        toTools: ["cursor", "copilot"],
+      }),
+    );
+    expect(result).toEqual(mockConvertResult);
+  });
+
+  it("should pass features and other options through", async () => {
+    await convertFromTool({
+      from: "claudecode",
+      to: ["cursor"],
+      features: ["rules", "commands"],
+      verbose: true,
+      silent: false,
+      dryRun: true,
+    });
+
+    expect(ConfigResolver.resolve).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targets: ["claudecode"],
+        features: ["rules", "commands"],
+        verbose: true,
+        silent: false,
+        dryRun: true,
       }),
     );
   });
