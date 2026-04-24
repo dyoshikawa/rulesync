@@ -548,6 +548,41 @@ describe("config-resolver", () => {
     });
   });
 
+  describe("inputRoot — config-file sourcing", () => {
+    it("should honor inputRoot set in rulesync.jsonc and propagate it through mergeConfigs", async () => {
+      const configuredRoot = join(testDir, "from-config");
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ inputRoot: configuredRoot }),
+      );
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getInputRoot()).toBe(configuredRoot);
+    });
+
+    it("should let rulesync.local.jsonc override inputRoot from rulesync.jsonc", async () => {
+      const baseRoot = join(testDir, "from-base");
+      const localRoot = join(testDir, "from-local");
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ inputRoot: baseRoot }),
+      );
+      await writeFileContent(
+        join(testDir, "rulesync.local.jsonc"),
+        JSON.stringify({ inputRoot: localRoot }),
+      );
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getInputRoot()).toBe(localRoot);
+    });
+  });
+
   describe("deprecation warning for object-form features", () => {
     let warnSpy: ReturnType<typeof vi.spyOn>;
 

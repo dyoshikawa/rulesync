@@ -99,6 +99,7 @@ const mergeConfigs = (
     gitignoreDestination: localConfig.gitignoreDestination ?? baseConfig.gitignoreDestination,
     dryRun: localConfig.dryRun ?? baseConfig.dryRun,
     check: localConfig.check ?? baseConfig.check,
+    inputRoot: localConfig.inputRoot ?? baseConfig.inputRoot,
     sources: localConfig.sources ?? baseConfig.sources,
   };
 };
