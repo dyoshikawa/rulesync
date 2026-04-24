@@ -128,6 +128,19 @@ describe("convertCommand", () => {
       );
     });
 
+    it("should log with [DRY RUN] prefix and use info in preview mode", async () => {
+      mockConfig.isPreviewMode.mockReturnValue(true);
+
+      const options: ConvertOptions = { from: "cursor", to: ["claudecode"] };
+
+      await convertCommand(mockLogger, options);
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.stringMatching(/^\[DRY RUN\] Would convert/),
+      );
+      expect(mockLogger.success).not.toHaveBeenCalled();
+    });
+
     it("should warn and return when nothing was converted", async () => {
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return {

@@ -13,11 +13,13 @@ async function runConvert({
   from,
   to,
   features,
+  dryRun,
   env,
 }: {
   from: string;
   to: string;
   features?: string;
+  dryRun?: boolean;
   env?: Record<string, string>;
 }): Promise<{ stdout: string; stderr: string }> {
   const args = [
@@ -28,6 +30,7 @@ async function runConvert({
     "--to",
     to,
     ...(features ? ["--features", features] : []),
+    ...(dryRun ? ["--dry-run"] : []),
   ];
   return execFileAsync(rulesyncCmd, args, env ? { env: { ...process.env, ...env } } : {});
 }
@@ -324,6 +327,26 @@ This rule is converted to multiple tools.
       join(testDir, ".github", "instructions", "overview.instructions.md"),
     );
     expect(copilotContent).toContain("converted to multiple tools");
+
+    const rulesyncDirExists = await fileExists(join(testDir, ".rulesync"));
+    expect(rulesyncDirExists).toBe(false);
+  });
+
+  it("should not write any destination files when --dry-run is passed", async () => {
+    const testDir = getTestDir();
+    await writeFileContent(join(testDir, ".cursor", "rules", "overview.mdc"), cursorRule);
+
+    const { stdout } = await runConvert({
+      from: "cursor",
+      to: "claudecode",
+      features: "rules",
+      dryRun: true,
+    });
+
+    // Dry-run summary must advertise itself; no destination file should be written.
+    expect(stdout).toContain("[DRY RUN]");
+    const destExists = await fileExists(join(testDir, ".claude", "rules", "overview.md"));
+    expect(destExists).toBe(false);
 
     const rulesyncDirExists = await fileExists(join(testDir, ".rulesync"));
     expect(rulesyncDirExists).toBe(false);

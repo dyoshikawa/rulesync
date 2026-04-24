@@ -214,3 +214,5 @@ rulesync convert --from cursor --to copilot,claudecode --dry-run
 - The intermediate rulesync files produced during conversion are **never** written to disk. Only destination tool files are written.
 - Features that exist for the source tool but are not supported by a given destination tool are skipped with a warning.
 - When `--features` is omitted, the command attempts every feature the source tool supports.
+- Passing the source tool inside `--to` is rejected, because converting a tool onto itself is lossy.
+- With `--dry-run`, no destination files are written; the command prints a summary prefixed with `[DRY RUN]` listing what would have been converted.

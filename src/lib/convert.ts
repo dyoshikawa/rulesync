@@ -150,7 +150,8 @@ async function runFeatureConvert<TProcessor, TSourceItem, TRulesyncItem>(
     totalCount += count;
 
     if (config.getVerbose() && count > 0) {
-      logger.success(`Converted ${count} ${itemLabel} for ${toTool}`);
+      const verb = config.isPreviewMode() ? "Would convert" : "Converted";
+      logger.success(`${verb} ${count} ${itemLabel} for ${toTool}`);
     }
   }
 

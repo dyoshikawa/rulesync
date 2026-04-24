@@ -27,9 +27,8 @@ function parseToolTarget(value: string, label: string): ToolTarget {
 }
 
 export async function convertCommand(logger: Logger, options: ConvertOptions): Promise<void> {
-  // Note: `--from` and `--to` presence is enforced by commander's
-  // `requiredOption(...)` in `src/cli/index.ts`, so we only need to validate
-  // the tool names here.
+  // `--from` and `--to` presence is enforced by commander's `requiredOption`
+  // in `src/cli/index.ts`; here we only need to validate the tool names.
   const fromTool = parseToolTarget(options.from ?? "", "source");
   const toToolsRaw = (options.to ?? []).map((t) => parseToolTarget(t, "destination"));
   const toTools = Array.from(new Set(toToolsRaw));
@@ -42,15 +41,17 @@ export async function convertCommand(logger: Logger, options: ConvertOptions): P
     );
   }
 
-  // Resolve Config for feature filtering. Include both source and destinations
-  // as targets so per-target feature maps in rulesync.jsonc are honored for
-  // the destination tools as well. Default features to `*` so every feature
-  // that both tools support is attempted.
+  // Pass both source and destinations as `targets` so per-target feature maps
+  // in `rulesync.jsonc` are honored for every tool involved. Default features
+  // to `*` so every feature that both tools support is attempted.
   const config = await ConfigResolver.resolve({
     ...options,
     targets: [fromTool, ...toTools],
     features: options.features ?? ["*"],
   });
+
+  const isPreview = config.isPreviewMode();
+  const modePrefix = isPreview ? "[DRY RUN] " : "";
 
   logger.debug(`Converting files from ${fromTool} to ${toTools.join(", ")}...`);
 
@@ -64,10 +65,10 @@ export async function convertCommand(logger: Logger, options: ConvertOptions): P
     return;
   }
 
-  // Capture JSON data if in JSON mode
   if (logger.jsonMode) {
     logger.captureData("from", fromTool);
     logger.captureData("to", toTools);
+    logger.captureData("dryRun", isPreview);
     logger.captureData("features", {
       rules: { count: result.rulesCount },
       ignore: { count: result.ignoreCount },
@@ -81,7 +82,7 @@ export async function convertCommand(logger: Logger, options: ConvertOptions): P
     logger.captureData("totalFiles", totalConverted);
   }
 
-  const parts = [];
+  const parts: string[] = [];
   if (result.rulesCount > 0) parts.push(`${result.rulesCount} rules`);
   if (result.ignoreCount > 0) parts.push(`${result.ignoreCount} ignore files`);
   if (result.mcpCount > 0) parts.push(`${result.mcpCount} MCP files`);
@@ -91,7 +92,12 @@ export async function convertCommand(logger: Logger, options: ConvertOptions): P
   if (result.hooksCount > 0) parts.push(`${result.hooksCount} hooks`);
   if (result.permissionsCount > 0) parts.push(`${result.permissionsCount} permissions`);
 
-  logger.success(
-    `Converted ${totalConverted} file(s) total from ${fromTool} to ${toTools.join(", ")} (${parts.join(" + ")})`,
-  );
+  const verbPhrase = isPreview ? "Would convert" : "Converted";
+  const summary = `${modePrefix}${verbPhrase} ${totalConverted} file(s) total from ${fromTool} to ${toTools.join(", ")} (${parts.join(" + ")})`;
+
+  if (isPreview) {
+    logger.info(summary);
+  } else {
+    logger.success(summary);
+  }
 }
