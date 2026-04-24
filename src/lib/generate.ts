@@ -578,6 +578,7 @@ async function generateHooksCore(params: {
 
       const processor = new HooksProcessor({
         baseDir,
+        inputRoot: config.getInputRoot(),
         toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
@@ -625,6 +626,7 @@ async function generatePermissionsCore(params: {
       try {
         const processor = new PermissionsProcessor({
           baseDir,
+          inputRoot: config.getInputRoot(),
           toolTarget,
           global: config.getGlobal(),
           dryRun: config.isPreviewMode(),

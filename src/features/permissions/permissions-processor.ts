@@ -113,18 +113,20 @@ export class PermissionsProcessor extends FeatureProcessor {
 
   constructor({
     baseDir = process.cwd(),
+    inputRoot = process.cwd(),
     toolTarget,
     global = false,
     dryRun = false,
     logger,
   }: {
     baseDir?: string;
+    inputRoot?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     dryRun?: boolean;
     logger: Logger;
   }) {
-    super({ baseDir, dryRun, logger });
+    super({ baseDir, inputRoot, dryRun, logger });
     const result = PermissionsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -139,7 +141,7 @@ export class PermissionsProcessor extends FeatureProcessor {
     try {
       return [
         await RulesyncPermissions.fromFile({
-          baseDir: process.cwd(),
+          baseDir: this.inputRoot,
           validate: true,
         }),
       ];

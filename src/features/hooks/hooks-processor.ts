@@ -223,18 +223,20 @@ export class HooksProcessor extends FeatureProcessor {
 
   constructor({
     baseDir = process.cwd(),
+    inputRoot = process.cwd(),
     toolTarget,
     global = false,
     dryRun = false,
     logger,
   }: {
     baseDir?: string;
+    inputRoot?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     dryRun?: boolean;
     logger: Logger;
   }) {
-    super({ baseDir, dryRun, logger });
+    super({ baseDir, inputRoot, dryRun, logger });
     const result = HooksProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -249,7 +251,7 @@ export class HooksProcessor extends FeatureProcessor {
     try {
       return [
         await RulesyncHooks.fromFile({
-          baseDir: process.cwd(),
+          baseDir: this.inputRoot,
           validate: true,
         }),
       ];
