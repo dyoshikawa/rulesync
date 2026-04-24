@@ -304,15 +304,15 @@ describe("CopilotRule", () => {
         rulesyncRule: original,
       });
 
-      // Root Copilot file must have no applyTo when the rulesync rule had no globs.
-      expect(copilotRule.getFrontmatter().applyTo).toBeUndefined();
+      // Root Copilot file must have no frontmatter.
+      expect(copilotRule.getFrontmatter()).toEqual({});
 
       const reimported = copilotRule.toRulesyncRule();
       const rf = reimported.getFrontmatter();
 
       expect(rf.root).toBe(true);
       expect(rf.globs).toBeUndefined();
-      expect(rf.description).toBe("Project overview");
+      expect(rf.description).toBeUndefined();
       expect(reimported.getBody()).toBe("Overview content");
     });
 
@@ -407,10 +407,7 @@ describe("CopilotRule", () => {
         validate: true,
       });
 
-      expect(copilotRule.getFrontmatter()).toEqual({
-        description: "Root rule from rulesync",
-        applyTo: "**/*",
-      });
+      expect(copilotRule.getFrontmatter()).toEqual({});
       expect(copilotRule.getBody()).toBe("Root rulesync rule content");
       expect(copilotRule.getRelativeDirPath()).toBe(".github");
       expect(copilotRule.getRelativeFilePath()).toBe("copilot-instructions.md");
@@ -494,7 +491,7 @@ describe("CopilotRule", () => {
         validate: true,
       });
 
-      expect(copilotRule.getFrontmatter().excludeAgent).toBe("coding-agent");
+      expect(copilotRule.getFrontmatter()).toEqual({});
     });
 
     it("should use default baseDir when not provided", () => {
