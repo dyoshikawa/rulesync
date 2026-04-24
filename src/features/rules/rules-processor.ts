@@ -596,7 +596,7 @@ export class RulesProcessor extends FeatureProcessor {
 
   constructor({
     baseDir = process.cwd(),
-    rulesyncDir = process.cwd(),
+    inputRoot = process.cwd(),
     toolTarget,
     simulateCommands = false,
     simulateSubagents = false,
@@ -609,7 +609,7 @@ export class RulesProcessor extends FeatureProcessor {
     logger,
   }: {
     baseDir?: string;
-    rulesyncDir?: string;
+    inputRoot?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     simulateCommands?: boolean;
@@ -621,7 +621,7 @@ export class RulesProcessor extends FeatureProcessor {
     dryRun?: boolean;
     logger: Logger;
   }) {
-    super({ baseDir, rulesyncDir, dryRun, logger });
+    super({ baseDir, inputRoot, dryRun, logger });
     const result = RulesProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -920,7 +920,7 @@ export class RulesProcessor extends FeatureProcessor {
    * Load and parse rulesync rule files from .rulesync/rules/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const rulesyncBaseDir = join(this.rulesyncDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
+    const rulesyncBaseDir = join(this.inputRoot, RULESYNC_RULES_RELATIVE_DIR_PATH);
     const files = await findFilesByGlobs(join(rulesyncBaseDir, "**", "*.md"));
     this.logger.debug(`Found ${files.length} rulesync files`);
     const rulesyncRules = await Promise.all(
@@ -931,7 +931,7 @@ export class RulesProcessor extends FeatureProcessor {
           intendedRootDir: rulesyncBaseDir,
         });
         return RulesyncRule.fromFile({
-          baseDir: this.rulesyncDir,
+          baseDir: this.inputRoot,
           relativeFilePath,
         });
       }),

@@ -32,7 +32,7 @@ describe("importCommand", () => {
       getFeatureOptions: vi.fn().mockReturnValue(undefined),
       getGlobal: vi.fn().mockReturnValue(false),
       getBaseDirs: vi.fn().mockReturnValue(["."]),
-      getRulesyncDir: vi.fn().mockReturnValue(process.cwd()),
+      getInputRoot: vi.fn().mockReturnValue(process.cwd()),
     };
 
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig);

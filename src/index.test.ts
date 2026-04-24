@@ -35,7 +35,7 @@ vi.mock("./utils/logger.js", async (importOriginal) => {
 
 const mockConfig = {
   getBaseDirs: () => ["/project"],
-  getRulesyncDir: () => process.cwd(),
+  getInputRoot: () => process.cwd(),
 } as unknown as Config;
 
 const mockGenerateResult: GenerateResult = {

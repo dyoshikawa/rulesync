@@ -252,7 +252,7 @@ const main = async () => {
       "Generate simulated skills. This feature is only available for copilot, cursor and codexcli.",
     )
     .option(
-      "--rulesync-dir <path>",
+      "--input-root <path>",
       "Path to the directory containing .rulesync/ (parent of .rulesync/)",
     )
     .option("--dry-run", "Dry run: show changes without writing files")

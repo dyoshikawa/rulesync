@@ -38,7 +38,7 @@ rulesync generate --dry-run --targets claudecode --features rules
 rulesync generate --check --targets "*" --features "*"
 
 # Generate from a shared rules directory (without cd-ing into it)
-rulesync generate --rulesync-dir ~/.aiglobal --targets "*" --features rules
+rulesync generate --input-root ~/.aiglobal --targets "*" --features rules
 
 # Install skills from declarative sources in rulesync.jsonc
 rulesync install
@@ -81,7 +81,7 @@ The `generate` command reads source files from `.rulesync/` and writes AI tool c
 | --------------------------- | ----------------------------------------------------------------------------------------- | --------------------- |
 | `--targets, -t <tools>`     | Comma-separated list of tools (e.g. `claudecode,copilot` or `*`)                          | From `rulesync.jsonc` |
 | `--features, -f <features>` | Comma-separated list of features (rules, commands, subagents, skills, ignore, mcp, hooks) | From `rulesync.jsonc` |
-| `--rulesync-dir <path>`     | Path to the directory containing `.rulesync/` source files                                | CWD                   |
+| `--input-root <path>`       | Path to the directory containing `.rulesync/` source files                                | CWD                   |
 | `--dry-run`                 | Show what would change without writing files                                              | `false`               |
 | `--check`                   | Like `--dry-run` but exits with code 1 if files are not up to date                        | `false`               |
 | `--global`                  | Generate for global (user-scope) configuration files                                      | `false`               |
@@ -99,7 +99,7 @@ rulesync generate
 rulesync generate --targets "*" --features rules
 
 # Generate from a shared directory without cd-ing into it
-rulesync generate --rulesync-dir ~/.aiglobal --targets "*" --features rules
+rulesync generate --input-root ~/.aiglobal --targets "*" --features rules
 
 # Dry run: preview changes without writing
 rulesync generate --dry-run --targets claudecode --features rules

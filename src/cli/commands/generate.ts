@@ -42,7 +42,7 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
 
   logger.debug("Generating files...");
 
-  if (!(await checkRulesyncDirExists({ baseDir: config.getRulesyncDir() }))) {
+  if (!(await checkRulesyncDirExists({ baseDir: config.getInputRoot() }))) {
     throw new CLIError(
       ".rulesync directory not found. Run 'rulesync init' first.",
       ErrorCodes.RULESYNC_DIR_NOT_FOUND,

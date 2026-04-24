@@ -76,7 +76,7 @@ export const ConfigParamsSchema = z.object({
   gitignoreDestination: optional(GitignoreDestinationSchema),
   dryRun: optional(z.boolean()),
   check: optional(z.boolean()),
-  rulesyncDir: optional(z.string()),
+  inputRoot: optional(z.string()),
   // Declarative skill sources
   sources: optional(z.array(SourceEntrySchema)),
 });
@@ -226,7 +226,7 @@ export class Config {
   private readonly gitignoreDestination: GitignoreDestination;
   private readonly dryRun: boolean;
   private readonly check: boolean;
-  private readonly rulesyncDir: string | undefined;
+  private readonly inputRoot: string | undefined;
   private readonly sources: SourceEntry[];
 
   constructor({
@@ -244,7 +244,7 @@ export class Config {
     gitignoreDestination,
     dryRun,
     check,
-    rulesyncDir,
+    inputRoot,
     sources,
   }: ConfigParams) {
     // Defense-in-depth: enforce the same mutual-exclusivity rule that the
@@ -297,7 +297,7 @@ export class Config {
     this.gitignoreDestination = gitignoreDestination ?? "gitignore";
     this.dryRun = dryRun ?? false;
     this.check = check ?? false;
-    this.rulesyncDir = rulesyncDir;
+    this.inputRoot = inputRoot;
     this.sources = sources ?? [];
   }
 
@@ -589,8 +589,8 @@ export class Config {
     return this.check;
   }
 
-  public getRulesyncDir(): string {
-    return this.rulesyncDir ?? process.cwd();
+  public getInputRoot(): string {
+    return this.inputRoot ?? process.cwd();
   }
 
   public getSources(): SourceEntry[] {

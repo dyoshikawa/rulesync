@@ -358,7 +358,7 @@ export class CommandsProcessor extends FeatureProcessor {
 
   constructor({
     baseDir = process.cwd(),
-    rulesyncDir = process.cwd(),
+    inputRoot = process.cwd(),
     toolTarget,
     global = false,
     getFactory = defaultGetFactory,
@@ -366,14 +366,14 @@ export class CommandsProcessor extends FeatureProcessor {
     logger,
   }: {
     baseDir?: string;
-    rulesyncDir?: string;
+    inputRoot?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     getFactory?: GetFactory;
     dryRun?: boolean;
     logger: Logger;
   }) {
-    super({ baseDir, rulesyncDir, dryRun, logger });
+    super({ baseDir, inputRoot, dryRun, logger });
     const result = CommandsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -453,13 +453,13 @@ export class CommandsProcessor extends FeatureProcessor {
    * Load and parse rulesync command files from .rulesync/commands/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const basePath = join(this.rulesyncDir, RulesyncCommand.getSettablePaths().relativeDirPath);
+    const basePath = join(this.inputRoot, RulesyncCommand.getSettablePaths().relativeDirPath);
     const rulesyncCommandPaths = await findFilesByGlobs(join(basePath, "**", "*.md"));
 
     const rulesyncCommands = await Promise.all(
       rulesyncCommandPaths.map((path) =>
         RulesyncCommand.fromFile({
-          baseDir: this.rulesyncDir,
+          baseDir: this.inputRoot,
           relativeFilePath: this.safeRelativePath(basePath, path),
         }),
       ),
