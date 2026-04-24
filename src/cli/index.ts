@@ -231,7 +231,7 @@ const main = async () => {
     )
     .option("--delete", "Delete all existing files in output directories before generating")
     .option(
-      "-b, --base-dirs <paths>",
+      "-b, --base-dir <paths>",
       "Base directories to generate files (comma-separated for multiple paths)",
       parseCommaSeparatedList,
     )
