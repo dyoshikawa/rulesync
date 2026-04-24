@@ -151,6 +151,28 @@ describe("generateCommand", () => {
 
       expect(mockLogger.debug).toHaveBeenCalledWith("Generating files...");
     });
+
+    it("should map --base-dir (singular) to baseDirs on the resolver call", async () => {
+      const options: GenerateOptions = { baseDir: ["a", "b"] };
+
+      await generateCommand(mockLogger, options);
+
+      expect(ConfigResolver.resolve).toHaveBeenCalledWith(
+        expect.objectContaining({ baseDirs: ["a", "b"] }),
+        { logger: mockLogger },
+      );
+    });
+
+    it("should prefer baseDirs over baseDir when both are provided", async () => {
+      const options: GenerateOptions = { baseDir: ["a"], baseDirs: ["b"] };
+
+      await generateCommand(mockLogger, options);
+
+      expect(ConfigResolver.resolve).toHaveBeenCalledWith(
+        expect.objectContaining({ baseDirs: ["b"] }),
+        { logger: mockLogger },
+      );
+    });
   });
 
   describe("rulesync directory check", () => {

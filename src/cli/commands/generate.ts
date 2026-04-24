@@ -4,7 +4,12 @@ import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import type { Logger } from "../../utils/logger.js";
 import { calculateTotalCount } from "../../utils/result.js";
 
-export type GenerateOptions = ConfigResolverResolveParams;
+export type GenerateOptions = ConfigResolverResolveParams & {
+  // Commander maps `--base-dir` to `baseDir` (camelCase, singular) while the
+  // resolver reads `baseDirs` (plural). Accept the CLI shape here and
+  // normalize at the command boundary.
+  baseDir?: string[];
+};
 
 /**
  * Log feature generation result with appropriate prefix based on dry run mode.
@@ -33,7 +38,11 @@ function logFeatureResult(
 }
 
 export async function generateCommand(logger: Logger, options: GenerateOptions): Promise<void> {
-  const config = await ConfigResolver.resolve(options, { logger });
+  const { baseDir, baseDirs, ...rest } = options;
+  const config = await ConfigResolver.resolve(
+    { ...rest, baseDirs: baseDirs ?? baseDir },
+    { logger },
+  );
 
   const check = config.getCheck();
 
