@@ -31,15 +31,24 @@ export async function convertCommand(logger: Logger, options: ConvertOptions): P
   // `requiredOption(...)` in `src/cli/index.ts`, so we only need to validate
   // the tool names here.
   const fromTool = parseToolTarget(options.from ?? "", "source");
-  const toTools = (options.to ?? []).map((t) => parseToolTarget(t, "destination"));
+  const toToolsRaw = (options.to ?? []).map((t) => parseToolTarget(t, "destination"));
+  const toTools = Array.from(new Set(toToolsRaw));
 
-  // Resolve Config primarily for feature filtering; default to `*` when no
-  // features are provided so all features both tools support are tried.
-  // We use `targets: [fromTool]` so `config.getFeatures(fromTool)` works
-  // consistently with how `import`/`generate` resolve features.
+  if (toTools.includes(fromTool)) {
+    throw new CLIError(
+      `Destination tools must not include the source tool '${fromTool}'. ` +
+        `Converting a tool onto itself is likely a mistake and may cause lossy round-trips.`,
+      ErrorCodes.CONVERT_FAILED,
+    );
+  }
+
+  // Resolve Config for feature filtering. Include both source and destinations
+  // as targets so per-target feature maps in rulesync.jsonc are honored for
+  // the destination tools as well. Default features to `*` so every feature
+  // that both tools support is attempted.
   const config = await ConfigResolver.resolve({
     ...options,
-    targets: [fromTool],
+    targets: [fromTool, ...toTools],
     features: options.features ?? ["*"],
   });
 

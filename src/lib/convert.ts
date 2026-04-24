@@ -7,6 +7,7 @@ import { PermissionsProcessor } from "../features/permissions/permissions-proces
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
+import type { Feature } from "../types/features.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import type { Logger } from "../utils/logger.js";
 
@@ -21,6 +22,32 @@ export type ConvertResult = {
   permissionsCount: number;
 };
 
+type ConvertContext = {
+  config: Config;
+  fromTool: ToolTarget;
+  toTools: ToolTarget[];
+  logger: Logger;
+};
+
+/**
+ * Generic strategy describing how to run a single-feature conversion.
+ *
+ * `loadSource` / `toRulesync` / `fromRulesync` / `write` are processor-specific
+ * adapter callbacks so this helper can drive both file-based processors
+ * (`FeatureProcessor`) and the directory-based `SkillsProcessor` uniformly.
+ */
+type ConvertStrategy<TProcessor, TSourceItem, TRulesyncItem> = {
+  feature: Feature;
+  itemLabel: string;
+  allTargets: readonly ToolTarget[];
+  importableTargets?: readonly ToolTarget[];
+  createProcessor: (params: { toolTarget: ToolTarget; dryRun: boolean }) => TProcessor;
+  loadSource: (processor: TProcessor) => Promise<TSourceItem[]>;
+  toRulesync: (processor: TProcessor, items: TSourceItem[]) => Promise<TRulesyncItem[]>;
+  fromRulesync: (processor: TProcessor, items: TRulesyncItem[]) => Promise<TSourceItem[]>;
+  write: (processor: TProcessor, items: TSourceItem[]) => Promise<{ count: number }>;
+};
+
 /**
  * Convert configuration files between AI tools without writing intermediate
  * `.rulesync/` files to disk. Rulesync file instances live in memory only.
@@ -31,16 +58,27 @@ export async function convertFromTool(params: {
   toTools: ToolTarget[];
   logger: Logger;
 }): Promise<ConvertResult> {
-  const { config, fromTool, toTools, logger } = params;
+  const ctx: ConvertContext = params;
 
-  const rulesCount = await convertRulesCore({ config, fromTool, toTools, logger });
-  const ignoreCount = await convertIgnoreCore({ config, fromTool, toTools, logger });
-  const mcpCount = await convertMcpCore({ config, fromTool, toTools, logger });
-  const commandsCount = await convertCommandsCore({ config, fromTool, toTools, logger });
-  const subagentsCount = await convertSubagentsCore({ config, fromTool, toTools, logger });
-  const skillsCount = await convertSkillsCore({ config, fromTool, toTools, logger });
-  const hooksCount = await convertHooksCore({ config, fromTool, toTools, logger });
-  const permissionsCount = await convertPermissionsCore({ config, fromTool, toTools, logger });
+  const [
+    rulesCount,
+    ignoreCount,
+    mcpCount,
+    commandsCount,
+    subagentsCount,
+    skillsCount,
+    hooksCount,
+    permissionsCount,
+  ] = [
+    await runFeatureConvert(ctx, buildRulesStrategy(ctx)),
+    await runFeatureConvert(ctx, buildIgnoreStrategy(ctx)),
+    await runFeatureConvert(ctx, buildMcpStrategy(ctx)),
+    await runFeatureConvert(ctx, buildCommandsStrategy(ctx)),
+    await runFeatureConvert(ctx, buildSubagentsStrategy(ctx)),
+    await runFeatureConvert(ctx, buildSkillsStrategy(ctx)),
+    await runFeatureConvert(ctx, buildHooksStrategy(ctx)),
+    await runFeatureConvert(ctx, buildPermissionsStrategy(ctx)),
+  ];
 
   return {
     rulesCount,
@@ -54,522 +92,268 @@ export async function convertFromTool(params: {
   };
 }
 
-async function convertRulesCore(params: {
-  config: Config;
-  fromTool: ToolTarget;
-  toTools: ToolTarget[];
-  logger: Logger;
-}): Promise<number> {
-  const { config, fromTool, toTools, logger } = params;
+async function runFeatureConvert<TProcessor, TSourceItem, TRulesyncItem>(
+  ctx: ConvertContext,
+  strategy: ConvertStrategy<TProcessor, TSourceItem, TRulesyncItem> | null,
+): Promise<number> {
+  if (!strategy) return 0;
+  const { config, fromTool, toTools, logger } = ctx;
+  const {
+    feature,
+    itemLabel,
+    allTargets,
+    importableTargets = allTargets,
+    createProcessor,
+    loadSource,
+    toRulesync,
+    fromRulesync,
+    write,
+  } = strategy;
 
-  if (!config.getFeatures(fromTool).includes("rules")) {
+  if (!config.getFeatures(fromTool).includes(feature)) {
     return 0;
   }
 
-  const global = config.getGlobal();
-  const baseDir = config.getBaseDirs()[0] ?? ".";
-  const supportedTargets = RulesProcessor.getToolTargets({ global });
-
-  if (!supportedTargets.includes(fromTool)) {
-    logger.warn(`Source tool '${fromTool}' does not support feature 'rules'. Skipping.`);
+  if (!allTargets.includes(fromTool)) {
+    logger.warn(`Source tool '${fromTool}' does not support feature '${feature}'. Skipping.`);
     return 0;
   }
 
-  const sourceProcessor = new RulesProcessor({
-    baseDir,
-    toolTarget: fromTool,
-    global,
-    logger,
-  });
-
-  const toolFiles = await sourceProcessor.loadToolFiles();
-  if (toolFiles.length === 0) {
-    logger.warn(`No rule files found for ${fromTool}. Skipping rules conversion.`);
+  if (!importableTargets.includes(fromTool)) {
+    logger.warn(`Conversion from ${fromTool} ${feature} is not supported. Skipping.`);
     return 0;
   }
 
-  const rulesyncFiles = await sourceProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+  const sourceProcessor = createProcessor({ toolTarget: fromTool, dryRun: false });
+  const sourceItems = await loadSource(sourceProcessor);
+  if (sourceItems.length === 0) {
+    logger.warn(`No ${feature} files found for ${fromTool}. Skipping ${feature} conversion.`);
+    return 0;
+  }
+
+  const rulesyncItems = await toRulesync(sourceProcessor, sourceItems);
 
   let totalCount = 0;
   for (const toTool of toTools) {
-    if (!supportedTargets.includes(toTool)) {
-      logger.warn(`Destination tool '${toTool}' does not support feature 'rules'. Skipping.`);
+    if (!allTargets.includes(toTool)) {
+      logger.warn(`Destination tool '${toTool}' does not support feature '${feature}'. Skipping.`);
       continue;
     }
 
-    const destProcessor = new RulesProcessor({
-      baseDir,
+    const destProcessor = createProcessor({
       toolTarget: toTool,
-      global,
-      dryRun: config.getDryRun(),
-      logger,
+      dryRun: config.isPreviewMode(),
     });
 
-    const destToolFiles = await destProcessor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-    const { count } = await destProcessor.writeAiFiles(destToolFiles);
+    const destItems = await fromRulesync(destProcessor, rulesyncItems);
+    const { count } = await write(destProcessor, destItems);
     totalCount += count;
 
     if (config.getVerbose() && count > 0) {
-      logger.success(`Converted ${count} rule file(s) for ${toTool}`);
+      logger.success(`Converted ${count} ${itemLabel} for ${toTool}`);
     }
   }
 
   return totalCount;
 }
 
-async function convertIgnoreCore(params: {
-  config: Config;
-  fromTool: ToolTarget;
-  toTools: ToolTarget[];
-  logger: Logger;
-}): Promise<number> {
-  const { config, fromTool, toTools, logger } = params;
+function getBaseDir(config: Config): string {
+  return config.getBaseDirs()[0] ?? ".";
+}
 
-  if (!config.getFeatures(fromTool).includes("ignore")) {
-    return 0;
-  }
+function buildRulesStrategy(ctx: ConvertContext) {
+  const { config, logger } = ctx;
+  const global = config.getGlobal();
+  const baseDir = getBaseDir(config);
+  const allTargets = RulesProcessor.getToolTargets({ global });
 
+  return {
+    feature: "rules" as const,
+    itemLabel: "rule file(s)",
+    allTargets,
+    createProcessor: ({ toolTarget, dryRun }) =>
+      new RulesProcessor({ baseDir, toolTarget, global, dryRun, logger }),
+    loadSource: (p) => p.loadToolFiles(),
+    toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
+    fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
+    write: (p, files) => p.writeAiFiles(files),
+  } satisfies ConvertStrategy<
+    RulesProcessor,
+    Awaited<ReturnType<RulesProcessor["loadToolFiles"]>>[number],
+    Awaited<ReturnType<RulesProcessor["convertToolFilesToRulesyncFiles"]>>[number]
+  >;
+}
+
+function buildIgnoreStrategy(ctx: ConvertContext) {
+  const { config, logger } = ctx;
   if (config.getGlobal()) {
     logger.debug("Skipping ignore conversion (not supported in global mode)");
-    return 0;
+    return null;
   }
+  const baseDir = getBaseDir(config);
+  const allTargets = IgnoreProcessor.getToolTargets();
 
-  const baseDir = config.getBaseDirs()[0] ?? ".";
-  const supportedTargets = IgnoreProcessor.getToolTargets();
-
-  if (!supportedTargets.includes(fromTool)) {
-    logger.warn(`Source tool '${fromTool}' does not support feature 'ignore'. Skipping.`);
-    return 0;
-  }
-
-  const sourceProcessor = new IgnoreProcessor({
-    baseDir,
-    toolTarget: fromTool,
-    logger,
-    featureOptions: config.getFeatureOptions(fromTool, "ignore"),
-  });
-
-  const toolFiles = await sourceProcessor.loadToolFiles();
-  if (toolFiles.length === 0) {
-    logger.warn(`No ignore files found for ${fromTool}. Skipping ignore conversion.`);
-    return 0;
-  }
-
-  const rulesyncFiles = await sourceProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-
-  let totalCount = 0;
-  for (const toTool of toTools) {
-    if (!supportedTargets.includes(toTool)) {
-      logger.warn(`Destination tool '${toTool}' does not support feature 'ignore'. Skipping.`);
-      continue;
-    }
-
-    const destProcessor = new IgnoreProcessor({
-      baseDir,
-      toolTarget: toTool,
-      dryRun: config.getDryRun(),
-      logger,
-      featureOptions: config.getFeatureOptions(toTool, "ignore"),
-    });
-
-    const destToolFiles = await destProcessor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-    const { count } = await destProcessor.writeAiFiles(destToolFiles);
-    totalCount += count;
-
-    if (config.getVerbose() && count > 0) {
-      logger.success(`Converted ${count} ignore file(s) for ${toTool}`);
-    }
-  }
-
-  return totalCount;
+  return {
+    feature: "ignore" as const,
+    itemLabel: "ignore file(s)",
+    allTargets,
+    createProcessor: ({ toolTarget, dryRun }) =>
+      new IgnoreProcessor({
+        baseDir,
+        toolTarget,
+        dryRun,
+        logger,
+        featureOptions: config.getFeatureOptions(toolTarget, "ignore"),
+      }),
+    loadSource: (p) => p.loadToolFiles(),
+    toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
+    fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
+    write: (p, files) => p.writeAiFiles(files),
+  } satisfies ConvertStrategy<
+    IgnoreProcessor,
+    Awaited<ReturnType<IgnoreProcessor["loadToolFiles"]>>[number],
+    Awaited<ReturnType<IgnoreProcessor["convertToolFilesToRulesyncFiles"]>>[number]
+  >;
 }
 
-async function convertMcpCore(params: {
-  config: Config;
-  fromTool: ToolTarget;
-  toTools: ToolTarget[];
-  logger: Logger;
-}): Promise<number> {
-  const { config, fromTool, toTools, logger } = params;
-
-  if (!config.getFeatures(fromTool).includes("mcp")) {
-    return 0;
-  }
-
+function buildMcpStrategy(ctx: ConvertContext) {
+  const { config, logger } = ctx;
   const global = config.getGlobal();
-  const baseDir = config.getBaseDirs()[0] ?? ".";
-  const supportedTargets = McpProcessor.getToolTargets({ global });
+  const baseDir = getBaseDir(config);
+  const allTargets = McpProcessor.getToolTargets({ global });
 
-  if (!supportedTargets.includes(fromTool)) {
-    logger.warn(`Source tool '${fromTool}' does not support feature 'mcp'. Skipping.`);
-    return 0;
-  }
-
-  const sourceProcessor = new McpProcessor({
-    baseDir,
-    toolTarget: fromTool,
-    global,
-    logger,
-  });
-
-  const toolFiles = await sourceProcessor.loadToolFiles();
-  if (toolFiles.length === 0) {
-    logger.warn(`No MCP files found for ${fromTool}. Skipping mcp conversion.`);
-    return 0;
-  }
-
-  const rulesyncFiles = await sourceProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-
-  let totalCount = 0;
-  for (const toTool of toTools) {
-    if (!supportedTargets.includes(toTool)) {
-      logger.warn(`Destination tool '${toTool}' does not support feature 'mcp'. Skipping.`);
-      continue;
-    }
-
-    const destProcessor = new McpProcessor({
-      baseDir,
-      toolTarget: toTool,
-      global,
-      dryRun: config.getDryRun(),
-      logger,
-    });
-
-    const destToolFiles = await destProcessor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-    const { count } = await destProcessor.writeAiFiles(destToolFiles);
-    totalCount += count;
-
-    if (config.getVerbose() && count > 0) {
-      logger.success(`Converted ${count} MCP file(s) for ${toTool}`);
-    }
-  }
-
-  return totalCount;
+  return {
+    feature: "mcp" as const,
+    itemLabel: "MCP file(s)",
+    allTargets,
+    createProcessor: ({ toolTarget, dryRun }) =>
+      new McpProcessor({ baseDir, toolTarget, global, dryRun, logger }),
+    loadSource: (p) => p.loadToolFiles(),
+    toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
+    fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
+    write: (p, files) => p.writeAiFiles(files),
+  } satisfies ConvertStrategy<
+    McpProcessor,
+    Awaited<ReturnType<McpProcessor["loadToolFiles"]>>[number],
+    Awaited<ReturnType<McpProcessor["convertToolFilesToRulesyncFiles"]>>[number]
+  >;
 }
 
-async function convertCommandsCore(params: {
-  config: Config;
-  fromTool: ToolTarget;
-  toTools: ToolTarget[];
-  logger: Logger;
-}): Promise<number> {
-  const { config, fromTool, toTools, logger } = params;
-
-  if (!config.getFeatures(fromTool).includes("commands")) {
-    return 0;
-  }
-
+function buildCommandsStrategy(ctx: ConvertContext) {
+  const { config, logger } = ctx;
   const global = config.getGlobal();
-  const baseDir = config.getBaseDirs()[0] ?? ".";
-  const supportedTargets = CommandsProcessor.getToolTargets({ global, includeSimulated: false });
+  const baseDir = getBaseDir(config);
+  const allTargets = CommandsProcessor.getToolTargets({ global, includeSimulated: false });
 
-  if (!supportedTargets.includes(fromTool)) {
-    logger.warn(`Source tool '${fromTool}' does not support feature 'commands'. Skipping.`);
-    return 0;
-  }
-
-  const sourceProcessor = new CommandsProcessor({
-    baseDir,
-    toolTarget: fromTool,
-    global,
-    logger,
-  });
-
-  const toolFiles = await sourceProcessor.loadToolFiles();
-  if (toolFiles.length === 0) {
-    logger.warn(`No command files found for ${fromTool}. Skipping commands conversion.`);
-    return 0;
-  }
-
-  const rulesyncFiles = await sourceProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-
-  let totalCount = 0;
-  for (const toTool of toTools) {
-    if (!supportedTargets.includes(toTool)) {
-      logger.warn(`Destination tool '${toTool}' does not support feature 'commands'. Skipping.`);
-      continue;
-    }
-
-    const destProcessor = new CommandsProcessor({
-      baseDir,
-      toolTarget: toTool,
-      global,
-      dryRun: config.getDryRun(),
-      logger,
-    });
-
-    const destToolFiles = await destProcessor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-    const { count } = await destProcessor.writeAiFiles(destToolFiles);
-    totalCount += count;
-
-    if (config.getVerbose() && count > 0) {
-      logger.success(`Converted ${count} command file(s) for ${toTool}`);
-    }
-  }
-
-  return totalCount;
+  return {
+    feature: "commands" as const,
+    itemLabel: "command file(s)",
+    allTargets,
+    createProcessor: ({ toolTarget, dryRun }) =>
+      new CommandsProcessor({ baseDir, toolTarget, global, dryRun, logger }),
+    loadSource: (p) => p.loadToolFiles(),
+    toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
+    fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
+    write: (p, files) => p.writeAiFiles(files),
+  } satisfies ConvertStrategy<
+    CommandsProcessor,
+    Awaited<ReturnType<CommandsProcessor["loadToolFiles"]>>[number],
+    Awaited<ReturnType<CommandsProcessor["convertToolFilesToRulesyncFiles"]>>[number]
+  >;
 }
 
-async function convertSubagentsCore(params: {
-  config: Config;
-  fromTool: ToolTarget;
-  toTools: ToolTarget[];
-  logger: Logger;
-}): Promise<number> {
-  const { config, fromTool, toTools, logger } = params;
-
-  if (!config.getFeatures(fromTool).includes("subagents")) {
-    return 0;
-  }
-
+function buildSubagentsStrategy(ctx: ConvertContext) {
+  const { config, logger } = ctx;
   const global = config.getGlobal();
-  const baseDir = config.getBaseDirs()[0] ?? ".";
-  const supportedTargets = SubagentsProcessor.getToolTargets({ global, includeSimulated: false });
+  const baseDir = getBaseDir(config);
+  const allTargets = SubagentsProcessor.getToolTargets({ global, includeSimulated: false });
 
-  if (!supportedTargets.includes(fromTool)) {
-    logger.warn(`Source tool '${fromTool}' does not support feature 'subagents'. Skipping.`);
-    return 0;
-  }
-
-  const sourceProcessor = new SubagentsProcessor({
-    baseDir,
-    toolTarget: fromTool,
-    global,
-    logger,
-  });
-
-  const toolFiles = await sourceProcessor.loadToolFiles();
-  if (toolFiles.length === 0) {
-    logger.warn(`No subagent files found for ${fromTool}. Skipping subagents conversion.`);
-    return 0;
-  }
-
-  const rulesyncFiles = await sourceProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-
-  let totalCount = 0;
-  for (const toTool of toTools) {
-    if (!supportedTargets.includes(toTool)) {
-      logger.warn(`Destination tool '${toTool}' does not support feature 'subagents'. Skipping.`);
-      continue;
-    }
-
-    const destProcessor = new SubagentsProcessor({
-      baseDir,
-      toolTarget: toTool,
-      global,
-      dryRun: config.getDryRun(),
-      logger,
-    });
-
-    const destToolFiles = await destProcessor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-    const { count } = await destProcessor.writeAiFiles(destToolFiles);
-    totalCount += count;
-
-    if (config.getVerbose() && count > 0) {
-      logger.success(`Converted ${count} subagent file(s) for ${toTool}`);
-    }
-  }
-
-  return totalCount;
+  return {
+    feature: "subagents" as const,
+    itemLabel: "subagent file(s)",
+    allTargets,
+    createProcessor: ({ toolTarget, dryRun }) =>
+      new SubagentsProcessor({ baseDir, toolTarget, global, dryRun, logger }),
+    loadSource: (p) => p.loadToolFiles(),
+    toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
+    fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
+    write: (p, files) => p.writeAiFiles(files),
+  } satisfies ConvertStrategy<
+    SubagentsProcessor,
+    Awaited<ReturnType<SubagentsProcessor["loadToolFiles"]>>[number],
+    Awaited<ReturnType<SubagentsProcessor["convertToolFilesToRulesyncFiles"]>>[number]
+  >;
 }
 
-async function convertSkillsCore(params: {
-  config: Config;
-  fromTool: ToolTarget;
-  toTools: ToolTarget[];
-  logger: Logger;
-}): Promise<number> {
-  const { config, fromTool, toTools, logger } = params;
-
-  if (!config.getFeatures(fromTool).includes("skills")) {
-    return 0;
-  }
-
+function buildSkillsStrategy(ctx: ConvertContext) {
+  const { config, logger } = ctx;
   const global = config.getGlobal();
-  const baseDir = config.getBaseDirs()[0] ?? ".";
-  const supportedTargets = SkillsProcessor.getToolTargets({ global });
+  const baseDir = getBaseDir(config);
+  const allTargets = SkillsProcessor.getToolTargets({ global });
 
-  if (!supportedTargets.includes(fromTool)) {
-    logger.warn(`Source tool '${fromTool}' does not support feature 'skills'. Skipping.`);
-    return 0;
-  }
-
-  const sourceProcessor = new SkillsProcessor({
-    baseDir,
-    toolTarget: fromTool,
-    global,
-    logger,
-  });
-
-  const toolDirs = await sourceProcessor.loadToolDirs();
-  if (toolDirs.length === 0) {
-    logger.warn(`No skill directories found for ${fromTool}. Skipping skills conversion.`);
-    return 0;
-  }
-
-  const rulesyncDirs = await sourceProcessor.convertToolDirsToRulesyncDirs(toolDirs);
-
-  let totalCount = 0;
-  for (const toTool of toTools) {
-    if (!supportedTargets.includes(toTool)) {
-      logger.warn(`Destination tool '${toTool}' does not support feature 'skills'. Skipping.`);
-      continue;
-    }
-
-    const destProcessor = new SkillsProcessor({
-      baseDir,
-      toolTarget: toTool,
-      global,
-      dryRun: config.getDryRun(),
-      logger,
-    });
-
-    const destToolDirs = await destProcessor.convertRulesyncDirsToToolDirs(rulesyncDirs);
-    const { count } = await destProcessor.writeAiDirs(destToolDirs);
-    totalCount += count;
-
-    if (config.getVerbose() && count > 0) {
-      logger.success(`Converted ${count} skill(s) for ${toTool}`);
-    }
-  }
-
-  return totalCount;
+  return {
+    feature: "skills" as const,
+    itemLabel: "skill(s)",
+    allTargets,
+    createProcessor: ({ toolTarget, dryRun }) =>
+      new SkillsProcessor({ baseDir, toolTarget, global, dryRun, logger }),
+    loadSource: (p) => p.loadToolDirs(),
+    toRulesync: (p, dirs) => p.convertToolDirsToRulesyncDirs(dirs),
+    fromRulesync: (p, dirs) => p.convertRulesyncDirsToToolDirs(dirs),
+    write: (p, dirs) => p.writeAiDirs(dirs),
+  } satisfies ConvertStrategy<
+    SkillsProcessor,
+    Awaited<ReturnType<SkillsProcessor["loadToolDirs"]>>[number],
+    Awaited<ReturnType<SkillsProcessor["convertToolDirsToRulesyncDirs"]>>[number]
+  >;
 }
 
-async function convertHooksCore(params: {
-  config: Config;
-  fromTool: ToolTarget;
-  toTools: ToolTarget[];
-  logger: Logger;
-}): Promise<number> {
-  const { config, fromTool, toTools, logger } = params;
-
-  if (!config.getFeatures(fromTool).includes("hooks")) {
-    return 0;
-  }
-
+function buildHooksStrategy(ctx: ConvertContext) {
+  const { config, logger } = ctx;
   const global = config.getGlobal();
-  const baseDir = config.getBaseDirs()[0] ?? ".";
+  const baseDir = getBaseDir(config);
   const allTargets = HooksProcessor.getToolTargets({ global });
   const importableTargets = HooksProcessor.getToolTargets({ global, importOnly: true });
 
-  if (!allTargets.includes(fromTool)) {
-    logger.warn(`Source tool '${fromTool}' does not support feature 'hooks'. Skipping.`);
-    return 0;
-  }
-
-  if (!importableTargets.includes(fromTool)) {
-    logger.warn(`Conversion from ${fromTool} hooks is not supported. Skipping.`);
-    return 0;
-  }
-
-  const sourceProcessor = new HooksProcessor({
-    baseDir,
-    toolTarget: fromTool,
-    global,
-    logger,
-  });
-
-  const toolFiles = await sourceProcessor.loadToolFiles();
-  if (toolFiles.length === 0) {
-    logger.warn(`No hooks files found for ${fromTool}. Skipping hooks conversion.`);
-    return 0;
-  }
-
-  const rulesyncFiles = await sourceProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-
-  let totalCount = 0;
-  for (const toTool of toTools) {
-    if (!allTargets.includes(toTool)) {
-      logger.warn(`Destination tool '${toTool}' does not support feature 'hooks'. Skipping.`);
-      continue;
-    }
-
-    const destProcessor = new HooksProcessor({
-      baseDir,
-      toolTarget: toTool,
-      global,
-      dryRun: config.getDryRun(),
-      logger,
-    });
-
-    const destToolFiles = await destProcessor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-    const { count } = await destProcessor.writeAiFiles(destToolFiles);
-    totalCount += count;
-
-    if (config.getVerbose() && count > 0) {
-      logger.success(`Converted ${count} hooks file(s) for ${toTool}`);
-    }
-  }
-
-  return totalCount;
+  return {
+    feature: "hooks" as const,
+    itemLabel: "hooks file(s)",
+    allTargets,
+    importableTargets,
+    createProcessor: ({ toolTarget, dryRun }) =>
+      new HooksProcessor({ baseDir, toolTarget, global, dryRun, logger }),
+    loadSource: (p) => p.loadToolFiles(),
+    toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
+    fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
+    write: (p, files) => p.writeAiFiles(files),
+  } satisfies ConvertStrategy<
+    HooksProcessor,
+    Awaited<ReturnType<HooksProcessor["loadToolFiles"]>>[number],
+    Awaited<ReturnType<HooksProcessor["convertToolFilesToRulesyncFiles"]>>[number]
+  >;
 }
 
-async function convertPermissionsCore(params: {
-  config: Config;
-  fromTool: ToolTarget;
-  toTools: ToolTarget[];
-  logger: Logger;
-}): Promise<number> {
-  const { config, fromTool, toTools, logger } = params;
-
-  if (!config.getFeatures(fromTool).includes("permissions")) {
-    return 0;
-  }
-
+function buildPermissionsStrategy(ctx: ConvertContext) {
+  const { config, logger } = ctx;
   const global = config.getGlobal();
-  const baseDir = config.getBaseDirs()[0] ?? ".";
+  const baseDir = getBaseDir(config);
   const allTargets = PermissionsProcessor.getToolTargets({ global });
   const importableTargets = PermissionsProcessor.getToolTargets({ global, importOnly: true });
 
-  if (!allTargets.includes(fromTool)) {
-    logger.warn(`Source tool '${fromTool}' does not support feature 'permissions'. Skipping.`);
-    return 0;
-  }
-
-  if (!importableTargets.includes(fromTool)) {
-    logger.warn(`Conversion from ${fromTool} permissions is not supported. Skipping.`);
-    return 0;
-  }
-
-  const sourceProcessor = new PermissionsProcessor({
-    baseDir,
-    toolTarget: fromTool,
-    global,
-    logger,
-  });
-
-  const toolFiles = await sourceProcessor.loadToolFiles();
-  if (toolFiles.length === 0) {
-    logger.warn(`No permissions files found for ${fromTool}. Skipping permissions conversion.`);
-    return 0;
-  }
-
-  const rulesyncFiles = await sourceProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-
-  let totalCount = 0;
-  for (const toTool of toTools) {
-    if (!allTargets.includes(toTool)) {
-      logger.warn(`Destination tool '${toTool}' does not support feature 'permissions'. Skipping.`);
-      continue;
-    }
-
-    const destProcessor = new PermissionsProcessor({
-      baseDir,
-      toolTarget: toTool,
-      global,
-      dryRun: config.getDryRun(),
-      logger,
-    });
-
-    const destToolFiles = await destProcessor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-    const { count } = await destProcessor.writeAiFiles(destToolFiles);
-    totalCount += count;
-
-    if (config.getVerbose() && count > 0) {
-      logger.success(`Converted ${count} permissions file(s) for ${toTool}`);
-    }
-  }
-
-  return totalCount;
+  return {
+    feature: "permissions" as const,
+    itemLabel: "permissions file(s)",
+    allTargets,
+    importableTargets,
+    createProcessor: ({ toolTarget, dryRun }) =>
+      new PermissionsProcessor({ baseDir, toolTarget, global, dryRun, logger }),
+    loadSource: (p) => p.loadToolFiles(),
+    toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
+    fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
+    write: (p, files) => p.writeAiFiles(files),
+  } satisfies ConvertStrategy<
+    PermissionsProcessor,
+    Awaited<ReturnType<PermissionsProcessor["loadToolFiles"]>>[number],
+    Awaited<ReturnType<PermissionsProcessor["convertToolFilesToRulesyncFiles"]>>[number]
+  >;
 }

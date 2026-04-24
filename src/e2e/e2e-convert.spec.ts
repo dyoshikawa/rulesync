@@ -13,10 +13,12 @@ async function runConvert({
   from,
   to,
   features,
+  env,
 }: {
   from: string;
   to: string;
   features?: string;
+  env?: Record<string, string>;
 }): Promise<{ stdout: string; stderr: string }> {
   const args = [
     ...rulesyncArgs,
@@ -27,17 +29,18 @@ async function runConvert({
     to,
     ...(features ? ["--features", features] : []),
   ];
-  return execFileAsync(rulesyncCmd, args);
+  return execFileAsync(rulesyncCmd, args, env ? { env: { ...process.env, ...env } } : {});
 }
 
-describe("E2E: convert", () => {
-  const { getTestDir } = useTestDirectory();
+type ConvertScenario = {
+  feature: string;
+  from: string;
+  to: string;
+  setup: (testDir: string) => Promise<void>;
+  verify: (testDir: string) => Promise<void>;
+};
 
-  it("should convert rules from cursor to claudecode without writing .rulesync files", async () => {
-    const testDir = getTestDir();
-
-    // Setup: a cursor rule file
-    const cursorRule = `---
+const cursorRule = `---
 description: Test rule
 globs: "**/*"
 alwaysApply: true
@@ -45,55 +48,262 @@ alwaysApply: true
 
 # Overview
 
-This is a cursor rule for convert e2e testing.
+This is a rule for convert e2e testing.
 `;
-    await writeFileContent(join(testDir, ".cursor", "rules", "overview.mdc"), cursorRule);
 
-    // Execute: convert from cursor to claudecode
-    await runConvert({ from: "cursor", to: "claudecode", features: "rules" });
+const mcpContent = JSON.stringify(
+  {
+    mcpServers: {
+      "test-server": { type: "stdio", command: "echo", args: ["hello"], env: {} },
+    },
+  },
+  null,
+  2,
+);
 
-    // Verify: Claude output was produced (cursor produces non-root rules, so
-    // claudecode writes into .claude/rules/)
-    const claudeContent = await readFileContent(join(testDir, ".claude", "rules", "overview.md"));
-    expect(claudeContent).toContain("convert e2e testing");
-
-    // Verify: no .rulesync/rules/ files created by convert
-    const rulesyncRuleExists = await fileExists(join(testDir, ".rulesync", "rules", "overview.md"));
-    expect(rulesyncRuleExists).toBe(false);
-  });
-
-  it("should convert mcp from claudecode to cursor without writing .rulesync files", async () => {
-    const testDir = getTestDir();
-
-    const mcpContent = JSON.stringify(
-      {
-        mcpServers: {
-          "test-server": {
-            type: "stdio",
-            command: "echo",
-            args: ["hello"],
-            env: {},
-          },
+const hooksContent = JSON.stringify(
+  {
+    hooks: {
+      SessionStart: [
+        {
+          matcher: "",
+          hooks: [{ type: "command", command: ".rulesync/hooks/session-start.sh" }],
         },
-      },
-      null,
-      2,
-    );
-    await writeFileContent(join(testDir, ".mcp.json"), mcpContent);
+      ],
+    },
+  },
+  null,
+  2,
+);
 
-    await runConvert({ from: "claudecode", to: "cursor", features: "mcp" });
+const opencodePermissions = JSON.stringify(
+  {
+    permission: {
+      bash: { "git status *": "allow", "rm -rf *": "deny" },
+      read: { ".env": "deny" },
+    },
+  },
+  null,
+  2,
+);
 
-    const cursorMcp = await readFileContent(join(testDir, ".cursor", "mcp.json"));
-    expect(cursorMcp).toContain("test-server");
+const subagentBody = `---
+name: planner
+description: "Plans implementation tasks"
+---
+You are the planner. Analyze files and create a plan.
+`;
 
-    const rulesyncMcpExists = await fileExists(join(testDir, ".rulesync", "mcp.json"));
-    expect(rulesyncMcpExists).toBe(false);
-  });
+const skillBody = `---
+name: test-skill
+description: "A test skill for E2E convert testing"
+---
+This is the test skill body content.`;
+
+const scenarios: ConvertScenario[] = [
+  // --- rules: multiple source tools to exercise different parsers ---
+  {
+    feature: "rules",
+    from: "cursor",
+    to: "claudecode",
+    setup: async (dir) => {
+      await writeFileContent(join(dir, ".cursor", "rules", "overview.mdc"), cursorRule);
+    },
+    verify: async (dir) => {
+      const content = await readFileContent(join(dir, ".claude", "rules", "overview.md"));
+      expect(content).toContain("convert e2e testing");
+    },
+  },
+  {
+    feature: "rules",
+    from: "copilot",
+    to: "claudecode",
+    setup: async (dir) => {
+      await writeFileContent(
+        join(dir, ".github", "instructions", "overview.instructions.md"),
+        `---\napplyTo: "**/*"\n---\n\n# Overview\n\nThis is a rule for convert e2e testing.\n`,
+      );
+    },
+    verify: async (dir) => {
+      const content = await readFileContent(join(dir, ".claude", "rules", "overview.md"));
+      expect(content).toContain("convert e2e testing");
+    },
+  },
+
+  // --- mcp ---
+  {
+    feature: "mcp",
+    from: "claudecode",
+    to: "cursor",
+    setup: async (dir) => {
+      await writeFileContent(join(dir, ".mcp.json"), mcpContent);
+    },
+    verify: async (dir) => {
+      const content = await readFileContent(join(dir, ".cursor", "mcp.json"));
+      expect(content).toContain("test-server");
+    },
+  },
+  {
+    feature: "mcp",
+    from: "cursor",
+    to: "claudecode",
+    setup: async (dir) => {
+      await writeFileContent(join(dir, ".cursor", "mcp.json"), mcpContent);
+    },
+    verify: async (dir) => {
+      const content = await readFileContent(join(dir, ".mcp.json"));
+      expect(content).toContain("test-server");
+    },
+  },
+
+  // --- commands ---
+  {
+    feature: "commands",
+    from: "claudecode",
+    to: "cursor",
+    setup: async (dir) => {
+      await writeFileContent(
+        join(dir, ".claude", "commands", "review-pr.md"),
+        "Review the PR diff and provide feedback.",
+      );
+    },
+    verify: async (dir) => {
+      const content = await readFileContent(join(dir, ".cursor", "commands", "review-pr.md"));
+      expect(content).toContain("Review the PR diff and provide feedback.");
+    },
+  },
+  {
+    feature: "commands",
+    from: "cursor",
+    to: "claudecode",
+    setup: async (dir) => {
+      await writeFileContent(
+        join(dir, ".cursor", "commands", "review-pr.md"),
+        "Review the PR diff and provide feedback.",
+      );
+    },
+    verify: async (dir) => {
+      const content = await readFileContent(join(dir, ".claude", "commands", "review-pr.md"));
+      expect(content).toContain("Review the PR diff and provide feedback.");
+    },
+  },
+
+  // --- subagents ---
+  {
+    feature: "subagents",
+    from: "claudecode",
+    to: "cursor",
+    setup: async (dir) => {
+      await writeFileContent(join(dir, ".claude", "agents", "planner.md"), subagentBody);
+    },
+    verify: async (dir) => {
+      const content = await readFileContent(join(dir, ".cursor", "agents", "planner.md"));
+      expect(content).toContain("Analyze files and create a plan.");
+    },
+  },
+
+  // --- skills ---
+  {
+    feature: "skills",
+    from: "claudecode",
+    to: "cursor",
+    setup: async (dir) => {
+      await writeFileContent(join(dir, ".claude", "skills", "test-skill", "SKILL.md"), skillBody);
+    },
+    verify: async (dir) => {
+      const content = await readFileContent(
+        join(dir, ".cursor", "skills", "test-skill", "SKILL.md"),
+      );
+      expect(content).toContain("test skill body content");
+    },
+  },
+
+  // --- hooks ---
+  {
+    feature: "hooks",
+    from: "claudecode",
+    to: "cursor",
+    setup: async (dir) => {
+      await writeFileContent(join(dir, ".claude", "settings.json"), hooksContent);
+    },
+    verify: async (dir) => {
+      const content = await readFileContent(join(dir, ".cursor", "hooks.json"));
+      const parsed = JSON.parse(content);
+      expect(parsed.hooks).toBeDefined();
+      expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+    },
+  },
+
+  // --- permissions ---
+  {
+    feature: "permissions",
+    from: "opencode",
+    to: "claudecode",
+    setup: async (dir) => {
+      await writeFileContent(join(dir, "opencode.json"), opencodePermissions);
+    },
+    verify: async (dir) => {
+      const content = await readFileContent(join(dir, ".claude", "settings.json"));
+      const parsed = JSON.parse(content);
+      expect(parsed.permissions.allow).toEqual(expect.arrayContaining(["Bash(git status *)"]));
+      expect(parsed.permissions.deny).toEqual(
+        expect.arrayContaining([expect.stringContaining(".env")]),
+      );
+    },
+  },
+
+  // --- ignore ---
+  {
+    feature: "ignore",
+    from: "cursor",
+    to: "geminicli",
+    setup: async (dir) => {
+      await writeFileContent(join(dir, ".cursorignore"), "tmp/\ncredentials/\n*.secret\n");
+    },
+    verify: async (dir) => {
+      const content = await readFileContent(join(dir, ".geminiignore"));
+      expect(content).toContain("tmp/");
+      expect(content).toContain("credentials/");
+    },
+  },
+  {
+    feature: "ignore",
+    from: "roo",
+    to: "cursor",
+    setup: async (dir) => {
+      await writeFileContent(join(dir, ".rooignore"), "tmp/\ncredentials/\n*.secret\n");
+    },
+    verify: async (dir) => {
+      const content = await readFileContent(join(dir, ".cursorignore"));
+      expect(content).toContain("tmp/");
+      expect(content).toContain("credentials/");
+    },
+  },
+];
+
+describe("E2E: convert", () => {
+  const { getTestDir } = useTestDirectory();
+
+  it.each(scenarios)(
+    "should convert $feature from $from to $to without writing .rulesync files",
+    async ({ feature, from, to, setup, verify }) => {
+      const testDir = getTestDir();
+
+      await setup(testDir);
+      await runConvert({ from, to, features: feature });
+      await verify(testDir);
+
+      // The key invariant this command sells: nothing is persisted to
+      // `.rulesync/` — rulesync file instances live in memory only.
+      const rulesyncDirExists = await fileExists(join(testDir, ".rulesync"));
+      expect(rulesyncDirExists).toBe(false);
+    },
+  );
 
   it("should convert rules to multiple destinations in one invocation", async () => {
     const testDir = getTestDir();
 
-    const cursorRule = `---
+    const multiRule = `---
 description: Multi destination rule
 globs: "**/*"
 alwaysApply: true
@@ -103,157 +313,36 @@ alwaysApply: true
 
 This rule is converted to multiple tools.
 `;
-    await writeFileContent(join(testDir, ".cursor", "rules", "overview.mdc"), cursorRule);
+    await writeFileContent(join(testDir, ".cursor", "rules", "overview.mdc"), multiRule);
 
     await runConvert({ from: "cursor", to: "claudecode,copilot", features: "rules" });
 
     const claudeContent = await readFileContent(join(testDir, ".claude", "rules", "overview.md"));
     expect(claudeContent).toContain("converted to multiple tools");
 
-    // Copilot writes non-root rules under .github/instructions/
     const copilotContent = await readFileContent(
       join(testDir, ".github", "instructions", "overview.instructions.md"),
     );
     expect(copilotContent).toContain("converted to multiple tools");
+
+    const rulesyncDirExists = await fileExists(join(testDir, ".rulesync"));
+    expect(rulesyncDirExists).toBe(false);
   });
 
-  it("should convert commands from claudecode to cursor without writing .rulesync files", async () => {
+  it("should fail when --to contains the source tool", async () => {
     const testDir = getTestDir();
+    await writeFileContent(join(testDir, ".cursor", "rules", "overview.mdc"), cursorRule);
 
-    const commandContent = `Review the PR diff and provide feedback.`;
-    await writeFileContent(join(testDir, ".claude", "commands", "review-pr.md"), commandContent);
-
-    await runConvert({ from: "claudecode", to: "cursor", features: "commands" });
-
-    const cursorContent = await readFileContent(
-      join(testDir, ".cursor", "commands", "review-pr.md"),
-    );
-    expect(cursorContent).toContain("Review the PR diff and provide feedback.");
-
-    const rulesyncExists = await fileExists(join(testDir, ".rulesync", "commands", "review-pr.md"));
-    expect(rulesyncExists).toBe(false);
-  });
-
-  it("should convert subagents from claudecode to cursor without writing .rulesync files", async () => {
-    const testDir = getTestDir();
-
-    const subagentContent = `---
-name: planner
-description: "Plans implementation tasks"
----
-You are the planner. Analyze files and create a plan.
-`;
-    await writeFileContent(join(testDir, ".claude", "agents", "planner.md"), subagentContent);
-
-    await runConvert({ from: "claudecode", to: "cursor", features: "subagents" });
-
-    const cursorContent = await readFileContent(join(testDir, ".cursor", "agents", "planner.md"));
-    expect(cursorContent).toContain("Analyze files and create a plan.");
-
-    const rulesyncExists = await fileExists(join(testDir, ".rulesync", "subagents", "planner.md"));
-    expect(rulesyncExists).toBe(false);
-  });
-
-  it("should convert skills from claudecode to cursor without writing .rulesync files", async () => {
-    const testDir = getTestDir();
-
-    const skillContent = `---
-name: test-skill
-description: "A test skill for E2E convert testing"
----
-This is the test skill body content.`;
-    await writeFileContent(
-      join(testDir, ".claude", "skills", "test-skill", "SKILL.md"),
-      skillContent,
-    );
-
-    await runConvert({ from: "claudecode", to: "cursor", features: "skills" });
-
-    const cursorContent = await readFileContent(
-      join(testDir, ".cursor", "skills", "test-skill", "SKILL.md"),
-    );
-    expect(cursorContent).toContain("test skill body content");
-
-    const rulesyncExists = await fileExists(
-      join(testDir, ".rulesync", "skills", "test-skill", "SKILL.md"),
-    );
-    expect(rulesyncExists).toBe(false);
-  });
-
-  it("should convert hooks from claudecode to cursor without writing .rulesync files", async () => {
-    const testDir = getTestDir();
-
-    const hooksContent = JSON.stringify(
-      {
-        hooks: {
-          SessionStart: [
-            {
-              matcher: "",
-              hooks: [{ type: "command", command: ".rulesync/hooks/session-start.sh" }],
-            },
-          ],
-        },
-      },
-      null,
-      2,
-    );
-    await writeFileContent(join(testDir, ".claude", "settings.json"), hooksContent);
-
-    await runConvert({ from: "claudecode", to: "cursor", features: "hooks" });
-
-    const cursorContent = await readFileContent(join(testDir, ".cursor", "hooks.json"));
-    const parsed = JSON.parse(cursorContent);
-    expect(parsed.hooks).toBeDefined();
-    expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
-
-    const rulesyncExists = await fileExists(join(testDir, ".rulesync", "hooks.json"));
-    expect(rulesyncExists).toBe(false);
-  });
-
-  it("should convert permissions from opencode to claudecode without writing .rulesync files", async () => {
-    const testDir = getTestDir();
-
-    const opencodeContent = JSON.stringify(
-      {
-        permission: {
-          bash: { "git status *": "allow", "rm -rf *": "deny" },
-          read: { ".env": "deny" },
-        },
-      },
-      null,
-      2,
-    );
-    await writeFileContent(join(testDir, "opencode.json"), opencodeContent);
-
-    await runConvert({ from: "opencode", to: "claudecode", features: "permissions" });
-
-    const claudeContent = await readFileContent(join(testDir, ".claude", "settings.json"));
-    const parsed = JSON.parse(claudeContent);
-    expect(parsed.permissions.allow).toEqual(expect.arrayContaining(["Bash(git status *)"]));
-    expect(parsed.permissions.deny).toEqual(
-      expect.arrayContaining([expect.stringContaining(".env")]),
-    );
-
-    const rulesyncExists = await fileExists(join(testDir, ".rulesync", "permissions.json"));
-    expect(rulesyncExists).toBe(false);
-  });
-
-  it("should convert ignore from cursor to geminicli without writing .rulesync files", async () => {
-    const testDir = getTestDir();
-
-    const ignoreContent = `tmp/
-credentials/
-*.secret
-`;
-    await writeFileContent(join(testDir, ".cursorignore"), ignoreContent);
-
-    await runConvert({ from: "cursor", to: "geminicli", features: "ignore" });
-
-    const geminiContent = await readFileContent(join(testDir, ".geminiignore"));
-    expect(geminiContent).toContain("tmp/");
-    expect(geminiContent).toContain("credentials/");
-
-    const rulesyncExists = await fileExists(join(testDir, ".rulesync", ".aiignore"));
-    expect(rulesyncExists).toBe(false);
+    await expect(
+      runConvert({
+        from: "cursor",
+        to: "claudecode,cursor",
+        features: "rules",
+        env: { NODE_ENV: "e2e" },
+      }),
+    ).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining("must not include the source tool"),
+    });
   });
 });

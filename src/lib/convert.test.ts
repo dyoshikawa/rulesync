@@ -31,6 +31,7 @@ describe("convertFromTool", () => {
     getFeatureOptions: ReturnType<typeof vi.fn>;
     getGlobal: ReturnType<typeof vi.fn>;
     getDryRun: ReturnType<typeof vi.fn>;
+    isPreviewMode: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -42,6 +43,7 @@ describe("convertFromTool", () => {
       getFeatureOptions: vi.fn().mockReturnValue(undefined),
       getGlobal: vi.fn().mockReturnValue(false),
       getDryRun: vi.fn().mockReturnValue(false),
+      isPreviewMode: vi.fn().mockReturnValue(false),
     };
 
     vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["cursor", "claudecode", "copilot"]);
@@ -340,9 +342,9 @@ describe("convertFromTool", () => {
   });
 
   describe("dryRun propagation", () => {
-    it("should forward dryRun from config to destination processors", async () => {
+    it("should forward preview mode from config to destination processors", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
-      mockConfig.getDryRun.mockReturnValue(true);
+      mockConfig.isPreviewMode.mockReturnValue(true);
 
       await convertFromTool({
         logger,
@@ -353,6 +355,10 @@ describe("convertFromTool", () => {
 
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({ toolTarget: "claudecode", dryRun: true }),
+      );
+      // Source processor must never run in dry-run mode — it only reads
+      expect(RulesProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({ toolTarget: "cursor", dryRun: false }),
       );
     });
   });

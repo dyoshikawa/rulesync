@@ -25,6 +25,7 @@ describe("convertCommand", () => {
     getFeatureOptions: ReturnType<typeof vi.fn>;
     getGlobal: ReturnType<typeof vi.fn>;
     getDryRun: ReturnType<typeof vi.fn>;
+    isPreviewMode: ReturnType<typeof vi.fn>;
   };
   let mockLogger: ReturnType<typeof createMockLogger>;
 
@@ -37,6 +38,7 @@ describe("convertCommand", () => {
       getFeatureOptions: vi.fn().mockReturnValue(undefined),
       getGlobal: vi.fn().mockReturnValue(false),
       getDryRun: vi.fn().mockReturnValue(false),
+      isPreviewMode: vi.fn().mockReturnValue(false),
     };
 
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig as never);
@@ -69,6 +71,23 @@ describe("convertCommand", () => {
       const options: ConvertOptions = { from: "cursor", to: ["claudecode", "bogus"] };
       await expect(convertCommand(mockLogger, options)).rejects.toThrow(/Invalid destination tool/);
     });
+
+    it("should throw when destinations include the source tool", async () => {
+      const options: ConvertOptions = { from: "cursor", to: ["claudecode", "cursor"] };
+      await expect(convertCommand(mockLogger, options)).rejects.toThrow(
+        /Destination tools must not include the source tool/,
+      );
+    });
+
+    it("should deduplicate duplicated destination tools", async () => {
+      const options: ConvertOptions = { from: "cursor", to: ["claudecode", "claudecode"] };
+
+      await convertCommand(mockLogger, options);
+
+      expect(ConfigResolver.resolve).toHaveBeenCalledWith(
+        expect.objectContaining({ targets: ["cursor", "claudecode"] }),
+      );
+    });
   });
 
   describe("successful convert", () => {
@@ -79,7 +98,7 @@ describe("convertCommand", () => {
 
       expect(ConfigResolver.resolve).toHaveBeenCalledWith(
         expect.objectContaining({
-          targets: ["cursor"],
+          targets: ["cursor", "claudecode"],
           features: ["*"],
         }),
       );
