@@ -594,6 +594,55 @@ This is test rule content from file.`;
       expect(copilotRule.isRoot()).toBe(true);
     });
 
+    it("should use relativeDirPath to distinguish non-root files named copilot-instructions.md", async () => {
+      const instructionsDir = join(testDir, ".github", "instructions");
+      await ensureDir(instructionsDir);
+
+      const fileContent = `---
+description: "Same filename as root"
+applyTo: "**/*.ts"
+---
+
+This should be treated as a non-root rule.`;
+      await writeFileContent(join(instructionsDir, "copilot-instructions.md"), fileContent);
+
+      const copilotRule = await CopilotRule.fromFile({
+        baseDir: testDir,
+        relativeDirPath: ".github/instructions",
+        relativeFilePath: "copilot-instructions.md",
+        validate: true,
+      });
+
+      expect(copilotRule.isRoot()).toBe(false);
+      expect(copilotRule.getRelativeDirPath()).toBe(".github/instructions");
+      expect(copilotRule.getRelativeFilePath()).toBe("copilot-instructions.instructions.md");
+      expect(copilotRule.getFrontmatter()).toEqual({
+        description: "Same filename as root",
+        applyTo: "**/*.ts",
+      });
+      expect(copilotRule.getBody()).toBe("This should be treated as a non-root rule.");
+    });
+
+    it("should detect root only when both relativeDirPath and filename match", async () => {
+      const githubDir = join(testDir, ".github");
+      await ensureDir(githubDir);
+
+      const rootContent = "Root detected with explicit directory.";
+      await writeFileContent(join(githubDir, "copilot-instructions.md"), rootContent);
+
+      const copilotRule = await CopilotRule.fromFile({
+        baseDir: testDir,
+        relativeDirPath: ".github",
+        relativeFilePath: "copilot-instructions.md",
+        validate: true,
+      });
+
+      expect(copilotRule.isRoot()).toBe(true);
+      expect(copilotRule.getRelativeDirPath()).toBe(".github");
+      expect(copilotRule.getRelativeFilePath()).toBe("copilot-instructions.md");
+      expect(copilotRule.getBody()).toBe(rootContent);
+    });
+
     it("should load root file from .copilot/copilot-instructions.md when global=true", async () => {
       const copilotDir = join(testDir, ".copilot");
       await ensureDir(copilotDir);
