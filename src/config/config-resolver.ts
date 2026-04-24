@@ -127,7 +127,10 @@ export class ConfigResolver {
     // Validate configPath to prevent path traversal attacks
     // When inputRoot is set, resolve the config path relative to it so that
     // the user's central .rulesync source dir is also the config source.
-    const configBaseDir = inputRoot ?? process.cwd();
+    // Resolve and validate inputRoot first — a relative inputRoot would make
+    // the traversal checks in resolvePath unreliable.
+    const configBaseDir = resolve(inputRoot ?? process.cwd());
+    validateBaseDir(configBaseDir);
     const validatedConfigPath = resolvePath(configPath, configBaseDir);
 
     // Load base config (rulesync.jsonc)
