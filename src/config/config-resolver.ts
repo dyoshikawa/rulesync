@@ -163,7 +163,15 @@ export class ConfigResolver {
 
     // When --input-root is explicitly provided the user is decoupling source
     // from output, so "global: true" from the config file must not apply unless
-    // the caller also explicitly passes --global.
+    // the caller also explicitly passes --global. Warn when we drop it so the
+    // user is not silently surprised by an output-scope change.
+    if (inputRoot !== undefined && global === undefined && configByFile.global === true) {
+      // oxlint-disable-next-line no-console
+      console.warn(
+        `rulesync: ignoring "global: true" from ${validatedConfigPath} because --input-root ` +
+          `was provided; pass --global explicitly to keep user-scope output.`,
+      );
+    }
     const configGlobal = inputRoot !== undefined ? false : configByFile.global;
     const resolvedGlobal = global ?? configGlobal ?? getDefaults().global ?? false;
     const resolvedSimulateCommands =

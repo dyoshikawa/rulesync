@@ -487,6 +487,39 @@ describe("config-resolver", () => {
       expect(config.getGlobal()).toBe(false);
     });
 
+    it("should warn when dropping config-file global: true because inputRoot overrides it", async () => {
+      const inputRoot = join(testDir, "central-rules");
+      await writeFileContent(
+        join(inputRoot, "rulesync.jsonc"),
+        JSON.stringify({ baseDirs: ["./"], global: true }),
+      );
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      await ConfigResolver.resolve({
+        configPath: "rulesync.jsonc",
+        inputRoot,
+      });
+
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('ignoring "global: true"'));
+    });
+
+    it("should not warn when CLI --global is explicitly passed alongside inputRoot", async () => {
+      const inputRoot = join(testDir, "central-rules");
+      await writeFileContent(
+        join(inputRoot, "rulesync.jsonc"),
+        JSON.stringify({ baseDirs: ["./"], global: true }),
+      );
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      await ConfigResolver.resolve({
+        configPath: "rulesync.jsonc",
+        inputRoot,
+        global: true,
+      });
+
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('ignoring "global: true"'));
+    });
+
     it("should honor config file global: true when inputRoot is omitted", async () => {
       await writeFileContent(
         join(testDir, "rulesync.jsonc"),
