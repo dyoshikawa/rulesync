@@ -1,9 +1,9 @@
 # Programmatic API
 
-Rulesync can be used as a library in your Node.js/TypeScript projects. The `generate` and `importFromTool` functions are available as named exports.
+Rulesync can be used as a library in your Node.js/TypeScript projects. The `generate`, `importFromTool`, and `convertFromTool` functions are available as named exports.
 
 ```typescript
-import { generate, importFromTool } from "rulesync";
+import { convertFromTool, generate, importFromTool } from "rulesync";
 
 // Generate configurations
 const result = await generate({
@@ -18,6 +18,20 @@ const importResult = await importFromTool({
   features: ["rules", "commands"],
 });
 console.log(`Imported ${importResult.rulesCount} rules`);
+
+// Convert configurations between AI tools without writing intermediate .rulesync/ files
+try {
+  const convertResult = await convertFromTool({
+    from: "claudecode",
+    to: ["cursor", "copilot"],
+    features: ["rules"],
+  });
+  console.log(`Converted ${convertResult.rulesCount} rule file(s)`);
+} catch (error) {
+  // Thrown when `from` is empty, `to` is empty, `to` includes `from`,
+  // a source file cannot be parsed, or write fails.
+  console.error("convert failed:", error);
+}
 ```
 
 ## `generate(options?)`
@@ -52,3 +66,18 @@ Imports existing tool configurations into `.rulesync/` directory.
 | `verbose`    | `boolean`    | `false`          | Enable verbose logging                    |
 | `silent`     | `boolean`    | `true`           | Suppress all output                       |
 | `global`     | `boolean`    | `false`          | Import global (user scope) configurations |
+
+## `convertFromTool(options)`
+
+Converts configuration files between AI tools without writing intermediate `.rulesync/` files to disk.
+
+| Option       | Type           | Default       | Description                                                                                 |
+| ------------ | -------------- | ------------- | ------------------------------------------------------------------------------------------- |
+| `from`       | `ToolTarget`   | (required)    | Source tool to convert configurations from                                                  |
+| `to`         | `ToolTarget[]` | (required)    | Destination tools to convert to                                                             |
+| `features`   | `Feature[]`    | `["*"]`       | Features to convert. Matches CLI behavior and overrides any `features` in `rulesync.jsonc`. |
+| `configPath` | `string`       | auto-detected | Path to `rulesync.jsonc`                                                                    |
+| `verbose`    | `boolean`      | `false`       | Enable verbose logging                                                                      |
+| `silent`     | `boolean`      | `true`        | Suppress all output                                                                         |
+| `global`     | `boolean`      | `false`       | Convert global (user scope) configurations                                                  |
+| `dryRun`     | `boolean`      | `false`       | Show changes without writing files                                                          |

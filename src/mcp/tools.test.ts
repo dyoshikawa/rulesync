@@ -609,6 +609,105 @@ This is a test rule file.
     });
   });
 
+  describe("convert feature", () => {
+    it("should execute convert with run operation", async () => {
+      // Create CLAUDE.md file to convert from
+      await writeFileContent(
+        join(testDir, "CLAUDE.md"),
+        `# Claude Code Rules
+
+This is a test rule file.
+`,
+      );
+
+      const result = await rulesyncTool.execute({
+        feature: "convert",
+        operation: "run",
+        convertOptions: {
+          from: "claudecode",
+          to: ["cursor"],
+          features: ["rules"],
+        },
+      });
+
+      const parsed = JSON.parse(result);
+      expect(parsed.success).toBe(true);
+      expect(parsed.result).toBeDefined();
+      expect(parsed.config).toBeDefined();
+      expect(parsed.config.from).toBe("claudecode");
+      expect(parsed.config.to).toEqual(["cursor"]);
+    });
+
+    it("should return error when convertOptions is not provided", async () => {
+      await expect(
+        rulesyncTool.execute({
+          feature: "convert",
+          operation: "run",
+        }),
+      ).rejects.toThrow("convertOptions is required for convert feature");
+    });
+
+    it("should return error when from is empty", async () => {
+      const result = await rulesyncTool.execute({
+        feature: "convert",
+        operation: "run",
+        convertOptions: {
+          from: "",
+          to: ["cursor"],
+        },
+      });
+
+      const parsed = JSON.parse(result);
+      expect(parsed.success).toBe(false);
+      expect(parsed.error).toContain("from is required");
+    });
+
+    it("should return error when to is empty", async () => {
+      const result = await rulesyncTool.execute({
+        feature: "convert",
+        operation: "run",
+        convertOptions: {
+          from: "claudecode",
+          to: [],
+        },
+      });
+
+      const parsed = JSON.parse(result);
+      expect(parsed.success).toBe(false);
+      expect(parsed.error).toContain("to is required");
+    });
+
+    it("should reject unsupported operations for convert feature", async () => {
+      await expect(
+        rulesyncTool.execute({
+          feature: "convert",
+          operation: "list",
+        }),
+      ).rejects.toThrow(/supported operations/i);
+
+      await expect(
+        rulesyncTool.execute({
+          feature: "convert",
+          operation: "get",
+        }),
+      ).rejects.toThrow(/supported operations/i);
+
+      await expect(
+        rulesyncTool.execute({
+          feature: "convert",
+          operation: "put",
+        }),
+      ).rejects.toThrow(/supported operations/i);
+
+      await expect(
+        rulesyncTool.execute({
+          feature: "convert",
+          operation: "delete",
+        }),
+      ).rejects.toThrow(/supported operations/i);
+    });
+  });
+
   describe("generate feature", () => {
     it("should execute generate with run operation", async () => {
       const rulesyncDir = join(testDir, ".rulesync");
