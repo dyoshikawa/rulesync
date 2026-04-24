@@ -288,8 +288,7 @@ export function validateBaseDir(baseDir: string): void {
     // An absolute path pointing anywhere on the filesystem is allowed, but
     // reject ones that still contain `..` segments: they indicate the caller
     // is constructing the path unsafely rather than passing a normalized
-    // intent. Normalize first so the error message names the resolved form
-    // the caller would actually hit.
+    // intent.
     const segments = baseDir.split(/[/\\]/);
     if (segments.includes("..")) {
       throw new Error(`Path traversal detected: ${baseDir}`);
