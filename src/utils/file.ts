@@ -284,11 +284,20 @@ export function validateBaseDir(baseDir: string): void {
     throw new Error("baseDir cannot be an empty string");
   }
 
-  // Traversal check only applies to relative paths; absolute paths are
-  // explicitly provided by the caller and may point anywhere on the filesystem.
-  if (!isAbsolute(baseDir)) {
-    checkPathTraversal({ relativePath: baseDir, intendedRootDir: process.cwd() });
+  if (isAbsolute(baseDir)) {
+    // An absolute path pointing anywhere on the filesystem is allowed, but
+    // reject ones that still contain `..` segments: they indicate the caller
+    // is constructing the path unsafely rather than passing a normalized
+    // intent. Normalize first so the error message names the resolved form
+    // the caller would actually hit.
+    const segments = baseDir.split(/[/\\]/);
+    if (segments.includes("..")) {
+      throw new Error(`Path traversal detected: ${baseDir}`);
+    }
+    return;
   }
+
+  checkPathTraversal({ relativePath: baseDir, intendedRootDir: process.cwd() });
 }
 
 /**

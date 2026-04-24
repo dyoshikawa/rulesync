@@ -713,6 +713,33 @@ describe("file utilities", () => {
         expect(() => validateBaseDir(".local/share")).not.toThrow();
       });
     });
+
+    describe("absolute paths", () => {
+      it("should allow absolute paths that do not contain '..' segments", () => {
+        expect(() => validateBaseDir("/")).not.toThrow();
+        expect(() => validateBaseDir("/usr/local/share")).not.toThrow();
+        expect(() => validateBaseDir("/Users/someone/project")).not.toThrow();
+      });
+
+      it("should allow absolute paths outside the current working directory", () => {
+        // The traversal check intentionally does not apply to absolute paths
+        // (callers may point at anything). This guards against over-eager
+        // rejection of legitimate central-rules directories.
+        expect(() => validateBaseDir("/tmp")).not.toThrow();
+      });
+
+      it("should reject absolute paths that still contain '..' segments", () => {
+        expect(() => validateBaseDir("/foo/../bar")).toThrow("Path traversal detected");
+        expect(() => validateBaseDir("/foo/../../etc")).toThrow("Path traversal detected");
+        expect(() => validateBaseDir("/..")).toThrow("Path traversal detected");
+      });
+
+      it("should reject absolute paths with backslash '..' segments", () => {
+        // Mixed separators should still be caught so Windows-style input
+        // constructed unsafely is not silently accepted on POSIX callers.
+        expect(() => validateBaseDir("/foo\\..\\bar")).toThrow("Path traversal detected");
+      });
+    });
   });
 
   describe("toKebabCaseFilename", () => {
