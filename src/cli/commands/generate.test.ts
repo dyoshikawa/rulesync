@@ -141,7 +141,7 @@ describe("generateCommand", () => {
 
       await generateCommand(mockLogger, options);
 
-      expect(ConfigResolver.resolve).toHaveBeenCalledWith(options);
+      expect(ConfigResolver.resolve).toHaveBeenCalledWith(options, { logger: mockLogger });
     });
 
     it("should log generating files message", async () => {

@@ -33,7 +33,7 @@ function logFeatureResult(
 }
 
 export async function generateCommand(logger: Logger, options: GenerateOptions): Promise<void> {
-  const config = await ConfigResolver.resolve(options);
+  const config = await ConfigResolver.resolve(options, { logger });
 
   const check = config.getCheck();
 

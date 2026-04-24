@@ -13,6 +13,7 @@ import {
   resolvePath,
   validateBaseDir,
 } from "../utils/file.js";
+import type { Logger } from "../utils/logger.js";
 import {
   assertTargetsFeaturesExclusive,
   Config,
@@ -106,24 +107,27 @@ const mergeConfigs = (
 
 // oxlint-disable-next-line no-extraneous-class
 export class ConfigResolver {
-  public static async resolve({
-    targets,
-    features,
-    verbose,
-    delete: isDelete,
-    baseDirs,
-    configPath = getDefaults().configPath,
-    global,
-    silent,
-    simulateCommands,
-    simulateSubagents,
-    simulateSkills,
-    gitignoreTargetsOnly,
-    dryRun,
-    check,
-    gitignoreDestination,
-    inputRoot,
-  }: ConfigResolverResolveParams): Promise<Config> {
+  public static async resolve(
+    {
+      targets,
+      features,
+      verbose,
+      delete: isDelete,
+      baseDirs,
+      configPath = getDefaults().configPath,
+      global,
+      silent,
+      simulateCommands,
+      simulateSubagents,
+      simulateSkills,
+      gitignoreTargetsOnly,
+      dryRun,
+      check,
+      gitignoreDestination,
+      inputRoot,
+    }: ConfigResolverResolveParams,
+    { logger }: { logger?: Logger } = {},
+  ): Promise<Config> {
     // Validate configPath to prevent path traversal attacks
     // When inputRoot is set, resolve the config path relative to it so that
     // the user's central .rulesync source dir is also the config source.
@@ -169,9 +173,8 @@ export class ConfigResolver {
     // the caller also explicitly passes --global. Warn when we drop it so the
     // user is not silently surprised by an output-scope change.
     if (inputRoot !== undefined && global === undefined && configByFile.global === true) {
-      // oxlint-disable-next-line no-console
-      console.warn(
-        `rulesync: ignoring "global: true" from ${validatedConfigPath} because --input-root ` +
+      logger?.warn(
+        `Ignoring "global: true" from ${validatedConfigPath} because --input-root ` +
           `was provided; pass --global explicitly to keep user-scope output.`,
       );
     }

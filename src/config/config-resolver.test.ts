@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "../utils/file.js";
+import type { Logger } from "../utils/logger.js";
 import { ConfigResolver } from "./config-resolver.js";
 import { resetDeprecationWarningForTests } from "./deprecation-warnings.js";
 
@@ -493,14 +494,17 @@ describe("config-resolver", () => {
         join(inputRoot, "rulesync.jsonc"),
         JSON.stringify({ baseDirs: ["./"], global: true }),
       );
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const logger = { warn: vi.fn() } as unknown as Logger;
 
-      await ConfigResolver.resolve({
-        configPath: "rulesync.jsonc",
-        inputRoot,
-      });
+      await ConfigResolver.resolve(
+        {
+          configPath: "rulesync.jsonc",
+          inputRoot,
+        },
+        { logger },
+      );
 
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('ignoring "global: true"'));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Ignoring "global: true"'));
     });
 
     it("should not warn when CLI --global is explicitly passed alongside inputRoot", async () => {
@@ -509,15 +513,18 @@ describe("config-resolver", () => {
         join(inputRoot, "rulesync.jsonc"),
         JSON.stringify({ baseDirs: ["./"], global: true }),
       );
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const logger = { warn: vi.fn() } as unknown as Logger;
 
-      await ConfigResolver.resolve({
-        configPath: "rulesync.jsonc",
-        inputRoot,
-        global: true,
-      });
+      await ConfigResolver.resolve(
+        {
+          configPath: "rulesync.jsonc",
+          inputRoot,
+          global: true,
+        },
+        { logger },
+      );
 
-      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('ignoring "global: true"'));
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
     it("should honor config file global: true when inputRoot is omitted", async () => {
