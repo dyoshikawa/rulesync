@@ -49,6 +49,5 @@ They can be combined. For example, to read rules from `~/.aiglobal` and write th
 rulesync generate --input-root ~/.aiglobal --global --targets claudecode --features rules
 ```
 
-::: warning `--input-root` does not enable `--global`
-When `--input-root` is explicitly provided, Rulesync reads `.rulesync/` from that directory, but output scope still follows the CLI flags: use `--global` for user-scope output, and omit it for project-scope output. A `"global": true` setting in the `rulesync.jsonc` under `--input-root` is **not** applied unless you also pass `--global`, and Rulesync will emit a warning when dropping it so the override is visible.
-:::
+> **`--input-root` does not enable `--global`:**
+> When `--input-root` is explicitly provided, Rulesync reads `.rulesync/` from that directory, but output scope still follows the CLI flags: use `--global` for user-scope output, and omit it for project-scope output. A `"global": true` setting in the `rulesync.jsonc` under `--input-root` is **not** applied unless you also pass `--global`, and Rulesync will emit a warning when dropping it so the override is visible.
