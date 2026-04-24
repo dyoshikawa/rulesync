@@ -7,6 +7,7 @@ import { FetchOptions } from "../types/fetch.js";
 import { formatError } from "../utils/error.js";
 import type { Logger } from "../utils/logger.js";
 import { parseCommaSeparatedList } from "../utils/parse-comma-separated-list.js";
+import { convertCommand, ConvertOptions } from "./commands/convert.js";
 import { fetchCommand } from "./commands/fetch.js";
 import { generateCommand, GenerateOptions } from "./commands/generate.js";
 import { gitignoreCommand } from "./commands/gitignore.js";
@@ -137,6 +138,33 @@ const main = async () => {
       wrapCommand("import", "IMPORT_FAILED", async (logger, options) => {
         // eslint-disable-next-line no-type-assertion/no-type-assertion
         await importCommand(logger, options as ImportOptions);
+      }),
+    );
+
+  program
+    .command("convert")
+    .description(
+      "Convert configurations from one AI tool to other AI tools without writing .rulesync/ files",
+    )
+    .requiredOption("--from <tool>", "Source tool to convert from (e.g., 'cursor', 'claudecode')")
+    .requiredOption(
+      "--to <tools>",
+      "Comma-separated list of destination tools (e.g., 'copilot,claudecode')",
+      parseCommaSeparatedList,
+    )
+    .option(
+      "-f, --features <features>",
+      `Comma-separated list of features to convert (${ALL_FEATURES.join(",")}) or '*' for all`,
+      parseCommaSeparatedList,
+    )
+    .option("-V, --verbose", "Verbose output")
+    .option("-s, --silent", "Suppress all output")
+    .option("-g, --global", "Convert for global(user scope) configuration files")
+    .option("--dry-run", "Dry run: show changes without writing files")
+    .action(
+      wrapCommand("convert", "CONVERT_FAILED", async (logger, options) => {
+        // eslint-disable-next-line no-type-assertion/no-type-assertion
+        await convertCommand(logger, options as ConvertOptions);
       }),
     );
 

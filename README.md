@@ -58,6 +58,14 @@ rulesync import --targets cursor        # From .cursorrules
 rulesync import --targets copilot       # From .github/copilot-instructions.md
 ```
 
+Want to convert configuration from one AI tool to another directly, without
+adopting the `.rulesync/` source-of-truth workflow?
+
+```bash
+# Convert Cursor rules to Copilot and Claude Code in one shot (no .rulesync/ files written)
+rulesync convert --from cursor --to copilot,claudecode
+```
+
 See [Quick Start guide](https://dyoshikawa.github.io/rulesync/getting-started/quick-start) for more details.
 
 ## Supported Tools and Features
