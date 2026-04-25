@@ -186,6 +186,7 @@ export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = [
   "postToolUse",
   "beforeSubmitPrompt",
   "stop",
+  "permissionRequest",
 ];
 
 const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
@@ -365,6 +366,7 @@ export const CANONICAL_TO_CODEXCLI_EVENT_NAMES: Record<string, string> = {
   postToolUse: "PostToolUse",
   beforeSubmitPrompt: "UserPromptSubmit",
   stop: "Stop",
+  permissionRequest: "PermissionRequest",
 };
 
 /**

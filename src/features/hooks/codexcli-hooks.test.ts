@@ -135,6 +135,64 @@ describe("CodexcliHooks", () => {
       expect(parsed.hooks.Stop[0].hooks[0].command).toBe("echo stop");
     });
 
+    it("should support permissionRequest event with matcher", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              permissionRequest: [
+                { command: ".rulesync/hooks/perm.sh", matcher: "Bash", timeout: 30 },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const codexHooks = await CodexcliHooks.fromRulesyncHooks({
+        baseDir: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const parsed = JSON.parse(codexHooks.getFileContent());
+      expect(parsed.hooks.PermissionRequest).toBeDefined();
+      expect(parsed.hooks.PermissionRequest[0].matcher).toBe("Bash");
+      expect(parsed.hooks.PermissionRequest[0].hooks[0].command).toBe(
+        ".rulesync/hooks/perm.sh",
+      );
+      expect(parsed.hooks.PermissionRequest[0].hooks[0].type).toBe("command");
+      expect(parsed.hooks.PermissionRequest[0].hooks[0].timeout).toBe(30);
+    });
+
+    it("should preserve apply_patch and MCP tool matchers on permissionRequest", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              permissionRequest: [
+                { command: "./scripts/audit-patch.sh", matcher: "apply_patch" },
+                { command: "./scripts/audit-mcp.sh", matcher: "mcp__fs__read" },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const codexHooks = await CodexcliHooks.fromRulesyncHooks({
+        baseDir: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const parsed = JSON.parse(codexHooks.getFileContent());
+      expect(parsed.hooks.PermissionRequest).toHaveLength(2);
+      const byMatcher = Object.fromEntries(
+        parsed.hooks.PermissionRequest.map((entry: { matcher: string }) => [entry.matcher, entry]),
+      );
+      expect(byMatcher.apply_patch.hooks[0].command).toBe("./scripts/audit-patch.sh");
+      expect(byMatcher.mcp__fs__read.hooks[0].command).toBe("./scripts/audit-mcp.sh");
+    });
+
     it("should not write config.toml as a side effect", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({
@@ -249,6 +307,40 @@ describe("CodexcliHooks", () => {
       expect(parsed.hooks.stop?.[0]).toEqual({
         type: "command",
         command: "echo done",
+      });
+    });
+
+    it("should convert PermissionRequest to canonical permissionRequest", () => {
+      const codexHooks = new CodexcliHooks(
+        createMockAiFileParams({
+          relativeDirPath: ".codex",
+          relativeFilePath: "hooks.json",
+          fileContent: JSON.stringify({
+            hooks: {
+              PermissionRequest: [
+                {
+                  matcher: "Bash",
+                  hooks: [
+                    {
+                      type: "command",
+                      command: ".rulesync/hooks/perm.sh",
+                    },
+                  ],
+                },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const rulesyncHooks = codexHooks.toRulesyncHooks();
+      const parsed = rulesyncHooks.getJson();
+
+      expect(parsed.hooks.permissionRequest).toBeDefined();
+      expect(parsed.hooks.permissionRequest?.[0]).toEqual({
+        type: "command",
+        command: ".rulesync/hooks/perm.sh",
+        matcher: "Bash",
       });
     });
 
