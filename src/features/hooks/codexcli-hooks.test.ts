@@ -157,9 +157,7 @@ describe("CodexcliHooks", () => {
       const parsed = JSON.parse(codexHooks.getFileContent());
       expect(parsed.hooks.PermissionRequest).toBeDefined();
       expect(parsed.hooks.PermissionRequest[0].matcher).toBe("Bash");
-      expect(parsed.hooks.PermissionRequest[0].hooks[0].command).toBe(
-        ".rulesync/hooks/perm.sh",
-      );
+      expect(parsed.hooks.PermissionRequest[0].hooks[0].command).toBe(".rulesync/hooks/perm.sh");
       expect(parsed.hooks.PermissionRequest[0].hooks[0].type).toBe("command");
       expect(parsed.hooks.PermissionRequest[0].hooks[0].timeout).toBe(30);
     });
