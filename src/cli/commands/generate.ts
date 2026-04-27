@@ -4,7 +4,28 @@ import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import type { Logger } from "../../utils/logger.js";
 import { calculateTotalCount } from "../../utils/result.js";
 
-export type GenerateOptions = ConfigResolverResolveParams;
+export type GenerateOptions = ConfigResolverResolveParams & {
+  // Commander maps `--base-dir` to `baseDir` (camelCase, singular) while the
+  // resolver reads `baseDirs` (plural). Accept the CLI shape here and
+  // normalize at the command boundary.
+  baseDir?: string[];
+};
+
+/**
+ * Compares two `baseDir` lists as sets — order-insensitive and
+ * duplicate-insensitive. Used to decide whether `--base-dir` and the
+ * programmatic `baseDirs` actually differ. Identical sets like
+ * `["a", "b"]` vs `["b", "a"]` should NOT trigger the override warning.
+ */
+function sameDirSets(a: readonly string[], b: readonly string[]): boolean {
+  const aSet = new Set(a);
+  const bSet = new Set(b);
+  if (aSet.size !== bSet.size) return false;
+  for (const v of aSet) {
+    if (!bSet.has(v)) return false;
+  }
+  return true;
+}
 
 /**
  * Log feature generation result with appropriate prefix based on dry run mode.
@@ -33,7 +54,29 @@ function logFeatureResult(
 }
 
 export async function generateCommand(logger: Logger, options: GenerateOptions): Promise<void> {
-  const config = await ConfigResolver.resolve(options);
+  const { baseDir, baseDirs, ...rest } = options;
+
+  // When both the CLI singular `baseDir` (from `--base-dir`) and the
+  // programmatic plural `baseDirs` are supplied with non-empty, differing
+  // values, prefer the explicit programmatic field but warn the user so the
+  // override is visible. Identical (as a set, order-insensitive) or empty
+  // inputs are silently merged.
+  const baseDirsResolved = baseDirs ?? baseDir;
+  if (
+    baseDir !== undefined &&
+    baseDirs !== undefined &&
+    baseDir.length > 0 &&
+    baseDirs.length > 0 &&
+    !sameDirSets(baseDirs, baseDir)
+  ) {
+    logger.warn(
+      `Both 'baseDirs' and 'baseDir' (from --base-dir) were provided with ` +
+        `differing values; using 'baseDirs' (${JSON.stringify(baseDirs)}) ` +
+        `and ignoring 'baseDir' (${JSON.stringify(baseDir)}).`,
+    );
+  }
+
+  const config = await ConfigResolver.resolve({ ...rest, baseDirs: baseDirsResolved }, { logger });
 
   const check = config.getCheck();
 
@@ -42,7 +85,7 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
 
   logger.debug("Generating files...");
 
-  if (!(await checkRulesyncDirExists({ baseDir: process.cwd() }))) {
+  if (!(await checkRulesyncDirExists({ baseDir: config.getInputRoot() }))) {
     throw new CLIError(
       ".rulesync directory not found. Run 'rulesync init' first.",
       ErrorCodes.RULESYNC_DIR_NOT_FOUND,

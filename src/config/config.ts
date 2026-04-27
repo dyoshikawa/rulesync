@@ -1,4 +1,4 @@
-import { isAbsolute } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 
 import { minLength, optional, refine, z } from "zod/mini";
 
@@ -76,6 +76,7 @@ export const ConfigParamsSchema = z.object({
   gitignoreDestination: optional(GitignoreDestinationSchema),
   dryRun: optional(z.boolean()),
   check: optional(z.boolean()),
+  inputRoot: optional(z.string()),
   // Declarative skill sources
   sources: optional(z.array(SourceEntrySchema)),
 });
@@ -225,6 +226,7 @@ export class Config {
   private readonly gitignoreDestination: GitignoreDestination;
   private readonly dryRun: boolean;
   private readonly check: boolean;
+  private readonly inputRoot: string;
   private readonly sources: SourceEntry[];
 
   constructor({
@@ -242,6 +244,7 @@ export class Config {
     gitignoreDestination,
     dryRun,
     check,
+    inputRoot,
     sources,
   }: ConfigParams) {
     // Defense-in-depth: enforce the same mutual-exclusivity rule that the
@@ -294,6 +297,23 @@ export class Config {
     this.gitignoreDestination = gitignoreDestination ?? "gitignore";
     this.dryRun = dryRun ?? false;
     this.check = check ?? false;
+    // Capture the input root once at construction time so subsequent
+    // `getInputRoot()` calls are pure (independent of any later `chdir`).
+    // Relative `inputRoot` values are resolved against the current working
+    // directory eagerly for the same reason; the schema accepts them because
+    // they're a legitimate input form, and we normalize them here.
+    //
+    // The `process.cwd()` fallback only fires for direct programmatic
+    // construction (e.g. `new Config({ ... })` in tests or `src/lib/init.ts`).
+    // The standard `ConfigResolver.resolve` path always supplies a
+    // pre-resolved absolute `inputRoot`, so this branch is unreachable from
+    // the CLI / programmatic-API surface.
+    this.inputRoot =
+      inputRoot === undefined
+        ? process.cwd()
+        : isAbsolute(inputRoot)
+          ? inputRoot
+          : resolve(inputRoot);
     this.sources = sources ?? [];
   }
 
@@ -583,6 +603,19 @@ export class Config {
 
   public getCheck(): boolean {
     return this.check;
+  }
+
+  /**
+   * Returns the directory containing the `.rulesync/` source files. The value
+   * is always an absolute path captured at config-construction time, so this
+   * accessor is pure and never depends on a live `process.cwd()` read.
+   *
+   * When no `inputRoot` was supplied to the constructor, `process.cwd()` is
+   * snapshotted once during construction. When a relative `inputRoot` is
+   * supplied, it is resolved to absolute against the construction-time cwd.
+   */
+  public getInputRoot(): string {
+    return this.inputRoot;
   }
 
   public getSources(): SourceEntry[] {

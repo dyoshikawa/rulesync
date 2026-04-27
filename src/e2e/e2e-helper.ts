@@ -49,6 +49,7 @@ export async function runGenerate({
   simulateCommands = false,
   simulateSubagents = false,
   simulateSkills = false,
+  inputRoot,
   env,
 }: {
   target: string;
@@ -59,6 +60,7 @@ export async function runGenerate({
   simulateCommands?: boolean;
   simulateSubagents?: boolean;
   simulateSkills?: boolean;
+  inputRoot?: string;
   env?: Record<string, string>;
 }): Promise<{ stdout: string; stderr: string }> {
   const args = [
@@ -74,6 +76,7 @@ export async function runGenerate({
     ...(simulateCommands ? ["--simulate-commands"] : []),
     ...(simulateSubagents ? ["--simulate-subagents"] : []),
     ...(simulateSkills ? ["--simulate-skills"] : []),
+    ...(inputRoot ? ["--input-root", inputRoot] : []),
   ];
   return execFileAsync(rulesyncCmd, args, env ? { env: { ...process.env, ...env } } : {});
 }

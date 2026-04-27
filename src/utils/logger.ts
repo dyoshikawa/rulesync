@@ -225,3 +225,18 @@ export class JsonLogger extends BaseLogger implements Logger {
     // Suppress console output in JSON mode
   }
 }
+
+/**
+ * Emit a warning through `logger.warn` if a logger is supplied, otherwise
+ * fall through to `console.warn`. Centralizes the "logger may be optional"
+ * pattern so call sites stay terse and `oxlint`'s `no-console` exception
+ * lives in exactly one place.
+ */
+export function warnWithFallback(logger: Logger | undefined, message: string): void {
+  if (logger) {
+    logger.warn(message);
+    return;
+  }
+  // oxlint-disable-next-line no-console
+  console.warn(message);
+}

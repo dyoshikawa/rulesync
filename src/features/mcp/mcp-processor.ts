@@ -317,6 +317,7 @@ export class McpProcessor extends FeatureProcessor {
 
   constructor({
     baseDir = process.cwd(),
+    inputRoot = process.cwd(),
     toolTarget,
     global = false,
     getFactory = defaultGetFactory,
@@ -324,13 +325,14 @@ export class McpProcessor extends FeatureProcessor {
     logger,
   }: {
     baseDir?: string;
+    inputRoot?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     getFactory?: GetFactory;
     dryRun?: boolean;
     logger: Logger;
   }) {
-    super({ baseDir, dryRun, logger });
+    super({ baseDir, inputRoot, dryRun, logger });
     const result = McpProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -348,7 +350,7 @@ export class McpProcessor extends FeatureProcessor {
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
     try {
-      return [await RulesyncMcp.fromFile({})];
+      return [await RulesyncMcp.fromFile({ baseDir: this.inputRoot })];
     } catch (error) {
       this.logger.error(
         `Failed to load a Rulesync MCP file (${RULESYNC_MCP_RELATIVE_FILE_PATH}): ${formatError(error)}`,

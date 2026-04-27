@@ -81,6 +81,7 @@ describe("generate", () => {
     getSimulateSubagents: ReturnType<typeof vi.fn>;
     getSimulateSkills: ReturnType<typeof vi.fn>;
     isPreviewMode: ReturnType<typeof vi.fn>;
+    getInputRoot: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -98,6 +99,7 @@ describe("generate", () => {
       getSimulateSubagents: vi.fn().mockReturnValue(false),
       getSimulateSkills: vi.fn().mockReturnValue(false),
       isPreviewMode: vi.fn().mockReturnValue(false),
+      getInputRoot: vi.fn().mockReturnValue(process.cwd()),
     };
 
     vi.mocked(intersection).mockImplementation((a, b) => a.filter((item) => b.includes(item)));

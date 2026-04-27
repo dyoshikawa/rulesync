@@ -56,6 +56,7 @@ describe("generateCommand", () => {
       getDryRun: vi.fn().mockReturnValue(false),
       getCheck: vi.fn().mockReturnValue(false),
       isPreviewMode: vi.fn().mockReturnValue(false),
+      getInputRoot: vi.fn().mockReturnValue(process.cwd()),
     };
 
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig);
@@ -140,7 +141,7 @@ describe("generateCommand", () => {
 
       await generateCommand(mockLogger, options);
 
-      expect(ConfigResolver.resolve).toHaveBeenCalledWith(options);
+      expect(ConfigResolver.resolve).toHaveBeenCalledWith(options, { logger: mockLogger });
     });
 
     it("should log generating files message", async () => {
@@ -149,6 +150,82 @@ describe("generateCommand", () => {
       await generateCommand(mockLogger, options);
 
       expect(mockLogger.debug).toHaveBeenCalledWith("Generating files...");
+    });
+
+    it("should map --base-dir (singular) to baseDirs on the resolver call", async () => {
+      const options: GenerateOptions = { baseDir: ["a", "b"] };
+
+      await generateCommand(mockLogger, options);
+
+      expect(ConfigResolver.resolve).toHaveBeenCalledWith(
+        expect.objectContaining({ baseDirs: ["a", "b"] }),
+        { logger: mockLogger },
+      );
+    });
+
+    it("should prefer baseDirs over baseDir when both are provided", async () => {
+      const options: GenerateOptions = { baseDir: ["a"], baseDirs: ["b"] };
+
+      await generateCommand(mockLogger, options);
+
+      expect(ConfigResolver.resolve).toHaveBeenCalledWith(
+        expect.objectContaining({ baseDirs: ["b"] }),
+        { logger: mockLogger },
+      );
+    });
+
+    it("should warn when baseDir and baseDirs disagree on non-empty values", async () => {
+      const options: GenerateOptions = { baseDir: ["a"], baseDirs: ["b"] };
+
+      await generateCommand(mockLogger, options);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Both 'baseDirs' and 'baseDir'"),
+      );
+    });
+
+    it("should not warn when baseDir and baseDirs match exactly", async () => {
+      const options: GenerateOptions = { baseDir: ["a", "b"], baseDirs: ["a", "b"] };
+
+      await generateCommand(mockLogger, options);
+
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("Both 'baseDirs' and 'baseDir'"),
+      );
+    });
+
+    it("should not warn when baseDir and baseDirs match as a set (different order)", async () => {
+      // Order is irrelevant — `baseDirs: ["a","b"]` and `baseDir: ["b","a"]`
+      // describe the same set of output roots, so no override is happening.
+      const options: GenerateOptions = { baseDir: ["b", "a"], baseDirs: ["a", "b"] };
+
+      await generateCommand(mockLogger, options);
+
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("Both 'baseDirs' and 'baseDir'"),
+      );
+    });
+
+    it("should warn when baseDir and baseDirs differ as sets", async () => {
+      // Different sets — `["a"]` vs `["a","b"]` — must trigger the override
+      // warning even though one is a subset of the other.
+      const options: GenerateOptions = { baseDir: ["a"], baseDirs: ["a", "b"] };
+
+      await generateCommand(mockLogger, options);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Both 'baseDirs' and 'baseDir'"),
+      );
+    });
+
+    it("should not warn when only baseDir is provided", async () => {
+      const options: GenerateOptions = { baseDir: ["a"] };
+
+      await generateCommand(mockLogger, options);
+
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("Both 'baseDirs' and 'baseDir'"),
+      );
     });
   });
 
@@ -419,7 +496,11 @@ describe("generateCommand", () => {
       );
     });
 
-    it("should handle current working directory correctly", async () => {
+    it("should pass baseDir verbatim even when it equals current working directory", async () => {
+      // The legacy `baseDir === process.cwd() ? "." : baseDir` heuristic was
+      // removed to keep ignore processing consistent with every other
+      // feature processor — IgnoreProcessor now receives the same absolute
+      // path the other processors receive.
       const mockCwd = vi.spyOn(process, "cwd").mockReturnValue("/current/working/dir");
       mockConfig.getBaseDirs.mockReturnValue(["/current/working/dir"]);
       const options: GenerateOptions = {};
@@ -428,7 +509,7 @@ describe("generateCommand", () => {
 
       expect(IgnoreProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          baseDir: "/current/working/dir",
           toolTarget: "claudecode",
           dryRun: false,
         }),
@@ -1054,6 +1135,133 @@ describe("generateCommand", () => {
       expect(IgnoreProcessor).not.toHaveBeenCalled();
       expect(mockLogger.success).toHaveBeenCalledWith(
         "🎉 All done! Written 15 file(s) total (6 rules + 3 MCP files + 3 commands + 3 subagents)",
+      );
+    });
+  });
+
+  describe("inputRoot decoupling", () => {
+    // Rules source dir (where .rulesync/ lives) is independent of output baseDirs.
+    const inputRoot = "/central/rulesync-source";
+    const baseDirs = ["/project/app-one", "/project/app-two"];
+
+    beforeEach(() => {
+      mockConfig.getInputRoot.mockReturnValue(inputRoot);
+      mockConfig.getBaseDirs.mockReturnValue(baseDirs);
+    });
+
+    it("should check for .rulesync under inputRoot, not under baseDirs", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+
+      await generateCommand(mockLogger, {});
+
+      expect(fileExists).toHaveBeenCalledWith("/central/rulesync-source/.rulesync");
+      expect(fileExists).not.toHaveBeenCalledWith("/project/app-one/.rulesync");
+      expect(fileExists).not.toHaveBeenCalledWith("/project/app-two/.rulesync");
+    });
+
+    it("should construct RulesProcessor with inputRoot distinct from baseDir for each output dir", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+
+      await generateCommand(mockLogger, {});
+
+      expect(RulesProcessor).toHaveBeenCalledTimes(2);
+      expect(RulesProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-one",
+          inputRoot,
+          toolTarget: "claudecode",
+        }),
+      );
+      expect(RulesProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-two",
+          inputRoot,
+          toolTarget: "claudecode",
+        }),
+      );
+    });
+
+    it("should pass inputRoot to IgnoreProcessor independently of baseDir", async () => {
+      mockConfig.getFeatures.mockReturnValue(["ignore"]);
+
+      await generateCommand(mockLogger, {});
+
+      expect(IgnoreProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-one",
+          inputRoot,
+          toolTarget: "claudecode",
+        }),
+      );
+      expect(IgnoreProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-two",
+          inputRoot,
+          toolTarget: "claudecode",
+        }),
+      );
+    });
+
+    it("should pass inputRoot to McpProcessor independently of baseDir", async () => {
+      mockConfig.getFeatures.mockReturnValue(["mcp"]);
+
+      await generateCommand(mockLogger, {});
+
+      expect(McpProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-one",
+          inputRoot,
+          toolTarget: "claudecode",
+        }),
+      );
+      expect(McpProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-two",
+          inputRoot,
+          toolTarget: "claudecode",
+        }),
+      );
+    });
+
+    it("should pass inputRoot to CommandsProcessor independently of baseDir", async () => {
+      mockConfig.getFeatures.mockReturnValue(["commands"]);
+
+      await generateCommand(mockLogger, {});
+
+      expect(CommandsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-one",
+          inputRoot,
+          toolTarget: "claudecode",
+        }),
+      );
+      expect(CommandsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-two",
+          inputRoot,
+          toolTarget: "claudecode",
+        }),
+      );
+    });
+
+    it("should pass inputRoot to SubagentsProcessor independently of baseDir", async () => {
+      mockConfig.getFeatures.mockReturnValue(["subagents"]);
+
+      await generateCommand(mockLogger, {});
+
+      expect(SubagentsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-one",
+          inputRoot,
+          toolTarget: "claudecode",
+        }),
+      );
+      expect(SubagentsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseDir: "/project/app-two",
+          inputRoot,
+          toolTarget: "claudecode",
+        }),
       );
     });
   });

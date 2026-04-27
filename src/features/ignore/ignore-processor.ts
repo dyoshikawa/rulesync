@@ -97,6 +97,7 @@ export class IgnoreProcessor extends FeatureProcessor {
 
   constructor({
     baseDir = process.cwd(),
+    inputRoot = process.cwd(),
     toolTarget,
     getFactory = defaultGetFactory,
     dryRun = false,
@@ -104,13 +105,14 @@ export class IgnoreProcessor extends FeatureProcessor {
     featureOptions,
   }: {
     baseDir?: string;
+    inputRoot?: string;
     toolTarget: ToolTarget;
     getFactory?: GetFactory;
     dryRun?: boolean;
     logger: Logger;
     featureOptions?: FeatureOptions;
   }) {
-    super({ baseDir, dryRun, logger });
+    super({ baseDir, inputRoot, dryRun, logger });
     const result = IgnoreProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -133,7 +135,7 @@ export class IgnoreProcessor extends FeatureProcessor {
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
     try {
-      return [await RulesyncIgnore.fromFile()];
+      return [await RulesyncIgnore.fromFile({ baseDir: this.inputRoot })];
     } catch (error) {
       this.logger.error(
         `Failed to load rulesync ignore file (${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}): ${formatError(error)}`,

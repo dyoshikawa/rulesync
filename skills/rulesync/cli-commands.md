@@ -37,6 +37,9 @@ rulesync generate --dry-run --targets claudecode --features rules
 # Check if files are up to date (for CI/CD pipelines)
 rulesync generate --check --targets "*" --features "*"
 
+# Generate from a shared rules directory (without cd-ing into it)
+rulesync generate --input-root ~/.aiglobal --targets "*" --features rules
+
 # Install skills from declarative sources in rulesync.jsonc
 rulesync install
 
@@ -66,6 +69,44 @@ rulesync update --check
 
 # Force update even if already at latest version
 rulesync update --force
+```
+
+## Generate Command
+
+The `generate` command reads source files from `.rulesync/` and writes AI tool configuration files to the output directories.
+
+### Options
+
+| Option                      | Description                                                                               | Default               |
+| --------------------------- | ----------------------------------------------------------------------------------------- | --------------------- |
+| `--targets, -t <tools>`     | Comma-separated list of tools (e.g. `claudecode,copilot` or `*`)                          | From `rulesync.jsonc` |
+| `--features, -f <features>` | Comma-separated list of features (rules, commands, subagents, skills, ignore, mcp, hooks) | From `rulesync.jsonc` |
+| `--input-root <path>`       | Path to the directory containing `.rulesync/` source files (currently `generate` only)    | CWD                   |
+| `--dry-run`                 | Show what would change without writing files                                              | `false`               |
+| `--check`                   | Like `--dry-run` but exits with code 1 if files are not up to date                        | `false`               |
+| `--global`                  | Generate for global (user-scope) configuration files                                      | `false`               |
+| `--simulate-commands`       | Generate simulated commands for tools that do not support them natively                   | `false`               |
+| `--simulate-subagents`      | Generate simulated subagents for tools that do not support them natively                  | `false`               |
+| `--simulate-skills`         | Generate simulated skills for tools that do not support them natively                     | `false`               |
+| `--delete`                  | Delete existing generated files before writing                                            | From `rulesync.jsonc` |
+
+### Examples
+
+```bash
+# Generate all features for all configured tools
+rulesync generate
+
+# Generate rules for all tools
+rulesync generate --targets "*" --features rules
+
+# Generate from a shared directory without cd-ing into it
+rulesync generate --input-root ~/.aiglobal --targets "*" --features rules
+
+# Dry run: preview changes without writing
+rulesync generate --dry-run --targets claudecode --features rules
+
+# CI check: fail if generated files are not up to date
+rulesync generate --check --targets "*" --features "*"
 ```
 
 ## Gitignore Command

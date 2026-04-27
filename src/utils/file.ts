@@ -1,6 +1,6 @@
 import { lstat, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 import { kebabCase } from "es-toolkit";
 import { globbySync } from "globby";
@@ -275,8 +275,28 @@ export function getHomeDirectory(): string {
 }
 
 /**
- * Validates that a baseDir is safe to use
- * @throws {Error} if the baseDir is dangerous or contains path traversal
+ * Validates that a baseDir is safe to use as the source/output root.
+ *
+ * Contract:
+ * - Rejects empty strings.
+ * - For absolute paths: requires the path to already be normalized (i.e.
+ *   `resolve(baseDir) === baseDir`). This rejects sneaky inputs like
+ *   `/foo/../bar` and forces callers to pass an explicit, normalized intent.
+ *   Also rejects the filesystem root (`/` on POSIX, `C:\\` etc. on Windows)
+ *   because that is almost certainly a misconfiguration, not a real source
+ *   directory.
+ * - For relative paths: applies `checkPathTraversal` against the current
+ *   working directory. Benign no-op shortcuts like `.`, `./`, and `.\\` are
+ *   accepted because they don't escape cwd; resolver paths typically pre-
+ *   resolve to absolute first, so the relative branch mostly serves direct
+ *   programmatic callers.
+ *
+ * Note: callers that need to validate a path while in a different "intended
+ * root" should resolve it to absolute first and then pass it here, or use
+ * `checkPathTraversal` directly with the appropriate `intendedRootDir`.
+ *
+ * @throws {Error} if the baseDir is dangerous, unnormalized, or the
+ * filesystem root.
  */
 export function validateBaseDir(baseDir: string): void {
   // Reject empty strings
@@ -284,6 +304,46 @@ export function validateBaseDir(baseDir: string): void {
     throw new Error("baseDir cannot be an empty string");
   }
 
+  if (isAbsolute(baseDir)) {
+    // Defense-in-depth: split on both POSIX and Windows separators and
+    // reject any `..` segment. POSIX `resolve()` ignores `\` as a separator,
+    // and Windows `resolve()` ignores `/` in some legacy paths, so a
+    // cross-platform attacker-style input like `/foo\..\bar` or `C:/foo/../bar`
+    // would otherwise slip past the normalized-equality check below. This
+    // layered check applies on both platforms.
+    const segments = baseDir.split(/[/\\]/);
+    if (segments.includes("..")) {
+      throw new Error(`Path traversal detected: ${baseDir}`);
+    }
+
+    // Reject unnormalized absolute paths. After `resolve(baseDir)` collapses
+    // any `.`/`..` segments and normalizes separators, the result must equal
+    // the input — otherwise the caller passed a path that hides traversal
+    // intent inside an absolute prefix (e.g. `/foo/./bar` or `/foo//bar`).
+    const normalized = resolve(baseDir);
+    if (normalized !== baseDir) {
+      throw new Error(
+        `baseDir must be a normalized absolute path: ${baseDir} (normalized: ${normalized})`,
+      );
+    }
+
+    // Reject the filesystem root explicitly. `dirname(root) === root` is the
+    // standard cross-platform way to detect the root of the volume.
+    if (dirname(normalized) === normalized) {
+      throw new Error(
+        `baseDir must not be the filesystem root: ${baseDir}. ` +
+          `Pass a specific project directory instead.`,
+      );
+    }
+    return;
+  }
+
+  // Relative-path branch. `checkPathTraversal` rejects values that escape
+  // `process.cwd()`, while allowing benign no-op shortcuts like `.` and `./`.
+  // Those shortcuts are functionally equivalent to omitting the option and
+  // have always been accepted by the resolver path (which `resolve()`s before
+  // calling here), so we accept them in direct programmatic callers too to
+  // avoid an accidental breaking change.
   checkPathTraversal({ relativePath: baseDir, intendedRootDir: process.cwd() });
 }
 

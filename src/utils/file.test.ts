@@ -644,10 +644,6 @@ describe("file utilities", () => {
 
   describe("validateBaseDir", () => {
     describe("should allow safe paths", () => {
-      it("should allow current directory", () => {
-        expect(() => validateBaseDir(".")).not.toThrow();
-      });
-
       it("should allow simple directory names", () => {
         expect(() => validateBaseDir("src")).not.toThrow();
         expect(() => validateBaseDir("config")).not.toThrow();
@@ -702,6 +698,24 @@ describe("file utilities", () => {
       });
     });
 
+    describe("should accept current-directory shortcuts", () => {
+      // These are functionally equivalent to omitting the option. Resolver
+      // paths normalize them via `resolve()` before validation, but direct
+      // programmatic callers can pass them too — accept them to avoid a
+      // surprise breaking change.
+      it("should accept `.`", () => {
+        expect(() => validateBaseDir(".")).not.toThrow();
+      });
+
+      it("should accept `./`", () => {
+        expect(() => validateBaseDir("./")).not.toThrow();
+      });
+
+      it("should accept `.\\`", () => {
+        expect(() => validateBaseDir(".\\")).not.toThrow();
+      });
+    });
+
     describe("edge cases", () => {
       it("should handle normalized paths correctly", () => {
         // After normalization, these should be caught
@@ -711,6 +725,46 @@ describe("file utilities", () => {
       it("should allow dot directories that are not parent references", () => {
         expect(() => validateBaseDir(".config")).not.toThrow();
         expect(() => validateBaseDir(".local/share")).not.toThrow();
+      });
+    });
+
+    describe("absolute paths", () => {
+      it("should allow normalized absolute paths that do not contain '..' segments", () => {
+        expect(() => validateBaseDir("/usr/local/share")).not.toThrow();
+        expect(() => validateBaseDir("/Users/someone/project")).not.toThrow();
+      });
+
+      it("should allow absolute paths outside the current working directory", () => {
+        // The traversal check intentionally does not apply to absolute paths
+        // (callers may point at anything). This guards against over-eager
+        // rejection of legitimate central-rules directories.
+        expect(() => validateBaseDir("/tmp")).not.toThrow();
+      });
+
+      it("should reject the filesystem root", () => {
+        // The filesystem root is almost certainly a misconfiguration, not a
+        // real source directory.
+        expect(() => validateBaseDir("/")).toThrow("must not be the filesystem root");
+      });
+
+      it("should reject unnormalized absolute paths containing '..' segments", () => {
+        // The defense-in-depth segment check catches `..` first.
+        expect(() => validateBaseDir("/foo/../bar")).toThrow("Path traversal detected");
+        expect(() => validateBaseDir("/foo/../../etc")).toThrow("Path traversal detected");
+        expect(() => validateBaseDir("/..")).toThrow("Path traversal detected");
+      });
+
+      it("should reject unnormalized absolute paths with redundant segments", () => {
+        // Paths without `..` but still unnormalized (e.g. `//`, `/./`) are
+        // rejected by the normalized-equality check.
+        expect(() => validateBaseDir("/foo//bar")).toThrow("must be a normalized absolute path");
+        expect(() => validateBaseDir("/foo/./bar")).toThrow("must be a normalized absolute path");
+      });
+
+      it("should reject absolute paths with backslash '..' segments", () => {
+        // Mixed separators should still be caught so Windows-style input
+        // constructed unsafely is not silently accepted on POSIX callers.
+        expect(() => validateBaseDir("/foo\\..\\bar")).toThrow("Path traversal detected");
       });
     });
   });

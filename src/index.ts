@@ -29,6 +29,13 @@ export type GenerateOptions = BaseOptions & {
   targets?: ToolTarget[];
   features?: Feature[];
   baseDirs?: string[];
+  /**
+   * Directory containing the `.rulesync/` source files. Defaults to the
+   * current working directory at config-construction time. When set, output
+   * is still written to each `baseDirs` entry; only the input source root
+   * is redirected. Mirrors the CLI's `--input-root` option.
+   */
+  inputRoot?: string;
   delete?: boolean;
   simulateCommands?: boolean;
   simulateSubagents?: boolean;
@@ -59,10 +66,12 @@ export async function generate(options: GenerateOptions = {}): Promise<GenerateR
     silent,
   });
 
-  for (const baseDir of config.getBaseDirs()) {
-    if (!(await checkRulesyncDirExists({ baseDir }))) {
-      throw new Error(`.rulesync directory not found in '${baseDir}'. Run 'rulesync init' first.`);
-    }
+  // The pre-flight check probes the input source root rather than each
+  // output `baseDir`. This matches the CLI's behavior and the way features
+  // load `.rulesync/**` content (always relative to `config.getInputRoot()`).
+  const inputRoot = config.getInputRoot();
+  if (!(await checkRulesyncDirExists({ baseDir: inputRoot }))) {
+    throw new Error(`.rulesync directory not found in '${inputRoot}'. Run 'rulesync init' first.`);
   }
 
   return coreGenerate({ config, logger });

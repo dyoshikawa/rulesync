@@ -177,7 +177,7 @@ describe("McpProcessor", () => {
 
       expect(files).toHaveLength(1);
       expect(files[0]).toBe(mockRulesyncMcp);
-      expect(RulesyncMcp.fromFile).toHaveBeenCalledWith({});
+      expect(RulesyncMcp.fromFile).toHaveBeenCalledWith({ baseDir: testDir });
     });
 
     it("should return empty array when no MCP files found", async () => {

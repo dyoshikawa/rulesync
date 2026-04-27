@@ -14,19 +14,23 @@ import { ToolTarget } from "./tool-targets.js";
 
 export abstract class FeatureProcessor {
   protected readonly baseDir: string;
+  protected readonly inputRoot: string;
   protected readonly dryRun: boolean;
   protected readonly logger: Logger;
 
   constructor({
     baseDir = process.cwd(),
+    inputRoot = process.cwd(),
     dryRun = false,
     logger,
   }: {
     baseDir?: string;
+    inputRoot?: string;
     dryRun?: boolean;
     logger: Logger;
   }) {
     this.baseDir = baseDir;
+    this.inputRoot = inputRoot;
     this.dryRun = dryRun;
     this.logger = logger;
   }

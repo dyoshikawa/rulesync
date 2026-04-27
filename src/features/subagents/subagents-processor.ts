@@ -243,6 +243,7 @@ export class SubagentsProcessor extends FeatureProcessor {
 
   constructor({
     baseDir = process.cwd(),
+    inputRoot = process.cwd(),
     toolTarget,
     global = false,
     getFactory = defaultGetFactory,
@@ -250,13 +251,14 @@ export class SubagentsProcessor extends FeatureProcessor {
     logger,
   }: {
     baseDir?: string;
+    inputRoot?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     getFactory?: GetFactory;
     dryRun?: boolean;
     logger: Logger;
   }) {
-    super({ baseDir, dryRun, logger });
+    super({ baseDir, inputRoot, dryRun, logger });
     const result = SubagentsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -319,7 +321,7 @@ export class SubagentsProcessor extends FeatureProcessor {
    * Load and parse rulesync subagent files from .rulesync/subagents/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const subagentsDir = join(process.cwd(), RulesyncSubagent.getSettablePaths().relativeDirPath);
+    const subagentsDir = join(this.inputRoot, RulesyncSubagent.getSettablePaths().relativeDirPath);
 
     // Check if directory exists
     const dirExists = await directoryExists(subagentsDir);
@@ -347,6 +349,7 @@ export class SubagentsProcessor extends FeatureProcessor {
 
       try {
         const rulesyncSubagent = await RulesyncSubagent.fromFile({
+          baseDir: this.inputRoot,
           relativeFilePath: mdFile,
           validate: true,
         });

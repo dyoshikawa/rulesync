@@ -35,6 +35,7 @@ vi.mock("./utils/logger.js", async (importOriginal) => {
 
 const mockConfig = {
   getBaseDirs: () => ["/project"],
+  getInputRoot: () => process.cwd(),
 } as unknown as Config;
 
 const mockGenerateResult: GenerateResult = {
@@ -134,6 +135,41 @@ describe("generate", () => {
 
     expect(coreGenerate).toHaveBeenCalledWith(expect.objectContaining({ config: mockConfig }));
     expect(result).toEqual(mockGenerateResult);
+  });
+
+  it("should probe checkRulesyncDirExists against config.getInputRoot() rather than each baseDir", async () => {
+    const inputRootMock = "/some/input-root";
+    vi.mocked(ConfigResolver.resolve).mockResolvedValue({
+      getBaseDirs: () => ["/project-a", "/project-b"],
+      getInputRoot: () => inputRootMock,
+    } as unknown as Config as never);
+
+    await generate();
+
+    // Single check, scoped to the input root, not per baseDir.
+    expect(checkRulesyncDirExists).toHaveBeenCalledTimes(1);
+    expect(checkRulesyncDirExists).toHaveBeenCalledWith({ baseDir: inputRootMock });
+  });
+
+  it("should forward inputRoot to ConfigResolver.resolve", async () => {
+    await generate({ inputRoot: "./central-rules" });
+
+    expect(ConfigResolver.resolve).toHaveBeenCalledWith(
+      expect.objectContaining({ inputRoot: "./central-rules" }),
+    );
+  });
+
+  it("should mention the input root path in the not-found error", async () => {
+    const inputRootMock = "/some/input-root";
+    vi.mocked(ConfigResolver.resolve).mockResolvedValue({
+      getBaseDirs: () => ["/project"],
+      getInputRoot: () => inputRootMock,
+    } as unknown as Config as never);
+    vi.mocked(checkRulesyncDirExists).mockResolvedValue(false);
+
+    await expect(generate()).rejects.toThrow(
+      `.rulesync directory not found in '${inputRootMock}'.`,
+    );
   });
 });
 

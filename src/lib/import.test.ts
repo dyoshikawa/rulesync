@@ -30,6 +30,7 @@ describe("importFromTool", () => {
     getFeatures: ReturnType<typeof vi.fn>;
     getFeatureOptions: ReturnType<typeof vi.fn>;
     getGlobal: ReturnType<typeof vi.fn>;
+    getInputRoot: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -40,6 +41,7 @@ describe("importFromTool", () => {
       getFeatures: vi.fn().mockReturnValue(["rules"]),
       getFeatureOptions: vi.fn().mockReturnValue(undefined),
       getGlobal: vi.fn().mockReturnValue(false),
+      getInputRoot: vi.fn().mockReturnValue(process.cwd()),
     };
 
     vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode"]);
