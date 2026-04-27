@@ -35,7 +35,7 @@ export class AugmentcodeLegacyRule extends ToolRule {
     };
 
     return new RulesyncRule({
-      baseDir: ".", // RulesyncRule baseDir is always the project root directory
+      outputRoot: ".", // RulesyncRule outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.getFileContent(),
       relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -62,13 +62,13 @@ export class AugmentcodeLegacyRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): ToolRule {
     return new AugmentcodeLegacyRule(
       this.buildToolRuleParamsDefault({
-        baseDir,
+        outputRoot,
         rulesyncRule,
         validate,
         rootPath: this.getSettablePaths().root,
@@ -89,7 +89,7 @@ export class AugmentcodeLegacyRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<AugmentcodeLegacyRule> {
@@ -99,10 +99,10 @@ export class AugmentcodeLegacyRule extends ToolRule {
     const relativePath = isRoot
       ? settablePaths.root.relativeFilePath
       : join(settablePaths.nonRoot.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(join(baseDir, relativePath));
+    const fileContent = await readFileContent(join(outputRoot, relativePath));
 
     return new AugmentcodeLegacyRule({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       relativeDirPath: isRoot
         ? settablePaths.root.relativeDirPath
         : settablePaths.nonRoot.relativeDirPath,
@@ -114,7 +114,7 @@ export class AugmentcodeLegacyRule extends ToolRule {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): AugmentcodeLegacyRule {
@@ -122,7 +122,7 @@ export class AugmentcodeLegacyRule extends ToolRule {
     const isRoot = relativeFilePath === settablePaths.root.relativeFilePath;
 
     return new AugmentcodeLegacyRule({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "",

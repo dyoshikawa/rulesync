@@ -66,7 +66,7 @@ type ToolHooksFactory = {
     };
     isDeletable?: (instance: ToolHooks) => boolean;
     getAuxiliaryFiles?: (params: {
-      baseDir?: string;
+      outputRoot?: string;
       global?: boolean;
     }) => ToolFile[] | Promise<ToolFile[]>;
   };
@@ -222,21 +222,21 @@ export class HooksProcessor extends FeatureProcessor {
   private readonly global: boolean;
 
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     inputRoot = process.cwd(),
     toolTarget,
     global = false,
     dryRun = false,
     logger,
   }: {
-    baseDir?: string;
+    outputRoot?: string;
     inputRoot?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     dryRun?: boolean;
     logger: Logger;
   }) {
-    super({ baseDir, inputRoot, dryRun, logger });
+    super({ outputRoot, inputRoot, dryRun, logger });
     const result = HooksProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -251,7 +251,7 @@ export class HooksProcessor extends FeatureProcessor {
     try {
       return [
         await RulesyncHooks.fromFile({
-          baseDir: this.inputRoot,
+          outputRoot: this.inputRoot,
           validate: true,
         }),
       ];
@@ -275,7 +275,7 @@ export class HooksProcessor extends FeatureProcessor {
 
       if (forDeletion) {
         const toolHooks = factory.class.forDeletion({
-          baseDir: this.baseDir,
+          outputRoot: this.outputRoot,
           relativeDirPath: paths.relativeDirPath,
           relativeFilePath: paths.relativeFilePath,
           global: this.global,
@@ -288,7 +288,7 @@ export class HooksProcessor extends FeatureProcessor {
       }
 
       const toolHooks = await factory.class.fromFile({
-        baseDir: this.baseDir,
+        outputRoot: this.outputRoot,
         validate: true,
         global: this.global,
       });
@@ -372,7 +372,7 @@ export class HooksProcessor extends FeatureProcessor {
     }
 
     const toolHooks = await factory.class.fromRulesyncHooks({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       rulesyncHooks,
       validate: true,
       global: this.global,
@@ -380,7 +380,7 @@ export class HooksProcessor extends FeatureProcessor {
 
     const result: ToolFile[] = [toolHooks];
     const auxiliaryFiles = await factory.class.getAuxiliaryFiles?.({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       global: this.global,
     });
     if (auxiliaryFiles && auxiliaryFiles.length > 0) {

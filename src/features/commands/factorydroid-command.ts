@@ -20,24 +20,24 @@ export class FactorydroidCommand extends SimulatedCommand {
   }
 
   static fromRulesyncCommand({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncCommand,
     validate = true,
     global = false,
   }: ToolCommandFromRulesyncCommandParams): FactorydroidCommand {
     return new FactorydroidCommand(
-      this.fromRulesyncCommandDefault({ baseDir, rulesyncCommand, validate, global }),
+      this.fromRulesyncCommandDefault({ outputRoot, rulesyncCommand, validate, global }),
     );
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolCommandFromFileParams): Promise<FactorydroidCommand> {
     const paths = FactorydroidCommand.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
@@ -47,7 +47,7 @@ export class FactorydroidCommand extends SimulatedCommand {
     }
 
     return new FactorydroidCommand({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
       frontmatter: result.data,
@@ -64,12 +64,12 @@ export class FactorydroidCommand extends SimulatedCommand {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolCommandForDeletionParams): FactorydroidCommand {
     return new FactorydroidCommand(
-      this.forDeletionDefault({ baseDir, relativeDirPath, relativeFilePath }),
+      this.forDeletionDefault({ outputRoot, relativeDirPath, relativeFilePath }),
     );
   }
 }

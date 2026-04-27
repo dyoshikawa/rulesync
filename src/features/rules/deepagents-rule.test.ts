@@ -24,7 +24,7 @@ describe("DeepagentsRule", () => {
   describe("constructor", () => {
     it("should create a DeepagentsRule with valid parameters", () => {
       const rule = new DeepagentsRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".deepagents/memories",
         relativeFilePath: "test.md",
         fileContent: "# Test\n\nSome content.",
@@ -35,7 +35,7 @@ describe("DeepagentsRule", () => {
 
     it("should create a DeepagentsRule with root flag", () => {
       const rule = new DeepagentsRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".deepagents",
         relativeFilePath: "AGENTS.md",
         fileContent: "# Root Agent\n\nRoot configuration.",
@@ -47,7 +47,7 @@ describe("DeepagentsRule", () => {
 
     it("should default root to false when not specified", () => {
       const rule = new DeepagentsRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".deepagents/memories",
         relativeFilePath: "test.md",
         fileContent: "Content",
@@ -78,7 +78,7 @@ describe("DeepagentsRule", () => {
       await writeFileContent(join(deepagentsDir, "AGENTS.md"), content);
 
       const rule = await DeepagentsRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "AGENTS.md",
       });
 
@@ -94,7 +94,7 @@ describe("DeepagentsRule", () => {
       await writeFileContent(join(memoriesDir, "memory.md"), content);
 
       const rule = await DeepagentsRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "memory.md",
       });
 
@@ -106,14 +106,14 @@ describe("DeepagentsRule", () => {
   describe("fromRulesyncRule", () => {
     it("should create DeepagentsRule from RulesyncRule (non-root)", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/rules",
         relativeFilePath: "test.md",
         frontmatter: { targets: ["deepagents"] },
         body: "# Agent Config\n\nContent.",
       });
 
-      const rule = DeepagentsRule.fromRulesyncRule({ baseDir: testDir, rulesyncRule });
+      const rule = DeepagentsRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule });
 
       expect(rule.getFileContent()).toBe("# Agent Config\n\nContent.");
       expect(rule.getRelativeDirPath()).toBe(".deepagents/memories");
@@ -122,14 +122,14 @@ describe("DeepagentsRule", () => {
 
     it("should create root DeepagentsRule from root RulesyncRule", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/rules",
         relativeFilePath: "root.md",
         frontmatter: { root: true, targets: ["deepagents"] },
         body: "# Root Content",
       });
 
-      const rule = DeepagentsRule.fromRulesyncRule({ baseDir: testDir, rulesyncRule });
+      const rule = DeepagentsRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule });
 
       expect(rule.getFileContent()).toBe("# Root Content");
       expect(rule.getRelativeDirPath()).toBe(".deepagents");
@@ -141,7 +141,7 @@ describe("DeepagentsRule", () => {
   describe("forDeletion", () => {
     it("should create a placeholder root rule for deletion", () => {
       const rule = DeepagentsRule.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".deepagents",
         relativeFilePath: "AGENTS.md",
       });
@@ -156,7 +156,7 @@ describe("DeepagentsRule", () => {
   describe("isTargetedByRulesyncRule", () => {
     it("should return true when target is deepagents", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/rules",
         relativeFilePath: "test.md",
         frontmatter: { targets: ["deepagents"] },
@@ -168,7 +168,7 @@ describe("DeepagentsRule", () => {
 
     it("should return true when target is wildcard", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/rules",
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"] },
@@ -180,7 +180,7 @@ describe("DeepagentsRule", () => {
 
     it("should return false when target is different tool", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/rules",
         relativeFilePath: "test.md",
         frontmatter: { targets: ["claudecode"] },
@@ -194,7 +194,7 @@ describe("DeepagentsRule", () => {
   describe("validate", () => {
     it("should always return success", () => {
       const rule = new DeepagentsRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".deepagents/memories",
         relativeFilePath: "test.md",
         fileContent: "Content",

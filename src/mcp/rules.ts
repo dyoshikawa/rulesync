@@ -150,7 +150,7 @@ async function putRule({
 
     // Create a new RulesyncRule instance
     const rule = new RulesyncRule({
-      baseDir: process.cwd(),
+      outputRoot: process.cwd(),
       relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
       relativeFilePath: filename,
       frontmatter,

@@ -13,10 +13,13 @@ export type ToolHooksFromRulesyncHooksParams = Omit<
   rulesyncHooks: RulesyncHooks;
 };
 
-export type ToolHooksFromFileParams = Pick<AiFileFromFileParams, "baseDir" | "validate" | "global">;
+export type ToolHooksFromFileParams = Pick<
+  AiFileFromFileParams,
+  "outputRoot" | "validate" | "global"
+>;
 
 export type ToolHooksForDeletionParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath: string;
   relativeFilePath: string;
   global?: boolean;
@@ -54,7 +57,7 @@ export abstract class ToolHooks extends ToolFile {
     fileContent?: string;
   } = {}): RulesyncHooks {
     return new RulesyncHooks({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: "hooks.json",
       fileContent: fileContent ?? this.fileContent,
@@ -70,7 +73,7 @@ export abstract class ToolHooks extends ToolFile {
   }
 
   static async getAuxiliaryFiles(_params: {
-    baseDir?: string;
+    outputRoot?: string;
     global?: boolean;
   }): Promise<ToolFile[]> {
     return [];

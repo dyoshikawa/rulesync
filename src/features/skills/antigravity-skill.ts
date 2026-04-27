@@ -23,7 +23,7 @@ export const AntigravitySkillFrontmatterSchema = z.looseObject({
 export type AntigravitySkillFrontmatter = z.infer<typeof AntigravitySkillFrontmatterSchema>;
 
 export type AntigravitySkillParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
   frontmatter: AntigravitySkillFrontmatter;
@@ -40,7 +40,7 @@ export type AntigravitySkillParams = {
  */
 export class AntigravitySkill extends ToolSkill {
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath = join(".agent", "skills"),
     dirName,
     frontmatter,
@@ -50,7 +50,7 @@ export class AntigravitySkill extends ToolSkill {
     global = false,
   }: AntigravitySkillParams) {
     super({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       mainFile: {
@@ -126,7 +126,7 @@ export class AntigravitySkill extends ToolSkill {
     };
 
     return new RulesyncSkill({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
       dirName: this.getDirName(),
       frontmatter: rulesyncFrontmatter,
@@ -138,7 +138,7 @@ export class AntigravitySkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -153,7 +153,7 @@ export class AntigravitySkill extends ToolSkill {
     const settablePaths = AntigravitySkill.getSettablePaths({ global });
 
     return new AntigravitySkill({
-      baseDir,
+      outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: antigravityFrontmatter,
@@ -177,14 +177,14 @@ export class AntigravitySkill extends ToolSkill {
 
     const result = AntigravitySkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
-      const skillDirPath = join(loaded.baseDir, loaded.relativeDirPath, loaded.dirName);
+      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
         `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
       );
     }
 
     return new AntigravitySkill({
-      baseDir: loaded.baseDir,
+      outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
       frontmatter: result.data,
@@ -196,13 +196,13 @@ export class AntigravitySkill extends ToolSkill {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): AntigravitySkill {
     return new AntigravitySkill({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },

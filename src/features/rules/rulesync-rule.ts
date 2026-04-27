@@ -143,12 +143,12 @@ export class RulesyncRule extends RulesyncFile {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
   }: RulesyncFileFromFileParams): Promise<RulesyncRule> {
     const filePath = join(
-      baseDir,
+      outputRoot,
       this.getSettablePaths().recommended.relativeDirPath,
       relativeFilePath,
     );
@@ -171,7 +171,7 @@ export class RulesyncRule extends RulesyncFile {
     };
 
     return new RulesyncRule({
-      baseDir,
+      outputRoot,
       relativeDirPath: this.getSettablePaths().recommended.relativeDirPath,
       relativeFilePath,
       frontmatter: validatedFrontmatter,

@@ -40,7 +40,7 @@ describe("WindsurfSkill", () => {
   describe("constructor", () => {
     it("should create instance with valid content", () => {
       const skill = new WindsurfSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".windsurf", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -63,7 +63,7 @@ describe("WindsurfSkill", () => {
       expect(
         () =>
           new WindsurfSkill({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeDirPath: join(".windsurf", "skills"),
             dirName: "invalid-skill",
             frontmatter: {
@@ -90,7 +90,7 @@ This is the body of the windsurf skill.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       const skill = await WindsurfSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
       });
 
@@ -108,7 +108,7 @@ This is the body of the windsurf skill.`;
 
       await expect(
         WindsurfSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "empty-skill",
         }),
       ).rejects.toThrow(/SKILL\.md not found/);
@@ -126,7 +126,7 @@ Missing description field.`;
 
       await expect(
         WindsurfSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "bad-fm",
         }),
       ).rejects.toThrow(/Invalid frontmatter/);
@@ -144,7 +144,7 @@ Global skill body content.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       const skill = await WindsurfSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "global-skill",
         global: true,
       });
@@ -162,7 +162,7 @@ Global skill body content.`;
   describe("fromRulesyncSkill", () => {
     it("should create instance from RulesyncSkill", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -188,7 +188,7 @@ Global skill body content.`;
 
     it("should use global path when global is true", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -212,7 +212,7 @@ Global skill body content.`;
   describe("isTargetedByRulesyncSkill", () => {
     it("should return true when targets includes '*'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "all-targets-skill",
         frontmatter: {
@@ -229,7 +229,7 @@ Global skill body content.`;
 
     it("should return true when targets includes 'windsurf'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "windsurf-skill",
         frontmatter: {
@@ -246,7 +246,7 @@ Global skill body content.`;
 
     it("should return false when targets does not include 'windsurf'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "claudecode-only-skill",
         frontmatter: {
@@ -265,7 +265,7 @@ Global skill body content.`;
   describe("toRulesyncSkill", () => {
     it("should convert to RulesyncSkill", () => {
       const skill = new WindsurfSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".windsurf", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -300,14 +300,14 @@ Global skill body content.`;
       expect(skill.getGlobal()).toBe(false);
     });
 
-    it("should use process.cwd() as default baseDir", () => {
+    it("should use process.cwd() as default outputRoot", () => {
       const skill = WindsurfSkill.forDeletion({
         dirName: "cleanup",
         relativeDirPath: join(".windsurf", "skills"),
       });
 
       expect(skill).toBeInstanceOf(WindsurfSkill);
-      expect(skill.getBaseDir()).toBe(testDir);
+      expect(skill.getOutputRoot()).toBe(testDir);
     });
 
     it("should create instance with empty frontmatter for deletion", () => {

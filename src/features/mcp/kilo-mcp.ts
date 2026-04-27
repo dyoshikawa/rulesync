@@ -220,12 +220,12 @@ export class KiloMcp extends ToolMcp {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
     global = false,
   }: ToolMcpFromFileParams): Promise<KiloMcp> {
     const basePaths = this.getSettablePaths({ global });
-    const jsonDir = join(baseDir, basePaths.relativeDirPath);
+    const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
     let fileContent: string | null = null;
     let relativeFilePath = "kilo.jsonc";
@@ -247,7 +247,7 @@ export class KiloMcp extends ToolMcp {
     const newJson = { ...json, mcp: json.mcp ?? {} };
 
     return new KiloMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath: basePaths.relativeDirPath,
       relativeFilePath,
       fileContent: JSON.stringify(newJson, null, 2),
@@ -256,13 +256,13 @@ export class KiloMcp extends ToolMcp {
   }
 
   static async fromRulesyncMcp({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncMcp,
     validate = true,
     global = false,
   }: ToolMcpFromRulesyncMcpParams): Promise<KiloMcp> {
     const basePaths = this.getSettablePaths({ global });
-    const jsonDir = join(baseDir, basePaths.relativeDirPath);
+    const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
     let fileContent: string | null = null;
     let relativeFilePath = "kilo.jsonc";
@@ -295,7 +295,7 @@ export class KiloMcp extends ToolMcp {
     };
 
     return new KiloMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath: basePaths.relativeDirPath,
       relativeFilePath,
       fileContent: JSON.stringify(newJson, null, 2),
@@ -322,13 +322,13 @@ export class KiloMcp extends ToolMcp {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
     global = false,
   }: ToolMcpForDeletionParams): KiloMcp {
     return new KiloMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "{}",

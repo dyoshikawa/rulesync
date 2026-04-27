@@ -24,27 +24,27 @@ export type GhScope = "project" | "user";
  * Resolve the absolute install directory for a given agent + scope, matching
  * the layout expected by `gh skill install`.
  *
- * Project scope writes inside `baseDir`. The `github-copilot` agent uses the
+ * Project scope writes inside `projectRoot`. The `github-copilot` agent uses the
  * shared `.agents/skills` directory (the host-agnostic project layout); other
  * agents that share that location (cursor, codex, gemini, antigravity) write
  * to `.agents/skills` for project scope and to their own `.<tool>/skills`
  * directory for user scope. Claude Code is the exception: project and user
- * scope both use `.claude/skills`, just rooted at `baseDir` vs the home
+ * scope both use `.claude/skills`, just rooted at `projectRoot` vs the home
  * directory respectively.
  */
 export function resolveGhInstallDir(params: {
   agent: GhAgent;
   scope: GhScope;
-  baseDir: string;
+  projectRoot: string;
 }): string {
-  const { agent, scope, baseDir } = params;
-  const home = scope === "user" ? getHomeDirectory() : baseDir;
+  const { agent, scope, projectRoot } = params;
+  const home = scope === "user" ? getHomeDirectory() : projectRoot;
   const relative = relativeInstallDirFor({ agent, scope });
   return join(home, relative);
 }
 
 /**
- * Returns the install directory relative to its scope root (baseDir for
+ * Returns the install directory relative to its scope root (projectRoot for
  * project scope, home for user scope). Exposed separately so the lockfile can
  * record the same canonical relative path it deploys to.
  */

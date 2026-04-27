@@ -42,9 +42,9 @@ describe("KiroRule", () => {
       );
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const kiroRule = new KiroRule({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".kiro/steering",
         relativeFilePath: "structure.md",
         fileContent: "# Structure Guidelines",
@@ -118,7 +118,7 @@ describe("KiroRule", () => {
       await writeFileContent(join(steeringDir, "product.md"), testContent);
 
       const kiroRule = await KiroRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "product.md",
       });
 
@@ -137,7 +137,7 @@ describe("KiroRule", () => {
       await writeFileContent(join(steeringDir, "structure.md"), testContent);
 
       const kiroRule = await KiroRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "structure.md",
       });
 
@@ -156,7 +156,7 @@ describe("KiroRule", () => {
       await writeFileContent(join(steeringDir, "tech.md"), testContent);
 
       const kiroRule = await KiroRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "tech.md",
       });
 
@@ -167,12 +167,12 @@ describe("KiroRule", () => {
       expect(kiroRule.isRoot()).toBe(false);
     });
 
-    it("should use default baseDir when not provided", async () => {
+    it("should use default outputRoot when not provided", async () => {
       // Setup test file in test directory's .kiro/steering
-      // Since process.cwd() is mocked to return testDir, the default baseDir will use testDir
+      // Since process.cwd() is mocked to return testDir, the default outputRoot will use testDir
       const steeringDir = join(testDir, ".kiro/steering");
       await ensureDir(steeringDir);
-      const testContent = "# Default BaseDir Test";
+      const testContent = "# Default OutputRoot Test";
       await writeFileContent(join(steeringDir, "product.md"), testContent);
 
       const kiroRule = await KiroRule.fromFile({
@@ -192,13 +192,13 @@ describe("KiroRule", () => {
       await writeFileContent(join(steeringDir, "product.md"), testContent);
 
       const kiroRuleWithValidation = await KiroRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "product.md",
         validate: true,
       });
 
       const kiroRuleWithoutValidation = await KiroRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "product.md",
         validate: false,
       });
@@ -210,7 +210,7 @@ describe("KiroRule", () => {
     it("should throw error when file does not exist", async () => {
       await expect(
         KiroRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "nonexistent.md",
         }),
       ).rejects.toThrow();
@@ -224,7 +224,7 @@ describe("KiroRule", () => {
       await writeFileContent(join(nestedDir, "nested-product.md"), testContent);
 
       const kiroRule = await KiroRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "nested/nested-product.md",
       });
 
@@ -285,7 +285,7 @@ describe("KiroRule", () => {
       expect(kiroRule.isRoot()).toBe(false);
     });
 
-    it("should use custom baseDir", () => {
+    it("should use custom outputRoot", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom-base.md",
@@ -299,7 +299,7 @@ describe("KiroRule", () => {
       });
 
       const kiroRule = KiroRule.fromRulesyncRule({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         rulesyncRule,
       });
 
@@ -377,7 +377,7 @@ describe("KiroRule", () => {
   describe("toRulesyncRule", () => {
     it("should convert KiroRule to RulesyncRule for root rule", () => {
       const kiroRule = new KiroRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".kiro/steering",
         relativeFilePath: "product.md",
         fileContent: "# Convert Test\n\nThis will be converted.",
@@ -394,7 +394,7 @@ describe("KiroRule", () => {
 
     it("should convert KiroRule to RulesyncRule for steering document", () => {
       const kiroRule = new KiroRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".kiro/steering",
         relativeFilePath: "structure-convert.md",
         fileContent: "# Structure Convert Test\n\nThis structure will be converted.",
@@ -413,7 +413,7 @@ describe("KiroRule", () => {
 
     it("should preserve metadata in conversion", () => {
       const kiroRule = new KiroRule({
-        baseDir: "/test/path",
+        outputRoot: "/test/path",
         relativeDirPath: ".kiro/steering",
         relativeFilePath: "metadata-test.md",
         fileContent: "# Metadata Test\n\nWith metadata preserved.",
@@ -439,7 +439,7 @@ describe("KiroRule", () => {
 
       for (const doc of documents) {
         const kiroRule = new KiroRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".kiro/steering",
           relativeFilePath: doc.filename,
           fileContent: doc.content,
@@ -516,7 +516,7 @@ describe("KiroRule", () => {
 
       // Load from file
       const kiroRule = await KiroRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "product.md",
       });
 
@@ -538,7 +538,7 @@ describe("KiroRule", () => {
 
       // Load from file
       const kiroRule = await KiroRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "structure.md",
       });
 
@@ -556,7 +556,7 @@ describe("KiroRule", () => {
 
       // Start with rulesync rule (root)
       const originalRulesync = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "roundtrip.md",
         frontmatter: {
@@ -570,7 +570,7 @@ describe("KiroRule", () => {
 
       // Convert to kiro rule
       const kiroRule = KiroRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule: originalRulesync,
       });
 
@@ -587,7 +587,7 @@ describe("KiroRule", () => {
 
       // Start with rulesync rule (non-root)
       const originalRulesync = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "detail-roundtrip.md",
         frontmatter: {
@@ -601,7 +601,7 @@ describe("KiroRule", () => {
 
       // Convert to kiro rule
       const kiroRule = KiroRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule: originalRulesync,
       });
 
@@ -621,7 +621,7 @@ describe("KiroRule", () => {
       await writeFileContent(join(nestedDir, "nested-product.md"), content);
 
       const kiroRule = await KiroRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "nested/nested-product.md",
       });
 
@@ -644,7 +644,7 @@ describe("KiroRule", () => {
         await writeFileContent(join(steeringDir, doc.filename), doc.content);
 
         const kiroRule = await KiroRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: doc.filename,
         });
 
@@ -660,7 +660,7 @@ describe("KiroRule", () => {
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for rules targeting kiro", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -674,7 +674,7 @@ describe("KiroRule", () => {
 
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -688,7 +688,7 @@ describe("KiroRule", () => {
 
     it("should return false for rules not targeting kiro", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -702,7 +702,7 @@ describe("KiroRule", () => {
 
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -716,7 +716,7 @@ describe("KiroRule", () => {
 
     it("should handle mixed targets including kiro", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -730,7 +730,7 @@ describe("KiroRule", () => {
 
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {},

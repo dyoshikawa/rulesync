@@ -68,7 +68,7 @@ describe("DeepagentsMcp", () => {
       });
       await writeFileContent(join(deepagentsDir, ".mcp.json"), mcpContent);
 
-      const mcp = await DeepagentsMcp.fromFile({ baseDir: testDir });
+      const mcp = await DeepagentsMcp.fromFile({ outputRoot: testDir });
 
       expect(mcp.getRelativeDirPath()).toBe(".deepagents");
       expect(mcp.getRelativeFilePath()).toBe(".mcp.json");
@@ -77,7 +77,7 @@ describe("DeepagentsMcp", () => {
     });
 
     it("should initialize with empty mcpServers if file does not exist", async () => {
-      const mcp = await DeepagentsMcp.fromFile({ baseDir: testDir });
+      const mcp = await DeepagentsMcp.fromFile({ outputRoot: testDir });
       const json = mcp.getJson();
       expect(json.mcpServers).toEqual({});
     });
@@ -96,13 +96,13 @@ describe("DeepagentsMcp", () => {
       await writeFileContent(join(deepagentsDir, "mcp.json"), rulesyncMcpContent);
 
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync",
         relativeFilePath: "mcp.json",
         fileContent: rulesyncMcpContent,
       });
 
-      const mcp = await DeepagentsMcp.fromRulesyncMcp({ baseDir: testDir, rulesyncMcp });
+      const mcp = await DeepagentsMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
 
       const json = mcp.getJson();
       expect(json.mcpServers).toEqual({
@@ -116,7 +116,7 @@ describe("DeepagentsMcp", () => {
   describe("toRulesyncMcp", () => {
     it("should convert deepagents mcp config to rulesync format", () => {
       const mcp = new DeepagentsMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".deepagents",
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({
@@ -138,7 +138,7 @@ describe("DeepagentsMcp", () => {
   describe("forDeletion", () => {
     it("should create a placeholder file for deletion", () => {
       const mcp = DeepagentsMcp.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".deepagents",
         relativeFilePath: ".mcp.json",
       });

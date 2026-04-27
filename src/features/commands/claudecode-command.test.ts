@@ -31,7 +31,7 @@ describe("ClaudecodeCommand", () => {
   describe("constructor", () => {
     it("should create a valid ClaudecodeCommand instance", () => {
       const command = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: "Test command" },
@@ -46,7 +46,7 @@ describe("ClaudecodeCommand", () => {
     it("should validate frontmatter during construction by default", () => {
       expect(() => {
         new ClaudecodeCommand({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".claude/commands",
           relativeFilePath: "test.md",
           frontmatter: { description: 123 as any },
@@ -58,7 +58,7 @@ describe("ClaudecodeCommand", () => {
 
     it("should skip validation when validate is false", () => {
       const command = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: 123 as any },
@@ -72,7 +72,7 @@ describe("ClaudecodeCommand", () => {
 
     it("should generate correct file content with frontmatter", () => {
       const command = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: "Test command" },
@@ -89,7 +89,7 @@ describe("ClaudecodeCommand", () => {
   describe("getBody", () => {
     it("should return the command body", () => {
       const command = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: "Test command" },
@@ -104,7 +104,7 @@ describe("ClaudecodeCommand", () => {
     it("should return the frontmatter", () => {
       const frontmatter = { description: "Test command description" };
       const command = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude/commands",
         relativeFilePath: "test.md",
         frontmatter,
@@ -118,7 +118,7 @@ describe("ClaudecodeCommand", () => {
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
       const command = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: "Valid description" },
@@ -133,7 +133,7 @@ describe("ClaudecodeCommand", () => {
     it("should return success when frontmatter is undefined", () => {
       // Create command with validation disabled to avoid constructor validation
       const command = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude/commands",
         relativeFilePath: "test.md",
         frontmatter: {} as any,
@@ -151,7 +151,7 @@ describe("ClaudecodeCommand", () => {
 
     it("should return error for invalid frontmatter", () => {
       const command = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: 123 as any },
@@ -168,7 +168,7 @@ describe("ClaudecodeCommand", () => {
   describe("toRulesyncCommand", () => {
     it("should convert to RulesyncCommand correctly", () => {
       const command = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: "Test command" },
@@ -189,7 +189,7 @@ describe("ClaudecodeCommand", () => {
 
     it("should generate proper file content for RulesyncCommand", () => {
       const command = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude/commands",
         relativeFilePath: "example.md",
         frontmatter: { description: "Example command" },
@@ -209,7 +209,7 @@ describe("ClaudecodeCommand", () => {
   describe("fromRulesyncCommand", () => {
     it("should create ClaudecodeCommand from RulesyncCommand", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "sync-test.md",
         frontmatter: {
@@ -221,7 +221,7 @@ describe("ClaudecodeCommand", () => {
       });
 
       const claudecodeCommand = ClaudecodeCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
       });
 
@@ -232,12 +232,12 @@ describe("ClaudecodeCommand", () => {
       });
       expect(claudecodeCommand.getRelativeDirPath()).toBe(".claude/commands");
       expect(claudecodeCommand.getRelativeFilePath()).toBe("sync-test.md");
-      expect(claudecodeCommand.getBaseDir()).toBe(testDir);
+      expect(claudecodeCommand.getOutputRoot()).toBe(testDir);
     });
 
     it("should use global paths when global is true", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "global-test.md",
         frontmatter: {
@@ -249,7 +249,7 @@ describe("ClaudecodeCommand", () => {
       });
 
       const claudecodeCommand = ClaudecodeCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
         global: true,
       });
@@ -261,7 +261,7 @@ describe("ClaudecodeCommand", () => {
 
     it("should use local paths when global is false", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "local-test.md",
         frontmatter: {
@@ -273,7 +273,7 @@ describe("ClaudecodeCommand", () => {
       });
 
       const claudecodeCommand = ClaudecodeCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
         global: false,
       });
@@ -283,7 +283,7 @@ describe("ClaudecodeCommand", () => {
       expect(claudecodeCommand.getBody()).toBe("Local command body");
     });
 
-    it("should use default baseDir when not provided", () => {
+    it("should use default outputRoot when not provided", () => {
       const rulesyncCommand = new RulesyncCommand({
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
@@ -299,7 +299,7 @@ describe("ClaudecodeCommand", () => {
         rulesyncCommand,
       });
 
-      expect(claudecodeCommand.getBaseDir()).toBe(testDir);
+      expect(claudecodeCommand.getOutputRoot()).toBe(testDir);
     });
 
     it("should disable validation when specified", () => {
@@ -338,7 +338,7 @@ This is the command body from file`;
       await writeFileContent(filePath, fileContent);
 
       const command = await ClaudecodeCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "file-test.md",
       });
 
@@ -349,10 +349,10 @@ This is the command body from file`;
       });
       expect(command.getRelativeFilePath()).toBe("file-test.md");
       expect(command.getRelativeDirPath()).toBe(".claude/commands");
-      expect(command.getBaseDir()).toBe(testDir);
+      expect(command.getOutputRoot()).toBe(testDir);
     });
 
-    it("should use default baseDir when not provided", async () => {
+    it("should use default outputRoot when not provided", async () => {
       const commandsDir = join(testDir, ".claude", "commands");
       await ensureDir(commandsDir);
 
@@ -368,7 +368,7 @@ Command body`;
         relativeFilePath: "default-test.md",
       });
 
-      expect(command.getBaseDir()).toBe(testDir);
+      expect(command.getOutputRoot()).toBe(testDir);
     });
 
     it("should throw error for invalid frontmatter", async () => {
@@ -386,7 +386,7 @@ Command body`;
 
       await expect(
         ClaudecodeCommand.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "invalid-test.md",
         }),
       ).rejects.toThrow(/Invalid frontmatter/);
@@ -409,7 +409,7 @@ It has several paragraphs and formatting.
       await writeFileContent(filePath, fileContent);
 
       const command = await ClaudecodeCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "complex-test.md",
       });
 
@@ -438,7 +438,7 @@ description: Whitespace test
       await writeFileContent(filePath, fileContent);
 
       const command = await ClaudecodeCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "whitespace-test.md",
       });
 
@@ -458,7 +458,7 @@ Global command body`;
       await writeFileContent(filePath, fileContent);
 
       const command = await ClaudecodeCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "global-test.md",
         global: true,
       });
@@ -484,7 +484,7 @@ Local command body`;
       await writeFileContent(filePath, fileContent);
 
       const command = await ClaudecodeCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "local-test.md",
         global: false,
       });
@@ -507,7 +507,7 @@ Command body`;
       await writeFileContent(filePath, fileContent);
 
       const command = await ClaudecodeCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "validation-test.md",
         validate: false,
       });
@@ -528,7 +528,7 @@ Subdirectory command body`;
       await writeFileContent(filePath, fileContent);
 
       const command = await ClaudecodeCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: join("pj", "sub-test.md"),
       });
 
@@ -551,7 +551,7 @@ Roundtrip body`;
       await writeFileContent(filePath, fileContent);
 
       const command = await ClaudecodeCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: join("pj", "roundtrip.md"),
       });
 
@@ -651,7 +651,7 @@ Roundtrip body`;
   describe("integration with ToolCommand", () => {
     it("should inherit from ToolCommand", () => {
       const command = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: "Test command" },
@@ -660,14 +660,14 @@ Roundtrip body`;
 
       expect(command.getRelativeDirPath()).toBe(".claude/commands");
       expect(command.getRelativeFilePath()).toBe("test.md");
-      expect(command.getBaseDir()).toBe(testDir);
+      expect(command.getOutputRoot()).toBe(testDir);
       expect(typeof command.getFilePath).toBe("function");
       expect(typeof command.validate).toBe("function");
     });
 
     it("should support round-trip conversion with RulesyncCommand", () => {
       const originalCommand = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude/commands",
         relativeFilePath: "roundtrip.md",
         frontmatter: { description: "Round trip test" },
@@ -676,7 +676,7 @@ Roundtrip body`;
 
       const rulesyncCommand = originalCommand.toRulesyncCommand();
       const convertedCommand = ClaudecodeCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
       });
 
@@ -692,7 +692,7 @@ Roundtrip body`;
     it("should handle file reading errors gracefully", async () => {
       await expect(
         ClaudecodeCommand.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "non-existent.md",
         }),
       ).rejects.toThrow();
@@ -712,7 +712,7 @@ Body`;
 
       await expect(
         ClaudecodeCommand.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "error-test.md",
         }),
       ).rejects.toThrow(/Invalid frontmatter/);
@@ -722,7 +722,7 @@ Body`;
   describe("type definitions", () => {
     it("should have proper ClaudecodeCommandParams type", () => {
       const params = {
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: "Test" },
@@ -746,7 +746,7 @@ Body`;
       await writeFileContent(filePath, fileContent);
 
       const params: ToolCommandFromFileParams = {
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "type-test.md",
       };
 
@@ -764,7 +764,7 @@ Body`;
       });
 
       const params: ToolCommandFromRulesyncCommandParams = {
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
       };
 
@@ -776,7 +776,7 @@ Body`;
   describe("tool-specific field passthrough", () => {
     it("fromRulesyncCommand should preserve claudecode fields", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "passthrough-test.md",
         frontmatter: {
@@ -795,7 +795,7 @@ Body`;
       });
 
       const claudecodeCommand = ClaudecodeCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
       });
 
@@ -810,7 +810,7 @@ Body`;
 
     it("toRulesyncCommand should preserve extra fields in claudecode section", () => {
       const command = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude/commands",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -839,7 +839,7 @@ Body`;
 
     it("round-trip should preserve all fields", () => {
       const original = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "roundtrip.md",
         frontmatter: {
@@ -873,7 +873,7 @@ Body`;
 
     it("should not include claudecode section when no extra fields", () => {
       const command = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude/commands",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -890,7 +890,7 @@ Body`;
 
     it("should handle empty claudecode fields in RulesyncCommand", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "empty-test.md",
         frontmatter: {
@@ -903,7 +903,7 @@ Body`;
       });
 
       const claudecodeCommand = ClaudecodeCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
       });
 

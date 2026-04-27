@@ -18,7 +18,7 @@ describe("AntigravityCommand", () => {
       const body = "This is a test workflow body";
 
       const command = new AntigravityCommand({
-        baseDir: ".",
+        outputRoot: ".",
         relativeDirPath: ".agent/workflows",
         relativeFilePath: "test.md",
         frontmatter,
@@ -39,7 +39,7 @@ describe("AntigravityCommand", () => {
 
       expect(() => {
         new AntigravityCommand({
-          baseDir: ".",
+          outputRoot: ".",
           relativeDirPath: ".agent/workflows",
           relativeFilePath: "test.md",
           frontmatter: invalidFrontmatter as any,
@@ -57,7 +57,7 @@ describe("AntigravityCommand", () => {
 
       expect(() => {
         new AntigravityCommand({
-          baseDir: ".",
+          outputRoot: ".",
           relativeDirPath: ".agent/workflows",
           relativeFilePath: "test.md",
           frontmatter: invalidFrontmatter as any,
@@ -76,7 +76,7 @@ describe("AntigravityCommand", () => {
       };
 
       const command = new AntigravityCommand({
-        baseDir: ".",
+        outputRoot: ".",
         relativeDirPath: ".agent/workflows",
         relativeFilePath: "test.md",
         frontmatter,
@@ -91,7 +91,7 @@ describe("AntigravityCommand", () => {
 
     it("should return error for invalid frontmatter", () => {
       const command = new AntigravityCommand({
-        baseDir: ".",
+        outputRoot: ".",
         relativeDirPath: ".agent/workflows",
         relativeFilePath: "test.md",
         frontmatter: { description: 123 } as any,
@@ -107,7 +107,7 @@ describe("AntigravityCommand", () => {
 
     it("should return success when frontmatter is undefined", () => {
       const command = new AntigravityCommand({
-        baseDir: ".",
+        outputRoot: ".",
         relativeDirPath: ".agent/workflows",
         relativeFilePath: "test.md",
         frontmatter: { description: "test" },
@@ -133,7 +133,7 @@ describe("AntigravityCommand", () => {
       const body = "This workflow will be converted";
 
       const antigravityCommand = new AntigravityCommand({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: ".agent/workflows",
         relativeFilePath: "convert-test.md",
         frontmatter,
@@ -151,7 +151,7 @@ describe("AntigravityCommand", () => {
       });
       expect(rulesyncCommand.getRelativeDirPath()).toBe(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       expect(rulesyncCommand.getRelativeFilePath()).toBe("convert-test.md");
-      expect(rulesyncCommand.getBaseDir()).toBe(".");
+      expect(rulesyncCommand.getOutputRoot()).toBe(".");
     });
 
     it("should preserve trigger and turbo fields in antigravity section", () => {
@@ -163,7 +163,7 @@ describe("AntigravityCommand", () => {
       const body = "# Workflow: /my-workflow\n\nWorkflow content\n\n// turbo";
 
       const antigravityCommand = new AntigravityCommand({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: ".agent/workflows",
         relativeFilePath: "my-workflow.md",
         frontmatter,
@@ -191,7 +191,7 @@ describe("AntigravityCommand", () => {
       const body = "Simple workflow content";
 
       const antigravityCommand = new AntigravityCommand({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: ".agent/workflows",
         relativeFilePath: "simple.md",
         frontmatter,
@@ -218,7 +218,7 @@ describe("AntigravityCommand", () => {
       const body = "Workflow converted from rulesync";
 
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "from-rulesync.md",
         frontmatter: rulesyncFrontmatter,
@@ -227,7 +227,7 @@ describe("AntigravityCommand", () => {
       });
 
       const antigravityCommand = AntigravityCommand.fromRulesyncCommand({
-        baseDir: "/converted/base",
+        outputRoot: "/converted/base",
         rulesyncCommand,
         validate: true,
       });
@@ -245,15 +245,15 @@ describe("AntigravityCommand", () => {
       expect(antigravityCommand.getRelativeFilePath()).toBe("from-rulesync.md");
     });
 
-    it("should use default baseDir when not provided", () => {
+    it("should use default outputRoot when not provided", () => {
       const rulesyncFrontmatter = {
         targets: ["antigravity" as const],
-        description: "Default baseDir test",
+        description: "Default outputRoot test",
       };
       const body = "Test workflow";
 
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "default-base.md",
         frontmatter: rulesyncFrontmatter,
@@ -265,7 +265,7 @@ describe("AntigravityCommand", () => {
         rulesyncCommand,
       });
 
-      expect(antigravityCommand.getBaseDir()).toBe(process.cwd());
+      expect(antigravityCommand.getOutputRoot()).toBe(process.cwd());
     });
 
     it("should handle validation parameter", () => {
@@ -277,7 +277,7 @@ describe("AntigravityCommand", () => {
 
       // Testing runtime validation: force invalid type through TS
       const invalidCommandParams = {
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "validation.md",
         frontmatter: rulesyncFrontmatter as unknown as RulesyncCommandFrontmatter,
@@ -325,7 +325,7 @@ describe("AntigravityCommand", () => {
       const body = "Step 1: Do something";
 
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "original-file.md",
         frontmatter: rulesyncFrontmatter,
@@ -365,7 +365,7 @@ describe("AntigravityCommand", () => {
       const body = "Simple body";
 
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "root.md",
         frontmatter: rulesyncFrontmatter,
@@ -389,7 +389,7 @@ describe("AntigravityCommand", () => {
       const body = "Just a command";
 
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "standard.md",
         frontmatter: rulesyncFrontmatter,
@@ -427,7 +427,7 @@ describe("AntigravityCommand", () => {
       const body = "Workflow without auto-execution";
 
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "no-turbo.md",
         frontmatter: rulesyncFrontmatter,
@@ -469,7 +469,7 @@ Actual command content`;
       };
 
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "dirty.md",
         frontmatter: rulesyncFrontmatter,
@@ -501,7 +501,7 @@ Actual command content`;
       };
 
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "crlf.md",
         frontmatter: rulesyncFrontmatter,
@@ -526,7 +526,7 @@ Actual command content`;
       };
 
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "evil.md",
         frontmatter: rulesyncFrontmatter,
@@ -555,7 +555,7 @@ Actual command content`;
       };
 
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "empty.md",
         frontmatter: rulesyncFrontmatter,
@@ -584,7 +584,7 @@ Actual command content`;
         await writeFileContent(join(workflowsDir, "test-file.md"), fileContent);
 
         const command = await AntigravityCommand.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "test-file.md",
         });
 
@@ -604,7 +604,7 @@ Actual command content`;
       try {
         await expect(
           AntigravityCommand.fromFile({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeFilePath: "nonexistent.md",
           }),
         ).rejects.toThrow();
@@ -623,7 +623,7 @@ Actual command content`;
 
         await expect(
           AntigravityCommand.fromFile({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeFilePath: "invalid.md",
             validate: true,
           }),

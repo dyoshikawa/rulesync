@@ -26,7 +26,7 @@ describe("importFromTool", () => {
   let mockConfig: {
     getVerbose: ReturnType<typeof vi.fn>;
     getSilent: ReturnType<typeof vi.fn>;
-    getBaseDirs: ReturnType<typeof vi.fn>;
+    getOutputRoots: ReturnType<typeof vi.fn>;
     getFeatures: ReturnType<typeof vi.fn>;
     getFeatureOptions: ReturnType<typeof vi.fn>;
     getGlobal: ReturnType<typeof vi.fn>;
@@ -37,7 +37,7 @@ describe("importFromTool", () => {
     mockConfig = {
       getVerbose: vi.fn().mockReturnValue(false),
       getSilent: vi.fn().mockReturnValue(false),
-      getBaseDirs: vi.fn().mockReturnValue(["."]),
+      getOutputRoots: vi.fn().mockReturnValue(["."]),
       getFeatures: vi.fn().mockReturnValue(["rules"]),
       getFeatureOptions: vi.fn().mockReturnValue(undefined),
       getGlobal: vi.fn().mockReturnValue(false),
@@ -108,7 +108,7 @@ describe("importFromTool", () => {
       expect(result.rulesCount).toBe(1);
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           global: false,
         }),
@@ -182,7 +182,7 @@ describe("importFromTool", () => {
       expect(result.ignoreCount).toBe(1);
       expect(IgnoreProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
         }),
       );
@@ -268,7 +268,7 @@ describe("importFromTool", () => {
       expect(result.mcpCount).toBe(1);
       expect(McpProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           global: false,
         }),
@@ -341,7 +341,7 @@ describe("importFromTool", () => {
       expect(result.commandsCount).toBe(1);
       expect(CommandsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           global: false,
         }),
@@ -425,7 +425,7 @@ describe("importFromTool", () => {
       expect(result.subagentsCount).toBe(1);
       expect(SubagentsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           global: false,
         }),
@@ -509,7 +509,7 @@ describe("importFromTool", () => {
       expect(result.skillsCount).toBe(1);
       expect(SkillsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           global: false,
         }),
@@ -605,7 +605,7 @@ describe("importFromTool", () => {
       expect(result.hooksCount).toBe(1);
       expect(HooksProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           global: false,
         }),
@@ -664,7 +664,7 @@ describe("importFromTool", () => {
       expect(result.permissionsCount).toBe(1);
       expect(PermissionsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
         }),
       );
@@ -699,7 +699,7 @@ describe("importFromTool", () => {
       expect(result.permissionsCount).toBe(1);
       expect(PermissionsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           global: true,
         }),
@@ -806,29 +806,29 @@ describe("importFromTool", () => {
     });
   });
 
-  describe("baseDir handling", () => {
-    it("should use first baseDir from config", async () => {
+  describe("outputRoot handling", () => {
+    it("should use first outputRoot from config", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
-      mockConfig.getBaseDirs.mockReturnValue(["/custom/path", "/other/path"]);
+      mockConfig.getOutputRoots.mockReturnValue(["/custom/path", "/other/path"]);
 
       await importFromTool({ logger, config: mockConfig as never, tool: "claudecode" });
 
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: "/custom/path",
+          outputRoot: "/custom/path",
         }),
       );
     });
 
-    it("should fall back to '.' when baseDirs is empty", async () => {
+    it("should fall back to '.' when outputRoots is empty", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
-      mockConfig.getBaseDirs.mockReturnValue([]);
+      mockConfig.getOutputRoots.mockReturnValue([]);
 
       await importFromTool({ logger, config: mockConfig as never, tool: "claudecode" });
 
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
         }),
       );
     });

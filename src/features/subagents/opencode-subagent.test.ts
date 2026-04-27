@@ -36,7 +36,7 @@ describe("OpenCodeSubagent", () => {
 
   it("should create a RulesyncSubagent with opencode section and subagent mode", () => {
     const subagent = new OpenCodeSubagent({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".opencode/agent",
       relativeFilePath: "review.md",
       frontmatter: {
@@ -64,7 +64,7 @@ describe("OpenCodeSubagent", () => {
 
   it("should build OpenCode subagent from Rulesync subagent and preserve mode", () => {
     const rulesyncSubagent = new RulesyncSubagent({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
       relativeFilePath: "docs-writer.md",
       frontmatter: {
@@ -83,7 +83,7 @@ describe("OpenCodeSubagent", () => {
     const toolSubagent = OpenCodeSubagent.fromRulesyncSubagent({
       rulesyncSubagent,
       global: true,
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
     }) as OpenCodeSubagent;
 
@@ -99,7 +99,7 @@ describe("OpenCodeSubagent", () => {
 
   it("should build OpenCode subagent with default mode when not specified", () => {
     const rulesyncSubagent = new RulesyncSubagent({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
       relativeFilePath: "docs-writer.md",
       frontmatter: {
@@ -117,7 +117,7 @@ describe("OpenCodeSubagent", () => {
     const toolSubagent = OpenCodeSubagent.fromRulesyncSubagent({
       rulesyncSubagent,
       global: true,
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
     }) as OpenCodeSubagent;
 
@@ -134,7 +134,7 @@ describe("OpenCodeSubagent", () => {
   it("should preserve primary mode for OpenCode subagent", () => {
     // Regression test for: opencode.mode was hardcoded to 'subagent' instead of being preserved
     const rulesyncSubagent = new RulesyncSubagent({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
       relativeFilePath: "primary-agent.md",
       frontmatter: {
@@ -157,7 +157,7 @@ describe("OpenCodeSubagent", () => {
     const toolSubagent = OpenCodeSubagent.fromRulesyncSubagent({
       rulesyncSubagent,
       global: true,
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
     }) as OpenCodeSubagent;
 

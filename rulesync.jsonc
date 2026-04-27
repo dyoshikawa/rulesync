@@ -36,8 +36,8 @@
     }
   },
 
-  // Base directory or directories for generation.
-  "baseDirs": ["."],
+  // Output root directory or directories for generation.
+  "outputRoots": ["."],
 
   // Delete existing files before generating
   "delete": true,

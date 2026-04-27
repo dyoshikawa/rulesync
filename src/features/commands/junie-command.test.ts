@@ -27,7 +27,7 @@ describe("JunieCommand", () => {
   describe("constructor", () => {
     it("should create a valid JunieCommand instance", () => {
       const command = new JunieCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".junie/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: "Test command" },
@@ -42,7 +42,7 @@ describe("JunieCommand", () => {
     it("should validate frontmatter during construction by default", () => {
       expect(() => {
         new JunieCommand({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".junie/commands",
           relativeFilePath: "test.md",
           frontmatter: { description: 123 as any },
@@ -54,7 +54,7 @@ describe("JunieCommand", () => {
 
     it("should skip validation when validate is false", () => {
       const command = new JunieCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".junie/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: 123 as any },
@@ -68,7 +68,7 @@ describe("JunieCommand", () => {
 
     it("should generate correct file content with frontmatter", () => {
       const command = new JunieCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".junie/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: "Test command" },
@@ -85,7 +85,7 @@ describe("JunieCommand", () => {
   describe("getBody", () => {
     it("should return the command body", () => {
       const command = new JunieCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".junie/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: "Test command" },
@@ -100,7 +100,7 @@ describe("JunieCommand", () => {
     it("should return the frontmatter", () => {
       const frontmatter = { description: "Test command description" };
       const command = new JunieCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".junie/commands",
         relativeFilePath: "test.md",
         frontmatter,
@@ -114,7 +114,7 @@ describe("JunieCommand", () => {
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
       const command = new JunieCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".junie/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: "Valid description" },
@@ -129,7 +129,7 @@ describe("JunieCommand", () => {
 
     it("should return error for invalid frontmatter", () => {
       const command = new JunieCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".junie/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: 123 as any },
@@ -144,7 +144,7 @@ describe("JunieCommand", () => {
 
     it("should return success for frontmatter with extra fields", () => {
       const command = new JunieCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".junie/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: "Test", extra: "field" } as any,
@@ -173,7 +173,7 @@ describe("JunieCommand", () => {
   describe("toRulesyncCommand", () => {
     it("should convert to RulesyncCommand correctly", () => {
       const command = new JunieCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".junie/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: "Test description" },
@@ -193,7 +193,7 @@ describe("JunieCommand", () => {
 
     it("should preserve extra fields in junie section", () => {
       const command = new JunieCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".junie/commands",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -216,7 +216,7 @@ describe("JunieCommand", () => {
   describe("fromRulesyncCommand", () => {
     it("should create JunieCommand from RulesyncCommand", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/command",
         relativeFilePath: "test-command.md",
         fileContent: "",
@@ -240,7 +240,7 @@ describe("JunieCommand", () => {
 
     it("should merge junie-specific fields from rulesync frontmatter", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/command",
         relativeFilePath: "test-command.md",
         fileContent: "",
@@ -275,7 +275,7 @@ describe("JunieCommand", () => {
       await writeFileContent(join(testDir, relativeDirPath, relativeFilePath), fileContent);
 
       const command = await JunieCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath,
       });
 
@@ -294,7 +294,7 @@ describe("JunieCommand", () => {
 
       await expect(
         JunieCommand.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath,
         }),
       ).rejects.toThrow(/Invalid frontmatter/);
@@ -304,7 +304,7 @@ describe("JunieCommand", () => {
   describe("isTargetedByRulesyncCommand", () => {
     it("should return true if targets includes *", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/command",
         relativeFilePath: "test.md",
         fileContent: "",
@@ -317,7 +317,7 @@ describe("JunieCommand", () => {
 
     it("should return true if targets includes junie", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/command",
         relativeFilePath: "test.md",
         fileContent: "",
@@ -330,7 +330,7 @@ describe("JunieCommand", () => {
 
     it("should return false if targets does not include junie or *", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/command",
         relativeFilePath: "test.md",
         fileContent: "",
@@ -343,7 +343,7 @@ describe("JunieCommand", () => {
 
     it("should return true if targets is undefined", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/command",
         relativeFilePath: "test.md",
         fileContent: "",
@@ -358,7 +358,7 @@ describe("JunieCommand", () => {
   describe("forDeletion", () => {
     it("should create a minimal JunieCommand for deletion", () => {
       const command = JunieCommand.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".junie/commands",
         relativeFilePath: "test.md",
       });

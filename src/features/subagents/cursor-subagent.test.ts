@@ -70,7 +70,7 @@ Body content`;
       };
       const body = "This is the body of the cursor agent.\nIt can be multiline.";
       const subagent = new CursorSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "test-agent.md",
         frontmatter,
@@ -96,7 +96,7 @@ Body content`;
       };
       const body = "This is a cursor agent without name or description.";
       const subagent = new CursorSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "test-agent.md",
         frontmatter,
@@ -119,7 +119,7 @@ Body content`;
       };
       const body = "Test body";
       const subagent = new CursorSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "test-agent.md",
         frontmatter,
@@ -139,7 +139,7 @@ Body content`;
       expect(
         () =>
           new CursorSubagent({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeDirPath: ".cursor/agents",
             relativeFilePath: "invalid-agent.md",
             frontmatter,
@@ -159,7 +159,7 @@ Body content`;
       };
       const body = "This is the body content.\nWith multiple lines.";
       const subagent = new CursorSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "test-agent.md",
         frontmatter,
@@ -180,7 +180,7 @@ Body content`;
       };
       const body = "Test body";
       const subagent = new CursorSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "test-agent.md",
         frontmatter,
@@ -200,7 +200,7 @@ Body content`;
   describe("toRulesyncSubagent", () => {
     it("should convert CursorSubagent to RulesyncSubagent", () => {
       const subagent = new CursorSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -223,7 +223,7 @@ Body content`;
   describe("fromRulesyncSubagent", () => {
     it("should create CursorSubagent from RulesyncSubagent", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -236,7 +236,7 @@ Body content`;
       });
 
       const cursorSubagent = CursorSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/agents",
         rulesyncSubagent,
         validate: true,
@@ -254,7 +254,7 @@ Body content`;
 
     it("should handle RulesyncSubagent with different file extensions", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "complex-agent.txt",
         frontmatter: {
@@ -267,7 +267,7 @@ Body content`;
       });
 
       const cursorSubagent = CursorSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/agents",
         rulesyncSubagent,
         validate: true,
@@ -278,7 +278,7 @@ Body content`;
 
     it("should handle empty name and description", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -291,7 +291,7 @@ Body content`;
       });
 
       const cursorSubagent = CursorSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/agents",
         rulesyncSubagent,
         validate: true,
@@ -312,7 +312,7 @@ Body content`;
       await writeFileContent(filePath, validMarkdownContent);
 
       const subagent = await CursorSubagent.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test-file-agent.md",
         validate: true,
       });
@@ -335,7 +335,7 @@ Body content`;
       await writeFileContent(filePath, validMarkdownContent);
 
       const subagent = await CursorSubagent.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "subdir/nested-agent.md",
         validate: true,
       });
@@ -346,7 +346,7 @@ Body content`;
     it("should throw error when file does not exist", async () => {
       await expect(
         CursorSubagent.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "non-existent-agent.md",
           validate: true,
         }),
@@ -361,7 +361,7 @@ Body content`;
 
       await expect(
         CursorSubagent.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "invalid-agent.md",
           validate: true,
         }),
@@ -376,7 +376,7 @@ Body content`;
 
       await expect(
         CursorSubagent.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "no-frontmatter.md",
           validate: true,
         }),
@@ -392,7 +392,7 @@ Body content`;
       };
       const body = "Valid body";
       const subagent = new CursorSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "valid-agent.md",
         frontmatter,
@@ -415,7 +415,7 @@ Body content`;
       } as any;
       const body = "Body content";
       const subagent = new CursorSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "agent-with-extras.md",
         frontmatter,
@@ -477,7 +477,7 @@ Body content`;
       };
       const body = "";
       const subagent = new CursorSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "empty-body.md",
         frontmatter,
@@ -500,7 +500,7 @@ Body content`;
       };
       const body = "Special characters: @#$%^&*()\nUnicode: 你好世界 🌍\nQuotes: \"Hello 'World'\"";
       const subagent = new CursorSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "special-char.md",
         frontmatter,
@@ -522,7 +522,7 @@ Body content`;
       };
       const body = "A".repeat(10000);
       const subagent = new CursorSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "long-content.md",
         frontmatter,
@@ -542,7 +542,7 @@ Body content`;
       };
       const body = "Test body";
       const subagent = new CursorSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "multiline-fields.md",
         frontmatter,
@@ -564,7 +564,7 @@ Body content`;
       };
       const body = "Line 1\r\nLine 2\r\nLine 3";
       const subagent = new CursorSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "windows-lines.md",
         frontmatter,
@@ -580,7 +580,7 @@ Body content`;
   describe("inheritance", () => {
     it("should inherit from ToolSubagent", () => {
       const subagent = new CursorSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/agents",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -602,7 +602,7 @@ Body content`;
   describe("isTargetedByRulesyncSubagent", () => {
     it("should return true when targets includes cursor", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -619,7 +619,7 @@ Body content`;
 
     it("should return true when targets includes asterisk", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -636,7 +636,7 @@ Body content`;
 
     it("should return false when targets array is empty", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -653,7 +653,7 @@ Body content`;
 
     it("should return false when targets does not include cursor", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -670,7 +670,7 @@ Body content`;
 
     it("should return true when targets includes cursor among other targets", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {

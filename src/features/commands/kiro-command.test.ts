@@ -48,7 +48,7 @@ Step 1`;
   describe("toRulesyncCommand", () => {
     it("should convert to RulesyncCommand with default frontmatter", () => {
       const kiroCommand = new KiroCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".kiro/prompts",
         relativeFilePath: "test.md",
         fileContent: validContent,
@@ -67,7 +67,7 @@ Step 1`;
   describe("fromRulesyncCommand", () => {
     it("should create KiroCommand from RulesyncCommand", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "prompt.md",
         frontmatter: { targets: ["kiro"], description: "" },
@@ -77,7 +77,7 @@ Step 1`;
       });
 
       const kiroCommand = KiroCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
       });
 
@@ -90,7 +90,7 @@ Step 1`;
   describe("validate", () => {
     it("should always succeed", () => {
       const command = new KiroCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".kiro/prompts",
         relativeFilePath: "test.md",
         fileContent: validContent,
@@ -108,7 +108,7 @@ Step 1`;
       await writeFileContent(filePath, markdownWithFrontmatter);
 
       const command = await KiroCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "prompt.md",
       });
 
@@ -123,7 +123,7 @@ Step 1`;
       await writeFileContent(filePath, validContent);
 
       const command = await KiroCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "global.md",
         global: true,
       });
@@ -136,7 +136,7 @@ Step 1`;
   describe("isTargetedByRulesyncCommand", () => {
     it("should return true when rulesync targets include kiro", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "prompt.md",
         frontmatter: { targets: ["kiro"], description: "" },
@@ -150,7 +150,7 @@ Step 1`;
 
     it("should return false when kiro is not targeted", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "prompt.md",
         frontmatter: { targets: ["cursor"], description: "" },
@@ -166,7 +166,7 @@ Step 1`;
   describe("forDeletion", () => {
     it("should create deletable command placeholder", () => {
       const command = KiroCommand.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".kiro/prompts",
         relativeFilePath: "obsolete.md",
       });

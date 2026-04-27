@@ -51,7 +51,7 @@ export class RulesyncCommand extends RulesyncFile {
     const parseResult = RulesyncCommandFrontmatterSchema.safeParse(frontmatter);
     if (!parseResult.success && rest.validate) {
       throw new Error(
-        `Invalid frontmatter in ${join(rest.baseDir ?? process.cwd(), rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(parseResult.error)}`,
+        `Invalid frontmatter in ${join(rest.outputRoot ?? process.cwd(), rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(parseResult.error)}`,
       );
     }
     // Apply defaults manually when validation is disabled but parsing failed
@@ -85,7 +85,7 @@ export class RulesyncCommand extends RulesyncFile {
 
   withRelativeFilePath(newRelativeFilePath: string): RulesyncCommand {
     return new RulesyncCommand({
-      baseDir: this.getBaseDir(),
+      outputRoot: this.getOutputRoot(),
       relativeDirPath: this.getRelativeDirPath(),
       relativeFilePath: newRelativeFilePath,
       frontmatter: this.getFrontmatter(),
@@ -115,12 +115,12 @@ export class RulesyncCommand extends RulesyncFile {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
   }: RulesyncFileFromFileParams): Promise<RulesyncCommand> {
     // Read file content
     const filePath = join(
-      baseDir,
+      outputRoot,
       RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath,
     );
@@ -134,7 +134,7 @@ export class RulesyncCommand extends RulesyncFile {
     }
 
     return new RulesyncCommand({
-      baseDir,
+      outputRoot,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath,
       frontmatter: result.data,

@@ -1,14 +1,15 @@
 import { isAbsolute, resolve } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ALL_FEATURES } from "../types/features.js";
 import { ALL_TOOL_TARGETS } from "../types/tool-targets.js";
 import { assertTargetsFeaturesExclusive, Config, type ConfigParams } from "./config.js";
+import { resetDeprecationWarningForTests } from "./deprecation-warnings.js";
 
 describe("Config", () => {
   const defaultConfig: ConfigParams = {
-    baseDirs: ["."],
+    outputRoots: ["."],
     targets: ["cursor"],
     features: ["rules"],
     verbose: false,
@@ -597,7 +598,7 @@ describe("Config", () => {
       expect(
         () =>
           new Config({
-            baseDirs: ["."],
+            outputRoots: ["."],
             verbose: false,
             delete: false,
             silent: false,
@@ -644,6 +645,59 @@ describe("Config", () => {
       const parent = resolve(originalCwd, "..");
       process.chdir(parent);
       expect(config.getInputRoot()).toBe(expected);
+    });
+  });
+
+  describe("getBaseDirs (deprecated alias for getOutputRoots)", () => {
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      resetDeprecationWarningForTests();
+      warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+      delete process.env.RULESYNC_SILENT_DEPRECATION;
+    });
+
+    it("returns the same array as getOutputRoots()", () => {
+      const config = createConfig({ outputRoots: ["./out-a", "./out-b"] });
+      expect(config.getBaseDirs()).toEqual(config.getOutputRoots());
+      expect(config.getBaseDirs()).toEqual(["./out-a", "./out-b"]);
+    });
+
+    it("emits the deprecation warning the first time it is called per process", () => {
+      const config = createConfig({ outputRoots: ["./out"] });
+      config.getBaseDirs();
+      config.getBaseDirs();
+      config.getBaseDirs();
+
+      const deprecationCalls = warnSpy.mock.calls.filter((call: unknown[]) =>
+        String(call[0]).includes("DEPRECATED: Config.getBaseDirs()"),
+      );
+      expect(deprecationCalls).toHaveLength(1);
+    });
+
+    it("does not emit the warning when getOutputRoots() is called instead", () => {
+      const config = createConfig({ outputRoots: ["./out"] });
+      config.getOutputRoots();
+
+      const deprecationCalls = warnSpy.mock.calls.filter((call: unknown[]) =>
+        String(call[0]).includes("DEPRECATED: Config.getBaseDirs()"),
+      );
+      expect(deprecationCalls).toHaveLength(0);
+    });
+
+    it("suppresses the warning when RULESYNC_SILENT_DEPRECATION is set", () => {
+      process.env.RULESYNC_SILENT_DEPRECATION = "1";
+      const config = createConfig({ outputRoots: ["./out"] });
+      config.getBaseDirs();
+
+      const deprecationCalls = warnSpy.mock.calls.filter((call: unknown[]) =>
+        String(call[0]).includes("DEPRECATED: Config.getBaseDirs()"),
+      );
+      expect(deprecationCalls).toHaveLength(0);
     });
   });
 });

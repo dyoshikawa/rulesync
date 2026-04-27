@@ -33,7 +33,7 @@ describe("TaktCommand", () => {
   describe("fromRulesyncCommand", () => {
     it("emits a plain Markdown body under instructions/", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "review.md",
         frontmatter: { targets: ["*"], description: "Review PR" },
@@ -41,7 +41,7 @@ describe("TaktCommand", () => {
         fileContent: "",
       });
 
-      const cmd = TaktCommand.fromRulesyncCommand({ baseDir: testDir, rulesyncCommand });
+      const cmd = TaktCommand.fromRulesyncCommand({ outputRoot: testDir, rulesyncCommand });
       expect(cmd.getRelativeDirPath()).toBe(join(".takt", "facets", "instructions"));
       expect(cmd.getRelativeFilePath()).toBe("review.md");
       expect(cmd.getFileContent()).toBe("Run review steps.");
@@ -49,7 +49,7 @@ describe("TaktCommand", () => {
 
     it("renames the stem with takt.name", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "long-source.md",
         frontmatter: {
@@ -59,14 +59,14 @@ describe("TaktCommand", () => {
         body: "body",
         fileContent: "",
       });
-      const cmd = TaktCommand.fromRulesyncCommand({ baseDir: testDir, rulesyncCommand });
+      const cmd = TaktCommand.fromRulesyncCommand({ outputRoot: testDir, rulesyncCommand });
       expect(cmd.getRelativeFilePath()).toBe("short.md");
       expect(cmd.getRelativeDirPath()).toBe(join(".takt", "facets", "instructions"));
     });
 
     it("throws on an unsafe takt.name value", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "src.md",
         frontmatter: {
@@ -76,9 +76,9 @@ describe("TaktCommand", () => {
         body: "x",
         fileContent: "",
       });
-      expect(() => TaktCommand.fromRulesyncCommand({ baseDir: testDir, rulesyncCommand })).toThrow(
-        /Invalid takt\.name/,
-      );
+      expect(() =>
+        TaktCommand.fromRulesyncCommand({ outputRoot: testDir, rulesyncCommand }),
+      ).toThrow(/Invalid takt\.name/);
     });
   });
 
@@ -87,7 +87,7 @@ describe("TaktCommand", () => {
       const dir = join(testDir, ".takt", "facets", "instructions");
       await ensureDir(dir);
       await writeFileContent(join(dir, "x.md"), "body\n");
-      const cmd = await TaktCommand.fromFile({ baseDir: testDir, relativeFilePath: "x.md" });
+      const cmd = await TaktCommand.fromFile({ outputRoot: testDir, relativeFilePath: "x.md" });
       expect(cmd.getBody()).toBe("body");
     });
   });
@@ -95,7 +95,7 @@ describe("TaktCommand", () => {
   describe("forDeletion", () => {
     it("constructs a deletable empty instance", () => {
       const cmd = TaktCommand.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".takt", "facets", "instructions"),
         relativeFilePath: "x.md",
       });
@@ -110,7 +110,7 @@ describe("TaktCommand", () => {
       [["claudecode"], false],
     ] as const)("targets=%j → %s", (targets, expected) => {
       const r = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "x.md",
         frontmatter: { targets: [...targets] },

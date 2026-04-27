@@ -37,7 +37,7 @@ describe("GeminicliPermissions", () => {
 
   it("should emit a Gemini CLI policy TOML at .gemini/policies/rulesync.toml", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: "permissions.json",
       fileContent: JSON.stringify({
@@ -49,7 +49,7 @@ describe("GeminicliPermissions", () => {
     });
 
     const geminiPermissions = await GeminicliPermissions.fromRulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       rulesyncPermissions,
     });
 
@@ -82,7 +82,7 @@ describe("GeminicliPermissions", () => {
 
   it("should assign higher priority to deny rules than ask or allow rules", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: "permissions.json",
       fileContent: JSON.stringify({
@@ -93,7 +93,7 @@ describe("GeminicliPermissions", () => {
     });
 
     const geminiPermissions = await GeminicliPermissions.fromRulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       rulesyncPermissions,
     });
 
@@ -116,7 +116,7 @@ describe("GeminicliPermissions", () => {
 
   it("should emit argsPattern for bash patterns with interior glob metacharacters", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: "permissions.json",
       fileContent: JSON.stringify({
@@ -127,7 +127,7 @@ describe("GeminicliPermissions", () => {
     });
 
     const geminiPermissions = await GeminicliPermissions.fromRulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       rulesyncPermissions,
     });
 
@@ -139,7 +139,7 @@ describe("GeminicliPermissions", () => {
 
   it("should convert Gemini CLI policy TOML back to rulesync format", () => {
     const geminiPermissions = new GeminicliPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: join(".gemini", "policies"),
       relativeFilePath: "rulesync.toml",
       fileContent: [
@@ -174,7 +174,7 @@ describe("GeminicliPermissions", () => {
 
   it("should accept legacy unanchored argsPattern encoding for backward compatibility", () => {
     const geminiPermissions = new GeminicliPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: join(".gemini", "policies"),
       relativeFilePath: "rulesync.toml",
       fileContent: [
@@ -199,20 +199,20 @@ describe("GeminicliPermissions", () => {
       '[[rule]]\ntoolName = "run_shell_command"\ndecision = "allow"\ncommandPrefix = "git"\npriority = 100\n',
     );
 
-    const loaded = await GeminicliPermissions.fromFile({ baseDir: testDir });
+    const loaded = await GeminicliPermissions.fromFile({ outputRoot: testDir });
     expect(loaded).toBeInstanceOf(GeminicliPermissions);
     expect(loaded.getFileContent()).toContain('commandPrefix = "git"');
   });
 
   it("should return empty permissions when TOML file is missing", async () => {
-    const loaded = await GeminicliPermissions.fromFile({ baseDir: testDir });
+    const loaded = await GeminicliPermissions.fromFile({ outputRoot: testDir });
     const json = loaded.toRulesyncPermissions().getJson();
     expect(json.permission).toEqual({});
   });
 
   it("should throw a descriptive error on malformed TOML", () => {
     const geminiPermissions = new GeminicliPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: join(".gemini", "policies"),
       relativeFilePath: "rulesync.toml",
       fileContent: "[[rule]]\ninvalid !!! :: broken",
@@ -225,7 +225,7 @@ describe("GeminicliPermissions", () => {
 
   it("should translate ? as a single-char wildcard that respects path segments", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: "permissions.json",
       fileContent: JSON.stringify({
@@ -234,7 +234,7 @@ describe("GeminicliPermissions", () => {
     });
 
     const geminiPermissions = await GeminicliPermissions.fromRulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       rulesyncPermissions,
     });
 
@@ -246,7 +246,7 @@ describe("GeminicliPermissions", () => {
 
   it("should round-trip ** patterns back to rulesync", async () => {
     const source = new RulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: "permissions.json",
       fileContent: JSON.stringify({
@@ -254,11 +254,11 @@ describe("GeminicliPermissions", () => {
       }),
     });
     const emitted = await GeminicliPermissions.fromRulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       rulesyncPermissions: source,
     });
     const reloaded = new GeminicliPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: join(".gemini", "policies"),
       relativeFilePath: "rulesync.toml",
       fileContent: emitted.getFileContent(),
@@ -270,7 +270,7 @@ describe("GeminicliPermissions", () => {
 
   it("should skip patterns containing a quote to avoid regex-anchor hijack", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: "permissions.json",
       fileContent: JSON.stringify({
@@ -279,7 +279,7 @@ describe("GeminicliPermissions", () => {
     });
 
     const geminiPermissions = await GeminicliPermissions.fromRulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       rulesyncPermissions,
     });
 
@@ -290,7 +290,7 @@ describe("GeminicliPermissions", () => {
 
   it("should not allow a malicious pattern to inject a second [[rule]] block", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: "permissions.json",
       fileContent: JSON.stringify({
@@ -303,7 +303,7 @@ describe("GeminicliPermissions", () => {
     });
 
     const geminiPermissions = await GeminicliPermissions.fromRulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       rulesyncPermissions,
     });
 
@@ -315,7 +315,7 @@ describe("GeminicliPermissions", () => {
 
   it("should not pollute Object.prototype when importing a rule with toolName __proto__", () => {
     const geminiPermissions = new GeminicliPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: join(".gemini", "policies"),
       relativeFilePath: "rulesync.toml",
       fileContent: [
@@ -346,7 +346,7 @@ describe("GeminicliPermissions", () => {
 
   it("should treat glob character classes as regex literals to prevent JSON-boundary bypass", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: "permissions.json",
       fileContent: JSON.stringify({
@@ -360,7 +360,7 @@ describe("GeminicliPermissions", () => {
     });
 
     const geminiPermissions = await GeminicliPermissions.fromRulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       rulesyncPermissions,
     });
 
@@ -376,7 +376,7 @@ describe("GeminicliPermissions", () => {
 
   it("should skip bash match-all patterns with allow or deny decisions", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: "permissions.json",
       fileContent: JSON.stringify({
@@ -392,7 +392,7 @@ describe("GeminicliPermissions", () => {
     });
 
     const geminiPermissions = await GeminicliPermissions.fromRulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       rulesyncPermissions,
     });
 
@@ -403,7 +403,7 @@ describe("GeminicliPermissions", () => {
 
   it("should still allow bash catch-all with ask decision", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: "permissions.json",
       fileContent: JSON.stringify({
@@ -412,7 +412,7 @@ describe("GeminicliPermissions", () => {
     });
 
     const geminiPermissions = await GeminicliPermissions.fromRulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       rulesyncPermissions,
     });
 
@@ -425,7 +425,7 @@ describe("GeminicliPermissions", () => {
 
   it("should skip empty pattern for non-bash tools", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: "permissions.json",
       fileContent: JSON.stringify({
@@ -434,7 +434,7 @@ describe("GeminicliPermissions", () => {
     });
 
     const geminiPermissions = await GeminicliPermissions.fromRulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       rulesyncPermissions,
     });
 
@@ -445,7 +445,7 @@ describe("GeminicliPermissions", () => {
 
   it("should be deletable because rulesync.toml is exclusively owned by rulesync", async () => {
     const geminiPermissions = GeminicliPermissions.forDeletion({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: join(".gemini", "policies"),
       relativeFilePath: "rulesync.toml",
     });

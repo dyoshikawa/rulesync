@@ -595,7 +595,7 @@ export class RulesProcessor extends FeatureProcessor {
   private readonly featureOptions?: FeatureOptions;
 
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     inputRoot = process.cwd(),
     toolTarget,
     simulateCommands = false,
@@ -608,7 +608,7 @@ export class RulesProcessor extends FeatureProcessor {
     dryRun = false,
     logger,
   }: {
-    baseDir?: string;
+    outputRoot?: string;
     inputRoot?: string;
     toolTarget: ToolTarget;
     global?: boolean;
@@ -621,7 +621,7 @@ export class RulesProcessor extends FeatureProcessor {
     dryRun?: boolean;
     logger: Logger;
   }) {
-    super({ baseDir, inputRoot, dryRun, logger });
+    super({ outputRoot, inputRoot, dryRun, logger });
     const result = RulesProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -656,7 +656,7 @@ export class RulesProcessor extends FeatureProcessor {
           return null;
         }
         return factory.class.fromRulesyncRule({
-          baseDir: this.baseDir,
+          outputRoot: this.outputRoot,
           rulesyncRule,
           validate: true,
           global: this.global,
@@ -685,9 +685,9 @@ export class RulesProcessor extends FeatureProcessor {
         // Use .md extension - CursorRule.fromRulesyncRule will convert to .mdc
         toolRules.push(
           factory.class.fromRulesyncRule({
-            baseDir: this.baseDir,
+            outputRoot: this.outputRoot,
             rulesyncRule: new RulesyncRule({
-              baseDir: this.baseDir,
+              outputRoot: this.outputRoot,
               relativeDirPath: nonRootPath.relativeDirPath,
               relativeFilePath: "additional-conventions.md",
               frontmatter: {
@@ -735,7 +735,7 @@ export class RulesProcessor extends FeatureProcessor {
       ) {
         toolRules.push(
           new RovodevRule({
-            baseDir: this.baseDir,
+            outputRoot: this.outputRoot,
             relativeDirPath: ".",
             relativeFilePath: "AGENTS.md",
             fileContent: newContent,
@@ -797,7 +797,7 @@ export class RulesProcessor extends FeatureProcessor {
       const paths = ClaudecodeRule.getSettablePaths({ global: this.global });
       toolRules.push(
         new ClaudecodeRule({
-          baseDir: this.baseDir,
+          outputRoot: this.outputRoot,
           relativeDirPath: paths.root.relativeDirPath,
           relativeFilePath: "CLAUDE.local.md",
           frontmatter: {},
@@ -813,7 +813,7 @@ export class RulesProcessor extends FeatureProcessor {
       });
       toolRules.push(
         new ClaudecodeLegacyRule({
-          baseDir: this.baseDir,
+          outputRoot: this.outputRoot,
           relativeDirPath: paths.root.relativeDirPath,
           relativeFilePath: "CLAUDE.local.md",
           fileContent: localRootBody,
@@ -824,7 +824,7 @@ export class RulesProcessor extends FeatureProcessor {
     } else if (this.toolTarget === "rovodev") {
       toolRules.push(
         new RovodevRule({
-          baseDir: this.baseDir,
+          outputRoot: this.outputRoot,
           relativeDirPath: ".",
           relativeFilePath: "AGENTS.local.md",
           fileContent: localRootBody,
@@ -920,18 +920,18 @@ export class RulesProcessor extends FeatureProcessor {
    * Load and parse rulesync rule files from .rulesync/rules/ directory
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const rulesyncBaseDir = join(this.inputRoot, RULESYNC_RULES_RELATIVE_DIR_PATH);
-    const files = await findFilesByGlobs(join(rulesyncBaseDir, "**", "*.md"));
+    const rulesyncOutputRoot = join(this.inputRoot, RULESYNC_RULES_RELATIVE_DIR_PATH);
+    const files = await findFilesByGlobs(join(rulesyncOutputRoot, "**", "*.md"));
     this.logger.debug(`Found ${files.length} rulesync files`);
     const rulesyncRules = await Promise.all(
       files.map((file) => {
-        const relativeFilePath = relative(rulesyncBaseDir, file);
+        const relativeFilePath = relative(rulesyncOutputRoot, file);
         checkPathTraversal({
           relativePath: relativeFilePath,
-          intendedRootDir: rulesyncBaseDir,
+          intendedRootDir: rulesyncOutputRoot,
         });
         return RulesyncRule.fromFile({
-          baseDir: this.inputRoot,
+          outputRoot: this.inputRoot,
           relativeFilePath,
         });
       }),
@@ -1024,7 +1024,7 @@ export class RulesProcessor extends FeatureProcessor {
       });
 
       const resolveRelativeDirPath = (filePath: string): string => {
-        const dirName = dirname(relative(this.baseDir, filePath));
+        const dirName = dirname(relative(this.outputRoot, filePath));
         return dirName === "" ? "." : dirName;
       };
 
@@ -1032,30 +1032,30 @@ export class RulesProcessor extends FeatureProcessor {
        * Build deletion rules from discovered file paths: resolve dir, check traversal, create forDeletion, filter isDeletable.
        *
        * Two modes:
-       * - Root mode (no opts): `relativeFilePath` = `basename(filePath)`, traversal checks `relativeDirPath` against `this.baseDir`.
-       * - Non-root mode (with `baseDirOverride` + `relativeDirPathOverride`): `relativeFilePath` = `relative(baseDirOverride, filePath)`,
-       *   traversal checks `relativeFilePath` against `baseDirOverride`.
+       * - Root mode (no opts): `relativeFilePath` = `basename(filePath)`, traversal checks `relativeDirPath` against `this.outputRoot`.
+       * - Non-root mode (with `outputRootOverride` + `relativeDirPathOverride`): `relativeFilePath` = `relative(outputRootOverride, filePath)`,
+       *   traversal checks `relativeFilePath` against `outputRootOverride`.
        */
       const buildDeletionRulesFromPaths = (
         filePaths: string[],
-        opts?: { baseDirOverride: string; relativeDirPathOverride: string },
+        opts?: { outputRootOverride: string; relativeDirPathOverride: string },
       ): ToolRule[] => {
         const isNonRoot = opts !== undefined;
-        const effectiveBaseDir = isNonRoot ? opts.baseDirOverride : this.baseDir;
+        const effectiveOutputRoot = isNonRoot ? opts.outputRootOverride : this.outputRoot;
         return filePaths
           .map((filePath) => {
             const relativeDirPath = isNonRoot
               ? opts.relativeDirPathOverride
               : resolveRelativeDirPath(filePath);
             const relativeFilePath = isNonRoot
-              ? relative(effectiveBaseDir, filePath)
+              ? relative(effectiveOutputRoot, filePath)
               : basename(filePath);
             checkPathTraversal({
               relativePath: isNonRoot ? relativeFilePath : relativeDirPath,
-              intendedRootDir: effectiveBaseDir,
+              intendedRootDir: effectiveOutputRoot,
             });
             return factory.class.forDeletion({
-              baseDir: this.baseDir,
+              outputRoot: this.outputRoot,
               relativeDirPath,
               relativeFilePath,
               global: this.global,
@@ -1086,12 +1086,12 @@ export class RulesProcessor extends FeatureProcessor {
 
         const uniqueRootFilePaths = await findFilesWithFallback(
           join(
-            this.baseDir,
+            this.outputRoot,
             settablePaths.root.relativeDirPath ?? ".",
             settablePaths.root.relativeFilePath,
           ),
           settablePaths.alternativeRoots,
-          (alt) => join(this.baseDir, alt.relativeDirPath, alt.relativeFilePath),
+          (alt) => join(this.outputRoot, alt.relativeDirPath, alt.relativeFilePath),
         );
 
         if (forDeletion) {
@@ -1103,10 +1103,10 @@ export class RulesProcessor extends FeatureProcessor {
             const relativeDirPath = resolveRelativeDirPath(filePath);
             checkPathTraversal({
               relativePath: relativeDirPath,
-              intendedRootDir: this.baseDir,
+              intendedRootDir: this.outputRoot,
             });
             return factory.class.fromFile({
-              baseDir: this.baseDir,
+              outputRoot: this.outputRoot,
               relativeFilePath: basename(filePath),
               relativeDirPath,
               global: this.global,
@@ -1127,7 +1127,7 @@ export class RulesProcessor extends FeatureProcessor {
             return [];
           }
           const uniqueLocalRootFilePaths = await findFilesByGlobs(
-            join(this.baseDir, "AGENTS.local.md"),
+            join(this.outputRoot, "AGENTS.local.md"),
           );
           return buildDeletionRulesFromPaths(uniqueLocalRootFilePaths);
         }
@@ -1141,9 +1141,9 @@ export class RulesProcessor extends FeatureProcessor {
         }
 
         const uniqueLocalRootFilePaths = await findFilesWithFallback(
-          join(this.baseDir, settablePaths.root.relativeDirPath ?? ".", "CLAUDE.local.md"),
+          join(this.outputRoot, settablePaths.root.relativeDirPath ?? ".", "CLAUDE.local.md"),
           settablePaths.alternativeRoots,
-          (alt) => join(this.baseDir, alt.relativeDirPath, "CLAUDE.local.md"),
+          (alt) => join(this.outputRoot, alt.relativeDirPath, "CLAUDE.local.md"),
         );
 
         return buildDeletionRulesFromPaths(uniqueLocalRootFilePaths);
@@ -1156,11 +1156,11 @@ export class RulesProcessor extends FeatureProcessor {
         if (!forDeletion || this.toolTarget !== "rovodev" || this.global) {
           return [];
         }
-        const primaryPaths = await findFilesByGlobs(join(this.baseDir, ".rovodev", "AGENTS.md"));
+        const primaryPaths = await findFilesByGlobs(join(this.outputRoot, ".rovodev", "AGENTS.md"));
         if (primaryPaths.length === 0) {
           return [];
         }
-        const mirrorPaths = await findFilesByGlobs(join(this.baseDir, "AGENTS.md"));
+        const mirrorPaths = await findFilesByGlobs(join(this.outputRoot, "AGENTS.md"));
         return buildDeletionRulesFromPaths(mirrorPaths);
       })();
 
@@ -1169,14 +1169,14 @@ export class RulesProcessor extends FeatureProcessor {
           return [];
         }
 
-        const nonRootBaseDir = join(this.baseDir, settablePaths.nonRoot.relativeDirPath);
+        const nonRootOutputRoot = join(this.outputRoot, settablePaths.nonRoot.relativeDirPath);
         const nonRootFilePaths = await findFilesByGlobs(
-          join(nonRootBaseDir, "**", `*.${factory.meta.extension}`),
+          join(nonRootOutputRoot, "**", `*.${factory.meta.extension}`),
         );
 
         if (forDeletion) {
           return buildDeletionRulesFromPaths(nonRootFilePaths, {
-            baseDirOverride: nonRootBaseDir,
+            outputRootOverride: nonRootOutputRoot,
             relativeDirPathOverride: settablePaths.nonRoot.relativeDirPath,
           });
         }
@@ -1185,7 +1185,7 @@ export class RulesProcessor extends FeatureProcessor {
         const nonRootPathsForImport =
           this.toolTarget === "rovodev"
             ? nonRootFilePaths.filter((filePath) => {
-                const relativeFilePath = relative(nonRootBaseDir, filePath);
+                const relativeFilePath = relative(nonRootOutputRoot, filePath);
                 const ok = RovodevRule.isAllowedModularRulesRelativePath(relativeFilePath);
                 if (!ok) {
                   this.logger.warn(
@@ -1198,13 +1198,13 @@ export class RulesProcessor extends FeatureProcessor {
 
         return await Promise.all(
           nonRootPathsForImport.map((filePath) => {
-            const relativeFilePath = relative(nonRootBaseDir, filePath);
+            const relativeFilePath = relative(nonRootOutputRoot, filePath);
             checkPathTraversal({
               relativePath: relativeFilePath,
-              intendedRootDir: nonRootBaseDir,
+              intendedRootDir: nonRootOutputRoot,
             });
             return factory.class.fromFile({
-              baseDir: this.baseDir,
+              outputRoot: this.outputRoot,
               relativeDirPath: modularRootRelative,
               relativeFilePath,
               global: this.global,

@@ -23,7 +23,7 @@ export const RovodevSkillFrontmatterSchema = z.looseObject({
 export type RovodevSkillFrontmatter = z.infer<typeof RovodevSkillFrontmatterSchema>;
 
 export type RovodevSkillParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
   frontmatter: RovodevSkillFrontmatter;
@@ -45,7 +45,7 @@ export type RovodevSkillParams = {
  */
 export class RovodevSkill extends ToolSkill {
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath = join(".rovodev", "skills"),
     dirName,
     frontmatter,
@@ -55,7 +55,7 @@ export class RovodevSkill extends ToolSkill {
     global = false,
   }: RovodevSkillParams) {
     super({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       mainFile: {
@@ -130,7 +130,7 @@ export class RovodevSkill extends ToolSkill {
     };
 
     return new RulesyncSkill({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
       dirName: this.getDirName(),
       frontmatter: rulesyncFrontmatter,
@@ -142,7 +142,7 @@ export class RovodevSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -156,7 +156,7 @@ export class RovodevSkill extends ToolSkill {
     };
 
     return new RovodevSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rovodevFrontmatter.name,
       frontmatter: rovodevFrontmatter,
@@ -180,7 +180,7 @@ export class RovodevSkill extends ToolSkill {
 
     const result = RovodevSkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
-      const skillDirPath = join(loaded.baseDir, loaded.relativeDirPath, loaded.dirName);
+      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
         `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
       );
@@ -188,7 +188,7 @@ export class RovodevSkill extends ToolSkill {
 
     if (result.data.name !== loaded.dirName) {
       const skillFilePath = join(
-        loaded.baseDir,
+        loaded.outputRoot,
         loaded.relativeDirPath,
         loaded.dirName,
         SKILL_FILE_NAME,
@@ -199,7 +199,7 @@ export class RovodevSkill extends ToolSkill {
     }
 
     return new RovodevSkill({
-      baseDir: loaded.baseDir,
+      outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
       frontmatter: result.data,
@@ -211,14 +211,14 @@ export class RovodevSkill extends ToolSkill {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): RovodevSkill {
     const settablePaths = RovodevSkill.getSettablePaths({ global });
     return new RovodevSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },

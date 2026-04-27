@@ -62,7 +62,7 @@ export abstract class SimulatedSubagent extends ToolSubagent {
   }
 
   protected static fromRulesyncSubagentDefault({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSubagent,
     validate = true,
   }: ToolSubagentFromRulesyncSubagentParams): ConstructorParameters<typeof SimulatedSubagent>[0] {
@@ -76,7 +76,7 @@ export abstract class SimulatedSubagent extends ToolSubagent {
     const body = rulesyncSubagent.getBody();
 
     return {
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       frontmatter: simulatedFrontmatter,
       body,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
@@ -104,11 +104,11 @@ export abstract class SimulatedSubagent extends ToolSubagent {
   }
 
   protected static async fromFileDefault({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolSubagentFromFileParams): Promise<ConstructorParameters<typeof SimulatedSubagent>[0]> {
-    const filePath = join(baseDir, this.getSettablePaths().relativeDirPath, relativeFilePath);
+    const filePath = join(outputRoot, this.getSettablePaths().relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
@@ -118,7 +118,7 @@ export abstract class SimulatedSubagent extends ToolSubagent {
     }
 
     return {
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: basename(relativeFilePath),
       frontmatter: result.data,
@@ -128,12 +128,12 @@ export abstract class SimulatedSubagent extends ToolSubagent {
   }
 
   protected static forDeletionDefault({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolSubagentForDeletionParams): ConstructorParameters<typeof SimulatedSubagent>[0] {
     return {
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       frontmatter: { name: "", description: "" },

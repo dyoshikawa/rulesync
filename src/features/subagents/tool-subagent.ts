@@ -20,7 +20,7 @@ export type ToolSubagentFromFileParams = AiFileFromFileParams & {
 };
 
 export type ToolSubagentForDeletionParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath: string;
   relativeFilePath: string;
   global?: boolean;

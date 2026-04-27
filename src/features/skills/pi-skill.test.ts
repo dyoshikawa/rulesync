@@ -38,7 +38,7 @@ describe("PiSkill", () => {
   describe("constructor", () => {
     it("should create a PiSkill with valid frontmatter", () => {
       const skill = new PiSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".pi", "skills"),
         dirName: "test-skill",
         frontmatter: { name: "Test Skill", description: "Desc" },
@@ -56,7 +56,7 @@ describe("PiSkill", () => {
     it("should throw on invalid frontmatter when validating", () => {
       expect(() => {
         new PiSkill({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: join(".pi", "skills"),
           dirName: "bad",
           frontmatter: { name: 123 as any, description: "Desc" },
@@ -82,7 +82,7 @@ Body content`,
       );
 
       const skill = await PiSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "demo",
       });
 
@@ -108,7 +108,7 @@ Body content`,
       );
 
       const skill = await PiSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "demo",
         global: true,
       });
@@ -135,7 +135,7 @@ Body content`,
       await writeFileBuffer(join(skillDir, "ref.md"), Buffer.from("# Reference\nAuxiliary file."));
 
       const skill = await PiSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "demo",
       });
 
@@ -148,7 +148,7 @@ Body content`,
       expect(rulesyncSkill.getOtherFiles()).toEqual(otherFiles);
 
       const restored = PiSkill.fromRulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncSkill,
       });
       expect(restored.getOtherFiles()).toEqual(otherFiles);
@@ -169,7 +169,7 @@ Body`,
 
       await expect(
         PiSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "bad",
         }),
       ).rejects.toThrow(/Invalid frontmatter/);
@@ -179,7 +179,7 @@ Body`,
   describe("fromRulesyncSkill", () => {
     it("should create a PiSkill from a RulesyncSkill", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "demo",
         frontmatter: {
@@ -192,7 +192,7 @@ Body`,
       });
 
       const skill = PiSkill.fromRulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncSkill,
       });
 
@@ -206,7 +206,7 @@ Body`,
 
     it("should emit to the global path when global is true", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "demo",
         frontmatter: {
@@ -219,7 +219,7 @@ Body`,
       });
 
       const skill = PiSkill.fromRulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncSkill,
         global: true,
       });
@@ -231,7 +231,7 @@ Body`,
   describe("toRulesyncSkill", () => {
     it("should convert a PiSkill to a RulesyncSkill with wildcard targets", () => {
       const skill = new PiSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".pi", "skills"),
         dirName: "demo",
         frontmatter: { name: "demo", description: "Demo" },
@@ -251,7 +251,7 @@ Body`,
   describe("validate", () => {
     it("should succeed for valid frontmatter", () => {
       const skill = new PiSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".pi", "skills"),
         dirName: "demo",
         frontmatter: { name: "demo", description: "Demo" },
@@ -280,7 +280,7 @@ Body`,
   describe("isTargetedByRulesyncSkill", () => {
     it("should return true for wildcard", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "demo",
         frontmatter: { name: "demo", description: "Demo", targets: ["*"] },
@@ -293,7 +293,7 @@ Body`,
 
     it("should return true for pi target", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "demo",
         frontmatter: { name: "demo", description: "Demo", targets: ["pi"] },
@@ -306,7 +306,7 @@ Body`,
 
     it("should return false for unrelated targets", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "demo",
         frontmatter: { name: "demo", description: "Demo", targets: ["cursor"] },

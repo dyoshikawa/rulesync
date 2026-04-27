@@ -38,7 +38,7 @@ describe("KiroSubagent", () => {
     it("should create instance with valid JSON body", () => {
       const json = { name: "test" };
       const subagent = new KiroSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".kiro/agents",
         relativeFilePath: "test.json",
         body: JSON.stringify(json),
@@ -53,7 +53,7 @@ describe("KiroSubagent", () => {
     it("should throw error for invalid JSON body when validate is true", () => {
       expect(() => {
         new KiroSubagent({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".kiro/agents",
           relativeFilePath: "invalid.json",
           body: "not json",
@@ -66,7 +66,7 @@ describe("KiroSubagent", () => {
     it("should throw error for invalid JSON body when validate is default (true)", () => {
       expect(() => {
         new KiroSubagent({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".kiro/agents",
           relativeFilePath: "invalid.json",
           body: "not json",
@@ -78,7 +78,7 @@ describe("KiroSubagent", () => {
     it("should throw error for missing required name field when validate is true", () => {
       expect(() => {
         new KiroSubagent({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".kiro/agents",
           relativeFilePath: "missing-name.json",
           body: JSON.stringify({ description: "no name" }),
@@ -90,7 +90,7 @@ describe("KiroSubagent", () => {
 
     it("should create instance with invalid JSON body when validate is false", () => {
       const subagent = new KiroSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".kiro/agents",
         relativeFilePath: "invalid.json",
         body: "not json",
@@ -112,7 +112,7 @@ describe("KiroSubagent", () => {
       tools: ["read", "write"],
     };
     const subagent = new KiroSubagent({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".kiro/agents",
       relativeFilePath: "review.json",
       body: JSON.stringify(json),
@@ -138,7 +138,7 @@ describe("KiroSubagent", () => {
 
   it("should create KiroSubagent from RulesyncSubagent with frontmatter", () => {
     const rulesyncSubagent = new RulesyncSubagent({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
       relativeFilePath: "reviewer.md",
       frontmatter: {
@@ -155,7 +155,7 @@ describe("KiroSubagent", () => {
     });
 
     const kiroSubagent = KiroSubagent.fromRulesyncSubagent({
-      baseDir: testDir,
+      outputRoot: testDir,
       rulesyncSubagent,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
     }) as KiroSubagent;
@@ -176,7 +176,7 @@ describe("KiroSubagent", () => {
   it("should validate JSON successfully", () => {
     const json = { name: "test", prompt: "Test prompt" };
     const subagent = new KiroSubagent({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".kiro/agents",
       relativeFilePath: "test.json",
       body: JSON.stringify(json),
@@ -189,7 +189,7 @@ describe("KiroSubagent", () => {
 
   it("should fail validation for invalid JSON", () => {
     const subagent = new KiroSubagent({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".kiro/agents",
       relativeFilePath: "invalid.json",
       body: "not json",
@@ -214,7 +214,7 @@ describe("KiroSubagent", () => {
     await writeFileContent(filePath, JSON.stringify(json, null, 2));
 
     const subagent = await KiroSubagent.fromFile({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeFilePath: "planner.json",
     });
 
@@ -230,7 +230,7 @@ describe("KiroSubagent", () => {
 
     await expect(
       KiroSubagent.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "invalid.json",
         validate: true,
       }),
@@ -239,7 +239,7 @@ describe("KiroSubagent", () => {
 
   it("should identify targeted rulesync subagents", () => {
     const targeted = new RulesyncSubagent({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
       relativeFilePath: "agent.md",
       frontmatter: { targets: ["kiro"], name: "agent", description: "" },
@@ -248,7 +248,7 @@ describe("KiroSubagent", () => {
     });
 
     const notTargeted = new RulesyncSubagent({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
       relativeFilePath: "other.md",
       frontmatter: { targets: ["cursor"], name: "other", description: "" },
@@ -262,7 +262,7 @@ describe("KiroSubagent", () => {
 
   it("should create deletable placeholder", () => {
     const subagent = KiroSubagent.forDeletion({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".kiro/agents",
       relativeFilePath: "obsolete.json",
     });
@@ -285,7 +285,7 @@ describe("KiroSubagent", () => {
     await writeFileContent(filePath, JSON.stringify(json, null, 2));
 
     const kiroSubagent = await KiroSubagent.fromFile({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeFilePath: "test-agent.json",
     });
 

@@ -27,7 +27,7 @@ import {
   resolvePath,
   toKebabCaseFilename,
   toPosixPath,
-  validateBaseDir,
+  validateOutputRoot,
   writeFileContent,
   writeJsonFile,
 } from "./file.js";
@@ -119,7 +119,7 @@ describe("file utilities", () => {
   });
 
   describe("resolvePath", () => {
-    it("should return path as-is when no baseDir provided", () => {
+    it("should return path as-is when no outputRoot provided", () => {
       const path = "some/path";
       expect(resolvePath(path)).toBe(path);
     });
@@ -142,13 +142,13 @@ describe("file utilities", () => {
   });
 
   describe("createPathResolver", () => {
-    it("should create a resolver function bound to baseDir", () => {
+    it("should create a resolver function bound to outputRoot", () => {
       const resolver = createPathResolver(testDir);
       const resolved = resolver("subdir/file.txt");
       expect(resolved).toBe(resolve(testDir, "subdir/file.txt"));
     });
 
-    it("should work without baseDir", () => {
+    it("should work without outputRoot", () => {
       const resolver = createPathResolver();
       const path = "some/path";
       expect(resolver(path)).toBe(path);
@@ -642,59 +642,61 @@ describe("file utilities", () => {
     });
   });
 
-  describe("validateBaseDir", () => {
+  describe("validateOutputRoot", () => {
     describe("should allow safe paths", () => {
       it("should allow simple directory names", () => {
-        expect(() => validateBaseDir("src")).not.toThrow();
-        expect(() => validateBaseDir("config")).not.toThrow();
+        expect(() => validateOutputRoot("src")).not.toThrow();
+        expect(() => validateOutputRoot("config")).not.toThrow();
       });
 
       it("should allow nested relative paths", () => {
-        expect(() => validateBaseDir("path/to/dir")).not.toThrow();
-        expect(() => validateBaseDir("deeply/nested/path/here")).not.toThrow();
+        expect(() => validateOutputRoot("path/to/dir")).not.toThrow();
+        expect(() => validateOutputRoot("deeply/nested/path/here")).not.toThrow();
       });
 
       it("should allow paths with dots in names", () => {
-        expect(() => validateBaseDir(RULESYNC_RELATIVE_DIR_PATH)).not.toThrow();
-        expect(() => validateBaseDir("my.project")).not.toThrow();
+        expect(() => validateOutputRoot(RULESYNC_RELATIVE_DIR_PATH)).not.toThrow();
+        expect(() => validateOutputRoot("my.project")).not.toThrow();
       });
 
       it("should allow absolute paths within current directory", () => {
-        // Absolute paths are now allowed as baseDirs are resolved to absolute paths
+        // Absolute paths are now allowed as outputRoots are resolved to absolute paths
         const safePath = resolve(testDir, "safe/path");
-        expect(() => validateBaseDir(safePath)).not.toThrow();
+        expect(() => validateOutputRoot(safePath)).not.toThrow();
       });
     });
 
     describe("should reject path traversal", () => {
       it("should reject parent directory reference", () => {
-        expect(() => validateBaseDir("..")).toThrow("Path traversal detected");
+        expect(() => validateOutputRoot("..")).toThrow("Path traversal detected");
       });
 
       it("should reject multiple parent directory references", () => {
-        expect(() => validateBaseDir("../..")).toThrow("Path traversal detected");
-        expect(() => validateBaseDir("../../../../../../etc")).toThrow("Path traversal detected");
+        expect(() => validateOutputRoot("../..")).toThrow("Path traversal detected");
+        expect(() => validateOutputRoot("../../../../../../etc")).toThrow(
+          "Path traversal detected",
+        );
       });
 
       it("should reject path traversal in middle of path", () => {
-        expect(() => validateBaseDir("foo/../bar")).toThrow("Path traversal detected");
-        expect(() => validateBaseDir("path/../../sensitive")).toThrow("Path traversal detected");
+        expect(() => validateOutputRoot("foo/../bar")).toThrow("Path traversal detected");
+        expect(() => validateOutputRoot("path/../../sensitive")).toThrow("Path traversal detected");
       });
 
       it("should reject path traversal at end", () => {
-        expect(() => validateBaseDir("foo/bar/..")).toThrow("Path traversal detected");
+        expect(() => validateOutputRoot("foo/bar/..")).toThrow("Path traversal detected");
       });
     });
 
     describe("should reject empty strings", () => {
       it("should reject empty string", () => {
-        expect(() => validateBaseDir("")).toThrow("cannot be an empty string");
+        expect(() => validateOutputRoot("")).toThrow("cannot be an empty string");
       });
 
       it("should reject whitespace-only strings", () => {
-        expect(() => validateBaseDir("   ")).toThrow("cannot be an empty string");
-        expect(() => validateBaseDir("\t")).toThrow("cannot be an empty string");
-        expect(() => validateBaseDir("\n")).toThrow("cannot be an empty string");
+        expect(() => validateOutputRoot("   ")).toThrow("cannot be an empty string");
+        expect(() => validateOutputRoot("\t")).toThrow("cannot be an empty string");
+        expect(() => validateOutputRoot("\n")).toThrow("cannot be an empty string");
       });
     });
 
@@ -704,67 +706,69 @@ describe("file utilities", () => {
       // programmatic callers can pass them too — accept them to avoid a
       // surprise breaking change.
       it("should accept `.`", () => {
-        expect(() => validateBaseDir(".")).not.toThrow();
+        expect(() => validateOutputRoot(".")).not.toThrow();
       });
 
       it("should accept `./`", () => {
-        expect(() => validateBaseDir("./")).not.toThrow();
+        expect(() => validateOutputRoot("./")).not.toThrow();
       });
 
       it("should accept `.\\`", () => {
-        expect(() => validateBaseDir(".\\")).not.toThrow();
+        expect(() => validateOutputRoot(".\\")).not.toThrow();
       });
     });
 
     describe("edge cases", () => {
       it("should handle normalized paths correctly", () => {
         // After normalization, these should be caught
-        expect(() => validateBaseDir("./foo/../../../etc")).toThrow("Path traversal detected");
+        expect(() => validateOutputRoot("./foo/../../../etc")).toThrow("Path traversal detected");
       });
 
       it("should allow dot directories that are not parent references", () => {
-        expect(() => validateBaseDir(".config")).not.toThrow();
-        expect(() => validateBaseDir(".local/share")).not.toThrow();
+        expect(() => validateOutputRoot(".config")).not.toThrow();
+        expect(() => validateOutputRoot(".local/share")).not.toThrow();
       });
     });
 
     describe("absolute paths", () => {
       it("should allow normalized absolute paths that do not contain '..' segments", () => {
-        expect(() => validateBaseDir("/usr/local/share")).not.toThrow();
-        expect(() => validateBaseDir("/Users/someone/project")).not.toThrow();
+        expect(() => validateOutputRoot("/usr/local/share")).not.toThrow();
+        expect(() => validateOutputRoot("/Users/someone/project")).not.toThrow();
       });
 
       it("should allow absolute paths outside the current working directory", () => {
         // The traversal check intentionally does not apply to absolute paths
         // (callers may point at anything). This guards against over-eager
         // rejection of legitimate central-rules directories.
-        expect(() => validateBaseDir("/tmp")).not.toThrow();
+        expect(() => validateOutputRoot("/tmp")).not.toThrow();
       });
 
       it("should reject the filesystem root", () => {
         // The filesystem root is almost certainly a misconfiguration, not a
         // real source directory.
-        expect(() => validateBaseDir("/")).toThrow("must not be the filesystem root");
+        expect(() => validateOutputRoot("/")).toThrow("must not be the filesystem root");
       });
 
       it("should reject unnormalized absolute paths containing '..' segments", () => {
         // The defense-in-depth segment check catches `..` first.
-        expect(() => validateBaseDir("/foo/../bar")).toThrow("Path traversal detected");
-        expect(() => validateBaseDir("/foo/../../etc")).toThrow("Path traversal detected");
-        expect(() => validateBaseDir("/..")).toThrow("Path traversal detected");
+        expect(() => validateOutputRoot("/foo/../bar")).toThrow("Path traversal detected");
+        expect(() => validateOutputRoot("/foo/../../etc")).toThrow("Path traversal detected");
+        expect(() => validateOutputRoot("/..")).toThrow("Path traversal detected");
       });
 
       it("should reject unnormalized absolute paths with redundant segments", () => {
         // Paths without `..` but still unnormalized (e.g. `//`, `/./`) are
         // rejected by the normalized-equality check.
-        expect(() => validateBaseDir("/foo//bar")).toThrow("must be a normalized absolute path");
-        expect(() => validateBaseDir("/foo/./bar")).toThrow("must be a normalized absolute path");
+        expect(() => validateOutputRoot("/foo//bar")).toThrow("must be a normalized absolute path");
+        expect(() => validateOutputRoot("/foo/./bar")).toThrow(
+          "must be a normalized absolute path",
+        );
       });
 
       it("should reject absolute paths with backslash '..' segments", () => {
         // Mixed separators should still be caught so Windows-style input
         // constructed unsafely is not silently accepted on POSIX callers.
-        expect(() => validateBaseDir("/foo\\..\\bar")).toThrow("Path traversal detected");
+        expect(() => validateOutputRoot("/foo\\..\\bar")).toThrow("Path traversal detected");
       });
     });
   });

@@ -31,16 +31,16 @@ export class OpencodeHooks extends ToolHooks {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
     global = false,
   }: ToolHooksFromFileParams): Promise<OpencodeHooks> {
     const paths = OpencodeHooks.getSettablePaths({ global });
     const fileContent = await readFileContent(
-      join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
+      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
     );
     return new OpencodeHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -49,7 +49,7 @@ export class OpencodeHooks extends ToolHooks {
   }
 
   static fromRulesyncHooks({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncHooks,
     validate = true,
     global = false,
@@ -63,7 +63,7 @@ export class OpencodeHooks extends ToolHooks {
     );
     const paths = OpencodeHooks.getSettablePaths({ global });
     return new OpencodeHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -80,12 +80,12 @@ export class OpencodeHooks extends ToolHooks {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolHooksForDeletionParams): OpencodeHooks {
     return new OpencodeHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "",

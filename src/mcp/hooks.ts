@@ -67,16 +67,16 @@ async function putHooksFile({ content }: { content: string }): Promise<{
   }
 
   try {
-    const baseDir = process.cwd();
+    const outputRoot = process.cwd();
     const paths = RulesyncHooks.getSettablePaths();
 
     const relativeDirPath = paths.relativeDirPath;
     const relativeFilePath = paths.relativeFilePath;
-    const fullPath = join(baseDir, relativeDirPath, relativeFilePath);
+    const fullPath = join(outputRoot, relativeDirPath, relativeFilePath);
 
     // Create a RulesyncHooks instance to validate the content
     const rulesyncHooks = new RulesyncHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: content,
@@ -84,7 +84,7 @@ async function putHooksFile({ content }: { content: string }): Promise<{
     });
 
     // Ensure directory exists
-    await ensureDir(join(baseDir, relativeDirPath));
+    await ensureDir(join(outputRoot, relativeDirPath));
 
     // Write the file
     await writeFileContent(fullPath, content);
@@ -112,10 +112,10 @@ async function deleteHooksFile(): Promise<{
   relativePathFromCwd: string;
 }> {
   try {
-    const baseDir = process.cwd();
+    const outputRoot = process.cwd();
     const paths = RulesyncHooks.getSettablePaths();
 
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
 
     await removeFile(filePath);
 

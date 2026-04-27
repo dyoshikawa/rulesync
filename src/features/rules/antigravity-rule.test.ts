@@ -46,10 +46,10 @@ trigger: always_on
 This is a test rule.`);
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const antigravityRule = new AntigravityRule({
         frontmatter: { trigger: "always_on" },
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".agent/rules",
         relativeFilePath: "test-rule.md",
         body: "# Custom Rule",
@@ -107,7 +107,7 @@ trigger: always_on
       await writeFileContent(join(rulesDir, "test.md"), testContent);
 
       const antigravityRule = await AntigravityRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test.md",
       });
 
@@ -117,11 +117,11 @@ trigger: always_on
       expect(antigravityRule.getFilePath()).toBe(join(testDir, ".agent/rules/test.md"));
     });
 
-    it("should use default baseDir when not provided", async () => {
+    it("should use default outputRoot when not provided", async () => {
       // Setup test file using testDir
       const rulesDir = join(testDir, ".agent/rules");
       await ensureDir(rulesDir);
-      const testContent = "---\ntrigger: always_on\n---\n\n# Default BaseDir Test";
+      const testContent = "---\ntrigger: always_on\n---\n\n# Default OutputRoot Test";
       const testFilePath = join(rulesDir, "default-test.md");
       await writeFileContent(testFilePath, testContent);
 
@@ -143,13 +143,13 @@ trigger: always_on
       await writeFileContent(join(rulesDir, "validation-test.md"), testContent);
 
       const antigravityRuleWithValidation = await AntigravityRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "validation-test.md",
         validate: true,
       });
 
       const antigravityRuleWithoutValidation = await AntigravityRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "validation-test.md",
         validate: false,
       });
@@ -161,7 +161,7 @@ trigger: always_on
     it("should throw error when file does not exist", async () => {
       await expect(
         AntigravityRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "nonexistent.md",
         }),
       ).rejects.toThrow();
@@ -194,7 +194,7 @@ trigger: always_on
       );
     });
 
-    it("should use custom baseDir", () => {
+    it("should use custom outputRoot", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom-base.md",
@@ -208,7 +208,7 @@ trigger: always_on
       });
 
       const antigravityRule = AntigravityRule.fromRulesyncRule({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         rulesyncRule,
       });
 
@@ -280,7 +280,7 @@ trigger: always_on
       });
 
       const antigravityRule = AntigravityRule.fromRulesyncRule({
-        baseDir: "/project",
+        outputRoot: "/project",
         rulesyncRule,
       });
 
@@ -568,7 +568,7 @@ globs: '*.ts'
       await writeFileContent(join(rulesDir, "frontmatter.md"), content);
 
       const antigravityRule = await AntigravityRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "frontmatter.md",
       });
 
@@ -610,7 +610,7 @@ globs: '*.ts'
       for (const testCase of testCases) {
         await writeFileContent(join(rulesDir, testCase.file), testCase.content);
         const rule = await AntigravityRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: testCase.file,
         });
         expect(rule.getFrontmatter()).toMatchObject(testCase.expectedFrontmatter);
@@ -624,7 +624,7 @@ globs: '*.ts'
       await writeFileContent(join(rulesDir, "no-frontmatter.md"), content);
 
       const antigravityRule = await AntigravityRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "no-frontmatter.md",
         validate: false, // Skip validation as it might fail without frontmatter
       });

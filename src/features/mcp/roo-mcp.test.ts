@@ -48,13 +48,13 @@ describe("RooMcp", () => {
       expect(rooMcp.getFileContent()).toBe(validJsonContent);
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const validJsonContent = JSON.stringify({
         mcpServers: {},
       });
 
       const rooMcp = new RooMcp({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".roo",
         relativeFilePath: "mcp.json",
         fileContent: validJsonContent,
@@ -62,7 +62,7 @@ describe("RooMcp", () => {
       });
 
       expect(rooMcp).toBeInstanceOf(RooMcp);
-      expect(rooMcp.getBaseDir()).toBe("/custom/path");
+      expect(rooMcp.getOutputRoot()).toBe("/custom/path");
       expect(rooMcp.getRelativeDirPath()).toBe(".roo");
       expect(rooMcp.getRelativeFilePath()).toBe("mcp.json");
       expect(rooMcp.getFileContent()).toBe(validJsonContent);
@@ -129,12 +129,12 @@ describe("RooMcp", () => {
       await writeFileContent(mcpFilePath, JSON.stringify(mcpContent, null, 2));
 
       const rooMcp = await RooMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: true,
       });
 
       expect(rooMcp).toBeInstanceOf(RooMcp);
-      expect(rooMcp.getBaseDir()).toBe(testDir);
+      expect(rooMcp.getOutputRoot()).toBe(testDir);
       expect(rooMcp.getRelativeDirPath()).toBe(".roo");
       expect(rooMcp.getRelativeFilePath()).toBe("mcp.json");
       expect(JSON.parse(rooMcp.getFileContent())).toEqual(mcpContent);
@@ -157,26 +157,26 @@ describe("RooMcp", () => {
       await writeFileContent(mcpFilePath, JSON.stringify(mcpContent, null, 2));
 
       const rooMcp = await RooMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
 
       expect(rooMcp).toBeInstanceOf(RooMcp);
-      expect(rooMcp.getBaseDir()).toBe(testDir);
+      expect(rooMcp.getOutputRoot()).toBe(testDir);
       expect(JSON.parse(rooMcp.getFileContent())).toEqual(mcpContent);
     });
 
     it("should throw error when file does not exist", async () => {
       await expect(
         RooMcp.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });
 
-    it("should create instance with custom baseDir parameter", async () => {
-      const customBaseDir = join(testDir, "custom");
-      const rooDir = join(customBaseDir, ".roo");
+    it("should create instance with custom outputRoot parameter", async () => {
+      const customOutputRoot = join(testDir, "custom");
+      const rooDir = join(customOutputRoot, ".roo");
       const mcpFilePath = join(rooDir, "mcp.json");
 
       const mcpContent = {
@@ -187,7 +187,7 @@ describe("RooMcp", () => {
       await writeFileContent(mcpFilePath, JSON.stringify(mcpContent));
 
       const rooMcp = await RooMcp.fromFile({
-        baseDir: customBaseDir,
+        outputRoot: customOutputRoot,
       });
 
       expect(rooMcp).toBeInstanceOf(RooMcp);
@@ -217,13 +217,13 @@ describe("RooMcp", () => {
       });
 
       expect(rooMcp).toBeInstanceOf(RooMcp);
-      expect(rooMcp.getBaseDir()).toBe(testDir);
+      expect(rooMcp.getOutputRoot()).toBe(testDir);
       expect(rooMcp.getRelativeDirPath()).toBe(".roo");
       expect(rooMcp.getRelativeFilePath()).toBe("mcp.json");
       expect(JSON.parse(rooMcp.getFileContent())).toEqual(mcpContent);
     });
 
-    it("should create instance from RulesyncMcp with custom baseDir", () => {
+    it("should create instance from RulesyncMcp with custom outputRoot", () => {
       const mcpContent = {
         mcpServers: {
           "custom-server": {
@@ -240,12 +240,12 @@ describe("RooMcp", () => {
       });
 
       const rooMcp = RooMcp.fromRulesyncMcp({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         rulesyncMcp,
       });
 
       expect(rooMcp).toBeInstanceOf(RooMcp);
-      expect(rooMcp.getBaseDir()).toBe("/custom/base");
+      expect(rooMcp.getOutputRoot()).toBe("/custom/base");
       expect(rooMcp.getRelativeDirPath()).toBe(".roo");
       expect(rooMcp.getRelativeFilePath()).toBe("mcp.json");
       expect(JSON.parse(rooMcp.getFileContent())).toEqual(mcpContent);
@@ -413,7 +413,7 @@ describe("RooMcp", () => {
       };
 
       const rooMcp = new RooMcp({
-        baseDir: "/test/path",
+        outputRoot: "/test/path",
         relativeDirPath: ".roo",
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify(mcpContent),
@@ -422,7 +422,7 @@ describe("RooMcp", () => {
       const rulesyncMcp = rooMcp.toRulesyncMcp();
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
-      expect(rulesyncMcp.getBaseDir()).toBe("/test/path");
+      expect(rulesyncMcp.getOutputRoot()).toBe("/test/path");
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
@@ -667,13 +667,13 @@ describe("RooMcp", () => {
 
     it("should have access to base directory methods", () => {
       const rooMcp = new RooMcp({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: ".roo",
         relativeFilePath: "mcp.json",
         fileContent: "{}",
       });
 
-      expect(rooMcp.getBaseDir()).toBe("/test/base");
+      expect(rooMcp.getOutputRoot()).toBe("/test/base");
       expect(rooMcp.getRelativeDirPath()).toBe(".roo");
       expect(rooMcp.getRelativeFilePath()).toBe("mcp.json");
     });

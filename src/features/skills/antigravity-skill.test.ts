@@ -43,7 +43,7 @@ describe("AntigravitySkill", () => {
   describe("constructor", () => {
     it("should create instance with valid content in project mode", () => {
       const skill = new AntigravitySkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".agent", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -65,7 +65,7 @@ describe("AntigravitySkill", () => {
 
     it("should create instance with valid content in global mode", () => {
       const skill = new AntigravitySkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".gemini", "antigravity", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -89,7 +89,7 @@ describe("AntigravitySkill", () => {
       expect(
         () =>
           new AntigravitySkill({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeDirPath: join(".agent", "skills"),
             dirName: "test-skill",
             frontmatter: {
@@ -117,7 +117,7 @@ This is the body of the antigravity skill.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       const skill = await AntigravitySkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
         global: false,
       });
@@ -142,7 +142,7 @@ This is the body of the antigravity skill.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       const skill = await AntigravitySkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
         global: true,
       });
@@ -161,7 +161,7 @@ This is the body of the antigravity skill.`;
 
       await expect(
         AntigravitySkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "empty-skill",
           global: false,
         }),
@@ -180,7 +180,7 @@ Missing description field.`;
 
       await expect(
         AntigravitySkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "invalid-skill",
           global: false,
         }),
@@ -191,7 +191,7 @@ Missing description field.`;
   describe("fromRulesyncSkill", () => {
     it("should create instance from RulesyncSkill in project mode", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -218,7 +218,7 @@ Missing description field.`;
 
     it("should create instance from RulesyncSkill in global mode", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -247,7 +247,7 @@ Missing description field.`;
   describe("isTargetedByRulesyncSkill", () => {
     it("should return true when targets includes '*'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "all-targets-skill",
         frontmatter: {
@@ -264,7 +264,7 @@ Missing description field.`;
 
     it("should return true when targets includes 'antigravity'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "antigravity-skill",
         frontmatter: {
@@ -281,7 +281,7 @@ Missing description field.`;
 
     it("should return false when targets does not include 'antigravity'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "claudecode-only-skill",
         frontmatter: {
@@ -300,7 +300,7 @@ Missing description field.`;
   describe("toRulesyncSkill", () => {
     it("should convert to a RulesyncSkill in project mode", () => {
       const skill = new AntigravitySkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".agent", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -324,7 +324,7 @@ Missing description field.`;
 
     it("should convert to a RulesyncSkill in global mode", () => {
       const skill = new AntigravitySkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".gemini", "antigravity", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -350,7 +350,7 @@ Missing description field.`;
   describe("forDeletion", () => {
     it("should create instance for deletion in project mode", () => {
       const skill = AntigravitySkill.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".agent", "skills"),
         dirName: "skill-to-delete",
         global: false,
@@ -362,7 +362,7 @@ Missing description field.`;
 
     it("should create instance for deletion in global mode", () => {
       const skill = AntigravitySkill.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".gemini", "antigravity", "skills"),
         dirName: "skill-to-delete",
         global: true,
@@ -376,7 +376,7 @@ Missing description field.`;
   describe("validate", () => {
     it("should return success for valid skill", () => {
       const skill = new AntigravitySkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".agent", "skills"),
         dirName: "valid-skill",
         frontmatter: {

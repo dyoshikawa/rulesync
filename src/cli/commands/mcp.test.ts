@@ -28,7 +28,7 @@ describe("MCP Server", () => {
     it("should list rules with frontmatter", async () => {
       // Create sample rule files
       const rule1 = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: RULESYNC_OVERVIEW_FILE_NAME,
         frontmatter: {
@@ -41,7 +41,7 @@ describe("MCP Server", () => {
       });
 
       const rule2 = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "coding-style.md",
         frontmatter: {
@@ -102,7 +102,7 @@ describe("MCP Server", () => {
   describe("getRule functionality", () => {
     it("should get detailed rule information", async () => {
       const rule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test-rule.md",
         frontmatter: {
@@ -146,7 +146,7 @@ describe("MCP Server", () => {
 
       // Create and write the rule
       const rule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "new-rule.md",
         frontmatter,
@@ -170,7 +170,7 @@ describe("MCP Server", () => {
     it("should update an existing rule", async () => {
       // Create initial rule
       const initialRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "update-rule.md",
         frontmatter: {
@@ -187,7 +187,7 @@ describe("MCP Server", () => {
 
       // Update the rule
       const updatedRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "update-rule.md",
         frontmatter: {
@@ -216,7 +216,7 @@ describe("MCP Server", () => {
   describe("deleteRule functionality", () => {
     it("should delete a rule file", async () => {
       const rule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "delete-me.md",
         frontmatter: {

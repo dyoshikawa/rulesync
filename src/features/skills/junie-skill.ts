@@ -23,7 +23,7 @@ export const JunieSkillFrontmatterSchema = z.looseObject({
 export type JunieSkillFrontmatter = z.infer<typeof JunieSkillFrontmatterSchema>;
 
 export type JunieSkillParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
   frontmatter: JunieSkillFrontmatter;
@@ -39,7 +39,7 @@ export type JunieSkillParams = {
  */
 export class JunieSkill extends ToolSkill {
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath = join(".junie", "skills"),
     dirName,
     frontmatter,
@@ -49,7 +49,7 @@ export class JunieSkill extends ToolSkill {
     global = false,
   }: JunieSkillParams) {
     super({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       mainFile: {
@@ -126,7 +126,7 @@ export class JunieSkill extends ToolSkill {
     };
 
     return new RulesyncSkill({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
       dirName: this.getDirName(),
       frontmatter: rulesyncFrontmatter,
@@ -151,7 +151,7 @@ export class JunieSkill extends ToolSkill {
     };
 
     return new JunieSkill({
-      baseDir: rulesyncSkill.getBaseDir(),
+      outputRoot: rulesyncSkill.getOutputRoot(),
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: junieFrontmatter.name,
       frontmatter: junieFrontmatter,
@@ -175,7 +175,7 @@ export class JunieSkill extends ToolSkill {
 
     const result = JunieSkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
-      const skillDirPath = join(loaded.baseDir, loaded.relativeDirPath, loaded.dirName);
+      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
         `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
       );
@@ -183,7 +183,7 @@ export class JunieSkill extends ToolSkill {
 
     if (result.data.name !== loaded.dirName) {
       const skillFilePath = join(
-        loaded.baseDir,
+        loaded.outputRoot,
         loaded.relativeDirPath,
         loaded.dirName,
         SKILL_FILE_NAME,
@@ -194,7 +194,7 @@ export class JunieSkill extends ToolSkill {
     }
 
     return new JunieSkill({
-      baseDir: loaded.baseDir,
+      outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
       frontmatter: result.data,
@@ -206,14 +206,14 @@ export class JunieSkill extends ToolSkill {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): JunieSkill {
     const settablePaths = JunieSkill.getSettablePaths({ global });
     return new JunieSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },

@@ -98,13 +98,13 @@ describe("ClaudecodeMcp", () => {
       expect(claudecodeMcp.getFileContent()).toBe(validJsonContent);
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const validJsonContent = JSON.stringify({
         mcpServers: {},
       });
 
       const claudecodeMcp = new ClaudecodeMcp({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".",
         relativeFilePath: ".mcp.json",
         fileContent: validJsonContent,
@@ -203,7 +203,7 @@ describe("ClaudecodeMcp", () => {
       await writeFileContent(join(testDir, ".mcp.json"), JSON.stringify(jsonData, null, 2));
 
       const claudecodeMcp = await ClaudecodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(claudecodeMcp).toBeInstanceOf(ClaudecodeMcp);
@@ -213,7 +213,7 @@ describe("ClaudecodeMcp", () => {
 
     it("should initialize empty mcpServers if file does not exist", async () => {
       const claudecodeMcp = await ClaudecodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(claudecodeMcp).toBeInstanceOf(ClaudecodeMcp);
@@ -230,7 +230,7 @@ describe("ClaudecodeMcp", () => {
       await writeFileContent(join(testDir, ".mcp.json"), JSON.stringify(jsonData));
 
       const claudecodeMcp = await ClaudecodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(claudecodeMcp.getJson()).toEqual({
@@ -241,7 +241,7 @@ describe("ClaudecodeMcp", () => {
       });
     });
 
-    it("should create instance from file with custom baseDir", async () => {
+    it("should create instance from file with custom outputRoot", async () => {
       const customDir = join(testDir, "custom");
       await ensureDir(customDir);
 
@@ -256,7 +256,7 @@ describe("ClaudecodeMcp", () => {
       await writeFileContent(join(customDir, ".mcp.json"), JSON.stringify(jsonData));
 
       const claudecodeMcp = await ClaudecodeMcp.fromFile({
-        baseDir: customDir,
+        outputRoot: customDir,
       });
 
       expect(claudecodeMcp.getFilePath()).toBe(join(customDir, ".mcp.json"));
@@ -275,7 +275,7 @@ describe("ClaudecodeMcp", () => {
       await writeFileContent(join(testDir, ".mcp.json"), JSON.stringify(jsonData));
 
       const claudecodeMcp = await ClaudecodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: true,
       });
 
@@ -289,7 +289,7 @@ describe("ClaudecodeMcp", () => {
       await writeFileContent(join(testDir, ".mcp.json"), JSON.stringify(jsonData));
 
       const claudecodeMcp = await ClaudecodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
 
@@ -312,7 +312,7 @@ describe("ClaudecodeMcp", () => {
       );
 
       const claudecodeMcp = await ClaudecodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -334,7 +334,7 @@ describe("ClaudecodeMcp", () => {
       await writeFileContent(join(testDir, ".mcp.json"), JSON.stringify(jsonData));
 
       const claudecodeMcp = await ClaudecodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: false,
       });
 
@@ -344,7 +344,7 @@ describe("ClaudecodeMcp", () => {
 
     it("should initialize global config file if it does not exist", async () => {
       const claudecodeMcp = await ClaudecodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -374,7 +374,7 @@ describe("ClaudecodeMcp", () => {
       );
 
       const claudecodeMcp = await ClaudecodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -410,7 +410,7 @@ describe("ClaudecodeMcp", () => {
       });
 
       const claudecodeMcp = await ClaudecodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -420,7 +420,7 @@ describe("ClaudecodeMcp", () => {
       expect(claudecodeMcp.getRelativeFilePath()).toBe(".mcp.json");
     });
 
-    it("should create instance from RulesyncMcp with custom baseDir", async () => {
+    it("should create instance from RulesyncMcp with custom outputRoot", async () => {
       const jsonData = {
         mcpServers: {
           "custom-server": {
@@ -433,7 +433,7 @@ describe("ClaudecodeMcp", () => {
         },
       };
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
@@ -442,7 +442,7 @@ describe("ClaudecodeMcp", () => {
       const customDir = join(testDir, "target");
       await ensureDir(customDir);
       const claudecodeMcp = await ClaudecodeMcp.fromRulesyncMcp({
-        baseDir: customDir,
+        outputRoot: customDir,
         rulesyncMcp,
       });
 
@@ -466,7 +466,7 @@ describe("ClaudecodeMcp", () => {
       });
 
       const claudecodeMcp = await ClaudecodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         validate: true,
       });
@@ -485,7 +485,7 @@ describe("ClaudecodeMcp", () => {
       });
 
       const claudecodeMcp = await ClaudecodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         validate: false,
       });
@@ -504,7 +504,7 @@ describe("ClaudecodeMcp", () => {
       });
 
       const claudecodeMcp = await ClaudecodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -527,7 +527,7 @@ describe("ClaudecodeMcp", () => {
       });
 
       const claudecodeMcp = await ClaudecodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -555,7 +555,7 @@ describe("ClaudecodeMcp", () => {
       });
 
       const claudecodeMcp = await ClaudecodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: false,
       });
@@ -600,7 +600,7 @@ describe("ClaudecodeMcp", () => {
       });
 
       const claudecodeMcp = await ClaudecodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -653,7 +653,7 @@ describe("ClaudecodeMcp", () => {
       });
 
       const claudecodeMcp = await ClaudecodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -725,7 +725,7 @@ describe("ClaudecodeMcp", () => {
         },
       };
       const claudecodeMcp = new ClaudecodeMcp({
-        baseDir: "/test/dir",
+        outputRoot: "/test/dir",
         relativeDirPath: ".",
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
@@ -733,7 +733,7 @@ describe("ClaudecodeMcp", () => {
 
       const rulesyncMcp = claudecodeMcp.toRulesyncMcp();
 
-      expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
+      expect(rulesyncMcp.getOutputRoot()).toBe("/test/dir");
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
         $schema: RULESYNC_MCP_SCHEMA_URL,
         ...jsonData,
@@ -893,7 +893,7 @@ describe("ClaudecodeMcp", () => {
 
       // Step 1: Load from file
       const originalClaudecodeMcp = await ClaudecodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       // Step 2: Convert to RulesyncMcp
@@ -901,7 +901,7 @@ describe("ClaudecodeMcp", () => {
 
       // Step 3: Create new ClaudecodeMcp from RulesyncMcp
       const newClaudecodeMcp = await ClaudecodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -939,7 +939,7 @@ describe("ClaudecodeMcp", () => {
 
       // Create ClaudecodeMcp
       const claudecodeMcp = new ClaudecodeMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(complexJsonData),
@@ -971,7 +971,7 @@ describe("ClaudecodeMcp", () => {
 
       // Step 1: Load from global config
       const originalClaudecodeMcp = await ClaudecodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -980,7 +980,7 @@ describe("ClaudecodeMcp", () => {
 
       // Step 3: Create new ClaudecodeMcp from RulesyncMcp in global mode
       const newClaudecodeMcp = await ClaudecodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -997,7 +997,7 @@ describe("ClaudecodeMcp", () => {
 
       await expect(
         ClaudecodeMcp.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });
@@ -1008,7 +1008,7 @@ describe("ClaudecodeMcp", () => {
 
       await expect(
         ClaudecodeMcp.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           global: true,
         }),
       ).rejects.toThrow();
@@ -1021,7 +1021,7 @@ describe("ClaudecodeMcp", () => {
       await writeFileContent(join(testDir, ".mcp.json"), JSON.stringify(jsonData));
 
       const claudecodeMcp = await ClaudecodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(claudecodeMcp.getJson().mcpServers).toEqual({});
@@ -1034,7 +1034,7 @@ describe("ClaudecodeMcp", () => {
       await writeFileContent(join(testDir, ".mcp.json"), JSON.stringify(jsonData));
 
       const claudecodeMcp = await ClaudecodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(claudecodeMcp.getJson().mcpServers).toEqual({});
@@ -1046,7 +1046,7 @@ describe("ClaudecodeMcp", () => {
 
       await expect(
         ClaudecodeMcp.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });
@@ -1056,7 +1056,7 @@ describe("ClaudecodeMcp", () => {
 
       await expect(
         ClaudecodeMcp.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });

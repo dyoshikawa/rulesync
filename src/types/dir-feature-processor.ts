@@ -15,26 +15,26 @@ import { AiDir, AiDirFile } from "./ai-dir.js";
 import { ToolTarget } from "./tool-targets.js";
 
 export abstract class DirFeatureProcessor {
-  protected readonly baseDir: string;
+  protected readonly outputRoot: string;
   protected readonly inputRoot: string;
   protected readonly dryRun: boolean;
   protected readonly avoidBlockScalars: boolean;
   protected readonly logger: Logger;
 
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     inputRoot = process.cwd(),
     dryRun = false,
     avoidBlockScalars = false,
     logger,
   }: {
-    baseDir?: string;
+    outputRoot?: string;
     inputRoot?: string;
     dryRun?: boolean;
     avoidBlockScalars?: boolean;
     logger: Logger;
   }) {
-    this.baseDir = baseDir;
+    this.outputRoot = outputRoot;
     this.inputRoot = inputRoot;
     this.dryRun = dryRun;
     this.avoidBlockScalars = avoidBlockScalars;

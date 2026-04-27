@@ -43,7 +43,7 @@ It can be multiline.`;
   describe("constructor", () => {
     it("should create instance with valid content", () => {
       const command = new CodexcliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".codex/prompts",
         relativeFilePath: "test-command.md",
         fileContent: "This is the body of the codexcli command.\nIt can be multiline.",
@@ -58,7 +58,7 @@ It can be multiline.`;
 
     it("should create instance without validation when validate is false", () => {
       const command = new CodexcliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".codex/prompts",
         relativeFilePath: "test-command.md",
         fileContent: "Test body",
@@ -72,7 +72,7 @@ It can be multiline.`;
   describe("getBody", () => {
     it("should return the body content", () => {
       const command = new CodexcliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".codex/prompts",
         relativeFilePath: "test-command.md",
         fileContent: "This is the body content.\nWith multiple lines.",
@@ -86,7 +86,7 @@ It can be multiline.`;
   describe("toRulesyncCommand", () => {
     it("should convert to RulesyncCommand", () => {
       const command = new CodexcliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".codex/prompts",
         relativeFilePath: "test-command.md",
         fileContent: "Test body",
@@ -102,7 +102,7 @@ It can be multiline.`;
   describe("fromRulesyncCommand", () => {
     it("should create CodexcliCommand from RulesyncCommand", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-command.md",
         frontmatter: {
@@ -115,7 +115,7 @@ It can be multiline.`;
       });
 
       const codexcliCommand = CodexcliCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
         validate: true,
         global: true,
@@ -129,7 +129,7 @@ It can be multiline.`;
 
     it("should handle RulesyncCommand with different file extensions", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "complex-command.txt",
         frontmatter: {
@@ -142,7 +142,7 @@ It can be multiline.`;
       });
 
       const codexcliCommand = CodexcliCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
         validate: true,
         global: true,
@@ -153,7 +153,7 @@ It can be multiline.`;
 
     it("should handle empty body", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-command.md",
         frontmatter: {
@@ -166,7 +166,7 @@ It can be multiline.`;
       });
 
       const codexcliCommand = CodexcliCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
         validate: true,
         global: true,
@@ -184,7 +184,7 @@ It can be multiline.`;
       await writeFileContent(filePath, validMarkdownContent);
 
       const command = await CodexcliCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test-file-command.md",
         validate: true,
         global: true,
@@ -200,7 +200,7 @@ It can be multiline.`;
     it("should throw error when file does not exist", async () => {
       await expect(
         CodexcliCommand.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "non-existent-command.md",
           validate: true,
           global: true,
@@ -212,7 +212,7 @@ It can be multiline.`;
   describe("validate", () => {
     it("should return success", () => {
       const command = new CodexcliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".codex/prompts",
         relativeFilePath: "valid-command.md",
         fileContent: "Valid body",

@@ -65,19 +65,19 @@ export type ApmInstallResult = {
  * currently understands (Instructions and Skills), and updates `rulesync-apm.lock.yaml`.
  */
 export async function installApm(params: {
-  baseDir: string;
+  projectRoot: string;
   options?: ApmInstallOptions;
   logger: Logger;
 }): Promise<ApmInstallResult> {
-  const { baseDir, options = {}, logger } = params;
+  const { projectRoot, options = {}, logger } = params;
 
-  const manifest = await readApmManifest(baseDir);
+  const manifest = await readApmManifest(projectRoot);
   if (manifest.dependencies.length === 0) {
     logger.warn("apm.yml has no dependencies.apm entries. Nothing to install.");
     return { dependenciesProcessed: 0, deployedFileCount: 0, failedDependencyCount: 0 };
   }
 
-  const existingLock = await readApmLock(baseDir);
+  const existingLock = await readApmLock(projectRoot);
   if (options.frozen) {
     if (!existingLock) {
       throw new Error(
@@ -143,7 +143,7 @@ export async function installApm(params: {
       dep,
       client,
       semaphore,
-      baseDir,
+      projectRoot,
       existingLock,
       frozen,
       update: options.update ?? false,
@@ -223,12 +223,12 @@ export async function installApm(params: {
         continue;
       }
       try {
-        checkPathTraversal({ relativePath, intendedRootDir: baseDir });
+        checkPathTraversal({ relativePath, intendedRootDir: projectRoot });
       } catch {
-        logger.warn(`Refusing to remove stale apm file outside baseDir: "${relativePath}".`);
+        logger.warn(`Refusing to remove stale apm file outside projectRoot: "${relativePath}".`);
         continue;
       }
-      const absolute = join(baseDir, relativePath);
+      const absolute = join(projectRoot, relativePath);
       // `removeFile` is best-effort and swallows ENOENT, so missing files are
       // a no-op. This keeps a corrupted partial-install from blowing up here.
       await removeFile(absolute);
@@ -242,7 +242,7 @@ export async function installApm(params: {
   // runs with mixed results still record the successful pins.
   if (!frozen) {
     newLock.generated_at = new Date().toISOString();
-    await writeApmLock({ baseDir, lock: newLock });
+    await writeApmLock({ projectRoot, lock: newLock });
     if (failedCount === 0) {
       logger.debug("rulesync-apm.lock.yaml updated.");
     } else {
@@ -263,13 +263,13 @@ async function installDependency(params: {
   dep: ApmDependency;
   client: GitHubClient;
   semaphore: Semaphore;
-  baseDir: string;
+  projectRoot: string;
   existingLock: ApmLock | null;
   frozen: boolean;
   update: boolean;
   logger: Logger;
 }): Promise<{ lockEntry: ApmLockDependency; deployedFiles: string[] }> {
-  const { dep, client, semaphore, baseDir, existingLock, frozen, update, logger } = params;
+  const { dep, client, semaphore, projectRoot, existingLock, frozen, update, logger } = params;
   const repoUrl = canonicalRepoUrl(dep);
   const locked = existingLock ? findApmLockDependency(existingLock, repoUrl) : undefined;
 
@@ -322,7 +322,7 @@ async function installDependency(params: {
       const deployRelative = toPosixPath(join(primitive.deployDir, relativeToBase));
       checkPathTraversal({
         relativePath: deployRelative,
-        intendedRootDir: baseDir,
+        intendedRootDir: projectRoot,
       });
       const content = await withSemaphore(semaphore, () =>
         client.getFileContent(dep.owner, dep.repo, file.path, resolvedSha),
@@ -338,7 +338,7 @@ async function installDependency(params: {
       }
       deployed.push({ path: deployRelative, content });
       if (!frozen) {
-        await writeFileContent(join(baseDir, deployRelative), content);
+        await writeFileContent(join(projectRoot, deployRelative), content);
       }
     }
   }
@@ -376,7 +376,7 @@ async function installDependency(params: {
   // Under --frozen we deferred all writes until after the hash check passed.
   if (frozen) {
     for (const { path: deployRelative, content } of deployed) {
-      await writeFileContent(join(baseDir, deployRelative), content);
+      await writeFileContent(join(projectRoot, deployRelative), content);
     }
   }
 

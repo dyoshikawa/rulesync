@@ -50,19 +50,19 @@ describe("RulesyncPermissions", () => {
       expect(instance.getFileContent()).toBe(validContent);
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const validContent = JSON.stringify({
         permission: {},
       });
 
       const instance = new RulesyncPermissions({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
         fileContent: validContent,
       });
 
-      expect(instance.getBaseDir()).toBe("/custom/path");
+      expect(instance.getOutputRoot()).toBe("/custom/path");
       expect(instance.getFilePath()).toBe(
         `/custom/path/${RULESYNC_RELATIVE_DIR_PATH}/${RULESYNC_PERMISSIONS_FILE_NAME}`,
       );
@@ -326,7 +326,7 @@ describe("RulesyncPermissions", () => {
 
       expect(instance).toBeInstanceOf(RulesyncPermissions);
       expect(instance.getJson()).toEqual(jsonData);
-      expect(instance.getBaseDir()).toBe(testDir);
+      expect(instance.getOutputRoot()).toBe(testDir);
       expect(instance.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(instance.getRelativeFilePath()).toBe(RULESYNC_PERMISSIONS_FILE_NAME);
     });

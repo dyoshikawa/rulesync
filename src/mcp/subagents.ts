@@ -152,7 +152,7 @@ async function putSubagent({
 
     // Create a new RulesyncSubagent instance
     const subagent = new RulesyncSubagent({
-      baseDir: process.cwd(),
+      outputRoot: process.cwd(),
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
       relativeFilePath: filename,
       frontmatter,

@@ -223,12 +223,12 @@ export class OpencodeMcp extends ToolMcp {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
     global = false,
   }: ToolMcpFromFileParams): Promise<OpencodeMcp> {
     const basePaths = this.getSettablePaths({ global });
-    const jsonDir = join(baseDir, basePaths.relativeDirPath);
+    const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
     let fileContent: string | null = null;
     let relativeFilePath = "opencode.jsonc";
@@ -250,7 +250,7 @@ export class OpencodeMcp extends ToolMcp {
     const newJson = { ...json, mcp: json.mcp ?? {} };
 
     return new OpencodeMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath: basePaths.relativeDirPath,
       relativeFilePath,
       fileContent: JSON.stringify(newJson, null, 2),
@@ -259,13 +259,13 @@ export class OpencodeMcp extends ToolMcp {
   }
 
   static async fromRulesyncMcp({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncMcp,
     validate = true,
     global = false,
   }: ToolMcpFromRulesyncMcpParams): Promise<OpencodeMcp> {
     const basePaths = this.getSettablePaths({ global });
-    const jsonDir = join(baseDir, basePaths.relativeDirPath);
+    const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
     let fileContent: string | null = null;
     let relativeFilePath = "opencode.jsonc";
@@ -300,7 +300,7 @@ export class OpencodeMcp extends ToolMcp {
     };
 
     return new OpencodeMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath: basePaths.relativeDirPath,
       relativeFilePath,
       fileContent: JSON.stringify(newJson, null, 2),
@@ -327,13 +327,13 @@ export class OpencodeMcp extends ToolMcp {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
     global = false,
   }: ToolMcpForDeletionParams): OpencodeMcp {
     return new OpencodeMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "{}",

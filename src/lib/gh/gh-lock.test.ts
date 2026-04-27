@@ -201,7 +201,7 @@ installations:
         install_dir: ".claude/skills",
         deployed_files: [],
       });
-      await writeGhLock({ baseDir: testDir, lock });
+      await writeGhLock({ projectRoot: testDir, lock });
       const written = await readFileContent(getGhLockPath(testDir));
       expect(written).toContain("lockfile_version:");
       const readBack = await readGhLock(testDir);

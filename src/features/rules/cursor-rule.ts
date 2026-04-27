@@ -188,7 +188,7 @@ export class CursorRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): CursorRule {
@@ -209,7 +209,7 @@ export class CursorRule extends ToolRule {
     const newFileName = `${nameWithoutExt}.mdc`;
 
     return new CursorRule({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       frontmatter: cursorFrontmatter,
       body,
       relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
@@ -219,13 +219,13 @@ export class CursorRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<CursorRule> {
     // Read file content
     const filePath = join(
-      baseDir,
+      outputRoot,
       this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath,
     );
@@ -238,12 +238,12 @@ export class CursorRule extends ToolRule {
     const result = CursorRuleFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
       throw new Error(
-        `Invalid frontmatter in ${join(baseDir, relativeFilePath)}: ${formatError(result.error)}`,
+        `Invalid frontmatter in ${join(outputRoot, relativeFilePath)}: ${formatError(result.error)}`,
       );
     }
 
     return new CursorRule({
-      baseDir,
+      outputRoot,
       relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath,
       frontmatter: result.data,
@@ -253,12 +253,12 @@ export class CursorRule extends ToolRule {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): CursorRule {
     return new CursorRule({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       frontmatter: {},

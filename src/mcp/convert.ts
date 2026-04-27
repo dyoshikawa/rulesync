@@ -13,7 +13,7 @@ import { type McpResultCounts } from "./types.js";
 /**
  * Schema for convert options
  * Excluded parameters:
- * - baseDirs: Always use [process.cwd()] in MCP context
+ * - outputRoots: Always use [process.cwd()] in MCP context
  * - verbose: Meaningless in MCP (no console output)
  * - silent: Meaningless in MCP
  * - configPath: Always use default path from process.cwd()
@@ -98,7 +98,7 @@ export async function executeConvert(options: ConvertOptions): Promise<McpConver
       features: (options.features ?? ["*"]) as RulesyncFeatures,
       global: options.global,
       dryRun: options.dryRun,
-      // Always use default baseDirs (process.cwd()) and configPath
+      // Always use default outputRoots (process.cwd()) and configPath
       // verbose and silent are meaningless in MCP context
       verbose: false,
       silent: true,

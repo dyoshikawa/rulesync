@@ -128,7 +128,7 @@ export class ClaudecodeRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
     global = false,
@@ -140,11 +140,11 @@ export class ClaudecodeRule extends ToolRule {
     if (isRoot) {
       const rootDirPath = overrideDirPath ?? paths.root.relativeDirPath;
       const fileContent = await readFileContent(
-        join(baseDir, rootDirPath, paths.root.relativeFilePath),
+        join(outputRoot, rootDirPath, paths.root.relativeFilePath),
       );
 
       return new ClaudecodeRule({
-        baseDir,
+        outputRoot,
         relativeDirPath: rootDirPath,
         relativeFilePath: paths.root.relativeFilePath,
         frontmatter: {},
@@ -159,7 +159,7 @@ export class ClaudecodeRule extends ToolRule {
     }
 
     const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
-    const filePath = join(baseDir, relativePath);
+    const filePath = join(outputRoot, relativePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
@@ -170,7 +170,7 @@ export class ClaudecodeRule extends ToolRule {
     }
 
     return new ClaudecodeRule({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.nonRoot.relativeDirPath,
       relativeFilePath,
       frontmatter: result.data,
@@ -181,7 +181,7 @@ export class ClaudecodeRule extends ToolRule {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
     global = false,
@@ -190,7 +190,7 @@ export class ClaudecodeRule extends ToolRule {
     const isRoot = relativeFilePath === paths.root.relativeFilePath;
 
     return new ClaudecodeRule({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       frontmatter: {},
@@ -201,7 +201,7 @@ export class ClaudecodeRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
     global = false,
@@ -224,7 +224,7 @@ export class ClaudecodeRule extends ToolRule {
 
     if (root) {
       return new ClaudecodeRule({
-        baseDir,
+        outputRoot,
         frontmatter: claudecodeFrontmatter,
         body,
         relativeDirPath: paths.root.relativeDirPath,
@@ -239,7 +239,7 @@ export class ClaudecodeRule extends ToolRule {
     }
 
     return new ClaudecodeRule({
-      baseDir,
+      outputRoot,
       frontmatter: claudecodeFrontmatter,
       body,
       relativeDirPath: paths.nonRoot.relativeDirPath,
@@ -270,7 +270,7 @@ export class ClaudecodeRule extends ToolRule {
     };
 
     return new RulesyncRule({
-      baseDir: this.getBaseDir(),
+      outputRoot: this.getOutputRoot(),
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,

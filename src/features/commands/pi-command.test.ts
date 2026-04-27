@@ -38,7 +38,7 @@ describe("PiCommand", () => {
   describe("constructor", () => {
     it("should create a PiCommand with frontmatter", () => {
       const command = new PiCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".pi", "prompts"),
         relativeFilePath: "test.md",
         frontmatter: { description: "Test" },
@@ -52,7 +52,7 @@ describe("PiCommand", () => {
 
     it("should emit body-only content when frontmatter is empty", () => {
       const command = new PiCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".pi", "prompts"),
         relativeFilePath: "test.md",
         frontmatter: {},
@@ -64,7 +64,7 @@ describe("PiCommand", () => {
 
     it("should emit frontmatter block when frontmatter has fields", () => {
       const command = new PiCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".pi", "prompts"),
         relativeFilePath: "test.md",
         frontmatter: { description: "Test", "argument-hint": "[args]" },
@@ -80,7 +80,7 @@ describe("PiCommand", () => {
     it("should throw when validating invalid frontmatter", () => {
       expect(() => {
         new PiCommand({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: join(".pi", "prompts"),
           relativeFilePath: "test.md",
           frontmatter: { description: 42 as any },
@@ -94,7 +94,7 @@ describe("PiCommand", () => {
   describe("validate", () => {
     it("should succeed for valid frontmatter", () => {
       const command = new PiCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".pi", "prompts"),
         relativeFilePath: "test.md",
         frontmatter: { description: "Valid" },
@@ -108,7 +108,7 @@ describe("PiCommand", () => {
 
     it("should fail for invalid frontmatter when validation deferred", () => {
       const command = new PiCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".pi", "prompts"),
         relativeFilePath: "test.md",
         frontmatter: { description: 123 as any },
@@ -136,7 +136,7 @@ Body`,
       );
 
       const command = await PiCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test.md",
       });
 
@@ -160,7 +160,7 @@ Body`,
       );
 
       const command = await PiCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test.md",
         global: true,
       });
@@ -182,7 +182,7 @@ Body`,
 
       await expect(
         PiCommand.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "bad.md",
         }),
       ).rejects.toThrow(/Invalid frontmatter/);
@@ -192,7 +192,7 @@ Body`,
   describe("fromRulesyncCommand", () => {
     it("should copy description from rulesync frontmatter", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -204,7 +204,7 @@ Body`,
       });
 
       const command = PiCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
       });
 
@@ -215,7 +215,7 @@ Body`,
 
     it("should propagate argument-hint from rulesync pi section", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -230,7 +230,7 @@ Body`,
       });
 
       const command = PiCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
       });
 
@@ -242,7 +242,7 @@ Body`,
 
     it("should emit to the global path when global is true", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -254,7 +254,7 @@ Body`,
       });
 
       const command = PiCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
         global: true,
       });
@@ -266,7 +266,7 @@ Body`,
   describe("toRulesyncCommand", () => {
     it("should produce rulesync frontmatter with wildcard targets", () => {
       const command = new PiCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".pi", "prompts"),
         relativeFilePath: "test.md",
         frontmatter: { description: "Desc" },
@@ -282,7 +282,7 @@ Body`,
 
     it("should preserve argument-hint in the pi section on round-trip", () => {
       const command = new PiCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".pi", "prompts"),
         relativeFilePath: "test.md",
         frontmatter: { description: "Desc", "argument-hint": "[message]" },
@@ -298,7 +298,7 @@ Body`,
 
     it("should preserve arbitrary extra fields in the pi section", () => {
       const command = new PiCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".pi", "prompts"),
         relativeFilePath: "test.md",
         frontmatter: {
@@ -320,7 +320,7 @@ Body`,
 
     it("should round-trip argument-hint through pi section", () => {
       const original = new PiCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".pi", "prompts"),
         relativeFilePath: "roundtrip.md",
         frontmatter: { description: "Desc", "argument-hint": "[arg]" },
@@ -339,7 +339,7 @@ Body`,
       });
 
       const restored = PiCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
       });
 
@@ -353,7 +353,7 @@ Body`,
   describe("forDeletion", () => {
     it("should create a deletion stub", () => {
       const command = PiCommand.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".pi", "prompts"),
         relativeFilePath: "to-delete.md",
       });

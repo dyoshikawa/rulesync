@@ -26,7 +26,7 @@ describe("convertFromTool", () => {
   let mockConfig: {
     getVerbose: ReturnType<typeof vi.fn>;
     getSilent: ReturnType<typeof vi.fn>;
-    getBaseDirs: ReturnType<typeof vi.fn>;
+    getOutputRoots: ReturnType<typeof vi.fn>;
     getFeatures: ReturnType<typeof vi.fn>;
     getFeatureOptions: ReturnType<typeof vi.fn>;
     getGlobal: ReturnType<typeof vi.fn>;
@@ -38,7 +38,7 @@ describe("convertFromTool", () => {
     mockConfig = {
       getVerbose: vi.fn().mockReturnValue(false),
       getSilent: vi.fn().mockReturnValue(false),
-      getBaseDirs: vi.fn().mockReturnValue(["."]),
+      getOutputRoots: vi.fn().mockReturnValue(["."]),
       getFeatures: vi.fn().mockReturnValue(["rules"]),
       getFeatureOptions: vi.fn().mockReturnValue(undefined),
       getGlobal: vi.fn().mockReturnValue(false),
@@ -380,10 +380,10 @@ describe("convertFromTool", () => {
     });
   });
 
-  describe("baseDir handling", () => {
-    it("should fall back to '.' when baseDirs is empty", async () => {
+  describe("outputRoot handling", () => {
+    it("should fall back to '.' when outputRoots is empty", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
-      mockConfig.getBaseDirs.mockReturnValue([]);
+      mockConfig.getOutputRoots.mockReturnValue([]);
 
       await convertFromTool({
         logger,
@@ -392,7 +392,7 @@ describe("convertFromTool", () => {
         toTools: ["claudecode"],
       });
 
-      expect(RulesProcessor).toHaveBeenCalledWith(expect.objectContaining({ baseDir: "." }));
+      expect(RulesProcessor).toHaveBeenCalledWith(expect.objectContaining({ outputRoot: "." }));
     });
   });
 

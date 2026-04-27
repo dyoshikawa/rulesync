@@ -36,8 +36,12 @@ const CODEXCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
  * Reads the existing file (if any), parses TOML, sets the flag, and returns the content
  * without writing to disk. The caller is responsible for writing via the normal write phase.
  */
-async function buildCodexConfigTomlContent({ baseDir }: { baseDir: string }): Promise<string> {
-  const configPath = join(baseDir, ".codex", "config.toml");
+async function buildCodexConfigTomlContent({
+  outputRoot,
+}: {
+  outputRoot: string;
+}): Promise<string> {
+  const configPath = join(outputRoot, ".codex", "config.toml");
   const existingContent = (await readFileContentOrNull(configPath)) ?? smolToml.stringify({});
   let configToml: smolToml.TomlPrimitive;
   try {
@@ -70,10 +74,10 @@ export class CodexcliConfigToml extends ToolFile {
     return { success: true, error: null };
   }
 
-  static async fromBaseDir({ baseDir }: { baseDir: string }): Promise<CodexcliConfigToml> {
-    const fileContent = await buildCodexConfigTomlContent({ baseDir });
+  static async fromOutputRoot({ outputRoot }: { outputRoot: string }): Promise<CodexcliConfigToml> {
+    const fileContent = await buildCodexConfigTomlContent({ outputRoot });
     return new CodexcliConfigToml({
-      baseDir,
+      outputRoot,
       relativeDirPath: ".codex",
       relativeFilePath: "config.toml",
       fileContent,
@@ -94,15 +98,15 @@ export class CodexcliHooks extends ToolHooks {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
     global = false,
   }: ToolHooksFromFileParams): Promise<CodexcliHooks> {
     const paths = CodexcliHooks.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? '{"hooks":{}}';
     return new CodexcliHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -111,7 +115,7 @@ export class CodexcliHooks extends ToolHooks {
   }
 
   static async fromRulesyncHooks({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncHooks,
     validate = true,
     global = false,
@@ -126,7 +130,7 @@ export class CodexcliHooks extends ToolHooks {
     const fileContent = JSON.stringify({ hooks: codexHooks }, null, 2);
 
     return new CodexcliHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -160,12 +164,12 @@ export class CodexcliHooks extends ToolHooks {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolHooksForDeletionParams): CodexcliHooks {
     return new CodexcliHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: JSON.stringify({ hooks: {} }, null, 2),
@@ -174,11 +178,11 @@ export class CodexcliHooks extends ToolHooks {
   }
 
   static async getAuxiliaryFiles({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
   }: {
-    baseDir?: string;
+    outputRoot?: string;
     global?: boolean;
   } = {}): Promise<ToolFile[]> {
-    return [await CodexcliConfigToml.fromBaseDir({ baseDir })];
+    return [await CodexcliConfigToml.fromOutputRoot({ outputRoot })];
   }
 }

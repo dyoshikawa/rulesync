@@ -57,7 +57,7 @@ Body content`;
   describe("constructor", () => {
     it("should create instance with valid markdown content", () => {
       const command = new CopilotCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test-command.prompt.md",
         frontmatter: {
@@ -80,7 +80,7 @@ Body content`;
 
     it("should create instance with empty description", () => {
       const command = new CopilotCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test-command.prompt.md",
         frontmatter: {
@@ -100,7 +100,7 @@ Body content`;
 
     it("should create instance without validation when validate is false", () => {
       const command = new CopilotCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test-command.prompt.md",
         frontmatter: {
@@ -116,7 +116,7 @@ Body content`;
 
     it("should accept frontmatter without description (description is optional)", () => {
       const command = new CopilotCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "no-desc-command.prompt.md",
         frontmatter: {} as CopilotCommandFrontmatter,
@@ -132,7 +132,7 @@ Body content`;
   describe("getBody", () => {
     it("should return the body content", () => {
       const command = new CopilotCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test-command.prompt.md",
         frontmatter: {
@@ -150,7 +150,7 @@ Body content`;
   describe("getFrontmatter", () => {
     it("should return frontmatter with mode and description", () => {
       const command = new CopilotCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test-command.prompt.md",
         frontmatter: {
@@ -172,7 +172,7 @@ Body content`;
   describe("toRulesyncCommand", () => {
     it("should convert CopilotCommand to RulesyncCommand", () => {
       const command = new CopilotCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test-command.prompt.md",
         frontmatter: {
@@ -196,7 +196,7 @@ Body content`;
 
     it("should strip .prompt.md extension when converting to RulesyncCommand", () => {
       const command = new CopilotCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "example.prompt.md",
         frontmatter: {
@@ -216,7 +216,7 @@ Body content`;
   describe("fromRulesyncCommand", () => {
     it("should create CopilotCommand from RulesyncCommand", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-command.md",
         frontmatter: {
@@ -244,7 +244,7 @@ Body content`;
 
     it("should convert .md extension to .prompt.md", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "complex-command.md",
         frontmatter: {
@@ -266,7 +266,7 @@ Body content`;
 
     it("should handle empty description", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-command.md",
         frontmatter: {
@@ -368,7 +368,7 @@ Body content`;
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
       const command = new CopilotCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "valid-command.prompt.md",
         frontmatter: {
@@ -386,7 +386,7 @@ Body content`;
 
     it("should handle frontmatter with additional properties", () => {
       const command = new CopilotCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "command-with-extras.prompt.md",
         frontmatter: {
@@ -458,7 +458,7 @@ Body content`;
   describe("edge cases", () => {
     it("should handle empty body content", () => {
       const command = new CopilotCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "empty-body.prompt.md",
         frontmatter: {
@@ -481,7 +481,7 @@ Body content`;
         "Special characters: @#$%^&*()\nUnicode: 你好世界 🌍\nQuotes: \"Hello 'World'\"";
 
       const command = new CopilotCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "special-char.prompt.md",
         frontmatter: {
@@ -502,7 +502,7 @@ Body content`;
       const longContent = "A".repeat(10000);
 
       const command = new CopilotCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "long-content.prompt.md",
         frontmatter: {
@@ -519,7 +519,7 @@ Body content`;
 
     it("should handle multi-line description", () => {
       const command = new CopilotCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "multiline-desc.prompt.md",
         frontmatter: {
@@ -540,7 +540,7 @@ Body content`;
       const windowsContent = "Line 1\r\nLine 2\r\nLine 3";
 
       const command = new CopilotCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "windows-lines.prompt.md",
         frontmatter: {
@@ -558,7 +558,7 @@ Body content`;
   describe("integration with base classes", () => {
     it("should properly inherit from ToolCommand", () => {
       const command = new CopilotCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test.prompt.md",
         frontmatter: {
@@ -575,10 +575,10 @@ Body content`;
       expect(command.getRelativeFilePath()).toBe("test.prompt.md");
     });
 
-    it("should handle baseDir correctly", () => {
-      const customBaseDir = "/custom/base/dir";
+    it("should handle outputRoot correctly", () => {
+      const customOutputRoot = "/custom/base/dir";
       const command = new CopilotCommand({
-        baseDir: customBaseDir,
+        outputRoot: customOutputRoot,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test.prompt.md",
         frontmatter: {
@@ -596,7 +596,7 @@ Body content`;
   describe("tool-specific field passthrough", () => {
     it("fromRulesyncCommand should preserve copilot fields", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "passthrough-test.md",
         frontmatter: {
@@ -612,7 +612,7 @@ Body content`;
       });
 
       const copilotCommand = CopilotCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
       });
 
@@ -625,7 +625,7 @@ Body content`;
 
     it("toRulesyncCommand should preserve extra fields in copilot section", () => {
       const command = new CopilotCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test.prompt.md",
         frontmatter: {
@@ -648,7 +648,7 @@ Body content`;
 
     it("round-trip should preserve all fields except mode", () => {
       const original = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "roundtrip.md",
         frontmatter: {
@@ -674,7 +674,7 @@ Body content`;
 
     it("should not include copilot section when no extra fields", () => {
       const command = new CopilotCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test.prompt.md",
         frontmatter: {

@@ -40,9 +40,9 @@ describe("RulesyncIgnore", () => {
       expect(rulesyncIgnore.getFileContent()).toBe("*.log\nnode_modules/");
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const rulesyncIgnore = new RulesyncIgnore({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: "subdir",
         relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.tmp",
@@ -170,7 +170,7 @@ Thumbs.db`;
       const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
       expect(rulesyncIgnore).toBeInstanceOf(RulesyncIgnore);
-      expect(rulesyncIgnore.getBaseDir()).toBe(testDir);
+      expect(rulesyncIgnore.getOutputRoot()).toBe(testDir);
       expect(rulesyncIgnore.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_AIIGNORE_FILE_NAME);
       expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
@@ -257,13 +257,13 @@ Thumbs.db`;
   describe("inheritance from RulesyncFile", () => {
     it("should inherit file path methods from AiFile", () => {
       const rulesyncIgnore = new RulesyncIgnore({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: "subdir",
         relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log",
       });
 
-      expect(rulesyncIgnore.getBaseDir()).toBe("/test/base");
+      expect(rulesyncIgnore.getOutputRoot()).toBe("/test/base");
       expect(rulesyncIgnore.getRelativeDirPath()).toBe("subdir");
       expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_AIIGNORE_RELATIVE_FILE_PATH);
       expect(rulesyncIgnore.getFilePath()).toBe(
@@ -340,7 +340,7 @@ Thumbs.db`;
       // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\nnode_modules/\n.env";
       const rulesyncIgnore = new RulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent,
@@ -366,7 +366,7 @@ dist/
 *.tmp`;
 
       const rulesyncIgnore = new RulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent: originalContent,
@@ -443,7 +443,7 @@ desktop.ini`;
 
     it("should work in project root context", () => {
       const rulesyncIgnore = new RulesyncIgnore({
-        baseDir: "/project/root",
+        outputRoot: "/project/root",
         relativeDirPath: ".",
         relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log\nnode_modules/",
@@ -490,7 +490,7 @@ build/`;
       const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
       // fromFile always uses these fixed parameters
-      expect(rulesyncIgnore.getBaseDir()).toBe(testDir);
+      expect(rulesyncIgnore.getOutputRoot()).toBe(testDir);
       expect(rulesyncIgnore.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_AIIGNORE_FILE_NAME);
     });
@@ -527,7 +527,7 @@ build/`;
 
       const rulesyncIgnore = await RulesyncIgnore.fromFile();
 
-      expect(rulesyncIgnore.getBaseDir()).toBe(testDir);
+      expect(rulesyncIgnore.getOutputRoot()).toBe(testDir);
       expect(rulesyncIgnore.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_AIIGNORE_FILE_NAME);
       expect(rulesyncIgnore.getFileContent()).toBe(content);

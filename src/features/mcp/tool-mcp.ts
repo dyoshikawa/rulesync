@@ -16,10 +16,13 @@ export type ToolMcpFromRulesyncMcpParams = Omit<
   rulesyncMcp: RulesyncMcp;
 };
 
-export type ToolMcpFromFileParams = Pick<AiFileFromFileParams, "baseDir" | "validate" | "global">;
+export type ToolMcpFromFileParams = Pick<
+  AiFileFromFileParams,
+  "outputRoot" | "validate" | "global"
+>;
 
 export type ToolMcpForDeletionParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath: string;
   relativeFilePath: string;
   global?: boolean;
@@ -68,7 +71,7 @@ export abstract class ToolMcp extends ToolFile {
       ...json,
     };
     return new RulesyncMcp({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: RULESYNC_MCP_FILE_NAME,
       fileContent: JSON.stringify(withSchema, null, 2),

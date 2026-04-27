@@ -332,12 +332,12 @@ export class AntigravityRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<AntigravityRule> {
     const filePath = join(
-      baseDir,
+      outputRoot,
       this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath,
     );
@@ -358,7 +358,7 @@ export class AntigravityRule extends ToolRule {
     }
 
     return new AntigravityRule({
-      baseDir,
+      outputRoot,
       relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: relativeFilePath,
       body,
@@ -377,7 +377,7 @@ export class AntigravityRule extends ToolRule {
    * - Otherwise, infers "always_on" trigger
    */
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): AntigravityRule {
@@ -403,7 +403,7 @@ export class AntigravityRule extends ToolRule {
     const kebabCaseFilename = toKebabCaseFilename(rulesyncRule.getRelativeFilePath());
 
     return new AntigravityRule({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.nonRoot.relativeDirPath,
       relativeFilePath: kebabCaseFilename,
       frontmatter,
@@ -453,7 +453,7 @@ export class AntigravityRule extends ToolRule {
     };
 
     return new RulesyncRule({
-      baseDir: process.cwd(),
+      outputRoot: process.cwd(),
       relativeDirPath: RulesyncRule.getSettablePaths().recommended.relativeDirPath,
       relativeFilePath: this.getRelativeFilePath(),
       frontmatter: {
@@ -488,12 +488,12 @@ export class AntigravityRule extends ToolRule {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): AntigravityRule {
     return new AntigravityRule({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       frontmatter: {},

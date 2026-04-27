@@ -25,7 +25,7 @@ describe("AgentsMdRule", () => {
   describe("constructor", () => {
     it("should create an AgentsMdRule with valid parameters", () => {
       const rule = new AgentsMdRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         fileContent: "# Test Agent\n\nThis is a test agent configuration.",
@@ -36,7 +36,7 @@ describe("AgentsMdRule", () => {
 
     it("should create an AgentsMdRule with root flag", () => {
       const rule = new AgentsMdRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
         fileContent: "# Root Agent\n\nThis is a root agent configuration.",
@@ -48,7 +48,7 @@ describe("AgentsMdRule", () => {
 
     it("should default root to false when not specified", () => {
       const rule = new AgentsMdRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         fileContent: "# Test Agent\n\nContent",
@@ -64,7 +64,7 @@ describe("AgentsMdRule", () => {
       await writeFileContent(join(testDir, "AGENTS.md"), content);
 
       const rule = await AgentsMdRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "AGENTS.md",
       });
 
@@ -79,7 +79,7 @@ describe("AgentsMdRule", () => {
       await writeFileContent(join(memoriesDir, "memory.md"), content);
 
       const rule = await AgentsMdRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "memory.md",
       });
 
@@ -91,7 +91,7 @@ describe("AgentsMdRule", () => {
       await writeFileContent(join(testDir, "AGENTS.md"), content);
 
       const rule = await AgentsMdRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "AGENTS.md",
         validate: false,
       });
@@ -105,7 +105,7 @@ describe("AgentsMdRule", () => {
       await writeFileContent(join(testDir, "AGENTS.md"), rootContent);
 
       const rootRule = await AgentsMdRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "AGENTS.md",
       });
 
@@ -118,7 +118,7 @@ describe("AgentsMdRule", () => {
       await writeFileContent(join(memoriesDir, "memory.md"), memoryContent);
 
       const memoryRule = await AgentsMdRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "memory.md",
       });
 
@@ -129,7 +129,7 @@ describe("AgentsMdRule", () => {
   describe("fromRulesyncRule", () => {
     it("should create AgentsMdRule from RulesyncRule", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {},
@@ -137,7 +137,7 @@ describe("AgentsMdRule", () => {
       });
 
       const rule = AgentsMdRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
@@ -146,7 +146,7 @@ describe("AgentsMdRule", () => {
 
     it("should handle validation parameter", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {},
@@ -154,7 +154,7 @@ describe("AgentsMdRule", () => {
       });
 
       const rule = AgentsMdRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
         validate: false,
       });
@@ -164,7 +164,7 @@ describe("AgentsMdRule", () => {
 
     it("should handle subprojectPath from agentsmd field", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -178,7 +178,7 @@ describe("AgentsMdRule", () => {
       });
 
       const rule = AgentsMdRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
@@ -189,7 +189,7 @@ describe("AgentsMdRule", () => {
 
     it("should ignore subprojectPath for root rules", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -203,7 +203,7 @@ describe("AgentsMdRule", () => {
       });
 
       const rule = AgentsMdRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
@@ -215,7 +215,7 @@ describe("AgentsMdRule", () => {
 
     it("should handle empty subprojectPath", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -229,7 +229,7 @@ describe("AgentsMdRule", () => {
       });
 
       const rule = AgentsMdRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
@@ -240,7 +240,7 @@ describe("AgentsMdRule", () => {
 
     it("should handle complex nested subprojectPath", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "nested.md",
         frontmatter: {
@@ -254,7 +254,7 @@ describe("AgentsMdRule", () => {
       });
 
       const rule = AgentsMdRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
@@ -267,7 +267,7 @@ describe("AgentsMdRule", () => {
   describe("toRulesyncRule", () => {
     it("should convert AgentsMdRule to RulesyncRule", () => {
       const rule = new AgentsMdRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         fileContent: "# Test Agent\n\nAgent configuration.",
@@ -286,7 +286,7 @@ describe("AgentsMdRule", () => {
 
     it("should handle root agent file conversion", () => {
       const rule = new AgentsMdRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
         fileContent: "# Root Agent\n\nRoot configuration.",
@@ -308,7 +308,7 @@ describe("AgentsMdRule", () => {
   describe("validate", () => {
     it("should always return success for any content", () => {
       const rule = new AgentsMdRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         fileContent: "# Test Agent\n\nValid content.",
@@ -322,7 +322,7 @@ describe("AgentsMdRule", () => {
 
     it("should return success for empty content", () => {
       const rule = new AgentsMdRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         fileContent: "",
@@ -336,7 +336,7 @@ describe("AgentsMdRule", () => {
 
     it("should return success for malformed markdown", () => {
       const rule = new AgentsMdRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         fileContent: "# Unclosed heading\nSome text without proper structure\n### Random heading",
@@ -351,7 +351,7 @@ describe("AgentsMdRule", () => {
     it("should return success for very long content", () => {
       const longContent = "# Long Agent\n\n" + "A".repeat(10000);
       const rule = new AgentsMdRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         fileContent: longContent,
@@ -373,7 +373,7 @@ describe("AgentsMdRule", () => {
       await writeFileContent(join(memoriesDir, "special-char.md"), content);
 
       const rule = await AgentsMdRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "special-char.md",
       });
 
@@ -388,7 +388,7 @@ describe("AgentsMdRule", () => {
       await writeFileContent(join(nestedDir, "nested.md"), content);
 
       const rule = await AgentsMdRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "nested/nested.md",
       });
 
@@ -424,7 +424,7 @@ describe("AgentsMdRule", () => {
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for rules targeting agentsmd", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -438,7 +438,7 @@ describe("AgentsMdRule", () => {
 
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -452,7 +452,7 @@ describe("AgentsMdRule", () => {
 
     it("should return false for rules not targeting agentsmd", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -466,7 +466,7 @@ describe("AgentsMdRule", () => {
 
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -480,7 +480,7 @@ describe("AgentsMdRule", () => {
 
     it("should handle mixed targets including agentsmd", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -494,7 +494,7 @@ describe("AgentsMdRule", () => {
 
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {},
@@ -513,7 +513,7 @@ describe("AgentsMdRule", () => {
       await writeFileContent(join(memoriesDir, "empty.md"), "");
 
       const rule = await AgentsMdRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "empty.md",
       });
 
@@ -529,7 +529,7 @@ describe("AgentsMdRule", () => {
       await writeFileContent(join(memoriesDir, "whitespace.md"), content);
 
       const rule = await AgentsMdRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "whitespace.md",
       });
 
@@ -540,7 +540,7 @@ describe("AgentsMdRule", () => {
     it("should handle very large file content", () => {
       const largeContent = "# Large Agent\n\n" + "Content ".repeat(100000);
       const rule = new AgentsMdRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "large.md",
         fileContent: largeContent,

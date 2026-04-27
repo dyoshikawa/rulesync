@@ -54,7 +54,7 @@ Body content`;
   describe("constructor", () => {
     it("should create instance with valid markdown content", () => {
       const subagent = new GeminiCliSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -77,7 +77,7 @@ Body content`;
 
     it("should create instance with empty name and description", () => {
       const subagent = new GeminiCliSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -97,7 +97,7 @@ Body content`;
 
     it("should create instance without validation when validate is false", () => {
       const subagent = new GeminiCliSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -115,7 +115,7 @@ Body content`;
       expect(
         () =>
           new GeminiCliSubagent({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeDirPath: ".gemini/agents",
             relativeFilePath: "invalid-agent.md",
             frontmatter: {
@@ -131,7 +131,7 @@ Body content`;
   describe("getBody", () => {
     it("should return the body content", () => {
       const subagent = new GeminiCliSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -149,7 +149,7 @@ Body content`;
   describe("getFrontmatter", () => {
     it("should return frontmatter with name and description", () => {
       const subagent = new GeminiCliSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -171,7 +171,7 @@ Body content`;
   describe("toRulesyncSubagent", () => {
     it("should convert to RulesyncSubagent", () => {
       const subagent = new GeminiCliSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -193,7 +193,7 @@ Body content`;
   describe("fromRulesyncSubagent", () => {
     it("should create GeminiCliSubagent from RulesyncSubagent", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -206,7 +206,7 @@ Body content`;
       });
 
       const geminiCliSubagent = GeminiCliSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/agents",
         rulesyncSubagent,
         validate: true,
@@ -224,7 +224,7 @@ Body content`;
 
     it("should handle RulesyncSubagent with different file extensions", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "complex-agent.txt",
         frontmatter: {
@@ -237,7 +237,7 @@ Body content`;
       });
 
       const geminiCliSubagent = GeminiCliSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/agents",
         rulesyncSubagent,
         validate: true,
@@ -248,7 +248,7 @@ Body content`;
 
     it("should handle empty name and description", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -261,7 +261,7 @@ Body content`;
       });
 
       const geminiCliSubagent = GeminiCliSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/agents",
         rulesyncSubagent,
         validate: true,
@@ -282,7 +282,7 @@ Body content`;
       await writeFileContent(filePath, validMarkdownContent);
 
       const subagent = await GeminiCliSubagent.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test-file-agent.md",
         validate: true,
       });
@@ -305,7 +305,7 @@ Body content`;
       await writeFileContent(filePath, validMarkdownContent);
 
       const subagent = await GeminiCliSubagent.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "subdir/nested-agent.md",
         validate: true,
       });
@@ -316,7 +316,7 @@ Body content`;
     it("should throw error when file does not exist", async () => {
       await expect(
         GeminiCliSubagent.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "non-existent-agent.md",
           validate: true,
         }),
@@ -331,7 +331,7 @@ Body content`;
 
       await expect(
         GeminiCliSubagent.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "invalid-agent.md",
           validate: true,
         }),
@@ -346,7 +346,7 @@ Body content`;
 
       await expect(
         GeminiCliSubagent.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "no-frontmatter.md",
           validate: true,
         }),
@@ -357,7 +357,7 @@ Body content`;
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
       const subagent = new GeminiCliSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/agents",
         relativeFilePath: "valid-agent.md",
         frontmatter: {
@@ -375,7 +375,7 @@ Body content`;
 
     it("should handle frontmatter with additional properties", () => {
       const subagent = new GeminiCliSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/agents",
         relativeFilePath: "agent-with-extras.md",
         frontmatter: {
@@ -395,7 +395,7 @@ Body content`;
   describe("edge cases", () => {
     it("should handle empty body content", () => {
       const subagent = new GeminiCliSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/agents",
         relativeFilePath: "empty-body.md",
         frontmatter: {
@@ -418,7 +418,7 @@ Body content`;
         "Special characters: @#$%^&*()\nUnicode: 你好世界 🌍\nQuotes: \"Hello 'World'\"";
 
       const subagent = new GeminiCliSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/agents",
         relativeFilePath: "special-char.md",
         frontmatter: {
@@ -439,7 +439,7 @@ Body content`;
       const longContent = "A".repeat(10000);
 
       const subagent = new GeminiCliSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/agents",
         relativeFilePath: "long-content.md",
         frontmatter: {
@@ -456,7 +456,7 @@ Body content`;
 
     it("should handle multi-line name and description", () => {
       const subagent = new GeminiCliSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/agents",
         relativeFilePath: "multiline-fields.md",
         frontmatter: {
@@ -477,7 +477,7 @@ Body content`;
       const windowsContent = "Line 1\r\nLine 2\r\nLine 3";
 
       const subagent = new GeminiCliSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/agents",
         relativeFilePath: "windows-lines.md",
         frontmatter: {
@@ -495,7 +495,7 @@ Body content`;
   describe("inheritance", () => {
     it("should be an instance of ToolSubagent", () => {
       const subagent = new GeminiCliSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/agents",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -514,7 +514,7 @@ Body content`;
   describe("isTargetedByRulesyncSubagent", () => {
     it("should return true when targets includes geminicli", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -531,7 +531,7 @@ Body content`;
 
     it("should return true when targets includes asterisk", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -548,7 +548,7 @@ Body content`;
 
     it("should return false when targets array is empty", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -565,7 +565,7 @@ Body content`;
 
     it("should return false when targets does not include geminicli", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -582,7 +582,7 @@ Body content`;
 
     it("should return true when targets includes geminicli among other targets", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {

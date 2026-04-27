@@ -30,7 +30,7 @@ globs: ["**/*.test.ts", "src/e2e/**/*.spec.ts"]
       it("Test Case", async () => {
         // Run test using testDir
         await RulesyncRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "test.md",
         });
         // ...

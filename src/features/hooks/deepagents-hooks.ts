@@ -131,16 +131,16 @@ export class DeepagentsHooks extends ToolHooks {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
     global = false,
   }: ToolHooksFromFileParams): Promise<DeepagentsHooks> {
     const paths = DeepagentsHooks.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent =
       (await readFileContentOrNull(filePath)) ?? JSON.stringify({ hooks: [] }, null, 2);
     return new DeepagentsHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -149,7 +149,7 @@ export class DeepagentsHooks extends ToolHooks {
   }
 
   static fromRulesyncHooks({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncHooks,
     validate = true,
     global = false,
@@ -160,7 +160,7 @@ export class DeepagentsHooks extends ToolHooks {
     const paths = DeepagentsHooks.getSettablePaths({ global });
 
     return new DeepagentsHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -192,12 +192,12 @@ export class DeepagentsHooks extends ToolHooks {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolHooksForDeletionParams): DeepagentsHooks {
     return new DeepagentsHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: JSON.stringify({ hooks: [] }, null, 2),

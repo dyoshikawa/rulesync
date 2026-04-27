@@ -38,9 +38,9 @@ describe("AugmentcodeIgnore", () => {
       expect(augmentcodeIgnore.getFileContent()).toBe("*.log\nnode_modules/");
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const augmentcodeIgnore = new AugmentcodeIgnore({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: "subdir",
         relativeFilePath: ".augmentignore",
         fileContent: "*.tmp",
@@ -75,7 +75,7 @@ describe("AugmentcodeIgnore", () => {
     it("should convert to RulesyncIgnore with same content", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const augmentcodeIgnore = new AugmentcodeIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".augmentignore",
         fileContent,
@@ -91,7 +91,7 @@ describe("AugmentcodeIgnore", () => {
 
     it("should handle empty content", () => {
       const augmentcodeIgnore = new AugmentcodeIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".augmentignore",
         fileContent: "",
@@ -105,7 +105,7 @@ describe("AugmentcodeIgnore", () => {
     it("should preserve patterns and formatting", () => {
       const fileContent = "# Generated files\n*.log\n*.tmp\n\n# Dependencies\nnode_modules/\n.env*";
       const augmentcodeIgnore = new AugmentcodeIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".augmentignore",
         fileContent,
@@ -119,7 +119,7 @@ describe("AugmentcodeIgnore", () => {
     it("should preserve negation patterns (! prefix)", () => {
       const fileContent = "*.log\nnode_modules/\n!important.log\n!keep.txt";
       const augmentcodeIgnore = new AugmentcodeIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".augmentignore",
         fileContent,
@@ -132,7 +132,7 @@ describe("AugmentcodeIgnore", () => {
   });
 
   describe("fromRulesyncIgnore", () => {
-    it("should create AugmentcodeIgnore from RulesyncIgnore with default baseDir", () => {
+    it("should create AugmentcodeIgnore from RulesyncIgnore with default outputRoot", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -145,13 +145,13 @@ describe("AugmentcodeIgnore", () => {
       });
 
       expect(augmentcodeIgnore).toBeInstanceOf(AugmentcodeIgnore);
-      expect(augmentcodeIgnore.getBaseDir()).toBe(testDir);
+      expect(augmentcodeIgnore.getOutputRoot()).toBe(testDir);
       expect(augmentcodeIgnore.getRelativeDirPath()).toBe(".");
       expect(augmentcodeIgnore.getRelativeFilePath()).toBe(".augmentignore");
       expect(augmentcodeIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should create AugmentcodeIgnore from RulesyncIgnore with custom baseDir", () => {
+    it("should create AugmentcodeIgnore from RulesyncIgnore with custom outputRoot", () => {
       const fileContent = "*.tmp\nbuild/";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -160,11 +160,11 @@ describe("AugmentcodeIgnore", () => {
       });
 
       const augmentcodeIgnore = AugmentcodeIgnore.fromRulesyncIgnore({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         rulesyncIgnore,
       });
 
-      expect(augmentcodeIgnore.getBaseDir()).toBe("/custom/base");
+      expect(augmentcodeIgnore.getOutputRoot()).toBe("/custom/base");
       expect(augmentcodeIgnore.getFilePath()).toBe("/custom/base/.augmentignore");
       expect(augmentcodeIgnore.getFileContent()).toBe(fileContent);
     });
@@ -217,17 +217,17 @@ describe("AugmentcodeIgnore", () => {
   });
 
   describe("fromFile", () => {
-    it("should read .augmentignore file from baseDir with default baseDir", async () => {
+    it("should read .augmentignore file from outputRoot with default outputRoot", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const augmentignorePath = join(testDir, ".augmentignore");
       await writeFileContent(augmentignorePath, fileContent);
 
       const augmentcodeIgnore = await AugmentcodeIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(augmentcodeIgnore).toBeInstanceOf(AugmentcodeIgnore);
-      expect(augmentcodeIgnore.getBaseDir()).toBe(testDir);
+      expect(augmentcodeIgnore.getOutputRoot()).toBe(testDir);
       expect(augmentcodeIgnore.getRelativeDirPath()).toBe(".");
       expect(augmentcodeIgnore.getRelativeFilePath()).toBe(".augmentignore");
       expect(augmentcodeIgnore.getFileContent()).toBe(fileContent);
@@ -239,7 +239,7 @@ describe("AugmentcodeIgnore", () => {
       await writeFileContent(augmentignorePath, fileContent);
 
       const augmentcodeIgnore = await AugmentcodeIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(augmentcodeIgnore.getFileContent()).toBe(fileContent);
@@ -251,7 +251,7 @@ describe("AugmentcodeIgnore", () => {
       await writeFileContent(augmentignorePath, fileContent);
 
       const augmentcodeIgnore = await AugmentcodeIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
 
@@ -263,7 +263,7 @@ describe("AugmentcodeIgnore", () => {
       await writeFileContent(augmentignorePath, "");
 
       const augmentcodeIgnore = await AugmentcodeIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(augmentcodeIgnore.getFileContent()).toBe("");
@@ -315,27 +315,27 @@ desktop.ini
       await writeFileContent(augmentignorePath, fileContent);
 
       const augmentcodeIgnore = await AugmentcodeIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(augmentcodeIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should default baseDir to process.cwd() when not provided", async () => {
+    it("should default outputRoot to process.cwd() when not provided", async () => {
       const fileContent = "*.log\nnode_modules/";
       const augmentignorePath = join(testDir, ".augmentignore");
       await writeFileContent(augmentignorePath, fileContent);
 
       const augmentcodeIgnore = await AugmentcodeIgnore.fromFile({});
 
-      expect(augmentcodeIgnore.getBaseDir()).toBe(testDir);
+      expect(augmentcodeIgnore.getOutputRoot()).toBe(testDir);
       expect(augmentcodeIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should throw error when .augmentignore file does not exist", async () => {
       await expect(
         AugmentcodeIgnore.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });
@@ -346,7 +346,7 @@ desktop.ini
       await writeFileContent(augmentignorePath, fileContent);
 
       const augmentcodeIgnore = await AugmentcodeIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(augmentcodeIgnore.getFileContent()).toBe(fileContent);
@@ -383,13 +383,13 @@ desktop.ini
 
     it("should inherit file path methods from ToolFile", () => {
       const augmentcodeIgnore = new AugmentcodeIgnore({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: "subdir",
         relativeFilePath: ".augmentignore",
         fileContent: "*.log",
       });
 
-      expect(augmentcodeIgnore.getBaseDir()).toBe("/test/base");
+      expect(augmentcodeIgnore.getOutputRoot()).toBe("/test/base");
       expect(augmentcodeIgnore.getRelativeDirPath()).toBe("subdir");
       expect(augmentcodeIgnore.getRelativeFilePath()).toBe(".augmentignore");
       expect(augmentcodeIgnore.getFilePath()).toBe("/test/base/subdir/.augmentignore");
@@ -410,7 +410,7 @@ dist/
 
       // AugmentcodeIgnore -> RulesyncIgnore -> AugmentcodeIgnore
       const originalAugmentcodeIgnore = new AugmentcodeIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".augmentignore",
         fileContent: originalContent,
@@ -418,12 +418,12 @@ dist/
 
       const rulesyncIgnore = originalAugmentcodeIgnore.toRulesyncIgnore();
       const roundTripAugmentcodeIgnore = AugmentcodeIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
       expect(roundTripAugmentcodeIgnore.getFileContent()).toBe(originalContent);
-      expect(roundTripAugmentcodeIgnore.getBaseDir()).toBe(testDir);
+      expect(roundTripAugmentcodeIgnore.getOutputRoot()).toBe(testDir);
       expect(roundTripAugmentcodeIgnore.getRelativeDirPath()).toBe(".");
       expect(roundTripAugmentcodeIgnore.getRelativeFilePath()).toBe(".augmentignore");
     });
@@ -505,7 +505,7 @@ dist/
     it("should write and read file correctly", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const augmentcodeIgnore = new AugmentcodeIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".augmentignore",
         fileContent,
@@ -516,7 +516,7 @@ dist/
 
       // Read file back
       const readAugmentcodeIgnore = await AugmentcodeIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(readAugmentcodeIgnore.getFileContent()).toBe(fileContent);
@@ -529,7 +529,7 @@ dist/
 
       const fileContent = "*.log\nbuild/";
       const augmentcodeIgnore = new AugmentcodeIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "project/config",
         relativeFilePath: ".augmentignore",
         fileContent,
@@ -539,7 +539,7 @@ dist/
       await writeFileContent(augmentcodeIgnore.getFilePath(), augmentcodeIgnore.getFileContent());
 
       const readAugmentcodeIgnore = await AugmentcodeIgnore.fromFile({
-        baseDir: join(testDir, "project/config"),
+        outputRoot: join(testDir, "project/config"),
       });
 
       expect(readAugmentcodeIgnore.getFileContent()).toBe(fileContent);
@@ -621,7 +621,7 @@ build/
 
     it("should work in repository root context", () => {
       const augmentcodeIgnore = AugmentcodeIgnore.fromRulesyncIgnore({
-        baseDir: "/workspace/root",
+        outputRoot: "/workspace/root",
         rulesyncIgnore: new RulesyncIgnore({
           relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
           relativeFilePath: ".rulesignore",

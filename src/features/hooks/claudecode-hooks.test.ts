@@ -52,7 +52,7 @@ describe("ClaudecodeHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -60,7 +60,7 @@ describe("ClaudecodeHooks", () => {
       });
 
       const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -86,7 +86,7 @@ describe("ClaudecodeHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -94,7 +94,7 @@ describe("ClaudecodeHooks", () => {
       });
 
       const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -131,7 +131,7 @@ describe("ClaudecodeHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -139,7 +139,7 @@ describe("ClaudecodeHooks", () => {
       });
 
       const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -157,7 +157,7 @@ describe("ClaudecodeHooks", () => {
 
       const config = { version: 1, hooks: {} };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -166,7 +166,7 @@ describe("ClaudecodeHooks", () => {
 
       await expect(
         ClaudecodeHooks.fromRulesyncHooks({
-          baseDir: testDir,
+          outputRoot: testDir,
           rulesyncHooks,
           validate: false,
         }),
@@ -185,7 +185,7 @@ describe("ClaudecodeHooks", () => {
         hooks: { sessionStart: [{ command: "echo" }] },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -193,7 +193,7 @@ describe("ClaudecodeHooks", () => {
       });
 
       const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -209,7 +209,7 @@ describe("ClaudecodeHooks", () => {
   describe("toRulesyncHooks", () => {
     it("should throw error with descriptive message when content contains invalid JSON", () => {
       const claudecodeHooks = new ClaudecodeHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude",
         relativeFilePath: "settings.json",
         fileContent: "invalid json {",
@@ -223,7 +223,7 @@ describe("ClaudecodeHooks", () => {
 
     it("should convert Claude PascalCase hooks to canonical camelCase", () => {
       const claudecodeHooks = new ClaudecodeHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude",
         relativeFilePath: "settings.json",
         fileContent: JSON.stringify({
@@ -254,7 +254,7 @@ describe("ClaudecodeHooks", () => {
       );
 
       const claudecodeHooks = await ClaudecodeHooks.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
       expect(claudecodeHooks).toBeInstanceOf(ClaudecodeHooks);
@@ -265,7 +265,7 @@ describe("ClaudecodeHooks", () => {
 
     it("should initialize empty hooks when .claude/settings.json does not exist", async () => {
       const claudecodeHooks = await ClaudecodeHooks.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
       expect(claudecodeHooks).toBeInstanceOf(ClaudecodeHooks);
@@ -278,7 +278,7 @@ describe("ClaudecodeHooks", () => {
   describe("isDeletable", () => {
     it("should return false", () => {
       const hooks = new ClaudecodeHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude",
         relativeFilePath: "settings.json",
         fileContent: "{}",
@@ -301,7 +301,7 @@ describe("ClaudecodeHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -309,7 +309,7 @@ describe("ClaudecodeHooks", () => {
       });
 
       const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -334,7 +334,7 @@ describe("ClaudecodeHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -342,7 +342,7 @@ describe("ClaudecodeHooks", () => {
       });
 
       const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -369,7 +369,7 @@ describe("ClaudecodeHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -377,7 +377,7 @@ describe("ClaudecodeHooks", () => {
       });
 
       await ClaudecodeHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
         logger,
@@ -407,7 +407,7 @@ describe("ClaudecodeHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -415,7 +415,7 @@ describe("ClaudecodeHooks", () => {
       });
 
       const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -437,7 +437,7 @@ describe("ClaudecodeHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -445,7 +445,7 @@ describe("ClaudecodeHooks", () => {
       });
 
       const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -460,7 +460,7 @@ describe("ClaudecodeHooks", () => {
   describe("toRulesyncHooks - worktree events", () => {
     it("should import WorktreeCreate and WorktreeRemove back to canonical names", () => {
       const claudecodeHooks = new ClaudecodeHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude",
         relativeFilePath: "settings.json",
         fileContent: JSON.stringify({
@@ -488,7 +488,7 @@ describe("ClaudecodeHooks", () => {
   describe("forDeletion", () => {
     it("should return ClaudecodeHooks instance with empty hooks for deletion path", () => {
       const hooks = ClaudecodeHooks.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude",
         relativeFilePath: "settings.json",
       });

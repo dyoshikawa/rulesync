@@ -44,7 +44,7 @@ describe("generateCommand", () => {
     mockConfig = {
       getVerbose: vi.fn().mockReturnValue(false),
       getSilent: vi.fn().mockReturnValue(false),
-      getBaseDirs: vi.fn().mockReturnValue(["."]),
+      getOutputRoots: vi.fn().mockReturnValue(["."]),
       getTargets: vi.fn().mockReturnValue(["claudecode"]),
       getFeatures: vi.fn().mockReturnValue(["rules", "ignore", "mcp", "commands", "subagents"]),
       getFeatureOptions: vi.fn().mockReturnValue(undefined),
@@ -152,79 +152,109 @@ describe("generateCommand", () => {
       expect(mockLogger.debug).toHaveBeenCalledWith("Generating files...");
     });
 
-    it("should map --base-dir (singular) to baseDirs on the resolver call", async () => {
+    it("should map deprecated --base-dir (singular) to outputRoots on the resolver call", async () => {
       const options: GenerateOptions = { baseDir: ["a", "b"] };
 
       await generateCommand(mockLogger, options);
 
       expect(ConfigResolver.resolve).toHaveBeenCalledWith(
-        expect.objectContaining({ baseDirs: ["a", "b"] }),
+        expect.objectContaining({ outputRoots: ["a", "b"] }),
         { logger: mockLogger },
       );
     });
 
-    it("should prefer baseDirs over baseDir when both are provided", async () => {
-      const options: GenerateOptions = { baseDir: ["a"], baseDirs: ["b"] };
+    it("should warn that --base-dir is deprecated whenever it is supplied", async () => {
+      const options: GenerateOptions = { baseDir: ["a"] };
+
+      await generateCommand(mockLogger, options);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("--base-dir is deprecated"),
+      );
+    });
+
+    it("should prefer outputRoots over deprecated baseDir when both are provided", async () => {
+      const options: GenerateOptions = { baseDir: ["a"], outputRoots: ["b"] };
 
       await generateCommand(mockLogger, options);
 
       expect(ConfigResolver.resolve).toHaveBeenCalledWith(
-        expect.objectContaining({ baseDirs: ["b"] }),
+        expect.objectContaining({ outputRoots: ["b"] }),
         { logger: mockLogger },
       );
     });
 
-    it("should warn when baseDir and baseDirs disagree on non-empty values", async () => {
-      const options: GenerateOptions = { baseDir: ["a"], baseDirs: ["b"] };
+    it("should warn when --base-dir and --output-roots disagree on non-empty values", async () => {
+      const options: GenerateOptions = { baseDir: ["a"], outputRoots: ["b"] };
 
       await generateCommand(mockLogger, options);
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("Both 'baseDirs' and 'baseDir'"),
+        expect.stringContaining("Both '--output-roots' and '--base-dir'"),
       );
     });
 
-    it("should not warn when baseDir and baseDirs match exactly", async () => {
-      const options: GenerateOptions = { baseDir: ["a", "b"], baseDirs: ["a", "b"] };
+    it("should not warn about override when --base-dir and --output-roots match exactly", async () => {
+      const options: GenerateOptions = { baseDir: ["a", "b"], outputRoots: ["a", "b"] };
 
       await generateCommand(mockLogger, options);
 
       expect(mockLogger.warn).not.toHaveBeenCalledWith(
-        expect.stringContaining("Both 'baseDirs' and 'baseDir'"),
+        expect.stringContaining("Both '--output-roots' and '--base-dir'"),
       );
     });
 
-    it("should not warn when baseDir and baseDirs match as a set (different order)", async () => {
-      // Order is irrelevant — `baseDirs: ["a","b"]` and `baseDir: ["b","a"]`
+    it("should not warn about override when --base-dir and --output-roots match as a set (different order)", async () => {
+      // Order is irrelevant — `outputRoots: ["a","b"]` and `baseDir: ["b","a"]`
       // describe the same set of output roots, so no override is happening.
-      const options: GenerateOptions = { baseDir: ["b", "a"], baseDirs: ["a", "b"] };
+      const options: GenerateOptions = { baseDir: ["b", "a"], outputRoots: ["a", "b"] };
 
       await generateCommand(mockLogger, options);
 
       expect(mockLogger.warn).not.toHaveBeenCalledWith(
-        expect.stringContaining("Both 'baseDirs' and 'baseDir'"),
+        expect.stringContaining("Both '--output-roots' and '--base-dir'"),
       );
     });
 
-    it("should warn when baseDir and baseDirs differ as sets", async () => {
+    it("should warn about override when --base-dir and --output-roots differ as sets", async () => {
       // Different sets — `["a"]` vs `["a","b"]` — must trigger the override
       // warning even though one is a subset of the other.
-      const options: GenerateOptions = { baseDir: ["a"], baseDirs: ["a", "b"] };
+      const options: GenerateOptions = { baseDir: ["a"], outputRoots: ["a", "b"] };
 
       await generateCommand(mockLogger, options);
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("Both 'baseDirs' and 'baseDir'"),
+        expect.stringContaining("Both '--output-roots' and '--base-dir'"),
       );
     });
 
-    it("should not warn when only baseDir is provided", async () => {
+    it("should not warn about override when only deprecated baseDir is provided", async () => {
       const options: GenerateOptions = { baseDir: ["a"] };
 
       await generateCommand(mockLogger, options);
 
       expect(mockLogger.warn).not.toHaveBeenCalledWith(
-        expect.stringContaining("Both 'baseDirs' and 'baseDir'"),
+        expect.stringContaining("Both '--output-roots' and '--base-dir'"),
+      );
+    });
+
+    it("should fall back to deprecated baseDir when outputRoots is an empty array", async () => {
+      // A programmatic caller passing `outputRoots: []` together with a
+      // populated `baseDir` must not silently lose the alias's values to
+      // the empty array. The empty array is treated as "not provided" so
+      // the deprecated alias still flows through to the resolver.
+      const options: GenerateOptions = { baseDir: ["a", "b"], outputRoots: [] };
+
+      await generateCommand(mockLogger, options);
+
+      expect(ConfigResolver.resolve).toHaveBeenCalledWith(
+        expect.objectContaining({ outputRoots: ["a", "b"] }),
+        { logger: mockLogger },
+      );
+      // The override warning must NOT fire here because the empty array is
+      // treated as "not provided" — there is nothing to disagree about.
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("Both '--output-roots' and '--base-dir'"),
       );
     });
   });
@@ -265,7 +295,7 @@ describe("generateCommand", () => {
       expect(mockLogger.debug).toHaveBeenCalledWith("Generating rule files...");
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           global: false,
           toolTarget: "claudecode",
           simulateCommands: false,
@@ -286,7 +316,7 @@ describe("generateCommand", () => {
 
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           global: false,
           toolTarget: "claudecode",
           simulateCommands: true,
@@ -323,14 +353,14 @@ describe("generateCommand", () => {
     });
 
     it("should process multiple base directories", async () => {
-      mockConfig.getBaseDirs.mockReturnValue(["dir1", "dir2"]);
+      mockConfig.getOutputRoots.mockReturnValue(["dir1", "dir2"]);
       const options: GenerateOptions = {};
 
       await generateCommand(mockLogger, options);
 
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: "dir1",
+          outputRoot: "dir1",
           global: false,
           toolTarget: "claudecode",
           simulateCommands: false,
@@ -342,7 +372,7 @@ describe("generateCommand", () => {
       );
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: "dir2",
+          outputRoot: "dir2",
           global: false,
           toolTarget: "claudecode",
           simulateCommands: false,
@@ -377,7 +407,7 @@ describe("generateCommand", () => {
       expect(mockLogger.debug).toHaveBeenCalledWith("Generating MCP files...");
       expect(McpProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           global: false,
           dryRun: false,
@@ -445,7 +475,7 @@ describe("generateCommand", () => {
       expect(mockLogger.debug).toHaveBeenCalledWith("Generating command files...");
       expect(CommandsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           global: false,
           dryRun: false,
@@ -478,7 +508,7 @@ describe("generateCommand", () => {
   describe("ignore feature", () => {
     beforeEach(() => {
       mockConfig.getFeatures.mockReturnValue(["ignore"]);
-      mockConfig.getBaseDirs.mockReturnValue(["."]);
+      mockConfig.getOutputRoots.mockReturnValue(["."]);
     });
 
     it("should generate ignore files when ignore feature is enabled", async () => {
@@ -489,27 +519,27 @@ describe("generateCommand", () => {
       expect(mockLogger.debug).toHaveBeenCalledWith("Generating ignore files...");
       expect(IgnoreProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           dryRun: false,
         }),
       );
     });
 
-    it("should pass baseDir verbatim even when it equals current working directory", async () => {
-      // The legacy `baseDir === process.cwd() ? "." : baseDir` heuristic was
+    it("should pass outputRoot verbatim even when it equals current working directory", async () => {
+      // The legacy `outputRoot === process.cwd() ? "." : outputRoot` heuristic was
       // removed to keep ignore processing consistent with every other
       // feature processor — IgnoreProcessor now receives the same absolute
       // path the other processors receive.
       const mockCwd = vi.spyOn(process, "cwd").mockReturnValue("/current/working/dir");
-      mockConfig.getBaseDirs.mockReturnValue(["/current/working/dir"]);
+      mockConfig.getOutputRoots.mockReturnValue(["/current/working/dir"]);
       const options: GenerateOptions = {};
 
       await generateCommand(mockLogger, options);
 
       expect(IgnoreProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: "/current/working/dir",
+          outputRoot: "/current/working/dir",
           toolTarget: "claudecode",
           dryRun: false,
         }),
@@ -555,7 +585,7 @@ describe("generateCommand", () => {
       expect(mockLogger.debug).toHaveBeenCalledWith("Generating subagent files...");
       expect(SubagentsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           global: false,
           dryRun: false,
@@ -599,7 +629,7 @@ describe("generateCommand", () => {
 
         expect(SubagentsProcessor).toHaveBeenCalledWith(
           expect.objectContaining({
-            baseDir: ".",
+            outputRoot: ".",
             toolTarget: "claudecode",
             global: true,
             dryRun: false,
@@ -621,7 +651,7 @@ describe("generateCommand", () => {
         );
         expect(SubagentsProcessor).toHaveBeenCalledWith(
           expect.objectContaining({
-            baseDir: ".",
+            outputRoot: ".",
             toolTarget: "claudecode",
             global: true,
             dryRun: false,
@@ -645,7 +675,7 @@ describe("generateCommand", () => {
         expect(SubagentsProcessor).toHaveBeenCalledTimes(1);
         expect(SubagentsProcessor).toHaveBeenCalledWith(
           expect.objectContaining({
-            baseDir: ".",
+            outputRoot: ".",
             toolTarget: "claudecode",
             global: true,
             dryRun: false,
@@ -737,13 +767,13 @@ describe("generateCommand", () => {
       );
     });
 
-    it("should log base directories", async () => {
-      mockConfig.getBaseDirs.mockReturnValue(["dir1", "dir2"]);
+    it("should log output roots", async () => {
+      mockConfig.getOutputRoots.mockReturnValue(["dir1", "dir2"]);
       const options: GenerateOptions = {};
 
       await generateCommand(mockLogger, options);
 
-      expect(mockLogger.debug).toHaveBeenCalledWith("Base directories: dir1, dir2");
+      expect(mockLogger.debug).toHaveBeenCalledWith("Output roots: dir1, dir2");
     });
 
     it("should log success for each processor type", async () => {
@@ -868,8 +898,8 @@ describe("generateCommand", () => {
       mockConfig.getFeatures.mockReturnValue(["rules", "mcp", "commands", "ignore", "subagents"]);
     });
 
-    it("should check .rulesync directory from process.cwd() not from baseDirs in global mode", async () => {
-      mockConfig.getBaseDirs.mockReturnValue(["/home/user"]);
+    it("should check .rulesync directory from process.cwd() not from outputRoots in global mode", async () => {
+      mockConfig.getOutputRoots.mockReturnValue(["/home/user"]);
       mockConfig.getFeatures.mockReturnValue(["rules"]);
       vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode"]);
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
@@ -877,7 +907,7 @@ describe("generateCommand", () => {
 
       await generateCommand(mockLogger, options);
 
-      // Should check .rulesync in process.cwd(), not in baseDirs[0] (which is /home/user in global mode)
+      // Should check .rulesync in process.cwd(), not in outputRoots[0] (which is /home/user in global mode)
       expect(fileExists).toHaveBeenCalledWith("/test/project/.rulesync");
     });
 
@@ -904,7 +934,7 @@ describe("generateCommand", () => {
 
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           global: true,
           simulateCommands: true,
@@ -942,9 +972,9 @@ describe("generateCommand", () => {
       expect(customMockInstance.removeOrphanAiFiles).toHaveBeenCalled();
     });
 
-    it("should use each baseDir in global mode", async () => {
+    it("should use each outputRoot in global mode", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
-      mockConfig.getBaseDirs.mockReturnValue(["dir1", "dir2", "dir3"]);
+      mockConfig.getOutputRoots.mockReturnValue(["dir1", "dir2", "dir3"]);
       vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode", "codexcli"]);
       vi.mocked(intersection).mockReturnValue(["claudecode"]);
       const options: GenerateOptions = {};
@@ -953,7 +983,7 @@ describe("generateCommand", () => {
 
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: "dir1",
+          outputRoot: "dir1",
           toolTarget: "claudecode",
           global: true,
           simulateCommands: false,
@@ -965,7 +995,7 @@ describe("generateCommand", () => {
       );
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: "dir2",
+          outputRoot: "dir2",
           toolTarget: "claudecode",
           global: true,
           simulateCommands: false,
@@ -977,7 +1007,7 @@ describe("generateCommand", () => {
       );
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: "dir3",
+          outputRoot: "dir3",
           toolTarget: "claudecode",
           global: true,
           simulateCommands: false,
@@ -987,7 +1017,7 @@ describe("generateCommand", () => {
           dryRun: false,
         }),
       );
-      expect(RulesProcessor).toHaveBeenCalledTimes(3); // Once for each baseDir
+      expect(RulesProcessor).toHaveBeenCalledTimes(3); // Once for each outputRoot
     });
 
     it("should skip MCP generation in global mode when no targets match", async () => {
@@ -1009,7 +1039,7 @@ describe("generateCommand", () => {
 
       expect(CommandsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           global: true,
           dryRun: false,
@@ -1039,7 +1069,7 @@ describe("generateCommand", () => {
 
       expect(SubagentsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           global: true,
           dryRun: false,
@@ -1140,16 +1170,16 @@ describe("generateCommand", () => {
   });
 
   describe("inputRoot decoupling", () => {
-    // Rules source dir (where .rulesync/ lives) is independent of output baseDirs.
+    // Rules source dir (where .rulesync/ lives) is independent of output outputRoots.
     const inputRoot = "/central/rulesync-source";
-    const baseDirs = ["/project/app-one", "/project/app-two"];
+    const outputRoots = ["/project/app-one", "/project/app-two"];
 
     beforeEach(() => {
       mockConfig.getInputRoot.mockReturnValue(inputRoot);
-      mockConfig.getBaseDirs.mockReturnValue(baseDirs);
+      mockConfig.getOutputRoots.mockReturnValue(outputRoots);
     });
 
-    it("should check for .rulesync under inputRoot, not under baseDirs", async () => {
+    it("should check for .rulesync under inputRoot, not under outputRoots", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
 
       await generateCommand(mockLogger, {});
@@ -1159,7 +1189,7 @@ describe("generateCommand", () => {
       expect(fileExists).not.toHaveBeenCalledWith("/project/app-two/.rulesync");
     });
 
-    it("should construct RulesProcessor with inputRoot distinct from baseDir for each output dir", async () => {
+    it("should construct RulesProcessor with inputRoot distinct from outputRoot for each output dir", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
 
       await generateCommand(mockLogger, {});
@@ -1167,98 +1197,98 @@ describe("generateCommand", () => {
       expect(RulesProcessor).toHaveBeenCalledTimes(2);
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: "/project/app-one",
+          outputRoot: "/project/app-one",
           inputRoot,
           toolTarget: "claudecode",
         }),
       );
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: "/project/app-two",
+          outputRoot: "/project/app-two",
           inputRoot,
           toolTarget: "claudecode",
         }),
       );
     });
 
-    it("should pass inputRoot to IgnoreProcessor independently of baseDir", async () => {
+    it("should pass inputRoot to IgnoreProcessor independently of outputRoot", async () => {
       mockConfig.getFeatures.mockReturnValue(["ignore"]);
 
       await generateCommand(mockLogger, {});
 
       expect(IgnoreProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: "/project/app-one",
+          outputRoot: "/project/app-one",
           inputRoot,
           toolTarget: "claudecode",
         }),
       );
       expect(IgnoreProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: "/project/app-two",
+          outputRoot: "/project/app-two",
           inputRoot,
           toolTarget: "claudecode",
         }),
       );
     });
 
-    it("should pass inputRoot to McpProcessor independently of baseDir", async () => {
+    it("should pass inputRoot to McpProcessor independently of outputRoot", async () => {
       mockConfig.getFeatures.mockReturnValue(["mcp"]);
 
       await generateCommand(mockLogger, {});
 
       expect(McpProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: "/project/app-one",
+          outputRoot: "/project/app-one",
           inputRoot,
           toolTarget: "claudecode",
         }),
       );
       expect(McpProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: "/project/app-two",
+          outputRoot: "/project/app-two",
           inputRoot,
           toolTarget: "claudecode",
         }),
       );
     });
 
-    it("should pass inputRoot to CommandsProcessor independently of baseDir", async () => {
+    it("should pass inputRoot to CommandsProcessor independently of outputRoot", async () => {
       mockConfig.getFeatures.mockReturnValue(["commands"]);
 
       await generateCommand(mockLogger, {});
 
       expect(CommandsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: "/project/app-one",
+          outputRoot: "/project/app-one",
           inputRoot,
           toolTarget: "claudecode",
         }),
       );
       expect(CommandsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: "/project/app-two",
+          outputRoot: "/project/app-two",
           inputRoot,
           toolTarget: "claudecode",
         }),
       );
     });
 
-    it("should pass inputRoot to SubagentsProcessor independently of baseDir", async () => {
+    it("should pass inputRoot to SubagentsProcessor independently of outputRoot", async () => {
       mockConfig.getFeatures.mockReturnValue(["subagents"]);
 
       await generateCommand(mockLogger, {});
 
       expect(SubagentsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: "/project/app-one",
+          outputRoot: "/project/app-one",
           inputRoot,
           toolTarget: "claudecode",
         }),
       );
       expect(SubagentsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: "/project/app-two",
+          outputRoot: "/project/app-two",
           inputRoot,
           toolTarget: "claudecode",
         }),
@@ -1386,7 +1416,7 @@ describe("generateCommand", () => {
 
     it("should handle multiple targets and base directories", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
-      mockConfig.getBaseDirs.mockReturnValue(["dir1", "dir2"]);
+      mockConfig.getOutputRoots.mockReturnValue(["dir1", "dir2"]);
       mockConfig.getTargets.mockReturnValue(["claudecode", "cursor"]);
       vi.mocked(intersection).mockReturnValue(["claudecode", "cursor"]);
 

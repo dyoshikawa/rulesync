@@ -53,12 +53,12 @@ export class OpencodePermissions extends ToolPermissions {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
     global = false,
   }: ToolPermissionsFromFileParams): Promise<OpencodePermissions> {
     const basePaths = OpencodePermissions.getSettablePaths({ global });
-    const jsonDir = join(baseDir, basePaths.relativeDirPath);
+    const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
     const jsoncPath = join(jsonDir, "opencode.jsonc");
     const jsonPath = join(jsonDir, "opencode.json");
@@ -77,7 +77,7 @@ export class OpencodePermissions extends ToolPermissions {
     const nextJson = { ...parsed, permission: parsed.permission ?? {} };
 
     return new OpencodePermissions({
-      baseDir,
+      outputRoot,
       relativeDirPath: basePaths.relativeDirPath,
       relativeFilePath,
       fileContent: JSON.stringify(nextJson, null, 2),
@@ -86,12 +86,12 @@ export class OpencodePermissions extends ToolPermissions {
   }
 
   static async fromRulesyncPermissions({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncPermissions,
     global = false,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<OpencodePermissions> {
     const basePaths = OpencodePermissions.getSettablePaths({ global });
-    const jsonDir = join(baseDir, basePaths.relativeDirPath);
+    const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
     const jsoncPath = join(jsonDir, "opencode.jsonc");
     const jsonPath = join(jsonDir, "opencode.json");
@@ -113,7 +113,7 @@ export class OpencodePermissions extends ToolPermissions {
     };
 
     return new OpencodePermissions({
-      baseDir,
+      outputRoot,
       relativeDirPath: basePaths.relativeDirPath,
       relativeFilePath,
       fileContent: JSON.stringify(nextJson, null, 2),
@@ -145,12 +145,12 @@ export class OpencodePermissions extends ToolPermissions {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolPermissionsForDeletionParams): OpencodePermissions {
     return new OpencodePermissions({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: JSON.stringify({ permission: {} }, null, 2),

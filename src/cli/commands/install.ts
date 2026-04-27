@@ -38,11 +38,11 @@ export async function installCommand(
 }
 
 async function runRulesyncInstall(logger: Logger, options: InstallCommandOptions): Promise<void> {
-  const baseDir = process.cwd();
+  const projectRoot = process.cwd();
 
   // If both apm.yml and rulesync.jsonc sources are defined, refuse to guess.
   // `--mode apm` is required to opt into the APM layout.
-  const apmExists = await apmManifestExists(baseDir);
+  const apmExists = await apmManifestExists(projectRoot);
 
   const config = await ConfigResolver.resolve({
     configPath: options.configPath,
@@ -72,7 +72,7 @@ async function runRulesyncInstall(logger: Logger, options: InstallCommandOptions
 
   const result = await resolveAndFetchSources({
     sources,
-    baseDir,
+    projectRoot,
     options: {
       updateSources: options.update,
       frozen: options.frozen,
@@ -96,16 +96,16 @@ async function runRulesyncInstall(logger: Logger, options: InstallCommandOptions
 }
 
 async function runApmInstall(logger: Logger, options: InstallCommandOptions): Promise<void> {
-  const baseDir = process.cwd();
+  const projectRoot = process.cwd();
 
-  if (!(await apmManifestExists(baseDir))) {
+  if (!(await apmManifestExists(projectRoot))) {
     throw new Error(
       "--mode apm requires an apm.yml at the project root. Create one or drop --mode apm to fall back to rulesync mode.",
     );
   }
 
   const result = await installApm({
-    baseDir,
+    projectRoot,
     options: {
       update: options.update,
       frozen: options.frozen,
@@ -136,7 +136,7 @@ async function runApmInstall(logger: Logger, options: InstallCommandOptions): Pr
 }
 
 async function runGhInstall(logger: Logger, options: InstallCommandOptions): Promise<void> {
-  const baseDir = process.cwd();
+  const projectRoot = process.cwd();
 
   // gh mode reads sources from `rulesync.jsonc`, never from `apm.yml`. The
   // disambiguation between rulesync/apm modes lives in `runRulesyncInstall`;
@@ -154,7 +154,7 @@ async function runGhInstall(logger: Logger, options: InstallCommandOptions): Pro
   }
 
   const result = await installGh({
-    baseDir,
+    projectRoot,
     sources,
     options: {
       update: options.update,

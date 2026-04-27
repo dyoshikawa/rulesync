@@ -36,9 +36,9 @@ describe("WindsurfRule", () => {
       expect(windsurfRule.getFileContent()).toBe("# Test Rule\n\nThis is a test rule.");
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const windsurfRule = new WindsurfRule({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".windsurf/rules",
         relativeFilePath: "test-rule.md",
         fileContent: "# Custom Rule",
@@ -87,7 +87,7 @@ describe("WindsurfRule", () => {
       await writeFileContent(filePath, ruleContent);
 
       const windsurfRule = await WindsurfRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test-rule.md",
       });
 
@@ -104,7 +104,7 @@ describe("WindsurfRule", () => {
       await writeFileContent(filePath, ruleContent);
 
       const windsurfRule = await WindsurfRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "another-rule.md",
         validate: false,
       });
@@ -112,13 +112,13 @@ describe("WindsurfRule", () => {
       expect(windsurfRule.getFileContent()).toBe(ruleContent);
     });
 
-    it("should create instance from file with custom baseDir", async () => {
+    it("should create instance from file with custom outputRoot", async () => {
       const customDir = join(testDir, "custom");
       const ruleContent = "# Custom Base Dir Rule";
       await writeFileContent(join(customDir, ".windsurf", "rules", "custom-rule.md"), ruleContent);
 
       const windsurfRule = await WindsurfRule.fromFile({
-        baseDir: customDir,
+        outputRoot: customDir,
         relativeFilePath: "custom-rule.md",
       });
 
@@ -131,7 +131,7 @@ describe("WindsurfRule", () => {
     it("should throw error when file does not exist", async () => {
       await expect(
         WindsurfRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "non-existent.md",
         }),
       ).rejects.toThrow();
@@ -145,7 +145,7 @@ describe("WindsurfRule", () => {
       );
 
       const windsurfRule = await WindsurfRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "nested/deep/nested-rule.md",
       });
 
@@ -175,9 +175,9 @@ describe("WindsurfRule", () => {
       );
     });
 
-    it("should create instance from RulesyncRule with custom baseDir", () => {
+    it("should create instance from RulesyncRule with custom outputRoot", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: "/existing/path",
+        outputRoot: "/existing/path",
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom-rule.md",
         frontmatter: { description: "Custom Rule" },
@@ -185,7 +185,7 @@ describe("WindsurfRule", () => {
       });
 
       const windsurfRule = WindsurfRule.fromRulesyncRule({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         rulesyncRule,
       }) as WindsurfRule;
 
@@ -407,7 +407,7 @@ describe("WindsurfRule", () => {
     it("should handle file read errors in fromFile", async () => {
       await expect(
         WindsurfRule.fromFile({
-          baseDir: "/non-existent-directory",
+          outputRoot: "/non-existent-directory",
           relativeFilePath: "non-existent.md",
         }),
       ).rejects.toThrow();
@@ -417,7 +417,7 @@ describe("WindsurfRule", () => {
       // Try to read from a non-existent file in a valid directory
       await expect(
         WindsurfRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "restricted/non-existent.md",
         }),
       ).rejects.toThrow();
@@ -444,7 +444,7 @@ describe("WindsurfRule", () => {
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for rules targeting windsurf", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -458,7 +458,7 @@ describe("WindsurfRule", () => {
 
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -472,7 +472,7 @@ describe("WindsurfRule", () => {
 
     it("should return false for rules not targeting windsurf", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -486,7 +486,7 @@ describe("WindsurfRule", () => {
 
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -500,7 +500,7 @@ describe("WindsurfRule", () => {
 
     it("should handle mixed targets including windsurf", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -514,7 +514,7 @@ describe("WindsurfRule", () => {
 
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {},
@@ -535,7 +535,7 @@ describe("WindsurfRule", () => {
         await writeFileContent(join(testDir, ".windsurf", "rules", fileName), content);
 
         const windsurfRule = await WindsurfRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: fileName,
         });
 
@@ -549,7 +549,7 @@ describe("WindsurfRule", () => {
       await writeFileContent(join(testDir, ".windsurf", "rules", "unicode.md"), unicodeContent);
 
       const windsurfRule = await WindsurfRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "unicode.md",
       });
 
@@ -562,7 +562,7 @@ describe("WindsurfRule", () => {
       await writeFileContent(join(testDir, ".windsurf", "rules", "large.md"), largeContent);
 
       const windsurfRule = await WindsurfRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "large.md",
       });
 

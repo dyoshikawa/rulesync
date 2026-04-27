@@ -40,7 +40,7 @@ describe("CursorSkill", () => {
   describe("constructor", () => {
     it("should create instance with valid content", () => {
       const skill = new CursorSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".cursor", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -73,7 +73,7 @@ This is the body of the cursor skill.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       const skill = await CursorSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
       });
 
@@ -91,7 +91,7 @@ This is the body of the cursor skill.`;
 
       await expect(
         CursorSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "empty-skill",
         }),
       ).rejects.toThrow(/SKILL\.md not found/);
@@ -101,7 +101,7 @@ This is the body of the cursor skill.`;
   describe("fromRulesyncSkill", () => {
     it("should create instance from RulesyncSkill", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -129,7 +129,7 @@ This is the body of the cursor skill.`;
   describe("isTargetedByRulesyncSkill", () => {
     it("should return true when targets includes '*'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "all-targets-skill",
         frontmatter: {
@@ -146,7 +146,7 @@ This is the body of the cursor skill.`;
 
     it("should return true when targets includes 'cursor'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "cursor-skill",
         frontmatter: {
@@ -163,7 +163,7 @@ This is the body of the cursor skill.`;
 
     it("should return false when targets does not include 'cursor'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "claudecode-only-skill",
         frontmatter: {
@@ -182,7 +182,7 @@ This is the body of the cursor skill.`;
   describe("toRulesyncSkill", () => {
     it("should convert to RulesyncSkill", () => {
       const skill = new CursorSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".cursor", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -217,14 +217,14 @@ This is the body of the cursor skill.`;
       expect(skill.getGlobal()).toBe(false);
     });
 
-    it("should use process.cwd() as default baseDir", () => {
+    it("should use process.cwd() as default outputRoot", () => {
       const skill = CursorSkill.forDeletion({
         dirName: "cleanup",
         relativeDirPath: join(".cursor", "skills"),
       });
 
       expect(skill).toBeInstanceOf(CursorSkill);
-      expect(skill.getBaseDir()).toBe(testDir);
+      expect(skill.getOutputRoot()).toBe(testDir);
     });
 
     it("should create instance with empty frontmatter for deletion", () => {

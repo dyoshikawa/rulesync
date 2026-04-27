@@ -67,16 +67,16 @@ async function putPermissionsFile({ content }: { content: string }): Promise<{
   }
 
   try {
-    const baseDir = process.cwd();
+    const outputRoot = process.cwd();
     const paths = RulesyncPermissions.getSettablePaths();
 
     const relativeDirPath = paths.relativeDirPath;
     const relativeFilePath = paths.relativeFilePath;
-    const fullPath = join(baseDir, relativeDirPath, relativeFilePath);
+    const fullPath = join(outputRoot, relativeDirPath, relativeFilePath);
 
     // Create a RulesyncPermissions instance to validate the content
     const rulesyncPermissions = new RulesyncPermissions({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: content,
@@ -84,7 +84,7 @@ async function putPermissionsFile({ content }: { content: string }): Promise<{
     });
 
     // Ensure directory exists
-    await ensureDir(join(baseDir, relativeDirPath));
+    await ensureDir(join(outputRoot, relativeDirPath));
 
     // Write the file
     await writeFileContent(fullPath, content);
@@ -112,10 +112,10 @@ async function deletePermissionsFile(): Promise<{
   relativePathFromCwd: string;
 }> {
   try {
-    const baseDir = process.cwd();
+    const outputRoot = process.cwd();
     const paths = RulesyncPermissions.getSettablePaths();
 
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
 
     await removeFile(filePath);
 

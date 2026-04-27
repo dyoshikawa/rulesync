@@ -36,14 +36,14 @@ describe("SkillsProcessor", () => {
     it("should create instance with valid tool target", () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
 
       expect(processor).toBeInstanceOf(SkillsProcessor);
     });
 
-    it("should use default baseDir when not provided", () => {
+    it("should use default outputRoot when not provided", () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),
         toolTarget: "claudecode",
@@ -56,7 +56,7 @@ describe("SkillsProcessor", () => {
       expect(() => {
         const _processor = new SkillsProcessor({
           logger: createMockLogger(),
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "invalid" as SkillsProcessorToolTarget,
         });
       }).toThrow("Invalid tool target for SkillsProcessor");
@@ -65,7 +65,7 @@ describe("SkillsProcessor", () => {
     it("should accept global parameter", () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
         global: true,
       });
@@ -76,7 +76,7 @@ describe("SkillsProcessor", () => {
     it("should default global to false", () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
 
@@ -90,14 +90,14 @@ describe("SkillsProcessor", () => {
     beforeEach(() => {
       processor = new SkillsProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
     });
 
     it("should convert rulesync skills to claudecode skills", async () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -119,7 +119,7 @@ describe("SkillsProcessor", () => {
 
     it("should filter out non-RulesyncSkill instances", async () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -143,7 +143,7 @@ describe("SkillsProcessor", () => {
     it("should filter out skills not targeted for the tool", async () => {
       // Create a skill without claudecode in targets (by not having claudecode frontmatter)
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "non-targeted-skill",
         frontmatter: {
@@ -155,7 +155,7 @@ describe("SkillsProcessor", () => {
       });
 
       const targetedSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "targeted-skill",
         frontmatter: {
@@ -186,13 +186,13 @@ describe("SkillsProcessor", () => {
     it("should pass global parameter to ClaudecodeSkill.fromRulesyncSkill", async () => {
       const globalProcessor = new SkillsProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
         global: true,
       });
 
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "global-skill",
         frontmatter: {
@@ -212,7 +212,7 @@ describe("SkillsProcessor", () => {
     it("should throw error for unsupported tool target", async () => {
       // Create processor with mock tool target (bypassing constructor validation)
       const processorWithMockTarget = Object.create(SkillsProcessor.prototype);
-      processorWithMockTarget.baseDir = testDir;
+      processorWithMockTarget.outputRoot = testDir;
       processorWithMockTarget.toolTarget = "unsupported";
       processorWithMockTarget.global = false;
       processorWithMockTarget.getFactory = (target: any) => {
@@ -220,7 +220,7 @@ describe("SkillsProcessor", () => {
       };
 
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test",
         frontmatter: { name: "test", description: "test" },
@@ -240,14 +240,14 @@ describe("SkillsProcessor", () => {
     beforeEach(() => {
       processor = new SkillsProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
     });
 
     it("should convert tool skills to rulesync skills", async () => {
       const claudecodeSkill = new ClaudecodeSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".claude", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -268,7 +268,7 @@ describe("SkillsProcessor", () => {
 
     it("should filter out non-ToolSkill instances", async () => {
       const claudecodeSkill = new ClaudecodeSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".claude", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -311,7 +311,7 @@ describe("SkillsProcessor", () => {
     beforeEach(() => {
       processor = new SkillsProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
     });
@@ -407,7 +407,7 @@ Invalid content`;
       await expect(processor.loadRulesyncDirs()).rejects.toThrow("SKILL.md not found in");
     });
 
-    it("should load rulesync dirs from cwd even when baseDir is different (global mode)", async () => {
+    it("should load rulesync dirs from cwd even when outputRoot is different (global mode)", async () => {
       const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
       await ensureDir(skillsDir);
 
@@ -422,13 +422,13 @@ This is skill content`;
 
       await writeFileContent(join(skill1Dir, "SKILL.md"), skillContent);
 
-      // Use a different baseDir to simulate global mode (baseDir = homeDir)
-      const differentBaseDir = join(testDir, "fake-home");
-      await ensureDir(differentBaseDir);
+      // Use a different outputRoot to simulate global mode (outputRoot = homeDir)
+      const differentOutputRoot = join(testDir, "fake-home");
+      await ensureDir(differentOutputRoot);
 
       const globalProcessor = new SkillsProcessor({
         logger: createMockLogger(),
-        baseDir: differentBaseDir,
+        outputRoot: differentOutputRoot,
         toolTarget: "claudecode",
         global: true,
       });
@@ -446,7 +446,7 @@ This is skill content`;
     it("should delegate to loadClaudecodeSkills for claudecode target", async () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
 
@@ -457,7 +457,7 @@ This is skill content`;
     it("should throw error for unsupported tool target", async () => {
       // Create processor with mock tool target
       const processorWithMockTarget = Object.create(SkillsProcessor.prototype);
-      processorWithMockTarget.baseDir = testDir;
+      processorWithMockTarget.outputRoot = testDir;
       processorWithMockTarget.toolTarget = "unsupported";
       processorWithMockTarget.getFactory = (target: any) => {
         throw new Error(`Unsupported tool target: ${target}`);
@@ -471,7 +471,7 @@ This is skill content`;
     it("should load rovodev skills from .agents/skills when .rovodev/skills is absent", async () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "rovodev",
       });
       const skillDir = join(testDir, ".agents", "skills", "imported-skill");
@@ -497,7 +497,7 @@ Skill body`,
     it("should prefer .rovodev/skills over .agents/skills for the same skill name", async () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "rovodev",
       });
       const writeSkill = async (base: string, body: string) => {
@@ -530,7 +530,7 @@ ${body}`,
     beforeEach(() => {
       processor = new SkillsProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
     });
@@ -618,7 +618,7 @@ Second content`;
       it("should use global paths when global=true", async () => {
         const globalProcessor = new SkillsProcessor({
           logger: createMockLogger(),
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "claudecode",
           global: true,
         });
@@ -648,7 +648,7 @@ Global skill content`;
       it("should return empty array when global skills directory does not exist", async () => {
         const globalProcessor = new SkillsProcessor({
           logger: createMockLogger(),
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "claudecode",
           global: true,
         });
@@ -663,7 +663,7 @@ Global skill content`;
     it("should return the same dirs as loadToolDirs", async () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
 
@@ -691,7 +691,7 @@ Test skill content`;
     it("should succeed even when SKILL.md has broken frontmatter", async () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
 
@@ -723,7 +723,7 @@ Content that would fail parsing`;
     it("should return empty array when no dirs exist", async () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
 
@@ -734,7 +734,7 @@ Content that would fail parsing`;
     it("should list rovodev skills in both .rovodev/skills and .agents/skills for deletion", async () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "rovodev",
       });
       const rovoDir = join(testDir, ".rovodev", "skills", "a-skill");
@@ -918,7 +918,7 @@ Content that would fail parsing`;
     it("should extend DirFeatureProcessor", () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
 
@@ -936,14 +936,14 @@ Content that would fail parsing`;
     beforeEach(() => {
       processor = new SkillsProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
     });
 
     it("should write skill file with frontmatter that can be read back", async () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -970,7 +970,7 @@ Content that would fail parsing`;
 
     it("should write skill file with allowed-tools frontmatter", async () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "tool-skill",
         frontmatter: {

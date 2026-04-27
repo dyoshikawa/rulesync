@@ -28,7 +28,7 @@ describe("OpenCodeCommand", () => {
   describe("constructor", () => {
     it("should create a command with optional OpenCode fields", () => {
       const command = new OpenCodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".opencode", "command"),
         relativeFilePath: "test.md",
         frontmatter: {
@@ -52,7 +52,7 @@ describe("OpenCodeCommand", () => {
     it("should validate frontmatter when enabled", () => {
       expect(() => {
         new OpenCodeCommand({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: join(".opencode", "command"),
           relativeFilePath: "invalid.md",
           frontmatter: { description: 123 as unknown as string },
@@ -77,7 +77,7 @@ describe("OpenCodeCommand", () => {
   describe("fromRulesyncCommand", () => {
     it("should merge opencode frontmatter fields and respect global paths", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "custom.md",
         frontmatter: {
@@ -94,7 +94,7 @@ describe("OpenCodeCommand", () => {
       });
 
       const command = OpenCodeCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
         global: true,
       });
@@ -107,7 +107,7 @@ describe("OpenCodeCommand", () => {
   describe("toRulesyncCommand", () => {
     it("should convert to RulesyncCommand with opencode metadata", () => {
       const command = new OpenCodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".opencode", "command"),
         relativeFilePath: "custom.md",
         frontmatter: { description: "Create component", agent: "plan" },
@@ -137,7 +137,7 @@ describe("OpenCodeCommand", () => {
       );
 
       const command = await OpenCodeCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "task.md",
       });
 

@@ -40,7 +40,7 @@ describe("CursorHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -48,7 +48,7 @@ describe("CursorHooks", () => {
       });
 
       const cursorHooks = CursorHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -74,7 +74,7 @@ describe("CursorHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -82,7 +82,7 @@ describe("CursorHooks", () => {
       });
 
       const cursorHooks = CursorHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -97,7 +97,7 @@ describe("CursorHooks", () => {
     it("should preserve version from config", () => {
       const config = { version: 2, hooks: { sessionStart: [] } };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -105,7 +105,7 @@ describe("CursorHooks", () => {
       });
 
       const cursorHooks = CursorHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -119,7 +119,7 @@ describe("CursorHooks", () => {
   describe("toRulesyncHooks", () => {
     it("should convert Cursor hooks JSON to canonical rulesync format", () => {
       const cursorHooks = new CursorHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor",
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify({
@@ -150,7 +150,7 @@ describe("CursorHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -158,14 +158,14 @@ describe("CursorHooks", () => {
       });
 
       const cursorHooks = CursorHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
       await ensureDir(join(testDir, ".cursor"));
       await writeFileContent(cursorHooks.getFilePath(), cursorHooks.getFileContent());
 
-      const loaded = await CursorHooks.fromFile({ baseDir: testDir, validate: false });
+      const loaded = await CursorHooks.fromFile({ outputRoot: testDir, validate: false });
       const backToRulesync = loaded.toRulesyncHooks();
       const json = backToRulesync.getJson();
       expect(json.hooks.sessionStart).toHaveLength(1);
@@ -183,7 +183,7 @@ describe("CursorHooks", () => {
         JSON.stringify({ version: 1, hooks: { sessionStart: [] } }),
       );
 
-      const cursorHooks = await CursorHooks.fromFile({ baseDir: testDir, validate: false });
+      const cursorHooks = await CursorHooks.fromFile({ outputRoot: testDir, validate: false });
       expect(cursorHooks).toBeInstanceOf(CursorHooks);
       const content = cursorHooks.getFileContent();
       const parsed = JSON.parse(content);
@@ -195,7 +195,7 @@ describe("CursorHooks", () => {
   describe("forDeletion", () => {
     it("should return CursorHooks instance with empty hooks for deletion path", () => {
       const hooks = CursorHooks.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor",
         relativeFilePath: "hooks.json",
       });

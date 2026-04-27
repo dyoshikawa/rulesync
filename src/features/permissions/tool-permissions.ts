@@ -23,12 +23,15 @@ export type ToolPermissionsSettablePaths = {
   relativeFilePath: string;
 };
 
-export type ToolPermissionsFromFileParams = Pick<AiFileFromFileParams, "baseDir" | "validate"> & {
+export type ToolPermissionsFromFileParams = Pick<
+  AiFileFromFileParams,
+  "outputRoot" | "validate"
+> & {
   global?: boolean;
 };
 
 export type ToolPermissionsForDeletionParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath: string;
   relativeFilePath: string;
   global?: boolean;
@@ -57,7 +60,7 @@ export abstract class ToolPermissions extends ToolFile {
     fileContent: string;
   }): RulesyncPermissions {
     return new RulesyncPermissions({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
       fileContent,

@@ -41,9 +41,9 @@ describe("QwencodeRule", () => {
       expect(qwencodeRule.isRoot()).toBe(false);
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const qwencodeRule = new QwencodeRule({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".qwen/memories",
         relativeFilePath: "test-rule.md",
         fileContent: "# Custom Rule",
@@ -108,7 +108,7 @@ describe("QwencodeRule", () => {
       await writeFileContent(join(memoriesDir, "test.md"), testContent);
 
       const qwencodeRule = await QwencodeRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test.md",
       });
 
@@ -125,7 +125,7 @@ describe("QwencodeRule", () => {
       await writeFileContent(join(testDir, "QWEN.md"), testContent);
 
       const qwencodeRule = await QwencodeRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "QWEN.md",
       });
 
@@ -136,11 +136,11 @@ describe("QwencodeRule", () => {
       expect(qwencodeRule.isRoot()).toBe(true);
     });
 
-    it("should use default baseDir when not provided", async () => {
+    it("should use default outputRoot when not provided", async () => {
       // Setup test file in test directory (process.cwd() is mocked to return testDir)
       const memoriesDir = join(testDir, ".qwen/memories");
       await ensureDir(memoriesDir);
-      const testContent = "# Default BaseDir Test";
+      const testContent = "# Default OutputRoot Test";
       const testFilePath = join(memoriesDir, "default-test.md");
       await writeFileContent(testFilePath, testContent);
 
@@ -155,9 +155,9 @@ describe("QwencodeRule", () => {
       expect(qwencodeRule.getFilePath()).toBe(join(testDir, ".qwen/memories/default-test.md"));
     });
 
-    it("should handle root file detection with default baseDir", async () => {
+    it("should handle root file detection with default outputRoot", async () => {
       // Setup root test file in test directory (process.cwd() is mocked to return testDir)
-      const testContent = "# Root Default BaseDir Test";
+      const testContent = "# Root Default OutputRoot Test";
       const rootFilePath = join(testDir, "QWEN.md");
       await writeFileContent(rootFilePath, testContent);
 
@@ -179,13 +179,13 @@ describe("QwencodeRule", () => {
       await writeFileContent(join(memoriesDir, "validation-test.md"), testContent);
 
       const qwencodeRuleWithValidation = await QwencodeRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "validation-test.md",
         validate: true,
       });
 
       const qwencodeRuleWithoutValidation = await QwencodeRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "validation-test.md",
         validate: false,
       });
@@ -197,7 +197,7 @@ describe("QwencodeRule", () => {
     it("should throw error when file does not exist", async () => {
       await expect(
         QwencodeRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "nonexistent.md",
         }),
       ).rejects.toThrow();
@@ -206,7 +206,7 @@ describe("QwencodeRule", () => {
     it("should throw error when root file does not exist", async () => {
       await expect(
         QwencodeRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "QWEN.md",
         }),
       ).rejects.toThrow();
@@ -264,7 +264,7 @@ describe("QwencodeRule", () => {
       expect(qwencodeRule.isRoot()).toBe(true);
     });
 
-    it("should use custom baseDir", () => {
+    it("should use custom outputRoot", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom-base.md",
@@ -278,7 +278,7 @@ describe("QwencodeRule", () => {
       });
 
       const qwencodeRule = QwencodeRule.fromRulesyncRule({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         rulesyncRule,
       });
 
@@ -337,7 +337,7 @@ describe("QwencodeRule", () => {
   describe("toRulesyncRule", () => {
     it("should convert non-root QwencodeRule to RulesyncRule", () => {
       const qwencodeRule = new QwencodeRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".qwen/memories",
         relativeFilePath: "convert-test.md",
         fileContent: "# Convert Test\n\nThis will be converted.",
@@ -359,7 +359,7 @@ describe("QwencodeRule", () => {
 
     it("should convert root QwencodeRule to RulesyncRule", () => {
       const qwencodeRule = new QwencodeRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "QWEN.md",
         fileContent: "# Root Convert Test\n\nThis root will be converted.",
@@ -382,7 +382,7 @@ describe("QwencodeRule", () => {
 
     it("should preserve metadata in conversion", () => {
       const qwencodeRule = new QwencodeRule({
-        baseDir: "/test/path",
+        outputRoot: "/test/path",
         relativeDirPath: ".qwen/memories",
         relativeFilePath: "metadata-test.md",
         fileContent: "# Metadata Test\n\nContent with metadata.",
@@ -489,7 +489,7 @@ describe("QwencodeRule", () => {
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for rules targeting qwencode", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".qwen/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -503,7 +503,7 @@ describe("QwencodeRule", () => {
 
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".qwen/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -517,7 +517,7 @@ describe("QwencodeRule", () => {
 
     it("should return false for rules not targeting qwencode", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".qwen/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -531,7 +531,7 @@ describe("QwencodeRule", () => {
 
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".qwen/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -545,7 +545,7 @@ describe("QwencodeRule", () => {
 
     it("should handle mixed targets including qwencode", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".qwen/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -559,7 +559,7 @@ describe("QwencodeRule", () => {
 
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".qwen/memories",
         relativeFilePath: "test.md",
         frontmatter: {},
@@ -580,7 +580,7 @@ describe("QwencodeRule", () => {
 
       // Load from file
       const qwencodeRule = await QwencodeRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "integration.md",
       });
 
@@ -600,7 +600,7 @@ describe("QwencodeRule", () => {
 
       // Load from file
       const qwencodeRule = await QwencodeRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "QWEN.md",
       });
 
@@ -621,7 +621,7 @@ describe("QwencodeRule", () => {
 
       // Start with rulesync rule
       const originalRulesync = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "roundtrip.md",
         frontmatter: {
@@ -635,7 +635,7 @@ describe("QwencodeRule", () => {
 
       // Convert to qwencode rule
       const qwencodeRule = QwencodeRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule: originalRulesync,
       });
 
@@ -652,7 +652,7 @@ describe("QwencodeRule", () => {
 
       // Start with root rulesync rule
       const originalRulesync = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "root-roundtrip.md",
         frontmatter: {
@@ -666,7 +666,7 @@ describe("QwencodeRule", () => {
 
       // Convert to qwencode rule
       const qwencodeRule = QwencodeRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule: originalRulesync,
       });
 

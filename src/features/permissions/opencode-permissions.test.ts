@@ -39,7 +39,7 @@ describe("OpencodePermissions", () => {
   it("should load opencode.jsonc and initialize permission", async () => {
     await writeFileContent(join(testDir, "opencode.jsonc"), JSON.stringify({ model: "x" }));
 
-    const instance = await OpencodePermissions.fromFile({ baseDir: testDir });
+    const instance = await OpencodePermissions.fromFile({ outputRoot: testDir });
     const json = instance.getJson();
 
     expect(instance.getRelativeFilePath()).toBe("opencode.jsonc");
@@ -49,7 +49,7 @@ describe("OpencodePermissions", () => {
   it("should merge rulesync permission into existing opencode config", async () => {
     await writeFileContent(join(testDir, "opencode.json"), JSON.stringify({ model: "x" }));
     const rulesyncPermissions = new RulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
       fileContent: JSON.stringify({
@@ -60,7 +60,7 @@ describe("OpencodePermissions", () => {
     });
 
     const instance = await OpencodePermissions.fromRulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       rulesyncPermissions,
     });
     const json = JSON.parse(instance.getFileContent());
@@ -77,7 +77,7 @@ describe("OpencodePermissions", () => {
       JSON.stringify({ permission: { bash: "ask" } }),
     );
 
-    const instance = await OpencodePermissions.fromFile({ baseDir: testDir, global: true });
+    const instance = await OpencodePermissions.fromFile({ outputRoot: testDir, global: true });
     const rulesync = instance.toRulesyncPermissions().getJson();
 
     expect(rulesync.permission.bash).toEqual({ "*": "ask" });

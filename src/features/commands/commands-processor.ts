@@ -357,7 +357,7 @@ export class CommandsProcessor extends FeatureProcessor {
   private readonly getFactory: GetFactory;
 
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     inputRoot = process.cwd(),
     toolTarget,
     global = false,
@@ -365,7 +365,7 @@ export class CommandsProcessor extends FeatureProcessor {
     dryRun = false,
     logger,
   }: {
-    baseDir?: string;
+    outputRoot?: string;
     inputRoot?: string;
     toolTarget: ToolTarget;
     global?: boolean;
@@ -373,7 +373,7 @@ export class CommandsProcessor extends FeatureProcessor {
     dryRun?: boolean;
     logger: Logger;
   }) {
-    super({ baseDir, inputRoot, dryRun, logger });
+    super({ outputRoot, inputRoot, dryRun, logger });
     const result = CommandsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -414,7 +414,7 @@ export class CommandsProcessor extends FeatureProcessor {
           }
         }
         return factory.class.fromRulesyncCommand({
-          baseDir: this.baseDir,
+          outputRoot: this.outputRoot,
           rulesyncCommand: commandToConvert,
           global: this.global,
         });
@@ -459,7 +459,7 @@ export class CommandsProcessor extends FeatureProcessor {
     const rulesyncCommands = await Promise.all(
       rulesyncCommandPaths.map((path) =>
         RulesyncCommand.fromFile({
-          baseDir: this.inputRoot,
+          outputRoot: this.inputRoot,
           relativeFilePath: this.safeRelativePath(basePath, path),
         }),
       ),
@@ -481,19 +481,19 @@ export class CommandsProcessor extends FeatureProcessor {
     const factory = this.getFactory(this.toolTarget);
     const paths = factory.class.getSettablePaths({ global: this.global });
 
-    const baseDirFull = join(this.baseDir, paths.relativeDirPath);
+    const outputRootFull = join(this.outputRoot, paths.relativeDirPath);
     const globPattern = factory.meta.supportsSubdirectory
-      ? join(baseDirFull, "**", `*.${factory.meta.extension}`)
-      : join(baseDirFull, `*.${factory.meta.extension}`);
+      ? join(outputRootFull, "**", `*.${factory.meta.extension}`)
+      : join(outputRootFull, `*.${factory.meta.extension}`);
     const commandFilePaths = await findFilesByGlobs(globPattern);
 
     if (forDeletion) {
       const toolCommands = commandFilePaths
         .map((path) =>
           factory.class.forDeletion({
-            baseDir: this.baseDir,
+            outputRoot: this.outputRoot,
             relativeDirPath: paths.relativeDirPath,
-            relativeFilePath: this.safeRelativePath(baseDirFull, path),
+            relativeFilePath: this.safeRelativePath(outputRootFull, path),
             global: this.global,
           }),
         )
@@ -508,8 +508,8 @@ export class CommandsProcessor extends FeatureProcessor {
     const toolCommands = await Promise.all(
       commandFilePaths.map((path) =>
         factory.class.fromFile({
-          baseDir: this.baseDir,
-          relativeFilePath: this.safeRelativePath(baseDirFull, path),
+          outputRoot: this.outputRoot,
+          relativeFilePath: this.safeRelativePath(outputRootFull, path),
           global: this.global,
         }),
       ),

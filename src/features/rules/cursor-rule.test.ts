@@ -193,7 +193,7 @@ Test content`;
 
       const cursorRule = CursorRule.fromRulesyncRule({
         rulesyncRule,
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(cursorRule.getFrontmatter()).toEqual({
@@ -262,7 +262,7 @@ Test content`;
 
       const cursorRule = CursorRule.fromRulesyncRule({
         rulesyncRule,
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(cursorRule.getFrontmatter().description).toBeUndefined();
@@ -397,7 +397,7 @@ This is the rule content
       await writeFileContent(filePath, fileContent);
 
       const rule = await CursorRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test.mdc",
       });
 
@@ -417,7 +417,7 @@ This is the rule content
       await writeFileContent(filePath, content);
 
       const rule = await CursorRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "simple.mdc",
       });
 
@@ -436,7 +436,7 @@ This is the rule content
 
       await expect(
         CursorRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "invalid.mdc",
         }),
       ).rejects.toThrow(/Invalid frontmatter/);
@@ -451,7 +451,7 @@ This is the rule content
       await writeFileContent(filePath, content);
 
       const rule = await CursorRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "invalid.mdc",
         validate: false,
       });
@@ -678,7 +678,7 @@ This is the rule content
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for rules targeting cursor", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -692,7 +692,7 @@ This is the rule content
 
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -706,7 +706,7 @@ This is the rule content
 
     it("should return false for rules not targeting cursor", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -720,7 +720,7 @@ This is the rule content
 
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -734,7 +734,7 @@ This is the rule content
 
     it("should handle mixed targets including cursor", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -748,7 +748,7 @@ This is the rule content
 
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {},
@@ -829,7 +829,7 @@ This is the rule content
       // Write to disk and re-read
       await writeFileContent(filePath, rule.getFileContent());
       const reimported = await CursorRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "no-desc.mdc",
       });
 
@@ -853,7 +853,7 @@ Rule with null description`;
 
       // Should NOT throw a Zod validation error
       const rule = await CursorRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "null-desc.mdc",
       });
 

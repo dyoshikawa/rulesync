@@ -39,15 +39,15 @@ export class CursorHooks extends ToolHooks {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
   }: ToolHooksFromFileParams): Promise<CursorHooks> {
     const paths = CursorHooks.getSettablePaths();
     const fileContent = await readFileContent(
-      join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
+      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
     );
     return new CursorHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -56,7 +56,7 @@ export class CursorHooks extends ToolHooks {
   }
 
   static fromRulesyncHooks({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncHooks,
     validate = true,
   }: ToolHooksFromRulesyncHooksParams): CursorHooks {
@@ -95,7 +95,7 @@ export class CursorHooks extends ToolHooks {
     const fileContent = JSON.stringify(cursorConfig, null, 2);
     const paths = CursorHooks.getSettablePaths();
     return new CursorHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -127,12 +127,12 @@ export class CursorHooks extends ToolHooks {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolHooksForDeletionParams): CursorHooks {
     return new CursorHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "{}",

@@ -23,7 +23,7 @@ export const ClineSkillFrontmatterSchema = z.looseObject({
 export type ClineSkillFrontmatter = z.infer<typeof ClineSkillFrontmatterSchema>;
 
 export type ClineSkillParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
   frontmatter: ClineSkillFrontmatter;
@@ -39,7 +39,7 @@ export type ClineSkillParams = {
  */
 export class ClineSkill extends ToolSkill {
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath = join(".cline", "skills"),
     dirName,
     frontmatter,
@@ -49,7 +49,7 @@ export class ClineSkill extends ToolSkill {
     global = false,
   }: ClineSkillParams) {
     super({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       mainFile: {
@@ -71,7 +71,7 @@ export class ClineSkill extends ToolSkill {
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolSkillSettablePaths {
     // Cline Code skills use the same relative path for both project and global modes
-    // The actual location differs based on baseDir:
+    // The actual location differs based on outputRoot:
     // - Project mode: {process.cwd()}/.cline/skills/
     // - Global mode: {getHomeDirectory()}/.cline/skills/
     return {
@@ -127,7 +127,7 @@ export class ClineSkill extends ToolSkill {
     };
 
     return new RulesyncSkill({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
       dirName: this.getDirName(),
       frontmatter: rulesyncFrontmatter,
@@ -139,7 +139,7 @@ export class ClineSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -153,7 +153,7 @@ export class ClineSkill extends ToolSkill {
     };
 
     return new ClineSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: clineFrontmatter.name,
       frontmatter: clineFrontmatter,
@@ -177,7 +177,7 @@ export class ClineSkill extends ToolSkill {
 
     const result = ClineSkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
-      const skillDirPath = join(loaded.baseDir, loaded.relativeDirPath, loaded.dirName);
+      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
         `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
       );
@@ -185,7 +185,7 @@ export class ClineSkill extends ToolSkill {
 
     if (result.data.name !== loaded.dirName) {
       const skillFilePath = join(
-        loaded.baseDir,
+        loaded.outputRoot,
         loaded.relativeDirPath,
         loaded.dirName,
         SKILL_FILE_NAME,
@@ -196,7 +196,7 @@ export class ClineSkill extends ToolSkill {
     }
 
     return new ClineSkill({
-      baseDir: loaded.baseDir,
+      outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
       frontmatter: result.data,
@@ -208,13 +208,13 @@ export class ClineSkill extends ToolSkill {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): ClineSkill {
     return new ClineSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },

@@ -57,12 +57,12 @@ args = ["-y", "@anthropic-ai/mcp-server-filesystem", "/workspace"]
       expect(codexcliMcp.getFileContent()).toBe(validTomlContent);
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const validTomlContent = `[mcpServers]
 `;
 
       const codexcliMcp = new CodexcliMcp({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".codex",
         relativeFilePath: "config.toml",
         fileContent: validTomlContent,
@@ -181,7 +181,7 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "${testDir}"]
       await writeFileContent(join(testDir, ".codex/config.toml"), tomlData);
 
       const codexcliMcp = await CodexcliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: false,
       });
 
@@ -199,7 +199,7 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "${testDir}"]
       await writeFileContent(join(testDir, ".codex/config.toml"), tomlData);
 
       const codexcliMcp = await CodexcliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -208,7 +208,7 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "${testDir}"]
       expect(codexcliMcp.getFilePath()).toBe(join(testDir, ".codex/config.toml"));
     });
 
-    it("should create instance from file with custom baseDir", async () => {
+    it("should create instance from file with custom outputRoot", async () => {
       const customDir = join(testDir, "custom");
       await ensureDir(join(customDir, ".codex"));
 
@@ -219,7 +219,7 @@ args = ["git-server.js"]
       await writeFileContent(join(customDir, ".codex/config.toml"), tomlData);
 
       const codexcliMcp = await CodexcliMcp.fromFile({
-        baseDir: customDir,
+        outputRoot: customDir,
         global: true,
       });
 
@@ -236,7 +236,7 @@ args = ["server.js"]
       await writeFileContent(join(testDir, ".codex/config.toml"), tomlData);
 
       const codexcliMcp = await CodexcliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: true,
         global: true,
       });
@@ -251,7 +251,7 @@ args = ["server.js"]
       await writeFileContent(join(testDir, ".codex/config.toml"), tomlData);
 
       const codexcliMcp = await CodexcliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
         global: true,
       });
@@ -261,7 +261,7 @@ args = ["server.js"]
 
     it("should return empty instance if file does not exist", async () => {
       const codexcliMcp = await CodexcliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -287,7 +287,7 @@ args = ["server.js"]
       });
 
       const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: false,
       });
@@ -314,7 +314,7 @@ args = ["server.js"]
       });
 
       const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -352,7 +352,7 @@ fontSize = 14
       });
 
       const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -363,7 +363,7 @@ fontSize = 14
       expect(json.mcp_servers).toEqual(jsonData.mcpServers);
     });
 
-    it("should create instance from RulesyncMcp with custom baseDir", async () => {
+    it("should create instance from RulesyncMcp with custom outputRoot", async () => {
       const jsonData = {
         mcpServers: {
           "custom-server": {
@@ -376,14 +376,14 @@ fontSize = 14
         },
       };
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
 
       const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -408,7 +408,7 @@ fontSize = 14
       });
 
       const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         validate: true,
         global: true,
@@ -428,7 +428,7 @@ fontSize = 14
       });
 
       const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         validate: false,
         global: true,
@@ -448,7 +448,7 @@ fontSize = 14
       });
 
       const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -473,7 +473,7 @@ fontSize = 14
       });
 
       const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -500,7 +500,7 @@ fontSize = 14
       });
 
       const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -527,7 +527,7 @@ fontSize = 14
       });
 
       const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -555,7 +555,7 @@ fontSize = 14
       });
 
       const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -587,7 +587,7 @@ fontSize = 14
       });
 
       const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -613,7 +613,7 @@ fontSize = 14
       });
 
       const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -644,7 +644,7 @@ fontSize = 14
       });
 
       const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -689,7 +689,7 @@ command = "python"
 args = ["another-server.py"]
 `;
       const codexcliMcp = new CodexcliMcp({
-        baseDir: "/test/dir",
+        outputRoot: "/test/dir",
         relativeDirPath: ".codex",
         relativeFilePath: "config.toml",
         fileContent: tomlContent,
@@ -697,7 +697,7 @@ args = ["another-server.py"]
 
       const rulesyncMcp = codexcliMcp.toRulesyncMcp();
 
-      expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
+      expect(rulesyncMcp.getOutputRoot()).toBe("/test/dir");
 
       const json = JSON.parse(rulesyncMcp.getFileContent());
       expect(json.mcpServers?.["complex-server"]).toEqual({
@@ -971,7 +971,7 @@ NODE_ENV = "test"
 
       // Step 1: Load from file
       const originalCodexcliMcp = await CodexcliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -980,7 +980,7 @@ NODE_ENV = "test"
 
       // Step 3: Create new CodexcliMcp from RulesyncMcp
       const newCodexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -1012,7 +1012,7 @@ PYTHONPATH = "/app/lib"
 
       // Create CodexcliMcp
       const codexcliMcp = new CodexcliMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".codex",
         relativeFilePath: "config.toml",
         fileContent: complexTomlData,
@@ -1021,7 +1021,7 @@ PYTHONPATH = "/app/lib"
       // Convert to RulesyncMcp and back
       const rulesyncMcp = codexcliMcp.toRulesyncMcp();
       const newCodexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -1050,7 +1050,7 @@ fontSize = 14
 
       // Load from file
       const originalCodexcliMcp = await CodexcliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -1059,7 +1059,7 @@ fontSize = 14
 
       // Create new CodexcliMcp from RulesyncMcp (this should preserve existing content)
       const newCodexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -1085,7 +1085,7 @@ disabled_tools = ["write"]
 
       // Step 1: Load from file
       const originalCodexcliMcp = await CodexcliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -1099,7 +1099,7 @@ disabled_tools = ["write"]
 
       // Step 3: Convert back to CodexcliMcp
       const newCodexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -1121,7 +1121,7 @@ enabled = false
 
       // Step 1: Load from file
       const originalCodexcliMcp = await CodexcliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -1134,7 +1134,7 @@ enabled = false
 
       // Step 3: Convert back to CodexcliMcp
       const newCodexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -1170,7 +1170,7 @@ enabled = false
 
       // Step 1: Convert to CodexcliMcp
       const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -1203,7 +1203,7 @@ enabled_tools = ["search"]
 
       // Step 1: Load from local file (no global flag)
       const originalCodexcliMcp = await CodexcliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: false,
       });
 
@@ -1216,7 +1216,7 @@ enabled_tools = ["search"]
 
       // Step 3: Convert back to CodexcliMcp in local mode
       const newCodexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: false,
       });

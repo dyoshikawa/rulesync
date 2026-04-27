@@ -39,9 +39,9 @@ describe("KiroIgnore", () => {
       expect(kiroIgnore.getFileContent()).toBe("*.log\nnode_modules/");
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const kiroIgnore = new KiroIgnore({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: "subdir",
         relativeFilePath: ".aiignore",
         fileContent: "*.tmp",
@@ -76,7 +76,7 @@ describe("KiroIgnore", () => {
     it("should convert to RulesyncIgnore with same content", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const kiroIgnore = new KiroIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".aiignore",
         fileContent,
@@ -92,7 +92,7 @@ describe("KiroIgnore", () => {
 
     it("should handle empty content", () => {
       const kiroIgnore = new KiroIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".aiignore",
         fileContent: "",
@@ -106,7 +106,7 @@ describe("KiroIgnore", () => {
     it("should preserve patterns and formatting", () => {
       const fileContent = "# Generated files\n*.log\n*.tmp\n\n# Dependencies\nnode_modules/\n.env*";
       const kiroIgnore = new KiroIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".aiignore",
         fileContent,
@@ -119,7 +119,7 @@ describe("KiroIgnore", () => {
   });
 
   describe("fromRulesyncIgnore", () => {
-    it("should create KiroIgnore from RulesyncIgnore with default baseDir", () => {
+    it("should create KiroIgnore from RulesyncIgnore with default outputRoot", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -132,13 +132,13 @@ describe("KiroIgnore", () => {
       });
 
       expect(kiroIgnore).toBeInstanceOf(KiroIgnore);
-      expect(kiroIgnore.getBaseDir()).toBe(testDir);
+      expect(kiroIgnore.getOutputRoot()).toBe(testDir);
       expect(kiroIgnore.getRelativeDirPath()).toBe(".");
       expect(kiroIgnore.getRelativeFilePath()).toBe(".aiignore");
       expect(kiroIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should create KiroIgnore from RulesyncIgnore with custom baseDir", () => {
+    it("should create KiroIgnore from RulesyncIgnore with custom outputRoot", () => {
       const fileContent = "*.tmp\nbuild/";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -147,11 +147,11 @@ describe("KiroIgnore", () => {
       });
 
       const kiroIgnore = KiroIgnore.fromRulesyncIgnore({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         rulesyncIgnore,
       });
 
-      expect(kiroIgnore.getBaseDir()).toBe("/custom/base");
+      expect(kiroIgnore.getOutputRoot()).toBe("/custom/base");
       expect(kiroIgnore.getFilePath()).toBe("/custom/base/.aiignore");
       expect(kiroIgnore.getFileContent()).toBe(fileContent);
     });
@@ -187,17 +187,17 @@ describe("KiroIgnore", () => {
   });
 
   describe("fromFile", () => {
-    it("should read .aiignore file from baseDir with default baseDir", async () => {
+    it("should read .aiignore file from outputRoot with default outputRoot", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const aiignorePath = join(testDir, ".aiignore");
       await writeFileContent(aiignorePath, fileContent);
 
       const kiroIgnore = await KiroIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(kiroIgnore).toBeInstanceOf(KiroIgnore);
-      expect(kiroIgnore.getBaseDir()).toBe(testDir);
+      expect(kiroIgnore.getOutputRoot()).toBe(testDir);
       expect(kiroIgnore.getRelativeDirPath()).toBe(".");
       expect(kiroIgnore.getRelativeFilePath()).toBe(".aiignore");
       expect(kiroIgnore.getFileContent()).toBe(fileContent);
@@ -209,7 +209,7 @@ describe("KiroIgnore", () => {
       await writeFileContent(aiignorePath, fileContent);
 
       const kiroIgnore = await KiroIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(kiroIgnore.getFileContent()).toBe(fileContent);
@@ -221,7 +221,7 @@ describe("KiroIgnore", () => {
       await writeFileContent(aiignorePath, fileContent);
 
       const kiroIgnore = await KiroIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
 
@@ -233,7 +233,7 @@ describe("KiroIgnore", () => {
       await writeFileContent(aiignorePath, "");
 
       const kiroIgnore = await KiroIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(kiroIgnore.getFileContent()).toBe("");
@@ -274,13 +274,13 @@ Thumbs.db`;
       await writeFileContent(aiignorePath, fileContent);
 
       const kiroIgnore = await KiroIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(kiroIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should default baseDir to process.cwd() when not provided", async () => {
+    it("should default outputRoot to process.cwd() when not provided", async () => {
       // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\nnode_modules/";
       const aiignorePath = join(testDir, ".aiignore");
@@ -288,14 +288,14 @@ Thumbs.db`;
 
       const kiroIgnore = await KiroIgnore.fromFile({});
 
-      expect(kiroIgnore.getBaseDir()).toBe(testDir);
+      expect(kiroIgnore.getOutputRoot()).toBe(testDir);
       expect(kiroIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should throw error when .aiignore file does not exist", async () => {
       await expect(
         KiroIgnore.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });
@@ -306,7 +306,7 @@ Thumbs.db`;
       await writeFileContent(aiignorePath, fileContent);
 
       const kiroIgnore = await KiroIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(kiroIgnore.getFileContent()).toBe(fileContent);
@@ -343,13 +343,13 @@ Thumbs.db`;
 
     it("should inherit file path methods from ToolFile", () => {
       const kiroIgnore = new KiroIgnore({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: "subdir",
         relativeFilePath: ".aiignore",
         fileContent: "*.log",
       });
 
-      expect(kiroIgnore.getBaseDir()).toBe("/test/base");
+      expect(kiroIgnore.getOutputRoot()).toBe("/test/base");
       expect(kiroIgnore.getRelativeDirPath()).toBe("subdir");
       expect(kiroIgnore.getRelativeFilePath()).toBe(".aiignore");
       expect(kiroIgnore.getFilePath()).toBe("/test/base/subdir/.aiignore");
@@ -369,7 +369,7 @@ dist/
 
       // KiroIgnore -> RulesyncIgnore -> KiroIgnore
       const originalKiroIgnore = new KiroIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".aiignore",
         fileContent: originalContent,
@@ -377,12 +377,12 @@ dist/
 
       const rulesyncIgnore = originalKiroIgnore.toRulesyncIgnore();
       const roundTripKiroIgnore = KiroIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
       expect(roundTripKiroIgnore.getFileContent()).toBe(originalContent);
-      expect(roundTripKiroIgnore.getBaseDir()).toBe(testDir);
+      expect(roundTripKiroIgnore.getOutputRoot()).toBe(testDir);
       expect(roundTripKiroIgnore.getRelativeDirPath()).toBe(".");
       expect(roundTripKiroIgnore.getRelativeFilePath()).toBe(".aiignore");
     });
@@ -459,7 +459,7 @@ dist/
     it("should write and read file correctly", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const kiroIgnore = new KiroIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".aiignore",
         fileContent,
@@ -470,7 +470,7 @@ dist/
 
       // Read file back
       const readKiroIgnore = await KiroIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(readKiroIgnore.getFileContent()).toBe(fileContent);
@@ -483,7 +483,7 @@ dist/
 
       const fileContent = "*.log\nbuild/";
       const kiroIgnore = new KiroIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "project/config",
         relativeFilePath: ".aiignore",
         fileContent,
@@ -493,7 +493,7 @@ dist/
       await writeFileContent(kiroIgnore.getFilePath(), kiroIgnore.getFileContent());
 
       const readKiroIgnore = await KiroIgnore.fromFile({
-        baseDir: join(testDir, "project/config"),
+        outputRoot: join(testDir, "project/config"),
       });
 
       expect(readKiroIgnore.getFileContent()).toBe(fileContent);
@@ -560,7 +560,7 @@ temp*/
 
     it("should work in workspace root context", () => {
       const kiroIgnore = KiroIgnore.fromRulesyncIgnore({
-        baseDir: "/workspace/root",
+        outputRoot: "/workspace/root",
         rulesyncIgnore: new RulesyncIgnore({
           relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
           relativeFilePath: ".rulesignore",

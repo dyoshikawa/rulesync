@@ -25,7 +25,7 @@ describe("CopilotRule", () => {
   describe("constructor", () => {
     it("should create instance with basic parameters", () => {
       const copilotRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github/instructions",
         relativeFilePath: "test.instructions.md",
         frontmatter: {
@@ -45,10 +45,10 @@ describe("CopilotRule", () => {
       expect(copilotRule.getBody()).toBe("This is a test rule.");
     });
 
-    it("should create instance with custom baseDir", () => {
-      const customBaseDir = "/custom/path";
+    it("should create instance with custom outputRoot", () => {
+      const customOutputRoot = "/custom/path";
       const copilotRule = new CopilotRule({
-        baseDir: customBaseDir,
+        outputRoot: customOutputRoot,
         relativeDirPath: ".github/instructions",
         relativeFilePath: "custom.instructions.md",
         frontmatter: {
@@ -64,7 +64,7 @@ describe("CopilotRule", () => {
 
     it("should create root copilot rule", () => {
       const copilotRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github",
         relativeFilePath: "copilot-instructions.md",
         frontmatter: {
@@ -83,7 +83,7 @@ describe("CopilotRule", () => {
     it("should validate frontmatter when validation is enabled", () => {
       expect(() => {
         const copilotRule = new CopilotRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".github/instructions",
           relativeFilePath: "test.instructions.md",
           frontmatter: {
@@ -100,7 +100,7 @@ describe("CopilotRule", () => {
     it("should throw error for invalid frontmatter when validation is enabled", () => {
       expect(() => {
         const copilotRule = new CopilotRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".github/instructions",
           relativeFilePath: "test.instructions.md",
           frontmatter: {
@@ -116,7 +116,7 @@ describe("CopilotRule", () => {
     it("should create instance without validation by default", () => {
       expect(() => {
         const copilotRule = new CopilotRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".github/instructions",
           relativeFilePath: "test.instructions.md",
           frontmatter: {
@@ -130,7 +130,7 @@ describe("CopilotRule", () => {
 
     it("should create instance with minimal frontmatter", () => {
       const copilotRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github/instructions",
         relativeFilePath: "minimal.instructions.md",
         frontmatter: {},
@@ -194,7 +194,7 @@ describe("CopilotRule", () => {
   describe("toRulesyncRule", () => {
     it("should convert non-root CopilotRule to RulesyncRule", () => {
       const copilotRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github/instructions",
         relativeFilePath: "test.instructions.md",
         frontmatter: {
@@ -219,7 +219,7 @@ describe("CopilotRule", () => {
 
     it("should strip .instructions.md extension when converting to RulesyncRule", () => {
       const copilotRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github/instructions",
         relativeFilePath: "example.instructions.md",
         frontmatter: {
@@ -236,7 +236,7 @@ describe("CopilotRule", () => {
 
     it("should convert root CopilotRule to RulesyncRule", () => {
       const copilotRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github",
         relativeFilePath: "copilot-instructions.md",
         frontmatter: {
@@ -264,7 +264,7 @@ describe("CopilotRule", () => {
       // Re-importing them must not silently add globs, otherwise the
       // generate → import roundtrip would duplicate root rules.
       const copilotRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github",
         relativeFilePath: "copilot-instructions.md",
         frontmatter: {},
@@ -287,7 +287,7 @@ describe("CopilotRule", () => {
       // generate -> import cycle for a root rule with no globs must yield the
       // same frontmatter shape (no globs injected).
       const original = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "overview.md",
         frontmatter: {
@@ -300,7 +300,7 @@ describe("CopilotRule", () => {
       });
 
       const copilotRule = CopilotRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule: original,
       });
 
@@ -318,7 +318,7 @@ describe("CopilotRule", () => {
 
     it("should include copilot-specific fields when converting", () => {
       const copilotRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github",
         relativeFilePath: "copilot-instructions.md",
         frontmatter: {
@@ -339,7 +339,7 @@ describe("CopilotRule", () => {
 
     it("should handle undefined description in frontmatter", () => {
       const copilotRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github/instructions",
         relativeFilePath: "test.instructions.md",
         frontmatter: {
@@ -357,7 +357,7 @@ describe("CopilotRule", () => {
   describe("fromRulesyncRule", () => {
     it("should create CopilotRule from non-root RulesyncRule", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -371,7 +371,7 @@ describe("CopilotRule", () => {
       });
 
       const copilotRule = CopilotRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
         validate: true,
       });
@@ -388,7 +388,7 @@ describe("CopilotRule", () => {
 
     it("should create root CopilotRule from root RulesyncRule", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "root.md",
         frontmatter: {
@@ -402,7 +402,7 @@ describe("CopilotRule", () => {
       });
 
       const copilotRule = CopilotRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
         validate: true,
       });
@@ -416,7 +416,7 @@ describe("CopilotRule", () => {
 
     it("should create root CopilotRule in global mode", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "root.md",
         frontmatter: {
@@ -430,7 +430,7 @@ describe("CopilotRule", () => {
       });
 
       const copilotRule = CopilotRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
         validate: true,
         global: true,
@@ -443,7 +443,7 @@ describe("CopilotRule", () => {
 
     it("should use regular paths when global=false for root rule", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "root.md",
         frontmatter: {
@@ -457,7 +457,7 @@ describe("CopilotRule", () => {
       });
 
       const copilotRule = CopilotRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
         validate: true,
         global: false,
@@ -469,7 +469,7 @@ describe("CopilotRule", () => {
 
     it("should carry copilot-specific fields from RulesyncRule", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "root.md",
         frontmatter: {
@@ -486,7 +486,7 @@ describe("CopilotRule", () => {
       });
 
       const copilotRule = CopilotRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
         validate: true,
       });
@@ -494,9 +494,9 @@ describe("CopilotRule", () => {
       expect(copilotRule.getFrontmatter()).toEqual({});
     });
 
-    it("should use default baseDir when not provided", () => {
+    it("should use default outputRoot when not provided", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -512,12 +512,12 @@ describe("CopilotRule", () => {
         rulesyncRule,
       });
 
-      expect(copilotRule.getBaseDir()).toBe(testDir);
+      expect(copilotRule.getOutputRoot()).toBe(testDir);
     });
 
     it("should handle RulesyncRule without globs", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -531,7 +531,7 @@ describe("CopilotRule", () => {
       });
 
       const copilotRule = CopilotRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
@@ -555,7 +555,7 @@ This is test rule content from file.`;
       await writeFileContent(filePath, fileContent);
 
       const copilotRule = await CopilotRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test.instructions.md",
         validate: true,
       });
@@ -579,7 +579,7 @@ This is test rule content from file.`;
       await writeFileContent(rootFilePath, rootContent);
 
       const copilotRule = await CopilotRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "copilot-instructions.md",
         validate: true,
       });
@@ -604,7 +604,7 @@ This should be treated as a non-root rule.`;
       await writeFileContent(join(instructionsDir, "copilot-instructions.md"), fileContent);
 
       const copilotRule = await CopilotRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github/instructions",
         relativeFilePath: "copilot-instructions.md",
         validate: true,
@@ -628,7 +628,7 @@ This should be treated as a non-root rule.`;
       await writeFileContent(join(githubDir, "copilot-instructions.md"), rootContent);
 
       const copilotRule = await CopilotRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github",
         relativeFilePath: "copilot-instructions.md",
         validate: true,
@@ -649,7 +649,7 @@ This should be treated as a non-root rule.`;
       await writeFileContent(rootFilePath, rootContent);
 
       const copilotRule = await CopilotRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "copilot-instructions.md",
         global: true,
       });
@@ -667,7 +667,7 @@ This should be treated as a non-root rule.`;
       await writeFileContent(join(copilotDir, "copilot-instructions.md"), rootContent);
 
       const copilotRule = await CopilotRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "copilot-instructions.md",
         global: true,
       });
@@ -683,7 +683,7 @@ This should be treated as a non-root rule.`;
       await writeFileContent(join(testDir, ".github", "copilot-instructions.md"), rootContent);
 
       const copilotRule = await CopilotRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "copilot-instructions.md",
         global: false,
       });
@@ -692,25 +692,25 @@ This should be treated as a non-root rule.`;
       expect(copilotRule.getRelativeFilePath()).toBe("copilot-instructions.md");
     });
 
-    it("should use default baseDir when not provided", async () => {
+    it("should use default outputRoot when not provided", async () => {
       const instructionsDir = join(testDir, ".github", "instructions");
       await ensureDir(instructionsDir);
 
       const fileContent = `---
-description: "Test with default baseDir"
+description: "Test with default outputRoot"
 ---
 
-Content with default baseDir.`;
+Content with default outputRoot.`;
 
       const filePath = join(instructionsDir, "default.instructions.md");
       await writeFileContent(filePath, fileContent);
 
       const copilotRule = await CopilotRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "default.instructions.md",
       });
 
-      expect(copilotRule.getBaseDir()).toBe(testDir);
+      expect(copilotRule.getOutputRoot()).toBe(testDir);
     });
 
     it("should throw error for invalid frontmatter with validation", async () => {
@@ -729,7 +729,7 @@ Content with invalid frontmatter.`;
 
       await expect(
         CopilotRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "invalid.instructions.md",
           validate: true,
         }),
@@ -745,7 +745,7 @@ Content with invalid frontmatter.`;
       await writeFileContent(filePath, contentWithoutFrontmatter);
 
       const copilotRule = await CopilotRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "no-frontmatter.instructions.md",
         validate: true,
       });
@@ -770,7 +770,7 @@ description: "Test trimming"
       await writeFileContent(filePath, contentWithWhitespace);
 
       const copilotRule = await CopilotRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "trim.instructions.md",
       });
 
@@ -781,7 +781,7 @@ description: "Test trimming"
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
       const copilotRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github/instructions",
         relativeFilePath: "valid.instructions.md",
         frontmatter: {
@@ -799,7 +799,7 @@ description: "Test trimming"
 
     it("should return success for empty frontmatter", () => {
       const copilotRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github/instructions",
         relativeFilePath: "empty.instructions.md",
         frontmatter: {},
@@ -814,7 +814,7 @@ description: "Test trimming"
 
     it("should return error for invalid frontmatter", () => {
       const copilotRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github/instructions",
         relativeFilePath: "invalid.instructions.md",
         frontmatter: {
@@ -840,7 +840,7 @@ description: "Test trimming"
       };
 
       const copilotRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github/instructions",
         relativeFilePath: "test.instructions.md",
         frontmatter,
@@ -857,7 +857,7 @@ description: "Test trimming"
       const body = "This is the rule body content.";
 
       const copilotRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github/instructions",
         relativeFilePath: "test.instructions.md",
         frontmatter: {
@@ -875,7 +875,7 @@ description: "Test trimming"
     it("should omit frontmatter for root rule", () => {
       const body = "This is the root rule content.";
       const copilotRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github",
         relativeFilePath: "copilot-instructions.md",
         frontmatter: {
@@ -901,7 +901,7 @@ description: "Test trimming"
         applyTo: "*.js",
       };
       const copilotRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github/instructions",
         relativeFilePath: "test.instructions.md",
         frontmatter,
@@ -920,7 +920,7 @@ description: "Test trimming"
 
     it("should handle empty body for root rule", () => {
       const copilotRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github",
         relativeFilePath: "copilot-instructions.md",
         frontmatter: {
@@ -945,7 +945,7 @@ description: "Test trimming"
         applyTo: "*.ts,*.tsx,*.js,*.jsx",
       };
       const copilotRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github/instructions",
         relativeFilePath: "complex.instructions.md",
         frontmatter,
@@ -967,7 +967,7 @@ description: "Test trimming"
     it("should handle minimal frontmatter for non-root rule", () => {
       const body = "Minimal rule content.";
       const copilotRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github/instructions",
         relativeFilePath: "minimal.instructions.md",
         frontmatter: {},
@@ -1092,7 +1092,7 @@ description: "Test trimming"
     it("should create, convert, and validate round-trip with RulesyncRule", () => {
       // Create original CopilotRule
       const originalCopilot = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github/instructions",
         relativeFilePath: "integration.instructions.md",
         frontmatter: {
@@ -1107,7 +1107,7 @@ description: "Test trimming"
 
       // Convert back to CopilotRule
       const convertedCopilot = CopilotRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
@@ -1124,7 +1124,7 @@ description: "Test trimming"
 
       // Create rule from parameters
       const originalRule = new CopilotRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github/instructions",
         relativeFilePath: "e2e.instructions.md",
         frontmatter: {
@@ -1139,7 +1139,7 @@ description: "Test trimming"
 
       // Read back from file
       const loadedRule = await CopilotRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "e2e.instructions.md",
         validate: true,
       });
@@ -1154,7 +1154,7 @@ description: "Test trimming"
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for rules targeting copilot", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -1168,7 +1168,7 @@ description: "Test trimming"
 
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -1182,7 +1182,7 @@ description: "Test trimming"
 
     it("should return false for rules not targeting copilot", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -1196,7 +1196,7 @@ description: "Test trimming"
 
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -1210,7 +1210,7 @@ description: "Test trimming"
 
     it("should handle mixed targets including copilot", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -1224,7 +1224,7 @@ description: "Test trimming"
 
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "test.md",
         frontmatter: {},

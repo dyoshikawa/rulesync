@@ -316,7 +316,7 @@ export class McpProcessor extends FeatureProcessor {
   private readonly getFactory: GetFactory;
 
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     inputRoot = process.cwd(),
     toolTarget,
     global = false,
@@ -324,7 +324,7 @@ export class McpProcessor extends FeatureProcessor {
     dryRun = false,
     logger,
   }: {
-    baseDir?: string;
+    outputRoot?: string;
     inputRoot?: string;
     toolTarget: ToolTarget;
     global?: boolean;
@@ -332,7 +332,7 @@ export class McpProcessor extends FeatureProcessor {
     dryRun?: boolean;
     logger: Logger;
   }) {
-    super({ baseDir, inputRoot, dryRun, logger });
+    super({ outputRoot, inputRoot, dryRun, logger });
     const result = McpProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -350,7 +350,7 @@ export class McpProcessor extends FeatureProcessor {
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
     try {
-      return [await RulesyncMcp.fromFile({ baseDir: this.inputRoot })];
+      return [await RulesyncMcp.fromFile({ outputRoot: this.inputRoot })];
     } catch (error) {
       this.logger.error(
         `Failed to load a Rulesync MCP file (${RULESYNC_MCP_RELATIVE_FILE_PATH}): ${formatError(error)}`,
@@ -374,7 +374,7 @@ export class McpProcessor extends FeatureProcessor {
 
       if (forDeletion) {
         const toolMcp = factory.class.forDeletion({
-          baseDir: this.baseDir,
+          outputRoot: this.outputRoot,
           relativeDirPath: paths.relativeDirPath,
           relativeFilePath: paths.relativeFilePath,
           global: this.global,
@@ -387,7 +387,7 @@ export class McpProcessor extends FeatureProcessor {
 
       const toolMcps = [
         await factory.class.fromFile({
-          baseDir: this.baseDir,
+          outputRoot: this.outputRoot,
           validate: true,
           global: this.global,
         }),
@@ -428,7 +428,7 @@ export class McpProcessor extends FeatureProcessor {
         const filteredRulesyncMcp = mcp.stripMcpServerFields(fieldsToStrip);
 
         return await factory.class.fromRulesyncMcp({
-          baseDir: this.baseDir,
+          outputRoot: this.outputRoot,
           rulesyncMcp: filteredRulesyncMcp,
           global: this.global,
         });

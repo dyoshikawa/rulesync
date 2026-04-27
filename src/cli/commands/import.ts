@@ -8,7 +8,15 @@ import { calculateTotalCount } from "../../utils/result.js";
 // are *read from* during `generate`, and `import` does not consume them. Keeping
 // it in the option type would be misleading and would surface a noisy
 // "Ignoring global: true" warning from the resolver during `import`.
-export type ImportOptions = Omit<ConfigResolverResolveParams, "delete" | "baseDirs" | "inputRoot">;
+//
+// The deprecated `baseDirs` programmatic alias is also excluded so that the
+// CLI's import options never expose a deprecated field — `outputRoots` is the
+// only canonical name imports were ever supposed to omit, and `baseDirs` is
+// exclusively a backwards-compat input on the resolver boundary.
+export type ImportOptions = Omit<
+  ConfigResolverResolveParams,
+  "delete" | "outputRoots" | "baseDirs" | "inputRoot"
+>;
 
 export async function importCommand(logger: Logger, options: ImportOptions): Promise<void> {
   if (!options.targets) {

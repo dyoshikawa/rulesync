@@ -69,7 +69,7 @@ describe("DirFeatureProcessor", () => {
 
   describe("removeOrphanAiDirs", () => {
     it("should remove dirs that exist in existing but not in generated", async () => {
-      const processor = new TestDirProcessor({ logger: createMockLogger(), baseDir: testDir });
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
 
       const existingDirs = [
         createMockDir("/path/to/orphan1"),
@@ -88,7 +88,7 @@ describe("DirFeatureProcessor", () => {
     });
 
     it("should not remove any dirs when all existing dirs are in generated", async () => {
-      const processor = new TestDirProcessor({ logger: createMockLogger(), baseDir: testDir });
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
 
       const existingDirs = [createMockDir("/path/to/dir1"), createMockDir("/path/to/dir2")];
 
@@ -101,7 +101,7 @@ describe("DirFeatureProcessor", () => {
     });
 
     it("should remove all dirs when generated is empty", async () => {
-      const processor = new TestDirProcessor({ logger: createMockLogger(), baseDir: testDir });
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
 
       const existingDirs = [createMockDir("/path/to/dir1"), createMockDir("/path/to/dir2")];
 
@@ -118,7 +118,7 @@ describe("DirFeatureProcessor", () => {
     it("should return count without removing dirs in dry-run mode", async () => {
       const processor = new TestDirProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         dryRun: true,
       });
 
@@ -137,7 +137,7 @@ describe("DirFeatureProcessor", () => {
     });
 
     it("should not remove any dirs when existing is empty", async () => {
-      const processor = new TestDirProcessor({ logger: createMockLogger(), baseDir: testDir });
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
 
       const existingDirs: AiDir[] = [];
       const generatedDirs = [createMockDir("/path/to/dir1")];
@@ -171,7 +171,7 @@ describe("DirFeatureProcessor", () => {
 
     it("should write all dirs and return count when dirs are new", async () => {
       vi.mocked(readFileContentOrNull).mockResolvedValue(null);
-      const processor = new TestDirProcessor({ logger: createMockLogger(), baseDir: testDir });
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
 
       const dirs = [
         createMockDirWithFiles({ dirPath: "/path/to/dir1", mainFileBody: "body1" }),
@@ -190,7 +190,7 @@ describe("DirFeatureProcessor", () => {
 
     it("should skip unchanged dirs and return 0", async () => {
       vi.mocked(readFileContentOrNull).mockResolvedValue("body1\n");
-      const processor = new TestDirProcessor({ logger: createMockLogger(), baseDir: testDir });
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
 
       const dirs = [createMockDirWithFiles({ dirPath: "/path/to/dir1", mainFileBody: "body1" })];
 
@@ -203,7 +203,7 @@ describe("DirFeatureProcessor", () => {
 
     it("should detect changes in other files", async () => {
       vi.mocked(readFileContentOrNull).mockResolvedValue(null);
-      const processor = new TestDirProcessor({ logger: createMockLogger(), baseDir: testDir });
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
 
       const otherFile: AiDirFile = {
         relativeFilePathToDirPath: "extra.txt",
@@ -222,7 +222,7 @@ describe("DirFeatureProcessor", () => {
       vi.mocked(readFileContentOrNull).mockResolvedValue(null);
       const processor = new TestDirProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         dryRun: true,
       });
 
@@ -244,7 +244,7 @@ describe("DirFeatureProcessor", () => {
 
   describe("removeAiDirs", () => {
     it("should remove all dirs", async () => {
-      const processor = new TestDirProcessor({ logger: createMockLogger(), baseDir: testDir });
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
 
       const dirs = [createMockDir("/path/to/dir1"), createMockDir("/path/to/dir2")];
 

@@ -18,7 +18,7 @@ export type AiDirFile = {
 };
 
 export type AiDirParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath: string;
   dirName: string;
   mainFile?: {
@@ -32,14 +32,14 @@ export type AiDirParams = {
 
 export type AiDirFromDirParams = Pick<
   AiDirParams,
-  "baseDir" | "relativeDirPath" | "dirName" | "global"
+  "outputRoot" | "relativeDirPath" | "dirName" | "global"
 >;
 
 export abstract class AiDir {
   /**
    * @example "."
    */
-  protected readonly baseDir: string;
+  protected readonly outputRoot: string;
 
   /**
    * @example ".rulesync/skills"
@@ -71,7 +71,7 @@ export abstract class AiDir {
   protected readonly global: boolean;
 
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     dirName,
     mainFile,
@@ -83,7 +83,7 @@ export abstract class AiDir {
       throw new Error(`Directory name cannot contain path separators: dirName="${dirName}"`);
     }
 
-    this.baseDir = baseDir;
+    this.outputRoot = outputRoot;
     this.relativeDirPath = relativeDirPath;
     this.dirName = dirName;
     this.mainFile = mainFile;
@@ -95,8 +95,8 @@ export abstract class AiDir {
     throw new Error("Please implement this method in the subclass.");
   }
 
-  getBaseDir(): string {
-    return this.baseDir;
+  getOutputRoot(): string {
+    return this.outputRoot;
   }
 
   getRelativeDirPath(): string {
@@ -108,19 +108,19 @@ export abstract class AiDir {
   }
 
   getDirPath(): string {
-    const fullPath = path.join(this.baseDir, this.relativeDirPath, this.dirName);
+    const fullPath = path.join(this.outputRoot, this.relativeDirPath, this.dirName);
 
-    // Security check: ensure the final path doesn't escape baseDir via path traversal
+    // Security check: ensure the final path doesn't escape outputRoot via path traversal
     // This prevents attacks like: new AiDir({ relativeDirPath: "../../etc", ... })
     const resolvedFull = resolve(fullPath);
-    const resolvedBase = resolve(this.baseDir);
+    const resolvedBase = resolve(this.outputRoot);
     const rel = relative(resolvedBase, resolvedFull);
 
-    // Check if the resolved path is outside baseDir
+    // Check if the resolved path is outside outputRoot
     if (rel.startsWith("..") || path.isAbsolute(rel)) {
       throw new Error(
-        `Path traversal detected: Final path escapes baseDir. ` +
-          `baseDir="${this.baseDir}", relativeDirPath="${this.relativeDirPath}", ` +
+        `Path traversal detected: Final path escapes outputRoot. ` +
+          `outputRoot="${this.outputRoot}", relativeDirPath="${this.relativeDirPath}", ` +
           `dirName="${this.dirName}"`,
       );
     }
@@ -161,19 +161,19 @@ export abstract class AiDir {
    * Recursively collects all files from a directory, excluding the specified main file.
    * This is a common utility for loading additional files alongside the main file.
    *
-   * @param baseDir - The base directory path
+   * @param outputRoot - The base directory path
    * @param relativeDirPath - The relative path to the directory containing the skill
    * @param dirName - The name of the directory
    * @param excludeFileName - The name of the file to exclude (typically the main file)
    * @returns Array of files with their relative paths and buffers
    */
   protected static async collectOtherFiles(
-    baseDir: string,
+    outputRoot: string,
     relativeDirPath: string,
     dirName: string,
     excludeFileName: string,
   ): Promise<AiDirFile[]> {
-    const dirPath = join(baseDir, relativeDirPath, dirName);
+    const dirPath = join(outputRoot, relativeDirPath, dirName);
     const glob = join(dirPath, "**", "*");
     const filePaths = await findFilesByGlobs(glob, { type: "file" });
     const filteredPaths = filePaths.filter((filePath) => basename(filePath) !== excludeFileName);

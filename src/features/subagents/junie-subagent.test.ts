@@ -79,7 +79,7 @@ describe("JunieSubagent", () => {
       };
 
       const subagent = new JunieSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".junie/agents",
         relativeFilePath: "test-agent.md",
         frontmatter,
@@ -99,7 +99,7 @@ describe("JunieSubagent", () => {
       expect(() => {
         // oxlint-disable-next-line eslint/no-new
         new JunieSubagent({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".junie/agents",
           relativeFilePath: "test-agent.md",
           frontmatter: invalidFrontmatter,
@@ -116,7 +116,7 @@ describe("JunieSubagent", () => {
       expect(() => {
         // oxlint-disable-next-line eslint/no-new
         new JunieSubagent({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".junie/agents",
           relativeFilePath: "test-agent.md",
           frontmatter: invalidFrontmatter,
@@ -137,7 +137,7 @@ describe("JunieSubagent", () => {
 
       const body = "Agent body content";
       const subagent = new JunieSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".junie/agents",
         relativeFilePath: "test-agent.md",
         frontmatter,
@@ -170,7 +170,7 @@ describe("JunieSubagent", () => {
 
       const body = "Agent body content";
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: rulesyncFrontmatter,
@@ -178,7 +178,7 @@ describe("JunieSubagent", () => {
       });
 
       const junieSubagent = JunieSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: JunieSubagent.getSettablePaths().relativeDirPath,
         rulesyncSubagent,
         validate: true,
@@ -206,7 +206,7 @@ describe("JunieSubagent", () => {
       };
 
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: rulesyncFrontmatter,
@@ -214,7 +214,7 @@ describe("JunieSubagent", () => {
       });
 
       const junieSubagent = JunieSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".junie", "agents"),
         rulesyncSubagent,
         validate: true,
@@ -226,7 +226,7 @@ describe("JunieSubagent", () => {
       expect((junieFrontmatter as any).extraField).toBe("value");
     });
 
-    it("should use default baseDir when not provided", () => {
+    it("should use default outputRoot when not provided", () => {
       const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
         targets: ["junie"],
         name: "test-agent",
@@ -234,7 +234,7 @@ describe("JunieSubagent", () => {
       };
 
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: rulesyncFrontmatter,
@@ -246,7 +246,7 @@ describe("JunieSubagent", () => {
         relativeDirPath: JunieSubagent.getSettablePaths().relativeDirPath,
       });
 
-      expect(junieSubagent.getBaseDir()).toBe(testDir);
+      expect(junieSubagent.getOutputRoot()).toBe(testDir);
     });
   });
 
@@ -301,7 +301,7 @@ describe("JunieSubagent", () => {
       await writeFileContent(filePath, fileContent);
 
       const subagent = await JunieSubagent.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "file-test-agent.md",
         validate: true,
       });
@@ -311,7 +311,7 @@ describe("JunieSubagent", () => {
       expect(subagent.getBody()).toBe(body);
       expect(subagent.getRelativeFilePath()).toBe("file-test-agent.md");
       expect(subagent.getRelativeDirPath()).toBe(join(".junie", "agents"));
-      expect(subagent.getBaseDir()).toBe(testDir);
+      expect(subagent.getOutputRoot()).toBe(testDir);
     });
 
     it("should throw error for file with missing description", async () => {
@@ -325,7 +325,7 @@ describe("JunieSubagent", () => {
 
       await expect(
         JunieSubagent.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "invalid.md",
           validate: true,
         }),
@@ -347,7 +347,7 @@ describe("JunieSubagent", () => {
       await writeFileContent(filePath, fileContent);
 
       const subagent = await JunieSubagent.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "trim-agent.md",
         validate: true,
       });

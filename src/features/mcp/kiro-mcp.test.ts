@@ -33,7 +33,7 @@ describe("KiroMcp", () => {
   describe("fromRulesyncMcp", () => {
     it("should convert exposed servers for project mode", () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({
@@ -60,7 +60,7 @@ describe("KiroMcp", () => {
 
   describe("fromFile", () => {
     it("should initialize missing project file", async () => {
-      const kiroMcp = await KiroMcp.fromFile({ baseDir: testDir });
+      const kiroMcp = await KiroMcp.fromFile({ outputRoot: testDir });
 
       expect(kiroMcp.getFilePath()).toBe(join(testDir, ".kiro", "settings", "mcp.json"));
       expect(JSON.parse(kiroMcp.getFileContent())).toEqual({ mcpServers: {} });
@@ -70,7 +70,7 @@ describe("KiroMcp", () => {
   describe("toRulesyncMcp", () => {
     it("should convert to Rulesync format", () => {
       const kiroMcp = new KiroMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".kiro", "settings"),
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify({
@@ -93,7 +93,7 @@ describe("KiroMcp", () => {
   describe("forDeletion", () => {
     it("should create deletable placeholder", () => {
       const kiroMcp = KiroMcp.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".kiro", "settings"),
         relativeFilePath: "obsolete.json",
       });

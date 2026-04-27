@@ -13,7 +13,7 @@ export type ValidationResult =
     };
 
 export type AiFileParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath: string;
   relativeFilePath: string;
   fileContent: string;
@@ -23,7 +23,7 @@ export type AiFileParams = {
 
 export type AiFileFromFileParams = Pick<
   AiFileParams,
-  "baseDir" | "validate" | "relativeFilePath" | "global"
+  "outputRoot" | "validate" | "relativeFilePath" | "global"
 > & {
   relativeDirPath?: string;
 };
@@ -31,7 +31,7 @@ export abstract class AiFile {
   /**
    * @example "."
    */
-  protected readonly baseDir: string;
+  protected readonly outputRoot: string;
 
   /**
    * @example ".claude/agents"
@@ -53,13 +53,13 @@ export abstract class AiFile {
   protected readonly global: boolean;
 
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
     fileContent,
     global = false,
   }: AiFileParams) {
-    this.baseDir = baseDir;
+    this.outputRoot = outputRoot;
     this.relativeDirPath = relativeDirPath;
     this.relativeFilePath = relativeFilePath;
     this.fileContent = fileContent;
@@ -70,8 +70,8 @@ export abstract class AiFile {
     throw new Error("Please implement this method in the subclass.");
   }
 
-  getBaseDir(): string {
-    return this.baseDir;
+  getOutputRoot(): string {
+    return this.outputRoot;
   }
 
   getRelativeDirPath(): string {
@@ -83,19 +83,19 @@ export abstract class AiFile {
   }
 
   getFilePath(): string {
-    const fullPath = path.join(this.baseDir, this.relativeDirPath, this.relativeFilePath);
+    const fullPath = path.join(this.outputRoot, this.relativeDirPath, this.relativeFilePath);
 
-    // Security check: ensure the final path doesn't escape baseDir via path traversal
+    // Security check: ensure the final path doesn't escape outputRoot via path traversal
     // This prevents attacks like: new AiFile({ relativeDirPath: "../../etc", ... })
     const resolvedFull = resolve(fullPath);
-    const resolvedBase = resolve(this.baseDir);
+    const resolvedBase = resolve(this.outputRoot);
     const rel = relative(resolvedBase, resolvedFull);
 
-    // Check if the resolved path is outside baseDir
+    // Check if the resolved path is outside outputRoot
     if (rel.startsWith("..") || path.isAbsolute(rel)) {
       throw new Error(
-        `Path traversal detected: Final path escapes baseDir. ` +
-          `baseDir="${this.baseDir}", relativeDirPath="${this.relativeDirPath}", ` +
+        `Path traversal detected: Final path escapes outputRoot. ` +
+          `outputRoot="${this.outputRoot}", relativeDirPath="${this.relativeDirPath}", ` +
           `relativeFilePath="${this.relativeFilePath}"`,
       );
     }

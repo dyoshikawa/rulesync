@@ -96,7 +96,7 @@ describe("ZedIgnore", () => {
       expect(zedIgnore.getPatterns()).toEqual([]);
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const jsonContent = JSON.stringify(
         {
           private_files: ["*.tmp"],
@@ -106,7 +106,7 @@ describe("ZedIgnore", () => {
       );
 
       const zedIgnore = new ZedIgnore({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".zed",
         relativeFilePath: "settings.json",
         fileContent: jsonContent,
@@ -151,7 +151,7 @@ describe("ZedIgnore", () => {
       );
 
       const zedIgnore = new ZedIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".zed",
         relativeFilePath: "settings.json",
         fileContent: jsonContent,
@@ -175,7 +175,7 @@ describe("ZedIgnore", () => {
       );
 
       const zedIgnore = new ZedIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".zed",
         relativeFilePath: "settings.json",
         fileContent: jsonContent,
@@ -196,7 +196,7 @@ describe("ZedIgnore", () => {
       );
 
       const zedIgnore = new ZedIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".zed",
         relativeFilePath: "settings.json",
         fileContent: jsonContent,
@@ -218,12 +218,12 @@ describe("ZedIgnore", () => {
       });
 
       const zedIgnore = await ZedIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
       expect(zedIgnore).toBeInstanceOf(ZedIgnore);
-      expect(zedIgnore.getBaseDir()).toBe(testDir);
+      expect(zedIgnore.getOutputRoot()).toBe(testDir);
       expect(zedIgnore.getRelativeDirPath()).toBe(".zed");
       expect(zedIgnore.getRelativeFilePath()).toBe("settings.json");
 
@@ -251,7 +251,7 @@ describe("ZedIgnore", () => {
       });
 
       const zedIgnore = await ZedIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
@@ -268,7 +268,7 @@ describe("ZedIgnore", () => {
       });
 
       const zedIgnore = await ZedIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
@@ -298,7 +298,7 @@ describe("ZedIgnore", () => {
       });
 
       const zedIgnore = await ZedIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
@@ -328,7 +328,7 @@ describe("ZedIgnore", () => {
       });
 
       const zedIgnore = await ZedIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
@@ -345,7 +345,7 @@ describe("ZedIgnore", () => {
       });
 
       const zedIgnore = await ZedIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
@@ -361,7 +361,7 @@ describe("ZedIgnore", () => {
       });
 
       const zedIgnore = await ZedIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
@@ -371,7 +371,7 @@ describe("ZedIgnore", () => {
       });
     });
 
-    it("should use default baseDir when not provided", async () => {
+    it("should use default outputRoot when not provided", async () => {
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
@@ -379,11 +379,11 @@ describe("ZedIgnore", () => {
       });
 
       const zedIgnore = await ZedIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
-      expect(zedIgnore.getBaseDir()).toBe(testDir);
+      expect(zedIgnore.getOutputRoot()).toBe(testDir);
 
       const jsonValue = JSON.parse(zedIgnore.getFileContent());
       expect(jsonValue.private_files).toEqual(["*.tmp"]);
@@ -405,11 +405,11 @@ describe("ZedIgnore", () => {
       await writeFileContent(join(zedDir, "settings.json"), jsonContent);
 
       const zedIgnore = await ZedIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(zedIgnore).toBeInstanceOf(ZedIgnore);
-      expect(zedIgnore.getBaseDir()).toBe(testDir);
+      expect(zedIgnore.getOutputRoot()).toBe(testDir);
       expect(zedIgnore.getRelativeDirPath()).toBe(".zed");
       expect(zedIgnore.getRelativeFilePath()).toBe("settings.json");
       expect(zedIgnore.getPatterns()).toEqual(["*.log", "node_modules/**"]);
@@ -429,7 +429,7 @@ describe("ZedIgnore", () => {
       await writeFileContent(join(zedDir, "settings.json"), jsonContent);
 
       const zedIgnore = await ZedIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(zedIgnore.getFileContent()).toBe(jsonContent);
@@ -449,7 +449,7 @@ describe("ZedIgnore", () => {
       await writeFileContent(join(zedDir, "settings.json"), jsonContent);
 
       const zedIgnore = await ZedIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
 
@@ -474,14 +474,14 @@ describe("ZedIgnore", () => {
       await writeFileContent(join(zedDir, "settings.json"), jsonContent);
 
       const zedIgnore = await ZedIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(zedIgnore.getFileContent()).toBe(jsonContent);
       expect(zedIgnore.getPatterns()).toEqual(["*.log", "secrets/**"]);
     });
 
-    it("should default baseDir to process.cwd() when not provided", async () => {
+    it("should default outputRoot to process.cwd() when not provided", async () => {
       const jsonContent = JSON.stringify(
         {
           private_files: ["*.log"],
@@ -496,14 +496,14 @@ describe("ZedIgnore", () => {
 
       const zedIgnore = await ZedIgnore.fromFile({});
 
-      expect(zedIgnore.getBaseDir()).toBe(testDir);
+      expect(zedIgnore.getOutputRoot()).toBe(testDir);
       expect(zedIgnore.getPatterns()).toEqual(["*.log"]);
     });
 
     it("should throw error when file does not exist", async () => {
       await expect(
         ZedIgnore.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });
@@ -521,7 +521,7 @@ describe("ZedIgnore", () => {
       });
 
       const zedIgnore = await ZedIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
@@ -552,7 +552,7 @@ describe("ZedIgnore", () => {
       });
 
       const zedIgnore = await ZedIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
@@ -701,13 +701,13 @@ describe("ZedIgnore", () => {
       );
 
       const zedIgnore = new ZedIgnore({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: ".zed",
         relativeFilePath: "settings.json",
         fileContent: jsonContent,
       });
 
-      expect(zedIgnore.getBaseDir()).toBe("/test/base");
+      expect(zedIgnore.getOutputRoot()).toBe("/test/base");
       expect(zedIgnore.getRelativeDirPath()).toBe(".zed");
       expect(zedIgnore.getRelativeFilePath()).toBe("settings.json");
       expect(zedIgnore.getFilePath()).toBe("/test/base/.zed/settings.json");
@@ -726,7 +726,7 @@ describe("ZedIgnore", () => {
       );
 
       const zedIgnore = new ZedIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".zed",
         relativeFilePath: "settings.json",
         fileContent: jsonContent,
@@ -737,7 +737,7 @@ describe("ZedIgnore", () => {
       await writeFileContent(zedIgnore.getFilePath(), zedIgnore.getFileContent());
 
       const readZedIgnore = await ZedIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(readZedIgnore.getFileContent()).toBe(jsonContent);
@@ -757,7 +757,7 @@ describe("ZedIgnore", () => {
       );
 
       const zedIgnore = new ZedIgnore({
-        baseDir: subDir,
+        outputRoot: subDir,
         relativeDirPath: ".zed",
         relativeFilePath: "settings.json",
         fileContent: jsonContent,
@@ -768,7 +768,7 @@ describe("ZedIgnore", () => {
       await writeFileContent(zedIgnore.getFilePath(), zedIgnore.getFileContent());
 
       const readZedIgnore = await ZedIgnore.fromFile({
-        baseDir: subDir,
+        outputRoot: subDir,
       });
 
       expect(readZedIgnore.getFileContent()).toBe(jsonContent);
@@ -803,7 +803,7 @@ describe("ZedIgnore", () => {
       });
 
       const zedIgnore = await ZedIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 

@@ -43,7 +43,7 @@ This is a test factorydroid skill content.`;
   describe("fromRulesyncSkill", () => {
     it("should create FactorydroidSkill from RulesyncSkill", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/skills",
         dirName: "test-skill",
         frontmatter: {
@@ -74,7 +74,7 @@ This is a test factorydroid skill content.`;
       await writeFileContent(skillFile, validSkillContent);
 
       const skill = await FactorydroidSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
         global: false,
       });
@@ -90,7 +90,7 @@ This is a test factorydroid skill content.`;
 
       await expect(
         FactorydroidSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "test-skill",
           global: false,
         }),
@@ -151,7 +151,7 @@ This is a test factorydroid skill content.`;
   describe("forDeletion", () => {
     it("should create deletion marker", () => {
       const skill = FactorydroidSkill.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory/skills",
         dirName: "to-delete",
       });

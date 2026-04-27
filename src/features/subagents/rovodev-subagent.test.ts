@@ -61,7 +61,7 @@ oops`;
       const canonical = stringifyFrontmatter(body, frontmatter);
 
       const subagent = new RovodevSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".rovodev", "subagents"),
         relativeFilePath: "a.md",
         frontmatter,
@@ -78,7 +78,7 @@ oops`;
   describe("toRulesyncSubagent", () => {
     it("should map name, description, and extra keys into rulesync rovodev section", () => {
       const subagent = new RovodevSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".rovodev", "subagents"),
         relativeFilePath: "planner.md",
         frontmatter: {
@@ -127,7 +127,7 @@ oops`;
       };
       const body = "Synced body.\nSecond line.";
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "sync-agent.md",
         frontmatter: rulesyncFrontmatter,
@@ -136,7 +136,7 @@ oops`;
       });
 
       const rovodev = RovodevSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".rovodev", "subagents"),
         rulesyncSubagent,
         validate: true,
@@ -161,7 +161,7 @@ oops`;
 
     it("should merge rovodev-only fields from the rovodev section", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "x.md",
         frontmatter: {
@@ -178,7 +178,7 @@ oops`;
       });
 
       const rovodev = RovodevSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".rovodev", "subagents"),
         rulesyncSubagent,
         validate: true,
@@ -199,7 +199,7 @@ oops`;
       await writeFileContent(filePath, validMarkdown);
 
       const subagent = await RovodevSubagent.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "disk.md",
         validate: true,
         global: false,
@@ -220,7 +220,7 @@ oops`;
       await writeFileContent(filePath, validMarkdown);
 
       const subagent = await RovodevSubagent.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "global-agent.md",
         validate: true,
         global: true,
@@ -236,7 +236,7 @@ oops`;
       await writeFileContent(filePath, validMarkdown);
 
       const subagent = await RovodevSubagent.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "team/nested.md",
         validate: true,
       });
@@ -250,7 +250,7 @@ oops`;
 
       await expect(
         RovodevSubagent.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "bad.md",
           validate: true,
         }),
@@ -260,7 +260,7 @@ oops`;
     it("should throw when file is missing", async () => {
       await expect(
         RovodevSubagent.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "missing.md",
           validate: true,
         }),
@@ -271,7 +271,7 @@ oops`;
   describe("round-trip", () => {
     it("fromRulesyncSubagent then toRulesyncSubagent preserves semantic content", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "rt.md",
         frontmatter: {
@@ -285,7 +285,7 @@ oops`;
       });
 
       const rovodev = RovodevSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".rovodev", "subagents"),
         rulesyncSubagent,
         validate: true,
@@ -329,7 +329,7 @@ oops`;
   describe("forDeletion", () => {
     it("should create a minimal instance for deletion", () => {
       const subagent = RovodevSubagent.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".rovodev", "subagents"),
         relativeFilePath: "gone.md",
         global: false,
@@ -344,7 +344,7 @@ oops`;
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
       const subagent = new RovodevSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".rovodev", "subagents"),
         relativeFilePath: "v.md",
         frontmatter: { name: "V", description: "ok" },

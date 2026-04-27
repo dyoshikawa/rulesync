@@ -54,12 +54,12 @@ export const GhLockSchema = z.looseObject({
 });
 export type GhLock = z.infer<typeof GhLockSchema>;
 
-export function getGhLockPath(baseDir: string): string {
-  return join(baseDir, GH_LOCKFILE_FILE_NAME);
+export function getGhLockPath(projectRoot: string): string {
+  return join(projectRoot, GH_LOCKFILE_FILE_NAME);
 }
 
-export async function ghLockExists(baseDir: string): Promise<boolean> {
-  return fileExists(getGhLockPath(baseDir));
+export async function ghLockExists(projectRoot: string): Promise<boolean> {
+  return fileExists(getGhLockPath(projectRoot));
 }
 
 /**
@@ -106,8 +106,8 @@ export function parseGhLock(content: string): GhLock | null {
   return parsed.data;
 }
 
-export async function readGhLock(baseDir: string): Promise<GhLock | null> {
-  const path = getGhLockPath(baseDir);
+export async function readGhLock(projectRoot: string): Promise<GhLock | null> {
+  const path = getGhLockPath(projectRoot);
   if (!(await fileExists(path))) {
     return null;
   }
@@ -115,8 +115,8 @@ export async function readGhLock(baseDir: string): Promise<GhLock | null> {
   return parseGhLock(content);
 }
 
-export async function writeGhLock(params: { baseDir: string; lock: GhLock }): Promise<void> {
-  const path = getGhLockPath(params.baseDir);
+export async function writeGhLock(params: { projectRoot: string; lock: GhLock }): Promise<void> {
+  const path = getGhLockPath(params.projectRoot);
   const content = serializeGhLock(params.lock);
   await writeFileContent(path, content);
 }

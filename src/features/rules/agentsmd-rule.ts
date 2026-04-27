@@ -53,17 +53,17 @@ export class AgentsMdRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<AgentsMdRule> {
     // Determine if it's a root file based on path
     const isRoot = relativeFilePath === "AGENTS.md";
     const relativePath = isRoot ? "AGENTS.md" : join(".agents", "memories", relativeFilePath);
-    const fileContent = await readFileContent(join(baseDir, relativePath));
+    const fileContent = await readFileContent(join(outputRoot, relativePath));
 
     return new AgentsMdRule({
-      baseDir,
+      outputRoot,
       relativeDirPath: isRoot
         ? this.getSettablePaths().root.relativeDirPath
         : this.getSettablePaths().nonRoot.relativeDirPath,
@@ -75,14 +75,14 @@ export class AgentsMdRule extends ToolRule {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): AgentsMdRule {
     const isRoot = relativeFilePath === "AGENTS.md" && relativeDirPath === ".";
 
     return new AgentsMdRule({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "",
@@ -92,13 +92,13 @@ export class AgentsMdRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): AgentsMdRule {
     return new AgentsMdRule(
       this.buildToolRuleParamsAgentsmd({
-        baseDir,
+        outputRoot,
         rulesyncRule,
         validate,
         rootPath: this.getSettablePaths().root,

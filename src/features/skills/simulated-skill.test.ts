@@ -63,7 +63,7 @@ describe("SimulatedSkill", () => {
   describe("constructor", () => {
     it("should create instance with valid content", () => {
       const skill = new TestSimulatedSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test/skills",
         dirName: "test-skill",
         frontmatter: {
@@ -86,7 +86,7 @@ describe("SimulatedSkill", () => {
 
     it("should create instance with empty name and description", () => {
       const skill = new TestSimulatedSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test/skills",
         dirName: "test-skill",
         frontmatter: {
@@ -106,7 +106,7 @@ describe("SimulatedSkill", () => {
 
     it("should create instance without validation when validate is false", () => {
       const skill = new TestSimulatedSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test/skills",
         dirName: "test-skill",
         frontmatter: {
@@ -123,7 +123,7 @@ describe("SimulatedSkill", () => {
     it("should throw error for invalid frontmatter when validation is enabled", () => {
       expect(() => {
         new TestSimulatedSkill({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".test/skills",
           dirName: "test-skill",
           frontmatter: {
@@ -140,7 +140,7 @@ describe("SimulatedSkill", () => {
   describe("toRulesyncSkill", () => {
     it("should throw error because SimulatedSkill is simulated", () => {
       const skill = new TestSimulatedSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test/skills",
         dirName: "test-skill",
         frontmatter: {
@@ -171,7 +171,7 @@ It can be multiline.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       const skill = await TestSimulatedSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
       });
 
@@ -198,7 +198,7 @@ Body content`;
 
       await expect(
         TestSimulatedSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "invalid-skill",
         }),
       ).rejects.toThrow(/Invalid frontmatter/);
@@ -210,7 +210,7 @@ Body content`;
 
       await expect(
         TestSimulatedSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "empty-skill",
         }),
       ).rejects.toThrow(/SKILL\.md not found/);
@@ -220,7 +220,7 @@ Body content`;
   describe("fromRulesyncSkill", () => {
     it("should create instance from RulesyncSkill", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -246,7 +246,7 @@ Body content`;
 
     it("should ignore claudecode-specific options from RulesyncSkill", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "claudecode-skill",
         frontmatter: {
@@ -276,7 +276,7 @@ Body content`;
   describe("isTargetedByRulesyncSkill", () => {
     it("should return true when targets includes '*'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "all-targets-skill",
         frontmatter: {
@@ -293,7 +293,7 @@ Body content`;
 
     it("should return true when targets includes the specific tool", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "copilot-skill",
         frontmatter: {
@@ -310,7 +310,7 @@ Body content`;
 
     it("should return false when targets does not include the specific tool", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "claudecode-only-skill",
         frontmatter: {
@@ -328,7 +328,7 @@ Body content`;
 
     it("should return true when targets is not specified (defaults to '*')", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "default-targets-skill",
         frontmatter: {
@@ -347,7 +347,7 @@ Body content`;
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
       const skill = new TestSimulatedSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test/skills",
         dirName: "test-skill",
         frontmatter: {
@@ -365,7 +365,7 @@ Body content`;
 
     it("should return error for invalid frontmatter", () => {
       const skill = new TestSimulatedSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test/skills",
         dirName: "test-skill",
         frontmatter: {

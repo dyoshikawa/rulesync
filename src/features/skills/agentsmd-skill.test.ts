@@ -41,7 +41,7 @@ describe("AgentsmdSkill", () => {
   describe("constructor", () => {
     it("should create instance with valid content", () => {
       const skill = new AgentsmdSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".agents", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -74,7 +74,7 @@ This is the body of the agentsmd skill.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       const skill = await AgentsmdSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
       });
 
@@ -92,7 +92,7 @@ This is the body of the agentsmd skill.`;
 
       await expect(
         AgentsmdSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "empty-skill",
         }),
       ).rejects.toThrow(/SKILL\.md not found/);
@@ -102,7 +102,7 @@ This is the body of the agentsmd skill.`;
   describe("fromRulesyncSkill", () => {
     it("should create instance from RulesyncSkill", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -130,7 +130,7 @@ This is the body of the agentsmd skill.`;
   describe("isTargetedByRulesyncSkill", () => {
     it("should return true when targets includes '*'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "all-targets-skill",
         frontmatter: {
@@ -147,7 +147,7 @@ This is the body of the agentsmd skill.`;
 
     it("should return true when targets includes 'agentsmd'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "agentsmd-skill",
         frontmatter: {
@@ -164,7 +164,7 @@ This is the body of the agentsmd skill.`;
 
     it("should return false when targets does not include 'agentsmd'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "claudecode-only-skill",
         frontmatter: {
@@ -183,7 +183,7 @@ This is the body of the agentsmd skill.`;
   describe("toRulesyncSkill", () => {
     it("should throw error because AgentsmdSkill is simulated", () => {
       const skill = new AgentsmdSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".agents", "skills"),
         dirName: "test-skill",
         frontmatter: {

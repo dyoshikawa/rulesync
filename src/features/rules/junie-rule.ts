@@ -59,7 +59,7 @@ export class JunieRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<JunieRule> {
@@ -68,10 +68,10 @@ export class JunieRule extends ToolRule {
     const relativePath = isRoot
       ? join(settablePaths.root.relativeDirPath, settablePaths.root.relativeFilePath)
       : join(settablePaths.nonRoot.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(join(baseDir, relativePath));
+    const fileContent = await readFileContent(join(outputRoot, relativePath));
 
     return new JunieRule({
-      baseDir,
+      outputRoot,
       relativeDirPath: isRoot
         ? settablePaths.root.relativeDirPath
         : settablePaths.nonRoot.relativeDirPath,
@@ -83,13 +83,13 @@ export class JunieRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): JunieRule {
     return new JunieRule(
       this.buildToolRuleParamsDefault({
-        baseDir,
+        outputRoot,
         rulesyncRule,
         validate,
         rootPath: this.getSettablePaths().root,
@@ -108,14 +108,14 @@ export class JunieRule extends ToolRule {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): JunieRule {
     const isRoot = JunieRule.isRootRelativeFilePath(relativeFilePath);
 
     return new JunieRule({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "",

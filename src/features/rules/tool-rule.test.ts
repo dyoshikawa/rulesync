@@ -21,12 +21,12 @@ import {
 // Create a concrete implementation of ToolRule for testing
 class TestToolRule extends ToolRule {
   static async fromFile(params: ToolRuleFromFileParams): Promise<TestToolRule> {
-    const { baseDir = process.cwd(), relativeFilePath, validate = true } = params;
-    const filePath = join(baseDir, ".test/rules", relativeFilePath);
+    const { outputRoot = process.cwd(), relativeFilePath, validate = true } = params;
+    const filePath = join(outputRoot, ".test/rules", relativeFilePath);
     const fileContent = await readFileContent(filePath);
 
     return new TestToolRule({
-      baseDir,
+      outputRoot,
       relativeDirPath: ".test/rules",
       relativeFilePath,
       fileContent,
@@ -130,9 +130,9 @@ describe("ToolRule", () => {
       expect(toolRule.getGlobs()).toEqual(["src/**/*"]);
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const toolRule = new TestToolRule({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".test/rules",
         relativeFilePath: "test-rule.md",
         fileContent: "# Custom Rule",
@@ -190,7 +190,7 @@ describe("ToolRule", () => {
     it("should throw error when not implemented in base class", async () => {
       await expect(
         ToolRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "test.md",
         }),
       ).rejects.toThrow("Please implement this method in the subclass.");
@@ -204,7 +204,7 @@ describe("ToolRule", () => {
       await writeFileContent(join(rulesDir, "test.md"), testContent);
 
       const toolRule = await TestToolRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test.md",
       });
 
@@ -215,11 +215,11 @@ describe("ToolRule", () => {
       expect(toolRule.getFilePath()).toBe(join(testDir, ".test/rules/test.md"));
     });
 
-    it("should use default baseDir when not provided", async () => {
+    it("should use default outputRoot when not provided", async () => {
       // Setup test file in test directory (process.cwd() is mocked to return testDir)
       const rulesDir = join(testDir, ".test/rules");
       await ensureDir(rulesDir);
-      const testContent = "# Default BaseDir Test";
+      const testContent = "# Default OutputRoot Test";
       const testFilePath = join(rulesDir, "default-test.md");
       await writeFileContent(testFilePath, testContent);
 
@@ -240,13 +240,13 @@ describe("ToolRule", () => {
       await writeFileContent(join(rulesDir, "validation-test.md"), testContent);
 
       const toolRuleWithValidation = await TestToolRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "validation-test.md",
         validate: true,
       });
 
       const toolRuleWithoutValidation = await TestToolRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "validation-test.md",
         validate: false,
       });
@@ -258,7 +258,7 @@ describe("ToolRule", () => {
     it("should throw error when file does not exist", async () => {
       await expect(
         TestToolRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "nonexistent.md",
         }),
       ).rejects.toThrow();
@@ -355,7 +355,7 @@ describe("ToolRule", () => {
       expect(toolRule.getGlobs()).toBeUndefined();
     });
 
-    it("should use custom baseDir", () => {
+    it("should use custom outputRoot", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom-base.md",
@@ -369,7 +369,7 @@ describe("ToolRule", () => {
       });
 
       const toolRule = TestToolRule.fromRulesyncRule({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         rulesyncRule,
       });
 
@@ -565,7 +565,7 @@ describe("ToolRule", () => {
       expect(params.globs).toEqual([]);
     });
 
-    it("should use custom baseDir", () => {
+    it("should use custom outputRoot", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom.md",
@@ -582,11 +582,11 @@ describe("ToolRule", () => {
       });
 
       const params = (TestToolRule as any).buildToolRuleParamsAgentsmd({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         rulesyncRule,
       });
 
-      expect(params.baseDir).toBe("/custom/path");
+      expect(params.outputRoot).toBe("/custom/path");
       expect(params.relativeDirPath).toBe("subdir");
     });
 
@@ -713,7 +713,7 @@ describe("ToolRule", () => {
       expect(params.globs).toBeUndefined();
     });
 
-    it("should use custom baseDir", () => {
+    it("should use custom outputRoot", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom.md",
@@ -727,12 +727,12 @@ describe("ToolRule", () => {
       });
 
       const params = (TestToolRule as any).buildToolRuleParamsDefault({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         rulesyncRule,
         nonRootPath: { relativeDirPath: ".agents/memories" },
       });
 
-      expect(params.baseDir).toBe("/custom/path");
+      expect(params.outputRoot).toBe("/custom/path");
     });
 
     it("should use custom validation setting", () => {
@@ -839,7 +839,7 @@ describe("ToolRule", () => {
   describe("abstract toRulesyncRule method", () => {
     it("should be implemented in concrete subclass", () => {
       const toolRule = new TestToolRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test/rules",
         relativeFilePath: "convert-test.md",
         fileContent: "# Convert Test\n\nThis will be converted.",
@@ -857,7 +857,7 @@ describe("ToolRule", () => {
   describe("toRulesyncRuleDefault", () => {
     it("should create RulesyncRule with default frontmatter for non-root rule", () => {
       const toolRule = new TestToolRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test/rules",
         relativeFilePath: "non-root.md",
         fileContent: "# Non-Root Rule",
@@ -867,7 +867,7 @@ describe("ToolRule", () => {
       const rulesyncRule = (toolRule as any).toRulesyncRuleDefault();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getBaseDir()).toBe(testDir);
+      expect(rulesyncRule.getOutputRoot()).toBe(testDir);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("non-root.md");
       expect(rulesyncRule.getBody()).toBe("# Non-Root Rule");
@@ -881,7 +881,7 @@ describe("ToolRule", () => {
 
     it("should create RulesyncRule with description and globs", () => {
       const toolRule = new TestToolRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test/rules",
         relativeFilePath: "with-metadata.md",
         fileContent: "# Rule with metadata",
@@ -899,7 +899,7 @@ describe("ToolRule", () => {
 
     it("should create RulesyncRule with default frontmatter for root rule", () => {
       const toolRule = new TestToolRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test/rules",
         relativeFilePath: "root.md",
         fileContent: "# Root Rule",
@@ -909,7 +909,7 @@ describe("ToolRule", () => {
       const rulesyncRule = (toolRule as any).toRulesyncRuleDefault();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getBaseDir()).toBe(testDir);
+      expect(rulesyncRule.getOutputRoot()).toBe(testDir);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME);
       expect(rulesyncRule.getBody()).toBe("# Root Rule");
@@ -932,7 +932,7 @@ describe("ToolRule", () => {
 
       // Load from file
       const toolRule = await TestToolRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "integration.md",
       });
 
@@ -950,7 +950,7 @@ describe("ToolRule", () => {
 
       // Start with rulesync rule
       const originalRulesync = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "roundtrip.md",
         frontmatter: {
@@ -964,7 +964,7 @@ describe("ToolRule", () => {
 
       // Convert to tool rule
       const toolRule = TestToolRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule: originalRulesync,
       });
 
@@ -981,7 +981,7 @@ describe("ToolRule", () => {
 
       // Start with root rulesync rule
       const originalRulesync = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "root-roundtrip.md",
         frontmatter: {
@@ -995,7 +995,7 @@ describe("ToolRule", () => {
 
       // Convert to tool rule
       const toolRule = TestToolRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule: originalRulesync,
       });
 
@@ -1013,7 +1013,7 @@ describe("ToolRule", () => {
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for rules targeting claudecode", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -1027,7 +1027,7 @@ describe("ToolRule", () => {
 
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -1041,7 +1041,7 @@ describe("ToolRule", () => {
 
     it("should return false for rules not targeting claudecode", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -1055,7 +1055,7 @@ describe("ToolRule", () => {
 
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -1069,7 +1069,7 @@ describe("ToolRule", () => {
 
     it("should handle mixed targets including claudecode", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -1083,7 +1083,7 @@ describe("ToolRule", () => {
 
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {},

@@ -10,7 +10,7 @@ import {
 export class CopilotcliRule extends CopilotRule {
   private static fromCopilotRule(copilotRule: CopilotRule, validate = true): CopilotcliRule {
     return new CopilotcliRule({
-      baseDir: copilotRule.getBaseDir(),
+      outputRoot: copilotRule.getOutputRoot(),
       relativeDirPath: copilotRule.getRelativeDirPath(),
       relativeFilePath: copilotRule.getRelativeFilePath(),
       frontmatter: copilotRule.getFrontmatter(),

@@ -13,9 +13,9 @@ import {
 // Test implementation of ToolSubagent for testing abstract class behavior
 class TestToolSubagent extends ToolSubagent {
   static async fromFile(_params: ToolSubagentFromFileParams): Promise<TestToolSubagent> {
-    const { baseDir = process.cwd(), relativeFilePath } = _params;
+    const { outputRoot = process.cwd(), relativeFilePath } = _params;
     return new TestToolSubagent({
-      baseDir,
+      outputRoot,
       relativeDirPath: ".test",
       relativeFilePath,
       fileContent: "test tool subagent content",
@@ -23,12 +23,12 @@ class TestToolSubagent extends ToolSubagent {
   }
 
   static fromRulesyncSubagent(params: ToolSubagentFromRulesyncSubagentParams): TestToolSubagent {
-    const { rulesyncSubagent, baseDir = process.cwd(), ...rest } = params;
+    const { rulesyncSubagent, outputRoot = process.cwd(), ...rest } = params;
     const frontmatter = rulesyncSubagent.getFrontmatter();
     const body = rulesyncSubagent.getBody();
 
     return new TestToolSubagent({
-      baseDir,
+      outputRoot,
       ...rest,
       relativeDirPath: ".test",
       relativeFilePath: "test-tool.md",
@@ -51,7 +51,7 @@ class TestToolSubagent extends ToolSubagent {
 
   toRulesyncSubagent(): RulesyncSubagent {
     return new RulesyncSubagent({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
       relativeFilePath: "converted.md",
       frontmatter: {
@@ -82,7 +82,7 @@ describe("ToolSubagent", () => {
   describe("abstract class characteristics", () => {
     it("should be abstract (cannot be instantiated directly)", () => {
       const toolSubagent = new TestToolSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test",
         relativeFilePath: "test.md",
         fileContent: "test content",
@@ -95,7 +95,7 @@ describe("ToolSubagent", () => {
     it("should throw error when calling fromFile on base class", async () => {
       await expect(
         ToolSubagent.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "test.md",
         }),
       ).rejects.toThrow("Please implement this method in the subclass.");
@@ -103,7 +103,7 @@ describe("ToolSubagent", () => {
 
     it("should throw error when calling fromRulesyncSubagent on base class", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -118,7 +118,7 @@ describe("ToolSubagent", () => {
       expect(() => {
         ToolSubagent.fromRulesyncSubagent({
           rulesyncSubagent,
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".test",
         });
       }).toThrow("Please implement this method in the subclass.");
@@ -128,7 +128,7 @@ describe("ToolSubagent", () => {
   describe("inheritance from ToolFile", () => {
     it("should inherit all ToolFile and AiFile functionality", () => {
       const toolSubagent = new TestToolSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test",
         relativeFilePath: "test.md",
         fileContent: "test content",
@@ -145,7 +145,7 @@ describe("ToolSubagent", () => {
 
     it("should support validation", () => {
       const validToolSubagent = new TestToolSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test",
         relativeFilePath: "valid.md",
         fileContent: "valid content",
@@ -160,7 +160,7 @@ describe("ToolSubagent", () => {
   describe("concrete implementation functionality", () => {
     it("should work with fromFile static method", async () => {
       const toolSubagent = await TestToolSubagent.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "config.md",
       });
 
@@ -173,7 +173,7 @@ describe("ToolSubagent", () => {
 
     it("should work with fromRulesyncSubagent static method", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "source.md",
         frontmatter: {
@@ -187,7 +187,7 @@ describe("ToolSubagent", () => {
 
       const toolSubagent = TestToolSubagent.fromRulesyncSubagent({
         rulesyncSubagent,
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test",
       });
 
@@ -202,7 +202,7 @@ describe("ToolSubagent", () => {
 
     it("should convert back to RulesyncSubagent", () => {
       const toolSubagent = new TestToolSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test",
         relativeFilePath: "convert.md",
         fileContent: "content to convert",
@@ -221,7 +221,7 @@ describe("ToolSubagent", () => {
   describe("polymorphism", () => {
     it("should support polymorphic usage", () => {
       const toolSubagent: ToolSubagent = new TestToolSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test",
         relativeFilePath: "poly.md",
         fileContent: "polymorphic content",
@@ -238,7 +238,7 @@ describe("ToolSubagent", () => {
 
     it("should maintain type safety through inheritance", () => {
       const testSubagent = new TestToolSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test",
         relativeFilePath: "typed.md",
         fileContent: "typed content",
@@ -261,18 +261,18 @@ describe("ToolSubagent", () => {
     it("should have correct ToolSubagentFromFileParams type", () => {
       const params: ToolSubagentFromFileParams = {
         relativeFilePath: "test.md",
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: true,
       };
 
       expect(params.relativeFilePath).toBe("test.md");
-      expect(params.baseDir).toBe(testDir);
+      expect(params.outputRoot).toBe(testDir);
       expect(params.validate).toBe(true);
     });
 
     it("should have correct ToolSubagentFromRulesyncSubagentParams type", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -286,13 +286,13 @@ describe("ToolSubagent", () => {
 
       const params: ToolSubagentFromRulesyncSubagentParams = {
         rulesyncSubagent,
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test",
         validate: true,
       };
 
       expect(params.rulesyncSubagent).toBe(rulesyncSubagent);
-      expect(params.baseDir).toBe(testDir);
+      expect(params.outputRoot).toBe(testDir);
       expect(params.validate).toBe(true);
     });
   });

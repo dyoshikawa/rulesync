@@ -96,7 +96,7 @@ export class AntigravityCommand extends ToolCommand {
     const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
 
     return new RulesyncCommand({
-      baseDir: ".", // RulesyncCommand baseDir is always the project root directory
+      outputRoot: ".", // RulesyncCommand outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
@@ -114,7 +114,7 @@ export class AntigravityCommand extends ToolCommand {
   }
 
   static fromRulesyncCommand({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncCommand,
     validate = true,
   }: ToolCommandFromRulesyncCommandParams): AntigravityCommand {
@@ -167,7 +167,7 @@ export class AntigravityCommand extends ToolCommand {
     const fileContent = stringifyFrontmatter(body, antigravityFrontmatter);
 
     return new AntigravityCommand({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       frontmatter: antigravityFrontmatter,
       body,
       relativeDirPath: AntigravityCommand.getSettablePaths().relativeDirPath,
@@ -235,12 +235,12 @@ export class AntigravityCommand extends ToolCommand {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolCommandFromFileParams): Promise<AntigravityCommand> {
     const filePath = join(
-      baseDir,
+      outputRoot,
       AntigravityCommand.getSettablePaths().relativeDirPath,
       relativeFilePath,
     );
@@ -255,7 +255,7 @@ export class AntigravityCommand extends ToolCommand {
     }
 
     return new AntigravityCommand({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       relativeDirPath: AntigravityCommand.getSettablePaths().relativeDirPath,
       relativeFilePath,
       frontmatter: result.data,
@@ -266,12 +266,12 @@ export class AntigravityCommand extends ToolCommand {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolCommandForDeletionParams): AntigravityCommand {
     return new AntigravityCommand({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       frontmatter: { description: "" },

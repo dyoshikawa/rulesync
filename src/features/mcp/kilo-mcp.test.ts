@@ -88,13 +88,13 @@ describe("KiloMcp", () => {
       expect(kiloMcp.getFileContent()).toBe(validJsonContent);
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const validJsonContent = JSON.stringify({
         mcp: {},
       });
 
       const kiloMcp = new KiloMcp({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".",
         relativeFilePath: "kilo.json",
         fileContent: validJsonContent,
@@ -182,7 +182,7 @@ describe("KiloMcp", () => {
       await writeFileContent(join(testDir, "kilo.json"), JSON.stringify(jsonData, null, 2));
 
       const kiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(kiloMcp).toBeInstanceOf(KiloMcp);
@@ -192,7 +192,7 @@ describe("KiloMcp", () => {
 
     it("should initialize empty mcp if file does not exist", async () => {
       const kiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(kiloMcp).toBeInstanceOf(KiloMcp);
@@ -209,7 +209,7 @@ describe("KiloMcp", () => {
       await writeFileContent(join(testDir, "kilo.json"), JSON.stringify(jsonData));
 
       const kiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(kiloMcp.getJson()).toEqual({
@@ -220,7 +220,7 @@ describe("KiloMcp", () => {
       });
     });
 
-    it("should create instance from file with custom baseDir", async () => {
+    it("should create instance from file with custom outputRoot", async () => {
       const customDir = join(testDir, "custom");
       await ensureDir(customDir);
 
@@ -237,7 +237,7 @@ describe("KiloMcp", () => {
       await writeFileContent(join(customDir, "kilo.json"), JSON.stringify(jsonData));
 
       const kiloMcp = await KiloMcp.fromFile({
-        baseDir: customDir,
+        outputRoot: customDir,
       });
 
       expect(kiloMcp.getFilePath()).toBe(join(customDir, "kilo.json"));
@@ -258,7 +258,7 @@ describe("KiloMcp", () => {
       await writeFileContent(join(testDir, "kilo.json"), JSON.stringify(jsonData));
 
       const kiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: true,
       });
 
@@ -272,7 +272,7 @@ describe("KiloMcp", () => {
       await writeFileContent(join(testDir, "kilo.json"), JSON.stringify(jsonData));
 
       const kiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
 
@@ -295,7 +295,7 @@ describe("KiloMcp", () => {
       await writeFileContent(globalPath, JSON.stringify(jsonData, null, 2));
 
       const kiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -318,7 +318,7 @@ describe("KiloMcp", () => {
       await writeFileContent(join(testDir, "kilo.json"), JSON.stringify(jsonData));
 
       const kiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: false,
       });
 
@@ -328,7 +328,7 @@ describe("KiloMcp", () => {
 
     it("should initialize global config file if it does not exist", async () => {
       const kiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -359,7 +359,7 @@ describe("KiloMcp", () => {
       );
 
       const kiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -397,7 +397,7 @@ describe("KiloMcp", () => {
       });
 
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -416,7 +416,7 @@ describe("KiloMcp", () => {
       expect(kiloMcp.getRelativeFilePath()).toBe("kilo.jsonc");
     });
 
-    it("should create instance from RulesyncMcp with custom baseDir", async () => {
+    it("should create instance from RulesyncMcp with custom outputRoot", async () => {
       const jsonData = {
         mcpServers: {
           "custom-server": {
@@ -429,7 +429,7 @@ describe("KiloMcp", () => {
         },
       };
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
@@ -438,7 +438,7 @@ describe("KiloMcp", () => {
       const customDir = join(testDir, "target");
       await ensureDir(customDir);
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: customDir,
+        outputRoot: customDir,
         rulesyncMcp,
       });
 
@@ -474,7 +474,7 @@ describe("KiloMcp", () => {
       });
 
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         validate: true,
       });
@@ -502,7 +502,7 @@ describe("KiloMcp", () => {
       });
 
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         validate: false,
       });
@@ -521,7 +521,7 @@ describe("KiloMcp", () => {
       });
 
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -544,7 +544,7 @@ describe("KiloMcp", () => {
       });
 
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -580,7 +580,7 @@ describe("KiloMcp", () => {
       });
 
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: false,
       });
@@ -635,7 +635,7 @@ describe("KiloMcp", () => {
       });
 
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -691,7 +691,7 @@ describe("KiloMcp", () => {
       });
 
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -731,7 +731,7 @@ describe("KiloMcp", () => {
       });
 
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -767,7 +767,7 @@ describe("KiloMcp", () => {
       });
 
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -804,7 +804,7 @@ describe("KiloMcp", () => {
       });
 
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -845,7 +845,7 @@ describe("KiloMcp", () => {
       });
 
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -887,7 +887,7 @@ describe("KiloMcp", () => {
       });
 
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -922,7 +922,7 @@ describe("KiloMcp", () => {
       });
 
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -970,7 +970,7 @@ describe("KiloMcp", () => {
       });
 
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -1011,7 +1011,7 @@ describe("KiloMcp", () => {
       });
 
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -1047,7 +1047,7 @@ describe("KiloMcp", () => {
       });
 
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -1098,7 +1098,7 @@ describe("KiloMcp", () => {
       });
 
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -1122,7 +1122,7 @@ describe("KiloMcp", () => {
       });
 
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -1168,7 +1168,7 @@ describe("KiloMcp", () => {
       expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
     });
 
-    it("should convert environment to env and preserve baseDir", () => {
+    it("should convert environment to env and preserve outputRoot", () => {
       const jsonData = {
         mcp: {
           "complex-server": {
@@ -1183,7 +1183,7 @@ describe("KiloMcp", () => {
         },
       };
       const kiloMcp = new KiloMcp({
-        baseDir: "/test/dir",
+        outputRoot: "/test/dir",
         relativeDirPath: ".",
         relativeFilePath: "kilo.json",
         fileContent: JSON.stringify(jsonData),
@@ -1191,7 +1191,7 @@ describe("KiloMcp", () => {
 
       const rulesyncMcp = kiloMcp.toRulesyncMcp();
 
-      expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
+      expect(rulesyncMcp.getOutputRoot()).toBe("/test/dir");
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
         $schema: RULESYNC_MCP_SCHEMA_URL,
         mcpServers: {
@@ -1769,7 +1769,7 @@ describe("KiloMcp", () => {
 
       // Step 1: Load from file
       const originalKiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       // Step 2: Convert to RulesyncMcp (now converts to standard format)
@@ -1788,7 +1788,7 @@ describe("KiloMcp", () => {
 
       // Step 3: Create new KiloMcp from RulesyncMcp
       const newKiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -1839,7 +1839,7 @@ describe("KiloMcp", () => {
 
       // Create KiloMcp
       const kiloMcp = new KiloMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "kilo.json",
         fileContent: JSON.stringify(complexJsonData),
@@ -1872,7 +1872,7 @@ describe("KiloMcp", () => {
 
       // Step 1: Load from global config
       const originalKiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -1890,7 +1890,7 @@ describe("KiloMcp", () => {
 
       // Step 3: Create new KiloMcp from RulesyncMcp in global mode
       const newKiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -1928,7 +1928,7 @@ describe("KiloMcp", () => {
 
       // Step 1: Load from file
       const originalKiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       // Step 2: Convert to RulesyncMcp
@@ -1946,7 +1946,7 @@ describe("KiloMcp", () => {
 
       // Step 3: Convert back to Kilo format
       const newKiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -1991,7 +1991,7 @@ describe("KiloMcp", () => {
 
       // Step 1: Convert to Kilo
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -2017,7 +2017,7 @@ describe("KiloMcp", () => {
     it("should handle missing files by returning default empty mcp", async () => {
       // When both jsonc and json are missing, should return default mcp
       const kiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(kiloMcp.getJson().mcp).toEqual({});
@@ -2026,7 +2026,7 @@ describe("KiloMcp", () => {
     it("should handle missing files in global mode by returning default empty mcp", async () => {
       // When global files don't exist, should return default mcp
       const kiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -2040,7 +2040,7 @@ describe("KiloMcp", () => {
       await writeFileContent(join(testDir, "kilo.json"), JSON.stringify(jsonData));
 
       const kiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(kiloMcp.getJson().mcp).toEqual({});
@@ -2053,7 +2053,7 @@ describe("KiloMcp", () => {
       await writeFileContent(join(testDir, "kilo.json"), JSON.stringify(jsonData));
 
       const kiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(kiloMcp.getJson().mcp).toEqual({});
@@ -2065,7 +2065,7 @@ describe("KiloMcp", () => {
 
       await expect(
         KiloMcp.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });
@@ -2075,7 +2075,7 @@ describe("KiloMcp", () => {
 
       await expect(
         KiloMcp.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });
@@ -2094,7 +2094,7 @@ describe("KiloMcp", () => {
       await writeFileContent(join(testDir, "kilo.jsonc"), jsoncContent);
 
       const kiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       const exampleServer = kiloMcp.getJson().mcp?.exampleServer;
@@ -2128,7 +2128,7 @@ describe("KiloMcp", () => {
       await writeFileContent(join(testDir, "kilo.jsonc"), jsoncContent);
 
       const kiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(kiloMcp.getJson().mcp?.fromJsonc).toBeDefined();
@@ -2148,7 +2148,7 @@ describe("KiloMcp", () => {
       await writeFileContent(join(testDir, "kilo.json"), JSON.stringify(jsonContent));
 
       const kiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(kiloMcp.getJson().mcp?.fromJson).toBeDefined();
@@ -2167,7 +2167,7 @@ describe("KiloMcp", () => {
       await writeFileContent(join(testDir, ".config", "kilo", "kilo.jsonc"), jsoncContent);
 
       const kiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -2200,7 +2200,7 @@ describe("KiloMcp", () => {
       await writeFileContent(join(testDir, ".config", "kilo", "kilo.jsonc"), jsoncContent);
 
       const kiloMcp = await KiloMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 

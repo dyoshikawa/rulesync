@@ -55,7 +55,7 @@ async function createConfigFile(): Promise<InitFileResult> {
         $schema: RULESYNC_CONFIG_SCHEMA_URL,
         targets: ["copilot", "cursor", "claudecode", "codexcli"],
         features: ["rules", "ignore", "mcp", "commands", "subagents", "skills", "hooks"],
-        baseDirs: ["."],
+        outputRoots: ["."],
         delete: true,
         verbose: false,
         silent: false,

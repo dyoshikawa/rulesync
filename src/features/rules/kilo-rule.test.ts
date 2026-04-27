@@ -40,9 +40,9 @@ describe("KiloRule", () => {
       expect(kiloRule.getFileContent()).toBe("# Test Memory\n\nThis is a test memory.");
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const kiloRule = new KiloRule({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".kilo/rules",
         relativeFilePath: "custom-memory.md",
         fileContent: "# Custom Memory",
@@ -103,12 +103,12 @@ describe("KiloRule", () => {
 
   describe("fromFile", () => {
     it("should create instance from root AGENTS.md file", async () => {
-      // Setup test file - for root, the file should be directly at baseDir/AGENTS.md
+      // Setup test file - for root, the file should be directly at outputRoot/AGENTS.md
       const testContent = "# Kilo Project\n\nProject overview and agent instructions.";
       await writeFileContent(join(testDir, "AGENTS.md"), testContent);
 
       const kiloRule = await KiloRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "AGENTS.md",
       });
 
@@ -127,7 +127,7 @@ describe("KiloRule", () => {
       await writeFileContent(join(memoriesDir, "memory-test.md"), testContent);
 
       const kiloRule = await KiloRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "memory-test.md",
       });
 
@@ -138,9 +138,9 @@ describe("KiloRule", () => {
       expect(kiloRule.isRoot()).toBe(false);
     });
 
-    it("should use default baseDir when not provided", async () => {
+    it("should use default outputRoot when not provided", async () => {
       // Setup test file in test directory - process.cwd() is mocked to return testDir
-      const testContent = "# Default BaseDir Test";
+      const testContent = "# Default OutputRoot Test";
       await writeFileContent(join(testDir, "AGENTS.md"), testContent);
 
       const kiloRule = await KiloRule.fromFile({
@@ -157,13 +157,13 @@ describe("KiloRule", () => {
       await writeFileContent(join(testDir, "AGENTS.md"), testContent);
 
       const kiloRuleWithValidation = await KiloRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "AGENTS.md",
         validate: true,
       });
 
       const kiloRuleWithoutValidation = await KiloRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "AGENTS.md",
         validate: false,
       });
@@ -175,7 +175,7 @@ describe("KiloRule", () => {
     it("should throw error when file does not exist", async () => {
       await expect(
         KiloRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "nonexistent.md",
         }),
       ).rejects.toThrow();
@@ -189,18 +189,18 @@ describe("KiloRule", () => {
       const rootContent = "# Root Project Overview";
       const memoryContent = "# Memory Rule";
 
-      // Root file goes directly in baseDir
+      // Root file goes directly in outputRoot
       await writeFileContent(join(testDir, "AGENTS.md"), rootContent);
       // Memory file goes in .kilo/rules
       await writeFileContent(join(memoriesDir, "memory.md"), memoryContent);
 
       const rootRule = await KiloRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "AGENTS.md",
       });
 
       const memoryRule = await KiloRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "memory.md",
       });
 
@@ -262,7 +262,7 @@ describe("KiloRule", () => {
       expect(kiloRule.isRoot()).toBe(false);
     });
 
-    it("should use custom baseDir", () => {
+    it("should use custom outputRoot", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom-base.md",
@@ -276,7 +276,7 @@ describe("KiloRule", () => {
       });
 
       const kiloRule = KiloRule.fromRulesyncRule({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         rulesyncRule,
       });
 
@@ -312,7 +312,7 @@ describe("KiloRule", () => {
 
     it("should handle subprojectPath from agentsmd field", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -326,7 +326,7 @@ describe("KiloRule", () => {
       });
 
       const kiloRule = KiloRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
@@ -337,7 +337,7 @@ describe("KiloRule", () => {
 
     it("should ignore subprojectPath for root rules", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -351,7 +351,7 @@ describe("KiloRule", () => {
       });
 
       const kiloRule = KiloRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
@@ -362,7 +362,7 @@ describe("KiloRule", () => {
 
     it("should handle empty subprojectPath", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -376,7 +376,7 @@ describe("KiloRule", () => {
       });
 
       const kiloRule = KiloRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
@@ -387,7 +387,7 @@ describe("KiloRule", () => {
 
     it("should handle complex nested subprojectPath", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "nested.md",
         frontmatter: {
@@ -401,7 +401,7 @@ describe("KiloRule", () => {
       });
 
       const kiloRule = KiloRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
@@ -412,7 +412,7 @@ describe("KiloRule", () => {
 
     it("should handle undefined agentsmd field", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -423,7 +423,7 @@ describe("KiloRule", () => {
       });
 
       const kiloRule = KiloRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
@@ -434,7 +434,7 @@ describe("KiloRule", () => {
   describe("toRulesyncRule", () => {
     it("should convert KiloRule to RulesyncRule for root rule", () => {
       const kiloRule = new KiloRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
         fileContent: "# Convert Test\n\nThis will be converted.",
@@ -451,7 +451,7 @@ describe("KiloRule", () => {
 
     it("should convert KiloRule to RulesyncRule for memory rule", () => {
       const kiloRule = new KiloRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".kilo/rules",
         relativeFilePath: "memory-convert.md",
         fileContent: "# Memory Convert Test\n\nThis memory will be converted.",
@@ -470,7 +470,7 @@ describe("KiloRule", () => {
 
     it("should preserve metadata in conversion", () => {
       const kiloRule = new KiloRule({
-        baseDir: "/test/path",
+        outputRoot: "/test/path",
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
         fileContent: "# Metadata Test\n\nWith metadata preserved.",
@@ -548,7 +548,7 @@ describe("KiloRule", () => {
 
       // Load from file
       const kiloRule = await KiloRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "AGENTS.md",
       });
 
@@ -570,7 +570,7 @@ describe("KiloRule", () => {
 
       // Load from file
       const kiloRule = await KiloRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "memory-integration.md",
       });
 
@@ -588,7 +588,7 @@ describe("KiloRule", () => {
 
       // Start with rulesync rule (root)
       const originalRulesync = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "roundtrip.md",
         frontmatter: {
@@ -602,7 +602,7 @@ describe("KiloRule", () => {
 
       // Convert to kilo rule
       const kiloRule = KiloRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule: originalRulesync,
       });
 
@@ -619,7 +619,7 @@ describe("KiloRule", () => {
 
       // Start with rulesync rule (non-root)
       const originalRulesync = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "detail-roundtrip.md",
         frontmatter: {
@@ -633,7 +633,7 @@ describe("KiloRule", () => {
 
       // Convert to kilo rule
       const kiloRule = KiloRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule: originalRulesync,
       });
 
@@ -655,7 +655,7 @@ describe("KiloRule", () => {
       // This should work with the current implementation since fromFile
       // determines path based on the relativeFilePath parameter
       const kiloRule = await KiloRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "nested/nested-rule.md",
       });
 
@@ -776,7 +776,7 @@ describe("KiloRule", () => {
       await writeFileContent(join(globalDir, "AGENTS.md"), testContent);
 
       const kiloRule = await KiloRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "AGENTS.md",
         global: true,
       });
@@ -794,7 +794,7 @@ describe("KiloRule", () => {
       await writeFileContent(join(globalDir, "AGENTS.md"), testContent);
 
       const kiloRule = await KiloRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "AGENTS.md",
         global: true,
       });
@@ -809,7 +809,7 @@ describe("KiloRule", () => {
       await writeFileContent(join(testDir, "AGENTS.md"), testContent);
 
       const kiloRule = await KiloRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "AGENTS.md",
         global: false,
       });
@@ -868,7 +868,7 @@ describe("KiloRule", () => {
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for rules targeting kilo", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -882,7 +882,7 @@ describe("KiloRule", () => {
 
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -896,7 +896,7 @@ describe("KiloRule", () => {
 
     it("should return false for rules not targeting kilo", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -910,7 +910,7 @@ describe("KiloRule", () => {
 
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -924,7 +924,7 @@ describe("KiloRule", () => {
 
     it("should handle mixed targets including kilo", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -938,7 +938,7 @@ describe("KiloRule", () => {
 
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {},

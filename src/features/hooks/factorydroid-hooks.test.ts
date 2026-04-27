@@ -48,7 +48,7 @@ describe("FactorydroidHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -56,7 +56,7 @@ describe("FactorydroidHooks", () => {
       });
 
       const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -79,7 +79,7 @@ describe("FactorydroidHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -87,7 +87,7 @@ describe("FactorydroidHooks", () => {
       });
 
       const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -114,7 +114,7 @@ describe("FactorydroidHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -122,7 +122,7 @@ describe("FactorydroidHooks", () => {
       });
 
       const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -156,7 +156,7 @@ describe("FactorydroidHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -164,7 +164,7 @@ describe("FactorydroidHooks", () => {
       });
 
       const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -198,7 +198,7 @@ describe("FactorydroidHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -206,7 +206,7 @@ describe("FactorydroidHooks", () => {
       });
 
       const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -228,7 +228,7 @@ describe("FactorydroidHooks", () => {
 
       const config = { version: 1, hooks: {} };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -237,7 +237,7 @@ describe("FactorydroidHooks", () => {
 
       await expect(
         FactorydroidHooks.fromRulesyncHooks({
-          baseDir: testDir,
+          outputRoot: testDir,
           rulesyncHooks,
           validate: false,
         }),
@@ -256,7 +256,7 @@ describe("FactorydroidHooks", () => {
         hooks: { sessionStart: [{ command: "echo" }] },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -264,7 +264,7 @@ describe("FactorydroidHooks", () => {
       });
 
       const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -291,7 +291,7 @@ describe("FactorydroidHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -299,7 +299,7 @@ describe("FactorydroidHooks", () => {
       });
 
       const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -332,7 +332,7 @@ describe("FactorydroidHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -340,7 +340,7 @@ describe("FactorydroidHooks", () => {
       });
 
       const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -357,7 +357,7 @@ describe("FactorydroidHooks", () => {
   describe("toRulesyncHooks", () => {
     it("should throw error with descriptive message when content contains invalid JSON", () => {
       const factorydroidHooks = new FactorydroidHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory",
         relativeFilePath: "settings.json",
         fileContent: "invalid json {",
@@ -371,7 +371,7 @@ describe("FactorydroidHooks", () => {
 
     it("should convert Factory Droid PascalCase hooks to canonical camelCase", () => {
       const factorydroidHooks = new FactorydroidHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory",
         relativeFilePath: "settings.json",
         fileContent: JSON.stringify({
@@ -394,7 +394,7 @@ describe("FactorydroidHooks", () => {
 
     it("should strip $FACTORY_PROJECT_DIR prefix from commands", () => {
       const factorydroidHooks = new FactorydroidHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory",
         relativeFilePath: "settings.json",
         fileContent: JSON.stringify({
@@ -418,7 +418,7 @@ describe("FactorydroidHooks", () => {
 
     it("should preserve matcher from entries", () => {
       const factorydroidHooks = new FactorydroidHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory",
         relativeFilePath: "settings.json",
         fileContent: JSON.stringify({
@@ -442,7 +442,7 @@ describe("FactorydroidHooks", () => {
 
     it("should handle empty hooks object", () => {
       const factorydroidHooks = new FactorydroidHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory",
         relativeFilePath: "settings.json",
         fileContent: JSON.stringify({ hooks: {} }),
@@ -456,7 +456,7 @@ describe("FactorydroidHooks", () => {
 
     it("should handle missing hooks key", () => {
       const factorydroidHooks = new FactorydroidHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory",
         relativeFilePath: "settings.json",
         fileContent: JSON.stringify({}),
@@ -470,7 +470,7 @@ describe("FactorydroidHooks", () => {
 
     it("should skip entries that are not valid matcher entries", () => {
       const factorydroidHooks = new FactorydroidHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory",
         relativeFilePath: "settings.json",
         fileContent: JSON.stringify({
@@ -501,7 +501,7 @@ describe("FactorydroidHooks", () => {
       );
 
       const factorydroidHooks = await FactorydroidHooks.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
       expect(factorydroidHooks).toBeInstanceOf(FactorydroidHooks);
@@ -512,7 +512,7 @@ describe("FactorydroidHooks", () => {
 
     it("should initialize empty hooks when .factory/settings.json does not exist", async () => {
       const factorydroidHooks = await FactorydroidHooks.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
       expect(factorydroidHooks).toBeInstanceOf(FactorydroidHooks);
@@ -525,7 +525,7 @@ describe("FactorydroidHooks", () => {
   describe("isDeletable", () => {
     it("should return false", () => {
       const hooks = new FactorydroidHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory",
         relativeFilePath: "settings.json",
         fileContent: "{}",
@@ -538,7 +538,7 @@ describe("FactorydroidHooks", () => {
   describe("forDeletion", () => {
     it("should return FactorydroidHooks instance with empty hooks for deletion path", () => {
       const hooks = FactorydroidHooks.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory",
         relativeFilePath: "settings.json",
       });
@@ -558,7 +558,7 @@ describe("FactorydroidHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -566,14 +566,14 @@ describe("FactorydroidHooks", () => {
       });
 
       const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
       await ensureDir(join(testDir, ".factory"));
       await writeFileContent(factorydroidHooks.getFilePath(), factorydroidHooks.getFileContent());
 
-      const loaded = await FactorydroidHooks.fromFile({ baseDir: testDir, validate: false });
+      const loaded = await FactorydroidHooks.fromFile({ outputRoot: testDir, validate: false });
       const backToRulesync = loaded.toRulesyncHooks();
       const json = backToRulesync.getJson();
       expect(json.hooks.sessionStart).toHaveLength(1);
@@ -600,7 +600,7 @@ describe("FactorydroidHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -608,14 +608,14 @@ describe("FactorydroidHooks", () => {
       });
 
       const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
       await ensureDir(join(testDir, ".factory"));
       await writeFileContent(factorydroidHooks.getFilePath(), factorydroidHooks.getFileContent());
 
-      const loaded = await FactorydroidHooks.fromFile({ baseDir: testDir, validate: false });
+      const loaded = await FactorydroidHooks.fromFile({ outputRoot: testDir, validate: false });
       const backToRulesync = loaded.toRulesyncHooks();
       const json = backToRulesync.getJson();
 

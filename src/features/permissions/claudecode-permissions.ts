@@ -97,14 +97,14 @@ export class ClaudecodePermissions extends ToolPermissions {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
   }: ToolPermissionsFromFileParams): Promise<ClaudecodePermissions> {
     const paths = ClaudecodePermissions.getSettablePaths();
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? '{"permissions":{}}';
     return new ClaudecodePermissions({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -113,12 +113,12 @@ export class ClaudecodePermissions extends ToolPermissions {
   }
 
   static async fromRulesyncPermissions({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncPermissions,
     logger,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<ClaudecodePermissions> {
     const paths = ClaudecodePermissions.getSettablePaths();
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = await readOrInitializeFileContent(
       filePath,
       JSON.stringify({}, null, 2),
@@ -194,7 +194,7 @@ export class ClaudecodePermissions extends ToolPermissions {
     const fileContent = JSON.stringify(merged, null, 2);
 
     return new ClaudecodePermissions({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -230,12 +230,12 @@ export class ClaudecodePermissions extends ToolPermissions {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolPermissionsForDeletionParams): ClaudecodePermissions {
     return new ClaudecodePermissions({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: JSON.stringify({ permissions: {} }, null, 2),

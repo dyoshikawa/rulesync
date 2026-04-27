@@ -23,7 +23,7 @@ export const ReplitSkillFrontmatterSchema = z.looseObject({
 export type ReplitSkillFrontmatter = z.infer<typeof ReplitSkillFrontmatterSchema>;
 
 export type ReplitSkillParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
   frontmatter: ReplitSkillFrontmatter;
@@ -40,7 +40,7 @@ export type ReplitSkillParams = {
  */
 export class ReplitSkill extends ToolSkill {
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath = join(".agents", "skills"),
     dirName,
     frontmatter,
@@ -50,7 +50,7 @@ export class ReplitSkill extends ToolSkill {
     global = false,
   }: ReplitSkillParams) {
     super({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       mainFile: {
@@ -118,7 +118,7 @@ export class ReplitSkill extends ToolSkill {
     };
 
     return new RulesyncSkill({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
       dirName: this.getDirName(),
       frontmatter: rulesyncFrontmatter,
@@ -130,7 +130,7 @@ export class ReplitSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -144,7 +144,7 @@ export class ReplitSkill extends ToolSkill {
     };
 
     return new ReplitSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: replitFrontmatter,
@@ -168,14 +168,14 @@ export class ReplitSkill extends ToolSkill {
 
     const result = ReplitSkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
-      const skillDirPath = join(loaded.baseDir, loaded.relativeDirPath, loaded.dirName);
+      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
         `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
       );
     }
 
     return new ReplitSkill({
-      baseDir: loaded.baseDir,
+      outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
       frontmatter: result.data,
@@ -187,14 +187,14 @@ export class ReplitSkill extends ToolSkill {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): ReplitSkill {
     const settablePaths = ReplitSkill.getSettablePaths({ global });
     return new ReplitSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },

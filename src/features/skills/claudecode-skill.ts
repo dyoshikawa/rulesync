@@ -26,7 +26,7 @@ export const ClaudecodeSkillFrontmatterSchema = z.looseObject({
 export type ClaudecodeSkillFrontmatter = z.infer<typeof ClaudecodeSkillFrontmatterSchema>;
 
 export type ClaudecodeSkillParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
   frontmatter: ClaudecodeSkillFrontmatter;
@@ -43,7 +43,7 @@ export type ClaudecodeSkillParams = {
  */
 export class ClaudecodeSkill extends ToolSkill {
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath = join(".claude", "skills"),
     dirName,
     frontmatter,
@@ -53,7 +53,7 @@ export class ClaudecodeSkill extends ToolSkill {
     global = false,
   }: ClaudecodeSkillParams) {
     super({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       mainFile: {
@@ -79,7 +79,7 @@ export class ClaudecodeSkill extends ToolSkill {
     global?: boolean;
   } = {}): ToolSkillSettablePaths {
     // Claude Code skills use the same relative path for both project and global modes
-    // The actual location differs based on baseDir:
+    // The actual location differs based on outputRoot:
     // - Project mode: {process.cwd()}/.claude/skills/
     // - Global mode: {getHomeDirectory()}/.claude/skills/
     return {
@@ -133,7 +133,7 @@ export class ClaudecodeSkill extends ToolSkill {
     };
 
     return new RulesyncSkill({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
       dirName: this.getDirName(),
       frontmatter: rulesyncFrontmatter,
@@ -145,7 +145,7 @@ export class ClaudecodeSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -169,7 +169,7 @@ export class ClaudecodeSkill extends ToolSkill {
     const settablePaths = ClaudecodeSkill.getSettablePaths({ global });
 
     return new ClaudecodeSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: claudecodeFrontmatter,
@@ -193,14 +193,14 @@ export class ClaudecodeSkill extends ToolSkill {
 
     const result = ClaudecodeSkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
-      const skillDirPath = join(loaded.baseDir, loaded.relativeDirPath, loaded.dirName);
+      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
         `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
       );
     }
 
     return new ClaudecodeSkill({
-      baseDir: loaded.baseDir,
+      outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
       frontmatter: result.data,
@@ -212,13 +212,13 @@ export class ClaudecodeSkill extends ToolSkill {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): ClaudecodeSkill {
     return new ClaudecodeSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },

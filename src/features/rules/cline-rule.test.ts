@@ -35,9 +35,9 @@ describe("ClineRule", () => {
       expect(clineRule.getFileContent()).toBe("# Test Rule\n\nThis is a test rule.");
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const clineRule = new ClineRule({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".clinerules",
         relativeFilePath: "custom-rule.md",
         fileContent: "# Custom Rule",
@@ -86,7 +86,7 @@ describe("ClineRule", () => {
 
     it("should preserve file path information in conversion", () => {
       const clineRule = new ClineRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".clinerules",
         relativeFilePath: "path-test.md",
         fileContent: "# Path Test",
@@ -122,7 +122,7 @@ describe("ClineRule", () => {
       expect(clineRule.getFileContent()).toContain("# Source Rule\n\nThis is from RulesyncRule.");
     });
 
-    it("should create ClineRule from RulesyncRule with custom baseDir", () => {
+    it("should create ClineRule from RulesyncRule with custom outputRoot", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: ".",
         relativeFilePath: "custom-base-rule.md",
@@ -136,7 +136,7 @@ describe("ClineRule", () => {
       });
 
       const clineRule = ClineRule.fromRulesyncRule({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         rulesyncRule,
       });
 
@@ -257,7 +257,7 @@ console.log("Code example");
       await writeFileContent(join(clinerulesDir, "file-test.md"), testFileContent);
 
       const clineRule = await ClineRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "file-test.md",
       });
 
@@ -268,20 +268,20 @@ console.log("Code example");
       expect(clineRule.getFilePath()).toBe(join(testDir, ".clinerules", "file-test.md"));
     });
 
-    it("should create ClineRule from file with custom baseDir", async () => {
-      const customBaseDir = join(testDir, "custom");
-      const clinerulesDir = join(customBaseDir, ".clinerules");
+    it("should create ClineRule from file with custom outputRoot", async () => {
+      const customOutputRoot = join(testDir, "custom");
+      const clinerulesDir = join(customOutputRoot, ".clinerules");
       await ensureDir(clinerulesDir);
 
       const testFileContent = "# Custom Base File Test";
       await writeFileContent(join(clinerulesDir, "custom-base.md"), testFileContent);
 
       const clineRule = await ClineRule.fromFile({
-        baseDir: customBaseDir,
+        outputRoot: customOutputRoot,
         relativeFilePath: "custom-base.md",
       });
 
-      expect(clineRule.getFilePath()).toBe(join(customBaseDir, ".clinerules", "custom-base.md"));
+      expect(clineRule.getFilePath()).toBe(join(customOutputRoot, ".clinerules", "custom-base.md"));
       expect(clineRule.getFileContent()).toBe(testFileContent);
     });
 
@@ -293,7 +293,7 @@ console.log("Code example");
       await writeFileContent(join(clinerulesDir, "validated-file.md"), testFileContent);
 
       const clineRule = await ClineRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "validated-file.md",
         validate: true,
       });
@@ -310,7 +310,7 @@ console.log("Code example");
       await writeFileContent(join(clinerulesDir, "unvalidated-file.md"), testFileContent);
 
       const clineRule = await ClineRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "unvalidated-file.md",
         validate: false,
       });
@@ -334,7 +334,7 @@ This rule has YAML frontmatter.`;
       await writeFileContent(join(clinerulesDir, "frontmatter-test.md"), testFileContent);
 
       const clineRule = await ClineRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "frontmatter-test.md",
       });
 
@@ -350,7 +350,7 @@ This rule has YAML frontmatter.`;
       await writeFileContent(join(testDir, ".clinerules", relativeFilePath), testFileContent);
 
       const clineRule = await ClineRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath,
       });
 
@@ -458,7 +458,7 @@ This rule has YAML frontmatter.`;
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for rules targeting cline", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -472,7 +472,7 @@ This rule has YAML frontmatter.`;
 
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -486,7 +486,7 @@ This rule has YAML frontmatter.`;
 
     it("should return false for rules not targeting cline", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -500,7 +500,7 @@ This rule has YAML frontmatter.`;
 
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -514,7 +514,7 @@ This rule has YAML frontmatter.`;
 
     it("should handle mixed targets including cline", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -528,7 +528,7 @@ This rule has YAML frontmatter.`;
 
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {},

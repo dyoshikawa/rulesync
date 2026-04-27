@@ -27,6 +27,7 @@ import {
   ToolTargets,
 } from "../types/tool-targets.js";
 import { hasControlCharacters } from "../utils/validation.js";
+import { emitGetBaseDirsDeprecationWarning } from "./deprecation-warnings.js";
 
 export const GITIGNORE_DESTINATION_KEY = "gitignoreDestination";
 
@@ -61,7 +62,7 @@ export const SourceEntrySchema = z.object({
 export type SourceEntry = z.infer<typeof SourceEntrySchema>;
 
 export const ConfigParamsSchema = z.object({
-  baseDirs: z.array(z.string()),
+  outputRoots: z.array(z.string()),
   targets: RulesyncConfigTargetsSchema,
   features: RulesyncFeaturesSchema,
   verbose: z.boolean(),
@@ -113,10 +114,17 @@ export type PartialConfigParams = Omit<InferredPartialConfigParams, "targets" | 
   features?: RulesyncFeatures;
 };
 
-// Schema for config file that includes $schema property for editor support
+// Schema for config file that includes $schema property for editor support.
+//
+// The deprecated alias `baseDirs` is accepted here for backward compatibility
+// — it maps to `outputRoots` at load time (see `loadConfigFromFile` in
+// `./config-resolver.ts`). The deprecation warning fires once per process.
+// Will be removed in a future major release.
 export const ConfigFileSchema = z.object({
   $schema: optional(z.string()),
   ...z.partial(ConfigParamsSchema).shape,
+  /** @deprecated Use `outputRoots` instead. */
+  baseDirs: optional(z.array(z.string())),
 });
 type InferredConfigFile = z.infer<typeof ConfigFileSchema>;
 export type ConfigFile = Omit<InferredConfigFile, "targets" | "features"> & {
@@ -205,7 +213,7 @@ const assertTargetsOrFeaturesProvided = ({
 };
 
 export class Config {
-  private readonly baseDirs: string[];
+  private readonly outputRoots: string[];
   private readonly targets: RulesyncConfigTargets;
   private readonly features: RulesyncFeatures;
   /**
@@ -230,7 +238,7 @@ export class Config {
   private readonly sources: SourceEntry[];
 
   constructor({
-    baseDirs,
+    outputRoots,
     targets,
     features,
     verbose,
@@ -279,7 +287,7 @@ export class Config {
       throw new Error("--dry-run and --check cannot be used together");
     }
 
-    this.baseDirs = baseDirs;
+    this.outputRoots = outputRoots;
     this.targets = resolvedTargets;
     this.features = resolvedFeatures;
     this.objectFormTargetKeys = isRulesyncConfigTargetsObject(resolvedTargets)
@@ -362,8 +370,18 @@ export class Config {
     }
   }
 
+  public getOutputRoots(): string[] {
+    return this.outputRoots;
+  }
+
+  /**
+   * @deprecated Use {@link Config.getOutputRoots} instead. This alias remains
+   * for backward compatibility and will be removed in a future major release.
+   * Calling it emits a one-shot deprecation warning per process.
+   */
   public getBaseDirs(): string[] {
-    return this.baseDirs;
+    emitGetBaseDirsDeprecationWarning();
+    return this.outputRoots;
   }
 
   /**

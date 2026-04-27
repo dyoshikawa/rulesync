@@ -110,7 +110,7 @@ export class CodexCliSubagent extends ToolSubagent {
     };
 
     return new RulesyncSubagent({
-      baseDir: ".",
+      outputRoot: ".",
       frontmatter: rulesyncFrontmatter,
       body: developer_instructions ?? "",
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -120,7 +120,7 @@ export class CodexCliSubagent extends ToolSubagent {
   }
 
   static fromRulesyncSubagent({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSubagent,
     validate = true,
     global = false,
@@ -146,7 +146,7 @@ export class CodexCliSubagent extends ToolSubagent {
     const relativeFilePath = rulesyncSubagent.getRelativeFilePath().replace(/\.md$/, ".toml");
 
     return new CodexCliSubagent({
-      baseDir,
+      outputRoot,
       body,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
@@ -177,17 +177,17 @@ export class CodexCliSubagent extends ToolSubagent {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolSubagentFromFileParams): Promise<CodexCliSubagent> {
     const paths = this.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
 
     const subagent = new CodexCliSubagent({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
       body: fileContent.trim(),
@@ -209,12 +209,12 @@ export class CodexCliSubagent extends ToolSubagent {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolSubagentForDeletionParams): CodexCliSubagent {
     return new CodexCliSubagent({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       body: "",

@@ -44,7 +44,7 @@ Plan tasks`;
   describe("fromRulesyncSubagent", () => {
     it("merges user tools with required agent/runSubagent", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "planner.agent.md",
         frontmatter: {
@@ -61,7 +61,7 @@ Plan tasks`;
       });
 
       const subagent = CopilotSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         rulesyncSubagent,
         validate: true,
@@ -75,7 +75,7 @@ Plan tasks`;
 
     it("adds required tool when user tools are missing", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "planner.md",
         frontmatter: {
@@ -89,7 +89,7 @@ Plan tasks`;
       });
 
       const subagent = CopilotSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         rulesyncSubagent,
         validate: true,
@@ -101,7 +101,7 @@ Plan tasks`;
 
     it("keeps .agent.md path as-is", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "planner.agent.md",
         frontmatter: {
@@ -114,7 +114,7 @@ Plan tasks`;
       });
 
       const subagent = CopilotSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         rulesyncSubagent,
         validate: true,
@@ -125,7 +125,7 @@ Plan tasks`;
 
     it("keeps non-.md extensions unchanged", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "planner.txt",
         frontmatter: {
@@ -138,7 +138,7 @@ Plan tasks`;
       });
 
       const subagent = CopilotSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         rulesyncSubagent,
         validate: true,
@@ -149,7 +149,7 @@ Plan tasks`;
 
     it("keeps extension-less paths unchanged", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "planner",
         frontmatter: {
@@ -162,7 +162,7 @@ Plan tasks`;
       });
 
       const subagent = CopilotSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         rulesyncSubagent,
         validate: true,
@@ -175,7 +175,7 @@ Plan tasks`;
   describe("toRulesyncSubagent", () => {
     it("creates rulesync file with copilot section", () => {
       const subagent = new CopilotSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github/agents",
         relativeFilePath: "planner.agent.md",
         frontmatter: {
@@ -202,7 +202,7 @@ Plan tasks`;
 
     it("keeps non-.agent.md paths unchanged", () => {
       const subagent = new CopilotSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github/agents",
         relativeFilePath: "planner",
         frontmatter: {
@@ -227,7 +227,7 @@ Plan tasks`;
       await writeFileContent(join(agentsDir, "planner.agent.md"), validContent);
 
       const subagent = await CopilotSubagent.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "planner.agent.md",
       });
 
@@ -243,7 +243,7 @@ Plan tasks`;
   describe("validate", () => {
     it("validates required fields", () => {
       const subagent = new CopilotSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github/agents",
         relativeFilePath: "planner.agent.md",
         frontmatter: {
@@ -262,7 +262,7 @@ Plan tasks`;
       expect(
         () =>
           new CopilotSubagent({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeDirPath: ".github/agents",
             relativeFilePath: "invalid.agent.md",
             frontmatter: { description: "missing name" } as any,

@@ -39,9 +39,9 @@ describe("RooIgnore", () => {
       expect(rooIgnore.getFileContent()).toBe("*.log\nnode_modules/");
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const rooIgnore = new RooIgnore({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: "subdir",
         relativeFilePath: ".rooignore",
         fileContent: "*.tmp",
@@ -76,7 +76,7 @@ describe("RooIgnore", () => {
     it("should convert to RulesyncIgnore with same content", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const rooIgnore = new RooIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".rooignore",
         fileContent,
@@ -92,7 +92,7 @@ describe("RooIgnore", () => {
 
     it("should handle empty content", () => {
       const rooIgnore = new RooIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".rooignore",
         fileContent: "",
@@ -106,7 +106,7 @@ describe("RooIgnore", () => {
     it("should preserve patterns and formatting", () => {
       const fileContent = "# Generated files\n*.log\n*.tmp\n\n# Dependencies\nnode_modules/\n.env*";
       const rooIgnore = new RooIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".rooignore",
         fileContent,
@@ -119,7 +119,7 @@ describe("RooIgnore", () => {
   });
 
   describe("fromRulesyncIgnore", () => {
-    it("should create RooIgnore from RulesyncIgnore with default baseDir", () => {
+    it("should create RooIgnore from RulesyncIgnore with default outputRoot", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -132,13 +132,13 @@ describe("RooIgnore", () => {
       });
 
       expect(rooIgnore).toBeInstanceOf(RooIgnore);
-      expect(rooIgnore.getBaseDir()).toBe(testDir);
+      expect(rooIgnore.getOutputRoot()).toBe(testDir);
       expect(rooIgnore.getRelativeDirPath()).toBe(".");
       expect(rooIgnore.getRelativeFilePath()).toBe(".rooignore");
       expect(rooIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should create RooIgnore from RulesyncIgnore with custom baseDir", () => {
+    it("should create RooIgnore from RulesyncIgnore with custom outputRoot", () => {
       const fileContent = "*.tmp\nbuild/";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -147,11 +147,11 @@ describe("RooIgnore", () => {
       });
 
       const rooIgnore = RooIgnore.fromRulesyncIgnore({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         rulesyncIgnore,
       });
 
-      expect(rooIgnore.getBaseDir()).toBe("/custom/base");
+      expect(rooIgnore.getOutputRoot()).toBe("/custom/base");
       expect(rooIgnore.getFilePath()).toBe("/custom/base/.rooignore");
       expect(rooIgnore.getFileContent()).toBe(fileContent);
     });
@@ -187,17 +187,17 @@ describe("RooIgnore", () => {
   });
 
   describe("fromFile", () => {
-    it("should read .rooignore file from baseDir with default baseDir", async () => {
+    it("should read .rooignore file from outputRoot with default outputRoot", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const rooignorePath = join(testDir, ".rooignore");
       await writeFileContent(rooignorePath, fileContent);
 
       const rooIgnore = await RooIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(rooIgnore).toBeInstanceOf(RooIgnore);
-      expect(rooIgnore.getBaseDir()).toBe(testDir);
+      expect(rooIgnore.getOutputRoot()).toBe(testDir);
       expect(rooIgnore.getRelativeDirPath()).toBe(".");
       expect(rooIgnore.getRelativeFilePath()).toBe(".rooignore");
       expect(rooIgnore.getFileContent()).toBe(fileContent);
@@ -209,7 +209,7 @@ describe("RooIgnore", () => {
       await writeFileContent(rooignorePath, fileContent);
 
       const rooIgnore = await RooIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(rooIgnore.getFileContent()).toBe(fileContent);
@@ -221,7 +221,7 @@ describe("RooIgnore", () => {
       await writeFileContent(rooignorePath, fileContent);
 
       const rooIgnore = await RooIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
 
@@ -233,7 +233,7 @@ describe("RooIgnore", () => {
       await writeFileContent(rooignorePath, "");
 
       const rooIgnore = await RooIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(rooIgnore.getFileContent()).toBe("");
@@ -274,13 +274,13 @@ Thumbs.db`;
       await writeFileContent(rooignorePath, fileContent);
 
       const rooIgnore = await RooIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(rooIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should default baseDir to process.cwd() when not provided", async () => {
+    it("should default outputRoot to process.cwd() when not provided", async () => {
       // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\nnode_modules/";
       const rooignorePath = join(testDir, ".rooignore");
@@ -288,14 +288,14 @@ Thumbs.db`;
 
       const rooIgnore = await RooIgnore.fromFile({});
 
-      expect(rooIgnore.getBaseDir()).toBe(testDir);
+      expect(rooIgnore.getOutputRoot()).toBe(testDir);
       expect(rooIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should throw error when .rooignore file does not exist", async () => {
       await expect(
         RooIgnore.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });
@@ -306,7 +306,7 @@ Thumbs.db`;
       await writeFileContent(rooignorePath, fileContent);
 
       const rooIgnore = await RooIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(rooIgnore.getFileContent()).toBe(fileContent);
@@ -343,13 +343,13 @@ Thumbs.db`;
 
     it("should inherit file path methods from ToolFile", () => {
       const rooIgnore = new RooIgnore({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: "subdir",
         relativeFilePath: ".rooignore",
         fileContent: "*.log",
       });
 
-      expect(rooIgnore.getBaseDir()).toBe("/test/base");
+      expect(rooIgnore.getOutputRoot()).toBe("/test/base");
       expect(rooIgnore.getRelativeDirPath()).toBe("subdir");
       expect(rooIgnore.getRelativeFilePath()).toBe(".rooignore");
       expect(rooIgnore.getFilePath()).toBe("/test/base/subdir/.rooignore");
@@ -369,7 +369,7 @@ dist/
 
       // RooIgnore -> RulesyncIgnore -> RooIgnore
       const originalRooIgnore = new RooIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".rooignore",
         fileContent: originalContent,
@@ -377,12 +377,12 @@ dist/
 
       const rulesyncIgnore = originalRooIgnore.toRulesyncIgnore();
       const roundTripRooIgnore = RooIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
       expect(roundTripRooIgnore.getFileContent()).toBe(originalContent);
-      expect(roundTripRooIgnore.getBaseDir()).toBe(testDir);
+      expect(roundTripRooIgnore.getOutputRoot()).toBe(testDir);
       expect(roundTripRooIgnore.getRelativeDirPath()).toBe(".");
       expect(roundTripRooIgnore.getRelativeFilePath()).toBe(".rooignore");
     });
@@ -459,7 +459,7 @@ dist/
     it("should write and read file correctly", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const rooIgnore = new RooIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".rooignore",
         fileContent,
@@ -470,7 +470,7 @@ dist/
 
       // Read file back
       const readRooIgnore = await RooIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(readRooIgnore.getFileContent()).toBe(fileContent);
@@ -483,7 +483,7 @@ dist/
 
       const fileContent = "*.log\nbuild/";
       const rooIgnore = new RooIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "project/config",
         relativeFilePath: ".rooignore",
         fileContent,
@@ -493,7 +493,7 @@ dist/
       await writeFileContent(rooIgnore.getFilePath(), rooIgnore.getFileContent());
 
       const readRooIgnore = await RooIgnore.fromFile({
-        baseDir: join(testDir, "project/config"),
+        outputRoot: join(testDir, "project/config"),
       });
 
       expect(readRooIgnore.getFileContent()).toBe(fileContent);
@@ -560,7 +560,7 @@ temp*/
 
     it("should work in workspace root context", () => {
       const rooIgnore = RooIgnore.fromRulesyncIgnore({
-        baseDir: "/workspace/root",
+        outputRoot: "/workspace/root",
         rulesyncIgnore: new RulesyncIgnore({
           relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
           relativeFilePath: ".rulesignore",

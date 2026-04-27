@@ -34,16 +34,16 @@ describe("PermissionsProcessor", () => {
   });
 
   describe("constructor", () => {
-    it("should create instance with default baseDir", () => {
+    it("should create instance with default outputRoot", () => {
       const processor = new PermissionsProcessor({ logger, toolTarget: "claudecode" });
 
       expect(processor).toBeInstanceOf(PermissionsProcessor);
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const processor = new PermissionsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
 
@@ -54,7 +54,7 @@ describe("PermissionsProcessor", () => {
       expect(() => {
         const _instance = new PermissionsProcessor({
           logger,
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "invalid-target" as any,
         });
       }).toThrow();
@@ -64,7 +64,7 @@ describe("PermissionsProcessor", () => {
       expect(() => {
         const _instance = new PermissionsProcessor({
           logger,
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "claudecode",
         });
       }).not.toThrow();
@@ -103,7 +103,7 @@ describe("PermissionsProcessor", () => {
 
       const processor = new PermissionsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
 
@@ -116,7 +116,7 @@ describe("PermissionsProcessor", () => {
     it("should return empty array when permissions file does not exist", async () => {
       const processor = new PermissionsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
 
@@ -141,7 +141,7 @@ describe("PermissionsProcessor", () => {
 
       const processor = new PermissionsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
 
@@ -154,7 +154,7 @@ describe("PermissionsProcessor", () => {
     it("should return non-deletable files for forDeletion", async () => {
       const processor = new PermissionsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
 
@@ -176,7 +176,7 @@ describe("PermissionsProcessor", () => {
 
       const processor = new PermissionsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "opencode",
       });
 
@@ -201,7 +201,7 @@ default_permissions = "rulesync"
 
       const processor = new PermissionsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "codexcli",
       });
 
@@ -221,7 +221,7 @@ default_permissions = "rulesync"
 
       const processor = new PermissionsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "geminicli",
       });
 
@@ -247,7 +247,7 @@ default_permissions = "rulesync"
 
       const processor = new PermissionsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "kiro",
       });
 
@@ -261,7 +261,7 @@ default_permissions = "rulesync"
   describe("convertRulesyncFilesToToolFiles", () => {
     it("should convert rulesync permissions to Claude Code tool files", async () => {
       const rulesyncPermissions = new RulesyncPermissions({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
         fileContent: JSON.stringify({
@@ -274,7 +274,7 @@ default_permissions = "rulesync"
 
       const processor = new PermissionsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
 
@@ -292,7 +292,7 @@ default_permissions = "rulesync"
     it("should throw when no rulesync permissions file is provided", async () => {
       const processor = new PermissionsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
 
@@ -303,7 +303,7 @@ default_permissions = "rulesync"
 
     it("should generate .codex/config.toml and .codex/rules/rulesync.rules for Codex CLI", async () => {
       const rulesyncPermissions = new RulesyncPermissions({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
         fileContent: JSON.stringify({
@@ -316,7 +316,7 @@ default_permissions = "rulesync"
 
       const processor = new PermissionsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "codexcli",
       });
 
@@ -336,7 +336,7 @@ default_permissions = "rulesync"
   describe("convertToolFilesToRulesyncFiles", () => {
     it("should convert Claude Code permissions to rulesync format", async () => {
       const claudePermissions = new ClaudecodePermissions({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude",
         relativeFilePath: "settings.json",
         fileContent: JSON.stringify({
@@ -349,7 +349,7 @@ default_permissions = "rulesync"
 
       const processor = new PermissionsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
 
@@ -382,7 +382,7 @@ default_permissions = "rulesync"
 
       const processor = new PermissionsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
 

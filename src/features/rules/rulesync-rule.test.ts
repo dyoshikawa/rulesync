@@ -35,7 +35,7 @@ describe("RulesyncRule", () => {
       };
 
       const rule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "test.md",
         frontmatter,
@@ -54,7 +54,7 @@ describe("RulesyncRule", () => {
 
       expect(() => {
         const rule = new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: "rules",
           relativeFilePath: "test.md",
           frontmatter: invalidFrontmatter,
@@ -72,7 +72,7 @@ describe("RulesyncRule", () => {
 
       expect(() => {
         const rule = new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: "rules",
           relativeFilePath: "test.md",
           frontmatter: invalidFrontmatter,
@@ -87,7 +87,7 @@ describe("RulesyncRule", () => {
       const frontmatter: RulesyncRuleFrontmatterInput = {};
 
       const rule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "test.md",
         frontmatter,
@@ -107,7 +107,7 @@ describe("RulesyncRule", () => {
       };
 
       const rule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "local-root.md",
         frontmatter,
@@ -131,7 +131,7 @@ describe("RulesyncRule", () => {
       };
 
       const rule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "cursor-rule.md",
         frontmatter,
@@ -156,7 +156,7 @@ describe("RulesyncRule", () => {
       };
 
       const rule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "test.md",
         frontmatter,
@@ -172,7 +172,7 @@ describe("RulesyncRule", () => {
       const body = "This is the rule content\nwith multiple lines";
 
       const rule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "test.md",
         frontmatter: {},
@@ -193,7 +193,7 @@ describe("RulesyncRule", () => {
       };
 
       const rule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "test.md",
         frontmatter,
@@ -213,7 +213,7 @@ describe("RulesyncRule", () => {
       } as any;
 
       const rule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "test.md",
         frontmatter: invalidFrontmatter,
@@ -229,7 +229,7 @@ describe("RulesyncRule", () => {
     it("should return success when frontmatter is undefined", () => {
       // Create a rule with undefined frontmatter by bypassing the constructor
       const rule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "rules",
         relativeFilePath: "test.md",
         frontmatter: {} as any,
@@ -875,7 +875,7 @@ export interface ExampleInterface {
 
       // Test that the rule can be recreated with constructor
       const recreatedRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "integration-test.md",
         frontmatter: rule.getFrontmatter(),

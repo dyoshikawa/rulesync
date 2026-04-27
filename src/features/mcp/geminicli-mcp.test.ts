@@ -96,13 +96,13 @@ describe("GeminiCliMcp", () => {
       expect(geminiCliMcp.getFileContent()).toBe(validJsonContent);
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const validJsonContent = JSON.stringify({
         mcpServers: {},
       });
 
       const geminiCliMcp = new GeminiCliMcp({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".gemini",
         relativeFilePath: "settings.json",
         fileContent: validJsonContent,
@@ -205,7 +205,7 @@ describe("GeminiCliMcp", () => {
       );
 
       const geminiCliMcp = await GeminiCliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(geminiCliMcp).toBeInstanceOf(GeminiCliMcp);
@@ -215,7 +215,7 @@ describe("GeminiCliMcp", () => {
 
     it("should initialize empty mcpServers if file does not exist", async () => {
       const geminiCliMcp = await GeminiCliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(geminiCliMcp).toBeInstanceOf(GeminiCliMcp);
@@ -233,7 +233,7 @@ describe("GeminiCliMcp", () => {
       await writeFileContent(join(testDir, ".gemini/settings.json"), JSON.stringify(jsonData));
 
       const geminiCliMcp = await GeminiCliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(geminiCliMcp.getJson()).toEqual({
@@ -244,7 +244,7 @@ describe("GeminiCliMcp", () => {
       });
     });
 
-    it("should create instance from file with custom baseDir", async () => {
+    it("should create instance from file with custom outputRoot", async () => {
       const customDir = join(testDir, "custom");
       await ensureDir(join(customDir, ".gemini"));
 
@@ -259,7 +259,7 @@ describe("GeminiCliMcp", () => {
       await writeFileContent(join(customDir, ".gemini/settings.json"), JSON.stringify(jsonData));
 
       const geminiCliMcp = await GeminiCliMcp.fromFile({
-        baseDir: customDir,
+        outputRoot: customDir,
       });
 
       expect(geminiCliMcp.getFilePath()).toBe(join(customDir, ".gemini/settings.json"));
@@ -279,7 +279,7 @@ describe("GeminiCliMcp", () => {
       await writeFileContent(join(testDir, ".gemini/settings.json"), JSON.stringify(jsonData));
 
       const geminiCliMcp = await GeminiCliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: true,
       });
 
@@ -294,7 +294,7 @@ describe("GeminiCliMcp", () => {
       await writeFileContent(join(testDir, ".gemini/settings.json"), JSON.stringify(jsonData));
 
       const geminiCliMcp = await GeminiCliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
 
@@ -317,7 +317,7 @@ describe("GeminiCliMcp", () => {
       );
 
       const geminiCliMcp = await GeminiCliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -339,7 +339,7 @@ describe("GeminiCliMcp", () => {
       await writeFileContent(join(testDir, ".gemini/settings.json"), JSON.stringify(jsonData));
 
       const geminiCliMcp = await GeminiCliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: false,
       });
 
@@ -349,7 +349,7 @@ describe("GeminiCliMcp", () => {
 
     it("should initialize global config file if it does not exist", async () => {
       const geminiCliMcp = await GeminiCliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -379,7 +379,7 @@ describe("GeminiCliMcp", () => {
       );
 
       const geminiCliMcp = await GeminiCliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -415,7 +415,7 @@ describe("GeminiCliMcp", () => {
       });
 
       const geminiCliMcp = await GeminiCliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -425,7 +425,7 @@ describe("GeminiCliMcp", () => {
       expect(geminiCliMcp.getRelativeFilePath()).toBe("settings.json");
     });
 
-    it("should create instance from RulesyncMcp with custom baseDir", async () => {
+    it("should create instance from RulesyncMcp with custom outputRoot", async () => {
       const jsonData = {
         mcpServers: {
           "custom-server": {
@@ -438,7 +438,7 @@ describe("GeminiCliMcp", () => {
         },
       };
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
@@ -447,7 +447,7 @@ describe("GeminiCliMcp", () => {
       const customDir = join(testDir, "target");
       await ensureDir(customDir);
       const geminiCliMcp = await GeminiCliMcp.fromRulesyncMcp({
-        baseDir: customDir,
+        outputRoot: customDir,
         rulesyncMcp,
       });
 
@@ -471,7 +471,7 @@ describe("GeminiCliMcp", () => {
       });
 
       const geminiCliMcp = await GeminiCliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         validate: true,
       });
@@ -490,7 +490,7 @@ describe("GeminiCliMcp", () => {
       });
 
       const geminiCliMcp = await GeminiCliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         validate: false,
       });
@@ -509,7 +509,7 @@ describe("GeminiCliMcp", () => {
       });
 
       const geminiCliMcp = await GeminiCliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -532,7 +532,7 @@ describe("GeminiCliMcp", () => {
       });
 
       const geminiCliMcp = await GeminiCliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -559,7 +559,7 @@ describe("GeminiCliMcp", () => {
       });
 
       const geminiCliMcp = await GeminiCliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: false,
       });
@@ -604,7 +604,7 @@ describe("GeminiCliMcp", () => {
       });
 
       const geminiCliMcp = await GeminiCliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -657,7 +657,7 @@ describe("GeminiCliMcp", () => {
       });
 
       const geminiCliMcp = await GeminiCliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -729,7 +729,7 @@ describe("GeminiCliMcp", () => {
         },
       };
       const geminiCliMcp = new GeminiCliMcp({
-        baseDir: "/test/dir",
+        outputRoot: "/test/dir",
         relativeDirPath: ".gemini",
         relativeFilePath: "settings.json",
         fileContent: JSON.stringify(jsonData),
@@ -737,7 +737,7 @@ describe("GeminiCliMcp", () => {
 
       const rulesyncMcp = geminiCliMcp.toRulesyncMcp();
 
-      expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
+      expect(rulesyncMcp.getOutputRoot()).toBe("/test/dir");
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
         $schema: RULESYNC_MCP_SCHEMA_URL,
         ...jsonData,
@@ -901,7 +901,7 @@ describe("GeminiCliMcp", () => {
 
       // Step 1: Load from file
       const originalGeminiCliMcp = await GeminiCliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       // Step 2: Convert to RulesyncMcp
@@ -909,7 +909,7 @@ describe("GeminiCliMcp", () => {
 
       // Step 3: Create new GeminiCliMcp from RulesyncMcp
       const newGeminiCliMcp = await GeminiCliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -947,7 +947,7 @@ describe("GeminiCliMcp", () => {
 
       // Create GeminiCliMcp
       const geminiCliMcp = new GeminiCliMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini",
         relativeFilePath: "settings.json",
         fileContent: JSON.stringify(complexJsonData),
@@ -979,7 +979,7 @@ describe("GeminiCliMcp", () => {
 
       // Step 1: Load from global config
       const originalGeminiCliMcp = await GeminiCliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -988,7 +988,7 @@ describe("GeminiCliMcp", () => {
 
       // Step 3: Create new GeminiCliMcp from RulesyncMcp in global mode
       const newGeminiCliMcp = await GeminiCliMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -1006,7 +1006,7 @@ describe("GeminiCliMcp", () => {
 
       await expect(
         GeminiCliMcp.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });
@@ -1017,7 +1017,7 @@ describe("GeminiCliMcp", () => {
 
       await expect(
         GeminiCliMcp.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           global: true,
         }),
       ).rejects.toThrow();
@@ -1031,7 +1031,7 @@ describe("GeminiCliMcp", () => {
       await writeFileContent(join(testDir, ".gemini/settings.json"), JSON.stringify(jsonData));
 
       const geminiCliMcp = await GeminiCliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(geminiCliMcp.getJson().mcpServers).toEqual({});
@@ -1045,7 +1045,7 @@ describe("GeminiCliMcp", () => {
       await writeFileContent(join(testDir, ".gemini/settings.json"), JSON.stringify(jsonData));
 
       const geminiCliMcp = await GeminiCliMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(geminiCliMcp.getJson().mcpServers).toEqual({});
@@ -1058,7 +1058,7 @@ describe("GeminiCliMcp", () => {
 
       await expect(
         GeminiCliMcp.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });
@@ -1069,7 +1069,7 @@ describe("GeminiCliMcp", () => {
 
       await expect(
         GeminiCliMcp.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });

@@ -20,22 +20,22 @@ export class AgentsmdCommand extends SimulatedCommand {
   }
 
   static fromRulesyncCommand({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncCommand,
     validate = true,
   }: ToolCommandFromRulesyncCommandParams): AgentsmdCommand {
     return new AgentsmdCommand(
-      this.fromRulesyncCommandDefault({ baseDir, rulesyncCommand, validate }),
+      this.fromRulesyncCommandDefault({ outputRoot, rulesyncCommand, validate }),
     );
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolCommandFromFileParams): Promise<AgentsmdCommand> {
     const filePath = join(
-      baseDir,
+      outputRoot,
       AgentsmdCommand.getSettablePaths().relativeDirPath,
       relativeFilePath,
     );
@@ -48,7 +48,7 @@ export class AgentsmdCommand extends SimulatedCommand {
     }
 
     return new AgentsmdCommand({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       relativeDirPath: AgentsmdCommand.getSettablePaths().relativeDirPath,
       relativeFilePath,
       frontmatter: result.data,
@@ -65,12 +65,12 @@ export class AgentsmdCommand extends SimulatedCommand {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolCommandForDeletionParams): AgentsmdCommand {
     return new AgentsmdCommand(
-      this.forDeletionDefault({ baseDir, relativeDirPath, relativeFilePath }),
+      this.forDeletionDefault({ outputRoot, relativeDirPath, relativeFilePath }),
     );
   }
 }

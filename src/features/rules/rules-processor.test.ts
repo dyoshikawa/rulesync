@@ -42,7 +42,7 @@ describe("RulesProcessor", () => {
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "copilot-rule.md",
           frontmatter: {
@@ -51,7 +51,7 @@ describe("RulesProcessor", () => {
           body: "Copilot specific rule",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "cursor-rule.md",
           frontmatter: {
@@ -60,7 +60,7 @@ describe("RulesProcessor", () => {
           body: "Cursor specific rule",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "all-tools-rule.md",
           frontmatter: {
@@ -83,7 +83,7 @@ describe("RulesProcessor", () => {
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "copilot-rule.md",
           frontmatter: {
@@ -92,7 +92,7 @@ describe("RulesProcessor", () => {
           body: "Copilot specific rule",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "cursor-rule.md",
           frontmatter: {
@@ -112,7 +112,7 @@ describe("RulesProcessor", () => {
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "mixed-rule.md",
           frontmatter: {
@@ -121,7 +121,7 @@ describe("RulesProcessor", () => {
           body: "Mixed targets rule",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "other-rule.md",
           frontmatter: {
@@ -142,7 +142,7 @@ describe("RulesProcessor", () => {
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "no-targets.md",
           frontmatter: {},
@@ -162,7 +162,7 @@ describe("RulesProcessor", () => {
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "empty-targets.md",
           frontmatter: {
@@ -202,7 +202,7 @@ describe("RulesProcessor", () => {
 
         const rulesyncRules = [
           new RulesyncRule({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
             relativeFilePath: "targeted-rule.md",
             frontmatter: {
@@ -211,7 +211,7 @@ describe("RulesProcessor", () => {
             body: `${toolTarget} specific rule`,
           }),
           new RulesyncRule({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
             relativeFilePath: "non-targeted-rule.md",
             frontmatter: {
@@ -235,7 +235,7 @@ describe("RulesProcessor", () => {
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root-rule.md",
           frontmatter: {
@@ -247,7 +247,7 @@ describe("RulesProcessor", () => {
           body: "# Root rule content",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "feature-rule.md",
           frontmatter: {
@@ -259,7 +259,7 @@ describe("RulesProcessor", () => {
           body: "# Feature rule content",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "minimal-rule.md",
           frontmatter: {
@@ -293,7 +293,7 @@ describe("RulesProcessor", () => {
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: {
@@ -303,7 +303,7 @@ describe("RulesProcessor", () => {
           body: "# Root",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "no-metadata.md",
           frontmatter: {
@@ -328,7 +328,7 @@ describe("RulesProcessor", () => {
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: {
@@ -338,7 +338,7 @@ describe("RulesProcessor", () => {
           body: "# Root",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "quoted.md",
           frontmatter: {
@@ -365,7 +365,7 @@ describe("RulesProcessor", () => {
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: {
@@ -391,7 +391,7 @@ describe("RulesProcessor", () => {
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: {
@@ -403,7 +403,7 @@ describe("RulesProcessor", () => {
           body: "# Root content",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "feature.md",
           frontmatter: {
@@ -435,7 +435,7 @@ describe("RulesProcessor", () => {
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: {
@@ -445,7 +445,7 @@ describe("RulesProcessor", () => {
           body: "# Root content",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "feature.md",
           frontmatter: {
@@ -478,7 +478,7 @@ describe("RulesProcessor", () => {
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: {
@@ -499,7 +499,7 @@ describe("RulesProcessor", () => {
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: {
@@ -509,7 +509,7 @@ describe("RulesProcessor", () => {
           body: "# Root",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "multi-glob.md",
           frontmatter: {
@@ -547,12 +547,12 @@ describe("RulesProcessor", () => {
 
       const cursorProcessor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "cursor",
       });
       const claudecodeProcessor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
 
@@ -570,7 +570,11 @@ describe("RulesProcessor", () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Project from .claude dir");
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       const files = await processor.loadToolFiles();
       const rootFiles = files.filter((f) => f.getRelativeFilePath() === "CLAUDE.md");
@@ -585,7 +589,11 @@ describe("RulesProcessor", () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# .claude/CLAUDE.md");
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       const files = await processor.loadToolFiles();
       const rootFiles = files.filter((f) => f.getRelativeFilePath() === "CLAUDE.md");
@@ -600,7 +608,7 @@ describe("RulesProcessor", () => {
 
       const processor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode-legacy",
       });
 
@@ -612,7 +620,11 @@ describe("RulesProcessor", () => {
     });
 
     it("should return empty when neither ./CLAUDE.md nor .claude/CLAUDE.md exist", async () => {
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       const files = await processor.loadToolFiles();
       const rootFiles = files.filter((f) => f.getRelativeFilePath() === "CLAUDE.md");
@@ -629,7 +641,7 @@ describe("RulesProcessor", () => {
 
       const warnSpy = vi.spyOn(logger, "warn");
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "rovodev" });
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "rovodev" });
       const files = await processor.loadToolFiles();
       const nonRoot = files.filter(
         (f): f is RovodevRule => f instanceof RovodevRule && !f.isRoot(),
@@ -649,7 +661,7 @@ describe("RulesProcessor", () => {
         "# Frontend Rule",
       );
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "cursor" });
 
       const filesToDelete = await processor.loadToolFiles({
         forDeletion: true,
@@ -670,7 +682,7 @@ describe("RulesProcessor", () => {
 
       const processor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode-legacy",
       });
 
@@ -708,7 +720,7 @@ describe("RulesProcessor", () => {
       ];
 
       for (const target of targets) {
-        const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: target });
+        const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: target });
 
         const filesToDelete = await processor.loadToolFiles({
           forDeletion: true,
@@ -720,7 +732,11 @@ describe("RulesProcessor", () => {
     });
 
     it("should handle errors gracefully", async () => {
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       const filesToDelete = await processor.loadToolFiles({
         forDeletion: true,
@@ -744,7 +760,7 @@ Content that would fail parsing`;
 
       const processor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode-legacy",
       });
 
@@ -762,7 +778,11 @@ Content that would fail parsing`;
       await writeFileContent(join(testDir, "CLAUDE.md"), "# Root");
       await writeFileContent(join(testDir, "CLAUDE.local.md"), "# Local");
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       const filesToDelete = await processor.loadToolFiles({
         forDeletion: true,
@@ -779,7 +799,7 @@ Content that would fail parsing`;
 
       const processor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode-legacy",
       });
 
@@ -797,7 +817,7 @@ Content that would fail parsing`;
       await writeFileContent(join(testDir, ".rovodev", "AGENTS.md"), "# Root");
       await writeFileContent(join(testDir, "AGENTS.local.md"), "# Local");
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "rovodev" });
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "rovodev" });
 
       const filesToDelete = await processor.loadToolFiles({
         forDeletion: true,
@@ -812,7 +832,7 @@ Content that would fail parsing`;
       await writeFileContent(join(testDir, ".rovodev", "AGENTS.md"), "# Primary");
       await writeFileContent(join(testDir, "AGENTS.md"), "# Mirror");
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "rovodev" });
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "rovodev" });
 
       const filesToDelete = await processor.loadToolFiles({
         forDeletion: true,
@@ -828,7 +848,11 @@ Content that would fail parsing`;
       await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Root from .claude");
       await writeFileContent(join(testDir, ".claude", "CLAUDE.local.md"), "# Local from .claude");
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       const filesToDelete = await processor.loadToolFiles({
         forDeletion: true,
@@ -847,7 +871,11 @@ Content that would fail parsing`;
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Alternative Root");
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       const toolFiles = await processor.loadToolFiles();
 
@@ -921,7 +949,7 @@ Content that would fail parsing`;
       it("should accept global parameter", () => {
         const processor = new RulesProcessor({
           logger,
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "claudecode",
           global: true,
         });
@@ -932,7 +960,7 @@ Content that would fail parsing`;
       it("should default global to false when not specified", () => {
         const processor = new RulesProcessor({
           logger,
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "claudecode",
         });
 
@@ -944,7 +972,7 @@ Content that would fail parsing`;
       it("should accept global parameter in constructor", () => {
         const processor = new RulesProcessor({
           logger,
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "claudecode",
           global: true,
         });
@@ -957,14 +985,14 @@ Content that would fail parsing`;
       it("should convert using global paths when global=true for claudecode", async () => {
         const processor = new RulesProcessor({
           logger,
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "claudecode",
           global: true,
         });
 
         const rulesyncRules = [
           new RulesyncRule({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
             relativeFilePath: "root.md",
             frontmatter: {
@@ -986,14 +1014,14 @@ Content that would fail parsing`;
       it("should convert using global paths when global=true for codexcli", async () => {
         const processor = new RulesProcessor({
           logger,
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "codexcli",
           global: true,
         });
 
         const rulesyncRules = [
           new RulesyncRule({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
             relativeFilePath: "root.md",
             frontmatter: {
@@ -1015,14 +1043,14 @@ Content that would fail parsing`;
       it("should use regular paths when global=false", async () => {
         const processor = new RulesProcessor({
           logger,
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "claudecode",
           global: false,
         });
 
         const rulesyncRules = [
           new RulesyncRule({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
             relativeFilePath: "root.md",
             frontmatter: {
@@ -1072,7 +1100,11 @@ targets: ["*"]
 # Local 2`,
       );
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       await expect(processor.loadRulesyncFiles()).rejects.toThrow("Multiple localRoot rules found");
     });
@@ -1088,7 +1120,11 @@ targets: ["*"]
 # Local without root`,
       );
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       await expect(processor.loadRulesyncFiles()).rejects.toThrow(
         "localRoot: true requires a root: true rule to exist",
@@ -1116,7 +1152,7 @@ targets: ["*"]
 
       const processor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
         global: true,
       });
@@ -1129,7 +1165,7 @@ targets: ["*"]
       expect(rulesyncRule.getFrontmatter().root).toBe(true);
     });
 
-    it("should load rulesync files from cwd even when baseDir is different (global mode)", async () => {
+    it("should load rulesync files from cwd even when outputRoot is different (global mode)", async () => {
       await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
       await writeFileContent(
         join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
@@ -1140,13 +1176,13 @@ targets: ["*"]
 # Root rule`,
       );
 
-      // Use a different baseDir to simulate global mode (baseDir = homeDir)
-      const differentBaseDir = join(testDir, "fake-home");
-      await ensureDir(differentBaseDir);
+      // Use a different outputRoot to simulate global mode (outputRoot = homeDir)
+      const differentOutputRoot = join(testDir, "fake-home");
+      await ensureDir(differentOutputRoot);
 
       const processor = new RulesProcessor({
         logger,
-        baseDir: differentBaseDir,
+        outputRoot: differentOutputRoot,
         toolTarget: "claudecode",
         global: true,
       });
@@ -1160,11 +1196,15 @@ targets: ["*"]
 
   describe("localRoot content generation", () => {
     it("should generate CLAUDE.local.md for claudecode", async () => {
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: {
@@ -1174,7 +1214,7 @@ targets: ["*"]
           body: "# Root content",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "local.md",
           frontmatter: {
@@ -1206,13 +1246,13 @@ targets: ["*"]
     it("should generate CLAUDE.local.md for claudecode-legacy", async () => {
       const processor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode-legacy",
       });
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: {
@@ -1222,7 +1262,7 @@ targets: ["*"]
           body: "# Root content",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "local.md",
           frontmatter: {
@@ -1252,11 +1292,11 @@ targets: ["*"]
     });
 
     it("should write .rovodev/AGENTS.md and mirror ./AGENTS.md for rovodev project mode", async () => {
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "rovodev" });
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "rovodev" });
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: {
@@ -1289,11 +1329,11 @@ targets: ["*"]
     });
 
     it("should generate AGENTS.local.md for rovodev localRoot rule", async () => {
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "rovodev" });
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "rovodev" });
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: {
@@ -1303,7 +1343,7 @@ targets: ["*"]
           body: "# Root",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "local.md",
           frontmatter: {
@@ -1325,11 +1365,11 @@ targets: ["*"]
     });
 
     it("should append localRoot content to root file for other tools", async () => {
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "copilot" });
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "copilot" });
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: {
@@ -1339,7 +1379,7 @@ targets: ["*"]
           body: "# Root content",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "local.md",
           frontmatter: {
@@ -1364,14 +1404,14 @@ targets: ["*"]
     it("should skip localRoot content when includeLocalRoot is false", async () => {
       const processor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "copilot",
         featureOptions: { includeLocalRoot: false },
       });
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: {
@@ -1381,7 +1421,7 @@ targets: ["*"]
           body: "# Root content",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "local.md",
           frontmatter: {
@@ -1403,21 +1443,21 @@ targets: ["*"]
     it("should include localRoot content when includeLocalRoot is explicitly true", async () => {
       const processor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "copilot",
         featureOptions: { includeLocalRoot: true },
       });
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: { root: true, targets: ["*"] },
           body: "# Root content",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "local.md",
           frontmatter: { localRoot: true, targets: ["*"] },
@@ -1434,21 +1474,21 @@ targets: ["*"]
     it("should throw when includeLocalRoot is not a boolean", async () => {
       const processor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "copilot",
         featureOptions: { includeLocalRoot: "false" as unknown as boolean },
       });
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: { root: true, targets: ["*"] },
           body: "# Root",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "local.md",
           frontmatter: { localRoot: true, targets: ["*"] },
@@ -1464,21 +1504,21 @@ targets: ["*"]
     it("should coexist with ruleDiscoveryMode option", async () => {
       const processor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
         featureOptions: { includeLocalRoot: false, ruleDiscoveryMode: "explicit" },
       });
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: { root: true, targets: ["*"] },
           body: "# Root content",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "local.md",
           frontmatter: { localRoot: true, targets: ["*"] },
@@ -1494,14 +1534,14 @@ targets: ["*"]
     it("should not generate localRoot rule in global mode", async () => {
       const processor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
         global: true,
       });
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: {
@@ -1511,7 +1551,7 @@ targets: ["*"]
           body: "# Root content",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "local.md",
           frontmatter: {
@@ -1531,11 +1571,15 @@ targets: ["*"]
     });
 
     it("should filter out localRoot when target does not match", async () => {
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       const rulesyncRules = [
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "root.md",
           frontmatter: {
@@ -1545,7 +1589,7 @@ targets: ["*"]
           body: "# Root content",
         }),
         new RulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "local.md",
           frontmatter: {
@@ -1580,7 +1624,7 @@ targets: ["agentsmd", "opencode"]
       // Process agentsmd first
       const agentsMdProcessor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "agentsmd",
       });
       const agentsMdRulesyncFiles = await agentsMdProcessor.loadRulesyncFiles();
@@ -1596,7 +1640,7 @@ targets: ["agentsmd", "opencode"]
       // Process opencode second (should overwrite)
       const openCodeProcessor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "opencode",
       });
       const openCodeRulesyncFiles = await openCodeProcessor.loadRulesyncFiles();
@@ -1628,7 +1672,7 @@ targets: ["opencode", "agentsmd"]
       // Process opencode first
       const openCodeProcessor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "opencode",
       });
       const openCodeRulesyncFiles = await openCodeProcessor.loadRulesyncFiles();
@@ -1639,7 +1683,7 @@ targets: ["opencode", "agentsmd"]
       // Process agentsmd second (should overwrite)
       const agentsMdProcessor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "agentsmd",
       });
       const agentsMdRulesyncFiles = await agentsMdProcessor.loadRulesyncFiles();
@@ -1666,7 +1710,11 @@ targets: ["*"]
 # Feature rule`,
       );
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
       const paths = rulesyncFiles.map((file) => file.getRelativeFilePath());
@@ -1687,7 +1735,11 @@ targets: ["*"]
 
       const warnSpy = vi.spyOn(logger, "warn");
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       await processor.loadRulesyncFiles();
 
@@ -1709,7 +1761,11 @@ targets: ["*"]
 
       const warnSpy = vi.spyOn(logger, "warn");
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       await processor.loadRulesyncFiles();
 
@@ -1724,7 +1780,11 @@ targets: ["*"]
 
       const warnSpy = vi.spyOn(logger, "warn");
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       await processor.loadRulesyncFiles();
 
@@ -1754,7 +1814,11 @@ targets: ["opencode"]
 # OpenCode Root`,
       );
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       const result = await processor.loadRulesyncFiles();
       const rootRules = result.filter((r) => r instanceof RulesyncRule && r.getFrontmatter().root);
@@ -1781,7 +1845,11 @@ targets: ["claudecode"]
 # Root 2`,
       );
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       await expect(processor.loadRulesyncFiles()).rejects.toThrow(
         "Multiple root rulesync rules found for target 'claudecode'",
@@ -1807,7 +1875,11 @@ targets: ["claudecode"]
 # Claude Root`,
       );
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       await expect(processor.loadRulesyncFiles()).rejects.toThrow(
         "Multiple root rulesync rules found for target 'claudecode'",
@@ -1834,7 +1906,11 @@ targets: ["opencode"]
       );
 
       // From claudecode's perspective, only the wildcard root matches
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       const result = await processor.loadRulesyncFiles();
       const rootRules = result.filter((r) => r instanceof RulesyncRule && r.getFrontmatter().root);
@@ -1863,7 +1939,7 @@ targets: ["opencode"]
 
       const processor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
         global: true,
       });
@@ -1893,7 +1969,11 @@ targets: ["claudecode"]
 
       const warnSpy = vi.spyOn(logger, "warn");
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       await processor.loadRulesyncFiles();
 
@@ -1930,7 +2010,11 @@ targets: ["opencode"]
       );
 
       // claudecode sees only one localRoot targeting it — no error
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       const result = await processor.loadRulesyncFiles();
       expect(result).toBeDefined();
@@ -1956,7 +2040,7 @@ targets: ["copilot"]
 
       const processor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "copilot",
         global: true,
       });
@@ -1991,7 +2075,7 @@ targets: ["claudecode"]
 
       const processor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
         global: true,
       });
@@ -2031,7 +2115,7 @@ targets: ["claudecode"]
 
       const processor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "copilot",
         global: true,
       });
@@ -2067,7 +2151,7 @@ targets: ["copilot"]
 
       const processor = new RulesProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "copilot",
         global: true,
       });
@@ -2113,7 +2197,11 @@ targets: ["claudecode"]
 # Local without matching root`,
       );
 
-      const processor = new RulesProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
 
       await expect(processor.loadRulesyncFiles()).rejects.toThrow(
         "localRoot: true requires a root: true rule to exist for target 'claudecode'",

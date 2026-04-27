@@ -36,14 +36,14 @@ export class KiroPermissions extends ToolPermissions {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
   }: ToolPermissionsFromFileParams): Promise<KiroPermissions> {
     const paths = this.getSettablePaths();
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
     return new KiroPermissions({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -52,13 +52,13 @@ export class KiroPermissions extends ToolPermissions {
   }
 
   static async fromRulesyncPermissions({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncPermissions,
     validate = true,
     logger,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<KiroPermissions> {
     const paths = this.getSettablePaths();
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
 
     const parsedResult = KiroAgentSchema.safeParse(JSON.parse(existingContent));
@@ -72,7 +72,7 @@ export class KiroPermissions extends ToolPermissions {
     const next = buildKiroPermissionsFromRulesync({ config, logger, existing: parsedResult.data });
 
     return new KiroPermissions({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent: JSON.stringify(next, null, 2),
@@ -139,12 +139,12 @@ export class KiroPermissions extends ToolPermissions {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolPermissionsForDeletionParams): KiroPermissions {
     return new KiroPermissions({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: JSON.stringify({}, null, 2),

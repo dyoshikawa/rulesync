@@ -53,7 +53,7 @@ export class WarpRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<WarpRule> {
@@ -61,10 +61,10 @@ export class WarpRule extends ToolRule {
     const relativePath = isRoot
       ? this.getSettablePaths().root.relativeFilePath
       : join(this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(join(baseDir, relativePath));
+    const fileContent = await readFileContent(join(outputRoot, relativePath));
 
     return new WarpRule({
-      baseDir,
+      outputRoot,
       relativeDirPath: isRoot ? this.getSettablePaths().root.relativeDirPath : ".warp",
       relativeFilePath: isRoot ? this.getSettablePaths().root.relativeFilePath : relativeFilePath,
       fileContent,
@@ -74,13 +74,13 @@ export class WarpRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): WarpRule {
     return new WarpRule(
       this.buildToolRuleParamsDefault({
-        baseDir,
+        outputRoot,
         rulesyncRule,
         validate,
         rootPath: this.getSettablePaths().root,
@@ -98,14 +98,14 @@ export class WarpRule extends ToolRule {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): WarpRule {
     const isRoot = relativeFilePath === this.getSettablePaths().root.relativeFilePath;
 
     return new WarpRule({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "",
