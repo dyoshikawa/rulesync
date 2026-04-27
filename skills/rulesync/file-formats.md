@@ -125,7 +125,7 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 | `beforeTabFileRead`    |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
 | `afterTabFileEdit`     |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
 | `beforeToolSelection`  |   —    |      —      |    —     |  —   |    —    |       —       |     ✅     |     —     |     —      |
-| `permissionRequest`    |   —    |     ✅      |    ✅    |  ✅  |    —    |      ✅       |     —      |     —     |     ✅     |
+| `permissionRequest`    |   —    |     ✅      |    ✅    |  ✅  |    —    |      ✅       |     —      |    ✅     |     ✅     |
 | `notification`         |   —    |     ✅      |    —     |  —   |    —    |      ✅       |     ✅     |     —     |     —      |
 | `setup`                |   —    |     ✅      |    —     |  —   |    —    |      ✅       |     —      |     —     |     —      |
 | `worktreeCreate`       |   —    |     ✅      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
