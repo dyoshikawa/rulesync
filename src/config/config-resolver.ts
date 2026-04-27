@@ -13,7 +13,7 @@ import {
   resolvePath,
   validateBaseDir,
 } from "../utils/file.js";
-import type { Logger } from "../utils/logger.js";
+import { type Logger, warnWithFallback } from "../utils/logger.js";
 import {
   assertTargetsFeaturesExclusive,
   Config,
@@ -142,24 +142,17 @@ export class ConfigResolver {
     // deterministic and independent of any later `process.chdir()` calls.
     const cwd = resolve(process.cwd());
 
-    // Fall back to `console.warn` when no logger is supplied so warnings
-    // surface to the user rather than being silently dropped.
-    const warn = (message: string): void => {
-      if (logger) {
-        logger.warn(message);
-      } else {
-        // oxlint-disable-next-line no-console
-        console.warn(message);
-      }
-    };
-
     // Validate configPath to prevent path traversal attacks
     // When inputRoot is set, resolve the config path relative to it so that
     // the user's central .rulesync source dir is also the config source.
-    // Resolve and validate inputRoot first — a relative inputRoot would make
-    // the traversal checks in resolvePath unreliable.
+    // Validate the *raw* inputRoot first so traversal patterns like
+    // `/foo/../bar` cannot slip through `resolve()`'s normalization. We do
+    // not validate cwd itself because cwd is trusted process state, not
+    // attacker-controlled input.
+    if (inputRoot !== undefined) {
+      validateBaseDir(inputRoot);
+    }
     const configBaseDir = resolve(inputRoot ?? cwd);
-    validateBaseDir(configBaseDir);
     const validatedConfigPath = resolvePath(configPath, configBaseDir);
 
     // Load base config (rulesync.jsonc)
@@ -179,7 +172,7 @@ export class ConfigResolver {
     // above. We only validate when CLI/programmatic `inputRoot` is not set
     // (otherwise `configBaseDir` already covered that case).
     if (inputRoot === undefined && configByFile.inputRoot !== undefined) {
-      validateBaseDir(resolve(configByFile.inputRoot));
+      validateBaseDir(configByFile.inputRoot);
     }
 
     // Per-file `assertTargetsFeaturesExclusive` in `loadConfigFromFile` only
@@ -213,14 +206,15 @@ export class ConfigResolver {
     // moving from CLI flag to config-file form sees consistent behavior.
     const resolvedInputRoot = inputRoot ?? configByFile.inputRoot;
     if (resolvedInputRoot !== undefined && global === undefined && configByFile.global === true) {
-      warn(
-        `Ignoring "global: true" from ${validatedConfigPath} because an inputRoot ` +
-          `was configured; pass global=true (CLI: --global) to keep user-scope output. ` +
-          `Output will be project-scope (global=false).`,
+      warnWithFallback(
+        logger,
+        `Ignoring "global: true" from ${JSON.stringify(validatedConfigPath)} because ` +
+          `an inputRoot was configured; pass global=true (CLI: --global) to keep ` +
+          `user-scope output. Output will be project-scope (global=false).`,
       );
     }
     const configGlobal = resolvedInputRoot !== undefined ? false : configByFile.global;
-    const resolvedGlobal = global ?? configGlobal ?? getDefaults().global ?? false;
+    const resolvedGlobal = global ?? configGlobal ?? getDefaults().global;
     const resolvedSimulateCommands =
       simulateCommands ?? configByFile.simulateCommands ?? getDefaults().simulateCommands;
     const resolvedSimulateSubagents =
@@ -302,12 +296,12 @@ function getBaseDirsInLightOfGlobal({
     return [getHomeDirectory()];
   }
 
-  const resolvedBaseDirs = baseDirs.map((baseDir) => resolve(baseDir));
-
-  // Validate each baseDir for security
-  resolvedBaseDirs.forEach((baseDir) => {
+  // Validate the *raw* user input first so traversal patterns like
+  // `/foo/../bar` cannot slip through `resolve()`'s normalization. Then
+  // resolve to absolute for downstream consumers.
+  baseDirs.forEach((baseDir) => {
     validateBaseDir(baseDir);
   });
 
-  return resolvedBaseDirs;
+  return baseDirs.map((baseDir) => resolve(baseDir));
 }

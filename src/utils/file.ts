@@ -286,7 +286,10 @@ export function getHomeDirectory(): string {
  *   because that is almost certainly a misconfiguration, not a real source
  *   directory.
  * - For relative paths: applies `checkPathTraversal` against the current
- *   working directory.
+ *   working directory. Benign no-op shortcuts like `.`, `./`, and `.\\` are
+ *   accepted because they don't escape cwd; resolver paths typically pre-
+ *   resolve to absolute first, so the relative branch mostly serves direct
+ *   programmatic callers.
  *
  * Note: callers that need to validate a path while in a different "intended
  * root" should resolve it to absolute first and then pass it here, or use
@@ -336,18 +339,11 @@ export function validateBaseDir(baseDir: string): void {
   }
 
   // Relative-path branch. `checkPathTraversal` rejects values that escape
-  // `process.cwd()`, but allows no-op directories like `.` and `./` because
-  // they don't escape — those are still useless as `baseDir` values (they
-  // mean "the current working directory," which is precisely what callers
-  // get for free by omitting the option). Reject them explicitly so we
-  // surface the misconfiguration instead of silently mapping to cwd.
-  if (baseDir === "." || baseDir === "./" || baseDir === ".\\") {
-    throw new Error(
-      `baseDir must not be the current directory shortcut "${baseDir}". ` +
-        `Pass a specific project directory instead, or omit the option to use cwd.`,
-    );
-  }
-
+  // `process.cwd()`, while allowing benign no-op shortcuts like `.` and `./`.
+  // Those shortcuts are functionally equivalent to omitting the option and
+  // have always been accepted by the resolver path (which `resolve()`s before
+  // calling here), so we accept them in direct programmatic callers too to
+  // avoid an accidental breaking change.
   checkPathTraversal({ relativePath: baseDir, intendedRootDir: process.cwd() });
 }
 

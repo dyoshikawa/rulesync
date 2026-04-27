@@ -87,6 +87,7 @@ The `generate` command reads source files from `.rulesync/` and writes AI tool c
 | `--global`                  | Generate for global (user-scope) configuration files                                      | `false`               |
 | `--simulate-commands`       | Generate simulated commands for tools that do not support them natively                   | `false`               |
 | `--simulate-subagents`      | Generate simulated subagents for tools that do not support them natively                  | `false`               |
+| `--simulate-skills`         | Generate simulated skills for tools that do not support them natively                     | `false`               |
 | `--delete`                  | Delete existing generated files before writing                                            | From `rulesync.jsonc` |
 
 ### Examples

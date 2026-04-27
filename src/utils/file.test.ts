@@ -698,17 +698,21 @@ describe("file utilities", () => {
       });
     });
 
-    describe("should reject current-directory shortcuts", () => {
-      it("should reject `.`", () => {
-        expect(() => validateBaseDir(".")).toThrow(/must not be the current directory shortcut/);
+    describe("should accept current-directory shortcuts", () => {
+      // These are functionally equivalent to omitting the option. Resolver
+      // paths normalize them via `resolve()` before validation, but direct
+      // programmatic callers can pass them too — accept them to avoid a
+      // surprise breaking change.
+      it("should accept `.`", () => {
+        expect(() => validateBaseDir(".")).not.toThrow();
       });
 
-      it("should reject `./`", () => {
-        expect(() => validateBaseDir("./")).toThrow(/must not be the current directory shortcut/);
+      it("should accept `./`", () => {
+        expect(() => validateBaseDir("./")).not.toThrow();
       });
 
-      it("should reject `.\\` (Windows-style)", () => {
-        expect(() => validateBaseDir(".\\")).toThrow(/must not be the current directory shortcut/);
+      it("should accept `.\\`", () => {
+        expect(() => validateBaseDir(".\\")).not.toThrow();
       });
     });
 

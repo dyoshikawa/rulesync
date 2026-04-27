@@ -4,7 +4,11 @@ import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import type { Logger } from "../../utils/logger.js";
 import { calculateTotalCount } from "../../utils/result.js";
 
-export type ImportOptions = Omit<ConfigResolverResolveParams, "delete" | "baseDirs">;
+// `inputRoot` is intentionally excluded: it only affects where source rules
+// are *read from* during `generate`, and `import` does not consume them. Keeping
+// it in the option type would be misleading and would surface a noisy
+// "Ignoring global: true" warning from the resolver during `import`.
+export type ImportOptions = Omit<ConfigResolverResolveParams, "delete" | "baseDirs" | "inputRoot">;
 
 export async function importCommand(logger: Logger, options: ImportOptions): Promise<void> {
   if (!options.targets) {
@@ -24,7 +28,7 @@ export async function importCommand(logger: Logger, options: ImportOptions): Pro
     throw new CLIError("Only one tool can be imported at a time", ErrorCodes.IMPORT_FAILED);
   }
 
-  const config = await ConfigResolver.resolve(options);
+  const config = await ConfigResolver.resolve(options, { logger });
 
   // eslint-disable-next-line no-type-assertion/no-type-assertion
   const tool = config.getTargets()[0]!;

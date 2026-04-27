@@ -297,12 +297,17 @@ export class Config {
     this.gitignoreDestination = gitignoreDestination ?? "gitignore";
     this.dryRun = dryRun ?? false;
     this.check = check ?? false;
-    // Capture the input root once at construction time. When no `inputRoot`
-    // was provided we snapshot `process.cwd()` so subsequent `getInputRoot()`
-    // calls are pure (independent of any later `chdir`). Relative `inputRoot`
-    // values are resolved against the current working directory eagerly for
-    // the same reason. The schema accepts relative paths because they're a
-    // legitimate input form; we normalize them here.
+    // Capture the input root once at construction time so subsequent
+    // `getInputRoot()` calls are pure (independent of any later `chdir`).
+    // Relative `inputRoot` values are resolved against the current working
+    // directory eagerly for the same reason; the schema accepts them because
+    // they're a legitimate input form, and we normalize them here.
+    //
+    // The `process.cwd()` fallback only fires for direct programmatic
+    // construction (e.g. `new Config({ ... })` in tests or `src/lib/init.ts`).
+    // The standard `ConfigResolver.resolve` path always supplies a
+    // pre-resolved absolute `inputRoot`, so this branch is unreachable from
+    // the CLI / programmatic-API surface.
     this.inputRoot =
       inputRoot === undefined
         ? process.cwd()
