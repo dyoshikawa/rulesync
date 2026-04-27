@@ -210,6 +210,65 @@ prompt = "Unclosed string`;
       expect(rulesyncCommand.getRelativeFilePath()).toBe("test-command.toml");
     });
 
+    it("should translate {{args}} back to $ARGUMENTS", () => {
+      const tomlContent = `description = "Args"
+prompt = """
+Focus on {{args}}.
+"""`;
+      const command = new GeminiCliCommand({
+        outputRoot: testDir,
+        relativeDirPath: ".gemini/commands",
+        relativeFilePath: "args.toml",
+        fileContent: tomlContent,
+        validate: true,
+      });
+
+      const rulesyncCommand = command.toRulesyncCommand();
+
+      expect(rulesyncCommand.getBody()).toBe("Focus on $ARGUMENTS.\n");
+    });
+
+    it("should translate !{cmd} back to !`cmd`", () => {
+      const tomlContent = `description = "Shell"
+prompt = """
+Run !{git status} and report.
+"""`;
+      const command = new GeminiCliCommand({
+        outputRoot: testDir,
+        relativeDirPath: ".gemini/commands",
+        relativeFilePath: "shell.toml",
+        fileContent: tomlContent,
+        validate: true,
+      });
+
+      const rulesyncCommand = command.toRulesyncCommand();
+
+      expect(rulesyncCommand.getBody()).toBe("Run !`git status` and report.\n");
+    });
+
+    it("should round-trip rulesync -> gemini -> rulesync preserving syntax", () => {
+      const originalBody = "Diff: !`git diff`\nFocus on $ARGUMENTS.";
+      const rulesyncCommand = new RulesyncCommand({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "round-trip.md",
+        frontmatter: { targets: ["geminicli"], description: "Round trip" },
+        body: originalBody,
+        fileContent: "",
+        validate: true,
+      });
+
+      const geminiCommand = GeminiCliCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand,
+        validate: true,
+      });
+
+      const restored = geminiCommand.toRulesyncCommand();
+
+      expect(restored.getBody()).toBe(`${originalBody}\n`);
+    });
+
     it("should convert to RulesyncCommand with empty description", () => {
       const command = new GeminiCliCommand({
         outputRoot: testDir,
@@ -280,6 +339,87 @@ prompt = "Unclosed string`;
       });
 
       expect(geminiCommand.getRelativeFilePath()).toBe("complex-command.toml");
+    });
+
+    it("should translate $ARGUMENTS to {{args}}", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "args.md",
+        frontmatter: { targets: ["geminicli"], description: "Args" },
+        body: "Focus on $ARGUMENTS.",
+        fileContent: "",
+        validate: true,
+      });
+
+      const geminiCommand = GeminiCliCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand,
+        validate: true,
+      });
+
+      expect(geminiCommand.getBody()).toBe("Focus on {{args}}.\n");
+      expect(geminiCommand.getFileContent()).toContain("Focus on {{args}}.");
+    });
+
+    it("should translate multiple occurrences of $ARGUMENTS", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "args-multi.md",
+        frontmatter: { targets: ["geminicli"], description: "Args multi" },
+        body: "First: $ARGUMENTS. Second: $ARGUMENTS.",
+        fileContent: "",
+        validate: true,
+      });
+
+      const geminiCommand = GeminiCliCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand,
+        validate: true,
+      });
+
+      expect(geminiCommand.getBody()).toBe("First: {{args}}. Second: {{args}}.\n");
+    });
+
+    it("should translate !`cmd` shell expansion to !{cmd}", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "shell.md",
+        frontmatter: { targets: ["geminicli"], description: "Shell" },
+        body: "Run !`git status` and report.",
+        fileContent: "",
+        validate: true,
+      });
+
+      const geminiCommand = GeminiCliCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand,
+        validate: true,
+      });
+
+      expect(geminiCommand.getBody()).toBe("Run !{git status} and report.\n");
+    });
+
+    it("should translate combined shell expansion and arguments", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "combined.md",
+        frontmatter: { targets: ["geminicli"], description: "Combined" },
+        body: "Diff: !`git diff`\nFocus on $ARGUMENTS.",
+        fileContent: "",
+        validate: true,
+      });
+
+      const geminiCommand = GeminiCliCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand,
+        validate: true,
+      });
+
+      expect(geminiCommand.getBody()).toBe("Diff: !{git diff}\nFocus on {{args}}.\n");
     });
   });
 

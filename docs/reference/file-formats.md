@@ -200,6 +200,8 @@ Execute the following in parallel:
 ...
 ```
 
+The command body itself uses a Claude Code-compatible **universal syntax** (e.g. `$ARGUMENTS`, `` !`cmd` ``). When a target tool expects a different placeholder syntax, rulesync translates it automatically on generation and reverses the translation on import. See [Command Syntax](./command-syntax.md) for the full mapping.
+
 ## `rulesync/subagents/*.md`
 
 Example:

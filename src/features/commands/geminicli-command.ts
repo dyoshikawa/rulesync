@@ -22,6 +22,18 @@ export const GeminiCliCommandFrontmatterSchema = z.looseObject({
   prompt: z.string(),
 });
 
+// Translate rulesync universal command syntax (Claude Code compatible) into
+// Gemini CLI's native syntax. See docs/reference/command-syntax.md.
+function translateRulesyncBodyToGemini(body: string): string {
+  return body.replace(/!`([^`\n]+)`/g, "!{$1}").replace(/\$ARGUMENTS\b/g, "{{args}}");
+}
+
+// Inverse of translateRulesyncBodyToGemini, used when importing a Gemini CLI
+// command file back into rulesync's universal syntax.
+function translateGeminiBodyToRulesync(body: string): string {
+  return body.replace(/!\{([^}\n]+)\}/g, "!`$1`").replace(/\{\{\s*args\s*\}\}/g, "$ARGUMENTS");
+}
+
 export type GeminiCliCommandFrontmatter = z.infer<typeof GeminiCliCommandFrontmatterSchema>;
 
 export type GeminiCliCommandParams = {
@@ -89,13 +101,15 @@ export class GeminiCliCommand extends ToolCommand {
       ...(Object.keys(restFields).length > 0 && { geminicli: restFields }),
     };
 
+    const universalBody = translateGeminiBodyToRulesync(this.body);
+
     // Generate proper file content with Rulesync specific frontmatter
-    const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
+    const fileContent = stringifyFrontmatter(universalBody, rulesyncFrontmatter);
 
     return new RulesyncCommand({
       outputRoot: process.cwd(), // RulesyncCommand outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
-      body: this.body,
+      body: universalBody,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
       fileContent,
@@ -114,9 +128,14 @@ export class GeminiCliCommand extends ToolCommand {
     // Merge geminicli-specific fields from rulesync frontmatter
     const geminicliFields = rulesyncFrontmatter.geminicli ?? {};
 
+    // Translate universal command syntax to Gemini CLI's native syntax. If the
+    // user provided an explicit `geminicli.prompt` override, respect it as-is to
+    // avoid double-translation when they intentionally hand-write Gemini syntax.
+    const translatedPrompt = translateRulesyncBodyToGemini(rulesyncCommand.getBody());
+
     const geminiFrontmatter: GeminiCliCommandFrontmatter = {
       description: rulesyncFrontmatter.description,
-      prompt: rulesyncCommand.getBody(),
+      prompt: translatedPrompt,
       ...geminicliFields,
     };
 

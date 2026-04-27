@@ -53,6 +53,6 @@ rulesync generate --targets "*" --features "*"
 
 - [Installation](./installation.md), [Quick Start](./quick-start.md)
 - [Why Rulesync?](./why-rulesync.md), [Configuration](./configuration.md), [Global Mode](./global-mode.md), [Separate Input Root](./separate-input-root.md), [Simulated Features](./simulated-features.md), [Declarative Sources](./declarative-sources.md), [Official Skills](./official-skills.md), [Dry Run](./dry-run.md), [Case Studies](./case-studies.md)
-- [Supported Tools](./supported-tools.md), [CLI Commands](./cli-commands.md), [File Formats](./file-formats.md), [MCP Server](./mcp-server.md)
+- [Supported Tools](./supported-tools.md), [CLI Commands](./cli-commands.md), [File Formats](./file-formats.md), [Command Syntax](./command-syntax.md), [MCP Server](./mcp-server.md)
 - [Programmatic API](./programmatic-api.md)
 - [FAQ](./faq.md)
