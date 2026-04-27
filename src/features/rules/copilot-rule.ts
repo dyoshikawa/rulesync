@@ -171,7 +171,7 @@ export class CopilotRule extends ToolRule {
       // Root file: .github/copilot-instructions.md (no frontmatter for root file)
       return new CopilotRule({
         baseDir: baseDir,
-        frontmatter: copilotFrontmatter,
+        frontmatter: {},
         body,
         relativeDirPath: paths.root.relativeDirPath,
         relativeFilePath: paths.root.relativeFilePath,
