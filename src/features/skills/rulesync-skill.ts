@@ -100,7 +100,7 @@ export type RulesyncSkillFrontmatter = z.infer<typeof RulesyncSkillFrontmatterSc
 export type SkillFile = AiDirFile;
 
 export type RulesyncSkillParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
   frontmatter: RulesyncSkillFrontmatterInput;
@@ -115,7 +115,7 @@ export type RulesyncSkillSettablePaths = {
 };
 
 export type RulesyncSkillFromDirParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
   global?: boolean;
@@ -127,7 +127,7 @@ export type RulesyncSkillFromDirParams = {
  */
 export class RulesyncSkill extends AiDir {
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath = RULESYNC_SKILLS_RELATIVE_DIR_PATH,
     dirName,
     frontmatter,
@@ -137,7 +137,7 @@ export class RulesyncSkill extends AiDir {
     global = false,
   }: RulesyncSkillParams) {
     super({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       mainFile: {
@@ -159,7 +159,7 @@ export class RulesyncSkill extends AiDir {
 
   static getSettablePaths(): RulesyncSkillSettablePaths {
     // Rulesync skills use the same relative path for both project and global modes
-    // The actual location differs based on baseDir:
+    // The actual location differs based on outputRoot:
     // - Project mode: {process.cwd()}/.rulesync/skills/
     // - Global mode: {getHomeDirectory()}/.rulesync/skills/
     return {
@@ -194,12 +194,12 @@ export class RulesyncSkill extends AiDir {
   }
 
   static async fromDir({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath = RULESYNC_SKILLS_RELATIVE_DIR_PATH,
     dirName,
     global = false,
   }: RulesyncSkillFromDirParams): Promise<RulesyncSkill> {
-    const skillDirPath = join(baseDir, relativeDirPath, dirName);
+    const skillDirPath = join(outputRoot, relativeDirPath, dirName);
     const skillFilePath = join(skillDirPath, SKILL_FILE_NAME);
 
     if (!(await fileExists(skillFilePath))) {
@@ -214,14 +214,14 @@ export class RulesyncSkill extends AiDir {
       throw new Error(`Invalid frontmatter in ${skillFilePath}: ${formatError(result.error)}`);
     }
     const otherFiles = await this.collectOtherFiles(
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       SKILL_FILE_NAME,
     );
 
     return new RulesyncSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       frontmatter: result.data,

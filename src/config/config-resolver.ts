@@ -11,7 +11,7 @@ import {
   getHomeDirectory,
   readFileContent,
   resolvePath,
-  validateBaseDir,
+  validateOutputRoot,
 } from "../utils/file.js";
 import { type Logger, warnWithFallback } from "../utils/logger.js";
 import {
@@ -23,14 +23,24 @@ import {
   PartialConfigParams,
   RequiredConfigParams,
 } from "./config.js";
-import { emitFeaturesObjectFormDeprecationWarning } from "./deprecation-warnings.js";
+import {
+  emitBaseDirsConfigFieldDeprecationWarning,
+  emitFeaturesObjectFormDeprecationWarning,
+} from "./deprecation-warnings.js";
 
 /**
  * CLI-resolvable params exclude `sources` — sources are config-file-only.
+ *
+ * `baseDirs` is a deprecated alias for `outputRoots` accepted at the resolver
+ * boundary for backward compatibility. When provided, the resolver emits a
+ * one-shot deprecation warning and maps it to `outputRoots`. If both are
+ * present, `outputRoots` wins. Will be removed in a future major release.
  */
 export type ConfigResolverResolveParams = Partial<
   Omit<ConfigParams, "sources"> & {
     configPath: string;
+    /** @deprecated Use `outputRoots` instead. */
+    baseDirs: string[];
   }
 >;
 
@@ -48,7 +58,7 @@ const getDefaults = (): ConfigDefaults => ({
   features: ["rules"],
   verbose: false,
   delete: false,
-  baseDirs: [process.cwd()],
+  outputRoots: [process.cwd()],
   configPath: RULESYNC_CONFIG_RELATIVE_FILE_PATH,
   global: false,
   silent: false,
@@ -72,7 +82,17 @@ const loadConfigFromFile = async (filePath: string): Promise<PartialConfigParams
   // Parse with ConfigFileSchema to allow $schema property, then extract config params
   const parsed: ConfigFile = ConfigFileSchema.parse(jsonData);
   // Exclude $schema from config params
-  const { $schema: _schema, ...configParams } = parsed;
+  const { $schema: _schema, baseDirs: deprecatedBaseDirs, ...configParams } = parsed;
+  // Map the deprecated `baseDirs` field to the canonical `outputRoots`.
+  // If both are present, `outputRoots` wins (consistent with the precedence
+  // rule documented at the resolver boundary). Either way, emit a one-shot
+  // deprecation warning so users know to migrate.
+  if (deprecatedBaseDirs !== undefined) {
+    emitBaseDirsConfigFieldDeprecationWarning();
+    if (configParams.outputRoots === undefined) {
+      configParams.outputRoots = deprecatedBaseDirs;
+    }
+  }
   // Enforce mutual-exclusivity between object-form `targets` and
   // `features` on the user-authored file (before defaults are merged).
   assertTargetsFeaturesExclusive({
@@ -87,7 +107,7 @@ const loadConfigFromFile = async (filePath: string): Promise<PartialConfigParams
 // lives in a separate module so `Config` (in `./config.js`) can also invoke
 // it without creating a circular import on the resolver.
 export { resetDeprecationWarningForTests } from "./deprecation-warnings.js";
-export { emitFeaturesObjectFormDeprecationWarning };
+export { emitBaseDirsConfigFieldDeprecationWarning, emitFeaturesObjectFormDeprecationWarning };
 
 const mergeConfigs = (
   baseConfig: PartialConfigParams,
@@ -100,7 +120,7 @@ const mergeConfigs = (
     features: localConfig.features ?? baseConfig.features,
     verbose: localConfig.verbose ?? baseConfig.verbose,
     delete: localConfig.delete ?? baseConfig.delete,
-    baseDirs: localConfig.baseDirs ?? baseConfig.baseDirs,
+    outputRoots: localConfig.outputRoots ?? baseConfig.outputRoots,
     global: localConfig.global ?? baseConfig.global,
     silent: localConfig.silent ?? baseConfig.silent,
     simulateCommands: localConfig.simulateCommands ?? baseConfig.simulateCommands,
@@ -123,7 +143,8 @@ export class ConfigResolver {
       features,
       verbose,
       delete: isDelete,
-      baseDirs,
+      outputRoots,
+      baseDirs: deprecatedBaseDirs,
       configPath = getDefaults().configPath,
       global,
       silent,
@@ -138,6 +159,15 @@ export class ConfigResolver {
     }: ConfigResolverResolveParams,
     { logger }: { logger?: Logger } = {},
   ): Promise<Config> {
+    // Map the deprecated programmatic `baseDirs` alias to `outputRoots`.
+    // If both are supplied, `outputRoots` wins; either way emit a one-shot
+    // deprecation warning so callers know to migrate.
+    if (deprecatedBaseDirs !== undefined) {
+      emitBaseDirsConfigFieldDeprecationWarning();
+      if (outputRoots === undefined) {
+        outputRoots = deprecatedBaseDirs;
+      }
+    }
     // Capture cwd once at the entry point so the resolved config is
     // deterministic and independent of any later `process.chdir()` calls.
     const cwd = resolve(process.cwd());
@@ -150,10 +180,10 @@ export class ConfigResolver {
     // not validate cwd itself because cwd is trusted process state, not
     // attacker-controlled input.
     if (inputRoot !== undefined) {
-      validateBaseDir(inputRoot);
+      validateOutputRoot(inputRoot);
     }
-    const configBaseDir = resolve(inputRoot ?? cwd);
-    const validatedConfigPath = resolvePath(configPath, configBaseDir);
+    const configOutputRoot = resolve(inputRoot ?? cwd);
+    const validatedConfigPath = resolvePath(configPath, configOutputRoot);
 
     // Load base config (rulesync.jsonc)
     const baseConfig = await loadConfigFromFile(validatedConfigPath);
@@ -168,11 +198,11 @@ export class ConfigResolver {
     const configByFile = mergeConfigs(baseConfig, localConfig);
 
     // Validate `inputRoot` coming from a config file too — symmetric with the
-    // CLI/programmatic flow, which validates the resolved `configBaseDir`
+    // CLI/programmatic flow, which validates the resolved `configOutputRoot`
     // above. We only validate when CLI/programmatic `inputRoot` is not set
-    // (otherwise `configBaseDir` already covered that case).
+    // (otherwise `configOutputRoot` already covered that case).
     if (inputRoot === undefined && configByFile.inputRoot !== undefined) {
-      validateBaseDir(configByFile.inputRoot);
+      validateOutputRoot(configByFile.inputRoot);
     }
 
     // Per-file `assertTargetsFeaturesExclusive` in `loadConfigFromFile` only
@@ -257,8 +287,8 @@ export class ConfigResolver {
       features: resolvedFeatures,
       verbose: verbose ?? configByFile.verbose ?? getDefaults().verbose,
       delete: isDelete ?? configByFile.delete ?? getDefaults().delete,
-      baseDirs: getBaseDirsInLightOfGlobal({
-        baseDirs: baseDirs ?? configByFile.baseDirs ?? getDefaults().baseDirs,
+      outputRoots: getOutputRootsInLightOfGlobal({
+        outputRoots: outputRoots ?? configByFile.outputRoots ?? getDefaults().outputRoots,
         global: resolvedGlobal,
       }),
       global: resolvedGlobal,
@@ -284,11 +314,11 @@ export class ConfigResolver {
   }
 }
 
-function getBaseDirsInLightOfGlobal({
-  baseDirs,
+function getOutputRootsInLightOfGlobal({
+  outputRoots,
   global,
 }: {
-  baseDirs: string[];
+  outputRoots: string[];
   global: boolean;
 }): string[] {
   if (global) {
@@ -299,9 +329,9 @@ function getBaseDirsInLightOfGlobal({
   // Validate the *raw* user input first so traversal patterns like
   // `/foo/../bar` cannot slip through `resolve()`'s normalization. Then
   // resolve to absolute for downstream consumers.
-  baseDirs.forEach((baseDir) => {
-    validateBaseDir(baseDir);
+  outputRoots.forEach((outputRoot) => {
+    validateOutputRoot(outputRoot);
   });
 
-  return baseDirs.map((baseDir) => resolve(baseDir));
+  return outputRoots.map((outputRoot) => resolve(outputRoot));
 }

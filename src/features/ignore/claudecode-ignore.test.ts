@@ -100,7 +100,7 @@ describe("ClaudecodeIgnore", () => {
       expect(claudecodeIgnore.getPatterns()).toEqual([]);
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const jsonContent = JSON.stringify(
         {
           permissions: {
@@ -112,7 +112,7 @@ describe("ClaudecodeIgnore", () => {
       );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".claude",
         relativeFilePath: "settings.json",
         fileContent: jsonContent,
@@ -178,7 +178,7 @@ describe("ClaudecodeIgnore", () => {
       });
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
         options: { fileMode: "local" },
       });
@@ -207,7 +207,7 @@ describe("ClaudecodeIgnore", () => {
       });
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
         options: { fileMode: "local" },
       });
@@ -243,7 +243,7 @@ describe("ClaudecodeIgnore", () => {
       );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude",
         relativeFilePath: "settings.json",
         fileContent: jsonContent,
@@ -270,7 +270,7 @@ describe("ClaudecodeIgnore", () => {
       );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude",
         relativeFilePath: "settings.json",
         fileContent: jsonContent,
@@ -293,7 +293,7 @@ describe("ClaudecodeIgnore", () => {
       );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude",
         relativeFilePath: "settings.json",
         fileContent: jsonContent,
@@ -316,7 +316,7 @@ describe("ClaudecodeIgnore", () => {
       );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude",
         relativeFilePath: "settings.json",
         fileContent: jsonContent,
@@ -338,12 +338,12 @@ describe("ClaudecodeIgnore", () => {
       });
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
       expect(claudecodeIgnore).toBeInstanceOf(ClaudecodeIgnore);
-      expect(claudecodeIgnore.getBaseDir()).toBe(testDir);
+      expect(claudecodeIgnore.getOutputRoot()).toBe(testDir);
       expect(claudecodeIgnore.getRelativeDirPath()).toBe(".claude");
       expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.json");
 
@@ -378,7 +378,7 @@ describe("ClaudecodeIgnore", () => {
       });
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
@@ -400,7 +400,7 @@ describe("ClaudecodeIgnore", () => {
       });
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
@@ -437,7 +437,7 @@ describe("ClaudecodeIgnore", () => {
       });
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
@@ -470,7 +470,7 @@ describe("ClaudecodeIgnore", () => {
       });
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
@@ -500,7 +500,7 @@ describe("ClaudecodeIgnore", () => {
       });
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
@@ -517,7 +517,7 @@ describe("ClaudecodeIgnore", () => {
       });
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
@@ -537,7 +537,7 @@ describe("ClaudecodeIgnore", () => {
       });
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
@@ -549,7 +549,7 @@ describe("ClaudecodeIgnore", () => {
       });
     });
 
-    it("should use default baseDir when not provided", async () => {
+    it("should use default outputRoot when not provided", async () => {
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
@@ -557,11 +557,11 @@ describe("ClaudecodeIgnore", () => {
       });
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
-      expect(claudecodeIgnore.getBaseDir()).toBe(testDir);
+      expect(claudecodeIgnore.getOutputRoot()).toBe(testDir);
 
       const jsonValue = JSON.parse(claudecodeIgnore.getFileContent());
       expect(jsonValue.permissions.deny).toEqual(["Read(*.tmp)"]);
@@ -585,11 +585,11 @@ describe("ClaudecodeIgnore", () => {
       await writeFileContent(join(claudeDir, "settings.json"), jsonContent);
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(claudecodeIgnore).toBeInstanceOf(ClaudecodeIgnore);
-      expect(claudecodeIgnore.getBaseDir()).toBe(testDir);
+      expect(claudecodeIgnore.getOutputRoot()).toBe(testDir);
       expect(claudecodeIgnore.getRelativeDirPath()).toBe(".claude");
       expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.json");
       expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)", "Read(node_modules/**)"]);
@@ -611,7 +611,7 @@ describe("ClaudecodeIgnore", () => {
       await writeFileContent(join(claudeDir, "settings.json"), jsonContent);
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(claudecodeIgnore.getFileContent()).toBe(jsonContent);
@@ -633,7 +633,7 @@ describe("ClaudecodeIgnore", () => {
       await writeFileContent(join(claudeDir, "settings.json"), jsonContent);
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
 
@@ -661,14 +661,14 @@ describe("ClaudecodeIgnore", () => {
       await writeFileContent(join(claudeDir, "settings.json"), jsonContent);
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(claudecodeIgnore.getFileContent()).toBe(jsonContent);
       expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)", "Read(secrets/**)"]);
     });
 
-    it("should default baseDir to process.cwd() when not provided", async () => {
+    it("should default outputRoot to process.cwd() when not provided", async () => {
       // process.cwd() is already mocked to return testDir in beforeEach
       const jsonContent = JSON.stringify(
         {
@@ -686,14 +686,14 @@ describe("ClaudecodeIgnore", () => {
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromFile({});
 
-      expect(claudecodeIgnore.getBaseDir()).toBe(testDir);
+      expect(claudecodeIgnore.getOutputRoot()).toBe(testDir);
       expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)"]);
     });
 
     it("should throw error when shared settings file does not exist", async () => {
       await expect(
         ClaudecodeIgnore.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow("File not found");
     });
@@ -710,7 +710,7 @@ describe("ClaudecodeIgnore", () => {
       );
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         options: { fileMode: "local" },
       });
 
@@ -727,7 +727,7 @@ describe("ClaudecodeIgnore", () => {
       );
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         options: { fileMode: "local" },
       });
 
@@ -748,7 +748,7 @@ describe("ClaudecodeIgnore", () => {
       });
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
@@ -779,7 +779,7 @@ describe("ClaudecodeIgnore", () => {
       });
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
@@ -982,13 +982,13 @@ describe("ClaudecodeIgnore", () => {
       );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: ".claude",
         relativeFilePath: "settings.json",
         fileContent: jsonContent,
       });
 
-      expect(claudecodeIgnore.getBaseDir()).toBe("/test/base");
+      expect(claudecodeIgnore.getOutputRoot()).toBe("/test/base");
       expect(claudecodeIgnore.getRelativeDirPath()).toBe(".claude");
       expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.json");
       expect(claudecodeIgnore.getFilePath()).toBe("/test/base/.claude/settings.json");
@@ -1009,7 +1009,7 @@ describe("ClaudecodeIgnore", () => {
       );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude",
         relativeFilePath: "settings.json",
         fileContent: jsonContent,
@@ -1020,7 +1020,7 @@ describe("ClaudecodeIgnore", () => {
       await writeFileContent(claudecodeIgnore.getFilePath(), claudecodeIgnore.getFileContent());
 
       const readClaudecodeIgnore = await ClaudecodeIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(readClaudecodeIgnore.getFileContent()).toBe(jsonContent);
@@ -1042,7 +1042,7 @@ describe("ClaudecodeIgnore", () => {
       );
 
       const claudecodeIgnore = new ClaudecodeIgnore({
-        baseDir: subDir,
+        outputRoot: subDir,
         relativeDirPath: ".claude",
         relativeFilePath: "settings.json",
         fileContent: jsonContent,
@@ -1053,7 +1053,7 @@ describe("ClaudecodeIgnore", () => {
       await writeFileContent(claudecodeIgnore.getFilePath(), claudecodeIgnore.getFileContent());
 
       const readClaudecodeIgnore = await ClaudecodeIgnore.fromFile({
-        baseDir: subDir,
+        outputRoot: subDir,
       });
 
       expect(readClaudecodeIgnore.getFileContent()).toBe(jsonContent);
@@ -1090,7 +1090,7 @@ describe("ClaudecodeIgnore", () => {
       });
 
       const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 

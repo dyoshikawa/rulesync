@@ -28,7 +28,7 @@ export const CodexCliSkillFrontmatterSchema = z.looseObject({
 export type CodexCliSkillFrontmatter = z.infer<typeof CodexCliSkillFrontmatterSchema>;
 
 export type CodexCliSkillParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
   frontmatter: CodexCliSkillFrontmatter;
@@ -45,7 +45,7 @@ export type CodexCliSkillParams = {
  */
 export class CodexCliSkill extends ToolSkill {
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath = join(".codex", "skills"),
     dirName,
     frontmatter,
@@ -55,7 +55,7 @@ export class CodexCliSkill extends ToolSkill {
     global = false,
   }: CodexCliSkillParams) {
     super({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       mainFile: {
@@ -79,7 +79,7 @@ export class CodexCliSkill extends ToolSkill {
     global: _global = false,
   }: { global?: boolean } = {}): ToolSkillSettablePaths {
     // Codex CLI skills use the same relative path for both project and global modes
-    // The actual location differs based on baseDir:
+    // The actual location differs based on outputRoot:
     // - Project mode: {process.cwd()}/.codex/skills/
     // - Global mode: {$CODEX_HOME}/skills/ (typically ~/.codex/skills/)
     return {
@@ -131,7 +131,7 @@ export class CodexCliSkill extends ToolSkill {
     };
 
     return new RulesyncSkill({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
       dirName: this.getDirName(),
       frontmatter: rulesyncFrontmatter,
@@ -143,7 +143,7 @@ export class CodexCliSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -162,7 +162,7 @@ export class CodexCliSkill extends ToolSkill {
     };
 
     return new CodexCliSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: codexFrontmatter,
@@ -186,14 +186,14 @@ export class CodexCliSkill extends ToolSkill {
 
     const result = CodexCliSkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
-      const skillDirPath = join(loaded.baseDir, loaded.relativeDirPath, loaded.dirName);
+      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
         `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
       );
     }
 
     return new CodexCliSkill({
-      baseDir: loaded.baseDir,
+      outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
       frontmatter: result.data,
@@ -205,13 +205,13 @@ export class CodexCliSkill extends ToolSkill {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): CodexCliSkill {
     return new CodexCliSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },

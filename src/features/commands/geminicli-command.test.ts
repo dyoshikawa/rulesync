@@ -47,7 +47,7 @@ prompt = "Unclosed string`;
   describe("constructor", () => {
     it("should create instance with valid TOML content", () => {
       const command = new GeminiCliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/commands",
         relativeFilePath: "test-command.toml",
         fileContent: validTomlContent,
@@ -66,7 +66,7 @@ prompt = "Unclosed string`;
 
     it("should create instance with TOML content without description", () => {
       const command = new GeminiCliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/commands",
         relativeFilePath: "test-command.toml",
         fileContent: validTomlWithoutDescription,
@@ -84,7 +84,7 @@ prompt = "Unclosed string`;
       expect(
         () =>
           new GeminiCliCommand({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeDirPath: ".gemini/commands",
             relativeFilePath: "invalid-command.toml",
             fileContent: invalidTomlContent,
@@ -97,7 +97,7 @@ prompt = "Unclosed string`;
       expect(
         () =>
           new GeminiCliCommand({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeDirPath: ".gemini/commands",
             relativeFilePath: "malformed-command.toml",
             fileContent: malformedTomlContent,
@@ -110,7 +110,7 @@ prompt = "Unclosed string`;
   describe("parseTomlContent", () => {
     it("should parse valid TOML with all fields", () => {
       const command = new GeminiCliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/commands",
         relativeFilePath: "test-command.toml",
         fileContent: validTomlContent,
@@ -126,7 +126,7 @@ prompt = "Unclosed string`;
 
     it("should parse TOML with optional description missing", () => {
       const command = new GeminiCliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/commands",
         relativeFilePath: "test-command.toml",
         fileContent: validTomlWithoutDescription,
@@ -142,7 +142,7 @@ prompt = "Unclosed string`;
       expect(
         () =>
           new GeminiCliCommand({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeDirPath: ".gemini/commands",
             relativeFilePath: "invalid-command.toml",
             fileContent: `description = "Test description"`,
@@ -155,7 +155,7 @@ prompt = "Unclosed string`;
   describe("getBody", () => {
     it("should return the prompt content as body", () => {
       const command = new GeminiCliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/commands",
         relativeFilePath: "test-command.toml",
         fileContent: validTomlContent,
@@ -171,7 +171,7 @@ prompt = "Unclosed string`;
   describe("getFrontmatter", () => {
     it("should return frontmatter with description and prompt", () => {
       const command = new GeminiCliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/commands",
         relativeFilePath: "test-command.toml",
         fileContent: validTomlContent,
@@ -189,7 +189,7 @@ prompt = "Unclosed string`;
   describe("toRulesyncCommand", () => {
     it("should convert to RulesyncCommand with correct frontmatter", () => {
       const command = new GeminiCliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/commands",
         relativeFilePath: "test-command.toml",
         fileContent: validTomlContent,
@@ -212,7 +212,7 @@ prompt = "Unclosed string`;
 
     it("should convert to RulesyncCommand with empty description", () => {
       const command = new GeminiCliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/commands",
         relativeFilePath: "test-command.toml",
         fileContent: validTomlWithoutDescription,
@@ -231,7 +231,7 @@ prompt = "Unclosed string`;
   describe("fromRulesyncCommand", () => {
     it("should create GeminiCliCommand from RulesyncCommand", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-command.md",
         frontmatter: {
@@ -244,7 +244,7 @@ prompt = "Unclosed string`;
       });
 
       const geminiCommand = GeminiCliCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
         validate: true,
       });
@@ -261,7 +261,7 @@ prompt = "Unclosed string`;
 
     it("should handle RulesyncCommand with .md extension replacement", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "complex-command.md",
         frontmatter: {
@@ -274,7 +274,7 @@ prompt = "Unclosed string`;
       });
 
       const geminiCommand = GeminiCliCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
         validate: true,
       });
@@ -291,7 +291,7 @@ prompt = "Unclosed string`;
       await writeFileContent(filePath, validTomlContent);
 
       const command = await GeminiCliCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test-file-command.toml",
         validate: true,
       });
@@ -314,7 +314,7 @@ prompt = "Unclosed string`;
       await writeFileContent(filePath, validTomlContent);
 
       const command = await GeminiCliCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "subdir/nested-command.toml",
         validate: true,
       });
@@ -325,7 +325,7 @@ prompt = "Unclosed string`;
     it("should throw error when file does not exist", async () => {
       await expect(
         GeminiCliCommand.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "non-existent-command.toml",
           validate: true,
         }),
@@ -340,7 +340,7 @@ prompt = "Unclosed string`;
 
       await expect(
         GeminiCliCommand.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "invalid-command.toml",
           validate: true,
         }),
@@ -351,7 +351,7 @@ prompt = "Unclosed string`;
   describe("validate", () => {
     it("should return success for valid TOML content", () => {
       const command = new GeminiCliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/commands",
         relativeFilePath: "valid-command.toml",
         fileContent: validTomlContent,
@@ -365,7 +365,7 @@ prompt = "Unclosed string`;
 
     it("should return error for invalid TOML content", () => {
       const command = new GeminiCliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/commands",
         relativeFilePath: "invalid-command.toml",
         fileContent: `prompt = """
@@ -385,7 +385,7 @@ Valid prompt content
 
     it("should return error for malformed TOML content", () => {
       const command = new GeminiCliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/commands",
         relativeFilePath: "malformed-command.toml",
         fileContent: validTomlContent,
@@ -447,7 +447,7 @@ Valid prompt content
 prompt = ""`;
 
       const command = new GeminiCliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/commands",
         relativeFilePath: "empty-prompt.toml",
         fileContent: emptyPromptToml,
@@ -470,7 +470,7 @@ And escaped quotes: "Hello "World""
 """`;
 
       const command = new GeminiCliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/commands",
         relativeFilePath: "special-char.toml",
         fileContent: specialCharToml,
@@ -490,7 +490,7 @@ ${longPrompt}
 """`;
 
       const command = new GeminiCliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/commands",
         relativeFilePath: "long-prompt.toml",
         fileContent: longPromptToml,
@@ -505,7 +505,7 @@ ${longPrompt}
   describe("isTargetedByRulesyncCommand", () => {
     it("should return true for rulesync command with wildcard target", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], description: "Test" },
@@ -519,7 +519,7 @@ ${longPrompt}
 
     it("should return true for rulesync command with geminicli target", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["geminicli"], description: "Test" },
@@ -533,7 +533,7 @@ ${longPrompt}
 
     it("should return true for rulesync command with geminicli and other targets", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor", "geminicli", "cline"], description: "Test" },
@@ -547,7 +547,7 @@ ${longPrompt}
 
     it("should return false for rulesync command with different target", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], description: "Test" },
@@ -561,7 +561,7 @@ ${longPrompt}
 
     it("should return true for rulesync command with no targets specified", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: undefined, description: "Test" } as any,
@@ -577,7 +577,7 @@ ${longPrompt}
   describe("forDeletion", () => {
     it("should create instance for deletion with empty content", () => {
       const command = GeminiCliCommand.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/commands",
         relativeFilePath: "to-delete.toml",
       });
@@ -592,14 +592,14 @@ ${longPrompt}
       expect(command.getRelativeFilePath()).toBe("to-delete.toml");
     });
 
-    it("should use process.cwd() as default baseDir", () => {
+    it("should use process.cwd() as default outputRoot", () => {
       const command = GeminiCliCommand.forDeletion({
         relativeDirPath: ".gemini/commands",
         relativeFilePath: "to-delete.toml",
       });
 
       expect(command).toBeInstanceOf(GeminiCliCommand);
-      expect(command.getBaseDir()).toBe(testDir); // testDir is mocked as process.cwd()
+      expect(command.getOutputRoot()).toBe(testDir); // testDir is mocked as process.cwd()
     });
   });
 });

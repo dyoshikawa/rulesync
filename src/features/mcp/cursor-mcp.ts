@@ -99,12 +99,12 @@ export class CursorMcp extends ToolMcp {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
     global = false,
   }: ToolMcpFromFileParams): Promise<CursorMcp> {
     const paths = this.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? '{"mcpServers":{}}';
     let json: Record<string, unknown>;
     try {
@@ -118,7 +118,7 @@ export class CursorMcp extends ToolMcp {
     const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
 
     return new CursorMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent: JSON.stringify(newJson, null, 2),
@@ -128,7 +128,7 @@ export class CursorMcp extends ToolMcp {
   }
 
   static async fromRulesyncMcp({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncMcp,
     validate = true,
     global = false,
@@ -136,7 +136,7 @@ export class CursorMcp extends ToolMcp {
     const paths = this.getSettablePaths({ global });
 
     const fileContent = await readOrInitializeFileContent(
-      join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
+      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       JSON.stringify({ mcpServers: {} }, null, 2),
     );
     let json: Record<string, unknown>;
@@ -156,7 +156,7 @@ export class CursorMcp extends ToolMcp {
     const cursorConfig = { ...json, mcpServers: transformedServers };
 
     return new CursorMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent: JSON.stringify(cursorConfig, null, 2),
@@ -184,13 +184,13 @@ export class CursorMcp extends ToolMcp {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
     global = false,
   }: ToolMcpForDeletionParams): CursorMcp {
     return new CursorMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "{}",

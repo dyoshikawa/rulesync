@@ -78,20 +78,20 @@ export class TaktRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
     relativeDirPath: overrideDirPath,
   }: ToolRuleFromFileParams): Promise<TaktRule> {
     const dirPath = overrideDirPath ?? join(".takt", "facets", DEFAULT_TAKT_RULE_DIR);
-    const filePath = join(baseDir, dirPath, relativeFilePath);
+    const filePath = join(outputRoot, dirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     // Strip frontmatter when present (TAKT files are plain Markdown by spec, but
     // tolerate stray frontmatter on import for forward-compat).
     const { body } = parseFrontmatter(fileContent, filePath);
 
     return new TaktRule({
-      baseDir,
+      outputRoot,
       relativeDirPath: dirPath,
       relativeFilePath,
       body: body.trim(),
@@ -101,12 +101,12 @@ export class TaktRule extends ToolRule {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): TaktRule {
     return new TaktRule({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       body: "",
@@ -116,7 +116,7 @@ export class TaktRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): TaktRule {
@@ -133,7 +133,7 @@ export class TaktRule extends ToolRule {
     const relativeDirPath = join(".takt", "facets", DEFAULT_TAKT_RULE_DIR);
 
     return new TaktRule({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       body: rulesyncRule.getBody(),

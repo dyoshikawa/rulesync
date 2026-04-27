@@ -55,12 +55,12 @@ describe("DeepagentsHooks", () => {
       });
       await writeFileContent(join(deepagentsDir, "hooks.json"), content);
 
-      const hooks = await DeepagentsHooks.fromFile({ baseDir: testDir });
+      const hooks = await DeepagentsHooks.fromFile({ outputRoot: testDir });
       expect(hooks.getFileContent()).toContain("session.start");
     });
 
     it("should return empty hooks if file does not exist", async () => {
-      const hooks = await DeepagentsHooks.fromFile({ baseDir: testDir });
+      const hooks = await DeepagentsHooks.fromFile({ outputRoot: testDir });
       const parsed = JSON.parse(hooks.getFileContent());
       expect(parsed.hooks).toEqual([]);
     });
@@ -77,13 +77,13 @@ describe("DeepagentsHooks", () => {
       });
 
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync",
         relativeFilePath: "hooks.json",
         fileContent: rulesyncHooksContent,
       });
 
-      const hooks = DeepagentsHooks.fromRulesyncHooks({ baseDir: testDir, rulesyncHooks });
+      const hooks = DeepagentsHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
       const parsed = JSON.parse(hooks.getFileContent());
 
       expect(Array.isArray(parsed.hooks)).toBe(true);
@@ -112,13 +112,13 @@ describe("DeepagentsHooks", () => {
       });
 
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync",
         relativeFilePath: "hooks.json",
         fileContent: rulesyncHooksContent,
       });
 
-      const hooks = DeepagentsHooks.fromRulesyncHooks({ baseDir: testDir, rulesyncHooks });
+      const hooks = DeepagentsHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
       const parsed = JSON.parse(hooks.getFileContent());
 
       // Only the command hook should be present
@@ -137,13 +137,13 @@ describe("DeepagentsHooks", () => {
       });
 
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync",
         relativeFilePath: "hooks.json",
         fileContent: rulesyncHooksContent,
       });
 
-      const hooks = DeepagentsHooks.fromRulesyncHooks({ baseDir: testDir, rulesyncHooks });
+      const hooks = DeepagentsHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
       const parsed = JSON.parse(hooks.getFileContent());
 
       expect(parsed.hooks.length).toBe(1);
@@ -164,13 +164,13 @@ describe("DeepagentsHooks", () => {
       });
 
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync",
         relativeFilePath: "hooks.json",
         fileContent: rulesyncHooksContent,
       });
 
-      const hooks = DeepagentsHooks.fromRulesyncHooks({ baseDir: testDir, rulesyncHooks });
+      const hooks = DeepagentsHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
       const parsed = JSON.parse(hooks.getFileContent());
 
       // The override replaces the shared hook for sessionStart
@@ -192,7 +192,7 @@ describe("DeepagentsHooks", () => {
       });
 
       const hooks = new DeepagentsHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".deepagents",
         relativeFilePath: "hooks.json",
         fileContent: deepagentsContent,
@@ -218,7 +218,7 @@ describe("DeepagentsHooks", () => {
       });
 
       const hooks = new DeepagentsHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".deepagents",
         relativeFilePath: "hooks.json",
         fileContent: deepagentsContent,
@@ -233,7 +233,7 @@ describe("DeepagentsHooks", () => {
 
     it("should skip malformed hook entries", () => {
       const hooks = new DeepagentsHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".deepagents",
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify({
@@ -248,7 +248,7 @@ describe("DeepagentsHooks", () => {
 
     it("should join command parts when bash fallback pattern is not used", () => {
       const hooks = new DeepagentsHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".deepagents",
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify({
@@ -267,7 +267,7 @@ describe("DeepagentsHooks", () => {
   describe("forDeletion", () => {
     it("should create a placeholder hooks file for deletion", () => {
       const hooks = DeepagentsHooks.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".deepagents",
         relativeFilePath: "hooks.json",
       });

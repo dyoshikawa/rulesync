@@ -23,7 +23,7 @@ const KiroSkillFrontmatterSchema = z.looseObject({
 type KiroSkillFrontmatter = z.infer<typeof KiroSkillFrontmatterSchema>;
 
 type KiroSkillParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
   frontmatter: KiroSkillFrontmatter;
@@ -39,7 +39,7 @@ type KiroSkillParams = {
  */
 export class KiroSkill extends ToolSkill {
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath = join(".kiro", "skills"),
     dirName,
     frontmatter,
@@ -49,7 +49,7 @@ export class KiroSkill extends ToolSkill {
     global = false,
   }: KiroSkillParams) {
     super({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       mainFile: {
@@ -126,7 +126,7 @@ export class KiroSkill extends ToolSkill {
     };
 
     return new RulesyncSkill({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
       dirName: this.getDirName(),
       frontmatter: rulesyncFrontmatter,
@@ -138,7 +138,7 @@ export class KiroSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -152,7 +152,7 @@ export class KiroSkill extends ToolSkill {
     };
 
     return new KiroSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: kiroFrontmatter,
@@ -176,7 +176,7 @@ export class KiroSkill extends ToolSkill {
 
     const result = KiroSkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
-      const skillDirPath = join(loaded.baseDir, loaded.relativeDirPath, loaded.dirName);
+      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
         `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
       );
@@ -184,7 +184,7 @@ export class KiroSkill extends ToolSkill {
 
     if (result.data.name !== loaded.dirName) {
       const skillFilePath = join(
-        loaded.baseDir,
+        loaded.outputRoot,
         loaded.relativeDirPath,
         loaded.dirName,
         SKILL_FILE_NAME,
@@ -195,7 +195,7 @@ export class KiroSkill extends ToolSkill {
     }
 
     return new KiroSkill({
-      baseDir: loaded.baseDir,
+      outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
       frontmatter: result.data,
@@ -207,14 +207,14 @@ export class KiroSkill extends ToolSkill {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): KiroSkill {
     const settablePaths = KiroSkill.getSettablePaths({ global });
     return new KiroSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },

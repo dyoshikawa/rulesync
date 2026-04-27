@@ -109,7 +109,7 @@ describe("resolveAndFetchSources", () => {
   });
 
   it("should return zero counts with empty sources", async () => {
-    const result = await resolveAndFetchSources({ logger, sources: [], baseDir: testDir });
+    const result = await resolveAndFetchSources({ logger, sources: [], outputRoot: testDir });
 
     expect(result).toEqual({ fetchedSkillCount: 0, sourcesProcessed: 0 });
   });
@@ -118,7 +118,7 @@ describe("resolveAndFetchSources", () => {
     const result = await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://github.com/org/repo" }],
-      baseDir: testDir,
+      outputRoot: testDir,
       options: { skipSources: true },
     });
 
@@ -158,7 +158,7 @@ describe("resolveAndFetchSources", () => {
     await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://github.com/org/repo" }],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // Only old-skill-a should be removed (it existed on disk)
@@ -191,7 +191,7 @@ describe("resolveAndFetchSources", () => {
     const result = await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://github.com/org/repo" }],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // Should not call listDirectory (no re-fetch)
@@ -221,7 +221,7 @@ describe("resolveAndFetchSources", () => {
     const result = await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://github.com/org/repo" }],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(result.fetchedSkillCount).toBe(1);
@@ -257,7 +257,7 @@ describe("resolveAndFetchSources", () => {
     const result = await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://github.com/org/repo" }],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // Skill should be skipped since local takes precedence
@@ -285,7 +285,7 @@ describe("resolveAndFetchSources", () => {
     const result = await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://github.com/org/repo", skills: ["skill-a"] }],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // Only skill-a should be fetched
@@ -318,7 +318,7 @@ describe("resolveAndFetchSources", () => {
         { source: "https://github.com/org/repo-a" },
         { source: "https://github.com/org/repo-b" },
       ],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // First source fetches it, second source skips it
@@ -332,7 +332,7 @@ describe("resolveAndFetchSources", () => {
     const result = await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://github.com/org/repo" }],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // Should not throw, just skip the source
@@ -371,7 +371,7 @@ describe("resolveAndFetchSources", () => {
     const result = await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://github.com/org/repo" }],
-      baseDir: testDir,
+      outputRoot: testDir,
       options: { updateSources: true },
     });
 
@@ -411,7 +411,7 @@ describe("resolveAndFetchSources", () => {
         { source: "https://github.com/org/failing-repo" },
         { source: "https://github.com/org/good-repo" },
       ],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // Second source should succeed despite first failing
@@ -423,7 +423,7 @@ describe("resolveAndFetchSources", () => {
     const result = await resolveAndFetchSources({
       logger,
       sources: [{ source: "gitlab:org/repo" }],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // Should not throw, but log error and skip
@@ -458,7 +458,7 @@ describe("resolveAndFetchSources", () => {
     await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://github.com/org/new-repo" }],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // The written lock should NOT contain the old-removed-repo entry
@@ -494,7 +494,7 @@ describe("resolveAndFetchSources", () => {
       logger,
       // Config uses full URL but lock has normalized key
       sources: [{ source: "https://github.com/org/repo" }],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // Lockfile should be unchanged (not written) since SHA matches and nothing new
@@ -527,7 +527,7 @@ describe("resolveAndFetchSources", () => {
     const result = await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://github.com/org/repo" }],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // Only the good skill should be fetched; the traversal one is skipped
@@ -546,7 +546,7 @@ describe("resolveAndFetchSources", () => {
       resolveAndFetchSources({
         logger,
         sources: [{ source: "https://github.com/org/repo" }],
-        baseDir: testDir,
+        outputRoot: testDir,
         options: { frozen: true },
       }),
     ).rejects.toThrow("Frozen install failed");
@@ -575,7 +575,7 @@ describe("resolveAndFetchSources", () => {
     const result = await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://github.com/org/repo" }],
-      baseDir: testDir,
+      outputRoot: testDir,
       options: { frozen: true },
     });
 
@@ -617,7 +617,7 @@ describe("resolveAndFetchSources", () => {
     const result = await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://github.com/org/repo" }],
-      baseDir: testDir,
+      outputRoot: testDir,
       options: { frozen: true },
     });
 
@@ -662,7 +662,7 @@ describe("resolveAndFetchSources", () => {
     await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://github.com/org/repo" }],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // Should have warned about integrity mismatch
@@ -721,7 +721,7 @@ describe("resolveAndFetchSources", () => {
     await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://github.com/org/repo" }],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // The written lock should still have both skills
@@ -746,7 +746,7 @@ describe("resolveAndFetchSources", () => {
     const result = await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://dev.azure.com/org/project/_git/repo", transport: "git" }],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(result.fetchedSkillCount).toBe(1);
@@ -769,7 +769,7 @@ describe("resolveAndFetchSources", () => {
       sources: [
         { source: "file:///local/clone", transport: "git", ref: "develop", path: "exports/skills" },
       ],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(vi.mocked(resolveRefToSha)).toHaveBeenCalledWith("file:///local/clone", "develop");
@@ -799,7 +799,7 @@ describe("resolveAndFetchSources", () => {
     const result = await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://dev.azure.com/org/_git/repo", transport: "git" }],
-      baseDir: testDir,
+      outputRoot: testDir,
       options: { frozen: true },
     });
 
@@ -831,7 +831,7 @@ describe("resolveAndFetchSources", () => {
     const result = await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://dev.azure.com/org/_git/repo", transport: "git" }],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(result.fetchedSkillCount).toBe(0);
@@ -855,7 +855,7 @@ describe("resolveAndFetchSources", () => {
           skills: ["skill-a"],
         },
       ],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(result.fetchedSkillCount).toBe(1);
@@ -881,7 +881,7 @@ describe("resolveAndFetchSources", () => {
     const result = await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://dev.azure.com/org/_git/repo", transport: "git" }],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(result.fetchedSkillCount).toBe(0);
@@ -901,7 +901,7 @@ describe("resolveAndFetchSources", () => {
         { source: "https://dev.azure.com/org/_git/repo-a", transport: "git" },
         { source: "https://dev.azure.com/org/_git/repo-b", transport: "git" },
       ],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // First source fetches it, second source skips it
@@ -933,7 +933,7 @@ describe("resolveAndFetchSources", () => {
     await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://dev.azure.com/org/_git/repo", transport: "git" }],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Integrity mismatch"));
@@ -961,7 +961,7 @@ describe("resolveAndFetchSources", () => {
         { source: "https://dev.azure.com/org/_git/failing", transport: "git" },
         { source: "https://dev.azure.com/org/_git/good", transport: "git" },
       ],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(result.fetchedSkillCount).toBe(1);
@@ -997,7 +997,7 @@ describe("resolveAndFetchSources", () => {
     await resolveAndFetchSources({
       logger,
       sources: [{ source: "https://dev.azure.com/org/_git/repo", transport: "git" }],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // The lockfile should contain only "new-skill", not "old-skill"
@@ -1027,7 +1027,7 @@ describe("resolveAndFetchSources", () => {
           skills: ["humanizer"],
         },
       ],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(result.fetchedSkillCount).toBe(1);
@@ -1053,7 +1053,7 @@ describe("resolveAndFetchSources", () => {
           skills: ["humanizer"],
         },
       ],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(result.fetchedSkillCount).toBe(1);
@@ -1079,7 +1079,7 @@ describe("resolveAndFetchSources", () => {
           // no skills → defaults to ["*"]
         },
       ],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(result.fetchedSkillCount).toBe(0);
@@ -1109,7 +1109,7 @@ describe("resolveAndFetchSources", () => {
     const result = await resolveAndFetchSources({
       logger,
       sources: [{ source: "org/humanizer:skills", skills: ["humanizer"] }],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(result.fetchedSkillCount).toBe(1);
@@ -1135,7 +1135,7 @@ describe("resolveAndFetchSources", () => {
           skills: ["humanizer"],
         },
       ],
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(result.fetchedSkillCount).toBe(1);

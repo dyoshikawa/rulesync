@@ -23,7 +23,7 @@ export const WindsurfSkillFrontmatterSchema = z.looseObject({
 export type WindsurfSkillFrontmatter = z.infer<typeof WindsurfSkillFrontmatterSchema>;
 
 export type WindsurfSkillParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
   frontmatter: WindsurfSkillFrontmatter;
@@ -40,7 +40,7 @@ export type WindsurfSkillParams = {
  */
 export class WindsurfSkill extends ToolSkill {
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath = WindsurfSkill.getSettablePaths().relativeDirPath,
     dirName,
     frontmatter,
@@ -50,7 +50,7 @@ export class WindsurfSkill extends ToolSkill {
     global = false,
   }: WindsurfSkillParams) {
     super({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       mainFile: {
@@ -123,7 +123,7 @@ export class WindsurfSkill extends ToolSkill {
     };
 
     return new RulesyncSkill({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
       dirName: this.getDirName(),
       frontmatter: rulesyncFrontmatter,
@@ -135,7 +135,7 @@ export class WindsurfSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -149,7 +149,7 @@ export class WindsurfSkill extends ToolSkill {
     };
 
     return new WindsurfSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: windsurfFrontmatter,
@@ -173,14 +173,14 @@ export class WindsurfSkill extends ToolSkill {
 
     const result = WindsurfSkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
-      const skillDirPath = join(loaded.baseDir, loaded.relativeDirPath, loaded.dirName);
+      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
         `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
       );
     }
 
     return new WindsurfSkill({
-      baseDir: loaded.baseDir,
+      outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
       frontmatter: result.data,
@@ -192,14 +192,14 @@ export class WindsurfSkill extends ToolSkill {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): WindsurfSkill {
     const settablePaths = WindsurfSkill.getSettablePaths({ global });
     return new WindsurfSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },

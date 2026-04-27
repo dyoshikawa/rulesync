@@ -74,15 +74,15 @@ export class GeminicliPermissions extends ToolPermissions {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
     global = false,
   }: ToolPermissionsFromFileParams): Promise<GeminicliPermissions> {
     const paths = this.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? "";
     return new GeminicliPermissions({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -91,7 +91,7 @@ export class GeminicliPermissions extends ToolPermissions {
   }
 
   static fromRulesyncPermissions({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncPermissions,
     validate = true,
     global = false,
@@ -101,7 +101,7 @@ export class GeminicliPermissions extends ToolPermissions {
     const fileContent = buildGeminicliPolicyContent(rulesyncPermissions.getJson(), logger);
 
     return new GeminicliPermissions({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -183,12 +183,12 @@ export class GeminicliPermissions extends ToolPermissions {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolPermissionsForDeletionParams): GeminicliPermissions {
     return new GeminicliPermissions({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "",

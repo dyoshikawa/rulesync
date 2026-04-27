@@ -207,7 +207,7 @@ async function putSkill({
 
     // Create a new RulesyncSkill instance for validation
     const skill = new RulesyncSkill({
-      baseDir: process.cwd(),
+      outputRoot: process.cwd(),
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
       dirName,
       frontmatter,

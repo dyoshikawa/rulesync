@@ -166,8 +166,8 @@ function warnUnsupportedTargets(params: {
 /**
  * Check if .rulesync directory exists.
  */
-export async function checkRulesyncDirExists(params: { baseDir: string }): Promise<boolean> {
-  return fileExists(join(params.baseDir, RULESYNC_RELATIVE_DIR_PATH));
+export async function checkRulesyncDirExists(params: { outputRoot: string }): Promise<boolean> {
+  return fileExists(join(params.outputRoot, RULESYNC_RELATIVE_DIR_PATH));
 }
 
 /**
@@ -241,7 +241,7 @@ async function generateRulesCore(params: {
   const toolTargets = intersection(config.getTargets(), supportedTargets);
   warnUnsupportedTargets({ config, supportedTargets, featureName: "rules", logger });
 
-  for (const baseDir of config.getBaseDirs()) {
+  for (const outputRoot of config.getOutputRoots()) {
     for (const toolTarget of toolTargets) {
       // Check if rules feature is enabled for this specific target
       if (!config.getFeatures(toolTarget).includes("rules")) {
@@ -249,7 +249,7 @@ async function generateRulesCore(params: {
       }
 
       const processor = new RulesProcessor({
-        baseDir: baseDir,
+        outputRoot: outputRoot,
         inputRoot: config.getInputRoot(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
@@ -302,15 +302,15 @@ async function generateIgnoreCore(params: {
       continue;
     }
 
-    for (const baseDir of config.getBaseDirs()) {
+    for (const outputRoot of config.getOutputRoots()) {
       try {
         const processor = new IgnoreProcessor({
-          // Pass `baseDir` verbatim. The legacy
-          // `baseDir === process.cwd() ? "." : baseDir` heuristic was a
-          // leftover from before `baseDirs` was always resolved to absolute
+          // Pass `outputRoot` verbatim. The legacy
+          // `outputRoot === process.cwd() ? "." : outputRoot` heuristic was a
+          // leftover from before `outputRoots` was always resolved to absolute
           // paths in `ConfigResolver`; with that change it is now consistent
-          // to pass the same `baseDir` value the other processors receive.
-          baseDir,
+          // to pass the same `outputRoot` value the other processors receive.
+          outputRoot,
           inputRoot: config.getInputRoot(),
           toolTarget,
           dryRun: config.isPreviewMode(),
@@ -326,7 +326,7 @@ async function generateIgnoreCore(params: {
         if (result.hasDiff) hasDiff = true;
       } catch (error) {
         logger.warn(
-          `Failed to generate ${toolTarget} ignore files for ${baseDir}: ${formatError(error)}`,
+          `Failed to generate ${toolTarget} ignore files for ${outputRoot}: ${formatError(error)}`,
         );
         continue;
       }
@@ -355,7 +355,7 @@ async function generateMcpCore(params: {
     logger,
   });
 
-  for (const baseDir of config.getBaseDirs()) {
+  for (const outputRoot of config.getOutputRoots()) {
     for (const toolTarget of toolTargets) {
       // Check if mcp feature is enabled for this specific target
       if (!config.getFeatures(toolTarget).includes("mcp")) {
@@ -363,7 +363,7 @@ async function generateMcpCore(params: {
       }
 
       const processor = new McpProcessor({
-        baseDir: baseDir,
+        outputRoot: outputRoot,
         inputRoot: config.getInputRoot(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
@@ -406,7 +406,7 @@ async function generateCommandsCore(params: {
     logger,
   });
 
-  for (const baseDir of config.getBaseDirs()) {
+  for (const outputRoot of config.getOutputRoots()) {
     for (const toolTarget of toolTargets) {
       // Check if commands feature is enabled for this specific target
       if (!config.getFeatures(toolTarget).includes("commands")) {
@@ -414,7 +414,7 @@ async function generateCommandsCore(params: {
       }
 
       const processor = new CommandsProcessor({
-        baseDir: baseDir,
+        outputRoot: outputRoot,
         inputRoot: config.getInputRoot(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
@@ -462,7 +462,7 @@ async function generateSubagentsCore(params: {
     logger,
   });
 
-  for (const baseDir of config.getBaseDirs()) {
+  for (const outputRoot of config.getOutputRoots()) {
     for (const toolTarget of toolTargets) {
       // Check if subagents feature is enabled for this specific target
       if (!config.getFeatures(toolTarget).includes("subagents")) {
@@ -470,7 +470,7 @@ async function generateSubagentsCore(params: {
       }
 
       const processor = new SubagentsProcessor({
-        baseDir: baseDir,
+        outputRoot: outputRoot,
         inputRoot: config.getInputRoot(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
@@ -514,7 +514,7 @@ async function generateSkillsCore(params: {
     logger,
   });
 
-  for (const baseDir of config.getBaseDirs()) {
+  for (const outputRoot of config.getOutputRoots()) {
     for (const toolTarget of toolTargets) {
       // Check if skills feature is enabled for this specific target
       if (!config.getFeatures(toolTarget).includes("skills")) {
@@ -522,7 +522,7 @@ async function generateSkillsCore(params: {
       }
 
       const processor = new SkillsProcessor({
-        baseDir: baseDir,
+        outputRoot: outputRoot,
         inputRoot: config.getInputRoot(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
@@ -574,7 +574,7 @@ async function generateHooksCore(params: {
     logger,
   });
 
-  for (const baseDir of config.getBaseDirs()) {
+  for (const outputRoot of config.getOutputRoots()) {
     for (const toolTarget of toolTargets) {
       // Check if hooks feature is enabled for this specific target
       if (!config.getFeatures(toolTarget).includes("hooks")) {
@@ -582,7 +582,7 @@ async function generateHooksCore(params: {
       }
 
       const processor = new HooksProcessor({
-        baseDir,
+        outputRoot,
         inputRoot: config.getInputRoot(),
         toolTarget,
         global: config.getGlobal(),
@@ -622,7 +622,7 @@ async function generatePermissionsCore(params: {
   const allPaths: string[] = [];
   let hasDiff = false;
 
-  for (const baseDir of config.getBaseDirs()) {
+  for (const outputRoot of config.getOutputRoots()) {
     for (const toolTarget of intersection(config.getTargets(), supportedPermissionsTargets)) {
       if (!config.getFeatures(toolTarget).includes("permissions")) {
         continue;
@@ -630,7 +630,7 @@ async function generatePermissionsCore(params: {
 
       try {
         const processor = new PermissionsProcessor({
-          baseDir,
+          outputRoot,
           inputRoot: config.getInputRoot(),
           toolTarget,
           global: config.getGlobal(),
@@ -646,7 +646,7 @@ async function generatePermissionsCore(params: {
         if (result.hasDiff) hasDiff = true;
       } catch (error) {
         logger.warn(
-          `Failed to generate ${toolTarget} permissions files for ${baseDir}: ${formatError(error)}`,
+          `Failed to generate ${toolTarget} permissions files for ${outputRoot}: ${formatError(error)}`,
         );
         continue;
       }

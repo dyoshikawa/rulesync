@@ -88,13 +88,13 @@ describe("OpencodeMcp", () => {
       expect(opencodeMcp.getFileContent()).toBe(validJsonContent);
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const validJsonContent = JSON.stringify({
         mcp: {},
       });
 
       const opencodeMcp = new OpencodeMcp({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".",
         relativeFilePath: "opencode.json",
         fileContent: validJsonContent,
@@ -182,7 +182,7 @@ describe("OpencodeMcp", () => {
       await writeFileContent(join(testDir, "opencode.json"), JSON.stringify(jsonData, null, 2));
 
       const opencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(opencodeMcp).toBeInstanceOf(OpencodeMcp);
@@ -192,7 +192,7 @@ describe("OpencodeMcp", () => {
 
     it("should initialize empty mcp if file does not exist", async () => {
       const opencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(opencodeMcp).toBeInstanceOf(OpencodeMcp);
@@ -209,7 +209,7 @@ describe("OpencodeMcp", () => {
       await writeFileContent(join(testDir, "opencode.json"), JSON.stringify(jsonData));
 
       const opencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(opencodeMcp.getJson()).toEqual({
@@ -220,7 +220,7 @@ describe("OpencodeMcp", () => {
       });
     });
 
-    it("should create instance from file with custom baseDir", async () => {
+    it("should create instance from file with custom outputRoot", async () => {
       const customDir = join(testDir, "custom");
       await ensureDir(customDir);
 
@@ -237,7 +237,7 @@ describe("OpencodeMcp", () => {
       await writeFileContent(join(customDir, "opencode.json"), JSON.stringify(jsonData));
 
       const opencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: customDir,
+        outputRoot: customDir,
       });
 
       expect(opencodeMcp.getFilePath()).toBe(join(customDir, "opencode.json"));
@@ -258,7 +258,7 @@ describe("OpencodeMcp", () => {
       await writeFileContent(join(testDir, "opencode.json"), JSON.stringify(jsonData));
 
       const opencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: true,
       });
 
@@ -272,7 +272,7 @@ describe("OpencodeMcp", () => {
       await writeFileContent(join(testDir, "opencode.json"), JSON.stringify(jsonData));
 
       const opencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
 
@@ -295,7 +295,7 @@ describe("OpencodeMcp", () => {
       await writeFileContent(globalPath, JSON.stringify(jsonData, null, 2));
 
       const opencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -318,7 +318,7 @@ describe("OpencodeMcp", () => {
       await writeFileContent(join(testDir, "opencode.json"), JSON.stringify(jsonData));
 
       const opencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: false,
       });
 
@@ -328,7 +328,7 @@ describe("OpencodeMcp", () => {
 
     it("should initialize global config file if it does not exist", async () => {
       const opencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -361,7 +361,7 @@ describe("OpencodeMcp", () => {
       );
 
       const opencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -399,7 +399,7 @@ describe("OpencodeMcp", () => {
       });
 
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -418,7 +418,7 @@ describe("OpencodeMcp", () => {
       expect(opencodeMcp.getRelativeFilePath()).toBe("opencode.jsonc");
     });
 
-    it("should create instance from RulesyncMcp with custom baseDir", async () => {
+    it("should create instance from RulesyncMcp with custom outputRoot", async () => {
       const jsonData = {
         mcpServers: {
           "custom-server": {
@@ -431,7 +431,7 @@ describe("OpencodeMcp", () => {
         },
       };
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
@@ -440,7 +440,7 @@ describe("OpencodeMcp", () => {
       const customDir = join(testDir, "target");
       await ensureDir(customDir);
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: customDir,
+        outputRoot: customDir,
         rulesyncMcp,
       });
 
@@ -476,7 +476,7 @@ describe("OpencodeMcp", () => {
       });
 
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         validate: true,
       });
@@ -504,7 +504,7 @@ describe("OpencodeMcp", () => {
       });
 
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         validate: false,
       });
@@ -523,7 +523,7 @@ describe("OpencodeMcp", () => {
       });
 
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -546,7 +546,7 @@ describe("OpencodeMcp", () => {
       });
 
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -582,7 +582,7 @@ describe("OpencodeMcp", () => {
       });
 
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: false,
       });
@@ -637,7 +637,7 @@ describe("OpencodeMcp", () => {
       });
 
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -693,7 +693,7 @@ describe("OpencodeMcp", () => {
       });
 
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -733,7 +733,7 @@ describe("OpencodeMcp", () => {
       });
 
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -769,7 +769,7 @@ describe("OpencodeMcp", () => {
       });
 
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -806,7 +806,7 @@ describe("OpencodeMcp", () => {
       });
 
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -847,7 +847,7 @@ describe("OpencodeMcp", () => {
       });
 
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -889,7 +889,7 @@ describe("OpencodeMcp", () => {
       });
 
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -924,7 +924,7 @@ describe("OpencodeMcp", () => {
       });
 
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -975,7 +975,7 @@ describe("OpencodeMcp", () => {
       });
 
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -1019,7 +1019,7 @@ describe("OpencodeMcp", () => {
       });
 
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -1055,7 +1055,7 @@ describe("OpencodeMcp", () => {
       });
 
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -1106,7 +1106,7 @@ describe("OpencodeMcp", () => {
       });
 
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -1130,7 +1130,7 @@ describe("OpencodeMcp", () => {
       });
 
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -1176,7 +1176,7 @@ describe("OpencodeMcp", () => {
       expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
     });
 
-    it("should convert environment to env and preserve baseDir", () => {
+    it("should convert environment to env and preserve outputRoot", () => {
       const jsonData = {
         mcp: {
           "complex-server": {
@@ -1191,7 +1191,7 @@ describe("OpencodeMcp", () => {
         },
       };
       const opencodeMcp = new OpencodeMcp({
-        baseDir: "/test/dir",
+        outputRoot: "/test/dir",
         relativeDirPath: ".",
         relativeFilePath: "opencode.json",
         fileContent: JSON.stringify(jsonData),
@@ -1199,7 +1199,7 @@ describe("OpencodeMcp", () => {
 
       const rulesyncMcp = opencodeMcp.toRulesyncMcp();
 
-      expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
+      expect(rulesyncMcp.getOutputRoot()).toBe("/test/dir");
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
         $schema: RULESYNC_MCP_SCHEMA_URL,
         mcpServers: {
@@ -1780,7 +1780,7 @@ describe("OpencodeMcp", () => {
 
       // Step 1: Load from file
       const originalOpencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       // Step 2: Convert to RulesyncMcp (now converts to standard format)
@@ -1799,7 +1799,7 @@ describe("OpencodeMcp", () => {
 
       // Step 3: Create new OpencodeMcp from RulesyncMcp
       const newOpencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -1850,7 +1850,7 @@ describe("OpencodeMcp", () => {
 
       // Create OpencodeMcp
       const opencodeMcp = new OpencodeMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "opencode.json",
         fileContent: JSON.stringify(complexJsonData),
@@ -1883,7 +1883,7 @@ describe("OpencodeMcp", () => {
 
       // Step 1: Load from global config
       const originalOpencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -1901,7 +1901,7 @@ describe("OpencodeMcp", () => {
 
       // Step 3: Create new OpencodeMcp from RulesyncMcp in global mode
       const newOpencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -1944,7 +1944,7 @@ describe("OpencodeMcp", () => {
 
       // Step 1: Load from file
       const originalOpencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       // Step 2: Convert to RulesyncMcp
@@ -1962,7 +1962,7 @@ describe("OpencodeMcp", () => {
 
       // Step 3: Convert back to OpenCode format
       const newOpencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -2007,7 +2007,7 @@ describe("OpencodeMcp", () => {
 
       // Step 1: Convert to OpenCode
       const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -2033,7 +2033,7 @@ describe("OpencodeMcp", () => {
     it("should handle missing files by returning default empty mcp", async () => {
       // When both jsonc and json are missing, should return default mcp
       const opencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(opencodeMcp.getJson().mcp).toEqual({});
@@ -2042,7 +2042,7 @@ describe("OpencodeMcp", () => {
     it("should handle missing files in global mode by returning default empty mcp", async () => {
       // When global files don't exist, should return default mcp
       const opencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -2056,7 +2056,7 @@ describe("OpencodeMcp", () => {
       await writeFileContent(join(testDir, "opencode.json"), JSON.stringify(jsonData));
 
       const opencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(opencodeMcp.getJson().mcp).toEqual({});
@@ -2069,7 +2069,7 @@ describe("OpencodeMcp", () => {
       await writeFileContent(join(testDir, "opencode.json"), JSON.stringify(jsonData));
 
       const opencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(opencodeMcp.getJson().mcp).toEqual({});
@@ -2081,7 +2081,7 @@ describe("OpencodeMcp", () => {
 
       await expect(
         OpencodeMcp.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });
@@ -2091,7 +2091,7 @@ describe("OpencodeMcp", () => {
 
       await expect(
         OpencodeMcp.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });
@@ -2110,7 +2110,7 @@ describe("OpencodeMcp", () => {
       await writeFileContent(join(testDir, "opencode.jsonc"), jsoncContent);
 
       const opencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       const exampleServer = opencodeMcp.getJson().mcp?.exampleServer;
@@ -2144,7 +2144,7 @@ describe("OpencodeMcp", () => {
       await writeFileContent(join(testDir, "opencode.jsonc"), jsoncContent);
 
       const opencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(opencodeMcp.getJson().mcp?.fromJsonc).toBeDefined();
@@ -2164,7 +2164,7 @@ describe("OpencodeMcp", () => {
       await writeFileContent(join(testDir, "opencode.json"), JSON.stringify(jsonContent));
 
       const opencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(opencodeMcp.getJson().mcp?.fromJson).toBeDefined();
@@ -2183,7 +2183,7 @@ describe("OpencodeMcp", () => {
       await writeFileContent(join(testDir, ".config", "opencode", "opencode.jsonc"), jsoncContent);
 
       const opencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 
@@ -2216,7 +2216,7 @@ describe("OpencodeMcp", () => {
       await writeFileContent(join(testDir, ".config", "opencode", "opencode.jsonc"), jsoncContent);
 
       const opencodeMcp = await OpencodeMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         global: true,
       });
 

@@ -8,7 +8,10 @@ import { calculateTotalCount } from "../../utils/result.js";
 // are *read from* during `generate`, and `import` does not consume them. Keeping
 // it in the option type would be misleading and would surface a noisy
 // "Ignoring global: true" warning from the resolver during `import`.
-export type ImportOptions = Omit<ConfigResolverResolveParams, "delete" | "baseDirs" | "inputRoot">;
+export type ImportOptions = Omit<
+  ConfigResolverResolveParams,
+  "delete" | "outputRoots" | "inputRoot"
+>;
 
 export async function importCommand(logger: Logger, options: ImportOptions): Promise<void> {
   if (!options.targets) {

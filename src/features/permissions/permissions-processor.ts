@@ -112,21 +112,21 @@ export class PermissionsProcessor extends FeatureProcessor {
   private readonly global: boolean;
 
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     inputRoot = process.cwd(),
     toolTarget,
     global = false,
     dryRun = false,
     logger,
   }: {
-    baseDir?: string;
+    outputRoot?: string;
     inputRoot?: string;
     toolTarget: ToolTarget;
     global?: boolean;
     dryRun?: boolean;
     logger: Logger;
   }) {
-    super({ baseDir, inputRoot, dryRun, logger });
+    super({ outputRoot, inputRoot, dryRun, logger });
     const result = PermissionsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -141,7 +141,7 @@ export class PermissionsProcessor extends FeatureProcessor {
     try {
       return [
         await RulesyncPermissions.fromFile({
-          baseDir: this.inputRoot,
+          outputRoot: this.inputRoot,
           validate: true,
         }),
       ];
@@ -165,7 +165,7 @@ export class PermissionsProcessor extends FeatureProcessor {
 
       if (forDeletion) {
         const toolPermissions = factory.class.forDeletion({
-          baseDir: this.baseDir,
+          outputRoot: this.outputRoot,
           relativeDirPath: paths.relativeDirPath,
           relativeFilePath: paths.relativeFilePath,
           global: this.global,
@@ -175,7 +175,7 @@ export class PermissionsProcessor extends FeatureProcessor {
       }
 
       const toolPermissions = await factory.class.fromFile({
-        baseDir: this.baseDir,
+        outputRoot: this.outputRoot,
         validate: true,
         global: this.global,
       });
@@ -203,7 +203,7 @@ export class PermissionsProcessor extends FeatureProcessor {
     if (!factory) throw new Error(`Unsupported tool target: ${this.toolTarget}`);
 
     const toolPermissions = await factory.class.fromRulesyncPermissions({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       rulesyncPermissions,
       logger: this.logger,
       global: this.global,
@@ -213,7 +213,7 @@ export class PermissionsProcessor extends FeatureProcessor {
     }
 
     const bashRulesFile = createCodexcliBashRulesFile({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       config: rulesyncPermissions.getJson(),
     });
     return [toolPermissions, bashRulesFile];

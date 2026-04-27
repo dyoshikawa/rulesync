@@ -49,7 +49,7 @@ Body content`;
   describe("fromRulesyncCommand", () => {
     it("should create FactorydroidCommand from RulesyncCommand", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-command.md",
         frontmatter: {
@@ -62,7 +62,7 @@ Body content`;
       });
 
       const factorydroidCommand = FactorydroidCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
         validate: true,
       }) as FactorydroidCommand;
@@ -84,7 +84,7 @@ Body content`;
       await writeFileContent(filePath, validMarkdownContent);
 
       const command = await FactorydroidCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test-file-command.md",
         validate: true,
       });
@@ -101,7 +101,7 @@ Body content`;
     it("should throw error when file does not exist", async () => {
       await expect(
         FactorydroidCommand.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "non-existent-command.md",
           validate: true,
         }),
@@ -116,7 +116,7 @@ Body content`;
 
       await expect(
         FactorydroidCommand.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "invalid-command.md",
           validate: true,
         }),
@@ -168,7 +168,7 @@ Body content`;
   describe("forDeletion", () => {
     it("should create deletion marker", () => {
       const command = FactorydroidCommand.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory/commands",
         relativeFilePath: "to-delete.md",
       });

@@ -46,7 +46,7 @@ describe("FactorydroidMcp", () => {
   describe("constructor", () => {
     it("should create instance with valid MCP config", () => {
       const mcp = new FactorydroidMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory",
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify(validMcpConfig),
@@ -59,7 +59,7 @@ describe("FactorydroidMcp", () => {
 
     it("should handle empty MCP config", () => {
       const mcp = new FactorydroidMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory",
         relativeFilePath: "mcp.json",
         fileContent: "{}",
@@ -73,7 +73,7 @@ describe("FactorydroidMcp", () => {
   describe("fromRulesyncMcp", () => {
     it("should create FactorydroidMcp from RulesyncMcp", () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync",
         relativeFilePath: "rulesync.mcp.json",
         fileContent: JSON.stringify(validMcpConfig),
@@ -81,7 +81,7 @@ describe("FactorydroidMcp", () => {
       });
 
       const factorydroidMcp = FactorydroidMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         validate: true,
       });
@@ -93,7 +93,7 @@ describe("FactorydroidMcp", () => {
 
     it("should handle RulesyncMcp with empty servers", () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync",
         relativeFilePath: "rulesync.mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
@@ -101,7 +101,7 @@ describe("FactorydroidMcp", () => {
       });
 
       const factorydroidMcp = FactorydroidMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         validate: true,
       });
@@ -117,7 +117,7 @@ describe("FactorydroidMcp", () => {
       await writeFileContent(mcpFile, JSON.stringify(validMcpConfig, null, 2));
 
       const mcp = await FactorydroidMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: true,
       });
 
@@ -128,7 +128,7 @@ describe("FactorydroidMcp", () => {
     it("should throw error when file does not exist", async () => {
       await expect(
         FactorydroidMcp.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           validate: true,
         }),
       ).rejects.toThrow();
@@ -138,7 +138,7 @@ describe("FactorydroidMcp", () => {
   describe("toRulesyncMcp", () => {
     it("should convert to RulesyncMcp", () => {
       const mcp = new FactorydroidMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory",
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify(validMcpConfig),
@@ -158,7 +158,7 @@ describe("FactorydroidMcp", () => {
   describe("validate", () => {
     it("should return success for valid MCP config", () => {
       const mcp = new FactorydroidMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory",
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify(validMcpConfig),
@@ -174,7 +174,7 @@ describe("FactorydroidMcp", () => {
   describe("forDeletion", () => {
     it("should create deletion marker", () => {
       const mcp = FactorydroidMcp.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory",
         relativeFilePath: "mcp.json",
       });

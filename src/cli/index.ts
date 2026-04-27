@@ -231,8 +231,13 @@ const main = async () => {
     )
     .option("--delete", "Delete all existing files in output directories before generating")
     .option(
+      "-o, --output-roots <paths>",
+      "Output root directories to generate files into (comma-separated for multiple paths)",
+      parseCommaSeparatedList,
+    )
+    .option(
       "-b, --base-dir <paths>",
-      "Base directories to generate files (comma-separated for multiple paths)",
+      "[Deprecated] Use --output-roots instead. Output root directories (comma-separated for multiple paths)",
       parseCommaSeparatedList,
     )
     .option("-V, --verbose", "Verbose output")

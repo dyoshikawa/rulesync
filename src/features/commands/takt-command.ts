@@ -57,7 +57,7 @@ export class TaktCommand extends ToolCommand {
       targets: ["*"],
     };
     return new RulesyncCommand({
-      baseDir: ".",
+      outputRoot: ".",
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
@@ -68,7 +68,7 @@ export class TaktCommand extends ToolCommand {
   }
 
   static fromRulesyncCommand({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncCommand,
     validate = true,
     global = false,
@@ -86,7 +86,7 @@ export class TaktCommand extends ToolCommand {
     const paths = this.getSettablePaths({ global });
 
     return new TaktCommand({
-      baseDir,
+      outputRoot,
       body: rulesyncCommand.getBody(),
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
@@ -106,18 +106,18 @@ export class TaktCommand extends ToolCommand {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolCommandFromFileParams): Promise<TaktCommand> {
     const paths = this.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { body } = parseFrontmatter(fileContent, filePath);
 
     return new TaktCommand({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
       body: body.trim(),
@@ -126,12 +126,12 @@ export class TaktCommand extends ToolCommand {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolCommandForDeletionParams): TaktCommand {
     return new TaktCommand({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       body: "",

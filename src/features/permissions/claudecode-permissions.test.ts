@@ -122,7 +122,7 @@ describe("ClaudecodePermissions", () => {
       });
 
       const instance = await ClaudecodePermissions.fromRulesyncPermissions({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncPermissions,
       });
 
@@ -146,7 +146,7 @@ describe("ClaudecodePermissions", () => {
       });
 
       const instance = await ClaudecodePermissions.fromRulesyncPermissions({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncPermissions,
       });
 
@@ -170,7 +170,7 @@ describe("ClaudecodePermissions", () => {
       });
 
       const instance = await ClaudecodePermissions.fromRulesyncPermissions({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncPermissions,
       });
 
@@ -192,7 +192,7 @@ describe("ClaudecodePermissions", () => {
       });
 
       const instance = await ClaudecodePermissions.fromRulesyncPermissions({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncPermissions,
       });
 
@@ -224,7 +224,7 @@ describe("ClaudecodePermissions", () => {
       });
 
       const instance = await ClaudecodePermissions.fromRulesyncPermissions({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncPermissions,
       });
 
@@ -259,7 +259,7 @@ describe("ClaudecodePermissions", () => {
       });
 
       const instance = await ClaudecodePermissions.fromRulesyncPermissions({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncPermissions,
       });
 
@@ -295,7 +295,7 @@ describe("ClaudecodePermissions", () => {
       });
 
       const instance = await ClaudecodePermissions.fromRulesyncPermissions({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncPermissions,
       });
 
@@ -332,7 +332,7 @@ describe("ClaudecodePermissions", () => {
 
       const mockLogger = createMockLogger();
       const instance = await ClaudecodePermissions.fromRulesyncPermissions({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncPermissions,
         logger: mockLogger,
       });
@@ -372,7 +372,7 @@ describe("ClaudecodePermissions", () => {
 
       const mockLogger = createMockLogger();
       await ClaudecodePermissions.fromRulesyncPermissions({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncPermissions,
         logger: mockLogger,
       });
@@ -405,7 +405,7 @@ describe("ClaudecodePermissions", () => {
 
       // Should not throw even without logger
       const instance = await ClaudecodePermissions.fromRulesyncPermissions({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncPermissions,
       });
 
@@ -423,7 +423,7 @@ describe("ClaudecodePermissions", () => {
       });
 
       const instance = await ClaudecodePermissions.fromRulesyncPermissions({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncPermissions,
       });
 
@@ -445,7 +445,7 @@ describe("ClaudecodePermissions", () => {
       });
 
       const instance = await ClaudecodePermissions.fromRulesyncPermissions({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncPermissions,
       });
 
@@ -478,7 +478,7 @@ describe("ClaudecodePermissions", () => {
       });
 
       const instance = await ClaudecodePermissions.fromRulesyncPermissions({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncPermissions,
       });
 
@@ -613,7 +613,7 @@ describe("ClaudecodePermissions", () => {
   describe("forDeletion", () => {
     it("should create minimal instance for deletion", () => {
       const instance = ClaudecodePermissions.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude",
         relativeFilePath: "settings.json",
       });

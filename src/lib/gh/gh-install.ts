@@ -77,12 +77,12 @@ type SkillInstallation = {
  * to pin commits and per-skill content hashes.
  */
 export async function installGh(params: {
-  baseDir: string;
+  outputRoot: string;
   sources: SourceEntry[];
   options?: GhInstallOptions;
   logger: Logger;
 }): Promise<GhInstallResult> {
-  const { baseDir, sources, options = {}, logger } = params;
+  const { outputRoot, sources, options = {}, logger } = params;
 
   if (sources.length === 0) {
     return { sourcesProcessed: 0, installedSkillCount: 0, failedSourceCount: 0 };
@@ -129,7 +129,7 @@ export async function installGh(params: {
     };
   });
 
-  const existingLock = await readGhLock(baseDir);
+  const existingLock = await readGhLock(outputRoot);
   const frozen = options.frozen ?? false;
   const update = options.update ?? false;
 
@@ -203,7 +203,7 @@ export async function installGh(params: {
       rs,
       client,
       semaphore,
-      baseDir,
+      outputRoot,
       existingLock,
       frozen,
       update,
@@ -285,7 +285,7 @@ export async function installGh(params: {
         await removeStaleFile({
           relativePath: deployed,
           scope: prev.scope === "user" ? "user" : "project",
-          baseDir,
+          outputRoot,
           logger,
         });
       }
@@ -294,7 +294,7 @@ export async function installGh(params: {
 
   if (!frozen) {
     newLock.generated_at = new Date().toISOString();
-    await writeGhLock({ baseDir, lock: newLock });
+    await writeGhLock({ outputRoot, lock: newLock });
     if (failedCount === 0) {
       logger.debug("rulesync-gh.lock.yaml updated.");
     } else {
@@ -315,13 +315,13 @@ async function installSource(params: {
   rs: ResolvedSource;
   client: GitHubClient;
   semaphore: Semaphore;
-  baseDir: string;
+  outputRoot: string;
   existingLock: GhLock | null;
   frozen: boolean;
   update: boolean;
   logger: Logger;
 }): Promise<SkillInstallation[]> {
-  const { rs, client, semaphore, baseDir, existingLock, frozen, update, logger } = params;
+  const { rs, client, semaphore, outputRoot, existingLock, frozen, update, logger } = params;
   const { entry, owner, repo, agent, scope } = rs;
   const sourceKey = entry.source;
 
@@ -419,7 +419,7 @@ async function installSource(params: {
 
   const results: SkillInstallation[] = [];
   const installRelDir = relativeInstallDirFor({ agent, scope });
-  const scopeRoot = scope === "user" ? getHomeDirectory() : baseDir;
+  const scopeRoot = scope === "user" ? getHomeDirectory() : outputRoot;
 
   // Source URL recorded in injected frontmatter. Mirrors the canonical form
   // used by `gh skill install`.
@@ -579,15 +579,15 @@ async function installSource(params: {
 async function removeStaleFile(params: {
   relativePath: string;
   scope: GhScope;
-  baseDir: string;
+  outputRoot: string;
   logger: Logger;
 }): Promise<void> {
-  const { relativePath, scope, baseDir, logger } = params;
+  const { relativePath, scope, outputRoot, logger } = params;
   if (posix.isAbsolute(relativePath) || relativePath.split(/[/\\]/).includes("..")) {
     logger.warn(`Refusing to remove stale gh file with suspicious path: "${relativePath}".`);
     return;
   }
-  const scopeRoot = scope === "user" ? getHomeDirectory() : baseDir;
+  const scopeRoot = scope === "user" ? getHomeDirectory() : outputRoot;
   try {
     checkPathTraversal({ relativePath, intendedRootDir: scopeRoot });
   } catch {

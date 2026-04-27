@@ -118,7 +118,7 @@ describe("installGh", () => {
   }
 
   it("returns early on empty sources", async () => {
-    const result = await installGh({ baseDir: testDir, sources: [], logger });
+    const result = await installGh({ outputRoot: testDir, sources: [], logger });
     expect(result).toEqual({
       sourcesProcessed: 0,
       installedSkillCount: 0,
@@ -129,7 +129,7 @@ describe("installGh", () => {
   it("rejects non-github sources with a clear error", async () => {
     await expect(
       installGh({
-        baseDir: testDir,
+        outputRoot: testDir,
         sources: [source({ source: "https://gitlab.com/owner/repo" })],
         logger,
       }),
@@ -139,7 +139,7 @@ describe("installGh", () => {
   it("rejects entry.transport='git' with a field-specific error", async () => {
     await expect(
       installGh({
-        baseDir: testDir,
+        outputRoot: testDir,
         sources: [source({ source: "owner/repo", transport: "git" })],
         logger,
       }),
@@ -149,7 +149,7 @@ describe("installGh", () => {
   it("rejects entry.path with a field-specific error", async () => {
     await expect(
       installGh({
-        baseDir: testDir,
+        outputRoot: testDir,
         sources: [source({ source: "owner/repo", path: "exports/skills" })],
         logger,
       }),
@@ -161,7 +161,7 @@ describe("installGh", () => {
     // sources — the second has no installations at all in the lock.
     setupSingleSkill("s");
     await installGh({
-      baseDir: testDir,
+      outputRoot: testDir,
       sources: [source({ source: "owner/first" })],
       logger,
     });
@@ -174,7 +174,7 @@ describe("installGh", () => {
 
     await expect(
       installGh({
-        baseDir: testDir,
+        outputRoot: testDir,
         sources: [source({ source: "owner/first" }), source({ source: "owner/added" })],
         options: { frozen: true },
         logger,
@@ -210,7 +210,7 @@ describe("installGh", () => {
     mockClientInstance.getFileContent.mockResolvedValue("# original\n");
 
     await installGh({
-      baseDir: testDir,
+      outputRoot: testDir,
       sources: [
         source({ source: "owner/repo", agent: "github-copilot" }),
         source({ source: "owner/repo", agent: "claude-code" }),
@@ -239,7 +239,7 @@ describe("installGh", () => {
 
     await expect(
       installGh({
-        baseDir: testDir,
+        outputRoot: testDir,
         sources: [
           source({ source: "owner/repo", agent: "github-copilot" }),
           source({ source: "owner/repo", agent: "claude-code" }),
@@ -259,7 +259,7 @@ describe("installGh", () => {
   it("discovers skills via skills/<name>/SKILL.md and writes them with default agent (github-copilot)", async () => {
     setupSingleSkill("git-commit");
     const result = await installGh({
-      baseDir: testDir,
+      outputRoot: testDir,
       sources: [source({ source: "owner/repo" })],
       logger,
     });
@@ -294,7 +294,7 @@ describe("installGh", () => {
   it("honors entry.agent (claude-code) and writes under .claude/skills", async () => {
     setupSingleSkill("git-commit");
     await installGh({
-      baseDir: testDir,
+      outputRoot: testDir,
       sources: [source({ source: "owner/repo", agent: "claude-code" })],
       logger,
     });
@@ -326,7 +326,7 @@ describe("installGh", () => {
 
     const localLogger = createMockLogger();
     const result = await installGh({
-      baseDir: testDir,
+      outputRoot: testDir,
       sources: [source({ source: "owner/repo", skills: ["wanted", "missing"] })],
       logger: localLogger,
     });
@@ -341,7 +341,7 @@ describe("installGh", () => {
   it("uses entry.ref when present, skipping latest-release lookup", async () => {
     setupSingleSkill("s");
     await installGh({
-      baseDir: testDir,
+      outputRoot: testDir,
       sources: [source({ source: "owner/repo", ref: "feature-branch" })],
       logger,
     });
@@ -359,7 +359,7 @@ describe("installGh", () => {
     mockClientInstance.getDefaultBranch.mockResolvedValue("trunk");
 
     await installGh({
-      baseDir: testDir,
+      outputRoot: testDir,
       sources: [source({ source: "owner/repo" })],
       logger,
     });
@@ -376,7 +376,7 @@ describe("installGh", () => {
     setupSingleSkill("s");
     await expect(
       installGh({
-        baseDir: testDir,
+        outputRoot: testDir,
         sources: [source({ source: "owner/repo" })],
         options: { frozen: true },
         logger,
@@ -387,7 +387,7 @@ describe("installGh", () => {
   it("--update re-resolves refs even when the lockfile is present", async () => {
     setupSingleSkill("s");
     await installGh({
-      baseDir: testDir,
+      outputRoot: testDir,
       sources: [source({ source: "owner/repo" })],
       logger,
     });
@@ -396,7 +396,7 @@ describe("installGh", () => {
     // Bump SHA to simulate upstream movement and re-run with --update.
     mockClientInstance.resolveRefToSha.mockResolvedValue(SECOND_SHA);
     await installGh({
-      baseDir: testDir,
+      outputRoot: testDir,
       sources: [source({ source: "owner/repo" })],
       options: { update: true },
       logger,
@@ -429,7 +429,7 @@ describe("installGh", () => {
     );
 
     await installGh({
-      baseDir: testDir,
+      outputRoot: testDir,
       sources: [source({ source: "owner/repo" })],
       logger,
     });
@@ -450,7 +450,7 @@ describe("installGh", () => {
     );
 
     await installGh({
-      baseDir: testDir,
+      outputRoot: testDir,
       sources: [source({ source: "owner/repo" })],
       options: { update: true },
       logger,
@@ -465,7 +465,7 @@ describe("installGh", () => {
   it("writes the lockfile path correctly", async () => {
     setupSingleSkill("s");
     await installGh({
-      baseDir: testDir,
+      outputRoot: testDir,
       sources: [source({ source: "owner/repo" })],
       logger,
     });

@@ -299,7 +299,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
   private readonly getFactory: GetFactory;
 
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     inputRoot = process.cwd(),
     toolTarget,
     global = false,
@@ -307,7 +307,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
     dryRun = false,
     logger,
   }: {
-    baseDir?: string;
+    outputRoot?: string;
     inputRoot?: string;
     toolTarget: ToolTarget;
     global?: boolean;
@@ -315,7 +315,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
     dryRun?: boolean;
     logger: Logger;
   }) {
-    super({ baseDir, inputRoot, dryRun, avoidBlockScalars: toolTarget === "cursor", logger });
+    super({ outputRoot, inputRoot, dryRun, avoidBlockScalars: toolTarget === "cursor", logger });
     const result = SkillsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -340,7 +340,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
           return null;
         }
         return factory.class.fromRulesyncSkill({
-          baseDir: this.baseDir,
+          outputRoot: this.outputRoot,
           rulesyncSkill: rulesyncSkill,
           global: this.global,
         });
@@ -378,7 +378,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
 
     const localSkills = await Promise.all(
       localDirNames.map((dirName) =>
-        RulesyncSkill.fromDir({ baseDir: this.inputRoot, dirName, global: this.global }),
+        RulesyncSkill.fromDir({ outputRoot: this.inputRoot, dirName, global: this.global }),
       ),
     );
 
@@ -405,7 +405,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       curatedSkills = await Promise.all(
         nonConflicting.map((dirName) =>
           RulesyncSkill.fromDir({
-            baseDir: this.inputRoot,
+            outputRoot: this.inputRoot,
             relativeDirPath: curatedRelativeDirPath,
             dirName,
             global: this.global,
@@ -434,7 +434,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
     const loadEntries: Array<{ root: string; dirName: string }> = [];
 
     for (const root of roots) {
-      const skillsDirPath = join(this.baseDir, root);
+      const skillsDirPath = join(this.outputRoot, root);
       if (!(await directoryExists(skillsDirPath))) {
         continue;
       }
@@ -452,7 +452,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
     const toolSkills = await Promise.all(
       loadEntries.map(({ root, dirName }) =>
         factory.class.fromDir({
-          baseDir: this.baseDir,
+          outputRoot: this.outputRoot,
           relativeDirPath: root,
           dirName,
           global: this.global,
@@ -473,7 +473,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
 
     const toolSkills: AiDir[] = [];
     for (const root of roots) {
-      const skillsDirPath = join(this.baseDir, root);
+      const skillsDirPath = join(this.outputRoot, root);
       if (!(await directoryExists(skillsDirPath))) {
         continue;
       }
@@ -481,7 +481,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       for (const dirPath of dirPaths) {
         const dirName = basename(dirPath);
         const toolSkill = factory.class.forDeletion({
-          baseDir: this.baseDir,
+          outputRoot: this.outputRoot,
           relativeDirPath: root,
           dirName,
           global: this.global,

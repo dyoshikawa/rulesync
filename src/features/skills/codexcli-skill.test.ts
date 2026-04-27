@@ -40,7 +40,7 @@ describe("CodexCliSkill", () => {
   describe("constructor", () => {
     it("should create instance with valid content in global mode", () => {
       const skill = new CodexCliSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".codex", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -62,7 +62,7 @@ describe("CodexCliSkill", () => {
 
     it("should create instance with valid content in project mode", () => {
       const skill = new CodexCliSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".codex", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -84,7 +84,7 @@ describe("CodexCliSkill", () => {
 
     it("should create instance with metadata.short-description", () => {
       const skill = new CodexCliSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".codex", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -123,7 +123,7 @@ This is the body of the codex cli skill.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       const skill = await CodexCliSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
         global: true,
       });
@@ -148,7 +148,7 @@ This is the body of the codex cli skill.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       const skill = await CodexCliSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
         global: false,
       });
@@ -175,7 +175,7 @@ This is the body of the codex cli skill.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       const skill = await CodexCliSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
         global: false,
       });
@@ -196,7 +196,7 @@ This is the body of the codex cli skill.`;
 
       await expect(
         CodexCliSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "empty-skill",
           global: true,
         }),
@@ -207,7 +207,7 @@ This is the body of the codex cli skill.`;
   describe("fromRulesyncSkill", () => {
     it("should create instance from RulesyncSkill in global mode", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -234,7 +234,7 @@ This is the body of the codex cli skill.`;
 
     it("should create instance from RulesyncSkill in project mode", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -261,7 +261,7 @@ This is the body of the codex cli skill.`;
 
     it("should convert codexcli.short-description to metadata.short-description", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -295,7 +295,7 @@ This is the body of the codex cli skill.`;
   describe("isTargetedByRulesyncSkill", () => {
     it("should return true when targets includes '*'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "all-targets-skill",
         frontmatter: {
@@ -312,7 +312,7 @@ This is the body of the codex cli skill.`;
 
     it("should return true when targets includes 'codexcli'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "codexcli-skill",
         frontmatter: {
@@ -329,7 +329,7 @@ This is the body of the codex cli skill.`;
 
     it("should return false when targets does not include 'codexcli'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "claudecode-only-skill",
         frontmatter: {
@@ -348,7 +348,7 @@ This is the body of the codex cli skill.`;
   describe("toRulesyncSkill", () => {
     it("should convert to a RulesyncSkill", () => {
       const skill = new CodexCliSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".codex", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -372,7 +372,7 @@ This is the body of the codex cli skill.`;
 
     it("should convert metadata.short-description to codexcli.short-description", () => {
       const skill = new CodexCliSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".codex", "skills"),
         dirName: "test-skill",
         frontmatter: {

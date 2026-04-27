@@ -40,9 +40,9 @@ describe("GeminiCliRule", () => {
       expect(geminiCliRule.getFileContent()).toBe("# Test Rule\n\nThis is a test rule.");
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const geminiCliRule = new GeminiCliRule({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".gemini/memories",
         relativeFilePath: "test-rule.md",
         fileContent: "# Custom Rule",
@@ -94,7 +94,7 @@ describe("GeminiCliRule", () => {
       await writeFileContent(join(memoriesDir, "test.md"), testContent);
 
       const geminiCliRule = await GeminiCliRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test.md",
       });
 
@@ -110,7 +110,7 @@ describe("GeminiCliRule", () => {
       await writeFileContent(join(testDir, "GEMINI.md"), testContent);
 
       const geminiCliRule = await GeminiCliRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "GEMINI.md",
       });
 
@@ -120,11 +120,11 @@ describe("GeminiCliRule", () => {
       expect(geminiCliRule.getFilePath()).toBe(join(testDir, "GEMINI.md"));
     });
 
-    it("should use default baseDir when not provided", async () => {
-      // Since process.cwd() is mocked to return testDir, default baseDir will use testDir
+    it("should use default outputRoot when not provided", async () => {
+      // Since process.cwd() is mocked to return testDir, default outputRoot will use testDir
       const memoriesDir = join(testDir, ".gemini/memories");
       await ensureDir(memoriesDir);
-      const testContent = "# Default BaseDir Test";
+      const testContent = "# Default OutputRoot Test";
       const testFilePath = join(memoriesDir, "default-test.md");
       await writeFileContent(testFilePath, testContent);
 
@@ -146,13 +146,13 @@ describe("GeminiCliRule", () => {
       await writeFileContent(join(memoriesDir, "validation-test.md"), testContent);
 
       const geminiCliRuleWithValidation = await GeminiCliRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "validation-test.md",
         validate: true,
       });
 
       const geminiCliRuleWithoutValidation = await GeminiCliRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "validation-test.md",
         validate: false,
       });
@@ -164,7 +164,7 @@ describe("GeminiCliRule", () => {
     it("should throw error when file does not exist", async () => {
       await expect(
         GeminiCliRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "nonexistent.md",
         }),
       ).rejects.toThrow();
@@ -222,7 +222,7 @@ describe("GeminiCliRule", () => {
       );
     });
 
-    it("should use custom baseDir", () => {
+    it("should use custom outputRoot", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom-base.md",
@@ -236,7 +236,7 @@ describe("GeminiCliRule", () => {
       });
 
       const geminiCliRule = GeminiCliRule.fromRulesyncRule({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         rulesyncRule,
       });
 
@@ -274,7 +274,7 @@ describe("GeminiCliRule", () => {
   describe("toRulesyncRule", () => {
     it("should convert GeminiCliRule to RulesyncRule", () => {
       const geminiCliRule = new GeminiCliRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/memories",
         relativeFilePath: "convert-test.md",
         fileContent: "# Convert Test\n\nThis will be converted.",
@@ -290,7 +290,7 @@ describe("GeminiCliRule", () => {
 
     it("should preserve metadata in conversion", () => {
       const geminiCliRule = new GeminiCliRule({
-        baseDir: "/test/path",
+        outputRoot: "/test/path",
         relativeDirPath: ".",
         relativeFilePath: "GEMINI.md",
         fileContent: "# Root Gemini Rule\n\nRoot content.",
@@ -399,7 +399,7 @@ describe("GeminiCliRule", () => {
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for rules targeting geminicli", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -413,7 +413,7 @@ describe("GeminiCliRule", () => {
 
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -427,7 +427,7 @@ describe("GeminiCliRule", () => {
 
     it("should return false for rules not targeting geminicli", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -441,7 +441,7 @@ describe("GeminiCliRule", () => {
 
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -455,7 +455,7 @@ describe("GeminiCliRule", () => {
 
     it("should handle mixed targets including geminicli", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -469,7 +469,7 @@ describe("GeminiCliRule", () => {
 
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/memories",
         relativeFilePath: "test.md",
         frontmatter: {},
@@ -490,7 +490,7 @@ describe("GeminiCliRule", () => {
 
       // Load from file
       const geminiCliRule = await GeminiCliRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "integration.md",
       });
 
@@ -510,7 +510,7 @@ describe("GeminiCliRule", () => {
 
       // Load from file
       const geminiCliRule = await GeminiCliRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "GEMINI.md",
       });
 
@@ -533,7 +533,7 @@ describe("GeminiCliRule", () => {
 
       // Start with rulesync rule
       const originalRulesync = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "roundtrip.md",
         frontmatter: {
@@ -547,7 +547,7 @@ describe("GeminiCliRule", () => {
 
       // Convert to gemini cli rule
       const geminiCliRule = GeminiCliRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule: originalRulesync,
       });
 
@@ -564,7 +564,7 @@ describe("GeminiCliRule", () => {
 
       // Start with root rulesync rule
       const originalRulesync = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "root-roundtrip.md",
         frontmatter: {
@@ -578,7 +578,7 @@ describe("GeminiCliRule", () => {
 
       // Convert to gemini cli rule
       const geminiCliRule = GeminiCliRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule: originalRulesync,
       });
 
@@ -613,7 +613,7 @@ describe("GeminiCliRule", () => {
       // Load each file and verify
       for (const file of files) {
         const geminiCliRule = await GeminiCliRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: file.name,
         });
 
@@ -631,7 +631,7 @@ describe("GeminiCliRule", () => {
       const largeContent = "# Large Content Test\n\n" + "Lorem ipsum dolor sit amet. ".repeat(1000);
 
       const geminiCliRule = new GeminiCliRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini/memories",
         relativeFilePath: "large.md",
         fileContent: largeContent,

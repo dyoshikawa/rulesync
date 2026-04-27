@@ -25,7 +25,7 @@ export const SimulatedSkillFrontmatterSchema = z.looseObject({
 export type SimulatedSkillFrontmatter = z.infer<typeof SimulatedSkillFrontmatterSchema>;
 
 export type SimulatedSkillParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath: string;
   dirName: string;
   frontmatter: SimulatedSkillFrontmatter;
@@ -50,7 +50,7 @@ export abstract class SimulatedSkill extends ToolSkill {
   private readonly body: string;
 
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     dirName,
     frontmatter,
@@ -59,7 +59,7 @@ export abstract class SimulatedSkill extends ToolSkill {
     validate = true,
   }: SimulatedSkillParams) {
     super({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       mainFile: {
@@ -115,7 +115,7 @@ export abstract class SimulatedSkill extends ToolSkill {
   }
 
   protected static fromRulesyncSkillDefault({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSkill,
     validate = true,
   }: ToolSkillFromRulesyncSkillParams): SimulatedSkillParams {
@@ -128,7 +128,7 @@ export abstract class SimulatedSkill extends ToolSkill {
     };
 
     return {
-      baseDir,
+      outputRoot,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: simulatedFrontmatter,
@@ -139,13 +139,13 @@ export abstract class SimulatedSkill extends ToolSkill {
   }
 
   protected static async fromDirDefault({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     dirName,
   }: ToolSkillFromDirParams): Promise<SimulatedSkillParams> {
     const settablePaths = this.getSettablePaths();
     const actualRelativeDirPath = relativeDirPath ?? settablePaths.relativeDirPath;
-    const skillDirPath = join(baseDir, actualRelativeDirPath, dirName);
+    const skillDirPath = join(outputRoot, actualRelativeDirPath, dirName);
     const skillFilePath = join(skillDirPath, SKILL_FILE_NAME);
 
     if (!(await fileExists(skillFilePath))) {
@@ -161,14 +161,14 @@ export abstract class SimulatedSkill extends ToolSkill {
     }
 
     const otherFiles = await this.collectOtherFiles(
-      baseDir,
+      outputRoot,
       actualRelativeDirPath,
       dirName,
       SKILL_FILE_NAME,
     );
 
     return {
-      baseDir,
+      outputRoot,
       relativeDirPath: actualRelativeDirPath,
       dirName,
       frontmatter: result.data,
@@ -184,12 +184,12 @@ export abstract class SimulatedSkill extends ToolSkill {
    * even when skill files have old/incompatible formats.
    */
   protected static forDeletionDefault({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     dirName,
   }: ToolSkillForDeletionParams): SimulatedSkillParams {
     return {
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },

@@ -9,7 +9,7 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { RulesyncFile, RulesyncFileFromFileParams } from "../../types/rulesync-file.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 
-export type RulesyncIgnoreFromFileParams = Pick<RulesyncFileFromFileParams, "baseDir">;
+export type RulesyncIgnoreFromFileParams = Pick<RulesyncFileFromFileParams, "outputRoot">;
 
 export type RulesyncIgnoreSettablePaths = {
   recommended: {
@@ -41,20 +41,24 @@ export class RulesyncIgnore extends RulesyncFile {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
   }: RulesyncIgnoreFromFileParams = {}): Promise<RulesyncIgnore> {
     const paths = this.getSettablePaths();
     const recommendedPath = join(
-      baseDir,
+      outputRoot,
       paths.recommended.relativeDirPath,
       paths.recommended.relativeFilePath,
     );
-    const legacyPath = join(baseDir, paths.legacy.relativeDirPath, paths.legacy.relativeFilePath);
+    const legacyPath = join(
+      outputRoot,
+      paths.legacy.relativeDirPath,
+      paths.legacy.relativeFilePath,
+    );
 
     if (await fileExists(recommendedPath)) {
       const fileContent = await readFileContent(recommendedPath);
       return new RulesyncIgnore({
-        baseDir,
+        outputRoot,
         relativeDirPath: paths.recommended.relativeDirPath,
         relativeFilePath: paths.recommended.relativeFilePath,
         fileContent,
@@ -64,7 +68,7 @@ export class RulesyncIgnore extends RulesyncFile {
     if (await fileExists(legacyPath)) {
       const fileContent = await readFileContent(legacyPath);
       return new RulesyncIgnore({
-        baseDir,
+        outputRoot,
         relativeDirPath: paths.legacy.relativeDirPath,
         relativeFilePath: paths.legacy.relativeFilePath,
         fileContent,
@@ -74,7 +78,7 @@ export class RulesyncIgnore extends RulesyncFile {
     // If neither exists, try to read recommended path (will throw appropriate error)
     const fileContent = await readFileContent(recommendedPath);
     return new RulesyncIgnore({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.recommended.relativeDirPath,
       relativeFilePath: paths.recommended.relativeFilePath,
       fileContent,

@@ -43,7 +43,7 @@ describe("ReplitRule", () => {
       await writeFileContent(join(testDir, "replit.md"), replitContent);
 
       const replitRule = await ReplitRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "replit.md",
       });
 
@@ -55,7 +55,7 @@ describe("ReplitRule", () => {
     it("should throw error for non-root files", async () => {
       await expect(
         ReplitRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "other.md",
         }),
       ).rejects.toThrow("ReplitRule only supports root rules");
@@ -77,7 +77,7 @@ describe("ReplitRule", () => {
       });
 
       const replitRule = ReplitRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
@@ -96,7 +96,7 @@ describe("ReplitRule", () => {
 
       expect(() =>
         ReplitRule.fromRulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           rulesyncRule,
         }),
       ).toThrow("ReplitRule only supports root rules");
@@ -137,7 +137,7 @@ describe("ReplitRule", () => {
   describe("forDeletion", () => {
     it("should create minimal instance for deletion", () => {
       const replitRule = ReplitRule.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "replit.md",
       });
@@ -151,7 +151,7 @@ describe("ReplitRule", () => {
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for root rules targeting replit", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "replit.md",
         frontmatter: { targets: ["replit"], root: true },
@@ -163,7 +163,7 @@ describe("ReplitRule", () => {
 
     it("should return true for root rules targeting all (*)", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "replit.md",
         frontmatter: { targets: ["*"], root: true },
@@ -175,7 +175,7 @@ describe("ReplitRule", () => {
 
     it("should return false for non-root rules", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "test.md",
         frontmatter: { targets: ["replit"], root: false },

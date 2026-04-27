@@ -45,7 +45,7 @@ describe("config-resolver", () => {
   describe("global configuration", () => {
     it("should load global: true from config file", async () => {
       const configContent = JSON.stringify({
-        baseDirs: ["./"],
+        outputRoots: ["./"],
         global: true,
       });
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
@@ -59,7 +59,7 @@ describe("config-resolver", () => {
 
     it("should load global: false from config file", async () => {
       const configContent = JSON.stringify({
-        baseDirs: ["./"],
+        outputRoots: ["./"],
         global: false,
       });
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
@@ -73,7 +73,7 @@ describe("config-resolver", () => {
 
     it("should default global to false when not specified", async () => {
       const configContent = JSON.stringify({
-        baseDirs: ["./"],
+        outputRoots: ["./"],
       });
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
 
@@ -86,7 +86,7 @@ describe("config-resolver", () => {
 
     it("should allow CLI flag to override config file", async () => {
       const configContent = JSON.stringify({
-        baseDirs: ["./"],
+        outputRoots: ["./"],
         global: false,
       });
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
@@ -103,7 +103,7 @@ describe("config-resolver", () => {
   describe("silent configuration", () => {
     it("should load silent: true from config file", async () => {
       const configContent = JSON.stringify({
-        baseDirs: ["./"],
+        outputRoots: ["./"],
         silent: true,
       });
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
@@ -117,7 +117,7 @@ describe("config-resolver", () => {
 
     it("should load silent: false from config file", async () => {
       const configContent = JSON.stringify({
-        baseDirs: ["./"],
+        outputRoots: ["./"],
         silent: false,
       });
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
@@ -131,7 +131,7 @@ describe("config-resolver", () => {
 
     it("should default silent to false when not specified", async () => {
       const configContent = JSON.stringify({
-        baseDirs: ["./"],
+        outputRoots: ["./"],
       });
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
 
@@ -144,7 +144,7 @@ describe("config-resolver", () => {
 
     it("should allow CLI flag to override config file for silent", async () => {
       const configContent = JSON.stringify({
-        baseDirs: ["./"],
+        outputRoots: ["./"],
         silent: false,
       });
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
@@ -159,9 +159,9 @@ describe("config-resolver", () => {
   });
 
   describe("base directory resolution", () => {
-    it("should load configured baseDirs from file", async () => {
+    it("should load configured outputRoots from file", async () => {
       const configContent = JSON.stringify({
-        baseDirs: ["./src", "./packages"],
+        outputRoots: ["./src", "./packages"],
       });
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
 
@@ -169,14 +169,14 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
-      // baseDirs are now resolved to absolute paths
-      expect(config.getBaseDirs()).toContain(resolve("./src"));
-      expect(config.getBaseDirs()).toContain(resolve("./packages"));
+      // outputRoots are now resolved to absolute paths
+      expect(config.getOutputRoots()).toContain(resolve("./src"));
+      expect(config.getOutputRoots()).toContain(resolve("./packages"));
     });
 
-    it("should handle multiple baseDirs", async () => {
+    it("should handle multiple outputRoots", async () => {
       const configContent = JSON.stringify({
-        baseDirs: ["./app1", "./app2", "./app3"],
+        outputRoots: ["./app1", "./app2", "./app3"],
       });
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
 
@@ -184,18 +184,18 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
-      // baseDirs are now resolved to absolute paths
-      expect(config.getBaseDirs()).toHaveLength(3);
-      expect(config.getBaseDirs()).toContain(resolve("./app1"));
-      expect(config.getBaseDirs()).toContain(resolve("./app2"));
-      expect(config.getBaseDirs()).toContain(resolve("./app3"));
+      // outputRoots are now resolved to absolute paths
+      expect(config.getOutputRoots()).toHaveLength(3);
+      expect(config.getOutputRoots()).toContain(resolve("./app1"));
+      expect(config.getOutputRoots()).toContain(resolve("./app2"));
+      expect(config.getOutputRoots()).toContain(resolve("./app3"));
     });
   });
 
   describe("local configuration (rulesync.local.jsonc)", () => {
     it("should use rulesync.local.jsonc to override rulesync.jsonc", async () => {
       const baseConfigContent = JSON.stringify({
-        baseDirs: ["./"],
+        outputRoots: ["./"],
         targets: ["cursor"],
         verbose: false,
       });
@@ -216,7 +216,7 @@ describe("config-resolver", () => {
 
     it("should preserve rulesync.jsonc values not overridden by rulesync.local.jsonc", async () => {
       const baseConfigContent = JSON.stringify({
-        baseDirs: ["./"],
+        outputRoots: ["./"],
         targets: ["cursor"],
         features: ["rules", "mcp"],
         verbose: false,
@@ -240,7 +240,7 @@ describe("config-resolver", () => {
 
     it("should allow CLI options to override rulesync.local.jsonc", async () => {
       const baseConfigContent = JSON.stringify({
-        baseDirs: ["./"],
+        outputRoots: ["./"],
         targets: ["cursor"],
       });
       const localConfigContent = JSON.stringify({
@@ -262,7 +262,7 @@ describe("config-resolver", () => {
 
     it("should work without rulesync.local.jsonc", async () => {
       const baseConfigContent = JSON.stringify({
-        baseDirs: ["./"],
+        outputRoots: ["./"],
         targets: ["cursor"],
         verbose: true,
       });
@@ -293,7 +293,10 @@ describe("config-resolver", () => {
 
     it("should load rulesync.local.jsonc from the same directory as the base config", async () => {
       const subDir = join(testDir, "subdir");
-      await writeFileContent(join(subDir, "rulesync.jsonc"), JSON.stringify({ baseDirs: ["./"] }));
+      await writeFileContent(
+        join(subDir, "rulesync.jsonc"),
+        JSON.stringify({ outputRoots: ["./"] }),
+      );
       await writeFileContent(
         join(subDir, "rulesync.local.jsonc"),
         JSON.stringify({ targets: ["cline"] }),
@@ -310,7 +313,7 @@ describe("config-resolver", () => {
   describe("configPath security", () => {
     it("should accept configPath within current directory", async () => {
       const configContent = JSON.stringify({
-        baseDirs: ["./"],
+        outputRoots: ["./"],
       });
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
 
@@ -318,7 +321,7 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
-      expect(config.getBaseDirs()).toHaveLength(1);
+      expect(config.getOutputRoots()).toHaveLength(1);
     });
 
     it("should reject configPath with path traversal attempting to escape current directory", async () => {
@@ -349,7 +352,7 @@ describe("config-resolver", () => {
   describe("object-form targets end-to-end", () => {
     it("should load object-form targets from rulesync.jsonc without reintroducing default features", async () => {
       const configContent = JSON.stringify({
-        baseDirs: ["./"],
+        outputRoots: ["./"],
         targets: {
           claudecode: { rules: true, ignore: { fileMode: "local" } },
           cursor: ["rules", "mcp"],
@@ -369,7 +372,7 @@ describe("config-resolver", () => {
 
     it("should reject merged config when base has array-form features and local has object-form targets", async () => {
       const baseConfigContent = JSON.stringify({
-        baseDirs: ["./"],
+        outputRoots: ["./"],
         features: ["rules"],
       });
       const localConfigContent = JSON.stringify({
@@ -385,7 +388,7 @@ describe("config-resolver", () => {
 
     it("should reject object-form targets combined with features from a config file", async () => {
       const configContent = JSON.stringify({
-        baseDirs: ["./"],
+        outputRoots: ["./"],
         targets: { claudecode: ["rules"] },
         features: ["rules"],
       });
@@ -477,7 +480,7 @@ describe("config-resolver", () => {
       const inputRoot = join(testDir, "central-rules");
       await writeFileContent(
         join(inputRoot, "rulesync.jsonc"),
-        JSON.stringify({ baseDirs: ["./"], global: true }),
+        JSON.stringify({ outputRoots: ["./"], global: true }),
       );
 
       const config = await ConfigResolver.resolve({
@@ -492,7 +495,7 @@ describe("config-resolver", () => {
       const inputRoot = join(testDir, "central-rules");
       await writeFileContent(
         join(inputRoot, "rulesync.jsonc"),
-        JSON.stringify({ baseDirs: ["./"], global: true }),
+        JSON.stringify({ outputRoots: ["./"], global: true }),
       );
       const logger = { warn: vi.fn() } as unknown as Logger;
 
@@ -511,7 +514,7 @@ describe("config-resolver", () => {
       const inputRoot = join(testDir, "central-rules");
       await writeFileContent(
         join(inputRoot, "rulesync.jsonc"),
-        JSON.stringify({ baseDirs: ["./"], global: true }),
+        JSON.stringify({ outputRoots: ["./"], global: true }),
       );
       const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -556,7 +559,7 @@ describe("config-resolver", () => {
       const inputRoot = join(testDir, "central-rules");
       await writeFileContent(
         join(inputRoot, "rulesync.jsonc"),
-        JSON.stringify({ baseDirs: ["./"], global: true }),
+        JSON.stringify({ outputRoots: ["./"], global: true }),
       );
       const logger = { warn: vi.fn() } as unknown as Logger;
 
@@ -575,7 +578,7 @@ describe("config-resolver", () => {
     it("should honor config file global: true when inputRoot is omitted", async () => {
       await writeFileContent(
         join(testDir, "rulesync.jsonc"),
-        JSON.stringify({ baseDirs: ["./"], global: true }),
+        JSON.stringify({ outputRoots: ["./"], global: true }),
       );
 
       const config = await ConfigResolver.resolve({
@@ -589,7 +592,7 @@ describe("config-resolver", () => {
       const inputRoot = join(testDir, "central-rules");
       await writeFileContent(
         join(inputRoot, "rulesync.jsonc"),
-        JSON.stringify({ baseDirs: ["./"], global: true }),
+        JSON.stringify({ outputRoots: ["./"], global: true }),
       );
 
       const config = await ConfigResolver.resolve({
@@ -605,7 +608,7 @@ describe("config-resolver", () => {
       const inputRoot = join(testDir, "central-rules");
       await writeFileContent(
         join(inputRoot, "rulesync.jsonc"),
-        JSON.stringify({ baseDirs: ["./"], global: true }),
+        JSON.stringify({ outputRoots: ["./"], global: true }),
       );
 
       const config = await ConfigResolver.resolve({
@@ -621,7 +624,7 @@ describe("config-resolver", () => {
       const inputRoot = join(testDir, "central-rules");
       await writeFileContent(
         join(inputRoot, "rulesync.jsonc"),
-        JSON.stringify({ baseDirs: ["./"] }),
+        JSON.stringify({ outputRoots: ["./"] }),
       );
 
       const config = await ConfigResolver.resolve({
@@ -667,10 +670,10 @@ describe("config-resolver", () => {
       expect(config.getInputRoot()).toBe(localRoot);
     });
 
-    it("should reject a config-file inputRoot that fails validateBaseDir", async () => {
-      // This test specifically pins the symmetric `validateBaseDir` block that
+    it("should reject a config-file inputRoot that fails validateOutputRoot", async () => {
+      // This test specifically pins the symmetric `validateOutputRoot` block that
       // runs on `configByFile.inputRoot` (config-resolver.ts ~line 181). The
-      // `configBaseDir` pre-check is unaffected here because cwd is inside the
+      // `configOutputRoot` pre-check is unaffected here because cwd is inside the
       // test temp dir and CLI `inputRoot` is unset; only the config-file
       // inputRoot triggers validation. Picking the filesystem root forces the
       // dedicated "filesystem root" error message — distinct from the
@@ -683,7 +686,7 @@ describe("config-resolver", () => {
         ConfigResolver.resolve({
           configPath: join(testDir, "rulesync.jsonc"),
         }),
-      ).rejects.toThrow(/baseDir must not be the filesystem root/);
+      ).rejects.toThrow(/outputRoot must not be the filesystem root/);
     });
   });
 
@@ -702,7 +705,7 @@ describe("config-resolver", () => {
 
     it("emits the deprecation warning once when features is in object form", async () => {
       const configContent = JSON.stringify({
-        baseDirs: ["./"],
+        outputRoots: ["./"],
         features: { claudecode: ["rules"] },
       });
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
@@ -718,7 +721,7 @@ describe("config-resolver", () => {
 
     it("does not emit the warning when features is in array form", async () => {
       const configContent = JSON.stringify({
-        baseDirs: ["./"],
+        outputRoots: ["./"],
         targets: ["claudecode"],
         features: ["rules"],
       });
@@ -735,7 +738,7 @@ describe("config-resolver", () => {
     it("suppresses the warning when RULESYNC_SILENT_DEPRECATION is set", async () => {
       process.env.RULESYNC_SILENT_DEPRECATION = "1";
       const configContent = JSON.stringify({
-        baseDirs: ["./"],
+        outputRoots: ["./"],
         features: { claudecode: ["rules"] },
       });
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
@@ -744,6 +747,110 @@ describe("config-resolver", () => {
 
       const deprecationCalls = warnSpy.mock.calls.filter((call: unknown[]) =>
         String(call[0]).includes("DEPRECATED: 'features' object form"),
+      );
+      expect(deprecationCalls).toHaveLength(0);
+    });
+  });
+
+  describe("deprecation alias: 'baseDirs' config field", () => {
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      resetDeprecationWarningForTests();
+      warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+      delete process.env.RULESYNC_SILENT_DEPRECATION;
+    });
+
+    it("maps 'baseDirs' from a config file to outputRoots and emits a warning", async () => {
+      const configContent = JSON.stringify({
+        baseDirs: [testDir],
+        targets: ["claudecode"],
+        features: ["rules"],
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getOutputRoots()).toEqual([testDir]);
+
+      const deprecationCalls = warnSpy.mock.calls.filter((call: unknown[]) =>
+        String(call[0]).includes("DEPRECATED: 'baseDirs' config field"),
+      );
+      expect(deprecationCalls).toHaveLength(1);
+    });
+
+    it("prefers 'outputRoots' over 'baseDirs' when both are present in a config file", async () => {
+      const otherDir = join(testDir, "other");
+      const configContent = JSON.stringify({
+        baseDirs: [otherDir],
+        outputRoots: [testDir],
+        targets: ["claudecode"],
+        features: ["rules"],
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getOutputRoots()).toEqual([testDir]);
+
+      const deprecationCalls = warnSpy.mock.calls.filter((call: unknown[]) =>
+        String(call[0]).includes("DEPRECATED: 'baseDirs' config field"),
+      );
+      expect(deprecationCalls).toHaveLength(1);
+    });
+
+    it("maps programmatic 'baseDirs' resolver param to outputRoots and emits a warning", async () => {
+      const config = await ConfigResolver.resolve({
+        baseDirs: [testDir],
+        targets: ["claudecode"],
+        features: ["rules"],
+      });
+
+      expect(config.getOutputRoots()).toEqual([testDir]);
+
+      const deprecationCalls = warnSpy.mock.calls.filter((call: unknown[]) =>
+        String(call[0]).includes("DEPRECATED: 'baseDirs' config field"),
+      );
+      expect(deprecationCalls).toHaveLength(1);
+    });
+
+    it("does not emit the warning when only 'outputRoots' is used", async () => {
+      const configContent = JSON.stringify({
+        outputRoots: [testDir],
+        targets: ["claudecode"],
+        features: ["rules"],
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      await ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") });
+
+      const deprecationCalls = warnSpy.mock.calls.filter((call: unknown[]) =>
+        String(call[0]).includes("DEPRECATED: 'baseDirs' config field"),
+      );
+      expect(deprecationCalls).toHaveLength(0);
+    });
+
+    it("suppresses the warning when RULESYNC_SILENT_DEPRECATION is set", async () => {
+      process.env.RULESYNC_SILENT_DEPRECATION = "1";
+      const configContent = JSON.stringify({
+        baseDirs: [testDir],
+        targets: ["claudecode"],
+        features: ["rules"],
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      await ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") });
+
+      const deprecationCalls = warnSpy.mock.calls.filter((call: unknown[]) =>
+        String(call[0]).includes("DEPRECATED: 'baseDirs' config field"),
       );
       expect(deprecationCalls).toHaveLength(0);
     });

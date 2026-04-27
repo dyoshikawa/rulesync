@@ -77,7 +77,7 @@ export class CursorSubagent extends ToolSubagent {
     };
 
     return new RulesyncSubagent({
-      baseDir: ".", // RulesyncSubagent baseDir is always the project root directory
+      outputRoot: ".", // RulesyncSubagent outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -87,7 +87,7 @@ export class CursorSubagent extends ToolSubagent {
   }
 
   static fromRulesyncSubagent({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSubagent,
     validate = true,
     global = false,
@@ -106,7 +106,7 @@ export class CursorSubagent extends ToolSubagent {
     const paths = this.getSettablePaths({ global });
 
     return new CursorSubagent({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       frontmatter: cursorFrontmatter,
       body,
       relativeDirPath: paths.relativeDirPath,
@@ -143,13 +143,13 @@ export class CursorSubagent extends ToolSubagent {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolSubagentFromFileParams): Promise<CursorSubagent> {
     const paths = this.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
@@ -159,7 +159,7 @@ export class CursorSubagent extends ToolSubagent {
     }
 
     return new CursorSubagent({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: relativeFilePath,
       frontmatter: result.data,
@@ -171,12 +171,12 @@ export class CursorSubagent extends ToolSubagent {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolSubagentForDeletionParams): CursorSubagent {
     return new CursorSubagent({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       frontmatter: { name: "", description: "" },

@@ -39,7 +39,7 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
   }
 
   static fromRulesyncSubagent({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSubagent,
     validate = true,
     global = false,
@@ -59,7 +59,7 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
     const paths = this.getSettablePaths({ global });
 
     return new KiloSubagent({
-      baseDir,
+      outputRoot,
       frontmatter: kiloFrontmatter,
       body,
       relativeDirPath: paths.relativeDirPath,
@@ -78,13 +78,13 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolSubagentFromFileParams): Promise<KiloSubagent> {
     const paths = this.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
@@ -94,7 +94,7 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
     }
 
     return new KiloSubagent({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
       frontmatter: result.data,
@@ -106,12 +106,12 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolSubagentForDeletionParams): KiloSubagent {
     return new KiloSubagent({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       frontmatter: { description: "", mode: "subagent" },

@@ -60,7 +60,7 @@ Step 1`;
   describe("constructor", () => {
     it("should create instance with valid content", () => {
       const command = new ClineCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".clinerules/workflows",
         relativeFilePath: "test.md",
         fileContent: validContent,
@@ -73,7 +73,7 @@ Step 1`;
 
     it("should allow empty content", () => {
       const command = new ClineCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".clinerules/workflows",
         relativeFilePath: "test.md",
         fileContent: "",
@@ -85,7 +85,7 @@ Step 1`;
 
     it("should skip validation when validate is false", () => {
       const command = new ClineCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".clinerules/workflows",
         relativeFilePath: "test.md",
         fileContent: validContent,
@@ -100,7 +100,7 @@ Step 1`;
   describe("getBody", () => {
     it("should return the command body", () => {
       const command = new ClineCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".clinerules/workflows",
         relativeFilePath: "test.md",
         fileContent: validContent,
@@ -113,7 +113,7 @@ Step 1`;
   describe("toRulesyncCommand", () => {
     it("should convert to RulesyncCommand", () => {
       const clineCommand = new ClineCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".clinerules/workflows",
         relativeFilePath: "test.md",
         fileContent: validContent,
@@ -132,7 +132,7 @@ Step 1`;
   describe("fromRulesyncCommand", () => {
     it("should create ClineCommand from RulesyncCommand", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "workflow.md",
         frontmatter: { targets: ["cline"], description: "" },
@@ -142,7 +142,7 @@ Step 1`;
       });
 
       const clineCommand = ClineCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
       });
 
@@ -155,7 +155,7 @@ Step 1`;
   describe("validate", () => {
     it("should always pass validation", () => {
       const command = new ClineCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".clinerules/workflows",
         relativeFilePath: "test.md",
         fileContent: validContent,
@@ -173,7 +173,7 @@ Step 1`;
       await writeFileContent(filePath, markdownWithFrontmatter);
 
       const command = await ClineCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "workflow.md",
       });
 
@@ -189,7 +189,7 @@ Step 1`;
       await writeFileContent(filePath, validContent);
 
       const command = await ClineCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "global.md",
         global: true,
       });
@@ -202,7 +202,7 @@ Step 1`;
   describe("isTargetedByRulesyncCommand", () => {
     it("should return true when targets include cline", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "workflow.md",
         frontmatter: { targets: ["cline"], description: "" },
@@ -216,7 +216,7 @@ Step 1`;
 
     it("should return false when targets exclude cline", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "workflow.md",
         frontmatter: { targets: ["cursor"], description: "" },
@@ -232,7 +232,7 @@ Step 1`;
   describe("forDeletion", () => {
     it("should create deletable command", () => {
       const command = ClineCommand.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".clinerules/workflows",
         relativeFilePath: "obsolete.md",
       });

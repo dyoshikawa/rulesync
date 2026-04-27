@@ -31,16 +31,16 @@ export class KiloHooks extends ToolHooks {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
     global = false,
   }: ToolHooksFromFileParams): Promise<KiloHooks> {
     const paths = KiloHooks.getSettablePaths({ global });
     const fileContent = await readFileContent(
-      join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
+      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
     );
     return new KiloHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -49,7 +49,7 @@ export class KiloHooks extends ToolHooks {
   }
 
   static fromRulesyncHooks({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncHooks,
     validate = true,
     global = false,
@@ -63,7 +63,7 @@ export class KiloHooks extends ToolHooks {
     );
     const paths = KiloHooks.getSettablePaths({ global });
     return new KiloHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -80,12 +80,12 @@ export class KiloHooks extends ToolHooks {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolHooksForDeletionParams): KiloHooks {
     return new KiloHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "",

@@ -93,7 +93,7 @@ export class RovodevRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     relativeDirPath: overrideDirPath,
     validate = true,
@@ -108,7 +108,7 @@ export class RovodevRule extends ToolRule {
       overrideDirPath === paths.nonRoot.relativeDirPath
     ) {
       return this.fromModularFile({
-        baseDir,
+        outputRoot,
         relativeFilePath,
         relativeDirPath: overrideDirPath,
         validate,
@@ -117,7 +117,7 @@ export class RovodevRule extends ToolRule {
     }
 
     return this.fromRootFile({
-      baseDir,
+      outputRoot,
       relativeFilePath,
       overrideDirPath,
       validate,
@@ -127,13 +127,13 @@ export class RovodevRule extends ToolRule {
   }
 
   private static async fromModularFile({
-    baseDir,
+    outputRoot,
     relativeFilePath,
     relativeDirPath,
     validate,
     global,
   }: {
-    baseDir: string;
+    outputRoot: string;
     relativeFilePath: string;
     relativeDirPath: string;
     validate: boolean;
@@ -144,9 +144,9 @@ export class RovodevRule extends ToolRule {
         `Reserved Rovodev memory basename under modular-rules (not a modular rule): ${join(relativeDirPath, relativeFilePath)}`,
       );
     }
-    const fileContent = await readFileContent(join(baseDir, relativeDirPath, relativeFilePath));
+    const fileContent = await readFileContent(join(outputRoot, relativeDirPath, relativeFilePath));
     return new RovodevRule({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent,
@@ -157,14 +157,14 @@ export class RovodevRule extends ToolRule {
   }
 
   private static async fromRootFile({
-    baseDir,
+    outputRoot,
     relativeFilePath,
     overrideDirPath,
     validate,
     global,
     paths,
   }: {
-    baseDir: string;
+    outputRoot: string;
     relativeFilePath: string;
     overrideDirPath: string | undefined;
     validate: boolean;
@@ -198,10 +198,10 @@ export class RovodevRule extends ToolRule {
       );
     }
 
-    const fileContent = await readFileContent(join(baseDir, relativeDirPath, relativeFilePath));
+    const fileContent = await readFileContent(join(outputRoot, relativeDirPath, relativeFilePath));
 
     return new RovodevRule({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent,
@@ -212,13 +212,13 @@ export class RovodevRule extends ToolRule {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
     global = false,
   }: ToolRuleForDeletionParams): RovodevRule {
     return new RovodevRule({
-      baseDir,
+      outputRoot,
       relativeDirPath: relativeDirPath ?? ".",
       relativeFilePath: relativeFilePath ?? "AGENTS.md",
       fileContent: "",
@@ -229,7 +229,7 @@ export class RovodevRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
     global = false,
@@ -240,7 +240,7 @@ export class RovodevRule extends ToolRule {
     if (isRoot) {
       return new RovodevRule(
         this.buildToolRuleParamsDefault({
-          baseDir,
+          outputRoot,
           rulesyncRule,
           validate,
           global,
@@ -265,7 +265,7 @@ export class RovodevRule extends ToolRule {
 
     return new RovodevRule(
       this.buildToolRuleParamsDefault({
-        baseDir,
+        outputRoot,
         rulesyncRule,
         validate,
         global,
@@ -278,7 +278,7 @@ export class RovodevRule extends ToolRule {
   toRulesyncRule(): RulesyncRule {
     if (this.getRelativeFilePath() === "AGENTS.local.md") {
       return new RulesyncRule({
-        baseDir: this.getBaseDir(),
+        outputRoot: this.getOutputRoot(),
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "AGENTS.local.md",
         frontmatter: {
@@ -294,7 +294,7 @@ export class RovodevRule extends ToolRule {
 
     if (!this.isRoot()) {
       return new RulesyncRule({
-        baseDir: this.getBaseDir(),
+        outputRoot: this.getOutputRoot(),
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: this.getRelativeFilePath(),
         frontmatter: {

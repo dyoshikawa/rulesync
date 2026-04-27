@@ -96,7 +96,7 @@ export class IgnoreProcessor extends FeatureProcessor {
   private readonly featureOptions: FeatureOptions | undefined;
 
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     inputRoot = process.cwd(),
     toolTarget,
     getFactory = defaultGetFactory,
@@ -104,7 +104,7 @@ export class IgnoreProcessor extends FeatureProcessor {
     logger,
     featureOptions,
   }: {
-    baseDir?: string;
+    outputRoot?: string;
     inputRoot?: string;
     toolTarget: ToolTarget;
     getFactory?: GetFactory;
@@ -112,7 +112,7 @@ export class IgnoreProcessor extends FeatureProcessor {
     logger: Logger;
     featureOptions?: FeatureOptions;
   }) {
-    super({ baseDir, inputRoot, dryRun, logger });
+    super({ outputRoot, inputRoot, dryRun, logger });
     const result = IgnoreProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -135,7 +135,7 @@ export class IgnoreProcessor extends FeatureProcessor {
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
     try {
-      return [await RulesyncIgnore.fromFile({ baseDir: this.inputRoot })];
+      return [await RulesyncIgnore.fromFile({ outputRoot: this.inputRoot })];
     } catch (error) {
       this.logger.error(
         `Failed to load rulesync ignore file (${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}): ${formatError(error)}`,
@@ -159,7 +159,7 @@ export class IgnoreProcessor extends FeatureProcessor {
 
       if (forDeletion) {
         const toolIgnore = factory.class.forDeletion({
-          baseDir: this.baseDir,
+          outputRoot: this.outputRoot,
           relativeDirPath: paths.relativeDirPath,
           relativeFilePath: paths.relativeFilePath,
         });
@@ -183,7 +183,9 @@ export class IgnoreProcessor extends FeatureProcessor {
 
   async loadToolIgnores(): Promise<ToolIgnore[]> {
     const factory = this.getFactory(this.toolTarget);
-    return [await factory.class.fromFile({ baseDir: this.baseDir, options: this.featureOptions })];
+    return [
+      await factory.class.fromFile({ outputRoot: this.outputRoot, options: this.featureOptions }),
+    ];
   }
 
   /**
@@ -201,7 +203,7 @@ export class IgnoreProcessor extends FeatureProcessor {
 
     const factory = this.getFactory(this.toolTarget);
     const toolIgnore = await factory.class.fromRulesyncIgnore({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       rulesyncIgnore,
       options: this.featureOptions,
     });

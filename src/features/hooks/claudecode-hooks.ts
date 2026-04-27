@@ -51,15 +51,15 @@ export class ClaudecodeHooks extends ToolHooks {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
     global = false,
   }: ToolHooksFromFileParams): Promise<ClaudecodeHooks> {
     const paths = ClaudecodeHooks.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? '{"hooks":{}}';
     return new ClaudecodeHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -68,7 +68,7 @@ export class ClaudecodeHooks extends ToolHooks {
   }
 
   static async fromRulesyncHooks({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncHooks,
     validate = true,
     global = false,
@@ -78,7 +78,7 @@ export class ClaudecodeHooks extends ToolHooks {
     logger?: Logger;
   }): Promise<ClaudecodeHooks> {
     const paths = ClaudecodeHooks.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = await readOrInitializeFileContent(
       filePath,
       JSON.stringify({}, null, 2),
@@ -102,7 +102,7 @@ export class ClaudecodeHooks extends ToolHooks {
     const merged = { ...settings, hooks: claudeHooks };
     const fileContent = JSON.stringify(merged, null, 2);
     return new ClaudecodeHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -136,12 +136,12 @@ export class ClaudecodeHooks extends ToolHooks {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolHooksForDeletionParams): ClaudecodeHooks {
     return new ClaudecodeHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: JSON.stringify({ hooks: {} }, null, 2),

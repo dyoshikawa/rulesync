@@ -67,17 +67,17 @@ async function putMcpFile({ content }: { content: string }): Promise<{
   }
 
   try {
-    const baseDir = process.cwd();
+    const outputRoot = process.cwd();
     const paths = RulesyncMcp.getSettablePaths();
 
     // Use recommended path
     const relativeDirPath = paths.recommended.relativeDirPath;
     const relativeFilePath = paths.recommended.relativeFilePath;
-    const fullPath = join(baseDir, relativeDirPath, relativeFilePath);
+    const fullPath = join(outputRoot, relativeDirPath, relativeFilePath);
 
     // Create a RulesyncMcp instance to validate the content
     const rulesyncMcp = new RulesyncMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: content,
@@ -85,7 +85,7 @@ async function putMcpFile({ content }: { content: string }): Promise<{
     });
 
     // Ensure directory exists
-    await ensureDir(join(baseDir, relativeDirPath));
+    await ensureDir(join(outputRoot, relativeDirPath));
 
     // Write the file
     await writeFileContent(fullPath, content);
@@ -113,16 +113,20 @@ async function deleteMcpFile(): Promise<{
   relativePathFromCwd: string;
 }> {
   try {
-    const baseDir = process.cwd();
+    const outputRoot = process.cwd();
     const paths = RulesyncMcp.getSettablePaths();
 
     // Try to delete both recommended and legacy paths
     const recommendedPath = join(
-      baseDir,
+      outputRoot,
       paths.recommended.relativeDirPath,
       paths.recommended.relativeFilePath,
     );
-    const legacyPath = join(baseDir, paths.legacy.relativeDirPath, paths.legacy.relativeFilePath);
+    const legacyPath = join(
+      outputRoot,
+      paths.legacy.relativeDirPath,
+      paths.legacy.relativeFilePath,
+    );
 
     // Remove recommended path if it exists
     await removeFile(recommendedPath);

@@ -60,7 +60,7 @@ describe("FeatureProcessor", () => {
 
   describe("removeOrphanAiFiles", () => {
     it("should remove files that exist in existing but not in generated", async () => {
-      const processor = new TestProcessor({ logger: createMockLogger(), baseDir: testDir });
+      const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
 
       const existingFiles = [
         createMockFile("/path/to/orphan1.md"),
@@ -79,7 +79,7 @@ describe("FeatureProcessor", () => {
     });
 
     it("should not remove any files when all existing files are in generated", async () => {
-      const processor = new TestProcessor({ logger: createMockLogger(), baseDir: testDir });
+      const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
 
       const existingFiles = [
         createMockFile("/path/to/file1.md"),
@@ -98,7 +98,7 @@ describe("FeatureProcessor", () => {
     });
 
     it("should remove all files when generated is empty", async () => {
-      const processor = new TestProcessor({ logger: createMockLogger(), baseDir: testDir });
+      const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
 
       const existingFiles = [
         createMockFile("/path/to/file1.md"),
@@ -118,7 +118,7 @@ describe("FeatureProcessor", () => {
     it("should return count without removing files in dry-run mode", async () => {
       const processor = new TestProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         dryRun: true,
       });
 
@@ -137,7 +137,7 @@ describe("FeatureProcessor", () => {
     });
 
     it("should not remove any files when existing is empty", async () => {
-      const processor = new TestProcessor({ logger: createMockLogger(), baseDir: testDir });
+      const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
 
       const existingFiles: AiFile[] = [];
       const generatedFiles = [createMockFile("/path/to/file1.md")];
@@ -151,7 +151,7 @@ describe("FeatureProcessor", () => {
   describe("writeAiFiles", () => {
     it("should write all files and return count when files are new", async () => {
       vi.mocked(readFileContentOrNull).mockResolvedValue(null);
-      const processor = new TestProcessor({ logger: createMockLogger(), baseDir: testDir });
+      const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
 
       const files = [createMockFile("/path/to/file1.md"), createMockFile("/path/to/file2.md")];
 
@@ -163,7 +163,7 @@ describe("FeatureProcessor", () => {
 
     it("should skip unchanged files and return 0", async () => {
       vi.mocked(readFileContentOrNull).mockResolvedValue("content\n");
-      const processor = new TestProcessor({ logger: createMockLogger(), baseDir: testDir });
+      const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
 
       const files = [createMockFile("/path/to/file1.md"), createMockFile("/path/to/file2.md")];
 
@@ -177,7 +177,7 @@ describe("FeatureProcessor", () => {
       vi.mocked(readFileContentOrNull)
         .mockResolvedValueOnce("content\n") // file1: unchanged
         .mockResolvedValueOnce(null); // file2: new
-      const processor = new TestProcessor({ logger: createMockLogger(), baseDir: testDir });
+      const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
 
       const files = [createMockFile("/path/to/file1.md"), createMockFile("/path/to/file2.md")];
 
@@ -191,7 +191,7 @@ describe("FeatureProcessor", () => {
       vi.mocked(readFileContentOrNull).mockResolvedValue(null);
       const processor = new TestProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         dryRun: true,
       });
 
@@ -206,7 +206,7 @@ describe("FeatureProcessor", () => {
 
   describe("removeAiFiles", () => {
     it("should remove all files", async () => {
-      const processor = new TestProcessor({ logger: createMockLogger(), baseDir: testDir });
+      const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
 
       const files = [createMockFile("/path/to/file1.md"), createMockFile("/path/to/file2.md")];
 

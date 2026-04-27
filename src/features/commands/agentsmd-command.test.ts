@@ -52,7 +52,7 @@ Body content`;
   describe("constructor", () => {
     it("should create instance with valid markdown content", () => {
       const command = new AgentsmdCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/commands",
         relativeFilePath: "test-command.md",
         frontmatter: {
@@ -73,7 +73,7 @@ Body content`;
 
     it("should create instance with empty description", () => {
       const command = new AgentsmdCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/commands",
         relativeFilePath: "test-command.md",
         frontmatter: {
@@ -91,7 +91,7 @@ Body content`;
 
     it("should create instance without validation when validate is false", () => {
       const command = new AgentsmdCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/commands",
         relativeFilePath: "test-command.md",
         frontmatter: {
@@ -106,7 +106,7 @@ Body content`;
 
     it("should accept frontmatter without description (description is optional)", () => {
       const command = new AgentsmdCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/commands",
         relativeFilePath: "no-desc-command.md",
         frontmatter: {} as SimulatedCommandFrontmatter,
@@ -122,7 +122,7 @@ Body content`;
   describe("getBody", () => {
     it("should return the body content", () => {
       const command = new AgentsmdCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/commands",
         relativeFilePath: "test-command.md",
         frontmatter: {
@@ -139,7 +139,7 @@ Body content`;
   describe("getFrontmatter", () => {
     it("should return frontmatter with description", () => {
       const command = new AgentsmdCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/commands",
         relativeFilePath: "test-command.md",
         frontmatter: {
@@ -159,7 +159,7 @@ Body content`;
   describe("toRulesyncCommand", () => {
     it("should throw error as it is a simulated file", () => {
       const command = new AgentsmdCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/commands",
         relativeFilePath: "test-command.md",
         frontmatter: {
@@ -178,7 +178,7 @@ Body content`;
   describe("fromRulesyncCommand", () => {
     it("should create AgentsmdCommand from RulesyncCommand", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-command.md",
         frontmatter: {
@@ -191,7 +191,7 @@ Body content`;
       });
 
       const agentsmdCommand = AgentsmdCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
         validate: true,
       });
@@ -207,7 +207,7 @@ Body content`;
 
     it("should handle RulesyncCommand with different file extensions", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "complex-command.txt",
         frontmatter: {
@@ -220,7 +220,7 @@ Body content`;
       });
 
       const agentsmdCommand = AgentsmdCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
         validate: true,
       });
@@ -230,7 +230,7 @@ Body content`;
 
     it("should handle empty description", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-command.md",
         frontmatter: {
@@ -243,7 +243,7 @@ Body content`;
       });
 
       const agentsmdCommand = AgentsmdCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
         validate: true,
       });
@@ -262,7 +262,7 @@ Body content`;
       await writeFileContent(filePath, validMarkdownContent);
 
       const command = await AgentsmdCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test-file-command.md",
         validate: true,
       });
@@ -284,7 +284,7 @@ Body content`;
       await writeFileContent(filePath, validMarkdownContent);
 
       const command = await AgentsmdCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "subdir/nested-command.md",
         validate: true,
       });
@@ -295,7 +295,7 @@ Body content`;
     it("should throw error when file does not exist", async () => {
       await expect(
         AgentsmdCommand.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "non-existent-command.md",
           validate: true,
         }),
@@ -310,7 +310,7 @@ Body content`;
 
       await expect(
         AgentsmdCommand.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "invalid-command.md",
           validate: true,
         }),
@@ -324,7 +324,7 @@ Body content`;
       await writeFileContent(filePath, markdownWithoutFrontmatter);
 
       const command = await AgentsmdCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "no-frontmatter.md",
         validate: true,
       });
@@ -337,7 +337,7 @@ Body content`;
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
       const command = new AgentsmdCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/commands",
         relativeFilePath: "valid-command.md",
         frontmatter: {
@@ -354,7 +354,7 @@ Body content`;
 
     it("should handle frontmatter with additional properties", () => {
       const command = new AgentsmdCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/commands",
         relativeFilePath: "command-with-extras.md",
         frontmatter: {
@@ -375,7 +375,7 @@ Body content`;
   describe("edge cases", () => {
     it("should handle empty body content", () => {
       const command = new AgentsmdCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/commands",
         relativeFilePath: "empty-body.md",
         frontmatter: {
@@ -396,7 +396,7 @@ Body content`;
         "Special characters: @#$%^&*()\nUnicode: 你好世界 🌍\nQuotes: \"Hello 'World'\"";
 
       const command = new AgentsmdCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/commands",
         relativeFilePath: "special-char.md",
         frontmatter: {
@@ -416,7 +416,7 @@ Body content`;
       const longContent = "A".repeat(10000);
 
       const command = new AgentsmdCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/commands",
         relativeFilePath: "long-content.md",
         frontmatter: {
@@ -432,7 +432,7 @@ Body content`;
 
     it("should handle multi-line description", () => {
       const command = new AgentsmdCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/commands",
         relativeFilePath: "multiline-desc.md",
         frontmatter: {
@@ -451,7 +451,7 @@ Body content`;
       const windowsContent = "Line 1\r\nLine 2\r\nLine 3";
 
       const command = new AgentsmdCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/commands",
         relativeFilePath: "windows-lines.md",
         frontmatter: {
@@ -468,7 +468,7 @@ Body content`;
   describe("integration with base classes", () => {
     it("should properly inherit from SimulatedCommand", () => {
       const command = new AgentsmdCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/commands",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -484,10 +484,10 @@ Body content`;
       expect(command.getRelativeFilePath()).toBe("test.md");
     });
 
-    it("should handle baseDir correctly", () => {
-      const customBaseDir = "/custom/base/dir";
+    it("should handle outputRoot correctly", () => {
+      const customOutputRoot = "/custom/base/dir";
       const command = new AgentsmdCommand({
-        baseDir: customBaseDir,
+        outputRoot: customOutputRoot,
         relativeDirPath: ".agents/commands",
         relativeFilePath: "test.md",
         frontmatter: {

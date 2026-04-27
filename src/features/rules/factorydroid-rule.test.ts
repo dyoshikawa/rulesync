@@ -63,7 +63,7 @@ This is a test factorydroid rule.`;
   describe("constructor", () => {
     it("should create root rule instance", () => {
       const rule = new FactorydroidRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
         fileContent: validRuleContent,
@@ -77,7 +77,7 @@ This is a test factorydroid rule.`;
 
     it("should create non-root rule instance", () => {
       const rule = new FactorydroidRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory/rules",
         relativeFilePath: "memory-1.md",
         fileContent: validRuleContent,
@@ -93,7 +93,7 @@ This is a test factorydroid rule.`;
   describe("fromRulesyncRule", () => {
     it("should create root FactorydroidRule from RulesyncRule", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "AGENTS.md",
         frontmatter: {
@@ -107,7 +107,7 @@ This is a test factorydroid rule.`;
       });
 
       const factorydroidRule = FactorydroidRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
         validate: true,
       });
@@ -119,7 +119,7 @@ This is a test factorydroid rule.`;
 
     it("should create non-root FactorydroidRule from RulesyncRule", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "memory-1.md",
         frontmatter: {
@@ -133,7 +133,7 @@ This is a test factorydroid rule.`;
       });
 
       const factorydroidRule = FactorydroidRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
         validate: true,
       });
@@ -151,7 +151,7 @@ This is a test factorydroid rule.`;
       await writeFileContent(rootFile, validRuleContent);
 
       const rule = await FactorydroidRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "AGENTS.md",
         validate: true,
       });
@@ -167,7 +167,7 @@ This is a test factorydroid rule.`;
       await writeFileContent(memoryFile, validRuleContent);
 
       const rule = await FactorydroidRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "memory-1.md",
         validate: true,
       });
@@ -180,7 +180,7 @@ This is a test factorydroid rule.`;
     it("should throw error when file does not exist", async () => {
       await expect(
         FactorydroidRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "AGENTS.md",
           validate: true,
         }),
@@ -191,7 +191,7 @@ This is a test factorydroid rule.`;
   describe("toRulesyncRule", () => {
     it("should convert to RulesyncRule", () => {
       const rule = new FactorydroidRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
         fileContent: validRuleContent,
@@ -210,7 +210,7 @@ This is a test factorydroid rule.`;
   describe("validate", () => {
     it("should return success for any content", () => {
       const rule = new FactorydroidRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
         fileContent: "Any content",
@@ -271,7 +271,7 @@ This is a test factorydroid rule.`;
   describe("forDeletion", () => {
     it("should create deletion marker for root rule", () => {
       const rule = FactorydroidRule.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
       });
@@ -282,7 +282,7 @@ This is a test factorydroid rule.`;
 
     it("should create deletion marker for non-root rule", () => {
       const rule = FactorydroidRule.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory/rules",
         relativeFilePath: "memory-1.md",
       });

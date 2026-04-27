@@ -22,7 +22,7 @@ describe("CopilotcliRule", () => {
   describe("fromRulesyncRule", () => {
     it("should pass validate to the copied Copilot rule", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/rules",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -33,7 +33,7 @@ describe("CopilotcliRule", () => {
 
       const invalidCopilotRule = Reflect.construct(CopilotRule, [
         {
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".github/instructions",
           relativeFilePath: "test.instructions.md",
           frontmatter: {

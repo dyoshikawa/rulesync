@@ -88,7 +88,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
     };
 
     return new RulesyncSubagent({
-      baseDir: ".", // RulesyncCommand baseDir is always the project root directory
+      outputRoot: ".", // RulesyncCommand outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -98,7 +98,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
   }
 
   static fromRulesyncSubagent({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSubagent,
     validate = true,
     global = false,
@@ -133,7 +133,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
     const paths = this.getSettablePaths({ global });
 
     return new ClaudecodeSubagent({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       frontmatter: claudecodeFrontmatter,
       body,
       relativeDirPath: paths.relativeDirPath,
@@ -170,13 +170,13 @@ export class ClaudecodeSubagent extends ToolSubagent {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolSubagentFromFileParams): Promise<ClaudecodeSubagent> {
     const paths = this.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     // Read file content
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
@@ -188,7 +188,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
     }
 
     return new ClaudecodeSubagent({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: relativeFilePath,
       frontmatter: result.data,
@@ -199,12 +199,12 @@ export class ClaudecodeSubagent extends ToolSubagent {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolSubagentForDeletionParams): ClaudecodeSubagent {
     return new ClaudecodeSubagent({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       frontmatter: { name: "", description: "" },

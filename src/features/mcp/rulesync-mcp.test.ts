@@ -53,13 +53,13 @@ describe("RulesyncMcp", () => {
       expect(rulesyncMcp.getFileContent()).toBe(validJsonContent);
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const validJsonContent = JSON.stringify({
         mcpServers: {},
       });
 
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: validJsonContent,
@@ -68,7 +68,7 @@ describe("RulesyncMcp", () => {
       expect(rulesyncMcp.getFilePath()).toBe(
         `/custom/path/${RULESYNC_RELATIVE_DIR_PATH}/.mcp.json`,
       );
-      expect(rulesyncMcp.getBaseDir()).toBe("/custom/path");
+      expect(rulesyncMcp.getOutputRoot()).toBe("/custom/path");
     });
 
     it("should parse JSON content correctly", () => {
@@ -507,7 +507,7 @@ describe("RulesyncMcp", () => {
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
       expect(rulesyncMcp.getJson()).toEqual(jsonData);
-      expect(rulesyncMcp.getBaseDir()).toBe(testDir);
+      expect(rulesyncMcp.getOutputRoot()).toBe(testDir);
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncMcp.getRelativeFilePath()).toBe(basename(RULESYNC_MCP_RELATIVE_FILE_PATH));
     });
@@ -715,7 +715,7 @@ describe("RulesyncMcp", () => {
 
     it("should have correct type definitions for parameters", () => {
       const constructorParams: RulesyncMcpParams = {
-        baseDir: "/custom",
+        outputRoot: "/custom",
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: "{}",
@@ -726,7 +726,7 @@ describe("RulesyncMcp", () => {
         validate: false,
       };
 
-      expect(constructorParams.baseDir).toBe("/custom");
+      expect(constructorParams.outputRoot).toBe("/custom");
       expect(fromFileParams.validate).toBe(false);
     });
   });
@@ -755,20 +755,20 @@ describe("RulesyncMcp", () => {
       expect(typeof rulesyncMcp.getFileContent()).toBe("string");
       expect(typeof rulesyncMcp.getRelativeDirPath()).toBe("string");
       expect(typeof rulesyncMcp.getRelativeFilePath()).toBe("string");
-      expect(typeof rulesyncMcp.getBaseDir()).toBe("string");
+      expect(typeof rulesyncMcp.getOutputRoot()).toBe("string");
       expect(typeof rulesyncMcp.getRelativePathFromCwd()).toBe("string");
     });
 
     it("should call parent constructor correctly", () => {
       const jsonData = { mcpServers: { test: { command: "node" } } };
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
 
-      expect(rulesyncMcp.getBaseDir()).toBe("/test/base");
+      expect(rulesyncMcp.getOutputRoot()).toBe("/test/base");
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
       expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(jsonData));
@@ -917,9 +917,9 @@ describe("RulesyncMcp", () => {
       expect(rulesyncMcp.getJson()).toEqual(originalData);
     });
 
-    it("should preserve baseDir and paths in the new instance", () => {
+    it("should preserve outputRoot and paths in the new instance", () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({
@@ -934,7 +934,7 @@ describe("RulesyncMcp", () => {
 
       const result = rulesyncMcp.stripMcpServerFields(["enabledTools"]);
 
-      expect(result.getBaseDir()).toBe("/custom/path");
+      expect(result.getOutputRoot()).toBe("/custom/path");
       expect(result.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(result.getRelativeFilePath()).toBe(".mcp.json");
     });

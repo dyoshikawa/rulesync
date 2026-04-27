@@ -40,9 +40,9 @@ describe("RooRule", () => {
       expect(rooRule.getFileContent()).toBe("# Test Rule\n\nThis is a test rule.");
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const rooRule = new RooRule({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".roo/rules",
         relativeFilePath: "test-rule.md",
         fileContent: "# Custom Rule",
@@ -93,7 +93,7 @@ describe("RooRule", () => {
       await writeFileContent(join(rulesDir, "test.md"), testContent);
 
       const rooRule = await RooRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test.md",
       });
 
@@ -103,11 +103,11 @@ describe("RooRule", () => {
       expect(rooRule.getFilePath()).toBe(join(testDir, ".roo/rules/test.md"));
     });
 
-    it("should use default baseDir when not provided", async () => {
+    it("should use default outputRoot when not provided", async () => {
       // Setup test file using testDir
       const rulesDir = join(testDir, ".roo/rules");
       await ensureDir(rulesDir);
-      const testContent = "# Default BaseDir Test";
+      const testContent = "# Default OutputRoot Test";
       const testFilePath = join(rulesDir, "default-test.md");
       await writeFileContent(testFilePath, testContent);
 
@@ -129,13 +129,13 @@ describe("RooRule", () => {
       await writeFileContent(join(rulesDir, "validation-test.md"), testContent);
 
       const rooRuleWithValidation = await RooRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "validation-test.md",
         validate: true,
       });
 
       const rooRuleWithoutValidation = await RooRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "validation-test.md",
         validate: false,
       });
@@ -147,7 +147,7 @@ describe("RooRule", () => {
     it("should throw error when file does not exist", async () => {
       await expect(
         RooRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "nonexistent.md",
         }),
       ).rejects.toThrow();
@@ -178,7 +178,7 @@ describe("RooRule", () => {
       expect(rooRule.getFileContent()).toContain("# Test RulesyncRule\n\nContent from rulesync.");
     });
 
-    it("should use custom baseDir", () => {
+    it("should use custom outputRoot", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom-base.md",
@@ -192,7 +192,7 @@ describe("RooRule", () => {
       });
 
       const rooRule = RooRule.fromRulesyncRule({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         rulesyncRule,
       });
 
@@ -278,7 +278,7 @@ describe("RooRule", () => {
   describe("toRulesyncRule", () => {
     it("should convert RooRule to RulesyncRule", () => {
       const rooRule = new RooRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".roo/rules",
         relativeFilePath: "convert-test.md",
         fileContent: "# Convert Test\n\nThis will be converted.",
@@ -294,7 +294,7 @@ describe("RooRule", () => {
 
     it("should preserve metadata in conversion", () => {
       const rooRule = new RooRule({
-        baseDir: "/test/path",
+        outputRoot: "/test/path",
         relativeDirPath: ".roo/rules",
         relativeFilePath: "metadata-test.md",
         fileContent: "---\ntitle: Test Rule\n---\n# Metadata Test",
@@ -380,7 +380,7 @@ describe("RooRule", () => {
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for rules targeting roo", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -394,7 +394,7 @@ describe("RooRule", () => {
 
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -408,7 +408,7 @@ describe("RooRule", () => {
 
     it("should return false for rules not targeting roo", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -422,7 +422,7 @@ describe("RooRule", () => {
 
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -436,7 +436,7 @@ describe("RooRule", () => {
 
     it("should handle mixed targets including roo", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -450,7 +450,7 @@ describe("RooRule", () => {
 
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {},
@@ -471,7 +471,7 @@ describe("RooRule", () => {
 
       // Load from file
       const rooRule = await RooRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "integration.md",
       });
 
@@ -489,7 +489,7 @@ describe("RooRule", () => {
 
       // Start with rulesync rule
       const originalRulesync = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "roundtrip.md",
         frontmatter: {
@@ -503,7 +503,7 @@ describe("RooRule", () => {
 
       // Convert to roo rule
       const rooRule = RooRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule: originalRulesync,
       });
 

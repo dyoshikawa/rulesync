@@ -69,7 +69,7 @@ describe("installApm", () => {
   it("warns and returns early when there are no dependencies", async () => {
     await writeManifest("name: my-project\nversion: 1.0.0\n");
 
-    const result = await installApm({ baseDir: testDir, logger });
+    const result = await installApm({ outputRoot: testDir, logger });
 
     expect(result).toEqual({
       dependenciesProcessed: 0,
@@ -129,7 +129,7 @@ describe("installApm", () => {
       async (_owner: string, _repo: string, path: string) => `content of ${path}`,
     );
 
-    const result = await installApm({ baseDir: testDir, logger });
+    const result = await installApm({ outputRoot: testDir, logger });
 
     expect(result.dependenciesProcessed).toBe(1);
     expect(result.deployedFileCount).toBe(2);
@@ -174,7 +174,7 @@ describe("installApm", () => {
       throw err;
     });
 
-    await installApm({ baseDir: testDir, logger });
+    await installApm({ outputRoot: testDir, logger });
 
     expect(mockClientInstance.getDefaultBranch).toHaveBeenCalledWith("acme", "security");
     expect(mockClientInstance.resolveRefToSha).toHaveBeenCalledWith("acme", "security", "trunk");
@@ -190,12 +190,12 @@ describe("installApm", () => {
     mockClientInstance.listDirectory.mockResolvedValue([]);
 
     // First pass: populate the lockfile.
-    await installApm({ baseDir: testDir, logger });
+    await installApm({ outputRoot: testDir, logger });
     expect(mockClientInstance.resolveRefToSha).toHaveBeenCalledTimes(1);
 
     // Second pass: lockfile should short-circuit ref resolution.
     mockClientInstance.resolveRefToSha.mockResolvedValue(SECOND_SHA);
-    await installApm({ baseDir: testDir, logger });
+    await installApm({ outputRoot: testDir, logger });
     expect(mockClientInstance.resolveRefToSha).toHaveBeenCalledTimes(1);
 
     const lock = await readApmLock(testDir);
@@ -211,10 +211,10 @@ describe("installApm", () => {
     );
     mockClientInstance.listDirectory.mockResolvedValue([]);
 
-    await installApm({ baseDir: testDir, logger });
+    await installApm({ outputRoot: testDir, logger });
     mockClientInstance.resolveRefToSha.mockResolvedValue(SECOND_SHA);
 
-    await installApm({ baseDir: testDir, logger, options: { update: true } });
+    await installApm({ outputRoot: testDir, logger, options: { update: true } });
     expect(mockClientInstance.resolveRefToSha).toHaveBeenCalledTimes(2);
 
     const lock = await readApmLock(testDir);
@@ -231,7 +231,7 @@ describe("installApm", () => {
     mockClientInstance.listDirectory.mockResolvedValue([]);
 
     await expect(
-      installApm({ baseDir: testDir, logger, options: { frozen: true } }),
+      installApm({ outputRoot: testDir, logger, options: { frozen: true } }),
     ).rejects.toThrow(/rulesync-apm.lock.yaml is missing/);
   });
 
@@ -244,7 +244,7 @@ describe("installApm", () => {
 `,
     );
     mockClientInstance.listDirectory.mockResolvedValue([]);
-    await installApm({ baseDir: testDir, logger });
+    await installApm({ outputRoot: testDir, logger });
 
     await writeManifest(
       `dependencies:
@@ -254,7 +254,7 @@ describe("installApm", () => {
 `,
     );
     await expect(
-      installApm({ baseDir: testDir, logger, options: { frozen: true } }),
+      installApm({ outputRoot: testDir, logger, options: { frozen: true } }),
     ).rejects.toThrow(/missing entries for/);
   });
 
@@ -266,10 +266,10 @@ describe("installApm", () => {
 `,
     );
     mockClientInstance.listDirectory.mockResolvedValue([]);
-    await installApm({ baseDir: testDir, logger });
+    await installApm({ outputRoot: testDir, logger });
 
     const before = await readFileContent(getApmLockPath(testDir));
-    await installApm({ baseDir: testDir, logger, options: { frozen: true } });
+    await installApm({ outputRoot: testDir, logger, options: { frozen: true } });
     const after = await readFileContent(getApmLockPath(testDir));
     expect(after).toBe(before);
   });
@@ -282,7 +282,7 @@ describe("installApm", () => {
 `,
     );
     mockClientInstance.listDirectory.mockResolvedValue([]);
-    await installApm({ baseDir: testDir, logger });
+    await installApm({ outputRoot: testDir, logger });
 
     await writeManifest(
       `dependencies:
@@ -291,7 +291,7 @@ describe("installApm", () => {
 `,
     );
     await expect(
-      installApm({ baseDir: testDir, logger, options: { frozen: true } }),
+      installApm({ outputRoot: testDir, logger, options: { frozen: true } }),
     ).rejects.toThrow(/manifest ref does not match/);
   });
 
@@ -320,13 +320,13 @@ describe("installApm", () => {
     );
     mockClientInstance.getFileContent.mockResolvedValue("original content");
 
-    await installApm({ baseDir: testDir, logger });
+    await installApm({ outputRoot: testDir, logger });
 
     // Simulate tampered upstream: same SHA, different bytes on next install.
     mockClientInstance.getFileContent.mockResolvedValue("tampered content");
 
     await expect(
-      installApm({ baseDir: testDir, logger, options: { frozen: true } }),
+      installApm({ outputRoot: testDir, logger, options: { frozen: true } }),
     ).rejects.toThrow(/content_hash mismatch/);
   });
 
@@ -343,7 +343,7 @@ describe("installApm", () => {
     mockClientInstance.resolveRefToSha.mockImplementation(async (_owner: string, repo: string) =>
       repo === "first" ? VALID_SHA : SECOND_SHA,
     );
-    await installApm({ baseDir: testDir, logger });
+    await installApm({ outputRoot: testDir, logger });
     const lockBefore = await readApmLock(testDir);
     expect(lockBefore?.dependencies.map((d) => d.repo_url)).toEqual([
       "https://github.com/acme/first",
@@ -362,7 +362,7 @@ describe("installApm", () => {
     });
 
     const result = await installApm({
-      baseDir: testDir,
+      outputRoot: testDir,
       logger,
       options: { update: true },
     });
@@ -384,13 +384,13 @@ describe("installApm", () => {
 `,
     );
     mockClientInstance.listDirectory.mockResolvedValue([]);
-    await installApm({ baseDir: testDir, logger });
+    await installApm({ outputRoot: testDir, logger });
     const lockBefore = await readApmLock(testDir);
 
     mockClientInstance.resolveRefToSha.mockRejectedValue(new Error("network error"));
 
     const result = await installApm({
-      baseDir: testDir,
+      outputRoot: testDir,
       logger,
       options: { update: true },
     });
@@ -437,7 +437,7 @@ describe("installApm", () => {
       async (_owner: string, _repo: string, path: string) => `content of ${path}`,
     );
 
-    await installApm({ baseDir: testDir, logger });
+    await installApm({ outputRoot: testDir, logger });
     expect(await fileExists(join(testDir, ".github/instructions/a.instructions.md"))).toBe(true);
     expect(await fileExists(join(testDir, ".github/instructions/b.instructions.md"))).toBe(true);
 
@@ -458,7 +458,7 @@ describe("installApm", () => {
       },
     );
 
-    await installApm({ baseDir: testDir, logger, options: { update: true } });
+    await installApm({ outputRoot: testDir, logger, options: { update: true } });
 
     expect(await fileExists(join(testDir, ".github/instructions/a.instructions.md"))).toBe(true);
     // B must be removed both from disk and from the lockfile.
@@ -492,7 +492,7 @@ describe("installApm", () => {
       },
     );
     mockClientInstance.getFileContent.mockResolvedValue("original content");
-    await installApm({ baseDir: testDir, logger });
+    await installApm({ outputRoot: testDir, logger });
 
     const deployedPath = join(testDir, ".github/instructions/a.instructions.md");
     const before = await readFileContent(deployedPath);
@@ -502,7 +502,7 @@ describe("installApm", () => {
     mockClientInstance.getFileContent.mockResolvedValue("tampered content");
 
     await expect(
-      installApm({ baseDir: testDir, logger, options: { frozen: true } }),
+      installApm({ outputRoot: testDir, logger, options: { frozen: true } }),
     ).rejects.toThrow(/content_hash mismatch/);
 
     // The on-disk file must still contain the original bytes, not the
@@ -539,7 +539,7 @@ describe("installApm", () => {
       async (_owner: string, _repo: string, path: string) => `content of ${path}`,
     );
 
-    const result = await installApm({ baseDir: testDir, logger });
+    const result = await installApm({ outputRoot: testDir, logger });
     expect(result.deployedFileCount).toBe(1);
     const deployed = await readFileContent(join(testDir, ".github/instructions/s.instructions.md"));
     expect(deployed).toBe("content of packages/security/.apm/instructions/s.instructions.md");
@@ -547,7 +547,7 @@ describe("installApm", () => {
     expect(lock?.dependencies[0]?.virtual_path).toBe("packages/security");
   });
 
-  it("refuses to remove stale files whose recorded path escapes baseDir", async () => {
+  it("refuses to remove stale files whose recorded path escapes outputRoot", async () => {
     // Hand-craft a lockfile whose deployed_files contains attacker-controlled
     // paths. `deployed_files` is only schema-validated as a string array, so
     // a hostile repo could plant this and trigger arbitrary `removeFile` on
@@ -557,7 +557,7 @@ describe("installApm", () => {
     // We cannot safely write a file *outside* testDir from a test (the
     // testing guidelines forbid polluting anything outside the project
     // test directory), so we prove the defense by asserting (a) the guard
-    // warns for each offending entry and (b) legitimate in-baseDir cleanup
+    // warns for each offending entry and (b) legitimate in-outputRoot cleanup
     // still proceeds as a control.
     const absoluteOutside = "/tmp/rulesync-apm-test-absolute-target.md";
     const lockYaml = `lockfile_version: "1"
@@ -576,7 +576,7 @@ dependencies:
 `;
     await writeFileContent(getApmLockPath(testDir), lockYaml);
 
-    // Plant the "clean" stale file that lives inside baseDir so we can
+    // Plant the "clean" stale file that lives inside outputRoot so we can
     // verify the normal cleanup path still works even when the guard skips
     // its neighbors.
     await writeFileContent(
@@ -594,9 +594,9 @@ dependencies:
     mockClientInstance.listDirectory.mockResolvedValue([]);
 
     const localLogger = createMockLogger();
-    await installApm({ baseDir: testDir, logger: localLogger, options: { update: true } });
+    await installApm({ outputRoot: testDir, logger: localLogger, options: { update: true } });
 
-    // Legit in-baseDir stale file is still removed (control: cleanup works).
+    // Legit in-outputRoot stale file is still removed (control: cleanup works).
     expect(await fileExists(join(testDir, ".github/instructions/old.instructions.md"))).toBe(false);
     // Warn logs were emitted for the two refused entries.
     const warnMessages = localLogger.warn.mock.calls.map((args) => String(args[0]));
@@ -637,7 +637,7 @@ dependencies:
     );
     mockClientInstance.listDirectory.mockResolvedValue([]);
 
-    await installApm({ baseDir: testDir, logger, options: { update: true } });
+    await installApm({ outputRoot: testDir, logger, options: { update: true } });
 
     const after = await readApmLock(testDir);
     expect(after?.mcp_servers).toEqual(["security-scanner", "code-reviewer"]);
@@ -697,7 +697,7 @@ dependencies:
     mockClientInstance.getFileContent.mockResolvedValue("arbitrary content");
 
     await expect(
-      installApm({ baseDir: testDir, logger, options: { frozen: true } }),
+      installApm({ outputRoot: testDir, logger, options: { frozen: true } }),
     ).resolves.toBeDefined();
   });
 
@@ -729,9 +729,9 @@ dependencies:
     );
     mockClientInstance.getFileContent.mockResolvedValue("evil");
 
-    const result = await installApm({ baseDir: testDir, logger });
+    const result = await installApm({ outputRoot: testDir, logger });
     expect(result.deployedFileCount).toBe(0);
-    // The escape payload must not appear anywhere under baseDir.
+    // The escape payload must not appear anywhere under outputRoot.
     expect(await fileExists(join(testDir, "escape.md"))).toBe(false);
     expect(await fileExists(join(testDir, ".github/instructions/escape.md"))).toBe(false);
   });

@@ -40,7 +40,7 @@ describe("GeminiCliSkill", () => {
   describe("constructor", () => {
     it("should create instance with valid content", () => {
       const skill = new GeminiCliSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".gemini", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -73,7 +73,7 @@ This is the body of the gemini cli skill.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       const skill = await GeminiCliSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
       });
 
@@ -91,7 +91,7 @@ This is the body of the gemini cli skill.`;
 
       await expect(
         GeminiCliSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "empty-skill",
         }),
       ).rejects.toThrow(/SKILL\.md not found/);
@@ -109,7 +109,7 @@ Body content`;
 
       await expect(
         GeminiCliSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "bad-frontmatter",
         }),
       ).rejects.toThrow(/Invalid frontmatter/);
@@ -127,7 +127,7 @@ Global body content`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       const skill = await GeminiCliSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "global-skill",
         global: true,
       });
@@ -141,7 +141,7 @@ Global body content`;
   describe("fromRulesyncSkill", () => {
     it("should create instance from RulesyncSkill", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -169,7 +169,7 @@ Global body content`;
   describe("isTargetedByRulesyncSkill", () => {
     it("should return true when targets includes '*'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "all-targets-skill",
         frontmatter: {
@@ -186,7 +186,7 @@ Global body content`;
 
     it("should return true when targets includes 'geminicli'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "geminicli-skill",
         frontmatter: {
@@ -203,7 +203,7 @@ Global body content`;
 
     it("should return false when targets does not include 'geminicli'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "claudecode-only-skill",
         frontmatter: {
@@ -222,7 +222,7 @@ Global body content`;
   describe("toRulesyncSkill", () => {
     it("should convert to RulesyncSkill with correct frontmatter", () => {
       const skill = new GeminiCliSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".gemini", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -262,7 +262,7 @@ Global body content`;
 
     it("should convert from RulesyncSkill in global mode", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "global-skill",
         frontmatter: {

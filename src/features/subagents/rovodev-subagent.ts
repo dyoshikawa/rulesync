@@ -87,7 +87,7 @@ export class RovodevSubagent extends ToolSubagent {
     };
 
     return new RulesyncSubagent({
-      baseDir: ".",
+      outputRoot: ".",
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -97,7 +97,7 @@ export class RovodevSubagent extends ToolSubagent {
   }
 
   static fromRulesyncSubagent({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSubagent,
     validate = true,
     global = false,
@@ -116,7 +116,7 @@ export class RovodevSubagent extends ToolSubagent {
     const paths = this.getSettablePaths({ global });
 
     return new RovodevSubagent({
-      baseDir,
+      outputRoot,
       frontmatter: rovodevFrontmatter,
       body,
       relativeDirPath: paths.relativeDirPath,
@@ -148,13 +148,13 @@ export class RovodevSubagent extends ToolSubagent {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolSubagentFromFileParams): Promise<RovodevSubagent> {
     const paths = this.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
@@ -164,7 +164,7 @@ export class RovodevSubagent extends ToolSubagent {
     }
 
     return new RovodevSubagent({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
       frontmatter: result.data,
@@ -176,14 +176,14 @@ export class RovodevSubagent extends ToolSubagent {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
     global = false,
   }: ToolSubagentForDeletionParams): RovodevSubagent {
     const paths = this.getSettablePaths({ global });
     return new RovodevSubagent({
-      baseDir,
+      outputRoot,
       relativeDirPath: relativeDirPath ?? paths.relativeDirPath,
       relativeFilePath,
       frontmatter: { name: "", description: "" },

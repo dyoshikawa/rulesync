@@ -80,7 +80,7 @@ export class CopilotCommand extends ToolCommand {
     const relativeFilePath = originalFilePath.replace(/\.prompt\.md$/, ".md");
 
     return new RulesyncCommand({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
@@ -109,7 +109,7 @@ export class CopilotCommand extends ToolCommand {
   }
 
   static fromRulesyncCommand({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncCommand,
     validate = true,
   }: ToolCommandFromRulesyncCommandParams): CopilotCommand {
@@ -131,7 +131,7 @@ export class CopilotCommand extends ToolCommand {
     const relativeFilePath = originalFilePath.replace(/\.md$/, ".prompt.md");
 
     return new CopilotCommand({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       frontmatter: copilotFrontmatter,
       body,
       relativeDirPath: paths.relativeDirPath,
@@ -141,12 +141,12 @@ export class CopilotCommand extends ToolCommand {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolCommandFromFileParams): Promise<CopilotCommand> {
     const paths = this.getSettablePaths();
-    const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
 
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
@@ -157,7 +157,7 @@ export class CopilotCommand extends ToolCommand {
     }
 
     return new CopilotCommand({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
       frontmatter: result.data,
@@ -174,12 +174,12 @@ export class CopilotCommand extends ToolCommand {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolCommandForDeletionParams): CopilotCommand {
     return new CopilotCommand({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       frontmatter: { description: "" },

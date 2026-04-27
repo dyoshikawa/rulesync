@@ -40,9 +40,9 @@ describe("WindsurfIgnore", () => {
       expect(windsurfIgnore.getFileContent()).toBe("*.log\nnode_modules/");
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const windsurfIgnore = new WindsurfIgnore({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: "subdir",
         relativeFilePath: ".codeiumignore",
         fileContent: "*.tmp",
@@ -77,7 +77,7 @@ describe("WindsurfIgnore", () => {
     it("should convert to RulesyncIgnore with same content", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const windsurfIgnore = new WindsurfIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent,
@@ -169,25 +169,25 @@ desktop.ini`;
     it("should create WindsurfIgnore from RulesyncIgnore", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const rulesyncIgnore = new RulesyncIgnore({
-        baseDir: "/test/project",
+        outputRoot: "/test/project",
         relativeDirPath: ".",
         relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent,
       });
 
       const windsurfIgnore = WindsurfIgnore.fromRulesyncIgnore({
-        baseDir: "/test/project",
+        outputRoot: "/test/project",
         rulesyncIgnore,
       });
 
       expect(windsurfIgnore).toBeInstanceOf(WindsurfIgnore);
       expect(windsurfIgnore.getFileContent()).toBe(fileContent);
-      expect(windsurfIgnore.getBaseDir()).toBe("/test/project");
+      expect(windsurfIgnore.getOutputRoot()).toBe("/test/project");
       expect(windsurfIgnore.getRelativeDirPath()).toBe(".");
       expect(windsurfIgnore.getRelativeFilePath()).toBe(".codeiumignore");
     });
 
-    it("should use default baseDir when not provided", () => {
+    it("should use default outputRoot when not provided", () => {
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
         relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
@@ -198,7 +198,7 @@ desktop.ini`;
         rulesyncIgnore,
       });
 
-      expect(windsurfIgnore.getBaseDir()).toBe(testDir);
+      expect(windsurfIgnore.getOutputRoot()).toBe(testDir);
     });
 
     it("should preserve complex content from RulesyncIgnore", () => {
@@ -272,17 +272,17 @@ Thumbs.db`;
       await writeFileContent(codeiumIgnorePath, fileContent);
 
       const windsurfIgnore = await WindsurfIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(windsurfIgnore).toBeInstanceOf(WindsurfIgnore);
-      expect(windsurfIgnore.getBaseDir()).toBe(testDir);
+      expect(windsurfIgnore.getOutputRoot()).toBe(testDir);
       expect(windsurfIgnore.getRelativeDirPath()).toBe(".");
       expect(windsurfIgnore.getRelativeFilePath()).toBe(".codeiumignore");
       expect(windsurfIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should use default baseDir when not provided", async () => {
+    it("should use default outputRoot when not provided", async () => {
       // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\nnode_modules/";
       const codeiumIgnorePath = join(testDir, ".codeiumignore");
@@ -290,7 +290,7 @@ Thumbs.db`;
 
       const windsurfIgnore = await WindsurfIgnore.fromFile({});
 
-      expect(windsurfIgnore.getBaseDir()).toBe(testDir);
+      expect(windsurfIgnore.getOutputRoot()).toBe(testDir);
       expect(windsurfIgnore.getFileContent()).toBe(fileContent);
     });
 
@@ -299,7 +299,7 @@ Thumbs.db`;
       await writeFileContent(codeiumIgnorePath, "");
 
       const windsurfIgnore = await WindsurfIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(windsurfIgnore.getFileContent()).toBe("");
@@ -401,14 +401,14 @@ jspm_packages/
       await writeFileContent(codeiumIgnorePath, fileContent);
 
       const windsurfIgnore = await WindsurfIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(windsurfIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should throw error when .codeiumignore file does not exist", async () => {
-      await expect(WindsurfIgnore.fromFile({ baseDir: testDir })).rejects.toThrow();
+      await expect(WindsurfIgnore.fromFile({ outputRoot: testDir })).rejects.toThrow();
     });
 
     it("should handle file with Windows line endings", async () => {
@@ -417,7 +417,7 @@ jspm_packages/
       await writeFileContent(codeiumIgnorePath, fileContent);
 
       const windsurfIgnore = await WindsurfIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(windsurfIgnore.getFileContent()).toBe(fileContent);
@@ -429,7 +429,7 @@ jspm_packages/
       await writeFileContent(codeiumIgnorePath, fileContent);
 
       const windsurfIgnore = await WindsurfIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(windsurfIgnore.getFileContent()).toBe(fileContent);
@@ -441,12 +441,12 @@ jspm_packages/
       await writeFileContent(codeiumIgnorePath, fileContent);
 
       const windsurfIgnoreValidated = await WindsurfIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: true,
       });
 
       const windsurfIgnoreNotValidated = await WindsurfIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
 
@@ -458,13 +458,13 @@ jspm_packages/
   describe("inheritance from ToolIgnore", () => {
     it("should inherit file path methods from AiFile", () => {
       const windsurfIgnore = new WindsurfIgnore({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: "subdir",
         relativeFilePath: ".codeiumignore",
         fileContent: "*.log",
       });
 
-      expect(windsurfIgnore.getBaseDir()).toBe("/test/base");
+      expect(windsurfIgnore.getOutputRoot()).toBe("/test/base");
       expect(windsurfIgnore.getRelativeDirPath()).toBe("subdir");
       expect(windsurfIgnore.getRelativeFilePath()).toBe(".codeiumignore");
       expect(windsurfIgnore.getFilePath()).toBe("/test/base/subdir/.codeiumignore");
@@ -563,7 +563,7 @@ jspm_packages/
     it("should write and read file correctly", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const windsurfIgnore = new WindsurfIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent,
@@ -574,7 +574,7 @@ jspm_packages/
 
       // Read file back
       const readWindsurfIgnore = await WindsurfIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(readWindsurfIgnore.getFileContent()).toBe(fileContent);
@@ -590,7 +590,7 @@ dist/
 *.tmp`;
 
       const windsurfIgnore = new WindsurfIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent: originalContent,
@@ -599,7 +599,7 @@ dist/
       await writeFileContent(windsurfIgnore.getFilePath(), windsurfIgnore.getFileContent());
 
       const readWindsurfIgnore = await WindsurfIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(readWindsurfIgnore.getFileContent()).toBe(originalContent);
@@ -646,7 +646,7 @@ coverage/
 
     it("should work in project root context", () => {
       const windsurfIgnore = new WindsurfIgnore({
-        baseDir: "/project/root",
+        outputRoot: "/project/root",
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent: "*.log\nnode_modules/",
@@ -790,7 +790,7 @@ dist
       await writeFileContent(codeiumIgnorePath, fileContent);
 
       const windsurfIgnore = await WindsurfIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       // fromFile always uses these fixed parameters for relativeDirPath and relativeFilePath
@@ -804,7 +804,7 @@ dist
       await writeFileContent(codeiumIgnorePath, fileContent);
 
       const windsurfIgnore = await WindsurfIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       // Should have been validated during construction
@@ -813,18 +813,18 @@ dist
 
     it("should handle fromRulesyncIgnore with different base directories", () => {
       const rulesyncIgnore = new RulesyncIgnore({
-        baseDir: "/different/path",
+        outputRoot: "/different/path",
         relativeDirPath: ".",
         relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent: "*.log\nnode_modules/",
       });
 
       const windsurfIgnore = WindsurfIgnore.fromRulesyncIgnore({
-        baseDir: "/target/path",
+        outputRoot: "/target/path",
         rulesyncIgnore,
       });
 
-      expect(windsurfIgnore.getBaseDir()).toBe("/target/path");
+      expect(windsurfIgnore.getOutputRoot()).toBe("/target/path");
       expect(windsurfIgnore.getFileContent()).toBe("*.log\nnode_modules/");
     });
   });

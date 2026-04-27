@@ -131,14 +131,14 @@ describe("McpProcessor", () => {
     it("should create instance with valid tool target", () => {
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "copilot",
       });
 
       expect(processor).toBeInstanceOf(McpProcessor);
     });
 
-    it("should create instance with default baseDir", () => {
+    it("should create instance with default outputRoot", () => {
       const processor = new McpProcessor({ logger: createMockLogger(), toolTarget: "cursor" });
 
       expect(processor).toBeInstanceOf(McpProcessor);
@@ -148,7 +148,7 @@ describe("McpProcessor", () => {
       expect(() => {
         const processor = new McpProcessor({
           logger: createMockLogger(),
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "invalid" as McpProcessorToolTarget,
         });
         return processor;
@@ -159,7 +159,7 @@ describe("McpProcessor", () => {
   describe("loadRulesyncFiles", () => {
     it("should load rulesync MCP files successfully", async () => {
       const mockRulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ servers: {} }),
@@ -169,7 +169,7 @@ describe("McpProcessor", () => {
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "copilot",
       });
 
@@ -177,7 +177,7 @@ describe("McpProcessor", () => {
 
       expect(files).toHaveLength(1);
       expect(files[0]).toBe(mockRulesyncMcp);
-      expect(RulesyncMcp.fromFile).toHaveBeenCalledWith({ baseDir: testDir });
+      expect(RulesyncMcp.fromFile).toHaveBeenCalledWith({ outputRoot: testDir });
     });
 
     it("should return empty array when no MCP files found", async () => {
@@ -185,7 +185,7 @@ describe("McpProcessor", () => {
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "copilot",
       });
 
@@ -199,7 +199,7 @@ describe("McpProcessor", () => {
     describe("claudecode", () => {
       it("should load ClaudecodeMcp files", async () => {
         const mockMcp = new ClaudecodeMcp({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".claudecode",
           relativeFilePath: "mcp.json",
           fileContent: JSON.stringify({ servers: {} }),
@@ -209,7 +209,7 @@ describe("McpProcessor", () => {
 
         const processor = new McpProcessor({
           logger: createMockLogger(),
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "claudecode",
         });
 
@@ -218,7 +218,7 @@ describe("McpProcessor", () => {
         expect(files).toHaveLength(1);
         expect(files[0]).toBe(mockMcp);
         expect(ClaudecodeMcp.fromFile).toHaveBeenCalledWith({
-          baseDir: testDir,
+          outputRoot: testDir,
           validate: true,
           global: false,
         });
@@ -226,7 +226,7 @@ describe("McpProcessor", () => {
 
       it("should load ClaudecodeMcp files for claudecode-legacy target", async () => {
         const mockMcp = new ClaudecodeMcp({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".claudecode",
           relativeFilePath: "mcp.json",
           fileContent: JSON.stringify({ servers: {} }),
@@ -236,7 +236,7 @@ describe("McpProcessor", () => {
 
         const processor = new McpProcessor({
           logger: createMockLogger(),
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "claudecode-legacy",
         });
 
@@ -245,7 +245,7 @@ describe("McpProcessor", () => {
         expect(files).toHaveLength(1);
         expect(files[0]).toBe(mockMcp);
         expect(ClaudecodeMcp.fromFile).toHaveBeenCalledWith({
-          baseDir: testDir,
+          outputRoot: testDir,
           validate: true,
           global: false,
         });
@@ -253,7 +253,7 @@ describe("McpProcessor", () => {
 
       it("should load ClaudecodeMcp files in global mode", async () => {
         const mockMcp = new ClaudecodeMcp({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".claude",
           relativeFilePath: ".claude.json",
           fileContent: JSON.stringify({ mcpServers: {} }),
@@ -263,7 +263,7 @@ describe("McpProcessor", () => {
 
         const processor = new McpProcessor({
           logger: createMockLogger(),
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "claudecode",
           global: true,
         });
@@ -273,7 +273,7 @@ describe("McpProcessor", () => {
         expect(files).toHaveLength(1);
         expect(files[0]).toBe(mockMcp);
         expect(ClaudecodeMcp.fromFile).toHaveBeenCalledWith({
-          baseDir: testDir,
+          outputRoot: testDir,
           validate: true,
           global: true,
         });
@@ -283,7 +283,7 @@ describe("McpProcessor", () => {
     describe("cline", () => {
       it("should load ClineMcp files", async () => {
         const mockMcp = new ClineMcp({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".cline",
           relativeFilePath: "mcp.json",
           fileContent: JSON.stringify({ servers: {} }),
@@ -293,7 +293,7 @@ describe("McpProcessor", () => {
 
         const processor = new McpProcessor({
           logger: createMockLogger(),
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "cline",
         });
 
@@ -302,7 +302,7 @@ describe("McpProcessor", () => {
         expect(files).toHaveLength(1);
         expect(files[0]).toBe(mockMcp);
         expect(ClineMcp.fromFile).toHaveBeenCalledWith({
-          baseDir: testDir,
+          outputRoot: testDir,
           validate: true,
           global: false,
         });
@@ -312,7 +312,7 @@ describe("McpProcessor", () => {
     describe("copilot", () => {
       it("should load CopilotMcp files", async () => {
         const mockMcp = new CopilotMcp({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".github",
           relativeFilePath: "copilot-mcp.yml",
           fileContent: JSON.stringify({ servers: {} }),
@@ -322,7 +322,7 @@ describe("McpProcessor", () => {
 
         const processor = new McpProcessor({
           logger: createMockLogger(),
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "copilot",
         });
 
@@ -331,7 +331,7 @@ describe("McpProcessor", () => {
         expect(files).toHaveLength(1);
         expect(files[0]).toBe(mockMcp);
         expect(CopilotMcp.fromFile).toHaveBeenCalledWith({
-          baseDir: testDir,
+          outputRoot: testDir,
           validate: true,
           global: false,
         });
@@ -341,7 +341,7 @@ describe("McpProcessor", () => {
     describe("copilotcli", () => {
       it("should load CopilotcliMcp files", async () => {
         const mockMcp = new CopilotcliMcp({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".copilot",
           relativeFilePath: "mcp-config.json",
           fileContent: JSON.stringify({ mcpServers: {} }),
@@ -351,7 +351,7 @@ describe("McpProcessor", () => {
 
         const processor = new McpProcessor({
           logger: createMockLogger(),
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "copilotcli",
         });
 
@@ -360,7 +360,7 @@ describe("McpProcessor", () => {
         expect(files).toHaveLength(1);
         expect(files[0]).toBe(mockMcp);
         expect(CopilotcliMcp.fromFile).toHaveBeenCalledWith({
-          baseDir: testDir,
+          outputRoot: testDir,
           validate: true,
           global: false,
         });
@@ -368,7 +368,7 @@ describe("McpProcessor", () => {
 
       it("should load CopilotcliMcp files in global mode", async () => {
         const mockMcp = new CopilotcliMcp({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".copilot",
           relativeFilePath: "mcp-config.json",
           fileContent: JSON.stringify({ mcpServers: {} }),
@@ -378,7 +378,7 @@ describe("McpProcessor", () => {
 
         const processor = new McpProcessor({
           logger: createMockLogger(),
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "copilotcli",
           global: true,
         });
@@ -388,7 +388,7 @@ describe("McpProcessor", () => {
         expect(files).toHaveLength(1);
         expect(files[0]).toBe(mockMcp);
         expect(CopilotcliMcp.fromFile).toHaveBeenCalledWith({
-          baseDir: testDir,
+          outputRoot: testDir,
           validate: true,
           global: true,
         });
@@ -398,7 +398,7 @@ describe("McpProcessor", () => {
     describe("cursor", () => {
       it("should load CursorMcp files", async () => {
         const mockMcp = new CursorMcp({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".cursor",
           relativeFilePath: "mcp.json",
           fileContent: JSON.stringify({ servers: {} }),
@@ -408,7 +408,7 @@ describe("McpProcessor", () => {
 
         const processor = new McpProcessor({
           logger: createMockLogger(),
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "cursor",
         });
 
@@ -417,7 +417,7 @@ describe("McpProcessor", () => {
         expect(files).toHaveLength(1);
         expect(files[0]).toBe(mockMcp);
         expect(CursorMcp.fromFile).toHaveBeenCalledWith({
-          baseDir: testDir,
+          outputRoot: testDir,
           validate: true,
           global: false,
         });
@@ -427,7 +427,7 @@ describe("McpProcessor", () => {
     describe("geminicli", () => {
       it("should load GeminiCliMcp files", async () => {
         const mockMcp = new GeminiCliMcp({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".gemini",
           relativeFilePath: "settings.json",
           fileContent: JSON.stringify({ mcpServers: {} }),
@@ -437,7 +437,7 @@ describe("McpProcessor", () => {
 
         const processor = new McpProcessor({
           logger: createMockLogger(),
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "geminicli",
         });
 
@@ -446,7 +446,7 @@ describe("McpProcessor", () => {
         expect(files).toHaveLength(1);
         expect(files[0]).toBe(mockMcp);
         expect(GeminiCliMcp.fromFile).toHaveBeenCalledWith({
-          baseDir: testDir,
+          outputRoot: testDir,
           validate: true,
           global: false,
         });
@@ -454,7 +454,7 @@ describe("McpProcessor", () => {
 
       it("should load GeminiCliMcp files in global mode", async () => {
         const mockMcp = new GeminiCliMcp({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".gemini",
           relativeFilePath: "settings.json",
           fileContent: JSON.stringify({ mcpServers: {} }),
@@ -464,7 +464,7 @@ describe("McpProcessor", () => {
 
         const processor = new McpProcessor({
           logger: createMockLogger(),
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "geminicli",
           global: true,
         });
@@ -474,7 +474,7 @@ describe("McpProcessor", () => {
         expect(files).toHaveLength(1);
         expect(files[0]).toBe(mockMcp);
         expect(GeminiCliMcp.fromFile).toHaveBeenCalledWith({
-          baseDir: testDir,
+          outputRoot: testDir,
           validate: true,
           global: true,
         });
@@ -492,7 +492,7 @@ describe("McpProcessor", () => {
 
         const processor = new McpProcessor({
           logger: createMockLogger(),
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "codexcli",
           global: true,
         });
@@ -502,7 +502,7 @@ describe("McpProcessor", () => {
         expect(files).toHaveLength(1);
         expect(files[0]).toBe(mockMcp);
         expect(CodexcliMcp.fromFile).toHaveBeenCalledWith({
-          baseDir: testDir,
+          outputRoot: testDir,
           validate: true,
           global: true,
         });
@@ -511,7 +511,7 @@ describe("McpProcessor", () => {
       it("should throw error when used in local mode", async () => {
         const processor = new McpProcessor({
           logger: createMockLogger(),
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "codexcli",
           global: false,
         });
@@ -529,7 +529,7 @@ describe("McpProcessor", () => {
     describe("roo", () => {
       it("should load RooMcp files", async () => {
         const mockMcp = new RooMcp({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".roo",
           relativeFilePath: "mcp.json",
           fileContent: JSON.stringify({ servers: {} }),
@@ -539,7 +539,7 @@ describe("McpProcessor", () => {
 
         const processor = new McpProcessor({
           logger: createMockLogger(),
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "roo",
         });
 
@@ -548,7 +548,7 @@ describe("McpProcessor", () => {
         expect(files).toHaveLength(1);
         expect(files[0]).toBe(mockMcp);
         expect(RooMcp.fromFile).toHaveBeenCalledWith({
-          baseDir: testDir,
+          outputRoot: testDir,
           validate: true,
           global: false,
         });
@@ -560,7 +560,7 @@ describe("McpProcessor", () => {
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "copilot",
       });
 
@@ -573,7 +573,7 @@ describe("McpProcessor", () => {
       // Create a processor with a valid toolTarget
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "copilot",
       });
 
@@ -590,14 +590,14 @@ describe("McpProcessor", () => {
   describe("convertRulesyncFilesToToolFiles", () => {
     it("should convert rulesync files to claudecode tool files", async () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ servers: {} }),
       });
 
       const mockToolMcp = new ClaudecodeMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claudecode",
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify({ servers: {} }),
@@ -607,7 +607,7 @@ describe("McpProcessor", () => {
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
 
@@ -616,7 +616,7 @@ describe("McpProcessor", () => {
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBe(mockToolMcp);
       expect(ClaudecodeMcp.fromRulesyncMcp).toHaveBeenCalledWith({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: false,
       });
@@ -624,14 +624,14 @@ describe("McpProcessor", () => {
 
     it("should convert rulesync files to claudecode tool files in global mode", async () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
 
       const mockToolMcp = new ClaudecodeMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude",
         relativeFilePath: ".claude.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
@@ -641,7 +641,7 @@ describe("McpProcessor", () => {
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
         global: true,
       });
@@ -651,7 +651,7 @@ describe("McpProcessor", () => {
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBe(mockToolMcp);
       expect(ClaudecodeMcp.fromRulesyncMcp).toHaveBeenCalledWith({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -659,14 +659,14 @@ describe("McpProcessor", () => {
 
     it("should convert rulesync files to cline tool files", async () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ servers: {} }),
       });
 
       const mockToolMcp = new ClineMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cline",
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify({ servers: {} }),
@@ -676,7 +676,7 @@ describe("McpProcessor", () => {
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "cline",
       });
 
@@ -685,7 +685,7 @@ describe("McpProcessor", () => {
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBe(mockToolMcp);
       expect(ClineMcp.fromRulesyncMcp).toHaveBeenCalledWith({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: false,
       });
@@ -693,14 +693,14 @@ describe("McpProcessor", () => {
 
     it("should convert rulesync files to copilot tool files", async () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ servers: {} }),
       });
 
       const mockToolMcp = new CopilotMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".github",
         relativeFilePath: "copilot-mcp.yml",
         fileContent: JSON.stringify({ servers: {} }),
@@ -710,7 +710,7 @@ describe("McpProcessor", () => {
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "copilot",
       });
 
@@ -719,7 +719,7 @@ describe("McpProcessor", () => {
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBe(mockToolMcp);
       expect(CopilotMcp.fromRulesyncMcp).toHaveBeenCalledWith({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: false,
       });
@@ -727,14 +727,14 @@ describe("McpProcessor", () => {
 
     it("should convert rulesync files to copilotcli tool files", async () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
 
       const mockToolMcp = new CopilotcliMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".copilot",
         relativeFilePath: "mcp-config.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
@@ -744,7 +744,7 @@ describe("McpProcessor", () => {
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "copilotcli",
       });
 
@@ -753,7 +753,7 @@ describe("McpProcessor", () => {
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBe(mockToolMcp);
       expect(CopilotcliMcp.fromRulesyncMcp).toHaveBeenCalledWith({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: false,
       });
@@ -761,14 +761,14 @@ describe("McpProcessor", () => {
 
     it("should convert rulesync files to copilotcli tool files in global mode", async () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
 
       const mockToolMcp = new CopilotcliMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".copilot",
         relativeFilePath: "mcp-config.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
@@ -778,7 +778,7 @@ describe("McpProcessor", () => {
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "copilotcli",
         global: true,
       });
@@ -788,7 +788,7 @@ describe("McpProcessor", () => {
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBe(mockToolMcp);
       expect(CopilotcliMcp.fromRulesyncMcp).toHaveBeenCalledWith({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -796,14 +796,14 @@ describe("McpProcessor", () => {
 
     it("should convert rulesync files to cursor tool files", async () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ servers: {} }),
       });
 
       const mockToolMcp = new CursorMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor",
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify({ servers: {} }),
@@ -813,7 +813,7 @@ describe("McpProcessor", () => {
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "cursor",
       });
 
@@ -822,7 +822,7 @@ describe("McpProcessor", () => {
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBe(mockToolMcp);
       expect(CursorMcp.fromRulesyncMcp).toHaveBeenCalledWith({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: false,
       });
@@ -830,14 +830,14 @@ describe("McpProcessor", () => {
 
     it("should convert rulesync files to geminicli tool files", async () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
 
       const mockToolMcp = new GeminiCliMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini",
         relativeFilePath: "settings.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
@@ -847,7 +847,7 @@ describe("McpProcessor", () => {
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "geminicli",
       });
 
@@ -856,7 +856,7 @@ describe("McpProcessor", () => {
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBe(mockToolMcp);
       expect(GeminiCliMcp.fromRulesyncMcp).toHaveBeenCalledWith({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: false,
       });
@@ -864,14 +864,14 @@ describe("McpProcessor", () => {
 
     it("should convert rulesync files to geminicli tool files in global mode", async () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
 
       const mockToolMcp = new GeminiCliMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".gemini",
         relativeFilePath: "settings.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
@@ -881,7 +881,7 @@ describe("McpProcessor", () => {
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "geminicli",
         global: true,
       });
@@ -891,7 +891,7 @@ describe("McpProcessor", () => {
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBe(mockToolMcp);
       expect(GeminiCliMcp.fromRulesyncMcp).toHaveBeenCalledWith({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -899,7 +899,7 @@ describe("McpProcessor", () => {
 
     it("should convert rulesync files to codexcli tool files in global mode", async () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
@@ -914,7 +914,7 @@ describe("McpProcessor", () => {
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "codexcli",
         global: true,
       });
@@ -924,7 +924,7 @@ describe("McpProcessor", () => {
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBe(mockToolMcp);
       expect(CodexcliMcp.fromRulesyncMcp).toHaveBeenCalledWith({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: true,
       });
@@ -932,14 +932,14 @@ describe("McpProcessor", () => {
 
     it("should convert rulesync files to roo tool files", async () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ servers: {} }),
       });
 
       const mockToolMcp = new RooMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".roo",
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify({ servers: {} }),
@@ -949,7 +949,7 @@ describe("McpProcessor", () => {
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "roo",
       });
 
@@ -958,7 +958,7 @@ describe("McpProcessor", () => {
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBe(mockToolMcp);
       expect(RooMcp.fromRulesyncMcp).toHaveBeenCalledWith({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         global: false,
       });
@@ -967,7 +967,7 @@ describe("McpProcessor", () => {
     it("should throw error when no RulesyncMcp found", async () => {
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "copilot",
       });
 
@@ -978,7 +978,7 @@ describe("McpProcessor", () => {
 
     it("should throw error for unsupported tool target", async () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ servers: {} }),
@@ -986,7 +986,7 @@ describe("McpProcessor", () => {
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "copilot",
       });
 
@@ -1000,7 +1000,7 @@ describe("McpProcessor", () => {
 
     it("should strip enabledTools and disabledTools for tools that do not support them", async () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
@@ -1010,7 +1010,7 @@ describe("McpProcessor", () => {
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
       });
 
@@ -1024,7 +1024,7 @@ describe("McpProcessor", () => {
 
     it("should not strip enabledTools and disabledTools for codexcli", async () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
@@ -1034,7 +1034,7 @@ describe("McpProcessor", () => {
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "codexcli",
         global: true,
       });
@@ -1046,7 +1046,7 @@ describe("McpProcessor", () => {
 
     it("should not strip enabledTools and disabledTools for opencode", async () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
@@ -1057,7 +1057,7 @@ describe("McpProcessor", () => {
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "opencode",
       });
 
@@ -1071,7 +1071,7 @@ describe("McpProcessor", () => {
     it("should return empty array when no tool files provided", async () => {
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "copilot",
       });
 
@@ -1123,7 +1123,7 @@ describe("McpProcessor", () => {
     it("should return deletable files only", async () => {
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "copilot",
       });
 
@@ -1133,7 +1133,7 @@ describe("McpProcessor", () => {
       expect(filesToDelete[0]?.getRelativeFilePath()).toBe("mcp.json");
       expect(vi.mocked(CopilotMcp).forDeletion).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       );
     });
@@ -1150,7 +1150,7 @@ describe("McpProcessor", () => {
       for (const target of targets) {
         const processor = new McpProcessor({
           logger: createMockLogger(),
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: target,
         });
 
@@ -1164,7 +1164,7 @@ describe("McpProcessor", () => {
     it("should handle errors gracefully", async () => {
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "copilot",
       });
 
@@ -1189,7 +1189,7 @@ describe("McpProcessor", () => {
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
         global: true,
       });
@@ -1203,7 +1203,7 @@ describe("McpProcessor", () => {
     it("should not filter out deletable files in local mode", async () => {
       const processor = new McpProcessor({
         logger: createMockLogger(),
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
         global: false,
       });

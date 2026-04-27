@@ -53,7 +53,7 @@ Body content`;
   describe("constructor", () => {
     it("should create instance with valid markdown content", () => {
       const subagent = new FactorydroidSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory/droids",
         relativeFilePath: "test-droid.md",
         frontmatter: {
@@ -78,7 +78,7 @@ Body content`;
       expect(
         () =>
           new FactorydroidSubagent({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeDirPath: ".factory/droids",
             relativeFilePath: "invalid-droid.md",
             frontmatter: {
@@ -94,7 +94,7 @@ Body content`;
   describe("toRulesyncSubagent", () => {
     it("should throw error as it is a simulated file", () => {
       const subagent = new FactorydroidSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory/droids",
         relativeFilePath: "test-droid.md",
         frontmatter: {
@@ -114,7 +114,7 @@ Body content`;
   describe("fromRulesyncSubagent", () => {
     it("should create FactorydroidSubagent from RulesyncSubagent", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-droid.md",
         frontmatter: {
@@ -127,7 +127,7 @@ Body content`;
       });
 
       const factorydroidSubagent = FactorydroidSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory/droids",
         rulesyncSubagent,
         validate: true,
@@ -152,7 +152,7 @@ Body content`;
       await writeFileContent(filePath, validMarkdownContent);
 
       const subagent = await FactorydroidSubagent.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test-file-droid.md",
         validate: true,
       });
@@ -171,7 +171,7 @@ Body content`;
     it("should throw error when file does not exist", async () => {
       await expect(
         FactorydroidSubagent.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "non-existent-droid.md",
           validate: true,
         }),
@@ -186,7 +186,7 @@ Body content`;
 
       await expect(
         FactorydroidSubagent.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "invalid-droid.md",
           validate: true,
         }),
@@ -197,7 +197,7 @@ Body content`;
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
       const subagent = new FactorydroidSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory/droids",
         relativeFilePath: "valid-droid.md",
         frontmatter: {
@@ -255,7 +255,7 @@ Body content`;
   describe("forDeletion", () => {
     it("should create deletion marker", () => {
       const subagent = FactorydroidSubagent.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory/droids",
         relativeFilePath: "to-delete.md",
       });
@@ -268,7 +268,7 @@ Body content`;
   describe("integration with base classes", () => {
     it("should be assignable to ToolSubagent type", () => {
       const subagent = new FactorydroidSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".factory/droids",
         relativeFilePath: "test.md",
         frontmatter: {

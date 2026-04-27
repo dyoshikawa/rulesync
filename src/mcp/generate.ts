@@ -13,7 +13,7 @@ import { type McpResultCounts } from "./types.js";
 /**
  * Schema for generate options
  * Excluded parameters:
- * - baseDirs: Always use [process.cwd()] in MCP context
+ * - outputRoots: Always use [process.cwd()] in MCP context
  * - verbose: Meaningless in MCP (no console output)
  * - silent: Meaningless in MCP
  * - configPath: Always use default path from process.cwd()
@@ -52,7 +52,7 @@ export type McpGenerateResult = {
 export async function executeGenerate(options: GenerateOptions = {}): Promise<McpGenerateResult> {
   try {
     // Check if .rulesync directory exists
-    const exists = await checkRulesyncDirExists({ baseDir: process.cwd() });
+    const exists = await checkRulesyncDirExists({ outputRoot: process.cwd() });
     if (!exists) {
       return {
         success: false,
@@ -74,7 +74,7 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
       simulateCommands: options.simulateCommands,
       simulateSubagents: options.simulateSubagents,
       simulateSkills: options.simulateSkills,
-      // Always use default baseDirs (process.cwd()) and configPath
+      // Always use default outputRoots (process.cwd()) and configPath
       // verbose and silent are meaningless in MCP context
       verbose: false,
       silent: true,

@@ -16,7 +16,7 @@ export type ToolCommandSettablePaths = {
 };
 
 export type ToolCommandForDeletionParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath: string;
   relativeFilePath: string;
   global?: boolean;

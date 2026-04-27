@@ -28,7 +28,7 @@ describe("KiloSkill", () => {
   describe("constructor", () => {
     it("should create instance with valid content", () => {
       const skill = new KiloSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".kilo", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -50,7 +50,7 @@ describe("KiloSkill", () => {
 
     it("should create instance without validation when validate is false", () => {
       const skill = new KiloSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".kilo", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -67,7 +67,7 @@ describe("KiloSkill", () => {
     it("should throw error for invalid frontmatter when validation is enabled", () => {
       expect(() => {
         new KiloSkill({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: join(".kilo", "skills"),
           dirName: "test-skill",
           frontmatter: {
@@ -96,7 +96,7 @@ describe("KiloSkill", () => {
   describe("toRulesyncSkill", () => {
     it("should convert to RulesyncSkill and keep allowed-tools", () => {
       const skill = new KiloSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
         frontmatter: {
           name: "Test Skill",
@@ -119,7 +119,7 @@ describe("KiloSkill", () => {
   describe("fromRulesyncSkill", () => {
     it("should create instance from RulesyncSkill with project paths", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -145,7 +145,7 @@ describe("KiloSkill", () => {
 
     it("should create instance from RulesyncSkill and respect global paths", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -187,7 +187,7 @@ It can be multiline.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       const skill = await KiloSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
       });
 
@@ -204,7 +204,7 @@ It can be multiline.`;
   describe("isTargetedByRulesyncSkill", () => {
     it("should return true when targets include kilo", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -221,7 +221,7 @@ It can be multiline.`;
 
     it("should return true when targets include wildcard", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -238,7 +238,7 @@ It can be multiline.`;
 
     it("should return false when targets do not include kilo or wildcard", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {

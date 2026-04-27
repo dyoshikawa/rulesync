@@ -9,8 +9,8 @@ import { directoryExists, findFilesByGlobs } from "../../utils/file.js";
 /**
  * Returns the set of local skill directory names (excluding `.curated`).
  */
-export async function getLocalSkillDirNames(baseDir: string): Promise<Set<string>> {
-  const skillsDir = join(baseDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+export async function getLocalSkillDirNames(outputRoot: string): Promise<Set<string>> {
+  const skillsDir = join(outputRoot, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
   const names = new Set<string>();
 
   if (!(await directoryExists(skillsDir))) {

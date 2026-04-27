@@ -34,19 +34,19 @@ export class FactorydroidMcp extends ToolMcp {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
   }: ToolMcpFromFileParams): Promise<FactorydroidMcp> {
     const fileContent = await readFileContent(
       join(
-        baseDir,
+        outputRoot,
         this.getSettablePaths().relativeDirPath,
         this.getSettablePaths().relativeFilePath,
       ),
     );
 
     return new FactorydroidMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
@@ -55,7 +55,7 @@ export class FactorydroidMcp extends ToolMcp {
   }
 
   static fromRulesyncMcp({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncMcp,
     validate = true,
   }: ToolMcpFromRulesyncMcpParams): FactorydroidMcp {
@@ -69,7 +69,7 @@ export class FactorydroidMcp extends ToolMcp {
     const fileContent = JSON.stringify(factorydroidConfig, null, 2);
 
     return new FactorydroidMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
       fileContent,
@@ -86,12 +86,12 @@ export class FactorydroidMcp extends ToolMcp {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolMcpForDeletionParams): FactorydroidMcp {
     return new FactorydroidMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "{}",

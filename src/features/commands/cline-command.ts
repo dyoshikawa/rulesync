@@ -33,7 +33,7 @@ export class ClineCommand extends ToolCommand {
     };
 
     return new RulesyncCommand({
-      baseDir: process.cwd(),
+      outputRoot: process.cwd(),
       frontmatter: rulesyncFrontmatter,
       body: this.getFileContent(),
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
@@ -44,7 +44,7 @@ export class ClineCommand extends ToolCommand {
   }
 
   static fromRulesyncCommand({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncCommand,
     validate = true,
     global = false,
@@ -52,7 +52,7 @@ export class ClineCommand extends ToolCommand {
     const paths = this.getSettablePaths({ global });
 
     return new ClineCommand({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       fileContent: rulesyncCommand.getBody(),
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: rulesyncCommand.getRelativeFilePath(),
@@ -76,19 +76,19 @@ export class ClineCommand extends ToolCommand {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolCommandFromFileParams): Promise<ClineCommand> {
     const paths = this.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
 
     const fileContent = await readFileContent(filePath);
     const { body: content } = parseFrontmatter(fileContent, filePath);
 
     return new ClineCommand({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
       fileContent: content.trim(),
@@ -97,12 +97,12 @@ export class ClineCommand extends ToolCommand {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolCommandForDeletionParams): ClineCommand {
     return new ClineCommand({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "",

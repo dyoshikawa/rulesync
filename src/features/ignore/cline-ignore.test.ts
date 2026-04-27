@@ -39,9 +39,9 @@ describe("ClineIgnore", () => {
       expect(clineIgnore.getFileContent()).toBe("*.log\nnode_modules/");
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const clineIgnore = new ClineIgnore({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: "subdir",
         relativeFilePath: ".clineignore",
         fileContent: "*.tmp",
@@ -76,7 +76,7 @@ describe("ClineIgnore", () => {
     it("should convert to RulesyncIgnore with same content", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const clineIgnore = new ClineIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".clineignore",
         fileContent,
@@ -92,7 +92,7 @@ describe("ClineIgnore", () => {
 
     it("should handle empty content", () => {
       const clineIgnore = new ClineIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".clineignore",
         fileContent: "",
@@ -106,7 +106,7 @@ describe("ClineIgnore", () => {
     it("should preserve patterns and formatting", () => {
       const fileContent = "# Generated files\n*.log\n*.tmp\n\n# Dependencies\nnode_modules/\n.env*";
       const clineIgnore = new ClineIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".clineignore",
         fileContent,
@@ -119,7 +119,7 @@ describe("ClineIgnore", () => {
   });
 
   describe("fromRulesyncIgnore", () => {
-    it("should create ClineIgnore from RulesyncIgnore with default baseDir", () => {
+    it("should create ClineIgnore from RulesyncIgnore with default outputRoot", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -132,13 +132,13 @@ describe("ClineIgnore", () => {
       });
 
       expect(clineIgnore).toBeInstanceOf(ClineIgnore);
-      expect(clineIgnore.getBaseDir()).toBe(testDir);
+      expect(clineIgnore.getOutputRoot()).toBe(testDir);
       expect(clineIgnore.getRelativeDirPath()).toBe(".");
       expect(clineIgnore.getRelativeFilePath()).toBe(".clineignore");
       expect(clineIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should create ClineIgnore from RulesyncIgnore with custom baseDir", () => {
+    it("should create ClineIgnore from RulesyncIgnore with custom outputRoot", () => {
       const fileContent = "*.tmp\nbuild/";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -147,11 +147,11 @@ describe("ClineIgnore", () => {
       });
 
       const clineIgnore = ClineIgnore.fromRulesyncIgnore({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         rulesyncIgnore,
       });
 
-      expect(clineIgnore.getBaseDir()).toBe("/custom/base");
+      expect(clineIgnore.getOutputRoot()).toBe("/custom/base");
       expect(clineIgnore.getFilePath()).toBe("/custom/base/.clineignore");
       expect(clineIgnore.getFileContent()).toBe(fileContent);
     });
@@ -187,17 +187,17 @@ describe("ClineIgnore", () => {
   });
 
   describe("fromFile", () => {
-    it("should read .clineignore file from baseDir with default baseDir", async () => {
+    it("should read .clineignore file from outputRoot with default outputRoot", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const clineignorePath = join(testDir, ".clineignore");
       await writeFileContent(clineignorePath, fileContent);
 
       const clineIgnore = await ClineIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(clineIgnore).toBeInstanceOf(ClineIgnore);
-      expect(clineIgnore.getBaseDir()).toBe(testDir);
+      expect(clineIgnore.getOutputRoot()).toBe(testDir);
       expect(clineIgnore.getRelativeDirPath()).toBe(".");
       expect(clineIgnore.getRelativeFilePath()).toBe(".clineignore");
       expect(clineIgnore.getFileContent()).toBe(fileContent);
@@ -209,7 +209,7 @@ describe("ClineIgnore", () => {
       await writeFileContent(clineignorePath, fileContent);
 
       const clineIgnore = await ClineIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(clineIgnore.getFileContent()).toBe(fileContent);
@@ -221,7 +221,7 @@ describe("ClineIgnore", () => {
       await writeFileContent(clineignorePath, fileContent);
 
       const clineIgnore = await ClineIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
 
@@ -233,7 +233,7 @@ describe("ClineIgnore", () => {
       await writeFileContent(clineignorePath, "");
 
       const clineIgnore = await ClineIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(clineIgnore.getFileContent()).toBe("");
@@ -274,13 +274,13 @@ Thumbs.db`;
       await writeFileContent(clineignorePath, fileContent);
 
       const clineIgnore = await ClineIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(clineIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should default baseDir to process.cwd() when not provided", async () => {
+    it("should default outputRoot to process.cwd() when not provided", async () => {
       // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\nnode_modules/";
       const clineignorePath = join(testDir, ".clineignore");
@@ -288,14 +288,14 @@ Thumbs.db`;
 
       const clineIgnore = await ClineIgnore.fromFile({});
 
-      expect(clineIgnore.getBaseDir()).toBe(testDir);
+      expect(clineIgnore.getOutputRoot()).toBe(testDir);
       expect(clineIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should throw error when .clineignore file does not exist", async () => {
       await expect(
         ClineIgnore.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });
@@ -306,7 +306,7 @@ Thumbs.db`;
       await writeFileContent(clineignorePath, fileContent);
 
       const clineIgnore = await ClineIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(clineIgnore.getFileContent()).toBe(fileContent);
@@ -343,13 +343,13 @@ Thumbs.db`;
 
     it("should inherit file path methods from ToolFile", () => {
       const clineIgnore = new ClineIgnore({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: "subdir",
         relativeFilePath: ".clineignore",
         fileContent: "*.log",
       });
 
-      expect(clineIgnore.getBaseDir()).toBe("/test/base");
+      expect(clineIgnore.getOutputRoot()).toBe("/test/base");
       expect(clineIgnore.getRelativeDirPath()).toBe("subdir");
       expect(clineIgnore.getRelativeFilePath()).toBe(".clineignore");
       expect(clineIgnore.getFilePath()).toBe("/test/base/subdir/.clineignore");
@@ -369,7 +369,7 @@ dist/
 
       // ClineIgnore -> RulesyncIgnore -> ClineIgnore
       const originalClineIgnore = new ClineIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".clineignore",
         fileContent: originalContent,
@@ -377,12 +377,12 @@ dist/
 
       const rulesyncIgnore = originalClineIgnore.toRulesyncIgnore();
       const roundTripClineIgnore = ClineIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
       expect(roundTripClineIgnore.getFileContent()).toBe(originalContent);
-      expect(roundTripClineIgnore.getBaseDir()).toBe(testDir);
+      expect(roundTripClineIgnore.getOutputRoot()).toBe(testDir);
       expect(roundTripClineIgnore.getRelativeDirPath()).toBe(".");
       expect(roundTripClineIgnore.getRelativeFilePath()).toBe(".clineignore");
     });
@@ -459,7 +459,7 @@ dist/
     it("should write and read file correctly", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const clineIgnore = new ClineIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".clineignore",
         fileContent,
@@ -470,7 +470,7 @@ dist/
 
       // Read file back
       const readClineIgnore = await ClineIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(readClineIgnore.getFileContent()).toBe(fileContent);
@@ -483,7 +483,7 @@ dist/
 
       const fileContent = "*.log\nbuild/";
       const clineIgnore = new ClineIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "project/config",
         relativeFilePath: ".clineignore",
         fileContent,
@@ -493,7 +493,7 @@ dist/
       await writeFileContent(clineIgnore.getFilePath(), clineIgnore.getFileContent());
 
       const readClineIgnore = await ClineIgnore.fromFile({
-        baseDir: join(testDir, "project/config"),
+        outputRoot: join(testDir, "project/config"),
       });
 
       expect(readClineIgnore.getFileContent()).toBe(fileContent);
@@ -560,7 +560,7 @@ temp*/
 
     it("should work in workspace root context", () => {
       const clineIgnore = ClineIgnore.fromRulesyncIgnore({
-        baseDir: "/workspace/root",
+        outputRoot: "/workspace/root",
         rulesyncIgnore: new RulesyncIgnore({
           relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
           relativeFilePath: ".rulesignore",

@@ -21,7 +21,7 @@ import {
 export const DEFAULT_TAKT_SKILL_DIR = "knowledge";
 
 export type TaktSkillParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath: string;
   dirName: string;
   /** File name (with `.md` extension) to emit under `relativeDirPath`. */
@@ -52,7 +52,7 @@ export class TaktSkill extends ToolSkill {
   private readonly fileName: string;
 
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     dirName,
     fileName,
@@ -62,7 +62,7 @@ export class TaktSkill extends ToolSkill {
     global = false,
   }: TaktSkillParams) {
     super({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       mainFile: {
@@ -95,19 +95,19 @@ export class TaktSkill extends ToolSkill {
    * not a nested directory keyed by `dirName`. Drop `dirName` from the path.
    *
    * Preserves the same path-traversal guard as `AiDir.getDirPath` so a
-   * malicious `relativeDirPath` cannot escape `baseDir`.
+   * malicious `relativeDirPath` cannot escape `outputRoot`.
    */
   override getDirPath(): string {
-    const fullPath = join(this.baseDir, this.relativeDirPath);
+    const fullPath = join(this.outputRoot, this.relativeDirPath);
 
     const resolvedFull = resolve(fullPath);
-    const resolvedBase = resolve(this.baseDir);
+    const resolvedBase = resolve(this.outputRoot);
     const rel = relative(resolvedBase, resolvedFull);
 
     if (rel.startsWith("..") || path.isAbsolute(rel)) {
       throw new Error(
-        `Path traversal detected: Final path escapes baseDir. ` +
-          `baseDir="${this.baseDir}", relativeDirPath="${this.relativeDirPath}"`,
+        `Path traversal detected: Final path escapes outputRoot. ` +
+          `outputRoot="${this.outputRoot}", relativeDirPath="${this.relativeDirPath}"`,
       );
     }
 
@@ -142,7 +142,7 @@ export class TaktSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -159,7 +159,7 @@ export class TaktSkill extends ToolSkill {
     const relativeDirPath = join(".takt", "facets", DEFAULT_TAKT_SKILL_DIR);
 
     return new TaktSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName: stem,
       fileName,
@@ -192,13 +192,13 @@ export class TaktSkill extends ToolSkill {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): TaktSkill {
     return new TaktSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       fileName: `${dirName}.md`,

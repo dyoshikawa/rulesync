@@ -36,7 +36,7 @@ describe("KiloSubagent", () => {
 
   it("should create a RulesyncSubagent with kilo section and subagent mode", () => {
     const subagent = new KiloSubagent({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".kilo/agent",
       relativeFilePath: "review.md",
       frontmatter: {
@@ -64,7 +64,7 @@ describe("KiloSubagent", () => {
 
   it("should build Kilo subagent from Rulesync subagent and preserve mode", () => {
     const rulesyncSubagent = new RulesyncSubagent({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
       relativeFilePath: "docs-writer.md",
       frontmatter: {
@@ -83,7 +83,7 @@ describe("KiloSubagent", () => {
     const toolSubagent = KiloSubagent.fromRulesyncSubagent({
       rulesyncSubagent,
       global: true,
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
     }) as KiloSubagent;
 
@@ -99,7 +99,7 @@ describe("KiloSubagent", () => {
 
   it("should build Kilo subagent with default mode when not specified", () => {
     const rulesyncSubagent = new RulesyncSubagent({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
       relativeFilePath: "docs-writer.md",
       frontmatter: {
@@ -117,7 +117,7 @@ describe("KiloSubagent", () => {
     const toolSubagent = KiloSubagent.fromRulesyncSubagent({
       rulesyncSubagent,
       global: true,
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
     }) as KiloSubagent;
 
@@ -134,7 +134,7 @@ describe("KiloSubagent", () => {
   it("should preserve primary mode for Kilo subagent", () => {
     // Regression test for: kilo.mode was hardcoded to 'subagent' instead of being preserved
     const rulesyncSubagent = new RulesyncSubagent({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
       relativeFilePath: "primary-agent.md",
       frontmatter: {
@@ -157,7 +157,7 @@ describe("KiloSubagent", () => {
     const toolSubagent = KiloSubagent.fromRulesyncSubagent({
       rulesyncSubagent,
       global: true,
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
     }) as KiloSubagent;
 

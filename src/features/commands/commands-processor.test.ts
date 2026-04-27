@@ -87,7 +87,7 @@ vi.mocked(RulesyncCommand).mockImplementation(function (config: any) {
   Object.assign(instance, config);
   instance.getRelativeFilePath = () => config.relativeFilePath;
   instance.getRelativeDirPath = () => config.relativeDirPath;
-  instance.getBaseDir = () => config.baseDir;
+  instance.getOutputRoot = () => config.outputRoot;
   instance.getFrontmatter = () => config.frontmatter;
   instance.getBody = () => config.body;
   instance.getFileContent = () => config.fileContent;
@@ -227,14 +227,14 @@ describe("CommandsProcessor", () => {
 
   describe("constructor", () => {
     it("should create instance with valid tool target", () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
       expect(processor).toBeInstanceOf(CommandsProcessor);
     });
 
     it("should create instance with claudecode-legacy tool target", () => {
       processor = new CommandsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode-legacy",
       });
 
@@ -245,13 +245,13 @@ describe("CommandsProcessor", () => {
       expect(() => {
         processor = new CommandsProcessor({
           logger,
-          baseDir: testDir,
+          outputRoot: testDir,
           toolTarget: "invalid" as CommandsProcessorToolTarget,
         });
       }).toThrow();
     });
 
-    it("should use process.cwd() as default baseDir", () => {
+    it("should use process.cwd() as default outputRoot", () => {
       processor = new CommandsProcessor({ logger, toolTarget: "claudecode" });
       expect(processor).toBeInstanceOf(CommandsProcessor);
     });
@@ -259,7 +259,7 @@ describe("CommandsProcessor", () => {
     it("should accept global parameter", () => {
       processor = new CommandsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
         global: true,
       });
@@ -267,19 +267,19 @@ describe("CommandsProcessor", () => {
     });
 
     it("should default global to false", () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
       expect((processor as any).global).toBe(false);
     });
   });
 
   describe("convertRulesyncFilesToToolFiles", () => {
     beforeEach(() => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
     });
 
     it("should convert rulesync commands to claudecode commands", async () => {
       const mockRulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         fileContent: "test content",
@@ -291,7 +291,7 @@ describe("CommandsProcessor", () => {
       });
 
       const mockClaudecodeCommand = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".claude", "commands"),
         relativeFilePath: "test.md",
         frontmatter: {
@@ -305,7 +305,7 @@ describe("CommandsProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncCommand]);
 
       expect(ClaudecodeCommand.fromRulesyncCommand).toHaveBeenCalledWith({
-        baseDir: expect.any(String),
+        outputRoot: expect.any(String),
         rulesyncCommand: mockRulesyncCommand,
         global: false,
       });
@@ -315,13 +315,13 @@ describe("CommandsProcessor", () => {
     it("should pass global parameter to ClaudecodeCommand.fromRulesyncCommand", async () => {
       processor = new CommandsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
         global: true,
       });
 
       const mockRulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         fileContent: "test content",
@@ -333,7 +333,7 @@ describe("CommandsProcessor", () => {
       });
 
       const mockClaudecodeCommand = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".claude", "commands"),
         relativeFilePath: "test.md",
         frontmatter: {
@@ -347,17 +347,17 @@ describe("CommandsProcessor", () => {
       await processor.convertRulesyncFilesToToolFiles([mockRulesyncCommand]);
 
       expect(ClaudecodeCommand.fromRulesyncCommand).toHaveBeenCalledWith({
-        baseDir: expect.any(String),
+        outputRoot: expect.any(String),
         rulesyncCommand: mockRulesyncCommand,
         global: true,
       });
     });
 
     it("should convert rulesync commands to geminicli commands", async () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "geminicli" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "geminicli" });
 
       const mockRulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         fileContent: "test content",
@@ -369,7 +369,7 @@ describe("CommandsProcessor", () => {
       });
 
       const mockGeminiCliCommand = new GeminiCliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".gemini", "commands"),
         relativeFilePath: "test.md",
         fileContent: `description = "test description"\nprompt = """\nconverted content\n"""`,
@@ -380,7 +380,7 @@ describe("CommandsProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncCommand]);
 
       expect(GeminiCliCommand.fromRulesyncCommand).toHaveBeenCalledWith({
-        baseDir: expect.any(String),
+        outputRoot: expect.any(String),
         rulesyncCommand: mockRulesyncCommand,
         global: false,
       });
@@ -388,10 +388,10 @@ describe("CommandsProcessor", () => {
     });
 
     it("should convert rulesync commands to roo commands", async () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "roo" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "roo" });
 
       const mockRulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         fileContent: "test content",
@@ -403,7 +403,7 @@ describe("CommandsProcessor", () => {
       });
 
       const mockRooCommand = new RooCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".roo", "commands"),
         relativeFilePath: "test.md",
         fileContent: "converted content",
@@ -418,7 +418,7 @@ describe("CommandsProcessor", () => {
       const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncCommand]);
 
       expect(RooCommand.fromRulesyncCommand).toHaveBeenCalledWith({
-        baseDir: expect.any(String),
+        outputRoot: expect.any(String),
         rulesyncCommand: mockRulesyncCommand,
         global: false,
       });
@@ -428,13 +428,13 @@ describe("CommandsProcessor", () => {
     it("should pass global parameter to CursorCommand.fromRulesyncCommand", async () => {
       processor = new CommandsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "cursor",
         global: true,
       });
 
       const mockRulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         fileContent: "test content",
@@ -446,7 +446,7 @@ describe("CommandsProcessor", () => {
       });
 
       const mockCursorCommand = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".cursor", "commands"),
         relativeFilePath: "test.md",
         frontmatter: {},
@@ -458,17 +458,17 @@ describe("CommandsProcessor", () => {
       await processor.convertRulesyncFilesToToolFiles([mockRulesyncCommand]);
 
       expect(CursorCommand.fromRulesyncCommand).toHaveBeenCalledWith({
-        baseDir: expect.any(String),
+        outputRoot: expect.any(String),
         rulesyncCommand: mockRulesyncCommand,
         global: true,
       });
     });
 
     it("should flatten subdirectory path for supportsSubdirectory=false tools (generate)", async () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "cursor" });
 
       const mockRulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: join("pj", "test.md"),
         fileContent: "test content",
@@ -480,7 +480,7 @@ describe("CommandsProcessor", () => {
       });
 
       const mockCursorCommand = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".cursor", "commands"),
         relativeFilePath: "test.md",
         frontmatter: {},
@@ -496,10 +496,10 @@ describe("CommandsProcessor", () => {
     });
 
     it("should preserve subdirectory path for supportsSubdirectory=true tools (generate)", async () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
 
       const mockRulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: join("pj", "test.md"),
         fileContent: "test content",
@@ -511,7 +511,7 @@ describe("CommandsProcessor", () => {
       });
 
       const mockClaudecodeCommand = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".claude", "commands"),
         relativeFilePath: join("pj", "test.md"),
         frontmatter: {
@@ -529,10 +529,10 @@ describe("CommandsProcessor", () => {
     });
 
     it("should warn when flattened command paths collide for supportsSubdirectory=false tools", async () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "cursor" });
 
       const commandInPj = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: join("pj", "test.md"),
         fileContent: "content from pj",
@@ -543,7 +543,7 @@ describe("CommandsProcessor", () => {
         body: "content from pj",
       });
       const commandInOps = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: join("ops", "test.md"),
         fileContent: "content from ops",
@@ -557,7 +557,7 @@ describe("CommandsProcessor", () => {
       vi.mocked(CursorCommand.fromRulesyncCommand)
         .mockReturnValueOnce(
           new CursorCommand({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeDirPath: join(".cursor", "commands"),
             relativeFilePath: "test.md",
             frontmatter: {},
@@ -566,7 +566,7 @@ describe("CommandsProcessor", () => {
         )
         .mockReturnValueOnce(
           new CursorCommand({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeDirPath: join(".cursor", "commands"),
             relativeFilePath: "test.md",
             frontmatter: {},
@@ -586,7 +586,7 @@ describe("CommandsProcessor", () => {
 
     it("should filter out non-rulesync command files", async () => {
       const mockRulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         fileContent: "test content",
@@ -598,7 +598,7 @@ describe("CommandsProcessor", () => {
       });
 
       const mockClaudecodeCommand = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".claude", "commands"),
         relativeFilePath: "test.md",
         frontmatter: {
@@ -622,7 +622,7 @@ describe("CommandsProcessor", () => {
 
   describe("convertToolFilesToRulesyncFiles", () => {
     beforeEach(() => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
     });
 
     it("should convert tool commands to rulesync commands", async () => {
@@ -705,7 +705,7 @@ describe("CommandsProcessor", () => {
 
   describe("loadRulesyncFiles", () => {
     beforeEach(() => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
     });
 
     it("should load rulesync command files successfully", async () => {
@@ -715,7 +715,7 @@ describe("CommandsProcessor", () => {
       ];
       const mockRulesyncCommands = [
         new RulesyncCommand({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
           relativeFilePath: "test1.md",
           fileContent: "content1",
@@ -726,7 +726,7 @@ describe("CommandsProcessor", () => {
           body: "content1",
         }),
         new RulesyncCommand({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
           relativeFilePath: "test2.md",
           fileContent: "content2",
@@ -750,11 +750,11 @@ describe("CommandsProcessor", () => {
       );
       expect(RulesyncCommand.fromFile).toHaveBeenCalledTimes(2);
       expect(RulesyncCommand.fromFile).toHaveBeenCalledWith({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test1.md",
       });
       expect(RulesyncCommand.fromFile).toHaveBeenCalledWith({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test2.md",
       });
       expect(logger.debug).toHaveBeenCalledWith("Successfully loaded 2 rulesync commands");
@@ -767,7 +767,7 @@ describe("CommandsProcessor", () => {
         join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "test2.md"),
       ];
       const mockRulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test1.md",
         fileContent: "content1",
@@ -802,7 +802,7 @@ describe("CommandsProcessor", () => {
       ];
       const mockRulesyncCommands = [
         new RulesyncCommand({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
           relativeFilePath: join("pj", "foo.md"),
           fileContent: "content1",
@@ -813,7 +813,7 @@ describe("CommandsProcessor", () => {
           body: "content1",
         }),
         new RulesyncCommand({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
           relativeFilePath: "bar.md",
           fileContent: "content2",
@@ -833,11 +833,11 @@ describe("CommandsProcessor", () => {
       const result = await processor.loadRulesyncFiles();
 
       expect(RulesyncCommand.fromFile).toHaveBeenNthCalledWith(1, {
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: join("pj", "foo.md"),
       });
       expect(RulesyncCommand.fromFile).toHaveBeenNthCalledWith(2, {
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "bar.md",
       });
       expect(result).toEqual(mockRulesyncCommands);
@@ -854,11 +854,11 @@ describe("CommandsProcessor", () => {
 
   describe("loadToolFiles", () => {
     it("should load claudecode commands with correct parameters", async () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
 
       const mockPaths = [join(testDir, ".claude", "commands", "test.md")];
       const mockCommand = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".claude", "commands"),
         relativeFilePath: "test.md",
         frontmatter: {
@@ -876,7 +876,7 @@ describe("CommandsProcessor", () => {
         expect.stringContaining(join(".claude", "commands", "**", "*.md")),
       );
       expect(ClaudecodeCommand.fromFile).toHaveBeenCalledWith({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test.md",
         global: false,
       });
@@ -885,11 +885,11 @@ describe("CommandsProcessor", () => {
     });
 
     it("should load geminicli commands with correct parameters", async () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "geminicli" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "geminicli" });
 
       const mockPaths = [join(testDir, ".gemini", "commands", "test.toml")];
       const mockCommand = new GeminiCliCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".gemini", "commands"),
         relativeFilePath: "test.toml",
         fileContent: `description = "test description"\nprompt = """\ncontent\n"""`,
@@ -904,11 +904,11 @@ describe("CommandsProcessor", () => {
     });
 
     it("should load roo commands with correct parameters", async () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "roo" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "roo" });
 
       const mockPaths = [join(testDir, ".roo", "commands", "test.md")];
       const mockCommand = new RooCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".roo", "commands"),
         relativeFilePath: "test.md",
         frontmatter: {
@@ -927,14 +927,14 @@ describe("CommandsProcessor", () => {
     });
 
     it("should throw error when file loading fails", async () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
 
       const mockPaths = [
         join(testDir, ".claude", "commands", "test1.md"),
         join(testDir, ".claude", "commands", "test2.md"),
       ];
       const mockCommand = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".claude", "commands"),
         relativeFilePath: "test1.md",
         frontmatter: {
@@ -954,14 +954,14 @@ describe("CommandsProcessor", () => {
     it("should pass global parameter when loading claudecode commands", async () => {
       processor = new CommandsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
         global: true,
       });
 
       const mockPaths = [join(testDir, ".claude", "commands", "test.md")];
       const mockCommand = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".claude", "commands"),
         relativeFilePath: "test.md",
         frontmatter: {
@@ -976,7 +976,7 @@ describe("CommandsProcessor", () => {
       await processor.loadToolFiles();
 
       expect(ClaudecodeCommand.fromFile).toHaveBeenCalledWith({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test.md",
         global: true,
       });
@@ -985,14 +985,14 @@ describe("CommandsProcessor", () => {
     it("should pass global parameter when loading cursor commands", async () => {
       processor = new CommandsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "cursor",
         global: true,
       });
 
       const mockPaths = [join(testDir, ".cursor", "commands", "test.md")];
       const mockCommand = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".cursor", "commands"),
         relativeFilePath: "test.md",
         frontmatter: {},
@@ -1005,28 +1005,28 @@ describe("CommandsProcessor", () => {
       await processor.loadToolFiles();
 
       expect(CursorCommand.fromFile).toHaveBeenCalledWith({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test.md",
         global: true,
       });
     });
 
     it("should load tool commands from subdirectories", async () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
 
       const mockPaths = [
         join(testDir, ".claude", "commands", "pj", "foo.md"),
         join(testDir, ".claude", "commands", "bar.md"),
       ];
       const mockCommand1 = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".claude", "commands"),
         relativeFilePath: join("pj", "foo.md"),
         frontmatter: { description: "subdirectory command" },
         body: "content1",
       });
       const mockCommand2 = new ClaudecodeCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".claude", "commands"),
         relativeFilePath: "bar.md",
         frontmatter: { description: "flat command" },
@@ -1041,12 +1041,12 @@ describe("CommandsProcessor", () => {
       const result = await processor.loadToolFiles();
 
       expect(ClaudecodeCommand.fromFile).toHaveBeenCalledWith({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: join("pj", "foo.md"),
         global: false,
       });
       expect(ClaudecodeCommand.fromFile).toHaveBeenCalledWith({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "bar.md",
         global: false,
       });
@@ -1054,7 +1054,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should load tool commands from subdirectories for deletion", async () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
 
       mockFindFilesByGlobs.mockResolvedValue([
         join(testDir, ".claude", "commands", "pj", "foo.md"),
@@ -1065,14 +1065,14 @@ describe("CommandsProcessor", () => {
       expect(filesToDelete).toHaveLength(1);
       expect(vi.mocked(ClaudecodeCommand).forDeletion).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: join("pj", "foo.md"),
         }),
       );
     });
 
     it("should produce correct relative paths for deeply nested files in forDeletion mode", async () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
 
       mockFindFilesByGlobs.mockResolvedValue([
         join(testDir, ".claude", "commands", "pj", "sub", "deep.md"),
@@ -1082,7 +1082,7 @@ describe("CommandsProcessor", () => {
 
       expect(vi.mocked(ClaudecodeCommand).forDeletion).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: join("pj", "sub", "deep.md"),
         }),
       );
@@ -1091,7 +1091,7 @@ describe("CommandsProcessor", () => {
     it("should throw error for unsupported tool target", async () => {
       processor = new CommandsProcessor({
         logger,
-        baseDir: testDir,
+        outputRoot: testDir,
         toolTarget: "claudecode",
         getFactory: createMockGetFactoryThatThrowsUnsupported,
       });
@@ -1102,7 +1102,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should use top-level only glob for supportsSubdirectory=false tools (import)", async () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "cursor" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "cursor" });
 
       mockFindFilesByGlobs.mockResolvedValue([]);
 
@@ -1117,7 +1117,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should use recursive glob for supportsSubdirectory=true tools (import)", async () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
 
       mockFindFilesByGlobs.mockResolvedValue([]);
 
@@ -1200,7 +1200,7 @@ describe("CommandsProcessor", () => {
 
   describe("loadToolFiles with forDeletion: true", () => {
     it("should return files with correct paths for deletion", async () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
 
       mockFindFilesByGlobs.mockResolvedValue([join(testDir, ".claude", "commands", "test.md")]);
 
@@ -1210,7 +1210,7 @@ describe("CommandsProcessor", () => {
       expect(filesToDelete[0]?.getRelativeFilePath()).toBe("test.md");
       expect(vi.mocked(ClaudecodeCommand).forDeletion).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "test.md",
         }),
       );
@@ -1228,7 +1228,7 @@ describe("CommandsProcessor", () => {
       ];
 
       for (const target of targets) {
-        processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: target });
+        processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: target });
 
         mockFindFilesByGlobs.mockResolvedValue([]);
 
@@ -1238,7 +1238,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should filter out non-deletable files when forDeletion is true", async () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
 
       mockFindFilesByGlobs.mockResolvedValue([
         join(testDir, ".claude", "commands", "deletable.md"),
@@ -1260,7 +1260,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should reject path traversal in loadToolFiles", async () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
 
       mockFindFilesByGlobs.mockResolvedValue([
         join(testDir, ".claude", "commands", "..", "..", "etc", "passwd"),
@@ -1270,7 +1270,7 @@ describe("CommandsProcessor", () => {
     });
 
     it("should reject path traversal in loadToolFiles with forDeletion", async () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
 
       mockFindFilesByGlobs.mockResolvedValue([
         join(testDir, ".claude", "commands", "..", "..", "etc", "passwd"),
@@ -1282,16 +1282,16 @@ describe("CommandsProcessor", () => {
     });
 
     it("should return all files when forDeletion is false regardless of isDeletable", async () => {
-      processor = new CommandsProcessor({ logger, baseDir: testDir, toolTarget: "claudecode" });
+      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
 
       const deletableCommand = {
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".claude", "commands"),
         relativeFilePath: "deletable.md",
         isDeletable: () => true,
       };
       const nonDeletableCommand = {
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".claude", "commands"),
         relativeFilePath: "non-deletable.md",
         isDeletable: () => false,

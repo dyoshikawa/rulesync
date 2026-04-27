@@ -12,7 +12,10 @@ import { fileExists, readFileContent } from "../../utils/file.js";
 
 export type RulesyncHooksParams = RulesyncFileParams;
 
-export type RulesyncHooksFromFileParams = Pick<RulesyncFileFromFileParams, "baseDir" | "validate">;
+export type RulesyncHooksFromFileParams = Pick<
+  RulesyncFileFromFileParams,
+  "outputRoot" | "validate"
+>;
 
 export type RulesyncHooksSettablePaths = {
   relativeDirPath: string;
@@ -50,11 +53,11 @@ export class RulesyncHooks extends RulesyncFile {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
   }: RulesyncHooksFromFileParams): Promise<RulesyncHooks> {
     const paths = RulesyncHooks.getSettablePaths();
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
 
     if (!(await fileExists(filePath))) {
       throw new Error(`No ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} found.`);
@@ -62,7 +65,7 @@ export class RulesyncHooks extends RulesyncFile {
 
     const fileContent = await readFileContent(filePath);
     return new RulesyncHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,

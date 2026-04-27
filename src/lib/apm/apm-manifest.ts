@@ -64,15 +64,15 @@ export type ApmManifest = {
 /**
  * Return the absolute path to the project's `apm.yml`.
  */
-export function getApmManifestPath(baseDir: string): string {
-  return join(baseDir, APM_MANIFEST_FILE_NAME);
+export function getApmManifestPath(outputRoot: string): string {
+  return join(outputRoot, APM_MANIFEST_FILE_NAME);
 }
 
 /**
  * True if `apm.yml` exists at the given base directory.
  */
-export async function apmManifestExists(baseDir: string): Promise<boolean> {
-  return fileExists(getApmManifestPath(baseDir));
+export async function apmManifestExists(outputRoot: string): Promise<boolean> {
+  return fileExists(getApmManifestPath(outputRoot));
 }
 
 /**
@@ -103,8 +103,8 @@ export function parseApmManifest(content: string): ApmManifest {
 /**
  * Read and parse `apm.yml` from disk.
  */
-export async function readApmManifest(baseDir: string): Promise<ApmManifest> {
-  const path = getApmManifestPath(baseDir);
+export async function readApmManifest(outputRoot: string): Promise<ApmManifest> {
+  const path = getApmManifestPath(outputRoot);
   const content = await readFileContent(path);
   return parseApmManifest(content);
 }
@@ -114,10 +114,10 @@ export async function readApmManifest(baseDir: string): Promise<ApmManifest> {
  * command itself does not mutate the manifest.
  */
 export async function writeApmManifest(params: {
-  baseDir: string;
+  outputRoot: string;
   manifest: { name?: string; version?: string; dependencies?: unknown[] };
 }): Promise<void> {
-  const path = getApmManifestPath(params.baseDir);
+  const path = getApmManifestPath(params.outputRoot);
   const content = dump(params.manifest, { lineWidth: -1 });
   await writeFileContent(path, content);
 }

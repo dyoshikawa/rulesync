@@ -31,7 +31,7 @@ describe("DeepagentsSubagent", () => {
   describe("constructor", () => {
     it("should create with name and description", () => {
       const subagent = new DeepagentsSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".deepagents", "agents"),
         relativeFilePath: "my-agent.md",
         frontmatter: { name: "My Agent", description: "Does useful things." },
@@ -45,7 +45,7 @@ describe("DeepagentsSubagent", () => {
 
     it("should create with optional model field", () => {
       const subagent = new DeepagentsSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".deepagents", "agents"),
         relativeFilePath: "my-agent.md",
         frontmatter: { name: "Agent", description: "Desc.", model: "claude-sonnet-4-6" },
@@ -71,7 +71,7 @@ You are a test agent.`;
       await writeFileContent(join(agentsDir, "test-agent.md"), content);
 
       const subagent = await DeepagentsSubagent.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test-agent.md",
       });
 
@@ -84,7 +84,7 @@ You are a test agent.`;
   describe("fromRulesyncSubagent", () => {
     it("should map name and description", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "my-agent.md",
         frontmatter: { name: "My Agent", description: "Does things.", targets: ["deepagents"] },
@@ -92,7 +92,7 @@ You are a test agent.`;
       });
 
       const subagent = DeepagentsSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".deepagents", "agents"),
         rulesyncSubagent,
       }) as DeepagentsSubagent;
@@ -103,7 +103,7 @@ You are a test agent.`;
 
     it("should pull model from deepagents tool-specific section", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "my-agent.md",
         frontmatter: {
@@ -116,7 +116,7 @@ You are a test agent.`;
       });
 
       const subagent = DeepagentsSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".deepagents", "agents"),
         rulesyncSubagent,
       }) as DeepagentsSubagent;
@@ -128,7 +128,7 @@ You are a test agent.`;
   describe("toRulesyncSubagent", () => {
     it("should convert back to rulesync subagent preserving name and body", () => {
       const subagent = new DeepagentsSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".deepagents", "agents"),
         relativeFilePath: "my-agent.md",
         frontmatter: { name: "My Agent", description: "Does things.", model: "claude-sonnet-4-6" },
@@ -146,7 +146,7 @@ You are a test agent.`;
 
     it("should store model in deepagents tool-specific section", () => {
       const subagent = new DeepagentsSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".deepagents", "agents"),
         relativeFilePath: "my-agent.md",
         frontmatter: { name: "Agent", description: "Desc.", model: "claude-haiku-4-5-20251001" },
@@ -166,7 +166,7 @@ You are a test agent.`;
   describe("isTargetedByRulesyncSubagent", () => {
     it("should return true for deepagents target", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "agent.md",
         frontmatter: { name: "Agent", targets: ["deepagents"] },
@@ -178,7 +178,7 @@ You are a test agent.`;
 
     it("should return true for wildcard target", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "agent.md",
         frontmatter: { name: "Agent", targets: ["*"] },
@@ -190,7 +190,7 @@ You are a test agent.`;
 
     it("should return false for different tool", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/subagents",
         relativeFilePath: "agent.md",
         frontmatter: { name: "Agent", targets: ["claudecode"] },

@@ -43,7 +43,7 @@ describe("RovodevSkill", () => {
       });
     });
 
-    it("should return the same roots for global mode (under home baseDir)", () => {
+    it("should return the same roots for global mode (under home outputRoot)", () => {
       expect(RovodevSkill.getSettablePaths({ global: true })).toEqual({
         relativeDirPath: rovodevSkillsRel(),
         alternativeSkillRoots: [agentsSkillsRel()],
@@ -54,7 +54,7 @@ describe("RovodevSkill", () => {
   describe("constructor", () => {
     it("should create instance with valid frontmatter", () => {
       const skill = new RovodevSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: rovodevSkillsRel(),
         dirName: "my-skill",
         frontmatter: {
@@ -77,7 +77,7 @@ describe("RovodevSkill", () => {
     it("should throw when validation fails for invalid frontmatter", () => {
       expect(() => {
         new RovodevSkill({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "bad",
           frontmatter: {
             name: "ok",
@@ -92,7 +92,7 @@ describe("RovodevSkill", () => {
     it("should throw when frontmatter name does not match directory name", () => {
       expect(() => {
         new RovodevSkill({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "my-skill",
           frontmatter: {
             name: "wrong-name",
@@ -106,7 +106,7 @@ describe("RovodevSkill", () => {
 
     it("should not throw when validate is false with invalid shape", () => {
       const skill = new RovodevSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "lenient",
         frontmatter: {
           name: "n",
@@ -130,7 +130,7 @@ describe("RovodevSkill", () => {
       );
 
       const skill = await RovodevSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "disk-skill",
       });
 
@@ -152,7 +152,7 @@ describe("RovodevSkill", () => {
       );
 
       const skill = await RovodevSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: agentsSkillsRel(),
         dirName: "agents-skill",
       });
@@ -170,7 +170,7 @@ describe("RovodevSkill", () => {
       );
 
       const skill = await RovodevSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "global-skill",
         global: true,
       });
@@ -184,7 +184,7 @@ describe("RovodevSkill", () => {
 
       await expect(
         RovodevSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "empty",
         }),
       ).rejects.toThrow(/SKILL\.md not found/);
@@ -204,7 +204,7 @@ body`,
 
       await expect(
         RovodevSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "bad-fm",
         }),
       ).rejects.toThrow(/Invalid frontmatter/);
@@ -220,7 +220,7 @@ body`,
 
       await expect(
         RovodevSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "mismatch-dir",
         }),
       ).rejects.toThrow(/must match directory name/);
@@ -230,7 +230,7 @@ body`,
   describe("fromRulesyncSkill", () => {
     it("should build RovodevSkill from RulesyncSkill", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "synced",
         frontmatter: {
@@ -243,7 +243,7 @@ body`,
       });
 
       const rovodev = RovodevSkill.fromRulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncSkill,
         validate: true,
         global: false,
@@ -263,7 +263,7 @@ body`,
   describe("toRulesyncSkill", () => {
     it('should convert to RulesyncSkill with targets ["*"]', () => {
       const skill = new RovodevSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "export-me",
         frontmatter: {
           name: "export-me",
@@ -290,7 +290,7 @@ body`,
   describe("round-trip", () => {
     it("fromRulesyncSkill then toRulesyncSkill preserves name, description, body, dirName", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "rt",
         frontmatter: {
@@ -303,7 +303,7 @@ body`,
       });
 
       const rovodev = RovodevSkill.fromRulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncSkill,
         validate: true,
       });
@@ -321,7 +321,7 @@ body`,
   describe("isTargetedByRulesyncSkill", () => {
     it("should return true for wildcard and rovodev targets", () => {
       const forStar = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "a",
         frontmatter: { name: "A", description: "D", targets: ["*"] },
@@ -329,7 +329,7 @@ body`,
         validate: true,
       });
       const forRovodev = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "b",
         frontmatter: { name: "B", description: "D", targets: ["rovodev"] },
@@ -337,7 +337,7 @@ body`,
         validate: true,
       });
       const forJunie = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "c",
         frontmatter: { name: "C", description: "D", targets: ["junie"] },
@@ -354,7 +354,7 @@ body`,
   describe("forDeletion", () => {
     it("should create minimal instance for deletion", () => {
       const skill = RovodevSkill.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: rovodevSkillsRel(),
         dirName: "gone",
       });
@@ -367,7 +367,7 @@ body`,
   describe("validate", () => {
     it("should return failure when frontmatter name does not match directory name", () => {
       const skill = new RovodevSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "ok-dir",
         frontmatter: { name: "other", description: "d" },
         body: "",
@@ -381,7 +381,7 @@ body`,
 
     it("should return failure when frontmatter does not match schema", () => {
       const skill = new RovodevSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "bad",
         frontmatter: {
           name: "n",

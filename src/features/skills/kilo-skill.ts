@@ -24,7 +24,7 @@ export const KiloSkillFrontmatterSchema = z.looseObject({
 export type KiloSkillFrontmatter = z.infer<typeof KiloSkillFrontmatterSchema>;
 
 export type KiloSkillParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
   frontmatter: KiloSkillFrontmatter;
@@ -36,7 +36,7 @@ export type KiloSkillParams = {
 
 export class KiloSkill extends ToolSkill {
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath = join(".kilo", "skills"),
     dirName,
     frontmatter,
@@ -46,7 +46,7 @@ export class KiloSkill extends ToolSkill {
     global = false,
   }: KiloSkillParams) {
     super({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       mainFile: {
@@ -115,7 +115,7 @@ export class KiloSkill extends ToolSkill {
     };
 
     return new RulesyncSkill({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
       dirName: this.getDirName(),
       frontmatter: rulesyncFrontmatter,
@@ -127,7 +127,7 @@ export class KiloSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -143,7 +143,7 @@ export class KiloSkill extends ToolSkill {
     const settablePaths = KiloSkill.getSettablePaths({ global });
 
     return new KiloSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: kiloFrontmatter,
@@ -167,14 +167,14 @@ export class KiloSkill extends ToolSkill {
 
     const result = KiloSkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
-      const skillDirPath = join(loaded.baseDir, loaded.relativeDirPath, loaded.dirName);
+      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
         `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
       );
     }
 
     return new KiloSkill({
-      baseDir: loaded.baseDir,
+      outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
       frontmatter: result.data,
@@ -186,13 +186,13 @@ export class KiloSkill extends ToolSkill {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): KiloSkill {
     return new KiloSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },

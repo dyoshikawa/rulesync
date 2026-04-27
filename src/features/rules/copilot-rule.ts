@@ -139,7 +139,7 @@ export class CopilotRule extends ToolRule {
     const relativeFilePath = originalFilePath.replace(/\.instructions\.md$/, ".md");
 
     return new RulesyncRule({
-      baseDir: this.getBaseDir(),
+      outputRoot: this.getOutputRoot(),
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -149,7 +149,7 @@ export class CopilotRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
     global = false,
@@ -170,7 +170,7 @@ export class CopilotRule extends ToolRule {
     if (root) {
       // Root file: .github/copilot-instructions.md (no frontmatter for root file)
       return new CopilotRule({
-        baseDir: baseDir,
+        outputRoot: outputRoot,
         frontmatter: {},
         body,
         relativeDirPath: paths.root.relativeDirPath,
@@ -190,7 +190,7 @@ export class CopilotRule extends ToolRule {
     const newFileName = `${nameWithoutExt}.instructions.md`;
 
     return new CopilotRule({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       frontmatter: copilotFrontmatter,
       body,
       relativeDirPath: paths.nonRoot.relativeDirPath,
@@ -201,7 +201,7 @@ export class CopilotRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
     validate = true,
@@ -220,11 +220,11 @@ export class CopilotRule extends ToolRule {
 
     if (isRoot) {
       const relativePath = join(paths.root.relativeDirPath, paths.root.relativeFilePath);
-      const filePath = join(baseDir, relativePath);
+      const filePath = join(outputRoot, relativePath);
       const fileContent = await readFileContent(filePath);
       // Root file: no frontmatter expected
       return new CopilotRule({
-        baseDir: baseDir,
+        outputRoot: outputRoot,
         relativeDirPath: paths.root.relativeDirPath,
         relativeFilePath: paths.root.relativeFilePath,
         frontmatter: {},
@@ -239,7 +239,7 @@ export class CopilotRule extends ToolRule {
     }
 
     const relativePath = join(resolvedRelativeDirPath, relativeFilePath);
-    const filePath = join(baseDir, relativePath);
+    const filePath = join(outputRoot, relativePath);
     const fileContent = await readFileContent(filePath);
 
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
@@ -251,7 +251,7 @@ export class CopilotRule extends ToolRule {
     }
 
     return new CopilotRule({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       relativeDirPath: resolvedRelativeDirPath,
       relativeFilePath: relativeFilePath.endsWith(".instructions.md")
         ? relativeFilePath
@@ -264,7 +264,7 @@ export class CopilotRule extends ToolRule {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
     global = false,
@@ -275,7 +275,7 @@ export class CopilotRule extends ToolRule {
       join(paths.root.relativeDirPath, paths.root.relativeFilePath);
 
     return new CopilotRule({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       frontmatter: {},

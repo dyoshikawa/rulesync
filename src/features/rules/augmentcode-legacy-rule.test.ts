@@ -38,9 +38,9 @@ describe("AugmentcodeLegacyRule", () => {
       );
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const augmentcodeLegacyRule = new AugmentcodeLegacyRule({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".augment/rules",
         relativeFilePath: "custom-rule.md",
         fileContent: "# Custom Legacy Rule",
@@ -104,7 +104,7 @@ describe("AugmentcodeLegacyRule", () => {
   describe("toRulesyncRule", () => {
     it("should convert non-root AugmentcodeLegacyRule to RulesyncRule", () => {
       const augmentcodeLegacyRule = new AugmentcodeLegacyRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".augment/rules",
         relativeFilePath: "test-rule.md",
         fileContent: "# Test Legacy Rule\n\nThis is a test legacy rule.",
@@ -114,7 +114,7 @@ describe("AugmentcodeLegacyRule", () => {
       const rulesyncRule = augmentcodeLegacyRule.toRulesyncRule();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getBaseDir()).toBe(".");
+      expect(rulesyncRule.getOutputRoot()).toBe(".");
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("test-rule.md");
       expect(rulesyncRule.getBody()).toBe("# Test Legacy Rule\n\nThis is a test legacy rule.");
@@ -128,7 +128,7 @@ describe("AugmentcodeLegacyRule", () => {
 
     it("should convert root AugmentcodeLegacyRule to RulesyncRule", () => {
       const augmentcodeLegacyRule = new AugmentcodeLegacyRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".augment-guidelines",
         fileContent: "# Root Guidelines\n\nThese are root guidelines.",
@@ -138,7 +138,7 @@ describe("AugmentcodeLegacyRule", () => {
       const rulesyncRule = augmentcodeLegacyRule.toRulesyncRule();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getBaseDir()).toBe(".");
+      expect(rulesyncRule.getOutputRoot()).toBe(".");
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe(".augment-guidelines");
       expect(rulesyncRule.getBody()).toBe("# Root Guidelines\n\nThese are root guidelines.");
@@ -152,7 +152,7 @@ describe("AugmentcodeLegacyRule", () => {
 
     it("should convert AugmentcodeLegacyRule to RulesyncRule preserving metadata", () => {
       const augmentcodeLegacyRule = new AugmentcodeLegacyRule({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".augment/rules",
         relativeFilePath: "complex-rule.md",
         fileContent: "# Complex Legacy Rule\n\nThis is a more complex legacy rule with content.",
@@ -161,7 +161,7 @@ describe("AugmentcodeLegacyRule", () => {
 
       const rulesyncRule = augmentcodeLegacyRule.toRulesyncRule();
 
-      expect(rulesyncRule.getBaseDir()).toBe(".");
+      expect(rulesyncRule.getOutputRoot()).toBe(".");
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("complex-rule.md");
       expect(rulesyncRule.getBody()).toBe(
@@ -196,9 +196,9 @@ describe("AugmentcodeLegacyRule", () => {
       );
     });
 
-    it("should create AugmentcodeLegacyRule from RulesyncRule with custom baseDir", () => {
+    it("should create AugmentcodeLegacyRule from RulesyncRule with custom outputRoot", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: "/source/path",
+        outputRoot: "/source/path",
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "source-rule.md",
         frontmatter: {
@@ -211,7 +211,7 @@ describe("AugmentcodeLegacyRule", () => {
       });
 
       const augmentcodeLegacyRule = AugmentcodeLegacyRule.fromRulesyncRule({
-        baseDir: "/target/path",
+        outputRoot: "/target/path",
         rulesyncRule,
       });
 
@@ -299,7 +299,7 @@ describe("AugmentcodeLegacyRule", () => {
       );
 
       const augmentcodeLegacyRule = await AugmentcodeLegacyRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test-rule.md",
       });
 
@@ -317,7 +317,7 @@ describe("AugmentcodeLegacyRule", () => {
       await writeFileContent(testFilePath, "# Root Guidelines\n\nThese are the root guidelines.");
 
       const augmentcodeLegacyRule = await AugmentcodeLegacyRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: ".augment-guidelines",
       });
 
@@ -330,37 +330,39 @@ describe("AugmentcodeLegacyRule", () => {
       expect(augmentcodeLegacyRule.isRoot()).toBe(true);
     });
 
-    it("should create AugmentcodeLegacyRule from file with custom baseDir", async () => {
-      const customBaseDir = join(testDir, "custom");
-      const augmentRulesDir = join(customBaseDir, ".augment", "rules");
+    it("should create AugmentcodeLegacyRule from file with custom outputRoot", async () => {
+      const customOutputRoot = join(testDir, "custom");
+      const augmentRulesDir = join(customOutputRoot, ".augment", "rules");
       await ensureDir(augmentRulesDir);
       const testFilePath = join(augmentRulesDir, "custom-rule.md");
       await writeFileContent(testFilePath, "# Custom Legacy Rule");
 
       const augmentcodeLegacyRule = await AugmentcodeLegacyRule.fromFile({
-        baseDir: customBaseDir,
+        outputRoot: customOutputRoot,
         relativeFilePath: "custom-rule.md",
       });
 
       expect(augmentcodeLegacyRule.getFilePath()).toBe(
-        join(customBaseDir, ".augment", "rules", "custom-rule.md"),
+        join(customOutputRoot, ".augment", "rules", "custom-rule.md"),
       );
       expect(augmentcodeLegacyRule.getFileContent()).toBe("# Custom Legacy Rule");
       expect(augmentcodeLegacyRule.isRoot()).toBe(false);
     });
 
-    it("should create root AugmentcodeLegacyRule from file with custom baseDir", async () => {
-      const customBaseDir = join(testDir, "custom");
-      await ensureDir(customBaseDir);
-      const testFilePath = join(customBaseDir, ".augment-guidelines");
+    it("should create root AugmentcodeLegacyRule from file with custom outputRoot", async () => {
+      const customOutputRoot = join(testDir, "custom");
+      await ensureDir(customOutputRoot);
+      const testFilePath = join(customOutputRoot, ".augment-guidelines");
       await writeFileContent(testFilePath, "# Custom Root Guidelines");
 
       const augmentcodeLegacyRule = await AugmentcodeLegacyRule.fromFile({
-        baseDir: customBaseDir,
+        outputRoot: customOutputRoot,
         relativeFilePath: ".augment-guidelines",
       });
 
-      expect(augmentcodeLegacyRule.getFilePath()).toBe(join(customBaseDir, ".augment-guidelines"));
+      expect(augmentcodeLegacyRule.getFilePath()).toBe(
+        join(customOutputRoot, ".augment-guidelines"),
+      );
       expect(augmentcodeLegacyRule.getFileContent()).toBe("# Custom Root Guidelines");
       expect(augmentcodeLegacyRule.isRoot()).toBe(true);
     });
@@ -372,7 +374,7 @@ describe("AugmentcodeLegacyRule", () => {
       await writeFileContent(testFilePath, "# Validated Legacy Rule");
 
       const augmentcodeLegacyRule = await AugmentcodeLegacyRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "validated-rule.md",
         validate: true,
       });
@@ -388,7 +390,7 @@ describe("AugmentcodeLegacyRule", () => {
       await writeFileContent(testFilePath, "# Unvalidated Legacy Rule");
 
       const augmentcodeLegacyRule = await AugmentcodeLegacyRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "unvalidated-rule.md",
         validate: false,
       });
@@ -407,7 +409,7 @@ describe("AugmentcodeLegacyRule", () => {
       );
 
       const augmentcodeLegacyRule = await AugmentcodeLegacyRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "formatted-rule.md",
       });
 
@@ -423,7 +425,7 @@ describe("AugmentcodeLegacyRule", () => {
       await writeFileContent(testFilePath, "");
 
       const augmentcodeLegacyRule = await AugmentcodeLegacyRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "empty-rule.md",
       });
 
@@ -433,7 +435,7 @@ describe("AugmentcodeLegacyRule", () => {
     it("should throw error when non-root file does not exist", async () => {
       await expect(
         AugmentcodeLegacyRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "nonexistent-rule.md",
         }),
       ).rejects.toThrow();
@@ -442,7 +444,7 @@ describe("AugmentcodeLegacyRule", () => {
     it("should throw error when root file does not exist", async () => {
       await expect(
         AugmentcodeLegacyRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: ".augment-guidelines",
         }),
       ).rejects.toThrow();
@@ -532,7 +534,7 @@ describe("AugmentcodeLegacyRule", () => {
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for rules targeting augmentcode-legacy", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -546,7 +548,7 @@ describe("AugmentcodeLegacyRule", () => {
 
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -560,7 +562,7 @@ describe("AugmentcodeLegacyRule", () => {
 
     it("should return false for rules not targeting augmentcode-legacy", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -574,7 +576,7 @@ describe("AugmentcodeLegacyRule", () => {
 
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -588,7 +590,7 @@ describe("AugmentcodeLegacyRule", () => {
 
     it("should handle mixed targets including augmentcode-legacy", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -602,7 +604,7 @@ describe("AugmentcodeLegacyRule", () => {
 
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {},
@@ -622,7 +624,7 @@ describe("AugmentcodeLegacyRule", () => {
       });
 
       // Test inherited methods
-      expect(typeof augmentcodeLegacyRule.getBaseDir).toBe("function");
+      expect(typeof augmentcodeLegacyRule.getOutputRoot).toBe("function");
       expect(typeof augmentcodeLegacyRule.getRelativeDirPath).toBe("function");
       expect(typeof augmentcodeLegacyRule.getRelativeFilePath).toBe("function");
       expect(typeof augmentcodeLegacyRule.getFileContent).toBe("function");

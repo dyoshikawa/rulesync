@@ -68,7 +68,7 @@ describe("PiRule", () => {
       await writeFileContent(join(testDir, "AGENTS.md"), content);
 
       const rule = await PiRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "AGENTS.md",
       });
 
@@ -85,7 +85,7 @@ describe("PiRule", () => {
       await writeFileContent(join(memoriesDir, "memory.md"), content);
 
       const rule = await PiRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "memory.md",
       });
 
@@ -102,7 +102,7 @@ describe("PiRule", () => {
       await writeFileContent(join(globalDir, "AGENTS.md"), content);
 
       const rule = await PiRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "AGENTS.md",
         global: true,
       });
@@ -115,7 +115,7 @@ describe("PiRule", () => {
     it("should throw when asked for non-root file in global mode", async () => {
       await expect(
         PiRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "memory.md",
           global: true,
         }),
@@ -126,7 +126,7 @@ describe("PiRule", () => {
   describe("fromRulesyncRule", () => {
     it("should produce a root rule from a root rulesync rule", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/rules",
         relativeFilePath: "overview.md",
         frontmatter: {
@@ -137,7 +137,7 @@ describe("PiRule", () => {
       });
 
       const rule = PiRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
@@ -149,7 +149,7 @@ describe("PiRule", () => {
 
     it("should produce a non-root rule under .agents/memories", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/rules",
         relativeFilePath: "memory.md",
         frontmatter: {
@@ -160,7 +160,7 @@ describe("PiRule", () => {
       });
 
       const rule = PiRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
@@ -171,7 +171,7 @@ describe("PiRule", () => {
 
     it("should throw for non-root rule in global mode", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/rules",
         relativeFilePath: "memory.md",
         frontmatter: {
@@ -183,7 +183,7 @@ describe("PiRule", () => {
 
       expect(() =>
         PiRule.fromRulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           rulesyncRule,
           global: true,
         }),
@@ -192,7 +192,7 @@ describe("PiRule", () => {
 
     it("should use global root paths when global is true", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/rules",
         relativeFilePath: "overview.md",
         frontmatter: {
@@ -203,7 +203,7 @@ describe("PiRule", () => {
       });
 
       const rule = PiRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
         global: true,
       });
@@ -217,7 +217,7 @@ describe("PiRule", () => {
   describe("toRulesyncRule", () => {
     it("should convert a root rule", () => {
       const rule = new PiRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
         fileContent: "# Root\nBody.",
@@ -232,7 +232,7 @@ describe("PiRule", () => {
 
     it("should convert a non-root rule", () => {
       const rule = new PiRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".agents", "memories"),
         relativeFilePath: "memory.md",
         fileContent: "# Memory\nBody.",
@@ -249,7 +249,7 @@ describe("PiRule", () => {
   describe("validate", () => {
     it("should always succeed", () => {
       const rule = new PiRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
         fileContent: "",
@@ -265,7 +265,7 @@ describe("PiRule", () => {
   describe("forDeletion", () => {
     it("should create a root deletion stub when path matches root", () => {
       const rule = PiRule.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
       });
@@ -276,7 +276,7 @@ describe("PiRule", () => {
 
     it("should create a non-root deletion stub when path does not match root", () => {
       const rule = PiRule.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".agents", "memories"),
         relativeFilePath: "memory.md",
       });
@@ -289,7 +289,7 @@ describe("PiRule", () => {
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for pi target", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/rules",
         relativeFilePath: "test.md",
         frontmatter: { targets: ["pi"] },
@@ -301,7 +301,7 @@ describe("PiRule", () => {
 
     it("should return true for wildcard targets", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/rules",
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"] },
@@ -313,7 +313,7 @@ describe("PiRule", () => {
 
     it("should return false for non-pi targets", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/rules",
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"] },

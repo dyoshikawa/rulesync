@@ -81,9 +81,9 @@ describe("WarpRule", () => {
       expect(warpRule.isRoot()).toBe(false);
     });
 
-    it("should create a WarpRule with custom baseDir", () => {
+    it("should create a WarpRule with custom outputRoot", () => {
       const params: WarpRuleParams = {
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".warp",
         relativeFilePath: "custom.md",
         fileContent: "# Custom Rule",
@@ -96,7 +96,7 @@ describe("WarpRule", () => {
 
     it("should pass all parameters to parent ToolRule", () => {
       const params: WarpRuleParams = {
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".warp/memories",
         relativeFilePath: "test.md",
         fileContent: "# Test Content",
@@ -106,7 +106,7 @@ describe("WarpRule", () => {
 
       const warpRule = new WarpRule(params);
 
-      expect(warpRule.getBaseDir()).toBe(testDir);
+      expect(warpRule.getOutputRoot()).toBe(testDir);
       expect(warpRule.getRelativeDirPath()).toBe(".warp/memories");
       expect(warpRule.getRelativeFilePath()).toBe("test.md");
       expect(warpRule.getFileContent()).toBe("# Test Content");
@@ -120,7 +120,7 @@ describe("WarpRule", () => {
       await writeFileContent(join(testDir, "WARP.md"), warpContent);
 
       const warpRule = await WarpRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "WARP.md",
       });
 
@@ -138,7 +138,7 @@ describe("WarpRule", () => {
       await writeFileContent(join(memoriesDir, "test-memory.md"), memoryContent);
 
       const warpRule = await WarpRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test-memory.md",
       });
 
@@ -149,7 +149,7 @@ describe("WarpRule", () => {
       expect(warpRule.getFilePath()).toBe(join(testDir, ".warp/test-memory.md"));
     });
 
-    it("should use default baseDir (process.cwd()) when not provided", async () => {
+    it("should use default outputRoot (process.cwd()) when not provided", async () => {
       const warpContent = "# Default Test";
       await writeFileContent(join(testDir, "WARP.md"), warpContent);
 
@@ -157,7 +157,7 @@ describe("WarpRule", () => {
         relativeFilePath: "WARP.md",
       });
 
-      expect(warpRule.getBaseDir()).toBe(testDir);
+      expect(warpRule.getOutputRoot()).toBe(testDir);
       expect(warpRule.isRoot()).toBe(true);
     });
 
@@ -166,7 +166,7 @@ describe("WarpRule", () => {
       await writeFileContent(join(testDir, "WARP.md"), warpContent);
 
       const warpRule = await WarpRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "WARP.md",
         validate: false,
       });
@@ -177,7 +177,7 @@ describe("WarpRule", () => {
     it("should throw error when file does not exist", async () => {
       await expect(
         WarpRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "nonexistent.md",
         }),
       ).rejects.toThrow();
@@ -199,12 +199,12 @@ describe("WarpRule", () => {
       });
 
       const warpRule = WarpRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
       expect(warpRule).toBeInstanceOf(WarpRule);
-      expect(warpRule.getBaseDir()).toBe(testDir);
+      expect(warpRule.getOutputRoot()).toBe(testDir);
       expect(warpRule.getRelativeDirPath()).toBe(".");
       expect(warpRule.getRelativeFilePath()).toBe("WARP.md");
       expect(warpRule.isRoot()).toBe(true);
@@ -223,18 +223,18 @@ describe("WarpRule", () => {
       });
 
       const warpRule = WarpRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
       expect(warpRule).toBeInstanceOf(WarpRule);
-      expect(warpRule.getBaseDir()).toBe(testDir);
+      expect(warpRule.getOutputRoot()).toBe(testDir);
       expect(warpRule.getRelativeDirPath()).toBe(".warp/memories");
       expect(warpRule.getRelativeFilePath()).toBe("memory.md");
       expect(warpRule.isRoot()).toBe(false);
     });
 
-    it("should use default baseDir (process.cwd()) when not provided", () => {
+    it("should use default outputRoot (process.cwd()) when not provided", () => {
       const frontmatter: RulesyncRuleFrontmatterInput = {
         description: "Default test",
         root: true,
@@ -251,7 +251,7 @@ describe("WarpRule", () => {
         rulesyncRule,
       });
 
-      expect(warpRule.getBaseDir()).toBe(testDir);
+      expect(warpRule.getOutputRoot()).toBe(testDir);
     });
 
     it("should handle validation parameter", () => {
@@ -357,7 +357,7 @@ describe("WarpRule", () => {
       await writeFileContent(join(testDir, "WARP.md"), content);
 
       const warpRule = await WarpRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "WARP.md",
       });
 
@@ -372,7 +372,7 @@ describe("WarpRule", () => {
       await writeFileContent(join(memoriesDir, "memory.md"), content);
 
       const warpRule = await WarpRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "memory.md",
       });
 
@@ -409,7 +409,7 @@ describe("WarpRule", () => {
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for rules targeting warp", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".warp/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -423,7 +423,7 @@ describe("WarpRule", () => {
 
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".warp/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -437,7 +437,7 @@ describe("WarpRule", () => {
 
     it("should return false for rules not targeting warp", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".warp/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -451,7 +451,7 @@ describe("WarpRule", () => {
 
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".warp/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -465,7 +465,7 @@ describe("WarpRule", () => {
 
     it("should handle mixed targets including warp", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".warp/memories",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -479,7 +479,7 @@ describe("WarpRule", () => {
 
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".warp/memories",
         relativeFilePath: "test.md",
         frontmatter: {},
@@ -493,14 +493,14 @@ describe("WarpRule", () => {
   describe("integration with ToolRule", () => {
     it("should inherit all ToolRule functionality", () => {
       const warpRule = new WarpRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".warp",
         relativeFilePath: "integration.md",
         fileContent: "# Integration Test",
       });
 
       // Test inherited methods
-      expect(warpRule.getBaseDir()).toBe(testDir);
+      expect(warpRule.getOutputRoot()).toBe(testDir);
       expect(warpRule.getRelativeDirPath()).toBe(".warp");
       expect(warpRule.getRelativeFilePath()).toBe("integration.md");
       expect(warpRule.getFileContent()).toBe("# Integration Test");

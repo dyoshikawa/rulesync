@@ -43,16 +43,16 @@ export class RooRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<RooRule> {
     const fileContent = await readFileContent(
-      join(baseDir, this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath),
+      join(outputRoot, this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath),
     );
 
     return new RooRule({
-      baseDir,
+      outputRoot,
       relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: relativeFilePath,
       fileContent,
@@ -62,13 +62,13 @@ export class RooRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): RooRule {
     return new RooRule(
       this.buildToolRuleParamsDefault({
-        baseDir,
+        outputRoot,
         rulesyncRule,
         validate,
         nonRootPath: this.getSettablePaths().nonRoot,
@@ -108,12 +108,12 @@ export class RooRule extends ToolRule {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): RooRule {
     return new RooRule({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "",

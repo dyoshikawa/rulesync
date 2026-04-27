@@ -242,7 +242,7 @@ export class SubagentsProcessor extends FeatureProcessor {
   private readonly getFactory: GetFactory;
 
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     inputRoot = process.cwd(),
     toolTarget,
     global = false,
@@ -250,7 +250,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     dryRun = false,
     logger,
   }: {
-    baseDir?: string;
+    outputRoot?: string;
     inputRoot?: string;
     toolTarget: ToolTarget;
     global?: boolean;
@@ -258,7 +258,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     dryRun?: boolean;
     logger: Logger;
   }) {
-    super({ baseDir, inputRoot, dryRun, logger });
+    super({ outputRoot, inputRoot, dryRun, logger });
     const result = SubagentsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -283,7 +283,7 @@ export class SubagentsProcessor extends FeatureProcessor {
           return null;
         }
         return factory.class.fromRulesyncSubagent({
-          baseDir: this.baseDir,
+          outputRoot: this.outputRoot,
           relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
           rulesyncSubagent: rulesyncSubagent,
           global: this.global,
@@ -349,7 +349,7 @@ export class SubagentsProcessor extends FeatureProcessor {
 
       try {
         const rulesyncSubagent = await RulesyncSubagent.fromFile({
-          baseDir: this.inputRoot,
+          outputRoot: this.inputRoot,
           relativeFilePath: mdFile,
           validate: true,
         });
@@ -384,14 +384,14 @@ export class SubagentsProcessor extends FeatureProcessor {
     const paths = factory.class.getSettablePaths({ global: this.global });
 
     const subagentFilePaths = await findFilesByGlobs(
-      join(this.baseDir, paths.relativeDirPath, factory.meta.filePattern),
+      join(this.outputRoot, paths.relativeDirPath, factory.meta.filePattern),
     );
 
     if (forDeletion) {
       const toolSubagents = subagentFilePaths
         .map((path) =>
           factory.class.forDeletion({
-            baseDir: this.baseDir,
+            outputRoot: this.outputRoot,
             relativeDirPath: paths.relativeDirPath,
             relativeFilePath: basename(path),
             global: this.global,
@@ -408,7 +408,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     const toolSubagents = await Promise.all(
       subagentFilePaths.map((path) =>
         factory.class.fromFile({
-          baseDir: this.baseDir,
+          outputRoot: this.outputRoot,
           relativeFilePath: basename(path),
           global: this.global,
         }),

@@ -32,7 +32,7 @@ describe("TaktSkill", () => {
   describe("fromRulesyncSkill", () => {
     it("emits a single flat .md file under knowledge/", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "runbook",
         frontmatter: {
           name: "runbook",
@@ -42,7 +42,7 @@ describe("TaktSkill", () => {
         body: "Runbook body",
       });
 
-      const skill = TaktSkill.fromRulesyncSkill({ baseDir: testDir, rulesyncSkill });
+      const skill = TaktSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill });
       expect(skill.getRelativeDirPath()).toBe(join(".takt", "facets", "knowledge"));
       expect(skill.getFileName()).toBe("runbook.md");
       expect(skill.getBody()).toBe("Runbook body");
@@ -53,7 +53,7 @@ describe("TaktSkill", () => {
 
     it("renames the stem with takt.name", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "long-source",
         frontmatter: {
           name: "long-source",
@@ -64,14 +64,14 @@ describe("TaktSkill", () => {
         body: "body",
       });
 
-      const skill = TaktSkill.fromRulesyncSkill({ baseDir: testDir, rulesyncSkill });
+      const skill = TaktSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill });
       expect(skill.getFileName()).toBe("short.md");
       expect(skill.getRelativeDirPath()).toBe(join(".takt", "facets", "knowledge"));
     });
 
     it("throws on an unsafe takt.name value", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "src",
         frontmatter: {
           name: "src",
@@ -81,7 +81,7 @@ describe("TaktSkill", () => {
         },
         body: "x",
       });
-      expect(() => TaktSkill.fromRulesyncSkill({ baseDir: testDir, rulesyncSkill })).toThrow(
+      expect(() => TaktSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill })).toThrow(
         /Invalid takt\.name/,
       );
     });
@@ -94,7 +94,7 @@ describe("TaktSkill", () => {
       [["claudecode"], false],
     ] as const)("targets=%j → %s", (targets, expected) => {
       const r = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "x",
         frontmatter: { name: "x", description: "x", targets: [...targets] },
         body: "y",
@@ -104,9 +104,9 @@ describe("TaktSkill", () => {
   });
 
   describe("getDirPath path-traversal guard", () => {
-    it("throws when relativeDirPath escapes baseDir", () => {
+    it("throws when relativeDirPath escapes outputRoot", () => {
       const skill = new TaktSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join("..", "escape"),
         dirName: "x",
         fileName: "x.md",
@@ -119,14 +119,14 @@ describe("TaktSkill", () => {
 
   describe("fromDir / toRulesyncSkill (unsupported)", () => {
     it("fromDir throws because reverse import is unsupported", async () => {
-      await expect(TaktSkill.fromDir({ baseDir: testDir, dirName: "x" })).rejects.toThrow(
+      await expect(TaktSkill.fromDir({ outputRoot: testDir, dirName: "x" })).rejects.toThrow(
         /not supported/,
       );
     });
 
     it("toRulesyncSkill throws because reverse import is unsupported", () => {
       const skill = new TaktSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".takt", "facets", "knowledge"),
         dirName: "x",
         fileName: "x.md",
@@ -139,7 +139,7 @@ describe("TaktSkill", () => {
   describe("forDeletion", () => {
     it("constructs an empty instance for deletion", () => {
       const skill = TaktSkill.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".takt", "facets", "knowledge"),
         dirName: "x",
       });

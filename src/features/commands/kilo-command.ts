@@ -78,7 +78,7 @@ export class KiloCommand extends ToolCommand {
     const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
 
     return new RulesyncCommand({
-      baseDir: process.cwd(),
+      outputRoot: process.cwd(),
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
@@ -89,7 +89,7 @@ export class KiloCommand extends ToolCommand {
   }
 
   static fromRulesyncCommand({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncCommand,
     validate = true,
     global = false,
@@ -106,7 +106,7 @@ export class KiloCommand extends ToolCommand {
     const paths = this.getSettablePaths({ global });
 
     return new KiloCommand({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       frontmatter: kiloFrontmatter,
       body,
       relativeDirPath: paths.relativeDirPath,
@@ -129,13 +129,13 @@ export class KiloCommand extends ToolCommand {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolCommandFromFileParams): Promise<KiloCommand> {
     const paths = this.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
@@ -145,7 +145,7 @@ export class KiloCommand extends ToolCommand {
     }
 
     return new KiloCommand({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
       frontmatter: result.data,
@@ -162,12 +162,12 @@ export class KiloCommand extends ToolCommand {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolCommandForDeletionParams): KiloCommand {
     return new KiloCommand({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       frontmatter: { description: "" },

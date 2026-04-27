@@ -33,7 +33,7 @@ describe("TaktSubagent", () => {
   describe("fromRulesyncSubagent", () => {
     it("emits a plain Markdown body under personas/", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "planner.md",
         frontmatter: {
@@ -45,7 +45,7 @@ describe("TaktSubagent", () => {
       });
 
       const sub = TaktSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".takt", "facets", "personas"),
         rulesyncSubagent,
       });
@@ -56,7 +56,7 @@ describe("TaktSubagent", () => {
 
     it("renames the stem with takt.name", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "long.md",
         frontmatter: {
@@ -68,7 +68,7 @@ describe("TaktSubagent", () => {
       });
 
       const sub = TaktSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".takt", "facets", "personas"),
         rulesyncSubagent,
       });
@@ -78,7 +78,7 @@ describe("TaktSubagent", () => {
 
     it("throws on an unsafe takt.name value", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "src.md",
         frontmatter: {
@@ -90,7 +90,7 @@ describe("TaktSubagent", () => {
       });
       expect(() =>
         TaktSubagent.fromRulesyncSubagent({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: join(".takt", "facets", "personas"),
           rulesyncSubagent,
         }),
@@ -104,7 +104,7 @@ describe("TaktSubagent", () => {
       await ensureDir(dir);
       await writeFileContent(join(dir, "p.md"), "body\n");
 
-      const sub = await TaktSubagent.fromFile({ baseDir: testDir, relativeFilePath: "p.md" });
+      const sub = await TaktSubagent.fromFile({ outputRoot: testDir, relativeFilePath: "p.md" });
       expect(sub.getBody()).toBe("body");
     });
   });
@@ -112,7 +112,7 @@ describe("TaktSubagent", () => {
   describe("forDeletion", () => {
     it("constructs a deletable empty instance", () => {
       const sub = TaktSubagent.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".takt", "facets", "personas"),
         relativeFilePath: "p.md",
       });
@@ -127,7 +127,7 @@ describe("TaktSubagent", () => {
       [["claudecode"], false],
     ] as const)("targets=%j → %s", (targets, expected) => {
       const r = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "x.md",
         frontmatter: { targets: [...targets], name: "x" },

@@ -154,7 +154,7 @@ async function putCommand({
     // Create a new RulesyncCommand instance
     const fileContent = stringifyFrontmatter(body, frontmatter);
     const command = new RulesyncCommand({
-      baseDir: process.cwd(),
+      outputRoot: process.cwd(),
       relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
       relativeFilePath: filename,
       frontmatter,

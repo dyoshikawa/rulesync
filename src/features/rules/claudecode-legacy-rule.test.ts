@@ -40,9 +40,9 @@ describe("ClaudecodeLegacyRule", () => {
       expect(claudecodeLegacyRule.getFileContent()).toBe("# Test Memory\n\nThis is a test memory.");
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const claudecodeLegacyRule = new ClaudecodeLegacyRule({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".claude/memories",
         relativeFilePath: "custom-memory.md",
         fileContent: "# Custom Memory",
@@ -84,12 +84,12 @@ describe("ClaudecodeLegacyRule", () => {
 
   describe("fromFile", () => {
     it("should create instance from root CLAUDE.md file", async () => {
-      // Setup test file - for root, the file should be directly at baseDir/CLAUDE.md
+      // Setup test file - for root, the file should be directly at outputRoot/CLAUDE.md
       const testContent = "# Claude Code Project\n\nProject overview and instructions.";
       await writeFileContent(join(testDir, "CLAUDE.md"), testContent);
 
       const claudecodeLegacyRule = await ClaudecodeLegacyRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "CLAUDE.md",
       });
 
@@ -108,7 +108,7 @@ describe("ClaudecodeLegacyRule", () => {
       await writeFileContent(join(memoriesDir, "memory-test.md"), testContent);
 
       const claudecodeLegacyRule = await ClaudecodeLegacyRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "memory-test.md",
       });
 
@@ -121,9 +121,9 @@ describe("ClaudecodeLegacyRule", () => {
       expect(claudecodeLegacyRule.isRoot()).toBe(false);
     });
 
-    it("should use default baseDir when not provided", async () => {
-      // Setup test file in test directory - for root CLAUDE.md, it should be at baseDir/CLAUDE.md
-      const testContent = "# Default BaseDir Test";
+    it("should use default outputRoot when not provided", async () => {
+      // Setup test file in test directory - for root CLAUDE.md, it should be at outputRoot/CLAUDE.md
+      const testContent = "# Default OutputRoot Test";
       await writeFileContent(join(testDir, "CLAUDE.md"), testContent);
 
       const claudecodeLegacyRule = await ClaudecodeLegacyRule.fromFile({
@@ -138,7 +138,7 @@ describe("ClaudecodeLegacyRule", () => {
     it("should throw error when file does not exist", async () => {
       await expect(
         ClaudecodeLegacyRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "nonexistent.md",
         }),
       ).rejects.toThrow();
@@ -152,18 +152,18 @@ describe("ClaudecodeLegacyRule", () => {
       const rootContent = "# Root Project Overview";
       const memoryContent = "# Memory Rule";
 
-      // Root file goes directly in baseDir
+      // Root file goes directly in outputRoot
       await writeFileContent(join(testDir, "CLAUDE.md"), rootContent);
       // Memory file goes in .claude/memories
       await writeFileContent(join(memoriesDir, "memory.md"), memoryContent);
 
       const rootRule = await ClaudecodeLegacyRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "CLAUDE.md",
       });
 
       const memoryRule = await ClaudecodeLegacyRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "memory.md",
       });
 
@@ -227,7 +227,7 @@ describe("ClaudecodeLegacyRule", () => {
       expect(claudecodeLegacyRule.isRoot()).toBe(false);
     });
 
-    it("should use custom baseDir", () => {
+    it("should use custom outputRoot", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "custom-base.md",
@@ -241,7 +241,7 @@ describe("ClaudecodeLegacyRule", () => {
       });
 
       const claudecodeLegacyRule = ClaudecodeLegacyRule.fromRulesyncRule({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         rulesyncRule,
       });
 
@@ -254,7 +254,7 @@ describe("ClaudecodeLegacyRule", () => {
   describe("toRulesyncRule", () => {
     it("should convert ClaudecodeLegacyRule to RulesyncRule for root rule", () => {
       const claudecodeLegacyRule = new ClaudecodeLegacyRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "CLAUDE.md",
         fileContent: "# Convert Test\n\nThis will be converted.",
@@ -271,7 +271,7 @@ describe("ClaudecodeLegacyRule", () => {
 
     it("should convert ClaudecodeLegacyRule to RulesyncRule for memory rule", () => {
       const claudecodeLegacyRule = new ClaudecodeLegacyRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".claude/memories",
         relativeFilePath: "memory-convert.md",
         fileContent: "# Memory Convert Test\n\nThis memory will be converted.",
@@ -352,7 +352,7 @@ describe("ClaudecodeLegacyRule", () => {
       await writeFileContent(join(claudeDir, "CLAUDE.md"), testContent);
 
       const claudecodeLegacyRule = await ClaudecodeLegacyRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "CLAUDE.md",
         relativeDirPath: ".claude",
       });
@@ -373,7 +373,7 @@ describe("ClaudecodeLegacyRule", () => {
       await writeFileContent(join(globalDir, "CLAUDE.md"), testContent);
 
       const claudecodeLegacyRule = await ClaudecodeLegacyRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "CLAUDE.md",
         global: true,
       });
@@ -437,7 +437,7 @@ describe("ClaudecodeLegacyRule", () => {
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for rules targeting claudecode-legacy", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -451,7 +451,7 @@ describe("ClaudecodeLegacyRule", () => {
 
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -465,7 +465,7 @@ describe("ClaudecodeLegacyRule", () => {
 
     it("should return false for rules not targeting claudecode-legacy", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
@@ -479,7 +479,7 @@ describe("ClaudecodeLegacyRule", () => {
 
     it("should return false for rules targeting only claudecode (not legacy)", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {

@@ -45,15 +45,15 @@ export class FactorydroidHooks extends ToolHooks {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
     global = false,
   }: ToolHooksFromFileParams): Promise<FactorydroidHooks> {
     const paths = FactorydroidHooks.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? '{"hooks":{}}';
     return new FactorydroidHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -62,7 +62,7 @@ export class FactorydroidHooks extends ToolHooks {
   }
 
   static async fromRulesyncHooks({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncHooks,
     validate = true,
     global = false,
@@ -72,7 +72,7 @@ export class FactorydroidHooks extends ToolHooks {
     logger?: Logger;
   }): Promise<FactorydroidHooks> {
     const paths = FactorydroidHooks.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = await readOrInitializeFileContent(
       filePath,
       JSON.stringify({}, null, 2),
@@ -96,7 +96,7 @@ export class FactorydroidHooks extends ToolHooks {
     const merged = { ...settings, hooks: factorydroidHooks };
     const fileContent = JSON.stringify(merged, null, 2);
     return new FactorydroidHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -130,12 +130,12 @@ export class FactorydroidHooks extends ToolHooks {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolHooksForDeletionParams): FactorydroidHooks {
     return new FactorydroidHooks({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: JSON.stringify({ hooks: {} }, null, 2),

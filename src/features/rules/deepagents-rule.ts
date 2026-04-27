@@ -53,7 +53,7 @@ export class DeepagentsRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<DeepagentsRule> {
@@ -62,10 +62,10 @@ export class DeepagentsRule extends ToolRule {
     const relativePath = isRoot
       ? join(".deepagents", "AGENTS.md")
       : join(".deepagents", "memories", relativeFilePath);
-    const fileContent = await readFileContent(join(baseDir, relativePath));
+    const fileContent = await readFileContent(join(outputRoot, relativePath));
 
     return new DeepagentsRule({
-      baseDir,
+      outputRoot,
       relativeDirPath: isRoot
         ? settablePaths.root.relativeDirPath
         : settablePaths.nonRoot.relativeDirPath,
@@ -77,14 +77,14 @@ export class DeepagentsRule extends ToolRule {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): DeepagentsRule {
     const isRoot = relativeFilePath === "AGENTS.md" && relativeDirPath === ".deepagents";
 
     return new DeepagentsRule({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "",
@@ -94,13 +94,13 @@ export class DeepagentsRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): DeepagentsRule {
     return new DeepagentsRule(
       this.buildToolRuleParamsAgentsmd({
-        baseDir,
+        outputRoot,
         rulesyncRule,
         validate,
         rootPath: this.getSettablePaths().root,

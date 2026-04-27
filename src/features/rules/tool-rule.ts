@@ -26,7 +26,7 @@ export type ToolRuleFromRulesyncRuleParams = Omit<
 export type ToolRuleFromFileParams = AiFileFromFileParams;
 
 export type ToolRuleForDeletionParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath: string;
   relativeFilePath: string;
   global?: boolean;
@@ -108,7 +108,7 @@ export abstract class ToolRule extends ToolFile {
   }
 
   protected static buildToolRuleParamsDefault({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
     rootPath = { relativeDirPath: ".", relativeFilePath: "AGENTS.md" },
@@ -119,7 +119,7 @@ export abstract class ToolRule extends ToolFile {
 
     if (isRoot) {
       return {
-        baseDir,
+        outputRoot,
         relativeDirPath: rootPath.relativeDirPath,
         relativeFilePath: rootPath.relativeFilePath,
         fileContent,
@@ -135,7 +135,7 @@ export abstract class ToolRule extends ToolFile {
     }
 
     return {
-      baseDir,
+      outputRoot,
       relativeDirPath: nonRootPath.relativeDirPath,
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
       fileContent,
@@ -147,14 +147,14 @@ export abstract class ToolRule extends ToolFile {
   }
 
   protected static buildToolRuleParamsAgentsmd({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
     rootPath = { relativeDirPath: ".", relativeFilePath: "AGENTS.md" },
     nonRootPath = { relativeDirPath: join(".agents", "memories") },
   }: BuildToolRuleParamsParams): BuildToolRuleParamsResult {
     const params = this.buildToolRuleParamsDefault({
-      baseDir,
+      outputRoot,
       rulesyncRule,
       validate,
       rootPath,
@@ -174,7 +174,7 @@ export abstract class ToolRule extends ToolFile {
 
   protected toRulesyncRuleDefault(): RulesyncRule {
     return new RulesyncRule({
-      baseDir: process.cwd(),
+      outputRoot: process.cwd(),
       relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
       relativeFilePath: this.isRoot() ? RULESYNC_OVERVIEW_FILE_NAME : this.getRelativeFilePath(),
       frontmatter: {

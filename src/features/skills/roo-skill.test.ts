@@ -44,7 +44,7 @@ describe("RooSkill", () => {
   describe("constructor", () => {
     it("should create instance with valid content", () => {
       const skill = new RooSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".roo", "skills"),
         dirName: "pdf-processing",
         frontmatter: {
@@ -67,7 +67,7 @@ describe("RooSkill", () => {
       expect(
         () =>
           new RooSkill({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeDirPath: join(".roo", "skills"),
             dirName: "pdf-processing",
             frontmatter: { name: "pdf", description: "desc" },
@@ -91,7 +91,7 @@ Follow PDF extraction steps.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       const skill = await RooSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "pdf-processing",
       });
 
@@ -115,7 +115,7 @@ Follow PDF extraction steps.`;
 
       await expect(
         RooSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "pdf-processing",
         }),
       ).rejects.toThrow(/must match directory name/);
@@ -125,7 +125,7 @@ Follow PDF extraction steps.`;
   describe("fromRulesyncSkill", () => {
     it("should create instance from RulesyncSkill", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "pdf-processing",
         frontmatter: {
@@ -149,7 +149,7 @@ Follow PDF extraction steps.`;
   describe("toRulesyncSkill", () => {
     it("should convert to RulesyncSkill", () => {
       const rooSkill = new RooSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".roo", "skills"),
         dirName: "pdf-processing",
         frontmatter: { name: "pdf-processing", description: "Handle PDFs" },
@@ -171,7 +171,7 @@ Follow PDF extraction steps.`;
   describe("isTargetedByRulesyncSkill", () => {
     it("should return true when targets includes '*'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "universal",
         frontmatter: { name: "universal", description: "Universal", targets: ["*"] },
@@ -184,7 +184,7 @@ Follow PDF extraction steps.`;
 
     it("should return true when targets includes 'roo'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "roo-specific",
         frontmatter: { name: "roo-specific", description: "Roo", targets: ["roo"] },
@@ -197,7 +197,7 @@ Follow PDF extraction steps.`;
 
     it("should return false when roo is not targeted", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "other-tool",
         frontmatter: { name: "other-tool", description: "Other", targets: ["copilot"] },

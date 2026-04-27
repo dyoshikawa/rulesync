@@ -104,7 +104,7 @@ describe("ClaudecodeSkill", () => {
       };
 
       const skill = new ClaudecodeSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
         frontmatter,
         body: "Test body",
@@ -120,7 +120,7 @@ describe("ClaudecodeSkill", () => {
       };
 
       const skill = new ClaudecodeSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join("custom", "skills"),
         dirName: "test-skill",
         frontmatter,
@@ -492,7 +492,7 @@ describe("ClaudecodeSkill", () => {
       };
 
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
         frontmatter: rulesyncFrontmatter,
         body: "Test body",
@@ -607,7 +607,7 @@ This is the skill body.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), content);
 
       const skill = await ClaudecodeSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
       });
 
@@ -633,7 +633,7 @@ This skill has tool restrictions.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), content);
 
       const skill = await ClaudecodeSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "restricted-skill",
       });
 
@@ -655,7 +655,7 @@ This skill uses a specific model.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), content);
 
       const skill = await ClaudecodeSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "model-skill",
       });
 
@@ -681,7 +681,7 @@ Main skill content.`;
       );
 
       const skill = await ClaudecodeSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "multi-file-skill",
       });
 
@@ -697,7 +697,7 @@ Main skill content.`;
 
       await expect(
         ClaudecodeSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "missing-skill",
         }),
       ).rejects.toThrow("SKILL.md not found");
@@ -718,7 +718,7 @@ Invalid frontmatter.`;
 
       await expect(
         ClaudecodeSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "invalid-skill",
         }),
       ).rejects.toThrow("Invalid frontmatter");
@@ -739,7 +739,7 @@ Custom path content.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), content);
 
       const skill = await ClaudecodeSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: customPath,
         dirName: "custom-skill",
       });
@@ -761,7 +761,7 @@ Global skill content.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), content);
 
       const skill = await ClaudecodeSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "global-skill",
         global: true,
       });

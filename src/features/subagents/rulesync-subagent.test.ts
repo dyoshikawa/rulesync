@@ -121,7 +121,7 @@ describe("RulesyncSubagent", () => {
       };
 
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        outputRoot: ".",
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter,
@@ -144,7 +144,7 @@ describe("RulesyncSubagent", () => {
       };
 
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        outputRoot: ".",
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "claude.md",
         frontmatter,
@@ -163,7 +163,7 @@ describe("RulesyncSubagent", () => {
 
       expect(() => {
         const _instance = new RulesyncSubagent({
-          baseDir: ".",
+          outputRoot: ".",
           relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
           relativeFilePath: "no-desc.md",
           frontmatter: frontmatterWithoutDescription as any,
@@ -181,7 +181,7 @@ describe("RulesyncSubagent", () => {
 
       expect(() => {
         const _instance = new RulesyncSubagent({
-          baseDir: ".",
+          outputRoot: ".",
           relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
           relativeFilePath: "skip-validation.md",
           frontmatter: invalidFrontmatter as any,
@@ -193,7 +193,7 @@ describe("RulesyncSubagent", () => {
 
     it("should inherit all AiFile functionality", () => {
       const subagent = new RulesyncSubagent({
-        baseDir: "/test",
+        outputRoot: "/test",
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "inherit.md",
         frontmatter: {
@@ -204,7 +204,7 @@ describe("RulesyncSubagent", () => {
         body: "Inherited body",
       });
 
-      expect(subagent.getBaseDir()).toBe("/test");
+      expect(subagent.getOutputRoot()).toBe("/test");
       expect(subagent.getRelativeDirPath()).toBe(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       expect(subagent.getRelativeFilePath()).toBe("inherit.md");
       // fileContent is now auto-generated from frontmatter and body
@@ -233,7 +233,7 @@ describe("RulesyncSubagent", () => {
       };
 
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        outputRoot: ".",
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "multi.md",
         frontmatter,
@@ -252,7 +252,7 @@ describe("RulesyncSubagent", () => {
       const body = "This is the subagent body content with instructions.";
 
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        outputRoot: ".",
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "body-test.md",
         frontmatter: {
@@ -268,7 +268,7 @@ describe("RulesyncSubagent", () => {
 
     it("should handle empty body", () => {
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        outputRoot: ".",
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "empty-body.md",
         frontmatter: {
@@ -286,7 +286,7 @@ describe("RulesyncSubagent", () => {
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        outputRoot: ".",
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "valid.md",
         frontmatter: {
@@ -305,7 +305,7 @@ describe("RulesyncSubagent", () => {
 
     it("should return success for frontmatter without description (description is optional)", () => {
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        outputRoot: ".",
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "no-desc-validate.md",
         frontmatter: {
@@ -492,7 +492,7 @@ description: Testing whitespace handling
       };
 
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        outputRoot: ".",
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "poly.md",
         frontmatter,
@@ -519,7 +519,7 @@ description: Testing whitespace handling
 
     it("should maintain type safety", () => {
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        outputRoot: ".",
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "typed.md",
         frontmatter: {
@@ -588,7 +588,7 @@ description: File with empty body
       };
 
       const subagent = new RulesyncSubagent({
-        baseDir: ".",
+        outputRoot: ".",
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "complex.md",
         frontmatter,

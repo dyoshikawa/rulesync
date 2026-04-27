@@ -8,7 +8,7 @@ import { calculateTotalCount } from "../../utils/result.js";
 
 export type ConvertOptions = Omit<
   ConfigResolverResolveParams,
-  "delete" | "baseDirs" | "targets"
+  "delete" | "outputRoots" | "targets"
 > & {
   from?: string;
   to?: string[];

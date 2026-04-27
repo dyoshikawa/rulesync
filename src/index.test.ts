@@ -34,7 +34,7 @@ vi.mock("./utils/logger.js", async (importOriginal) => {
 });
 
 const mockConfig = {
-  getBaseDirs: () => ["/project"],
+  getOutputRoots: () => ["/project"],
   getInputRoot: () => process.cwd(),
 } as unknown as Config;
 
@@ -137,18 +137,18 @@ describe("generate", () => {
     expect(result).toEqual(mockGenerateResult);
   });
 
-  it("should probe checkRulesyncDirExists against config.getInputRoot() rather than each baseDir", async () => {
+  it("should probe checkRulesyncDirExists against config.getInputRoot() rather than each outputRoot", async () => {
     const inputRootMock = "/some/input-root";
     vi.mocked(ConfigResolver.resolve).mockResolvedValue({
-      getBaseDirs: () => ["/project-a", "/project-b"],
+      getOutputRoots: () => ["/project-a", "/project-b"],
       getInputRoot: () => inputRootMock,
     } as unknown as Config as never);
 
     await generate();
 
-    // Single check, scoped to the input root, not per baseDir.
+    // Single check, scoped to the input root, not per outputRoot.
     expect(checkRulesyncDirExists).toHaveBeenCalledTimes(1);
-    expect(checkRulesyncDirExists).toHaveBeenCalledWith({ baseDir: inputRootMock });
+    expect(checkRulesyncDirExists).toHaveBeenCalledWith({ outputRoot: inputRootMock });
   });
 
   it("should forward inputRoot to ConfigResolver.resolve", async () => {
@@ -162,7 +162,7 @@ describe("generate", () => {
   it("should mention the input root path in the not-found error", async () => {
     const inputRootMock = "/some/input-root";
     vi.mocked(ConfigResolver.resolve).mockResolvedValue({
-      getBaseDirs: () => ["/project"],
+      getOutputRoots: () => ["/project"],
       getInputRoot: () => inputRootMock,
     } as unknown as Config as never);
     vi.mocked(checkRulesyncDirExists).mockResolvedValue(false);

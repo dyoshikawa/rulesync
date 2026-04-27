@@ -305,7 +305,7 @@ describe("fetchFiles", () => {
 
   it("should throw error for GitLab provider", async () => {
     await expect(
-      fetchFiles({ logger, source: "gitlab:owner/repo", baseDir: testDir }),
+      fetchFiles({ logger, source: "gitlab:owner/repo", outputRoot: testDir }),
     ).rejects.toThrow("GitLab is not yet supported");
   });
 
@@ -387,7 +387,7 @@ describe("fetchFiles", () => {
       logger,
       source: "owner/repo",
       options: { features: ["rules", "skills", "mcp"] },
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(summary.source).toBe("owner/repo");
@@ -448,7 +448,7 @@ describe("fetchFiles", () => {
       logger,
       source: "owner/repo",
       options: { features: ["rules"] },
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(summary.files).toHaveLength(1);
@@ -495,7 +495,7 @@ describe("fetchFiles", () => {
       logger,
       source: "owner/repo",
       options: { conflict: "skip", features: ["rules"] },
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(summary.created).toBe(1);
@@ -540,7 +540,7 @@ describe("fetchFiles", () => {
       logger,
       source: "owner/repo",
       options: { conflict: "overwrite", features: ["rules"] },
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(summary.overwritten).toBe(1);
@@ -578,7 +578,7 @@ describe("fetchFiles", () => {
       logger,
       source: "owner/repo",
       options: { output: "custom-output", features: ["rules"] },
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // Verify file was written to custom directory
@@ -604,7 +604,7 @@ describe("fetchFiles", () => {
       logger,
       source: "owner/repo@main",
       options: { ref: "develop", features: ["rules"] },
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(mockClientInstance.listDirectory).toHaveBeenCalledWith(
@@ -643,7 +643,7 @@ describe("fetchFiles", () => {
       logger,
       source: "owner/repo:packages/shared",
       options: { features: ["rules"] },
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(summary.created).toBe(1);
@@ -696,7 +696,7 @@ describe("fetchFiles", () => {
       logger,
       source,
       options: { features: ["rules", "mcp"] },
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(summary.created).toBeGreaterThanOrEqual(1);
@@ -738,7 +738,7 @@ describe("fetchFiles", () => {
         logger,
         source: "owner/repo",
         options: { features: ["rules"] },
-        baseDir: testDir,
+        outputRoot: testDir,
       }),
     ).rejects.toThrow("Path traversal detected");
   });
@@ -748,7 +748,7 @@ describe("fetchFiles", () => {
       fetchFiles({
         logger,
         source: "owner/repo",
-        baseDir: testDir,
+        outputRoot: testDir,
         options: {
           output: "../../outside",
         },
@@ -783,7 +783,7 @@ describe("fetchFiles", () => {
         logger,
         source: "owner/repo",
         options: { features: ["rules"] },
-        baseDir: testDir,
+        outputRoot: testDir,
       }),
     ).rejects.toThrow("exceeds maximum size limit");
   });
@@ -808,7 +808,7 @@ describe("fetchFiles", () => {
         logger,
         source: "owner/repo",
         options: { features: ["rules"] },
-        baseDir: testDir,
+        outputRoot: testDir,
       }),
     ).rejects.toThrow(/Maximum recursion depth.*exceeded/);
   });
@@ -872,7 +872,7 @@ describe("fetchFiles", () => {
         logger,
         source: "owner/repo",
         options: { features: ["rules"] },
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       // Wait for all 3 getFileContent calls to be made
@@ -939,7 +939,7 @@ describe("fetchFiles", () => {
           logger,
           source: "owner/repo",
           options: { features: ["rules"] },
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow("API rate limit exceeded");
     });
@@ -1007,7 +1007,7 @@ describe("fetchFiles", () => {
         logger,
         source: "owner/repo",
         options: { features: ["rules"] },
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(result.files).toHaveLength(2);
@@ -1069,7 +1069,7 @@ describe("fetchFiles with target option", () => {
       logger,
       source: "owner/repo",
       options: { features: ["rules"], target: "rulesync" },
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(summary.source).toBe("owner/repo");
@@ -1110,7 +1110,7 @@ describe("fetchFiles with target option", () => {
       logger,
       source: "owner/repo",
       options: { features: ["rules"] },
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(summary.created).toBe(1);
@@ -1159,7 +1159,7 @@ Follow these guidelines for TypeScript development.
       logger,
       source: "owner/repo",
       options: { features: ["rules"], target: "claudecode" },
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(summary.source).toBe("owner/repo");
@@ -1182,7 +1182,7 @@ Follow these guidelines for TypeScript development.
       logger,
       source: "owner/repo",
       options: { features: ["skills"], target: "claudecode" },
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // Should return empty summary without errors
@@ -1219,7 +1219,7 @@ Follow these guidelines for TypeScript development.
       logger,
       source: "owner/repo",
       options: { features: ["rules"], target: "claudecode" },
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // Verify no temp directories remain
@@ -1269,7 +1269,7 @@ Review the current changes and provide feedback.
       logger,
       source: "owner/repo",
       options: { features: ["commands"], target: "claudecode" },
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(summary.source).toBe("owner/repo");
@@ -1327,7 +1327,7 @@ Review the current changes and provide feedback.
       logger,
       source: "owner/repo",
       options: { features: ["rules", "commands"], target: "claudecode" },
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     expect(summary.source).toBe("owner/repo");
@@ -1391,7 +1391,7 @@ Review the current changes and provide feedback.
       logger,
       source: "owner/repo",
       options: { features: ["ignore", "mcp", "hooks"] },
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // Verify all files were fetched
@@ -1454,7 +1454,7 @@ Review the current changes and provide feedback.
       logger,
       source: "owner/repo",
       options: { features: ["mcp"] },
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // Second fetch from subdir
@@ -1462,7 +1462,7 @@ Review the current changes and provide feedback.
       logger,
       source: "owner/repo:subdir",
       options: { features: ["ignore"] },
-      baseDir: testDir,
+      outputRoot: testDir,
     });
 
     // Verify separate API calls were made for different base paths

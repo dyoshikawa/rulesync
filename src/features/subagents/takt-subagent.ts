@@ -55,7 +55,7 @@ export class TaktSubagent extends ToolSubagent {
       name: stem,
     };
     return new RulesyncSubagent({
-      baseDir: ".",
+      outputRoot: ".",
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -65,7 +65,7 @@ export class TaktSubagent extends ToolSubagent {
   }
 
   static fromRulesyncSubagent({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSubagent,
     validate = true,
     global = false,
@@ -84,7 +84,7 @@ export class TaktSubagent extends ToolSubagent {
     const body = rulesyncSubagent.getBody();
 
     return new TaktSubagent({
-      baseDir,
+      outputRoot,
       body,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
@@ -105,18 +105,18 @@ export class TaktSubagent extends ToolSubagent {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolSubagentFromFileParams): Promise<TaktSubagent> {
     const paths = this.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { body } = parseFrontmatter(fileContent, filePath);
 
     return new TaktSubagent({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
       body: body.trim(),
@@ -126,12 +126,12 @@ export class TaktSubagent extends ToolSubagent {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolSubagentForDeletionParams): TaktSubagent {
     return new TaktSubagent({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       body: "",

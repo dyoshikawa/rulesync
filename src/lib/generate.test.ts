@@ -45,7 +45,7 @@ describe("checkRulesyncDirExists", () => {
   it("should return true when .rulesync directory exists", async () => {
     vi.mocked(fileExists).mockResolvedValue(true);
 
-    const result = await checkRulesyncDirExists({ baseDir: "/project" });
+    const result = await checkRulesyncDirExists({ outputRoot: "/project" });
 
     expect(result).toBe(true);
     expect(fileExists).toHaveBeenCalledWith("/project/.rulesync");
@@ -54,7 +54,7 @@ describe("checkRulesyncDirExists", () => {
   it("should return false when .rulesync directory does not exist", async () => {
     vi.mocked(fileExists).mockResolvedValue(false);
 
-    const result = await checkRulesyncDirExists({ baseDir: "/project" });
+    const result = await checkRulesyncDirExists({ outputRoot: "/project" });
 
     expect(result).toBe(false);
     expect(fileExists).toHaveBeenCalledWith("/project/.rulesync");
@@ -70,7 +70,7 @@ describe("generate", () => {
   let mockConfig: {
     getVerbose: ReturnType<typeof vi.fn>;
     getSilent: ReturnType<typeof vi.fn>;
-    getBaseDirs: ReturnType<typeof vi.fn>;
+    getOutputRoots: ReturnType<typeof vi.fn>;
     getTargets: ReturnType<typeof vi.fn>;
     getFeatures: ReturnType<typeof vi.fn>;
     getFeatureOptions: ReturnType<typeof vi.fn>;
@@ -88,7 +88,7 @@ describe("generate", () => {
     mockConfig = {
       getVerbose: vi.fn().mockReturnValue(false),
       getSilent: vi.fn().mockReturnValue(false),
-      getBaseDirs: vi.fn().mockReturnValue(["."]),
+      getOutputRoots: vi.fn().mockReturnValue(["."]),
       getTargets: vi.fn().mockReturnValue(["claudecode"]),
       getFeatures: vi.fn().mockReturnValue(["rules"]),
       getFeatureOptions: vi.fn().mockReturnValue(undefined),
@@ -174,7 +174,7 @@ describe("generate", () => {
       expect(result.rulesCount).toBe(1);
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           global: false,
           simulateCommands: false,
@@ -199,7 +199,7 @@ describe("generate", () => {
       mockConfig.getFeatures.mockReturnValue(["rules", "skills"]);
 
       const mockSkill = new RulesyncSkill({
-        baseDir: ".",
+        outputRoot: ".",
         relativeDirPath: ".rulesync/skills/test",
         dirName: "test",
         frontmatter: { name: "test-skill", targets: ["*"], description: "Test skill" },
@@ -279,14 +279,14 @@ describe("generate", () => {
 
     it("should process multiple base directories", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
-      mockConfig.getBaseDirs.mockReturnValue(["dir1", "dir2"]);
+      mockConfig.getOutputRoots.mockReturnValue(["dir1", "dir2"]);
 
       const result = await generate({ logger, config: mockConfig as never });
 
       expect(result.rulesCount).toBe(2);
       expect(RulesProcessor).toHaveBeenCalledTimes(2);
-      expect(RulesProcessor).toHaveBeenCalledWith(expect.objectContaining({ baseDir: "dir1" }));
-      expect(RulesProcessor).toHaveBeenCalledWith(expect.objectContaining({ baseDir: "dir2" }));
+      expect(RulesProcessor).toHaveBeenCalledWith(expect.objectContaining({ outputRoot: "dir1" }));
+      expect(RulesProcessor).toHaveBeenCalledWith(expect.objectContaining({ outputRoot: "dir2" }));
     });
   });
 
@@ -361,7 +361,7 @@ describe("generate", () => {
       expect(result.mcpCount).toBe(1);
       expect(McpProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           global: false,
           dryRun: false,
@@ -388,7 +388,7 @@ describe("generate", () => {
       expect(result.commandsCount).toBe(1);
       expect(CommandsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           global: false,
           dryRun: false,
@@ -427,7 +427,7 @@ describe("generate", () => {
       expect(result.subagentsCount).toBe(1);
       expect(SubagentsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           global: false,
           dryRun: false,
@@ -477,7 +477,7 @@ describe("generate", () => {
       expect(result.skillsCount).toBe(1);
       expect(SkillsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           global: false,
           dryRun: false,
@@ -499,7 +499,7 @@ describe("generate", () => {
       mockConfig.getFeatures.mockReturnValue(["skills"]);
 
       const mockSkill = new RulesyncSkill({
-        baseDir: ".",
+        outputRoot: ".",
         relativeDirPath: ".rulesync/skills/test",
         dirName: "test",
         frontmatter: { name: "test-skill", targets: ["*"], description: "Test skill" },
@@ -561,7 +561,7 @@ describe("generate", () => {
       expect(result.permissionsCount).toBe(1);
       expect(PermissionsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           dryRun: false,
         }),
@@ -589,7 +589,7 @@ describe("generate", () => {
       expect(result.permissionsCount).toBe(1);
       expect(PermissionsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          outputRoot: ".",
           toolTarget: "claudecode",
           global: true,
         }),

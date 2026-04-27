@@ -25,7 +25,7 @@ describe("CodexcliPermissions", () => {
   it("should convert rulesync permissions to Codex CLI config.toml profile", async () => {
     const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: "permissions.json",
       fileContent: JSON.stringify({
@@ -38,7 +38,7 @@ describe("CodexcliPermissions", () => {
     });
 
     const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       rulesyncPermissions,
       logger,
     });
@@ -56,7 +56,7 @@ describe("CodexcliPermissions", () => {
 
   it("should convert Codex CLI permissions profile to rulesync format", () => {
     const codexPermissions = new CodexcliPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".codex",
       relativeFilePath: "config.toml",
       fileContent: `
@@ -88,14 +88,14 @@ default_permissions = "rulesync"
     await ensureDir(codexDir);
     await writeFileContent(join(codexDir, "config.toml"), 'default_permissions = "rulesync"');
 
-    const loaded = await CodexcliPermissions.fromFile({ baseDir: testDir });
+    const loaded = await CodexcliPermissions.fromFile({ outputRoot: testDir });
     expect(loaded).toBeInstanceOf(CodexcliPermissions);
     expect(loaded.getFileContent()).toContain('default_permissions = "rulesync"');
   });
 
   it("should convert rulesync bash permissions to Codex CLI .rules file", () => {
     const rulesFile = createCodexcliBashRulesFile({
-      baseDir: testDir,
+      outputRoot: testDir,
       config: {
         permission: {
           bash: {

@@ -45,14 +45,14 @@ describe("TaktRule", () => {
   describe("fromRulesyncRule", () => {
     it("emits a plain Markdown body under policies/", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "style.md",
         frontmatter: { targets: ["*"] },
         body: "# Style policy",
       });
 
-      const rule = TaktRule.fromRulesyncRule({ baseDir: testDir, rulesyncRule });
+      const rule = TaktRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule });
 
       expect(rule.getRelativeDirPath()).toBe(join(".takt", "facets", "policies"));
       expect(rule.getRelativeFilePath()).toBe("style.md");
@@ -61,7 +61,7 @@ describe("TaktRule", () => {
 
     it("renames the emitted stem with takt.name", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "long-source-name.md",
         frontmatter: {
@@ -71,14 +71,14 @@ describe("TaktRule", () => {
         body: "# Body",
       });
 
-      const rule = TaktRule.fromRulesyncRule({ baseDir: testDir, rulesyncRule });
+      const rule = TaktRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule });
       expect(rule.getRelativeDirPath()).toBe(join(".takt", "facets", "policies"));
       expect(rule.getRelativeFilePath()).toBe("short.md");
     });
 
     it("throws on an unsafe takt.name value", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "src.md",
         frontmatter: {
@@ -87,7 +87,7 @@ describe("TaktRule", () => {
         },
         body: "x",
       });
-      expect(() => TaktRule.fromRulesyncRule({ baseDir: testDir, rulesyncRule })).toThrow(
+      expect(() => TaktRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule })).toThrow(
         /Invalid takt\.name/,
       );
     });
@@ -99,7 +99,7 @@ describe("TaktRule", () => {
       await ensureDir(facetDir);
       await writeFileContent(join(facetDir, "x.md"), "Hello body\n");
 
-      const rule = await TaktRule.fromFile({ baseDir: testDir, relativeFilePath: "x.md" });
+      const rule = await TaktRule.fromFile({ outputRoot: testDir, relativeFilePath: "x.md" });
       expect(rule.getFileContent()).toBe("Hello body");
     });
   });
@@ -107,7 +107,7 @@ describe("TaktRule", () => {
   describe("forDeletion", () => {
     it("constructs a deletable instance without reading the file", () => {
       const rule = TaktRule.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".takt", "facets", "policies"),
         relativeFilePath: "x.md",
       });
@@ -118,7 +118,7 @@ describe("TaktRule", () => {
   describe("isTargetedByRulesyncRule", () => {
     it("returns true when targets includes takt", () => {
       const r = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "t.md",
         frontmatter: { targets: ["takt"] },
@@ -129,7 +129,7 @@ describe("TaktRule", () => {
 
     it("returns true on wildcard targets", () => {
       const r = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "t.md",
         frontmatter: { targets: ["*"] },
@@ -140,7 +140,7 @@ describe("TaktRule", () => {
 
     it("returns false when targets excludes takt", () => {
       const r = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "t.md",
         frontmatter: { targets: ["claudecode"] },

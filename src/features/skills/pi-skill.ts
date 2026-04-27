@@ -30,7 +30,7 @@ export const PiSkillFrontmatterSchema = z.looseObject({
 export type PiSkillFrontmatter = z.infer<typeof PiSkillFrontmatterSchema>;
 
 export type PiSkillParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
   frontmatter: PiSkillFrontmatter;
@@ -48,7 +48,7 @@ export type PiSkillParams = {
  */
 export class PiSkill extends ToolSkill {
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     dirName,
     frontmatter,
@@ -60,7 +60,7 @@ export class PiSkill extends ToolSkill {
     const resolvedDirPath = relativeDirPath ?? PiSkill.getSettablePaths({ global }).relativeDirPath;
 
     super({
-      baseDir,
+      outputRoot,
       relativeDirPath: resolvedDirPath,
       dirName,
       mainFile: {
@@ -129,7 +129,7 @@ export class PiSkill extends ToolSkill {
     };
 
     return new RulesyncSkill({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
       dirName: this.getDirName(),
       frontmatter: rulesyncFrontmatter,
@@ -141,7 +141,7 @@ export class PiSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -155,7 +155,7 @@ export class PiSkill extends ToolSkill {
     };
 
     return new PiSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: piFrontmatter,
@@ -179,14 +179,14 @@ export class PiSkill extends ToolSkill {
 
     const result = PiSkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
-      const skillDirPath = join(loaded.baseDir, loaded.relativeDirPath, loaded.dirName);
+      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
         `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
       );
     }
 
     return new PiSkill({
-      baseDir: loaded.baseDir,
+      outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
       frontmatter: result.data,
@@ -198,14 +198,14 @@ export class PiSkill extends ToolSkill {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): PiSkill {
     const settablePaths = PiSkill.getSettablePaths({ global });
     return new PiSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },

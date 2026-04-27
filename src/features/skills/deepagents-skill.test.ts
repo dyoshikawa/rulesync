@@ -37,7 +37,7 @@ describe("DeepagentsSkill", () => {
   describe("constructor", () => {
     it("should create with valid frontmatter", () => {
       const skill = new DeepagentsSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "my-skill",
         frontmatter: { name: "My Skill", description: "Does something useful." },
         body: "## Instructions\n\nDo the thing.",
@@ -50,7 +50,7 @@ describe("DeepagentsSkill", () => {
 
     it("should create with allowed-tools", () => {
       const skill = new DeepagentsSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "tool-skill",
         frontmatter: {
           name: "Tool Skill",
@@ -67,7 +67,7 @@ describe("DeepagentsSkill", () => {
       expect(
         () =>
           new DeepagentsSkill({
-            baseDir: testDir,
+            outputRoot: testDir,
             dirName: "bad-skill",
             frontmatter: { name: "", description: "" },
             body: "",
@@ -92,7 +92,7 @@ Do the thing.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       const skill = await DeepagentsSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "my-skill",
       });
 
@@ -104,14 +104,14 @@ Do the thing.`;
   describe("fromRulesyncSkill", () => {
     it("should map name and description from rulesync skill", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/skills",
         dirName: "my-skill",
         frontmatter: { name: "My Skill", description: "Does something.", targets: ["*"] },
         body: "Instructions here.",
       });
 
-      const skill = DeepagentsSkill.fromRulesyncSkill({ baseDir: testDir, rulesyncSkill });
+      const skill = DeepagentsSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill });
 
       expect(skill.getFrontmatter().name).toBe("My Skill");
       expect(skill.getFrontmatter().description).toBe("Does something.");
@@ -121,14 +121,14 @@ Do the thing.`;
 
     it("should omit allowed-tools when deepagents frontmatter is absent", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/skills",
         dirName: "my-skill",
         frontmatter: { name: "My Skill", description: "Does something.", targets: ["*"] },
         body: "Instructions here.",
       });
 
-      const skill = DeepagentsSkill.fromRulesyncSkill({ baseDir: testDir, rulesyncSkill });
+      const skill = DeepagentsSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill });
 
       expect(skill.getFrontmatter()).not.toHaveProperty("allowed-tools");
     });
@@ -137,7 +137,7 @@ Do the thing.`;
   describe("isTargetedByRulesyncSkill", () => {
     it("should return true for deepagents target", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/skills",
         dirName: "my-skill",
         frontmatter: { name: "Skill", description: "Desc.", targets: ["deepagents"] },
@@ -149,7 +149,7 @@ Do the thing.`;
 
     it("should return true for wildcard target", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/skills",
         dirName: "my-skill",
         frontmatter: { name: "Skill", description: "Desc.", targets: ["*"] },
@@ -161,7 +161,7 @@ Do the thing.`;
 
     it("should return false for different tool target", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/skills",
         dirName: "my-skill",
         frontmatter: { name: "Skill", description: "Desc.", targets: ["claudecode"] },
@@ -175,7 +175,7 @@ Do the thing.`;
   describe("toRulesyncSkill", () => {
     it("should convert to rulesync skill with targets wildcard", () => {
       const skill = new DeepagentsSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "my-skill",
         frontmatter: { name: "My Skill", description: "Does something." },
         body: "Instructions.",
@@ -192,7 +192,7 @@ Do the thing.`;
   describe("forDeletion", () => {
     it("should create a deletable placeholder skill", () => {
       const skill = DeepagentsSkill.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".deepagents", "skills"),
         dirName: "my-skill",
       });

@@ -29,7 +29,7 @@ describe("RulesyncCommand", () => {
     vi.spyOn(process, "cwd").mockReturnValue(testDir);
 
     validParams = {
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
       relativeFilePath: "test-command.md",
       frontmatter: validFrontmatter,
@@ -267,7 +267,7 @@ describe("RulesyncCommand", () => {
       // Should have all RulesyncFile methods
       expect(command.getRelativeDirPath()).toBe(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       expect(command.getRelativeFilePath()).toBe("test-command.md");
-      expect(command.getBaseDir()).toBe(testDir);
+      expect(command.getOutputRoot()).toBe(testDir);
       expect(typeof command.getFilePath).toBe("function");
       expect(typeof command.getFileContent).toBe("function");
       expect(typeof command.validate).toBe("function");

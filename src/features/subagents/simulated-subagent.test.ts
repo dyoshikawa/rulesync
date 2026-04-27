@@ -67,7 +67,7 @@ Body content`;
   describe("constructor", () => {
     it("should create instance with valid content", () => {
       const subagent = new TestSimulatedSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -90,7 +90,7 @@ Body content`;
 
     it("should create instance with empty name and description", () => {
       const subagent = new TestSimulatedSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -110,7 +110,7 @@ Body content`;
 
     it("should create instance without validation when validate is false", () => {
       const subagent = new TestSimulatedSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -127,7 +127,7 @@ Body content`;
     it("should throw error for invalid frontmatter when validation is enabled", () => {
       expect(() => {
         new TestSimulatedSubagent({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".test/agents",
           relativeFilePath: "test-agent.md",
           frontmatter: {
@@ -144,7 +144,7 @@ Body content`;
   describe("toRulesyncSubagent", () => {
     it("should throw error because SimulatedSubagent is simulated", () => {
       const subagent = new TestSimulatedSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -167,7 +167,7 @@ Body content`;
       await writeFileContent(filePath, validMarkdownContent);
 
       const subagent = await TestSimulatedSubagent.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test-agent.md",
         validate: true,
       });
@@ -188,7 +188,7 @@ Body content`;
 
       await expect(
         TestSimulatedSubagent.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "invalid-agent.md",
           validate: true,
         }),
@@ -201,7 +201,7 @@ Body content`;
 
       await expect(
         TestSimulatedSubagent.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "no-frontmatter.md",
           validate: true,
         }),
@@ -212,7 +212,7 @@ Body content`;
   describe("fromRulesyncSubagent", () => {
     it("should create instance from RulesyncSubagent", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -225,7 +225,7 @@ Body content`;
       });
 
       const simulatedSubagent = TestSimulatedSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test/agents",
         rulesyncSubagent,
         validate: true,
@@ -243,7 +243,7 @@ Body content`;
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
       const subagent = new TestSimulatedSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -261,7 +261,7 @@ Body content`;
 
     it("should return error for invalid frontmatter", () => {
       const subagent = new TestSimulatedSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".test/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {

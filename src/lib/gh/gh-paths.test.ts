@@ -61,13 +61,13 @@ describe("resolveGhInstallDir", () => {
     await cleanup();
   });
 
-  it("returns absolute path under baseDir for project scope", () => {
-    const baseDir = "/tmp/some-project";
-    expect(resolveGhInstallDir({ agent: "github-copilot", scope: "project", baseDir })).toBe(
-      join(baseDir, ".agents", "skills"),
+  it("returns absolute path under outputRoot for project scope", () => {
+    const outputRoot = "/tmp/some-project";
+    expect(resolveGhInstallDir({ agent: "github-copilot", scope: "project", outputRoot })).toBe(
+      join(outputRoot, ".agents", "skills"),
     );
-    expect(resolveGhInstallDir({ agent: "claude-code", scope: "project", baseDir })).toBe(
-      join(baseDir, ".claude", "skills"),
+    expect(resolveGhInstallDir({ agent: "claude-code", scope: "project", outputRoot })).toBe(
+      join(outputRoot, ".claude", "skills"),
     );
   });
 
@@ -77,7 +77,7 @@ describe("resolveGhInstallDir", () => {
       ["antigravity", "user", join(testDir, ".gemini", "antigravity", "skills")],
     ];
     for (const [agent, scope, expected] of cases) {
-      expect(resolveGhInstallDir({ agent, scope, baseDir: "/ignored" })).toBe(expected);
+      expect(resolveGhInstallDir({ agent, scope, outputRoot: "/ignored" })).toBe(expected);
     }
   });
 });

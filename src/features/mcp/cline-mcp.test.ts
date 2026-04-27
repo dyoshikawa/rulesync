@@ -48,13 +48,13 @@ describe("ClineMcp", () => {
       expect(clineMcp.getFileContent()).toBe(validJsonContent);
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const validJsonContent = JSON.stringify({
         mcpServers: {},
       });
 
       const clineMcp = new ClineMcp({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".cline",
         relativeFilePath: "mcp.json",
         fileContent: validJsonContent,
@@ -156,7 +156,7 @@ describe("ClineMcp", () => {
       await writeFileContent(join(clineDir, "mcp.json"), JSON.stringify(jsonData, null, 2));
 
       const clineMcp = await ClineMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(clineMcp).toBeInstanceOf(ClineMcp);
@@ -164,7 +164,7 @@ describe("ClineMcp", () => {
       expect(clineMcp.getFilePath()).toBe(join(testDir, ".cline", "mcp.json"));
     });
 
-    it("should create instance from file with custom baseDir", async () => {
+    it("should create instance from file with custom outputRoot", async () => {
       const customDir = join(testDir, "custom");
       const clineDir = join(customDir, ".cline");
       await ensureDir(clineDir);
@@ -180,7 +180,7 @@ describe("ClineMcp", () => {
       await writeFileContent(join(clineDir, "mcp.json"), JSON.stringify(jsonData));
 
       const clineMcp = await ClineMcp.fromFile({
-        baseDir: customDir,
+        outputRoot: customDir,
       });
 
       expect(clineMcp.getFilePath()).toBe(join(customDir, ".cline", "mcp.json"));
@@ -202,7 +202,7 @@ describe("ClineMcp", () => {
       await writeFileContent(join(clineDir, "mcp.json"), JSON.stringify(jsonData));
 
       const clineMcp = await ClineMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: true,
       });
 
@@ -219,7 +219,7 @@ describe("ClineMcp", () => {
       await writeFileContent(join(clineDir, "mcp.json"), JSON.stringify(jsonData));
 
       const clineMcp = await ClineMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
 
@@ -229,7 +229,7 @@ describe("ClineMcp", () => {
     it("should throw error if file does not exist", async () => {
       await expect(
         ClineMcp.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });
@@ -261,7 +261,7 @@ describe("ClineMcp", () => {
       expect(clineMcp.getRelativeFilePath()).toBe("mcp.json");
     });
 
-    it("should create instance from RulesyncMcp with custom baseDir", () => {
+    it("should create instance from RulesyncMcp with custom outputRoot", () => {
       const jsonData = {
         mcpServers: {
           "custom-server": {
@@ -274,14 +274,14 @@ describe("ClineMcp", () => {
         },
       };
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         relativeDirPath: ".rulesync",
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify(jsonData),
       });
 
       const clineMcp = ClineMcp.fromRulesyncMcp({
-        baseDir: "/target/dir",
+        outputRoot: "/target/dir",
         rulesyncMcp,
       });
 
@@ -399,7 +399,7 @@ describe("ClineMcp", () => {
         },
       };
       const clineMcp = new ClineMcp({
-        baseDir: "/test/dir",
+        outputRoot: "/test/dir",
         relativeDirPath: ".cline",
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify(jsonData),
@@ -407,7 +407,7 @@ describe("ClineMcp", () => {
 
       const rulesyncMcp = clineMcp.toRulesyncMcp();
 
-      expect(rulesyncMcp.getBaseDir()).toBe("/test/dir");
+      expect(rulesyncMcp.getOutputRoot()).toBe("/test/dir");
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
         $schema: RULESYNC_MCP_SCHEMA_URL,
         ...jsonData,
@@ -535,7 +535,7 @@ describe("ClineMcp", () => {
 
       // Step 1: Load from file
       const originalClineMcp = await ClineMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       // Step 2: Convert to RulesyncMcp
@@ -543,7 +543,7 @@ describe("ClineMcp", () => {
 
       // Step 3: Create new ClineMcp from RulesyncMcp
       const newClineMcp = ClineMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
       });
 
@@ -584,7 +584,7 @@ describe("ClineMcp", () => {
 
       // Create ClineMcp
       const clineMcp = new ClineMcp({
-        baseDir: "/project",
+        outputRoot: "/project",
         relativeDirPath: ".cline",
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify(complexJsonData),
@@ -593,7 +593,7 @@ describe("ClineMcp", () => {
       // Convert to RulesyncMcp and back
       const rulesyncMcp = clineMcp.toRulesyncMcp();
       const newClineMcp = ClineMcp.fromRulesyncMcp({
-        baseDir: "/project",
+        outputRoot: "/project",
         rulesyncMcp,
       });
 

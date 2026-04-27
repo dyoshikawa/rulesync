@@ -41,7 +41,7 @@ describe("AgentsSkillsSkill", () => {
   describe("constructor", () => {
     it("should create instance with valid content", () => {
       const skill = new AgentsSkillsSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".agents", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -74,7 +74,7 @@ This is the body of the agent skill.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       const skill = await AgentsSkillsSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
       });
 
@@ -92,7 +92,7 @@ This is the body of the agent skill.`;
 
       await expect(
         AgentsSkillsSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "empty-skill",
         }),
       ).rejects.toThrow(/SKILL\.md not found/);
@@ -102,7 +102,7 @@ This is the body of the agent skill.`;
   describe("fromRulesyncSkill", () => {
     it("should create instance from RulesyncSkill", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -130,7 +130,7 @@ This is the body of the agent skill.`;
   describe("isTargetedByRulesyncSkill", () => {
     it("should return true when targets includes '*'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "all-targets-skill",
         frontmatter: {
@@ -147,7 +147,7 @@ This is the body of the agent skill.`;
 
     it("should return true when targets includes 'agentsskills'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "agentsskills-skill",
         frontmatter: {
@@ -164,7 +164,7 @@ This is the body of the agent skill.`;
 
     it("should return false when targets does not include 'agentsskills'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "claudecode-only-skill",
         frontmatter: {
@@ -183,7 +183,7 @@ This is the body of the agent skill.`;
   describe("toRulesyncSkill", () => {
     it("should convert to RulesyncSkill", () => {
       const skill = new AgentsSkillsSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".agents", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -218,14 +218,14 @@ This is the body of the agent skill.`;
       expect(skill.getGlobal()).toBe(false);
     });
 
-    it("should use process.cwd() as default baseDir", () => {
+    it("should use process.cwd() as default outputRoot", () => {
       const skill = AgentsSkillsSkill.forDeletion({
         dirName: "cleanup",
         relativeDirPath: join(".agents", "skills"),
       });
 
       expect(skill).toBeInstanceOf(AgentsSkillsSkill);
-      expect(skill.getBaseDir()).toBe(testDir);
+      expect(skill.getOutputRoot()).toBe(testDir);
     });
 
     it("should create instance with empty frontmatter for deletion", () => {

@@ -90,11 +90,11 @@ export function createEmptyLock(): SourcesLock {
  * @returns The parsed lockfile, or an empty lockfile if it doesn't exist or is invalid.
  */
 export async function readLockFile(params: {
-  baseDir: string;
+  outputRoot: string;
   logger: Logger;
 }): Promise<SourcesLock> {
   const { logger } = params;
-  const lockPath = join(params.baseDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH);
+  const lockPath = join(params.outputRoot, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH);
 
   if (!(await fileExists(lockPath))) {
     logger.debug("No sources lockfile found, starting fresh.");
@@ -133,12 +133,12 @@ export async function readLockFile(params: {
  * Write the lockfile to disk.
  */
 export async function writeLockFile(params: {
-  baseDir: string;
+  outputRoot: string;
   lock: SourcesLock;
   logger: Logger;
 }): Promise<void> {
   const { logger } = params;
-  const lockPath = join(params.baseDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH);
+  const lockPath = join(params.outputRoot, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH);
   const content = JSON.stringify(params.lock, null, 2) + "\n";
   await writeFileContent(lockPath, content);
   logger.debug(`Wrote sources lockfile to ${lockPath}`);

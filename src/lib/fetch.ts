@@ -154,38 +154,39 @@ async function convertFetchedFilesToRulesync(params: {
       feature: "rules",
       getTargets: () => RulesProcessor.getToolTargets({ global: false }),
       createProcessor: () =>
-        new RulesProcessor({ baseDir: tempDir, toolTarget: target, global: false, logger }),
+        new RulesProcessor({ outputRoot: tempDir, toolTarget: target, global: false, logger }),
     },
     {
       feature: "commands",
       getTargets: () =>
         CommandsProcessor.getToolTargets({ global: false, includeSimulated: false }),
       createProcessor: () =>
-        new CommandsProcessor({ baseDir: tempDir, toolTarget: target, global: false, logger }),
+        new CommandsProcessor({ outputRoot: tempDir, toolTarget: target, global: false, logger }),
     },
     {
       feature: "subagents",
       getTargets: () =>
         SubagentsProcessor.getToolTargets({ global: false, includeSimulated: false }),
       createProcessor: () =>
-        new SubagentsProcessor({ baseDir: tempDir, toolTarget: target, global: false, logger }),
+        new SubagentsProcessor({ outputRoot: tempDir, toolTarget: target, global: false, logger }),
     },
     {
       feature: "ignore",
       getTargets: () => IgnoreProcessor.getToolTargets(),
-      createProcessor: () => new IgnoreProcessor({ baseDir: tempDir, toolTarget: target, logger }),
+      createProcessor: () =>
+        new IgnoreProcessor({ outputRoot: tempDir, toolTarget: target, logger }),
     },
     {
       feature: "mcp",
       getTargets: () => McpProcessor.getToolTargets({ global: false }),
       createProcessor: () =>
-        new McpProcessor({ baseDir: tempDir, toolTarget: target, global: false, logger }),
+        new McpProcessor({ outputRoot: tempDir, toolTarget: target, global: false, logger }),
     },
     {
       feature: "hooks",
       getTargets: () => HooksProcessor.getToolTargets({ global: false }),
       createProcessor: () =>
-        new HooksProcessor({ baseDir: tempDir, toolTarget: target, global: false, logger }),
+        new HooksProcessor({ outputRoot: tempDir, toolTarget: target, global: false, logger }),
     },
   ];
 
@@ -257,7 +258,7 @@ function isNotFoundError(error: unknown): boolean {
 export type FetchParams = {
   source: string;
   options?: FetchOptions;
-  baseDir?: string;
+  outputRoot?: string;
   logger: Logger;
 };
 
@@ -270,7 +271,7 @@ export type FetchParams = {
  * converted to rulesync format, and written to the output directory.
  */
 export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
-  const { source, options = {}, baseDir = process.cwd(), logger } = params;
+  const { source, options = {}, outputRoot = process.cwd(), logger } = params;
 
   // Parse source
   const parsed = parseSource(source);
@@ -294,7 +295,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
   // Validate output directory to prevent path traversal attacks
   checkPathTraversal({
     relativePath: outputDir,
-    intendedRootDir: baseDir,
+    intendedRootDir: outputRoot,
   });
 
   // Initialize GitHub client
@@ -325,7 +326,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
       enabledFeatures,
       target,
       outputDir,
-      baseDir,
+      outputRoot,
       conflictStrategy,
       logger,
     });
@@ -359,7 +360,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
   }
 
   // Process files in parallel with concurrency control
-  const outputBasePath = join(baseDir, outputDir);
+  const outputBasePath = join(outputRoot, outputDir);
 
   // Validate paths and check file sizes first (synchronous checks)
   for (const { relativePath, size } of filesToFetch) {
@@ -524,7 +525,7 @@ async function fetchAndConvertToolFiles(params: {
   enabledFeatures: Feature[];
   target: ToolTarget;
   outputDir: string;
-  baseDir: string;
+  outputRoot: string;
   conflictStrategy: ConflictStrategy;
   logger: Logger;
 }): Promise<FetchSummary> {
@@ -536,7 +537,7 @@ async function fetchAndConvertToolFiles(params: {
     enabledFeatures,
     target,
     outputDir,
-    baseDir,
+    outputRoot,
     conflictStrategy: _conflictStrategy,
     logger,
   } = params;
@@ -603,7 +604,7 @@ async function fetchAndConvertToolFiles(params: {
     );
 
     // Convert fetched files to rulesync format
-    const outputBasePath = join(baseDir, outputDir);
+    const outputBasePath = join(outputRoot, outputDir);
     const { converted, convertedPaths } = await convertFetchedFilesToRulesync({
       tempDir,
       outputDir: outputBasePath,

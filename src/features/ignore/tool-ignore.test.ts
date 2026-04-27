@@ -23,11 +23,11 @@ class TestToolIgnore extends ToolIgnore {
   }
 
   static fromRulesyncIgnore({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncIgnore,
   }: ToolIgnoreFromRulesyncIgnoreParams): TestToolIgnore {
     return new TestToolIgnore({
-      baseDir,
+      outputRoot,
       relativeDirPath: ".",
       relativeFilePath: ".testignore",
       fileContent: rulesyncIgnore.getFileContent(),
@@ -35,13 +35,13 @@ class TestToolIgnore extends ToolIgnore {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
   }: ToolIgnoreFromFileParams): Promise<TestToolIgnore> {
     const fileContent = "*.test\n# comment\n  \n\nnode_modules/\n*.log";
 
     return new TestToolIgnore({
-      baseDir,
+      outputRoot,
       relativeDirPath: ".",
       relativeFilePath: ".testignore",
       fileContent,
@@ -78,9 +78,9 @@ describe("ToolIgnore", () => {
       expect(toolIgnore.getFileContent()).toBe("*.log\nnode_modules/");
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const toolIgnore = new TestToolIgnore({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: "subdir",
         relativeFilePath: ".testignore",
         fileContent: "*.tmp",
@@ -244,14 +244,14 @@ describe("ToolIgnore", () => {
       await writeFileContent(rulesyncIgnorePath, fileContent);
 
       const rulesyncIgnore = new RulesyncIgnore({
-        baseDir: rulesyncDir,
+        outputRoot: rulesyncDir,
         relativeDirPath: ".",
         relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
         fileContent,
       });
 
       const toolIgnore = TestToolIgnore.fromRulesyncIgnore({
-        baseDir: rulesyncDir,
+        outputRoot: rulesyncDir,
         rulesyncIgnore,
       });
 
@@ -261,7 +261,7 @@ describe("ToolIgnore", () => {
       expect(toolIgnore.getRelativeFilePath()).toBe(".testignore");
     });
 
-    it("should use default baseDir when not provided", async () => {
+    it("should use default outputRoot when not provided", async () => {
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".",
         relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
@@ -279,7 +279,7 @@ describe("ToolIgnore", () => {
   describe("fromFile", () => {
     it("should create instance from file using static method", async () => {
       const toolIgnore = await TestToolIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: true,
       });
 
@@ -321,14 +321,14 @@ describe("ToolIgnore", () => {
     it("should create RulesyncIgnore with default parameters", () => {
       const fileContent = "*.log\nnode_modules/";
       const toolIgnore = new TestToolIgnore({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: "subdir",
         relativeFilePath: ".testignore",
         fileContent,
       });
 
       const rulesyncIgnore = toolIgnore.toRulesyncIgnore();
-      expect(rulesyncIgnore.getBaseDir()).toBe(".");
+      expect(rulesyncIgnore.getOutputRoot()).toBe(".");
       expect(rulesyncIgnore.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_AIIGNORE_FILE_NAME);
       expect(rulesyncIgnore.getFileContent()).toBe(fileContent);

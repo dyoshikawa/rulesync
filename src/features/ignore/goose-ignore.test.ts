@@ -39,9 +39,9 @@ describe("GooseIgnore", () => {
       expect(gooseIgnore.getFileContent()).toBe("*.log\nnode_modules/");
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const gooseIgnore = new GooseIgnore({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: "subdir",
         relativeFilePath: ".gooseignore",
         fileContent: "*.tmp",
@@ -76,7 +76,7 @@ describe("GooseIgnore", () => {
     it("should convert to RulesyncIgnore with same content", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const gooseIgnore = new GooseIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".gooseignore",
         fileContent,
@@ -92,7 +92,7 @@ describe("GooseIgnore", () => {
 
     it("should handle empty content", () => {
       const gooseIgnore = new GooseIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".gooseignore",
         fileContent: "",
@@ -106,7 +106,7 @@ describe("GooseIgnore", () => {
     it("should preserve patterns and formatting", () => {
       const fileContent = "# Generated files\n*.log\n*.tmp\n\n# Dependencies\nnode_modules/\n.env*";
       const gooseIgnore = new GooseIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".gooseignore",
         fileContent,
@@ -119,7 +119,7 @@ describe("GooseIgnore", () => {
   });
 
   describe("fromRulesyncIgnore", () => {
-    it("should create GooseIgnore from RulesyncIgnore with default baseDir", () => {
+    it("should create GooseIgnore from RulesyncIgnore with default outputRoot", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -132,13 +132,13 @@ describe("GooseIgnore", () => {
       });
 
       expect(gooseIgnore).toBeInstanceOf(GooseIgnore);
-      expect(gooseIgnore.getBaseDir()).toBe(testDir);
+      expect(gooseIgnore.getOutputRoot()).toBe(testDir);
       expect(gooseIgnore.getRelativeDirPath()).toBe(".");
       expect(gooseIgnore.getRelativeFilePath()).toBe(".gooseignore");
       expect(gooseIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should create GooseIgnore from RulesyncIgnore with custom baseDir", () => {
+    it("should create GooseIgnore from RulesyncIgnore with custom outputRoot", () => {
       const fileContent = "*.tmp\nbuild/";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -147,11 +147,11 @@ describe("GooseIgnore", () => {
       });
 
       const gooseIgnore = GooseIgnore.fromRulesyncIgnore({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         rulesyncIgnore,
       });
 
-      expect(gooseIgnore.getBaseDir()).toBe("/custom/base");
+      expect(gooseIgnore.getOutputRoot()).toBe("/custom/base");
       expect(gooseIgnore.getFilePath()).toBe("/custom/base/.gooseignore");
       expect(gooseIgnore.getFileContent()).toBe(fileContent);
     });
@@ -187,17 +187,17 @@ describe("GooseIgnore", () => {
   });
 
   describe("fromFile", () => {
-    it("should read .gooseignore file from baseDir with default baseDir", async () => {
+    it("should read .gooseignore file from outputRoot with default outputRoot", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const gooseignorePath = join(testDir, ".gooseignore");
       await writeFileContent(gooseignorePath, fileContent);
 
       const gooseIgnore = await GooseIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(gooseIgnore).toBeInstanceOf(GooseIgnore);
-      expect(gooseIgnore.getBaseDir()).toBe(testDir);
+      expect(gooseIgnore.getOutputRoot()).toBe(testDir);
       expect(gooseIgnore.getRelativeDirPath()).toBe(".");
       expect(gooseIgnore.getRelativeFilePath()).toBe(".gooseignore");
       expect(gooseIgnore.getFileContent()).toBe(fileContent);
@@ -209,7 +209,7 @@ describe("GooseIgnore", () => {
       await writeFileContent(gooseignorePath, fileContent);
 
       const gooseIgnore = await GooseIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(gooseIgnore.getFileContent()).toBe(fileContent);
@@ -221,7 +221,7 @@ describe("GooseIgnore", () => {
       await writeFileContent(gooseignorePath, fileContent);
 
       const gooseIgnore = await GooseIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
 
@@ -233,7 +233,7 @@ describe("GooseIgnore", () => {
       await writeFileContent(gooseignorePath, "");
 
       const gooseIgnore = await GooseIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(gooseIgnore.getFileContent()).toBe("");
@@ -274,27 +274,27 @@ Thumbs.db`;
       await writeFileContent(gooseignorePath, fileContent);
 
       const gooseIgnore = await GooseIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(gooseIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should default baseDir to process.cwd() when not provided", async () => {
+    it("should default outputRoot to process.cwd() when not provided", async () => {
       const fileContent = "*.log\nnode_modules/";
       const gooseignorePath = join(testDir, ".gooseignore");
       await writeFileContent(gooseignorePath, fileContent);
 
       const gooseIgnore = await GooseIgnore.fromFile({});
 
-      expect(gooseIgnore.getBaseDir()).toBe(testDir);
+      expect(gooseIgnore.getOutputRoot()).toBe(testDir);
       expect(gooseIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should throw error when .gooseignore file does not exist", async () => {
       await expect(
         GooseIgnore.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });
@@ -305,7 +305,7 @@ Thumbs.db`;
       await writeFileContent(gooseignorePath, fileContent);
 
       const gooseIgnore = await GooseIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(gooseIgnore.getFileContent()).toBe(fileContent);
@@ -342,13 +342,13 @@ Thumbs.db`;
 
     it("should inherit file path methods from ToolFile", () => {
       const gooseIgnore = new GooseIgnore({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: "subdir",
         relativeFilePath: ".gooseignore",
         fileContent: "*.log",
       });
 
-      expect(gooseIgnore.getBaseDir()).toBe("/test/base");
+      expect(gooseIgnore.getOutputRoot()).toBe("/test/base");
       expect(gooseIgnore.getRelativeDirPath()).toBe("subdir");
       expect(gooseIgnore.getRelativeFilePath()).toBe(".gooseignore");
       expect(gooseIgnore.getFilePath()).toBe("/test/base/subdir/.gooseignore");
@@ -367,7 +367,7 @@ dist/
 *.tmp`;
 
       const originalGooseIgnore = new GooseIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".gooseignore",
         fileContent: originalContent,
@@ -375,12 +375,12 @@ dist/
 
       const rulesyncIgnore = originalGooseIgnore.toRulesyncIgnore();
       const roundTripGooseIgnore = GooseIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
       expect(roundTripGooseIgnore.getFileContent()).toBe(originalContent);
-      expect(roundTripGooseIgnore.getBaseDir()).toBe(testDir);
+      expect(roundTripGooseIgnore.getOutputRoot()).toBe(testDir);
       expect(roundTripGooseIgnore.getRelativeDirPath()).toBe(".");
       expect(roundTripGooseIgnore.getRelativeFilePath()).toBe(".gooseignore");
     });
@@ -456,7 +456,7 @@ dist/
     it("should write and read file correctly", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const gooseIgnore = new GooseIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".gooseignore",
         fileContent,
@@ -465,7 +465,7 @@ dist/
       await writeFileContent(gooseIgnore.getFilePath(), gooseIgnore.getFileContent());
 
       const readGooseIgnore = await GooseIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(readGooseIgnore.getFileContent()).toBe(fileContent);
@@ -478,7 +478,7 @@ dist/
 
       const fileContent = "*.log\nbuild/";
       const gooseIgnore = new GooseIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "project/config",
         relativeFilePath: ".gooseignore",
         fileContent,
@@ -487,7 +487,7 @@ dist/
       await writeFileContent(gooseIgnore.getFilePath(), gooseIgnore.getFileContent());
 
       const readGooseIgnore = await GooseIgnore.fromFile({
-        baseDir: join(testDir, "project/config"),
+        outputRoot: join(testDir, "project/config"),
       });
 
       expect(readGooseIgnore.getFileContent()).toBe(fileContent);
@@ -558,7 +558,7 @@ temp*/
 
     it("should work in workspace root context", () => {
       const gooseIgnore = GooseIgnore.fromRulesyncIgnore({
-        baseDir: "/workspace/root",
+        outputRoot: "/workspace/root",
         rulesyncIgnore: new RulesyncIgnore({
           relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
           relativeFilePath: ".rulesignore",
@@ -636,31 +636,31 @@ credentials/`;
   describe("forDeletion", () => {
     it("should create instance for deletion with minimal params", () => {
       const gooseIgnore = GooseIgnore.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".gooseignore",
       });
 
       expect(gooseIgnore).toBeInstanceOf(GooseIgnore);
-      expect(gooseIgnore.getBaseDir()).toBe(testDir);
+      expect(gooseIgnore.getOutputRoot()).toBe(testDir);
       expect(gooseIgnore.getRelativeDirPath()).toBe(".");
       expect(gooseIgnore.getRelativeFilePath()).toBe(".gooseignore");
       expect(gooseIgnore.getFileContent()).toBe("");
     });
 
-    it("should create instance for deletion with default baseDir", () => {
+    it("should create instance for deletion with default outputRoot", () => {
       const gooseIgnore = GooseIgnore.forDeletion({
         relativeDirPath: ".",
         relativeFilePath: ".gooseignore",
       });
 
-      expect(gooseIgnore.getBaseDir()).toBe(testDir);
+      expect(gooseIgnore.getOutputRoot()).toBe(testDir);
     });
 
     it("should skip validation for deletion instances", () => {
       expect(() => {
         GooseIgnore.forDeletion({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".",
           relativeFilePath: ".gooseignore",
         });

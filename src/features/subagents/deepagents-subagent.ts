@@ -77,7 +77,7 @@ export class DeepagentsSubagent extends ToolSubagent {
     };
 
     return new RulesyncSubagent({
-      baseDir: this.getBaseDir(),
+      outputRoot: this.getOutputRoot(),
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -87,7 +87,7 @@ export class DeepagentsSubagent extends ToolSubagent {
   }
 
   static fromRulesyncSubagent({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSubagent,
     validate = true,
     global = false,
@@ -118,7 +118,7 @@ export class DeepagentsSubagent extends ToolSubagent {
     const paths = this.getSettablePaths({ global });
 
     return new DeepagentsSubagent({
-      baseDir,
+      outputRoot,
       frontmatter: deepagentsFrontmatter,
       body,
       relativeDirPath: paths.relativeDirPath,
@@ -154,13 +154,13 @@ export class DeepagentsSubagent extends ToolSubagent {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolSubagentFromFileParams): Promise<DeepagentsSubagent> {
     const paths = this.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
@@ -170,7 +170,7 @@ export class DeepagentsSubagent extends ToolSubagent {
     }
 
     return new DeepagentsSubagent({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
       frontmatter: result.data,
@@ -181,12 +181,12 @@ export class DeepagentsSubagent extends ToolSubagent {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolSubagentForDeletionParams): DeepagentsSubagent {
     return new DeepagentsSubagent({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       frontmatter: { name: "", description: "" },

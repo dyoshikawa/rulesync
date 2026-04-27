@@ -41,7 +41,7 @@ describe("JunieSkill", () => {
   describe("constructor", () => {
     it("should create instance with valid content", () => {
       const skill = new JunieSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".junie", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -64,7 +64,7 @@ describe("JunieSkill", () => {
       expect(
         () =>
           new JunieSkill({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeDirPath: join(".junie", "skills"),
             dirName: "test-skill",
             frontmatter: {
@@ -91,7 +91,7 @@ This is the body of the junie skill.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       const skill = await JunieSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
       });
 
@@ -116,7 +116,7 @@ This is the body of the junie skill.`;
 
       await expect(
         JunieSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "test-skill",
         }),
       ).rejects.toThrow(
@@ -130,7 +130,7 @@ This is the body of the junie skill.`;
 
       await expect(
         JunieSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "empty-skill",
         }),
       ).rejects.toThrow(/SKILL\.md not found/);
@@ -140,7 +140,7 @@ This is the body of the junie skill.`;
   describe("fromRulesyncSkill", () => {
     it("should create instance from RulesyncSkill", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "some-other-name",
         frontmatter: {
@@ -169,7 +169,7 @@ This is the body of the junie skill.`;
   describe("isTargetedByRulesyncSkill", () => {
     it("should return true when targets includes '*'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "all-targets-skill",
         frontmatter: {
@@ -186,7 +186,7 @@ This is the body of the junie skill.`;
 
     it("should return true when targets includes 'junie'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "junie-skill",
         frontmatter: {
@@ -203,7 +203,7 @@ This is the body of the junie skill.`;
 
     it("should return false when targets does not include 'junie'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "claudecode-only-skill",
         frontmatter: {
@@ -222,7 +222,7 @@ This is the body of the junie skill.`;
   describe("toRulesyncSkill", () => {
     it("should convert to RulesyncSkill", () => {
       const skill = new JunieSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".junie", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -257,14 +257,14 @@ This is the body of the junie skill.`;
       expect(skill.getGlobal()).toBe(false);
     });
 
-    it("should use process.cwd() as default baseDir", () => {
+    it("should use process.cwd() as default outputRoot", () => {
       const skill = JunieSkill.forDeletion({
         dirName: "cleanup",
         relativeDirPath: join(".junie", "skills"),
       });
 
       expect(skill).toBeInstanceOf(JunieSkill);
-      expect(skill.getBaseDir()).toBe(testDir);
+      expect(skill.getOutputRoot()).toBe(testDir);
     });
 
     it("should create instance with empty frontmatter for deletion", () => {

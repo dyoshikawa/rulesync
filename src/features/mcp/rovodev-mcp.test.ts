@@ -50,7 +50,7 @@ describe("RovodevMcp", () => {
     it("should throw fromFile when global is false", async () => {
       await expect(
         RovodevMcp.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           validate: true,
           global: false,
         }),
@@ -59,7 +59,7 @@ describe("RovodevMcp", () => {
 
     it("should throw fromRulesyncMcp when global is false", async () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: RULESYNC_MCP_FILE_NAME,
         fileContent: JSON.stringify({ mcpServers: {} }),
@@ -68,7 +68,7 @@ describe("RovodevMcp", () => {
 
       await expect(
         RovodevMcp.fromRulesyncMcp({
-          baseDir: testDir,
+          outputRoot: testDir,
           rulesyncMcp,
           validate: true,
           global: false,
@@ -81,7 +81,7 @@ describe("RovodevMcp", () => {
     it("should throw for invalid JSON in fileContent", () => {
       expect(() => {
         new RovodevMcp({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".rovodev",
           relativeFilePath: "mcp.json",
           fileContent: "{ not json",
@@ -94,7 +94,7 @@ describe("RovodevMcp", () => {
     it("should include path in parse error message", () => {
       expect(() => {
         new RovodevMcp({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".rovodev",
           relativeFilePath: "mcp.json",
           fileContent: "{ not json",
@@ -112,7 +112,7 @@ describe("RovodevMcp", () => {
 
       await expect(
         RovodevMcp.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           validate: true,
           global: true,
         }),
@@ -120,7 +120,7 @@ describe("RovodevMcp", () => {
 
       await expect(
         RovodevMcp.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           validate: true,
           global: true,
         }),
@@ -134,7 +134,7 @@ describe("RovodevMcp", () => {
       await writeFileContent(join(testDir, ".rovodev", "mcp.json"), "{ not json");
 
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: RULESYNC_MCP_FILE_NAME,
         fileContent: JSON.stringify({ mcpServers: {} }),
@@ -143,7 +143,7 @@ describe("RovodevMcp", () => {
 
       await expect(
         RovodevMcp.fromRulesyncMcp({
-          baseDir: testDir,
+          outputRoot: testDir,
           rulesyncMcp,
           validate: true,
           global: true,
@@ -152,7 +152,7 @@ describe("RovodevMcp", () => {
 
       await expect(
         RovodevMcp.fromRulesyncMcp({
-          baseDir: testDir,
+          outputRoot: testDir,
           rulesyncMcp,
           validate: true,
           global: true,
@@ -164,7 +164,7 @@ describe("RovodevMcp", () => {
   describe("toRulesyncMcp", () => {
     it("should not propagate unknown top-level keys from Rovodev mcp.json", () => {
       const rovodev = new RovodevMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rovodev",
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify({
@@ -189,7 +189,7 @@ describe("RovodevMcp", () => {
   describe("round-trip conversion", () => {
     it("should round-trip RulesyncMcp through RovodevMcp and back", async () => {
       const rulesyncMcp = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: RULESYNC_MCP_FILE_NAME,
         fileContent: JSON.stringify(validMcpConfig),
@@ -197,7 +197,7 @@ describe("RovodevMcp", () => {
       });
 
       const rovodev = await RovodevMcp.fromRulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncMcp,
         validate: true,
         global: true,
@@ -218,7 +218,7 @@ describe("RovodevMcp", () => {
       await writeFileContent(mcpPath, JSON.stringify(validMcpConfig, null, 2));
 
       const rovodev = await RovodevMcp.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: true,
         global: true,
       });
@@ -235,7 +235,7 @@ describe("RovodevMcp", () => {
   describe("isDeletable", () => {
     it("should always return false (global-only MCP config is not treated as deletable project output)", () => {
       const globalInstance = new RovodevMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rovodev",
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
@@ -245,7 +245,7 @@ describe("RovodevMcp", () => {
       expect(globalInstance.isDeletable()).toBe(false);
 
       const nonGlobalInstance = new RovodevMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rovodev",
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),

@@ -40,16 +40,16 @@ export class WindsurfRule extends ToolRule {
     };
   }
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<WindsurfRule> {
     const fileContent = await readFileContent(
-      join(baseDir, this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath),
+      join(outputRoot, this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath),
     );
 
     return new WindsurfRule({
-      baseDir,
+      outputRoot,
       relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: relativeFilePath,
       fileContent,
@@ -58,12 +58,12 @@ export class WindsurfRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): ToolRule {
     const toolRuleParams = this.buildToolRuleParamsDefault({
-      baseDir,
+      outputRoot,
       rulesyncRule,
       validate,
       nonRootPath: this.getSettablePaths().nonRoot,
@@ -90,12 +90,12 @@ export class WindsurfRule extends ToolRule {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): WindsurfRule {
     return new WindsurfRule({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "",

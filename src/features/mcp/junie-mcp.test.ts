@@ -54,7 +54,7 @@ describe("JunieMcp", () => {
       const content = JSON.stringify({ mcpServers: { A: { command: "echo" } } }, null, 2);
       await writeFileContent(filePath, content);
 
-      const junie = await JunieMcp.fromFile({ baseDir: testDir, validate: true });
+      const junie = await JunieMcp.fromFile({ outputRoot: testDir, validate: true });
 
       expect(junie.getFilePath()).toBe(filePath);
       expect(junie.getFileContent()).toBe(content);
@@ -70,13 +70,13 @@ describe("JunieMcp", () => {
         2,
       );
       const rulesync = new RulesyncMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: rulesyncContent,
       });
 
-      const junie = JunieMcp.fromRulesyncMcp({ baseDir: testDir, rulesyncMcp: rulesync });
+      const junie = JunieMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp: rulesync });
 
       expect(junie.getRelativeDirPath()).toBe(".junie/mcp");
       expect(junie.getRelativeFilePath()).toBe("mcp.json");
@@ -88,7 +88,7 @@ describe("JunieMcp", () => {
     it("maps back to a RulesyncMcp with same content", () => {
       const content = JSON.stringify({ mcpServers: { X: { command: "echo" } } }, null, 2);
       const junie = new JunieMcp({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".junie/mcp",
         relativeFilePath: "mcp.json",
         fileContent: content,

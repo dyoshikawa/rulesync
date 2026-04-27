@@ -36,9 +36,9 @@ describe("CursorIgnore", () => {
       expect(cursorIgnore.getFileContent()).toBe("*.log\nnode_modules/");
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const cursorIgnore = new CursorIgnore({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: "subdir",
         relativeFilePath: ".cursorignore",
         fileContent: "*.tmp",
@@ -73,7 +73,7 @@ describe("CursorIgnore", () => {
     it("should convert to RulesyncIgnore with same content", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const cursorIgnore = new CursorIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".cursorignore",
         fileContent,
@@ -89,7 +89,7 @@ describe("CursorIgnore", () => {
 
     it("should handle empty content", () => {
       const cursorIgnore = new CursorIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".cursorignore",
         fileContent: "",
@@ -103,7 +103,7 @@ describe("CursorIgnore", () => {
     it("should preserve patterns and formatting", () => {
       const fileContent = "# Generated files\n*.log\n*.tmp\n\n# Dependencies\nnode_modules/\n.env*";
       const cursorIgnore = new CursorIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".cursorignore",
         fileContent,
@@ -116,7 +116,7 @@ describe("CursorIgnore", () => {
   });
 
   describe("fromRulesyncIgnore", () => {
-    it("should create CursorIgnore from RulesyncIgnore with default baseDir", () => {
+    it("should create CursorIgnore from RulesyncIgnore with default outputRoot", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".rulesync",
@@ -129,13 +129,13 @@ describe("CursorIgnore", () => {
       });
 
       expect(cursorIgnore).toBeInstanceOf(CursorIgnore);
-      expect(cursorIgnore.getBaseDir()).toBe(testDir);
+      expect(cursorIgnore.getOutputRoot()).toBe(testDir);
       expect(cursorIgnore.getRelativeDirPath()).toBe(".");
       expect(cursorIgnore.getRelativeFilePath()).toBe(".cursorignore");
       expect(cursorIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should create CursorIgnore from RulesyncIgnore with custom baseDir", () => {
+    it("should create CursorIgnore from RulesyncIgnore with custom outputRoot", () => {
       const fileContent = "*.tmp\nbuild/";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: ".rulesync",
@@ -144,11 +144,11 @@ describe("CursorIgnore", () => {
       });
 
       const cursorIgnore = CursorIgnore.fromRulesyncIgnore({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         rulesyncIgnore,
       });
 
-      expect(cursorIgnore.getBaseDir()).toBe("/custom/base");
+      expect(cursorIgnore.getOutputRoot()).toBe("/custom/base");
       expect(cursorIgnore.getFilePath()).toBe("/custom/base/.cursorignore");
       expect(cursorIgnore.getFileContent()).toBe(fileContent);
     });
@@ -184,17 +184,17 @@ describe("CursorIgnore", () => {
   });
 
   describe("fromFile", () => {
-    it("should read .cursorignore file from baseDir with default baseDir", async () => {
+    it("should read .cursorignore file from outputRoot with default outputRoot", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const cursorignorePath = join(testDir, ".cursorignore");
       await writeFileContent(cursorignorePath, fileContent);
 
       const cursorIgnore = await CursorIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(cursorIgnore).toBeInstanceOf(CursorIgnore);
-      expect(cursorIgnore.getBaseDir()).toBe(testDir);
+      expect(cursorIgnore.getOutputRoot()).toBe(testDir);
       expect(cursorIgnore.getRelativeDirPath()).toBe(".");
       expect(cursorIgnore.getRelativeFilePath()).toBe(".cursorignore");
       expect(cursorIgnore.getFileContent()).toBe(fileContent);
@@ -206,7 +206,7 @@ describe("CursorIgnore", () => {
       await writeFileContent(cursorignorePath, fileContent);
 
       const cursorIgnore = await CursorIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(cursorIgnore.getFileContent()).toBe(fileContent);
@@ -218,7 +218,7 @@ describe("CursorIgnore", () => {
       await writeFileContent(cursorignorePath, fileContent);
 
       const cursorIgnore = await CursorIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
 
@@ -230,7 +230,7 @@ describe("CursorIgnore", () => {
       await writeFileContent(cursorignorePath, "");
 
       const cursorIgnore = await CursorIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(cursorIgnore.getFileContent()).toBe("");
@@ -271,13 +271,13 @@ Thumbs.db`;
       await writeFileContent(cursorignorePath, fileContent);
 
       const cursorIgnore = await CursorIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(cursorIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should default baseDir to process.cwd() when not provided", async () => {
+    it("should default outputRoot to process.cwd() when not provided", async () => {
       // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\nnode_modules/";
       const cursorignorePath = join(testDir, ".cursorignore");
@@ -285,14 +285,14 @@ Thumbs.db`;
 
       const cursorIgnore = await CursorIgnore.fromFile({});
 
-      expect(cursorIgnore.getBaseDir()).toBe(testDir);
+      expect(cursorIgnore.getOutputRoot()).toBe(testDir);
       expect(cursorIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should throw error when .cursorignore file does not exist", async () => {
       await expect(
         CursorIgnore.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });
@@ -303,7 +303,7 @@ Thumbs.db`;
       await writeFileContent(cursorignorePath, fileContent);
 
       const cursorIgnore = await CursorIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(cursorIgnore.getFileContent()).toBe(fileContent);
@@ -340,13 +340,13 @@ Thumbs.db`;
 
     it("should inherit file path methods from ToolFile", () => {
       const cursorIgnore = new CursorIgnore({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: "subdir",
         relativeFilePath: ".cursorignore",
         fileContent: "*.log",
       });
 
-      expect(cursorIgnore.getBaseDir()).toBe("/test/base");
+      expect(cursorIgnore.getOutputRoot()).toBe("/test/base");
       expect(cursorIgnore.getRelativeDirPath()).toBe("subdir");
       expect(cursorIgnore.getRelativeFilePath()).toBe(".cursorignore");
       expect(cursorIgnore.getFilePath()).toBe("/test/base/subdir/.cursorignore");
@@ -366,7 +366,7 @@ dist/
 
       // CursorIgnore -> RulesyncIgnore -> CursorIgnore
       const originalCursorIgnore = new CursorIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".cursorignore",
         fileContent: originalContent,
@@ -374,12 +374,12 @@ dist/
 
       const rulesyncIgnore = originalCursorIgnore.toRulesyncIgnore();
       const roundTripCursorIgnore = CursorIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
       expect(roundTripCursorIgnore.getFileContent()).toBe(originalContent);
-      expect(roundTripCursorIgnore.getBaseDir()).toBe(testDir);
+      expect(roundTripCursorIgnore.getOutputRoot()).toBe(testDir);
       expect(roundTripCursorIgnore.getRelativeDirPath()).toBe(".");
       expect(roundTripCursorIgnore.getRelativeFilePath()).toBe(".cursorignore");
     });
@@ -456,7 +456,7 @@ dist/
     it("should write and read file correctly", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const cursorIgnore = new CursorIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".cursorignore",
         fileContent,
@@ -467,7 +467,7 @@ dist/
 
       // Read file back
       const readCursorIgnore = await CursorIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(readCursorIgnore.getFileContent()).toBe(fileContent);
@@ -480,7 +480,7 @@ dist/
 
       const fileContent = "*.log\nbuild/";
       const cursorIgnore = new CursorIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "project/config",
         relativeFilePath: ".cursorignore",
         fileContent,
@@ -490,7 +490,7 @@ dist/
       await writeFileContent(cursorIgnore.getFilePath(), cursorIgnore.getFileContent());
 
       const readCursorIgnore = await CursorIgnore.fromFile({
-        baseDir: join(testDir, "project/config"),
+        outputRoot: join(testDir, "project/config"),
       });
 
       expect(readCursorIgnore.getFileContent()).toBe(fileContent);
@@ -557,7 +557,7 @@ temp*/
 
     it("should work in workspace root context", () => {
       const cursorIgnore = CursorIgnore.fromRulesyncIgnore({
-        baseDir: "/workspace/root",
+        outputRoot: "/workspace/root",
         rulesyncIgnore: new RulesyncIgnore({
           relativeDirPath: ".rulesync",
           relativeFilePath: ".rulesignore",

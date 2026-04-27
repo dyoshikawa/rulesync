@@ -74,7 +74,7 @@ export class ClaudecodeLegacyRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
     global = false,
@@ -86,11 +86,11 @@ export class ClaudecodeLegacyRule extends ToolRule {
     if (isRoot) {
       const rootDirPath = overrideDirPath ?? paths.root.relativeDirPath;
       const fileContent = await readFileContent(
-        join(baseDir, rootDirPath, paths.root.relativeFilePath),
+        join(outputRoot, rootDirPath, paths.root.relativeFilePath),
       );
 
       return new ClaudecodeLegacyRule({
-        baseDir,
+        outputRoot,
         relativeDirPath: rootDirPath,
         relativeFilePath: paths.root.relativeFilePath,
         fileContent,
@@ -104,9 +104,9 @@ export class ClaudecodeLegacyRule extends ToolRule {
     }
 
     const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(join(baseDir, relativePath));
+    const fileContent = await readFileContent(join(outputRoot, relativePath));
     return new ClaudecodeLegacyRule({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.nonRoot.relativeDirPath,
       relativeFilePath: relativeFilePath,
       fileContent,
@@ -116,7 +116,7 @@ export class ClaudecodeLegacyRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
     global = false,
@@ -124,7 +124,7 @@ export class ClaudecodeLegacyRule extends ToolRule {
     const paths = this.getSettablePaths({ global });
     return new ClaudecodeLegacyRule(
       this.buildToolRuleParamsDefault({
-        baseDir,
+        outputRoot,
         rulesyncRule,
         validate,
         rootPath: paths.root,
@@ -142,7 +142,7 @@ export class ClaudecodeLegacyRule extends ToolRule {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
     global = false,
@@ -151,7 +151,7 @@ export class ClaudecodeLegacyRule extends ToolRule {
     const isRoot = relativeFilePath === paths.root.relativeFilePath;
 
     return new ClaudecodeLegacyRule({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "",

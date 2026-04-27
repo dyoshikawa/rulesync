@@ -40,13 +40,13 @@ export class AugmentcodeRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): AugmentcodeRule {
     return new AugmentcodeRule(
       this.buildToolRuleParamsDefault({
-        baseDir,
+        outputRoot,
         rulesyncRule,
         validate,
         nonRootPath: this.getSettablePaths().nonRoot,
@@ -55,12 +55,12 @@ export class AugmentcodeRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<AugmentcodeRule> {
     const filePath = join(
-      baseDir,
+      outputRoot,
       this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath,
     );
@@ -68,7 +68,7 @@ export class AugmentcodeRule extends ToolRule {
     const { body: content } = parseFrontmatter(fileContent, filePath);
 
     return new AugmentcodeRule({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: relativeFilePath,
       fileContent: content.trim(),
@@ -81,12 +81,12 @@ export class AugmentcodeRule extends ToolRule {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): AugmentcodeRule {
     return new AugmentcodeRule({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "",

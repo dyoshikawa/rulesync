@@ -11,7 +11,7 @@ function createMockAiFileParams(
   override: Partial<ConstructorParameters<typeof RulesyncHooks>[0]> = {},
 ) {
   return {
-    baseDir: "/mock",
+    outputRoot: "/mock",
     relativeDirPath: ".rulesync",
     relativeFilePath: "hooks.json",
     fileContent: "{}",
@@ -45,7 +45,7 @@ describe("CodexcliHooks", () => {
       );
 
       const codexHooks = await CodexcliHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: true,
       });
@@ -75,7 +75,7 @@ describe("CodexcliHooks", () => {
       );
 
       const codexHooks = await CodexcliHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: true,
       });
@@ -98,7 +98,7 @@ describe("CodexcliHooks", () => {
       );
 
       const codexHooks = await CodexcliHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: true,
       });
@@ -125,7 +125,7 @@ describe("CodexcliHooks", () => {
       );
 
       const codexHooks = await CodexcliHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: true,
       });
@@ -149,7 +149,7 @@ describe("CodexcliHooks", () => {
       );
 
       const codexHooks = await CodexcliHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: true,
       });
@@ -177,7 +177,7 @@ describe("CodexcliHooks", () => {
       );
 
       const codexHooks = await CodexcliHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: true,
       });
@@ -203,7 +203,7 @@ describe("CodexcliHooks", () => {
       );
 
       await CodexcliHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: true,
       });
@@ -229,7 +229,7 @@ describe("CodexcliHooks", () => {
       );
 
       const codexHooks = await CodexcliHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: true,
       });
@@ -377,7 +377,7 @@ describe("CodexcliHooks", () => {
       );
 
       const codexHooks = await CodexcliHooks.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
       expect(codexHooks).toBeInstanceOf(CodexcliHooks);
@@ -388,7 +388,7 @@ describe("CodexcliHooks", () => {
 
     it("should initialize empty hooks when hooks.json does not exist", async () => {
       const codexHooks = await CodexcliHooks.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
       expect(codexHooks).toBeInstanceOf(CodexcliHooks);
@@ -435,7 +435,7 @@ describe("CodexcliConfigToml", () => {
   });
 
   it("should generate config.toml with codex_hooks feature flag", async () => {
-    const configToml = await CodexcliConfigToml.fromBaseDir({ baseDir: testDir });
+    const configToml = await CodexcliConfigToml.fromOutputRoot({ outputRoot: testDir });
     expect(configToml.getFileContent()).toContain("codex_hooks");
   });
 
@@ -446,7 +446,7 @@ describe("CodexcliConfigToml", () => {
       '[mcp_servers.myserver]\ncommand = "node"\n',
     );
 
-    const configToml = await CodexcliConfigToml.fromBaseDir({ baseDir: testDir });
+    const configToml = await CodexcliConfigToml.fromOutputRoot({ outputRoot: testDir });
     const content = configToml.getFileContent();
     expect(content).toContain("codex_hooks");
     expect(content).toContain("mcp_servers");
@@ -457,7 +457,7 @@ describe("CodexcliConfigToml", () => {
     await ensureDir(join(testDir, ".codex"));
     await writeFileContent(join(testDir, ".codex", "config.toml"), "[features]\nverbose = true\n");
 
-    const configToml = await CodexcliConfigToml.fromBaseDir({ baseDir: testDir });
+    const configToml = await CodexcliConfigToml.fromOutputRoot({ outputRoot: testDir });
     const content = configToml.getFileContent();
     expect(content).toContain("codex_hooks = true");
     expect(content).toContain("verbose = true");
@@ -467,13 +467,13 @@ describe("CodexcliConfigToml", () => {
     await ensureDir(join(testDir, ".codex"));
     await writeFileContent(join(testDir, ".codex", "config.toml"), "[features");
 
-    await expect(CodexcliConfigToml.fromBaseDir({ baseDir: testDir })).rejects.toThrow(
+    await expect(CodexcliConfigToml.fromOutputRoot({ outputRoot: testDir })).rejects.toThrow(
       "Failed to parse existing Codex CLI config",
     );
   });
 
   it("should set correct file paths", async () => {
-    const configToml = await CodexcliConfigToml.fromBaseDir({ baseDir: testDir });
+    const configToml = await CodexcliConfigToml.fromOutputRoot({ outputRoot: testDir });
     expect(configToml.getRelativeDirPath()).toBe(".codex");
     expect(configToml.getRelativeFilePath()).toBe("config.toml");
   });

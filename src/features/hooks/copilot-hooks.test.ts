@@ -57,7 +57,7 @@ describe("CopilotHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -65,7 +65,7 @@ describe("CopilotHooks", () => {
       });
 
       const copilotHooks = await CopilotHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -92,7 +92,7 @@ describe("CopilotHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -100,7 +100,7 @@ describe("CopilotHooks", () => {
       });
 
       const copilotHooks = await CopilotHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -126,7 +126,7 @@ describe("CopilotHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -134,7 +134,7 @@ describe("CopilotHooks", () => {
       });
 
       const copilotHooks = await CopilotHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -157,7 +157,7 @@ describe("CopilotHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -165,7 +165,7 @@ describe("CopilotHooks", () => {
       });
 
       const copilotHooks = await CopilotHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -188,7 +188,7 @@ describe("CopilotHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -196,7 +196,7 @@ describe("CopilotHooks", () => {
       });
 
       const copilotHooks = await CopilotHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -219,7 +219,7 @@ describe("CopilotHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -227,7 +227,7 @@ describe("CopilotHooks", () => {
       });
 
       const copilotHooks = await CopilotHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -253,7 +253,7 @@ describe("CopilotHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -261,7 +261,7 @@ describe("CopilotHooks", () => {
       });
 
       const copilotHooks = await CopilotHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -283,7 +283,7 @@ describe("CopilotHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -291,7 +291,7 @@ describe("CopilotHooks", () => {
       });
 
       const copilotHooks = await CopilotHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -315,7 +315,7 @@ describe("CopilotHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -323,7 +323,7 @@ describe("CopilotHooks", () => {
       });
 
       const copilotHooks = await CopilotHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -347,7 +347,7 @@ describe("CopilotHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -355,7 +355,7 @@ describe("CopilotHooks", () => {
       });
 
       const copilotHooks = await CopilotHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -383,7 +383,7 @@ describe("CopilotHooks", () => {
         },
       };
       const rulesyncHooks = new RulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify(config),
@@ -391,7 +391,7 @@ describe("CopilotHooks", () => {
       });
 
       const copilotHooks = await CopilotHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
@@ -416,7 +416,7 @@ describe("CopilotHooks", () => {
   describe("toRulesyncHooks", () => {
     it("should throw error with descriptive message when content contains invalid JSON", () => {
       const copilotHooks = new CopilotHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "hooks"),
         relativeFilePath: "copilot-hooks.json",
         fileContent: "invalid json {",
@@ -428,7 +428,7 @@ describe("CopilotHooks", () => {
 
     it("should convert Copilot hooks with bash-only to canonical format", () => {
       const copilotHooks = new CopilotHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "hooks"),
         relativeFilePath: "copilot-hooks.json",
         fileContent: JSON.stringify({
@@ -455,7 +455,7 @@ describe("CopilotHooks", () => {
 
     it("should convert Copilot hooks with powershell-only to canonical format", () => {
       const copilotHooks = new CopilotHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "hooks"),
         relativeFilePath: "copilot-hooks.json",
         fileContent: JSON.stringify({
@@ -479,7 +479,7 @@ describe("CopilotHooks", () => {
       const logger = createMockLogger();
 
       const copilotHooks = new CopilotHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "hooks"),
         relativeFilePath: "copilot-hooks.json",
         fileContent: JSON.stringify({
@@ -506,7 +506,7 @@ describe("CopilotHooks", () => {
       const logger = createMockLogger();
 
       const copilotHooks = new CopilotHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "hooks"),
         relativeFilePath: "copilot-hooks.json",
         fileContent: JSON.stringify({
@@ -530,7 +530,7 @@ describe("CopilotHooks", () => {
 
     it("should handle empty hooks", () => {
       const copilotHooks = new CopilotHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "hooks"),
         relativeFilePath: "copilot-hooks.json",
         fileContent: JSON.stringify({ version: 1, hooks: {} }),
@@ -544,7 +544,7 @@ describe("CopilotHooks", () => {
 
     it("should skip invalid hook entries", () => {
       const copilotHooks = new CopilotHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "hooks"),
         relativeFilePath: "copilot-hooks.json",
         fileContent: JSON.stringify({
@@ -570,7 +570,7 @@ describe("CopilotHooks", () => {
 
     it("should not import unknown keys when converting to canonical hooks", () => {
       const copilotHooks = new CopilotHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "hooks"),
         relativeFilePath: "copilot-hooks.json",
         fileContent: JSON.stringify({
@@ -604,7 +604,7 @@ describe("CopilotHooks", () => {
       );
 
       const copilotHooks = await CopilotHooks.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
       expect(copilotHooks).toBeInstanceOf(CopilotHooks);
@@ -615,7 +615,7 @@ describe("CopilotHooks", () => {
 
     it("should initialize empty hooks when copilot-hooks.json does not exist", async () => {
       const copilotHooks = await CopilotHooks.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
       expect(copilotHooks).toBeInstanceOf(CopilotHooks);
@@ -628,7 +628,7 @@ describe("CopilotHooks", () => {
   describe("isDeletable", () => {
     it("should return true (default from ToolFile)", () => {
       const hooks = new CopilotHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "hooks"),
         relativeFilePath: "copilot-hooks.json",
         fileContent: '{"version":1,"hooks":{}}',
@@ -642,7 +642,7 @@ describe("CopilotHooks", () => {
   describe("forDeletion", () => {
     it("should return CopilotHooks instance with empty hooks for deletion path", () => {
       const hooks = CopilotHooks.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".github", "hooks"),
         relativeFilePath: "copilot-hooks.json",
       });

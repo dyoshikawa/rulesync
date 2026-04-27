@@ -45,7 +45,7 @@ describe("CursorCommand", () => {
   describe("constructor", () => {
     it("should create instance with valid content and frontmatter", () => {
       const command = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test-command.md",
         frontmatter: { description: "Test description" },
@@ -62,7 +62,7 @@ describe("CursorCommand", () => {
 
     it("should create instance with empty frontmatter", () => {
       const command = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test-command.md",
         frontmatter: {},
@@ -76,7 +76,7 @@ describe("CursorCommand", () => {
 
     it("should create instance without validation when validate is false", () => {
       const command = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test-command.md",
         frontmatter: {},
@@ -89,7 +89,7 @@ describe("CursorCommand", () => {
 
     it("should generate correct file content with frontmatter", () => {
       const command = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: "Test cursor command" },
@@ -106,7 +106,7 @@ describe("CursorCommand", () => {
   describe("getBody", () => {
     it("should return the command body", () => {
       const command = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test-command.md",
         frontmatter: { description: "Test" },
@@ -121,7 +121,7 @@ describe("CursorCommand", () => {
     it("should return the frontmatter", () => {
       const frontmatter = { description: "Test cursor command description" };
       const command = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test.md",
         frontmatter,
@@ -135,7 +135,7 @@ describe("CursorCommand", () => {
   describe("toRulesyncCommand", () => {
     it("should convert to RulesyncCommand with description", () => {
       const command = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test-command.md",
         frontmatter: { description: "Test cursor description" },
@@ -154,7 +154,7 @@ describe("CursorCommand", () => {
 
     it("should propagate undefined description when not set", () => {
       const command = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test.md",
         frontmatter: {},
@@ -168,7 +168,7 @@ describe("CursorCommand", () => {
 
     it("should preserve handoffs in cursor section", () => {
       const command = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -188,7 +188,7 @@ describe("CursorCommand", () => {
 
     it("should not include cursor section when no extra fields", () => {
       const command = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: "Just a description" },
@@ -204,7 +204,7 @@ describe("CursorCommand", () => {
   describe("fromRulesyncCommand", () => {
     it("should create CursorCommand from RulesyncCommand", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-command.md",
         frontmatter: {
@@ -217,7 +217,7 @@ describe("CursorCommand", () => {
       });
 
       const cursorCommand = CursorCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
         validate: true,
       });
@@ -233,7 +233,7 @@ describe("CursorCommand", () => {
 
     it("should handle RulesyncCommand with different file extensions", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "complex-command.txt",
         frontmatter: {
@@ -246,7 +246,7 @@ describe("CursorCommand", () => {
       });
 
       const cursorCommand = CursorCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
         validate: true,
       });
@@ -256,7 +256,7 @@ describe("CursorCommand", () => {
 
     it("should handle empty description", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-command.md",
         frontmatter: {
@@ -269,7 +269,7 @@ describe("CursorCommand", () => {
       });
 
       const cursorCommand = CursorCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
         validate: true,
       });
@@ -281,7 +281,7 @@ describe("CursorCommand", () => {
 
     it("should use global paths when global is true", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "global-test.md",
         frontmatter: {
@@ -293,7 +293,7 @@ describe("CursorCommand", () => {
       });
 
       const cursorCommand = CursorCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
         global: true,
       });
@@ -305,7 +305,7 @@ describe("CursorCommand", () => {
 
     it("should use local paths when global is false", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "local-test.md",
         frontmatter: {
@@ -317,7 +317,7 @@ describe("CursorCommand", () => {
       });
 
       const cursorCommand = CursorCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
         global: false,
       });
@@ -329,7 +329,7 @@ describe("CursorCommand", () => {
 
     it("should preserve cursor-specific fields from rulesync frontmatter", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "passthrough-test.md",
         frontmatter: {
@@ -344,7 +344,7 @@ describe("CursorCommand", () => {
       });
 
       const cursorCommand = CursorCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
       });
 
@@ -357,7 +357,7 @@ describe("CursorCommand", () => {
 
     it("should handle empty cursor fields in RulesyncCommand", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "empty-test.md",
         frontmatter: {
@@ -370,7 +370,7 @@ describe("CursorCommand", () => {
       });
 
       const cursorCommand = CursorCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
       });
 
@@ -397,7 +397,7 @@ It can be multiline.`;
       await writeFileContent(filePath, fileContent);
 
       const command = await CursorCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test-file-command.md",
         validate: true,
       });
@@ -434,7 +434,7 @@ This is the body.`;
       await writeFileContent(filePath, fileContent);
 
       const command = await CursorCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "with-handoffs.md",
         validate: true,
       });
@@ -464,7 +464,7 @@ This is the body.`;
       );
 
       const command = await CursorCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "no-frontmatter.md",
         validate: true,
       });
@@ -487,7 +487,7 @@ Body content`,
       );
 
       const command = await CursorCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "subdir/nested-command.md",
         validate: true,
       });
@@ -499,7 +499,7 @@ Body content`,
     it("should throw error when file does not exist", async () => {
       await expect(
         CursorCommand.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "non-existent-command.md",
           validate: true,
         }),
@@ -523,7 +523,7 @@ description: Whitespace test
       await writeFileContent(join(commandsDir, "whitespace.md"), fileContent);
 
       const command = await CursorCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "whitespace.md",
         validate: true,
       });
@@ -544,7 +544,7 @@ Global command body`,
       );
 
       const command = await CursorCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "global-test.md",
         global: true,
       });
@@ -567,7 +567,7 @@ Local command body`,
       );
 
       const command = await CursorCommand.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "local-test.md",
         global: false,
       });
@@ -581,7 +581,7 @@ Local command body`,
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
       const command = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "valid-command.md",
         frontmatter: { description: "Valid description" },
@@ -595,7 +595,7 @@ Local command body`,
 
     it("should return success for empty frontmatter", () => {
       const command = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "empty-fm.md",
         frontmatter: {},
@@ -609,7 +609,7 @@ Local command body`,
 
     it("should return success when frontmatter is undefined", () => {
       const command = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test.md",
         frontmatter: {} as any,
@@ -628,7 +628,7 @@ Local command body`,
   describe("forDeletion", () => {
     it("should create a minimal instance for deletion", () => {
       const command = CursorCommand.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "to-delete.md",
       });
@@ -642,7 +642,7 @@ Local command body`,
   describe("edge cases", () => {
     it("should handle empty body content", () => {
       const command = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "empty-body.md",
         frontmatter: {},
@@ -658,7 +658,7 @@ Local command body`,
         "Special characters: @#$%^&*()\nUnicode: 你好世界 🌍\nQuotes: \"Hello 'World'\"";
 
       const command = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "special-char.md",
         frontmatter: { description: "Special chars" },
@@ -676,7 +676,7 @@ Local command body`,
       const longContent = "A".repeat(10000);
 
       const command = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "long-content.md",
         frontmatter: {},
@@ -692,7 +692,7 @@ Local command body`,
       const windowsContent = "Line 1\r\nLine 2\r\nLine 3";
 
       const command = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "windows-lines.md",
         frontmatter: {},
@@ -707,7 +707,7 @@ Local command body`,
   describe("integration with base classes", () => {
     it("should properly inherit from ToolCommand", () => {
       const command = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test.md",
         frontmatter: { description: "Test" },
@@ -720,10 +720,10 @@ Local command body`,
       expect(command.getRelativeFilePath()).toBe("test.md");
     });
 
-    it("should handle baseDir correctly", () => {
-      const customBaseDir = "/custom/base/dir";
+    it("should handle outputRoot correctly", () => {
+      const customOutputRoot = "/custom/base/dir";
       const command = new CursorCommand({
-        baseDir: customBaseDir,
+        outputRoot: customOutputRoot,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "test.md",
         frontmatter: {},
@@ -738,7 +738,7 @@ Local command body`,
   describe("isTargetedByRulesyncCommand", () => {
     it("should return true for rulesync command with wildcard target", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], description: "Test" },
@@ -752,7 +752,7 @@ Local command body`,
 
     it("should return true for rulesync command with cursor target", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], description: "Test" },
@@ -766,7 +766,7 @@ Local command body`,
 
     it("should return true for rulesync command with cursor and other targets", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["claudecode", "cursor", "cline"], description: "Test" },
@@ -780,7 +780,7 @@ Local command body`,
 
     it("should return false for rulesync command with different target", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["claudecode"], description: "Test" },
@@ -794,7 +794,7 @@ Local command body`,
 
     it("should return false for rulesync command with empty targets", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: [], description: "Test" },
@@ -808,7 +808,7 @@ Local command body`,
 
     it("should return true for rulesync command with undefined targets (defaults to true)", () => {
       const rulesyncCommand = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: { targets: undefined as any, description: "Test" },
@@ -865,7 +865,7 @@ Local command body`,
   describe("tool-specific field passthrough", () => {
     it("round-trip should preserve description + handoffs", () => {
       const original = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "roundtrip.md",
         frontmatter: {
@@ -908,7 +908,7 @@ Local command body`,
 
     it("round-trip should preserve description-only (no cursor section)", () => {
       const original = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "desc-only.md",
         frontmatter: { description: "Just a description" },
@@ -918,7 +918,7 @@ Local command body`,
 
       const rulesyncCommand = original.toRulesyncCommand();
       const back = CursorCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
       });
 
@@ -928,7 +928,7 @@ Local command body`,
 
     it("round-trip should work for commands with no frontmatter", () => {
       const original = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "no-fm.md",
         frontmatter: {},
@@ -938,7 +938,7 @@ Local command body`,
 
       const rulesyncCommand = original.toRulesyncCommand();
       const back = CursorCommand.fromRulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
       });
 
@@ -947,7 +947,7 @@ Local command body`,
 
     it("unknown fields should pass through via looseObject", () => {
       const original = new CursorCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".cursor/commands",
         relativeFilePath: "unknown.md",
         frontmatter: {
@@ -981,7 +981,7 @@ Local command body`,
 
     it("double round-trip should produce stable output", () => {
       const original = new RulesyncCommand({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "stable.md",
         frontmatter: {
@@ -1024,7 +1024,7 @@ Body`,
       );
 
       const params: ToolCommandFromFileParams = {
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "type-test.md",
       };
 
@@ -1042,7 +1042,7 @@ Body`,
       });
 
       const params: ToolCommandFromRulesyncCommandParams = {
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncCommand,
       };
 

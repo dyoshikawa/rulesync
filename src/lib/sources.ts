@@ -68,11 +68,11 @@ type RemoteSkillFile = {
  */
 export async function resolveAndFetchSources(params: {
   sources: SourceEntry[];
-  baseDir: string;
+  outputRoot: string;
   options?: ResolveAndFetchSourcesOptions;
   logger: Logger;
 }): Promise<ResolveAndFetchSourcesResult> {
-  const { sources, baseDir, options = {}, logger } = params;
+  const { sources, outputRoot, options = {}, logger } = params;
 
   if (sources.length === 0) {
     return { fetchedSkillCount: 0, sourcesProcessed: 0 };
@@ -86,7 +86,7 @@ export async function resolveAndFetchSources(params: {
   // Read existing lockfile
   let lock: SourcesLock = options.updateSources
     ? createEmptyLock()
-    : await readLockFile({ baseDir, logger });
+    : await readLockFile({ outputRoot, logger });
 
   // Frozen mode: validate lockfile covers all declared sources.
   // Missing curated skills are fetched using locked refs.
@@ -113,7 +113,7 @@ export async function resolveAndFetchSources(params: {
   const client = new GitHubClient({ token });
 
   // Determine local skills (in .rulesync/skills/ but not in .curated/)
-  const localSkillNames = await getLocalSkillDirNames(baseDir);
+  const localSkillNames = await getLocalSkillDirNames(outputRoot);
 
   let totalSkillCount = 0;
   const allFetchedSkillNames = new Set<string>();
@@ -125,7 +125,7 @@ export async function resolveAndFetchSources(params: {
       if (transport === "git") {
         result = await fetchSourceViaGit({
           sourceEntry,
-          baseDir,
+          outputRoot,
           lock,
           localSkillNames,
           alreadyFetchedSkillNames: allFetchedSkillNames,
@@ -137,7 +137,7 @@ export async function resolveAndFetchSources(params: {
         result = await fetchSource({
           sourceEntry,
           client,
-          baseDir,
+          outputRoot,
           lock,
           localSkillNames,
           alreadyFetchedSkillNames: allFetchedSkillNames,
@@ -176,7 +176,7 @@ export async function resolveAndFetchSources(params: {
 
   // Only write lockfile if it has changed (and not in frozen mode)
   if (!options.frozen && JSON.stringify(lock) !== originalLockJson) {
-    await writeLockFile({ baseDir, lock, logger });
+    await writeLockFile({ outputRoot, lock, logger });
   } else {
     logger.debug("Lockfile unchanged, skipping write.");
   }
@@ -418,7 +418,7 @@ function groupRemoteFilesBySkillRoot(params: {
 async function fetchSource(params: {
   sourceEntry: SourceEntry;
   client: GitHubClient;
-  baseDir: string;
+  outputRoot: string;
   lock: SourcesLock;
   localSkillNames: Set<string>;
   alreadyFetchedSkillNames: Set<string>;
@@ -432,7 +432,7 @@ async function fetchSource(params: {
   const {
     sourceEntry,
     client,
-    baseDir,
+    outputRoot,
     localSkillNames,
     alreadyFetchedSkillNames,
     updateSources,
@@ -470,7 +470,7 @@ async function fetchSource(params: {
     logger.debug(`Resolved ${sourceKey} ref "${requestedRef}" to SHA: ${resolvedSha}`);
   }
 
-  const curatedDir = join(baseDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+  const curatedDir = join(outputRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
 
   // Skip re-fetch if SHA matches lockfile and curated skills exist on disk
   if (locked && resolvedSha === locked.resolvedRef && !updateSources) {
@@ -653,7 +653,7 @@ async function fetchSource(params: {
  */
 async function fetchSourceViaGit(params: {
   sourceEntry: SourceEntry;
-  baseDir: string;
+  outputRoot: string;
   lock: SourcesLock;
   localSkillNames: Set<string>;
   alreadyFetchedSkillNames: Set<string>;
@@ -663,7 +663,7 @@ async function fetchSourceViaGit(params: {
 }): Promise<{ skillCount: number; fetchedSkillNames: string[]; updatedLock: SourcesLock }> {
   const {
     sourceEntry,
-    baseDir,
+    outputRoot,
     localSkillNames,
     alreadyFetchedSkillNames,
     updateSources,
@@ -693,7 +693,7 @@ async function fetchSourceViaGit(params: {
     resolvedSha = def.sha;
   }
 
-  const curatedDir = join(baseDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+  const curatedDir = join(outputRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
   if (locked && resolvedSha === locked.resolvedRef && !updateSources) {
     if (await checkLockedSkillsExist(curatedDir, lockedSkillNames)) {
       return { skillCount: 0, fetchedSkillNames: lockedSkillNames, updatedLock: lock };

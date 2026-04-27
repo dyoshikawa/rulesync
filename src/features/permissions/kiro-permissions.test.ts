@@ -23,7 +23,7 @@ describe("KiroPermissions", () => {
 
   it("should convert rulesync permissions to Kiro default agent permissions", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: "permissions.json",
       fileContent: JSON.stringify({
@@ -37,7 +37,7 @@ describe("KiroPermissions", () => {
     });
 
     const kiroPermissions = await KiroPermissions.fromRulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       rulesyncPermissions,
     });
 
@@ -52,7 +52,7 @@ describe("KiroPermissions", () => {
 
   it("should convert Kiro default agent permissions to rulesync format", () => {
     const kiroPermissions = new KiroPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: join(".kiro", "agents"),
       relativeFilePath: "default.json",
       fileContent: JSON.stringify({
@@ -91,7 +91,7 @@ describe("KiroPermissions", () => {
     await ensureDir(kiroDir);
     await writeFileContent(join(kiroDir, "default.json"), JSON.stringify({ model: "x" }));
 
-    const loaded = await KiroPermissions.fromFile({ baseDir: testDir });
+    const loaded = await KiroPermissions.fromFile({ outputRoot: testDir });
     expect(loaded).toBeInstanceOf(KiroPermissions);
     expect(JSON.parse(loaded.getFileContent()).model).toBe("x");
   });
@@ -107,7 +107,7 @@ describe("KiroPermissions", () => {
     );
 
     const rulesyncPermissions = new RulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: "permissions.json",
       fileContent: JSON.stringify({
@@ -119,7 +119,7 @@ describe("KiroPermissions", () => {
     });
 
     const kiroPermissions = await KiroPermissions.fromRulesyncPermissions({
-      baseDir: testDir,
+      outputRoot: testDir,
       rulesyncPermissions,
     });
 

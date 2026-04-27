@@ -53,7 +53,7 @@ Body content`;
   describe("constructor", () => {
     it("should create instance with valid markdown content", () => {
       const subagent = new AgentsmdSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -76,7 +76,7 @@ Body content`;
 
     it("should create instance with empty name and description", () => {
       const subagent = new AgentsmdSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -96,7 +96,7 @@ Body content`;
 
     it("should create instance without validation when validate is false", () => {
       const subagent = new AgentsmdSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -114,7 +114,7 @@ Body content`;
       expect(
         () =>
           new AgentsmdSubagent({
-            baseDir: testDir,
+            outputRoot: testDir,
             relativeDirPath: ".agents/subagents",
             relativeFilePath: "invalid-agent.md",
             frontmatter: {
@@ -130,7 +130,7 @@ Body content`;
   describe("getBody", () => {
     it("should return the body content", () => {
       const subagent = new AgentsmdSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -148,7 +148,7 @@ Body content`;
   describe("getFrontmatter", () => {
     it("should return frontmatter with name and description", () => {
       const subagent = new AgentsmdSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -170,7 +170,7 @@ Body content`;
   describe("toRulesyncSubagent", () => {
     it("should throw error as it is a simulated file", () => {
       const subagent = new AgentsmdSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/subagents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -190,7 +190,7 @@ Body content`;
   describe("fromRulesyncSubagent", () => {
     it("should create AgentsmdSubagent from RulesyncSubagent", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -203,7 +203,7 @@ Body content`;
       });
 
       const agentsmdSubagent = AgentsmdSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/subagents",
         rulesyncSubagent,
         validate: true,
@@ -221,7 +221,7 @@ Body content`;
 
     it("should handle RulesyncSubagent with different file extensions", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "complex-agent.txt",
         frontmatter: {
@@ -234,7 +234,7 @@ Body content`;
       });
 
       const agentsmdSubagent = AgentsmdSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/subagents",
         rulesyncSubagent,
         validate: true,
@@ -245,7 +245,7 @@ Body content`;
 
     it("should handle empty name and description", () => {
       const rulesyncSubagent = new RulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-agent.md",
         frontmatter: {
@@ -258,7 +258,7 @@ Body content`;
       });
 
       const agentsmdSubagent = AgentsmdSubagent.fromRulesyncSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/subagents",
         rulesyncSubagent,
         validate: true,
@@ -279,7 +279,7 @@ Body content`;
       await writeFileContent(filePath, validMarkdownContent);
 
       const subagent = await AgentsmdSubagent.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test-file-agent.md",
         validate: true,
       });
@@ -302,7 +302,7 @@ Body content`;
       await writeFileContent(filePath, validMarkdownContent);
 
       const subagent = await AgentsmdSubagent.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "subdir/nested-agent.md",
         validate: true,
       });
@@ -313,7 +313,7 @@ Body content`;
     it("should throw error when file does not exist", async () => {
       await expect(
         AgentsmdSubagent.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "non-existent-agent.md",
           validate: true,
         }),
@@ -328,7 +328,7 @@ Body content`;
 
       await expect(
         AgentsmdSubagent.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "invalid-agent.md",
           validate: true,
         }),
@@ -343,7 +343,7 @@ Body content`;
 
       await expect(
         AgentsmdSubagent.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "no-frontmatter.md",
           validate: true,
         }),
@@ -354,7 +354,7 @@ Body content`;
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
       const subagent = new AgentsmdSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/subagents",
         relativeFilePath: "valid-agent.md",
         frontmatter: {
@@ -372,7 +372,7 @@ Body content`;
 
     it("should handle frontmatter with additional properties", () => {
       const subagent = new AgentsmdSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/subagents",
         relativeFilePath: "agent-with-extras.md",
         frontmatter: {
@@ -394,7 +394,7 @@ Body content`;
   describe("edge cases", () => {
     it("should handle empty body content", () => {
       const subagent = new AgentsmdSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/subagents",
         relativeFilePath: "empty-body.md",
         frontmatter: {
@@ -417,7 +417,7 @@ Body content`;
         "Special characters: @#$%^&*()\nUnicode: 你好世界 🌍\nQuotes: \"Hello 'World'\"";
 
       const subagent = new AgentsmdSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/subagents",
         relativeFilePath: "special-char.md",
         frontmatter: {
@@ -438,7 +438,7 @@ Body content`;
       const longContent = "A".repeat(10000);
 
       const subagent = new AgentsmdSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/subagents",
         relativeFilePath: "long-content.md",
         frontmatter: {
@@ -455,7 +455,7 @@ Body content`;
 
     it("should handle multi-line name and description", () => {
       const subagent = new AgentsmdSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/subagents",
         relativeFilePath: "multiline-fields.md",
         frontmatter: {
@@ -476,7 +476,7 @@ Body content`;
       const windowsContent = "Line 1\r\nLine 2\r\nLine 3";
 
       const subagent = new AgentsmdSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/subagents",
         relativeFilePath: "windows-lines.md",
         frontmatter: {
@@ -561,7 +561,7 @@ Body content`;
   describe("integration with base classes", () => {
     it("should properly inherit from SimulatedSubagent", () => {
       const subagent = new AgentsmdSubagent({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".agents/subagents",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -578,10 +578,10 @@ Body content`;
       expect(subagent.getRelativeFilePath()).toBe("test.md");
     });
 
-    it("should handle baseDir correctly", () => {
-      const customBaseDir = "/custom/base/dir";
+    it("should handle outputRoot correctly", () => {
+      const customOutputRoot = "/custom/base/dir";
       const subagent = new AgentsmdSubagent({
-        baseDir: customBaseDir,
+        outputRoot: customOutputRoot,
         relativeDirPath: ".agents/subagents",
         relativeFilePath: "test.md",
         frontmatter: {

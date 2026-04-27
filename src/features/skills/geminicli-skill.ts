@@ -23,7 +23,7 @@ export const GeminiCliSkillFrontmatterSchema = z.looseObject({
 export type GeminiCliSkillFrontmatter = z.infer<typeof GeminiCliSkillFrontmatterSchema>;
 
 export type GeminiCliSkillParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
   frontmatter: GeminiCliSkillFrontmatter;
@@ -42,7 +42,7 @@ export type GeminiCliSkillParams = {
  */
 export class GeminiCliSkill extends ToolSkill {
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath = GeminiCliSkill.getSettablePaths().relativeDirPath,
     dirName,
     frontmatter,
@@ -52,7 +52,7 @@ export class GeminiCliSkill extends ToolSkill {
     global = false,
   }: GeminiCliSkillParams) {
     super({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       dirName,
       mainFile: {
@@ -78,7 +78,7 @@ export class GeminiCliSkill extends ToolSkill {
     global?: boolean;
   } = {}): ToolSkillSettablePaths {
     // Gemini CLI skills use the same relative path for both project and global modes
-    // The actual location differs based on baseDir:
+    // The actual location differs based on outputRoot:
     // - Project mode: {process.cwd()}/.gemini/skills/
     // - Global mode: {getHomeDirectory()}/.gemini/skills/
     return {
@@ -124,7 +124,7 @@ export class GeminiCliSkill extends ToolSkill {
     };
 
     return new RulesyncSkill({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
       dirName: this.getDirName(),
       frontmatter: rulesyncFrontmatter,
@@ -136,7 +136,7 @@ export class GeminiCliSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -150,7 +150,7 @@ export class GeminiCliSkill extends ToolSkill {
     };
 
     return new GeminiCliSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: geminiCliFrontmatter,
@@ -174,14 +174,14 @@ export class GeminiCliSkill extends ToolSkill {
 
     const result = GeminiCliSkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
-      const skillDirPath = join(loaded.baseDir, loaded.relativeDirPath, loaded.dirName);
+      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
         `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
       );
     }
 
     return new GeminiCliSkill({
-      baseDir: loaded.baseDir,
+      outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
       frontmatter: result.data,
@@ -193,14 +193,14 @@ export class GeminiCliSkill extends ToolSkill {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): GeminiCliSkill {
     const settablePaths = GeminiCliSkill.getSettablePaths({ global });
     return new GeminiCliSkill({
-      baseDir,
+      outputRoot,
       relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },

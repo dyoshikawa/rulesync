@@ -65,7 +65,7 @@ describe("KiroSkill", () => {
   describe("fromRulesyncSkill", () => {
     it("should convert RulesyncSkill to KiroSkill", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -89,7 +89,7 @@ describe("KiroSkill", () => {
   describe("toRulesyncSkill", () => {
     it("should convert KiroSkill to RulesyncSkill", () => {
       const kiroSkill = new KiroSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
         frontmatter: {
           name: "test-skill",
@@ -112,7 +112,7 @@ describe("KiroSkill", () => {
   describe("isTargetedByRulesyncSkill", () => {
     it("should return true when targets includes kiro", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "kiro-skill",
         frontmatter: {
@@ -128,7 +128,7 @@ describe("KiroSkill", () => {
 
     it("should return true when targets includes wildcard", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "all-skill",
         frontmatter: {
@@ -144,7 +144,7 @@ describe("KiroSkill", () => {
 
     it("should return false when targets does not include kiro", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "other-skill",
         frontmatter: {
@@ -174,7 +174,7 @@ This is the skill body content.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       const skill = await KiroSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
       });
 
@@ -199,7 +199,7 @@ Missing description`;
 
       await expect(
         KiroSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "invalid-skill",
         }),
       ).rejects.toThrow(/Invalid frontmatter/);
@@ -220,7 +220,7 @@ This is the skill body content.`;
 
       await expect(
         KiroSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "test-skill",
         }),
       ).rejects.toThrow(/Frontmatter name \(wrong-name\) must match directory name \(test-skill\)/);
@@ -230,7 +230,7 @@ This is the skill body content.`;
   describe("forDeletion", () => {
     it("should create minimal instance for deletion", () => {
       const skill = KiroSkill.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".kiro", "skills"),
         dirName: "to-delete",
       });

@@ -93,7 +93,7 @@ export class GeminiCliCommand extends ToolCommand {
     const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
 
     return new RulesyncCommand({
-      baseDir: process.cwd(), // RulesyncCommand baseDir is always the project root directory
+      outputRoot: process.cwd(), // RulesyncCommand outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
@@ -104,7 +104,7 @@ export class GeminiCliCommand extends ToolCommand {
   }
 
   static fromRulesyncCommand({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncCommand,
     validate = true,
     global = false,
@@ -134,7 +134,7 @@ ${geminiFrontmatter.prompt}
     const paths = this.getSettablePaths({ global });
 
     return new GeminiCliCommand({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: rulesyncCommand.getRelativeFilePath().replace(".md", ".toml"),
       fileContent: tomlContent,
@@ -143,18 +143,18 @@ ${geminiFrontmatter.prompt}
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolCommandFromFileParams): Promise<GeminiCliCommand> {
     const paths = this.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     // Read file content
     const fileContent = await readFileContent(filePath);
 
     return new GeminiCliCommand({
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
       fileContent,
@@ -179,7 +179,7 @@ ${geminiFrontmatter.prompt}
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolCommandForDeletionParams): GeminiCliCommand {
@@ -188,7 +188,7 @@ ${geminiFrontmatter.prompt}
     const placeholderToml = `description = ""
 prompt = ""`;
     return new GeminiCliCommand({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: placeholderToml,

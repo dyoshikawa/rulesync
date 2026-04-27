@@ -35,7 +35,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
 
 export type RulesyncMcpParams = RulesyncFileParams;
 
-export type RulesyncMcpFromFileParams = Pick<RulesyncFileFromFileParams, "baseDir" | "validate">;
+export type RulesyncMcpFromFileParams = Pick<RulesyncFileFromFileParams, "outputRoot" | "validate">;
 
 export type RulesyncMcpSettablePaths = {
   recommended: {
@@ -86,23 +86,27 @@ export class RulesyncMcp extends RulesyncFile {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
     logger,
   }: RulesyncMcpFromFileParams & { logger?: Logger }): Promise<RulesyncMcp> {
     const paths = this.getSettablePaths();
     const recommendedPath = join(
-      baseDir,
+      outputRoot,
       paths.recommended.relativeDirPath,
       paths.recommended.relativeFilePath,
     );
-    const legacyPath = join(baseDir, paths.legacy.relativeDirPath, paths.legacy.relativeFilePath);
+    const legacyPath = join(
+      outputRoot,
+      paths.legacy.relativeDirPath,
+      paths.legacy.relativeFilePath,
+    );
 
     // Check if recommended path exists
     if (await fileExists(recommendedPath)) {
       const fileContent = await readFileContent(recommendedPath);
       return new RulesyncMcp({
-        baseDir,
+        outputRoot,
         relativeDirPath: paths.recommended.relativeDirPath,
         relativeFilePath: paths.recommended.relativeFilePath,
         fileContent,
@@ -117,7 +121,7 @@ export class RulesyncMcp extends RulesyncFile {
       );
       const fileContent = await readFileContent(legacyPath);
       return new RulesyncMcp({
-        baseDir,
+        outputRoot,
         relativeDirPath: paths.legacy.relativeDirPath,
         relativeFilePath: paths.legacy.relativeFilePath,
         fileContent,
@@ -128,7 +132,7 @@ export class RulesyncMcp extends RulesyncFile {
     // If neither exists, try to read recommended path (will throw appropriate error)
     const fileContent = await readFileContent(recommendedPath);
     return new RulesyncMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.recommended.relativeDirPath,
       relativeFilePath: paths.recommended.relativeFilePath,
       fileContent,
@@ -161,7 +165,7 @@ export class RulesyncMcp extends RulesyncFile {
     );
 
     return new RulesyncMcp({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       relativeDirPath: this.relativeDirPath,
       relativeFilePath: this.relativeFilePath,
       fileContent: JSON.stringify({ mcpServers: filteredServers }, null, 2),

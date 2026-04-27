@@ -94,7 +94,7 @@ export class CodexcliMcp extends ToolMcp {
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolMcpSettablePaths {
     // Both global (~/.codex/config.toml) and local (.codex/config.toml) use the same
-    // relative path. The difference is resolved by the baseDir passed to the processor.
+    // relative path. The difference is resolved by the outputRoot passed to the processor.
     return {
       relativeDirPath: ".codex",
       relativeFilePath: "config.toml",
@@ -109,17 +109,18 @@ export class CodexcliMcp extends ToolMcp {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
     global = false,
   }: ToolMcpFromFileParams): Promise<CodexcliMcp> {
     const paths = this.getSettablePaths({ global });
     const fileContent =
-      (await readFileContentOrNull(join(baseDir, paths.relativeDirPath, paths.relativeFilePath))) ??
-      smolToml.stringify({});
+      (await readFileContentOrNull(
+        join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
+      )) ?? smolToml.stringify({});
 
     return new CodexcliMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -128,14 +129,14 @@ export class CodexcliMcp extends ToolMcp {
   }
 
   static async fromRulesyncMcp({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncMcp,
     validate = true,
     global = false,
   }: ToolMcpFromRulesyncMcpParams): Promise<CodexcliMcp> {
     const paths = this.getSettablePaths({ global });
 
-    const configTomlFilePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const configTomlFilePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const configTomlFileContent = await readOrInitializeFileContent(
       configTomlFilePath,
       smolToml.stringify({}),
@@ -151,7 +152,7 @@ export class CodexcliMcp extends ToolMcp {
     configToml["mcp_servers"] = filteredMcpServers as smolToml.TomlTable;
 
     return new CodexcliMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent: smolToml.stringify(configToml),
@@ -192,12 +193,12 @@ export class CodexcliMcp extends ToolMcp {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolMcpForDeletionParams): CodexcliMcp {
     return new CodexcliMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "",

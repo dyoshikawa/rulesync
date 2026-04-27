@@ -41,7 +41,7 @@ describe("ReplitSkill", () => {
   describe("constructor", () => {
     it("should create instance with valid content", () => {
       const skill = new ReplitSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".agents", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -74,7 +74,7 @@ This is the body of the replit skill.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       const skill = await ReplitSkill.fromDir({
-        baseDir: testDir,
+        outputRoot: testDir,
         dirName: "test-skill",
       });
 
@@ -92,7 +92,7 @@ This is the body of the replit skill.`;
 
       await expect(
         ReplitSkill.fromDir({
-          baseDir: testDir,
+          outputRoot: testDir,
           dirName: "empty-skill",
         }),
       ).rejects.toThrow(/SKILL\.md not found/);
@@ -102,7 +102,7 @@ This is the body of the replit skill.`;
   describe("fromRulesyncSkill", () => {
     it("should create instance from RulesyncSkill", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
         frontmatter: {
@@ -130,7 +130,7 @@ This is the body of the replit skill.`;
   describe("isTargetedByRulesyncSkill", () => {
     it("should return true when targets includes '*'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "all-targets-skill",
         frontmatter: {
@@ -147,7 +147,7 @@ This is the body of the replit skill.`;
 
     it("should return true when targets includes 'replit'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "replit-skill",
         frontmatter: {
@@ -164,7 +164,7 @@ This is the body of the replit skill.`;
 
     it("should return false when targets does not include 'replit'", () => {
       const rulesyncSkill = new RulesyncSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "claudecode-only-skill",
         frontmatter: {
@@ -183,7 +183,7 @@ This is the body of the replit skill.`;
   describe("toRulesyncSkill", () => {
     it("should convert to RulesyncSkill", () => {
       const skill = new ReplitSkill({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".agents", "skills"),
         dirName: "test-skill",
         frontmatter: {
@@ -218,14 +218,14 @@ This is the body of the replit skill.`;
       expect(skill.getGlobal()).toBe(false);
     });
 
-    it("should use process.cwd() as default baseDir", () => {
+    it("should use process.cwd() as default outputRoot", () => {
       const skill = ReplitSkill.forDeletion({
         dirName: "cleanup",
         relativeDirPath: join(".agents", "skills"),
       });
 
       expect(skill).toBeInstanceOf(ReplitSkill);
-      expect(skill.getBaseDir()).toBe(testDir);
+      expect(skill.getOutputRoot()).toBe(testDir);
     });
 
     it("should create instance with empty frontmatter for deletion", () => {

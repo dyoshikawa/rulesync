@@ -187,7 +187,7 @@ type WalkContext = { totalFiles: number; totalSize: number };
 
 async function walkDirectory(
   dir: string,
-  baseDir: string,
+  outputRoot: string,
   depth: number = 0,
   ctx: WalkContext = { totalFiles: 0, totalSize: 0 },
   logger?: Logger,
@@ -206,7 +206,7 @@ async function walkDirectory(
       continue;
     }
     if (await directoryExists(fullPath)) {
-      results.push(...(await walkDirectory(fullPath, baseDir, depth + 1, ctx, logger)));
+      results.push(...(await walkDirectory(fullPath, outputRoot, depth + 1, ctx, logger)));
     } else {
       const size = await getFileSize(fullPath);
       if (size > MAX_FILE_SIZE) {
@@ -228,7 +228,7 @@ async function walkDirectory(
         );
       }
       const content = await readFileContent(fullPath);
-      results.push({ relativePath: relative(baseDir, fullPath), content, size });
+      results.push({ relativePath: relative(outputRoot, fullPath), content, size });
     }
   }
   return results;

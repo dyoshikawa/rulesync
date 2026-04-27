@@ -15,7 +15,7 @@ export type RulesyncPermissionsParams = RulesyncFileParams;
 
 export type RulesyncPermissionsFromFileParams = Pick<
   RulesyncFileFromFileParams,
-  "baseDir" | "validate"
+  "outputRoot" | "validate"
 >;
 
 export type RulesyncPermissionsSettablePaths = {
@@ -54,11 +54,11 @@ export class RulesyncPermissions extends RulesyncFile {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
   }: RulesyncPermissionsFromFileParams): Promise<RulesyncPermissions> {
     const paths = RulesyncPermissions.getSettablePaths();
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
 
     if (!(await fileExists(filePath))) {
       throw new Error(`No ${RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH} found.`);
@@ -66,7 +66,7 @@ export class RulesyncPermissions extends RulesyncFile {
 
     const fileContent = await readFileContent(filePath);
     return new RulesyncPermissions({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,

@@ -57,7 +57,7 @@ export class CodexcliRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
     global = false,
@@ -68,11 +68,11 @@ export class CodexcliRule extends ToolRule {
     if (isRoot) {
       const relativePath = paths.root.relativeFilePath;
       const fileContent = await readFileContent(
-        join(baseDir, paths.root.relativeDirPath, relativePath),
+        join(outputRoot, paths.root.relativeDirPath, relativePath),
       );
 
       return new CodexcliRule({
-        baseDir,
+        outputRoot,
         relativeDirPath: paths.root.relativeDirPath,
         relativeFilePath: paths.root.relativeFilePath,
         fileContent,
@@ -86,9 +86,9 @@ export class CodexcliRule extends ToolRule {
     }
 
     const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(join(baseDir, relativePath));
+    const fileContent = await readFileContent(join(outputRoot, relativePath));
     return new CodexcliRule({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.nonRoot.relativeDirPath,
       relativeFilePath: relativeFilePath,
       fileContent,
@@ -98,7 +98,7 @@ export class CodexcliRule extends ToolRule {
   }
 
   static fromRulesyncRule({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
     global = false,
@@ -106,7 +106,7 @@ export class CodexcliRule extends ToolRule {
     const paths = this.getSettablePaths({ global });
     return new CodexcliRule(
       this.buildToolRuleParamsAgentsmd({
-        baseDir,
+        outputRoot,
         rulesyncRule,
         validate,
         rootPath: paths.root,
@@ -127,7 +127,7 @@ export class CodexcliRule extends ToolRule {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
     global = false,
@@ -136,7 +136,7 @@ export class CodexcliRule extends ToolRule {
     const isRoot = relativeFilePath === paths.root.relativeFilePath;
 
     return new CodexcliRule({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "",

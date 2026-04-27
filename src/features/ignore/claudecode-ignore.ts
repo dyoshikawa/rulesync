@@ -112,7 +112,7 @@ export class ClaudecodeIgnore extends ToolIgnore {
     const fileContent = rulesyncPatterns.join("\n");
 
     return new RulesyncIgnore({
-      baseDir: this.baseDir,
+      outputRoot: this.outputRoot,
       relativeDirPath: RulesyncIgnore.getSettablePaths().recommended.relativeDirPath,
       relativeFilePath: RulesyncIgnore.getSettablePaths().recommended.relativeFilePath,
       fileContent,
@@ -120,7 +120,7 @@ export class ClaudecodeIgnore extends ToolIgnore {
   }
 
   static async fromRulesyncIgnore({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncIgnore,
     options,
   }: ToolIgnoreFromRulesyncIgnoreParams): Promise<ClaudecodeIgnore> {
@@ -133,7 +133,7 @@ export class ClaudecodeIgnore extends ToolIgnore {
     const deniedValues = patterns.map((pattern) => `Read(${pattern})`);
 
     const paths = this.getSettablePaths({ options });
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const exists = await fileExists(filePath);
     const existingFileContent = exists ? await readFileContent(filePath) : "{}";
     const existingJsonValue: ClaudeSettingsJson = JSON.parse(existingFileContent);
@@ -156,7 +156,7 @@ export class ClaudecodeIgnore extends ToolIgnore {
     };
 
     return new ClaudecodeIgnore({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent: JSON.stringify(jsonValue, null, 2),
@@ -165,13 +165,13 @@ export class ClaudecodeIgnore extends ToolIgnore {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
     options,
   }: ToolIgnoreFromFileParams): Promise<ClaudecodeIgnore> {
     const fileMode = resolveFileMode(options);
     const paths = this.getSettablePaths({ options });
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     // When `fileMode: "local"` is configured but the user has not yet created
     // `.claude/settings.local.json` (a common case during `rulesync import`),
     // gracefully fall back to an empty settings document instead of throwing.
@@ -184,7 +184,7 @@ export class ClaudecodeIgnore extends ToolIgnore {
     const fileContent = exists ? await readFileContent(filePath) : "{}";
 
     return new ClaudecodeIgnore({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent: fileContent,
@@ -193,12 +193,12 @@ export class ClaudecodeIgnore extends ToolIgnore {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolIgnoreForDeletionParams): ClaudecodeIgnore {
     return new ClaudecodeIgnore({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "{}",

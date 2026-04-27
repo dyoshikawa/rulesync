@@ -50,16 +50,16 @@ export class QwencodeRule extends ToolRule {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<QwencodeRule> {
     const isRoot = relativeFilePath === "QWEN.md";
     const relativePath = isRoot ? "QWEN.md" : join(".qwen", "memories", relativeFilePath);
-    const fileContent = await readFileContent(join(baseDir, relativePath));
+    const fileContent = await readFileContent(join(outputRoot, relativePath));
 
     return new QwencodeRule({
-      baseDir,
+      outputRoot,
       relativeDirPath: isRoot
         ? this.getSettablePaths().root.relativeDirPath
         : this.getSettablePaths().nonRoot.relativeDirPath,
@@ -71,10 +71,10 @@ export class QwencodeRule extends ToolRule {
   }
 
   static fromRulesyncRule(params: ToolRuleFromRulesyncRuleParams): QwencodeRule {
-    const { baseDir = process.cwd(), rulesyncRule, validate = true } = params;
+    const { outputRoot = process.cwd(), rulesyncRule, validate = true } = params;
     return new QwencodeRule(
       this.buildToolRuleParamsDefault({
-        baseDir,
+        outputRoot,
         rulesyncRule,
         validate,
         rootPath: this.getSettablePaths().root,
@@ -92,14 +92,14 @@ export class QwencodeRule extends ToolRule {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): QwencodeRule {
     const isRoot = relativeFilePath === "QWEN.md" && relativeDirPath === ".";
 
     return new QwencodeRule({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "",

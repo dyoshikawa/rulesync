@@ -23,7 +23,7 @@ class TestToolFile extends ToolFile {
 
   static async fromFilePath(_params: any): Promise<TestToolFile> {
     return new TestToolFile({
-      baseDir: _params.baseDir,
+      outputRoot: _params.outputRoot,
       relativeDirPath: _params.relativeDirPath,
       relativeFilePath: _params.relativeFilePath,
       fileContent: "test content from file path",
@@ -52,7 +52,7 @@ describe("ToolFile", () => {
       "should output forward slashes only for %s",
       (_, relativeDirPath, relativeFilePath, expected) => {
         const file = new TestToolFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath,
           relativeFilePath,
           fileContent: "content",
@@ -111,7 +111,7 @@ describe("ToolFile", () => {
   describe("concrete implementation functionality", () => {
     it("should work as concrete implementation", async () => {
       const file = await TestToolFile.fromFilePath({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".tool",
         relativeFilePath: "config.txt",
         filePath: join(testDir, ".tool", "config.txt"),
@@ -158,7 +158,7 @@ describe("ToolFile", () => {
   describe("path traversal security", () => {
     it("should prevent path traversal via relativeDirPath", () => {
       const file = new TestToolFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "../../etc",
         relativeFilePath: "passwd",
         fileContent: "malicious content",
@@ -170,7 +170,7 @@ describe("ToolFile", () => {
 
     it("should prevent path traversal via relativeFilePath", () => {
       const file = new TestToolFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".tool",
         relativeFilePath: "../../etc/passwd",
         fileContent: "malicious content",
@@ -182,7 +182,7 @@ describe("ToolFile", () => {
 
     it("should prevent complex path traversal attacks", () => {
       const file = new TestToolFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "foo/../../..",
         relativeFilePath: "etc/passwd",
         fileContent: "malicious content",
@@ -192,9 +192,9 @@ describe("ToolFile", () => {
       expect(() => file.getFilePath()).toThrow("Path traversal detected");
     });
 
-    it("should allow safe relative paths within baseDir", () => {
+    it("should allow safe relative paths within outputRoot", () => {
       const file = new TestToolFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".tool/config",
         relativeFilePath: "settings.txt",
         fileContent: "safe content",
@@ -205,9 +205,9 @@ describe("ToolFile", () => {
       expect(file.getFilePath()).toBe(join(testDir, ".tool", "config", "settings.txt"));
     });
 
-    it("should allow nested directories within baseDir", () => {
+    it("should allow nested directories within outputRoot", () => {
       const file = new TestToolFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "deeply/nested/path",
         relativeFilePath: "file.txt",
         fileContent: "safe content",
@@ -218,9 +218,9 @@ describe("ToolFile", () => {
       expect(file.getFilePath()).toBe(join(testDir, "deeply", "nested", "path", "file.txt"));
     });
 
-    it("should handle baseDir with subdirectory correctly", () => {
+    it("should handle outputRoot with subdirectory correctly", () => {
       const file = new TestToolFile({
-        baseDir: join(testDir, "project"),
+        outputRoot: join(testDir, "project"),
         relativeDirPath: "src",
         relativeFilePath: "index.ts",
         fileContent: "safe content",
@@ -231,9 +231,9 @@ describe("ToolFile", () => {
       expect(file.getFilePath()).toBe(join(testDir, "project", "src", "index.ts"));
     });
 
-    it("should prevent escaping from nested baseDir", () => {
+    it("should prevent escaping from nested outputRoot", () => {
       const file = new TestToolFile({
-        baseDir: join(testDir, "project", "src"),
+        outputRoot: join(testDir, "project", "src"),
         relativeDirPath: "../../etc",
         relativeFilePath: "passwd",
         fileContent: "malicious content",

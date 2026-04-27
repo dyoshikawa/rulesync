@@ -13,23 +13,23 @@ import { ToolFile } from "./tool-file.js";
 import { ToolTarget } from "./tool-targets.js";
 
 export abstract class FeatureProcessor {
-  protected readonly baseDir: string;
+  protected readonly outputRoot: string;
   protected readonly inputRoot: string;
   protected readonly dryRun: boolean;
   protected readonly logger: Logger;
 
   constructor({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     inputRoot = process.cwd(),
     dryRun = false,
     logger,
   }: {
-    baseDir?: string;
+    outputRoot?: string;
     inputRoot?: string;
     dryRun?: boolean;
     logger: Logger;
   }) {
-    this.baseDir = baseDir;
+    this.outputRoot = outputRoot;
     this.inputRoot = inputRoot;
     this.dryRun = dryRun;
     this.logger = logger;

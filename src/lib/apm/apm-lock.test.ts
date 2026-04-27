@@ -220,7 +220,7 @@ dependencies: []
         package_type: "apm_package",
         deployed_files: [".github/instructions/a.instructions.md"],
       });
-      await writeApmLock({ baseDir: testDir, lock });
+      await writeApmLock({ outputRoot: testDir, lock });
       const written = await readFileContent(getApmLockPath(testDir));
       expect(written).toContain("lockfile_version:");
       const readBack = await readApmLock(testDir);

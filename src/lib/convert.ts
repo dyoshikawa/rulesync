@@ -158,14 +158,14 @@ async function runFeatureConvert<TProcessor, TSourceItem, TRulesyncItem>(
   return totalCount;
 }
 
-function getBaseDir(config: Config): string {
-  return config.getBaseDirs()[0] ?? ".";
+function getOutputRoot(config: Config): string {
+  return config.getOutputRoots()[0] ?? ".";
 }
 
 function buildRulesStrategy(ctx: ConvertContext) {
   const { config, logger } = ctx;
   const global = config.getGlobal();
-  const baseDir = getBaseDir(config);
+  const outputRoot = getOutputRoot(config);
   const allTargets = RulesProcessor.getToolTargets({ global });
 
   return {
@@ -173,7 +173,7 @@ function buildRulesStrategy(ctx: ConvertContext) {
     itemLabel: "rule file(s)",
     allTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
-      new RulesProcessor({ baseDir, toolTarget, global, dryRun, logger }),
+      new RulesProcessor({ outputRoot, toolTarget, global, dryRun, logger }),
     loadSource: (p) => p.loadToolFiles(),
     toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
     fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
@@ -191,7 +191,7 @@ function buildIgnoreStrategy(ctx: ConvertContext) {
     logger.debug("Skipping ignore conversion (not supported in global mode)");
     return null;
   }
-  const baseDir = getBaseDir(config);
+  const outputRoot = getOutputRoot(config);
   const allTargets = IgnoreProcessor.getToolTargets();
 
   return {
@@ -200,7 +200,7 @@ function buildIgnoreStrategy(ctx: ConvertContext) {
     allTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
       new IgnoreProcessor({
-        baseDir,
+        outputRoot,
         toolTarget,
         dryRun,
         logger,
@@ -220,7 +220,7 @@ function buildIgnoreStrategy(ctx: ConvertContext) {
 function buildMcpStrategy(ctx: ConvertContext) {
   const { config, logger } = ctx;
   const global = config.getGlobal();
-  const baseDir = getBaseDir(config);
+  const outputRoot = getOutputRoot(config);
   const allTargets = McpProcessor.getToolTargets({ global });
 
   return {
@@ -228,7 +228,7 @@ function buildMcpStrategy(ctx: ConvertContext) {
     itemLabel: "MCP file(s)",
     allTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
-      new McpProcessor({ baseDir, toolTarget, global, dryRun, logger }),
+      new McpProcessor({ outputRoot, toolTarget, global, dryRun, logger }),
     loadSource: (p) => p.loadToolFiles(),
     toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
     fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
@@ -243,7 +243,7 @@ function buildMcpStrategy(ctx: ConvertContext) {
 function buildCommandsStrategy(ctx: ConvertContext) {
   const { config, logger } = ctx;
   const global = config.getGlobal();
-  const baseDir = getBaseDir(config);
+  const outputRoot = getOutputRoot(config);
   const allTargets = CommandsProcessor.getToolTargets({ global, includeSimulated: false });
 
   return {
@@ -251,7 +251,7 @@ function buildCommandsStrategy(ctx: ConvertContext) {
     itemLabel: "command file(s)",
     allTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
-      new CommandsProcessor({ baseDir, toolTarget, global, dryRun, logger }),
+      new CommandsProcessor({ outputRoot, toolTarget, global, dryRun, logger }),
     loadSource: (p) => p.loadToolFiles(),
     toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
     fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
@@ -266,7 +266,7 @@ function buildCommandsStrategy(ctx: ConvertContext) {
 function buildSubagentsStrategy(ctx: ConvertContext) {
   const { config, logger } = ctx;
   const global = config.getGlobal();
-  const baseDir = getBaseDir(config);
+  const outputRoot = getOutputRoot(config);
   const allTargets = SubagentsProcessor.getToolTargets({ global, includeSimulated: false });
 
   return {
@@ -274,7 +274,7 @@ function buildSubagentsStrategy(ctx: ConvertContext) {
     itemLabel: "subagent file(s)",
     allTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
-      new SubagentsProcessor({ baseDir, toolTarget, global, dryRun, logger }),
+      new SubagentsProcessor({ outputRoot, toolTarget, global, dryRun, logger }),
     loadSource: (p) => p.loadToolFiles(),
     toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
     fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
@@ -289,7 +289,7 @@ function buildSubagentsStrategy(ctx: ConvertContext) {
 function buildSkillsStrategy(ctx: ConvertContext) {
   const { config, logger } = ctx;
   const global = config.getGlobal();
-  const baseDir = getBaseDir(config);
+  const outputRoot = getOutputRoot(config);
   const allTargets = SkillsProcessor.getToolTargets({ global });
 
   return {
@@ -297,7 +297,7 @@ function buildSkillsStrategy(ctx: ConvertContext) {
     itemLabel: "skill(s)",
     allTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
-      new SkillsProcessor({ baseDir, toolTarget, global, dryRun, logger }),
+      new SkillsProcessor({ outputRoot, toolTarget, global, dryRun, logger }),
     loadSource: (p) => p.loadToolDirs(),
     toRulesync: (p, dirs) => p.convertToolDirsToRulesyncDirs(dirs),
     fromRulesync: (p, dirs) => p.convertRulesyncDirsToToolDirs(dirs),
@@ -312,7 +312,7 @@ function buildSkillsStrategy(ctx: ConvertContext) {
 function buildHooksStrategy(ctx: ConvertContext) {
   const { config, logger } = ctx;
   const global = config.getGlobal();
-  const baseDir = getBaseDir(config);
+  const outputRoot = getOutputRoot(config);
   const allTargets = HooksProcessor.getToolTargets({ global });
   const importableTargets = HooksProcessor.getToolTargets({ global, importOnly: true });
 
@@ -322,7 +322,7 @@ function buildHooksStrategy(ctx: ConvertContext) {
     allTargets,
     importableTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
-      new HooksProcessor({ baseDir, toolTarget, global, dryRun, logger }),
+      new HooksProcessor({ outputRoot, toolTarget, global, dryRun, logger }),
     loadSource: (p) => p.loadToolFiles(),
     toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
     fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
@@ -337,7 +337,7 @@ function buildHooksStrategy(ctx: ConvertContext) {
 function buildPermissionsStrategy(ctx: ConvertContext) {
   const { config, logger } = ctx;
   const global = config.getGlobal();
-  const baseDir = getBaseDir(config);
+  const outputRoot = getOutputRoot(config);
   const allTargets = PermissionsProcessor.getToolTargets({ global });
   const importableTargets = PermissionsProcessor.getToolTargets({ global, importOnly: true });
 
@@ -347,7 +347,7 @@ function buildPermissionsStrategy(ctx: ConvertContext) {
     allTargets,
     importableTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
-      new PermissionsProcessor({ baseDir, toolTarget, global, dryRun, logger }),
+      new PermissionsProcessor({ outputRoot, toolTarget, global, dryRun, logger }),
     loadSource: (p) => p.loadToolFiles(),
     toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
     fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),

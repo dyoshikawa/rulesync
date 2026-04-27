@@ -57,7 +57,7 @@ describe("RovodevRule", () => {
       await writeFileContent(join(testDir, ".rovodev", "AGENTS.md"), content);
 
       const rule = await RovodevRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rovodev",
         relativeFilePath: "AGENTS.md",
       });
@@ -73,7 +73,7 @@ describe("RovodevRule", () => {
       await writeFileContent(join(testDir, "AGENTS.md"), content);
 
       const rule = await RovodevRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
       });
@@ -85,7 +85,7 @@ describe("RovodevRule", () => {
     it("should reject relativeFilePath other than AGENTS.md when not loading modular-rules", async () => {
       await expect(
         RovodevRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "other.md",
         }),
       ).rejects.toThrow(/Rovodev rules support only AGENTS\.md/);
@@ -98,7 +98,7 @@ describe("RovodevRule", () => {
       await writeFileContent(join(modularDir, "api.md"), content);
 
       const rule = await RovodevRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: join(".rovodev", ".rulesync", "modular-rules"),
         relativeFilePath: "api.md",
       });
@@ -115,7 +115,7 @@ describe("RovodevRule", () => {
 
       await expect(
         RovodevRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: join(".rovodev", ".rulesync", "modular-rules"),
           relativeFilePath: "AGENTS.md",
         }),
@@ -128,7 +128,7 @@ describe("RovodevRule", () => {
 
       await expect(
         RovodevRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: "pkg",
           relativeFilePath: "AGENTS.md",
         }),
@@ -141,7 +141,7 @@ describe("RovodevRule", () => {
 
       await expect(
         RovodevRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: "pkg",
           relativeFilePath: "AGENTS.md",
           global: true,
@@ -154,7 +154,7 @@ describe("RovodevRule", () => {
     it("should throw when AGENTS.md is missing", async () => {
       await expect(
         RovodevRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeDirPath: ".rovodev",
           relativeFilePath: "AGENTS.md",
         }),
@@ -178,7 +178,7 @@ describe("RovodevRule", () => {
       });
 
       const rovodevRule = RovodevRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
@@ -198,7 +198,7 @@ describe("RovodevRule", () => {
       });
 
       const rovodevRule = RovodevRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
         global: true,
       });
@@ -219,7 +219,7 @@ describe("RovodevRule", () => {
       });
 
       const rovodevRule = RovodevRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
@@ -242,7 +242,7 @@ describe("RovodevRule", () => {
 
       expect(() =>
         RovodevRule.fromRulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           rulesyncRule,
           global: true,
         }),
@@ -262,7 +262,7 @@ describe("RovodevRule", () => {
 
       expect(() =>
         RovodevRule.fromRulesyncRule({
-          baseDir: testDir,
+          outputRoot: testDir,
           rulesyncRule,
         }),
       ).toThrow(/Reserved Rovodev memory basename/);
@@ -361,7 +361,7 @@ describe("RovodevRule", () => {
   describe("round-trip", () => {
     it("fromRulesyncRule then toRulesyncRule preserves body and root", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: RULESYNC_OVERVIEW_FILE_NAME,
         frontmatter: {
@@ -373,7 +373,7 @@ describe("RovodevRule", () => {
       });
 
       const rovodev = RovodevRule.fromRulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncRule,
       });
 
@@ -400,7 +400,7 @@ describe("RovodevRule", () => {
   describe("forDeletion", () => {
     it("should create minimal instance for deletion", () => {
       const rule = RovodevRule.forDeletion({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rovodev",
         relativeFilePath: "AGENTS.md",
       });
@@ -414,7 +414,7 @@ describe("RovodevRule", () => {
   describe("isTargetedByRulesyncRule", () => {
     it("should return true when targets include rovodev", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "overview.md",
         frontmatter: { targets: ["rovodev"], root: true },
@@ -426,7 +426,7 @@ describe("RovodevRule", () => {
 
     it("should return true when targets include *", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "overview.md",
         frontmatter: { targets: ["*"], root: true },
@@ -438,7 +438,7 @@ describe("RovodevRule", () => {
 
     it("should return true for localRoot rule with rovodev target", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "local.md",
         frontmatter: { targets: ["rovodev"], localRoot: true, root: false },
@@ -450,7 +450,7 @@ describe("RovodevRule", () => {
 
     it("should return false when targets exclude rovodev", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "overview.md",
         frontmatter: { targets: ["junie"], root: true },
@@ -462,7 +462,7 @@ describe("RovodevRule", () => {
 
     it("should return true for non-root modular rules when targets include rovodev", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".rulesync/rules",
         relativeFilePath: "nested.md",
         frontmatter: { targets: ["rovodev"], root: false },

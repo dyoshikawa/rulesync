@@ -40,16 +40,16 @@ export class CodexcliPermissions extends ToolPermissions {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
     global = false,
   }: ToolPermissionsFromFileParams): Promise<CodexcliPermissions> {
     const paths = this.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? smolToml.stringify({});
 
     return new CodexcliPermissions({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
@@ -58,14 +58,14 @@ export class CodexcliPermissions extends ToolPermissions {
   }
 
   static async fromRulesyncPermissions({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncPermissions,
     validate = true,
     logger,
     global = false,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<CodexcliPermissions> {
     const paths = this.getSettablePaths({ global });
-    const filePath = join(baseDir, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? smolToml.stringify({});
     const parsed = toMutableTable(smolToml.parse(existingContent));
 
@@ -80,7 +80,7 @@ export class CodexcliPermissions extends ToolPermissions {
     parsed.default_permissions = RULESYNC_PROFILE_NAME;
 
     return new CodexcliPermissions({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent: smolToml.stringify(parsed),
@@ -120,12 +120,12 @@ export class CodexcliPermissions extends ToolPermissions {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolPermissionsForDeletionParams): CodexcliPermissions {
     return new CodexcliPermissions({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: smolToml.stringify({}),
@@ -141,14 +141,14 @@ export class CodexcliRulesFile extends ToolFile {
 }
 
 export function createCodexcliBashRulesFile({
-  baseDir = process.cwd(),
+  outputRoot = process.cwd(),
   config,
 }: {
-  baseDir?: string;
+  outputRoot?: string;
   config: PermissionsConfig;
 }): CodexcliRulesFile {
   return new CodexcliRulesFile({
-    baseDir,
+    outputRoot,
     relativeDirPath: join(".codex", "rules"),
     relativeFilePath: RULESYNC_BASH_RULES_FILE_NAME,
     fileContent: buildCodexBashRulesContent(config),

@@ -36,9 +36,9 @@ describe("AugmentcodeRule", () => {
       expect(augmentcodeRule.getFileContent()).toBe("# Test Rule\n\nThis is a test augment rule.");
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const augmentcodeRule = new AugmentcodeRule({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".augment/rules",
         relativeFilePath: "custom-rule.md",
         fileContent: "# Custom Rule",
@@ -96,9 +96,9 @@ describe("AugmentcodeRule", () => {
       expect(augmentcodeRule.getFileContent()).toBe("# Source Rule\n\nThis is a source rule.");
     });
 
-    it("should create AugmentcodeRule from RulesyncRule with custom baseDir", () => {
+    it("should create AugmentcodeRule from RulesyncRule with custom outputRoot", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: "/source/path",
+        outputRoot: "/source/path",
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
         relativeFilePath: "source-rule.md",
         frontmatter: {
@@ -111,7 +111,7 @@ describe("AugmentcodeRule", () => {
       });
 
       const augmentcodeRule = AugmentcodeRule.fromRulesyncRule({
-        baseDir: "/target/path",
+        outputRoot: "/target/path",
         rulesyncRule,
       });
 
@@ -174,7 +174,7 @@ describe("AugmentcodeRule", () => {
       );
 
       const augmentcodeRule = await AugmentcodeRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "test-rule.md",
       });
 
@@ -186,20 +186,20 @@ describe("AugmentcodeRule", () => {
       );
     });
 
-    it("should create AugmentcodeRule from file with custom baseDir", async () => {
-      const customBaseDir = join(testDir, "custom");
-      const augmentRulesDir = join(customBaseDir, ".augment", "rules");
+    it("should create AugmentcodeRule from file with custom outputRoot", async () => {
+      const customOutputRoot = join(testDir, "custom");
+      const augmentRulesDir = join(customOutputRoot, ".augment", "rules");
       await ensureDir(augmentRulesDir);
       const testFilePath = join(augmentRulesDir, "custom-rule.md");
       await writeFileContent(testFilePath, "---\ntitle: Custom\n---\n# Custom Rule");
 
       const augmentcodeRule = await AugmentcodeRule.fromFile({
-        baseDir: customBaseDir,
+        outputRoot: customOutputRoot,
         relativeFilePath: "custom-rule.md",
       });
 
       expect(augmentcodeRule.getFilePath()).toBe(
-        join(customBaseDir, ".augment", "rules", "custom-rule.md"),
+        join(customOutputRoot, ".augment", "rules", "custom-rule.md"),
       );
       expect(augmentcodeRule.getFileContent()).toBe("# Custom Rule");
     });
@@ -211,7 +211,7 @@ describe("AugmentcodeRule", () => {
       await writeFileContent(testFilePath, "---\ntitle: Validated\n---\n# Validated Rule");
 
       const augmentcodeRule = await AugmentcodeRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "validated-rule.md",
         validate: true,
       });
@@ -227,7 +227,7 @@ describe("AugmentcodeRule", () => {
       await writeFileContent(testFilePath, "---\ntitle: Unvalidated\n---\n# Unvalidated Rule");
 
       const augmentcodeRule = await AugmentcodeRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "unvalidated-rule.md",
         validate: false,
       });
@@ -243,7 +243,7 @@ describe("AugmentcodeRule", () => {
       await writeFileContent(testFilePath, "# Simple Rule\n\nNo frontmatter here.");
 
       const augmentcodeRule = await AugmentcodeRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "no-frontmatter.md",
       });
 
@@ -260,7 +260,7 @@ describe("AugmentcodeRule", () => {
       );
 
       const augmentcodeRule = await AugmentcodeRule.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeFilePath: "whitespace-rule.md",
       });
 
@@ -272,7 +272,7 @@ describe("AugmentcodeRule", () => {
     it("should throw error when file does not exist", async () => {
       await expect(
         AugmentcodeRule.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
           relativeFilePath: "nonexistent-rule.md",
         }),
       ).rejects.toThrow();
@@ -282,7 +282,7 @@ describe("AugmentcodeRule", () => {
   describe("toRulesyncRule", () => {
     it("should convert AugmentcodeRule to RulesyncRule", () => {
       const augmentcodeRule = new AugmentcodeRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".augment/rules",
         relativeFilePath: "test-rule.md",
         fileContent: "# Test Rule\n\nThis is a test rule.",
@@ -291,7 +291,7 @@ describe("AugmentcodeRule", () => {
       const rulesyncRule = augmentcodeRule.toRulesyncRule();
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getBaseDir()).toBe(testDir);
+      expect(rulesyncRule.getOutputRoot()).toBe(testDir);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("test-rule.md");
       expect(rulesyncRule.getBody()).toBe("# Test Rule\n\nThis is a test rule.");
@@ -299,7 +299,7 @@ describe("AugmentcodeRule", () => {
 
     it("should convert AugmentcodeRule to RulesyncRule preserving metadata", () => {
       const augmentcodeRule = new AugmentcodeRule({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: ".augment/rules",
         relativeFilePath: "complex-rule.md",
         fileContent: "# Complex Rule\n\nThis is a more complex rule with content.",
@@ -308,7 +308,7 @@ describe("AugmentcodeRule", () => {
 
       const rulesyncRule = augmentcodeRule.toRulesyncRule();
 
-      expect(rulesyncRule.getBaseDir()).toBe(testDir);
+      expect(rulesyncRule.getOutputRoot()).toBe(testDir);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(rulesyncRule.getRelativeFilePath()).toBe("complex-rule.md");
       expect(rulesyncRule.getBody()).toBe(
@@ -367,7 +367,7 @@ describe("AugmentcodeRule", () => {
       });
 
       // Test inherited methods
-      expect(typeof augmentcodeRule.getBaseDir).toBe("function");
+      expect(typeof augmentcodeRule.getOutputRoot).toBe("function");
       expect(typeof augmentcodeRule.getRelativeDirPath).toBe("function");
       expect(typeof augmentcodeRule.getRelativeFilePath).toBe("function");
       expect(typeof augmentcodeRule.getFileContent).toBe("function");
@@ -400,7 +400,7 @@ describe("AugmentcodeRule", () => {
   describe("isTargetedByRulesyncRule", () => {
     it("should return true for rules targeting augmentcode", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".augment/rules",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -414,7 +414,7 @@ describe("AugmentcodeRule", () => {
 
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".augment/rules",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -428,7 +428,7 @@ describe("AugmentcodeRule", () => {
 
     it("should return false for rules not targeting augmentcode", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".augment/rules",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -442,7 +442,7 @@ describe("AugmentcodeRule", () => {
 
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".augment/rules",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -456,7 +456,7 @@ describe("AugmentcodeRule", () => {
 
     it("should handle mixed targets including augmentcode", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".augment/rules",
         relativeFilePath: "test.md",
         frontmatter: {
@@ -470,7 +470,7 @@ describe("AugmentcodeRule", () => {
 
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".augment/rules",
         relativeFilePath: "test.md",
         frontmatter: {},

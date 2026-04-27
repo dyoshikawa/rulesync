@@ -39,9 +39,9 @@ describe("JunieIgnore", () => {
       expect(junieIgnore.getFileContent()).toBe("*.log\nnode_modules/");
     });
 
-    it("should create instance with custom baseDir", () => {
+    it("should create instance with custom outputRoot", () => {
       const junieIgnore = new JunieIgnore({
-        baseDir: "/custom/path",
+        outputRoot: "/custom/path",
         relativeDirPath: "subdir",
         relativeFilePath: ".aiignore",
         fileContent: "*.tmp",
@@ -76,7 +76,7 @@ describe("JunieIgnore", () => {
     it("should convert to RulesyncIgnore with same content", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const junieIgnore = new JunieIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".aiignore",
         fileContent,
@@ -92,7 +92,7 @@ describe("JunieIgnore", () => {
 
     it("should handle empty content", () => {
       const junieIgnore = new JunieIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".aiignore",
         fileContent: "",
@@ -106,7 +106,7 @@ describe("JunieIgnore", () => {
     it("should preserve patterns and formatting", () => {
       const fileContent = "# Generated files\n*.log\n*.tmp\n\n# Dependencies\nnode_modules/\n.env*";
       const junieIgnore = new JunieIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".aiignore",
         fileContent,
@@ -119,7 +119,7 @@ describe("JunieIgnore", () => {
   });
 
   describe("fromRulesyncIgnore", () => {
-    it("should create JunieIgnore from RulesyncIgnore with default baseDir", () => {
+    it("should create JunieIgnore from RulesyncIgnore with default outputRoot", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -132,13 +132,13 @@ describe("JunieIgnore", () => {
       });
 
       expect(junieIgnore).toBeInstanceOf(JunieIgnore);
-      expect(junieIgnore.getBaseDir()).toBe(testDir);
+      expect(junieIgnore.getOutputRoot()).toBe(testDir);
       expect(junieIgnore.getRelativeDirPath()).toBe(".");
       expect(junieIgnore.getRelativeFilePath()).toBe(".aiignore");
       expect(junieIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should create JunieIgnore from RulesyncIgnore with custom baseDir", () => {
+    it("should create JunieIgnore from RulesyncIgnore with custom outputRoot", () => {
       const fileContent = "*.tmp\nbuild/";
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -147,11 +147,11 @@ describe("JunieIgnore", () => {
       });
 
       const junieIgnore = JunieIgnore.fromRulesyncIgnore({
-        baseDir: "/custom/base",
+        outputRoot: "/custom/base",
         rulesyncIgnore,
       });
 
-      expect(junieIgnore.getBaseDir()).toBe("/custom/base");
+      expect(junieIgnore.getOutputRoot()).toBe("/custom/base");
       expect(junieIgnore.getFilePath()).toBe("/custom/base/.aiignore");
       expect(junieIgnore.getFileContent()).toBe(fileContent);
     });
@@ -187,17 +187,17 @@ describe("JunieIgnore", () => {
   });
 
   describe("fromFile", () => {
-    it("should read .aiignore file from baseDir with default baseDir", async () => {
+    it("should read .aiignore file from outputRoot with default outputRoot", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const junieignorePath = join(testDir, ".aiignore");
       await writeFileContent(junieignorePath, fileContent);
 
       const junieIgnore = await JunieIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(junieIgnore).toBeInstanceOf(JunieIgnore);
-      expect(junieIgnore.getBaseDir()).toBe(testDir);
+      expect(junieIgnore.getOutputRoot()).toBe(testDir);
       expect(junieIgnore.getRelativeDirPath()).toBe(".");
       expect(junieIgnore.getRelativeFilePath()).toBe(".aiignore");
       expect(junieIgnore.getFileContent()).toBe(fileContent);
@@ -209,7 +209,7 @@ describe("JunieIgnore", () => {
       await writeFileContent(junieignorePath, fileContent);
 
       const junieIgnore = await JunieIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(junieIgnore.getFileContent()).toBe(fileContent);
@@ -221,7 +221,7 @@ describe("JunieIgnore", () => {
       await writeFileContent(junieignorePath, fileContent);
 
       const junieIgnore = await JunieIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
 
@@ -233,7 +233,7 @@ describe("JunieIgnore", () => {
       await writeFileContent(junieignorePath, "");
 
       const junieIgnore = await JunieIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(junieIgnore.getFileContent()).toBe("");
@@ -274,13 +274,13 @@ Thumbs.db`;
       await writeFileContent(junieignorePath, fileContent);
 
       const junieIgnore = await JunieIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(junieIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should default baseDir to process.cwd() when not provided", async () => {
+    it("should default outputRoot to process.cwd() when not provided", async () => {
       // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\nnode_modules/";
       const junieignorePath = join(testDir, ".aiignore");
@@ -288,14 +288,14 @@ Thumbs.db`;
 
       const junieIgnore = await JunieIgnore.fromFile({});
 
-      expect(junieIgnore.getBaseDir()).toBe(testDir);
+      expect(junieIgnore.getOutputRoot()).toBe(testDir);
       expect(junieIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should throw error when .aiignore file does not exist", async () => {
       await expect(
         JunieIgnore.fromFile({
-          baseDir: testDir,
+          outputRoot: testDir,
         }),
       ).rejects.toThrow();
     });
@@ -306,7 +306,7 @@ Thumbs.db`;
       await writeFileContent(junieignorePath, fileContent);
 
       const junieIgnore = await JunieIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(junieIgnore.getFileContent()).toBe(fileContent);
@@ -343,13 +343,13 @@ Thumbs.db`;
 
     it("should inherit file path methods from ToolFile", () => {
       const junieIgnore = new JunieIgnore({
-        baseDir: "/test/base",
+        outputRoot: "/test/base",
         relativeDirPath: "subdir",
         relativeFilePath: ".aiignore",
         fileContent: "*.log",
       });
 
-      expect(junieIgnore.getBaseDir()).toBe("/test/base");
+      expect(junieIgnore.getOutputRoot()).toBe("/test/base");
       expect(junieIgnore.getRelativeDirPath()).toBe("subdir");
       expect(junieIgnore.getRelativeFilePath()).toBe(".aiignore");
       expect(junieIgnore.getFilePath()).toBe("/test/base/subdir/.aiignore");
@@ -369,7 +369,7 @@ dist/
 
       // JunieIgnore -> RulesyncIgnore -> JunieIgnore
       const originalJunieIgnore = new JunieIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".aiignore",
         fileContent: originalContent,
@@ -377,12 +377,12 @@ dist/
 
       const rulesyncIgnore = originalJunieIgnore.toRulesyncIgnore();
       const roundTripJunieIgnore = JunieIgnore.fromRulesyncIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncIgnore,
       });
 
       expect(roundTripJunieIgnore.getFileContent()).toBe(originalContent);
-      expect(roundTripJunieIgnore.getBaseDir()).toBe(testDir);
+      expect(roundTripJunieIgnore.getOutputRoot()).toBe(testDir);
       expect(roundTripJunieIgnore.getRelativeDirPath()).toBe(".");
       expect(roundTripJunieIgnore.getRelativeFilePath()).toBe(".aiignore");
     });
@@ -459,7 +459,7 @@ dist/
     it("should write and read file correctly", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const junieIgnore = new JunieIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".aiignore",
         fileContent,
@@ -470,7 +470,7 @@ dist/
 
       // Read file back
       const readJunieIgnore = await JunieIgnore.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
       });
 
       expect(readJunieIgnore.getFileContent()).toBe(fileContent);
@@ -483,7 +483,7 @@ dist/
 
       const fileContent = "*.log\nbuild/";
       const junieIgnore = new JunieIgnore({
-        baseDir: testDir,
+        outputRoot: testDir,
         relativeDirPath: "project/config",
         relativeFilePath: ".aiignore",
         fileContent,
@@ -493,7 +493,7 @@ dist/
       await writeFileContent(junieIgnore.getFilePath(), junieIgnore.getFileContent());
 
       const readJunieIgnore = await JunieIgnore.fromFile({
-        baseDir: join(testDir, "project/config"),
+        outputRoot: join(testDir, "project/config"),
       });
 
       expect(readJunieIgnore.getFileContent()).toBe(fileContent);
@@ -560,7 +560,7 @@ temp*/
 
     it("should work in workspace root context", () => {
       const junieIgnore = JunieIgnore.fromRulesyncIgnore({
-        baseDir: "/workspace/root",
+        outputRoot: "/workspace/root",
         rulesyncIgnore: new RulesyncIgnore({
           relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
           relativeFilePath: ".rulesignore",

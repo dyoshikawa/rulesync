@@ -72,7 +72,7 @@ async function importRulesCore(params: {
   }
 
   const rulesProcessor = new RulesProcessor({
-    baseDir: config.getBaseDirs()[0] ?? ".",
+    outputRoot: config.getOutputRoots()[0] ?? ".",
     toolTarget: tool,
     global,
     logger,
@@ -115,7 +115,7 @@ async function importIgnoreCore(params: {
   }
 
   const ignoreProcessor = new IgnoreProcessor({
-    baseDir: config.getBaseDirs()[0] ?? ".",
+    outputRoot: config.getOutputRoots()[0] ?? ".",
     toolTarget: tool,
     logger,
     featureOptions: config.getFeatureOptions(tool, "ignore"),
@@ -161,7 +161,7 @@ async function importMcpCore(params: {
   }
 
   const mcpProcessor = new McpProcessor({
-    baseDir: config.getBaseDirs()[0] ?? ".",
+    outputRoot: config.getOutputRoots()[0] ?? ".",
     toolTarget: tool,
     global,
     logger,
@@ -203,7 +203,7 @@ async function importCommandsCore(params: {
   }
 
   const commandsProcessor = new CommandsProcessor({
-    baseDir: config.getBaseDirs()[0] ?? ".",
+    outputRoot: config.getOutputRoots()[0] ?? ".",
     toolTarget: tool,
     global,
     logger,
@@ -244,7 +244,7 @@ async function importSubagentsCore(params: {
   }
 
   const subagentsProcessor = new SubagentsProcessor({
-    baseDir: config.getBaseDirs()[0] ?? ".",
+    outputRoot: config.getOutputRoots()[0] ?? ".",
     toolTarget: tool,
     global: config.getGlobal(),
     logger,
@@ -286,7 +286,7 @@ async function importSkillsCore(params: {
   }
 
   const skillsProcessor = new SkillsProcessor({
-    baseDir: config.getBaseDirs()[0] ?? ".",
+    outputRoot: config.getOutputRoots()[0] ?? ".",
     toolTarget: tool,
     global,
     logger,
@@ -333,7 +333,7 @@ async function importHooksCore(params: {
   }
 
   const hooksProcessor = new HooksProcessor({
-    baseDir: config.getBaseDirs()[0] ?? ".",
+    outputRoot: config.getOutputRoots()[0] ?? ".",
     toolTarget: tool,
     global,
     logger,
@@ -382,7 +382,7 @@ async function importPermissionsCore(params: {
   }
 
   const permissionsProcessor = new PermissionsProcessor({
-    baseDir: config.getBaseDirs()[0] ?? ".",
+    outputRoot: config.getOutputRoots()[0] ?? ".",
     toolTarget: tool,
     global: config.getGlobal(),
     logger,

@@ -5,17 +5,19 @@ import type { Logger } from "../../utils/logger.js";
 import { calculateTotalCount } from "../../utils/result.js";
 
 export type GenerateOptions = ConfigResolverResolveParams & {
-  // Commander maps `--base-dir` to `baseDir` (camelCase, singular) while the
-  // resolver reads `baseDirs` (plural). Accept the CLI shape here and
-  // normalize at the command boundary.
+  // Commander maps `--base-dir <paths>` to `baseDir` (camelCase, singular)
+  // while the resolver canonical field is `outputRoots` (plural). The CLI
+  // flag is a deprecated alias retained for backward compatibility — accept
+  // the CLI shape here and normalize at the command boundary, emitting a
+  // one-shot deprecation warning when it is used.
   baseDir?: string[];
 };
 
 /**
- * Compares two `baseDir` lists as sets — order-insensitive and
- * duplicate-insensitive. Used to decide whether `--base-dir` and the
- * programmatic `baseDirs` actually differ. Identical sets like
- * `["a", "b"]` vs `["b", "a"]` should NOT trigger the override warning.
+ * Compares two output-root lists as sets — order-insensitive and
+ * duplicate-insensitive. Used to decide whether `--base-dir` and
+ * `--output-roots` actually differ. Identical sets like `["a", "b"]` vs
+ * `["b", "a"]` should NOT trigger the override warning.
  */
 function sameDirSets(a: readonly string[], b: readonly string[]): boolean {
   const aSet = new Set(a);
@@ -54,29 +56,39 @@ function logFeatureResult(
 }
 
 export async function generateCommand(logger: Logger, options: GenerateOptions): Promise<void> {
-  const { baseDir, baseDirs, ...rest } = options;
+  const { baseDir, outputRoots, ...rest } = options;
 
-  // When both the CLI singular `baseDir` (from `--base-dir`) and the
-  // programmatic plural `baseDirs` are supplied with non-empty, differing
-  // values, prefer the explicit programmatic field but warn the user so the
-  // override is visible. Identical (as a set, order-insensitive) or empty
-  // inputs are silently merged.
-  const baseDirsResolved = baseDirs ?? baseDir;
+  // The deprecated `--base-dir` CLI flag is accepted as an alias of
+  // `--output-roots`. Emit a deprecation warning whenever it is used so the
+  // user sees a clear migration prompt at the call site. When both are
+  // supplied with non-empty, differing values, prefer `--output-roots` but
+  // also surface the override to the user. Identical (set-equal, order-
+  // insensitive) or empty inputs are silently merged.
+  if (baseDir !== undefined) {
+    logger.warn(
+      "--base-dir is deprecated; use --output-roots instead. " +
+        "It will be removed in a future major release.",
+    );
+  }
+  const outputRootsResolved = outputRoots ?? baseDir;
   if (
     baseDir !== undefined &&
-    baseDirs !== undefined &&
+    outputRoots !== undefined &&
     baseDir.length > 0 &&
-    baseDirs.length > 0 &&
-    !sameDirSets(baseDirs, baseDir)
+    outputRoots.length > 0 &&
+    !sameDirSets(outputRoots, baseDir)
   ) {
     logger.warn(
-      `Both 'baseDirs' and 'baseDir' (from --base-dir) were provided with ` +
-        `differing values; using 'baseDirs' (${JSON.stringify(baseDirs)}) ` +
-        `and ignoring 'baseDir' (${JSON.stringify(baseDir)}).`,
+      `Both '--output-roots' and '--base-dir' were provided with differing ` +
+        `values; using '--output-roots' (${JSON.stringify(outputRoots)}) and ` +
+        `ignoring '--base-dir' (${JSON.stringify(baseDir)}).`,
     );
   }
 
-  const config = await ConfigResolver.resolve({ ...rest, baseDirs: baseDirsResolved }, { logger });
+  const config = await ConfigResolver.resolve(
+    { ...rest, outputRoots: outputRootsResolved },
+    { logger },
+  );
 
   const check = config.getCheck();
 
@@ -85,14 +97,14 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
 
   logger.debug("Generating files...");
 
-  if (!(await checkRulesyncDirExists({ baseDir: config.getInputRoot() }))) {
+  if (!(await checkRulesyncDirExists({ outputRoot: config.getInputRoot() }))) {
     throw new CLIError(
       ".rulesync directory not found. Run 'rulesync init' first.",
       ErrorCodes.RULESYNC_DIR_NOT_FOUND,
     );
   }
 
-  logger.debug(`Base directories: ${config.getBaseDirs().join(", ")}`);
+  logger.debug(`Base directories: ${config.getOutputRoots().join(", ")}`);
 
   const features = config.getFeatures();
 

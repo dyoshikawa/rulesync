@@ -29,12 +29,12 @@ export type ToolIgnoreSettablePaths = {
   relativeFilePath: string;
 };
 
-export type ToolIgnoreFromFileParams = Pick<AiFileFromFileParams, "baseDir" | "validate"> & {
+export type ToolIgnoreFromFileParams = Pick<AiFileFromFileParams, "outputRoot" | "validate"> & {
   options?: ToolIgnoreFeatureOptions;
 };
 
 export type ToolIgnoreForDeletionParams = {
-  baseDir?: string;
+  outputRoot?: string;
   relativeDirPath: string;
   relativeFilePath: string;
 };
@@ -86,7 +86,7 @@ export abstract class ToolIgnore extends ToolFile {
 
   protected toRulesyncIgnoreDefault(): RulesyncIgnore {
     return new RulesyncIgnore({
-      baseDir: ".",
+      outputRoot: ".",
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: RULESYNC_AIIGNORE_FILE_NAME,
       fileContent: this.fileContent,

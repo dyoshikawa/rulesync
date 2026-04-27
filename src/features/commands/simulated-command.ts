@@ -61,7 +61,7 @@ export abstract class SimulatedCommand extends ToolCommand {
   }
 
   protected static fromRulesyncCommandDefault({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncCommand,
     validate = true,
   }: ToolCommandFromRulesyncCommandParams): ConstructorParameters<typeof SimulatedCommand>[0] {
@@ -74,7 +74,7 @@ export abstract class SimulatedCommand extends ToolCommand {
     const body = rulesyncCommand.getBody();
 
     return {
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       frontmatter: claudecodeFrontmatter,
       body,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
@@ -102,12 +102,12 @@ export abstract class SimulatedCommand extends ToolCommand {
   }
 
   protected static async fromFileDefault({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
   }: ToolCommandFromFileParams): Promise<ConstructorParameters<typeof SimulatedCommand>[0]> {
     const filePath = join(
-      baseDir,
+      outputRoot,
       SimulatedCommand.getSettablePaths().relativeDirPath,
       relativeFilePath,
     );
@@ -120,7 +120,7 @@ export abstract class SimulatedCommand extends ToolCommand {
     }
 
     return {
-      baseDir: baseDir,
+      outputRoot: outputRoot,
       relativeDirPath: SimulatedCommand.getSettablePaths().relativeDirPath,
       relativeFilePath,
       frontmatter: result.data,
@@ -130,12 +130,12 @@ export abstract class SimulatedCommand extends ToolCommand {
   }
 
   protected static forDeletionDefault({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
   }: ToolCommandForDeletionParams): ConstructorParameters<typeof SimulatedCommand>[0] {
     return {
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       frontmatter: { description: "" },

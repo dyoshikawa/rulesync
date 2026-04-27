@@ -38,19 +38,20 @@ export class GeminiCliMcp extends ToolMcp {
   }
 
   static async fromFile({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     validate = true,
     global = false,
   }: ToolMcpFromFileParams): Promise<GeminiCliMcp> {
     const paths = this.getSettablePaths({ global });
     const fileContent =
-      (await readFileContentOrNull(join(baseDir, paths.relativeDirPath, paths.relativeFilePath))) ??
-      '{"mcpServers":{}}';
+      (await readFileContentOrNull(
+        join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
+      )) ?? '{"mcpServers":{}}';
     const json = JSON.parse(fileContent);
     const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
 
     return new GeminiCliMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent: JSON.stringify(newJson, null, 2),
@@ -59,7 +60,7 @@ export class GeminiCliMcp extends ToolMcp {
   }
 
   static async fromRulesyncMcp({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     rulesyncMcp,
     validate = true,
     global = false,
@@ -67,14 +68,14 @@ export class GeminiCliMcp extends ToolMcp {
     const paths = this.getSettablePaths({ global });
 
     const fileContent = await readOrInitializeFileContent(
-      join(baseDir, paths.relativeDirPath, paths.relativeFilePath),
+      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       JSON.stringify({ mcpServers: {} }, null, 2),
     );
     const json = JSON.parse(fileContent);
     const newJson = { ...json, mcpServers: rulesyncMcp.getJson().mcpServers };
 
     return new GeminiCliMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent: JSON.stringify(newJson, null, 2),
@@ -100,13 +101,13 @@ export class GeminiCliMcp extends ToolMcp {
   }
 
   static forDeletion({
-    baseDir = process.cwd(),
+    outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
     global = false,
   }: ToolMcpForDeletionParams): GeminiCliMcp {
     return new GeminiCliMcp({
-      baseDir,
+      outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "{}",

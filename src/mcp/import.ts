@@ -14,7 +14,7 @@ import { type McpResultCounts } from "./types.js";
  * Schema for import options
  * Note: Import requires exactly one target tool
  * Excluded parameters:
- * - baseDirs: Always use [process.cwd()] in MCP context
+ * - outputRoots: Always use [process.cwd()] in MCP context
  * - verbose: Meaningless in MCP (no console output)
  * - silent: Meaningless in MCP
  * - configPath: Always use default path from process.cwd()
@@ -63,7 +63,7 @@ export async function executeImport(options: ImportOptions): Promise<McpImportRe
       // eslint-disable-next-line no-type-assertion/no-type-assertion
       features: options.features as RulesyncFeatures | undefined,
       global: options.global,
-      // Always use default baseDirs (process.cwd()) and configPath
+      // Always use default outputRoots (process.cwd()) and configPath
       // verbose and silent are meaningless in MCP context
       verbose: false,
       silent: true,

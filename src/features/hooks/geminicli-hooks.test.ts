@@ -11,7 +11,7 @@ function createMockAiFileParams(
   override: Partial<ConstructorParameters<typeof RulesyncHooks>[0]> = {},
 ) {
   return {
-    baseDir: "/mock",
+    outputRoot: "/mock",
     relativeDirPath: ".rulesync",
     relativeFilePath: "hooks.json",
     fileContent: "{}",
@@ -47,7 +47,7 @@ describe("GeminicliHooks", () => {
       );
 
       const geminiHooks = await GeminicliHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: true,
       });
@@ -73,7 +73,7 @@ describe("GeminicliHooks", () => {
       );
 
       const geminiHooks = await GeminicliHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: true,
       });
@@ -107,7 +107,7 @@ describe("GeminicliHooks", () => {
       );
 
       const geminiHooks = await GeminicliHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: true,
       });
@@ -136,7 +136,7 @@ describe("GeminicliHooks", () => {
       );
 
       const geminiHooks = await GeminicliHooks.fromRulesyncHooks({
-        baseDir: testDir,
+        outputRoot: testDir,
         rulesyncHooks,
         validate: true,
       });
@@ -253,7 +253,7 @@ describe("GeminicliHooks", () => {
       );
 
       const geminiHooks = await GeminicliHooks.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
       expect(geminiHooks).toBeInstanceOf(GeminicliHooks);
@@ -264,7 +264,7 @@ describe("GeminicliHooks", () => {
 
     it("should initialize empty hooks when settings.json does not exist", async () => {
       const geminiHooks = await GeminicliHooks.fromFile({
-        baseDir: testDir,
+        outputRoot: testDir,
         validate: false,
       });
       expect(geminiHooks).toBeInstanceOf(GeminicliHooks);
