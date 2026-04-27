@@ -171,7 +171,7 @@ export class CopilotRule extends ToolRule {
       // Root file: .github/copilot-instructions.md (no frontmatter for root file)
       return new CopilotRule({
         baseDir: baseDir,
-        frontmatter: copilotFrontmatter,
+        frontmatter: {},
         body,
         relativeDirPath: paths.root.relativeDirPath,
         relativeFilePath: paths.root.relativeFilePath,
@@ -202,13 +202,21 @@ export class CopilotRule extends ToolRule {
 
   static async fromFile({
     baseDir = process.cwd(),
+    relativeDirPath,
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolRuleFromFileParams): Promise<CopilotRule> {
     const paths = this.getSettablePaths({ global });
-    // Determine if this is a root file based on the file path
-    const isRoot = relativeFilePath === paths.root.relativeFilePath;
+    const isRoot = relativeDirPath
+      ? join(relativeDirPath, relativeFilePath) ===
+        join(paths.root.relativeDirPath, paths.root.relativeFilePath)
+      : relativeFilePath === paths.root.relativeFilePath;
+    const resolvedRelativeDirPath =
+      relativeDirPath ??
+      (isRoot
+        ? paths.root.relativeDirPath
+        : (paths.nonRoot?.relativeDirPath ?? paths.root.relativeDirPath));
 
     if (isRoot) {
       const relativePath = join(paths.root.relativeDirPath, paths.root.relativeFilePath);
@@ -230,7 +238,7 @@ export class CopilotRule extends ToolRule {
       throw new Error(`nonRoot path is not set for ${relativeFilePath}`);
     }
 
-    const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
+    const relativePath = join(resolvedRelativeDirPath, relativeFilePath);
     const filePath = join(baseDir, relativePath);
     const fileContent = await readFileContent(filePath);
 
@@ -244,7 +252,7 @@ export class CopilotRule extends ToolRule {
 
     return new CopilotRule({
       baseDir: baseDir,
-      relativeDirPath: paths.nonRoot.relativeDirPath,
+      relativeDirPath: resolvedRelativeDirPath,
       relativeFilePath: relativeFilePath.endsWith(".instructions.md")
         ? relativeFilePath
         : relativeFilePath.replace(/\.md$/, ".instructions.md"),
@@ -262,7 +270,9 @@ export class CopilotRule extends ToolRule {
     global = false,
   }: ToolRuleForDeletionParams): CopilotRule {
     const paths = this.getSettablePaths({ global });
-    const isRoot = relativeFilePath === paths.root.relativeFilePath;
+    const isRoot =
+      join(relativeDirPath, relativeFilePath) ===
+      join(paths.root.relativeDirPath, paths.root.relativeFilePath);
 
     return new CopilotRule({
       baseDir,

@@ -304,15 +304,15 @@ describe("CopilotRule", () => {
         rulesyncRule: original,
       });
 
-      // Root Copilot file must have no applyTo when the rulesync rule had no globs.
-      expect(copilotRule.getFrontmatter().applyTo).toBeUndefined();
+      // Root Copilot file must have no frontmatter.
+      expect(copilotRule.getFrontmatter()).toEqual({});
 
       const reimported = copilotRule.toRulesyncRule();
       const rf = reimported.getFrontmatter();
 
       expect(rf.root).toBe(true);
       expect(rf.globs).toBeUndefined();
-      expect(rf.description).toBe("Project overview");
+      expect(rf.description).toBeUndefined();
       expect(reimported.getBody()).toBe("Overview content");
     });
 
@@ -407,10 +407,7 @@ describe("CopilotRule", () => {
         validate: true,
       });
 
-      expect(copilotRule.getFrontmatter()).toEqual({
-        description: "Root rule from rulesync",
-        applyTo: "**/*",
-      });
+      expect(copilotRule.getFrontmatter()).toEqual({});
       expect(copilotRule.getBody()).toBe("Root rulesync rule content");
       expect(copilotRule.getRelativeDirPath()).toBe(".github");
       expect(copilotRule.getRelativeFilePath()).toBe("copilot-instructions.md");
@@ -494,7 +491,7 @@ describe("CopilotRule", () => {
         validate: true,
       });
 
-      expect(copilotRule.getFrontmatter().excludeAgent).toBe("coding-agent");
+      expect(copilotRule.getFrontmatter()).toEqual({});
     });
 
     it("should use default baseDir when not provided", () => {
@@ -592,6 +589,55 @@ This is test rule content from file.`;
       expect(copilotRule.getRelativeDirPath()).toBe(".github");
       expect(copilotRule.getRelativeFilePath()).toBe("copilot-instructions.md");
       expect(copilotRule.isRoot()).toBe(true);
+    });
+
+    it("should use relativeDirPath to distinguish non-root files named copilot-instructions.md", async () => {
+      const instructionsDir = join(testDir, ".github", "instructions");
+      await ensureDir(instructionsDir);
+
+      const fileContent = `---
+description: "Same filename as root"
+applyTo: "**/*.ts"
+---
+
+This should be treated as a non-root rule.`;
+      await writeFileContent(join(instructionsDir, "copilot-instructions.md"), fileContent);
+
+      const copilotRule = await CopilotRule.fromFile({
+        baseDir: testDir,
+        relativeDirPath: ".github/instructions",
+        relativeFilePath: "copilot-instructions.md",
+        validate: true,
+      });
+
+      expect(copilotRule.isRoot()).toBe(false);
+      expect(copilotRule.getRelativeDirPath()).toBe(".github/instructions");
+      expect(copilotRule.getRelativeFilePath()).toBe("copilot-instructions.instructions.md");
+      expect(copilotRule.getFrontmatter()).toEqual({
+        description: "Same filename as root",
+        applyTo: "**/*.ts",
+      });
+      expect(copilotRule.getBody()).toBe("This should be treated as a non-root rule.");
+    });
+
+    it("should detect root only when both relativeDirPath and filename match", async () => {
+      const githubDir = join(testDir, ".github");
+      await ensureDir(githubDir);
+
+      const rootContent = "Root detected with explicit directory.";
+      await writeFileContent(join(githubDir, "copilot-instructions.md"), rootContent);
+
+      const copilotRule = await CopilotRule.fromFile({
+        baseDir: testDir,
+        relativeDirPath: ".github",
+        relativeFilePath: "copilot-instructions.md",
+        validate: true,
+      });
+
+      expect(copilotRule.isRoot()).toBe(true);
+      expect(copilotRule.getRelativeDirPath()).toBe(".github");
+      expect(copilotRule.getRelativeFilePath()).toBe("copilot-instructions.md");
+      expect(copilotRule.getBody()).toBe(rootContent);
     });
 
     it("should load root file from .copilot/copilot-instructions.md when global=true", async () => {
