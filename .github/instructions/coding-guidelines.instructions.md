@@ -13,7 +13,7 @@ applyTo: '**/*.ts'
 - TypeScript file names should be in kebab-case, even for class implementation files.
 - Don't create ballel files. Please always direct import the implementation file.
   - The maintainer thinks that ballel files are harmful to tree-shaking and import path transparency.
-- The default value of `baseDir` should be `process.cwd()` because it is easier to mock in tests compared to hardcoding `"."`. However, the default value of `relativeDirPath` should be `"."` because it should be relative path to concatenate with `baseDir`.
+- The default value of `outputRoot` should be `process.cwd()` because it is easier to mock in tests compared to hardcoding `"."`. However, the default value of `relativeDirPath` should be `"."` because it should be relative path to concatenate with `outputRoot`.
 - When logging errors, you must use `formatError` function in `src/utils/error.ts` to format the error message.
 - When writing any filesystem path, you must always use `join` function in `node:path` to join the path because it must support both Windows and Unix-like paths.
 - When writing non-filesystem paths (e.g., API paths, gitignore entries, generated file content), use `path.posix.join` or `toPosixPath` from `src/utils/file.ts` to ensure forward slashes regardless of platform.
