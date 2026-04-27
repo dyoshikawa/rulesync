@@ -2,6 +2,8 @@
 
 The `--input-root <path>` flag lets you point `rulesync generate` at a `.rulesync/` source directory that is different from the current working directory. This decouples where your rule definitions live from where the generated tool configuration files are written.
 
+> **Currently supported on `generate` only.** At present, `--input-root` is wired into the `rulesync generate` command only. Other commands (`import`, `convert`, `gitignore`, `install`, `fetch`, `init`) still read `.rulesync/` from the current working directory. To use the same source directory with those commands, `cd` into the input-root directory first.
+
 ## Primary use case: centralized rules across all repos
 
 A common workflow is to keep a single set of AI rules in a shared directory (e.g. `~/.aiglobal`) and apply them to every project without switching directories:
@@ -47,5 +49,8 @@ They can be combined. For example, to read rules from `~/.aiglobal` and write th
 rulesync generate --input-root ~/.aiglobal --global --targets claudecode --features rules
 ```
 
-> **⚠️ `--input-root` does not enable `--global`**
-> When `--input-root` is explicitly provided, Rulesync reads `.rulesync/` from that directory, but output scope still follows the CLI flags: use `--global` for user-scope output, and omit it for project-scope output. A `"global": true` setting in the `rulesync.jsonc` under `--input-root` is **not** applied unless you also pass `--global`, and Rulesync will emit a warning when dropping it so the override is visible.
+> **`--input-root` does not enable `--global`.** When `--input-root` is explicitly provided, Rulesync reads `.rulesync/` from that directory, but output scope still follows the CLI flags: use `--global` for user-scope output, and omit it for project-scope output. A `"global": true` setting in the `rulesync.jsonc` under `--input-root` is **not** applied unless you also pass `--global`, and Rulesync will emit a warning when dropping it so the override is visible.
+
+## Symlinks and trust
+
+`--input-root` is `resolve()`-ed to an absolute path before being used, but symbolic links inside the resolved directory are **not** dereferenced via `realpath`. If a symlink inside the input root points outside it, Rulesync will follow it transparently. Because `--input-root` is a deliberate user-supplied flag, treat it like any other source directory: only point Rulesync at trees you control.

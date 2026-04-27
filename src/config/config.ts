@@ -589,6 +589,16 @@ export class Config {
     return this.check;
   }
 
+  /**
+   * Returns the directory containing the `.rulesync/` source files. The value
+   * is always an absolute path captured at config-construction time, so this
+   * accessor is pure and never depends on a live `process.cwd()` read.
+   *
+   * `ConfigResolver` defaults this to the captured CWD when no `inputRoot`
+   * was supplied; programmatic callers constructing `new Config(...)` should
+   * pass an absolute `inputRoot` (the legacy behavior of falling back to
+   * `process.cwd()` is retained for those callers only).
+   */
   public getInputRoot(): string {
     return this.inputRoot ?? process.cwd();
   }

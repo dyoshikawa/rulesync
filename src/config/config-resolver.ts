@@ -21,6 +21,7 @@ import {
   ConfigFileSchema,
   ConfigParams,
   PartialConfigParams,
+  RequiredConfigParams,
 } from "./config.js";
 import { emitFeaturesObjectFormDeprecationWarning } from "./deprecation-warnings.js";
 
@@ -33,7 +34,16 @@ export type ConfigResolverResolveParams = Partial<
   }
 >;
 
-const getDefaults = (): ConfigParams & { configPath: string } => ({
+// `inputRoot` is intentionally optional — it is the only field with no
+// project-default value, since omitting it means "use CWD". All other fields
+// are concrete defaults so callers (and the resolver) can rely on
+// `getDefaults().<field>` being populated.
+type ConfigDefaults = Omit<RequiredConfigParams, "inputRoot"> & {
+  inputRoot?: string;
+  configPath: string;
+};
+
+const getDefaults = (): ConfigDefaults => ({
   targets: ["agentsmd"],
   features: ["rules"],
   verbose: false,
@@ -128,12 +138,27 @@ export class ConfigResolver {
     }: ConfigResolverResolveParams,
     { logger }: { logger?: Logger } = {},
   ): Promise<Config> {
+    // Capture cwd once at the entry point so the resolved config is
+    // deterministic and independent of any later `process.chdir()` calls.
+    const cwd = resolve(process.cwd());
+
+    // Fall back to `console.warn` when no logger is supplied so warnings
+    // surface to the user rather than being silently dropped.
+    const warn = (message: string): void => {
+      if (logger) {
+        logger.warn(message);
+      } else {
+        // oxlint-disable-next-line no-console
+        console.warn(message);
+      }
+    };
+
     // Validate configPath to prevent path traversal attacks
     // When inputRoot is set, resolve the config path relative to it so that
     // the user's central .rulesync source dir is also the config source.
     // Resolve and validate inputRoot first — a relative inputRoot would make
     // the traversal checks in resolvePath unreliable.
-    const configBaseDir = resolve(inputRoot ?? process.cwd());
+    const configBaseDir = resolve(inputRoot ?? cwd);
     validateBaseDir(configBaseDir);
     const validatedConfigPath = resolvePath(configPath, configBaseDir);
 
@@ -148,6 +173,14 @@ export class ConfigResolver {
     // Merge configs: local config takes precedence over base config
     // Priority: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
     const configByFile = mergeConfigs(baseConfig, localConfig);
+
+    // Validate `inputRoot` coming from a config file too — symmetric with the
+    // CLI/programmatic flow, which validates the resolved `configBaseDir`
+    // above. We only validate when CLI/programmatic `inputRoot` is not set
+    // (otherwise `configBaseDir` already covered that case).
+    if (inputRoot === undefined && configByFile.inputRoot !== undefined) {
+      validateBaseDir(resolve(configByFile.inputRoot));
+    }
 
     // Per-file `assertTargetsFeaturesExclusive` in `loadConfigFromFile` only
     // sees one file at a time, so a base file with array-form `features` plus
@@ -168,17 +201,25 @@ export class ConfigResolver {
       );
     }
 
-    // When --input-root is explicitly provided the user is decoupling source
-    // from output, so "global: true" from the config file must not apply unless
-    // the caller also explicitly passes --global. Warn when we drop it so the
-    // user is not silently surprised by an output-scope change.
-    if (inputRoot !== undefined && global === undefined && configByFile.global === true) {
-      logger?.warn(
-        `Ignoring "global: true" from ${validatedConfigPath} because --input-root ` +
-          `was provided; pass --global explicitly to keep user-scope output.`,
+    // When `inputRoot` is set (from CLI, programmatic args, or a config file)
+    // the user is decoupling source from output, so "global: true" from the
+    // config file must not apply unless the caller also explicitly passes
+    // --global. Warn when we drop it so the user is not silently surprised
+    // by an output-scope change.
+    //
+    // Note: this also covers the config-file-only `inputRoot` case — even
+    // though the resolver does not re-load the config file from
+    // `configByFile.inputRoot`, the symmetric warning still fires so a user
+    // moving from CLI flag to config-file form sees consistent behavior.
+    const resolvedInputRoot = inputRoot ?? configByFile.inputRoot;
+    if (resolvedInputRoot !== undefined && global === undefined && configByFile.global === true) {
+      warn(
+        `Ignoring "global: true" from ${validatedConfigPath} because inputRoot ` +
+          `was provided (CLI --input-root or config-file inputRoot); pass --global ` +
+          `explicitly to keep user-scope output. Output will be project-scope (global=false).`,
       );
     }
-    const configGlobal = inputRoot !== undefined ? false : configByFile.global;
+    const configGlobal = resolvedInputRoot !== undefined ? false : configByFile.global;
     const resolvedGlobal = global ?? configGlobal ?? getDefaults().global ?? false;
     const resolvedSimulateCommands =
       simulateCommands ?? configByFile.simulateCommands ?? getDefaults().simulateCommands;
@@ -238,7 +279,11 @@ export class ConfigResolver {
         getDefaults().gitignoreDestination,
       dryRun: dryRun ?? configByFile.dryRun ?? getDefaults().dryRun,
       check: check ?? configByFile.check ?? getDefaults().check,
-      inputRoot: inputRoot ?? configByFile.inputRoot ?? getDefaults().inputRoot,
+      // Pass the fully-resolved absolute inputRoot so `Config.getInputRoot()`
+      // is pure and never re-reads `process.cwd()` after construction. When
+      // neither CLI nor config file supplied an inputRoot, fall back to the
+      // captured `cwd` so the value is still deterministic.
+      inputRoot: resolvedInputRoot !== undefined ? resolve(resolvedInputRoot) : cwd,
       sources: configByFile.sources ?? getDefaults().sources,
     };
     return new Config(configParams);

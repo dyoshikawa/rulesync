@@ -442,7 +442,11 @@ describe("generateCommand", () => {
       );
     });
 
-    it("should handle current working directory correctly", async () => {
+    it("should pass baseDir verbatim even when it equals current working directory", async () => {
+      // The legacy `baseDir === process.cwd() ? "." : baseDir` heuristic was
+      // removed to keep ignore processing consistent with every other
+      // feature processor — IgnoreProcessor now receives the same absolute
+      // path the other processors receive.
       const mockCwd = vi.spyOn(process, "cwd").mockReturnValue("/current/working/dir");
       mockConfig.getBaseDirs.mockReturnValue(["/current/working/dir"]);
       const options: GenerateOptions = {};
@@ -451,7 +455,7 @@ describe("generateCommand", () => {
 
       expect(IgnoreProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseDir: ".",
+          baseDir: "/current/working/dir",
           toolTarget: "claudecode",
           dryRun: false,
         }),

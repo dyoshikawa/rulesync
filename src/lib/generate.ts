@@ -305,7 +305,12 @@ async function generateIgnoreCore(params: {
     for (const baseDir of config.getBaseDirs()) {
       try {
         const processor = new IgnoreProcessor({
-          baseDir: baseDir === process.cwd() ? "." : baseDir,
+          // Pass `baseDir` verbatim. The legacy
+          // `baseDir === process.cwd() ? "." : baseDir` heuristic was a
+          // leftover from before `baseDirs` was always resolved to absolute
+          // paths in `ConfigResolver`; with that change it is now consistent
+          // to pass the same `baseDir` value the other processors receive.
+          baseDir,
           inputRoot: config.getInputRoot(),
           toolTarget,
           dryRun: config.isPreviewMode(),

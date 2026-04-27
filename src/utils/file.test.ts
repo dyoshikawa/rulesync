@@ -715,8 +715,7 @@ describe("file utilities", () => {
     });
 
     describe("absolute paths", () => {
-      it("should allow absolute paths that do not contain '..' segments", () => {
-        expect(() => validateBaseDir("/")).not.toThrow();
+      it("should allow normalized absolute paths that do not contain '..' segments", () => {
         expect(() => validateBaseDir("/usr/local/share")).not.toThrow();
         expect(() => validateBaseDir("/Users/someone/project")).not.toThrow();
       });
@@ -728,10 +727,24 @@ describe("file utilities", () => {
         expect(() => validateBaseDir("/tmp")).not.toThrow();
       });
 
-      it("should reject absolute paths that still contain '..' segments", () => {
+      it("should reject the filesystem root", () => {
+        // The filesystem root is almost certainly a misconfiguration, not a
+        // real source directory.
+        expect(() => validateBaseDir("/")).toThrow("must not be the filesystem root");
+      });
+
+      it("should reject unnormalized absolute paths containing '..' segments", () => {
+        // The defense-in-depth segment check catches `..` first.
         expect(() => validateBaseDir("/foo/../bar")).toThrow("Path traversal detected");
         expect(() => validateBaseDir("/foo/../../etc")).toThrow("Path traversal detected");
         expect(() => validateBaseDir("/..")).toThrow("Path traversal detected");
+      });
+
+      it("should reject unnormalized absolute paths with redundant segments", () => {
+        // Paths without `..` but still unnormalized (e.g. `//`, `/./`) are
+        // rejected by the normalized-equality check.
+        expect(() => validateBaseDir("/foo//bar")).toThrow("must be a normalized absolute path");
+        expect(() => validateBaseDir("/foo/./bar")).toThrow("must be a normalized absolute path");
       });
 
       it("should reject absolute paths with backslash '..' segments", () => {

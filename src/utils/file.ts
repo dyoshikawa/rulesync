@@ -275,8 +275,25 @@ export function getHomeDirectory(): string {
 }
 
 /**
- * Validates that a baseDir is safe to use
- * @throws {Error} if the baseDir is dangerous or contains path traversal
+ * Validates that a baseDir is safe to use as the source/output root.
+ *
+ * Contract:
+ * - Rejects empty strings.
+ * - For absolute paths: requires the path to already be normalized (i.e.
+ *   `resolve(baseDir) === baseDir`). This rejects sneaky inputs like
+ *   `/foo/../bar` and forces callers to pass an explicit, normalized intent.
+ *   Also rejects the filesystem root (`/` on POSIX, `C:\\` etc. on Windows)
+ *   because that is almost certainly a misconfiguration, not a real source
+ *   directory.
+ * - For relative paths: applies `checkPathTraversal` against the current
+ *   working directory.
+ *
+ * Note: callers that need to validate a path while in a different "intended
+ * root" should resolve it to absolute first and then pass it here, or use
+ * `checkPathTraversal` directly with the appropriate `intendedRootDir`.
+ *
+ * @throws {Error} if the baseDir is dangerous, unnormalized, or the
+ * filesystem root.
  */
 export function validateBaseDir(baseDir: string): void {
   // Reject empty strings
@@ -285,13 +302,33 @@ export function validateBaseDir(baseDir: string): void {
   }
 
   if (isAbsolute(baseDir)) {
-    // An absolute path pointing anywhere on the filesystem is allowed, but
-    // reject ones that still contain `..` segments: they indicate the caller
-    // is constructing the path unsafely rather than passing a normalized
-    // intent.
+    // Defense-in-depth: split on both POSIX and Windows separators and
+    // reject any `..` segment. On POSIX, `resolve()` does not treat `\` as
+    // a separator, so a Windows-style traversal like `/foo\..\bar` would
+    // otherwise slip past the normalized-equality check below.
     const segments = baseDir.split(/[/\\]/);
     if (segments.includes("..")) {
       throw new Error(`Path traversal detected: ${baseDir}`);
+    }
+
+    // Reject unnormalized absolute paths. After `resolve(baseDir)` collapses
+    // any `.`/`..` segments and normalizes separators, the result must equal
+    // the input — otherwise the caller passed a path that hides traversal
+    // intent inside an absolute prefix (e.g. `/foo/./bar` or `/foo//bar`).
+    const normalized = resolve(baseDir);
+    if (normalized !== baseDir) {
+      throw new Error(
+        `baseDir must be a normalized absolute path: ${baseDir} (normalized: ${normalized})`,
+      );
+    }
+
+    // Reject the filesystem root explicitly. `dirname(root) === root` is the
+    // standard cross-platform way to detect the root of the volume.
+    if (dirname(normalized) === normalized) {
+      throw new Error(
+        `baseDir must not be the filesystem root: ${baseDir}. ` +
+          `Pass a specific project directory instead.`,
+      );
     }
     return;
   }

@@ -39,10 +39,27 @@ function logFeatureResult(
 
 export async function generateCommand(logger: Logger, options: GenerateOptions): Promise<void> {
   const { baseDir, baseDirs, ...rest } = options;
-  const config = await ConfigResolver.resolve(
-    { ...rest, baseDirs: baseDirs ?? baseDir },
-    { logger },
-  );
+
+  // When both the CLI singular `baseDir` (from `--base-dir`) and the
+  // programmatic plural `baseDirs` are supplied with non-empty, differing
+  // values, prefer the explicit programmatic field but warn the user so the
+  // override is visible. Identical or empty inputs are silently merged.
+  const baseDirsResolved = baseDirs ?? baseDir;
+  if (
+    baseDir !== undefined &&
+    baseDirs !== undefined &&
+    baseDir.length > 0 &&
+    baseDirs.length > 0 &&
+    JSON.stringify(baseDirs) !== JSON.stringify(baseDir)
+  ) {
+    logger.warn(
+      `Both 'baseDirs' and 'baseDir' (from --base-dir) were provided with ` +
+        `differing values; using 'baseDirs' (${JSON.stringify(baseDirs)}) ` +
+        `and ignoring 'baseDir' (${JSON.stringify(baseDir)}).`,
+    );
+  }
+
+  const config = await ConfigResolver.resolve({ ...rest, baseDirs: baseDirsResolved }, { logger });
 
   const check = config.getCheck();
 
