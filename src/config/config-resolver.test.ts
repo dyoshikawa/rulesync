@@ -507,6 +507,51 @@ describe("config-resolver", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Ignoring "global: true"'));
     });
 
+    it("should fall back to console.warn when no logger is supplied", async () => {
+      const inputRoot = join(testDir, "central-rules");
+      await writeFileContent(
+        join(inputRoot, "rulesync.jsonc"),
+        JSON.stringify({ baseDirs: ["./"], global: true }),
+      );
+      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      try {
+        await ConfigResolver.resolve({
+          configPath: "rulesync.jsonc",
+          inputRoot,
+        });
+
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Ignoring "global: true"'),
+        );
+      } finally {
+        consoleWarnSpy.mockRestore();
+      }
+    });
+
+    it("should warn when only the config file (not CLI) supplies inputRoot and global: true", async () => {
+      // The warning must fire symmetrically whether inputRoot is set via
+      // CLI flag or via the config file — otherwise users moving from
+      // --input-root to a config-file-driven setup would silently lose
+      // their global-scope output.
+      const configuredRoot = join(testDir, "from-config");
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ inputRoot: configuredRoot, global: true }),
+      );
+      const logger = { warn: vi.fn() } as unknown as Logger;
+
+      const config = await ConfigResolver.resolve(
+        {
+          configPath: join(testDir, "rulesync.jsonc"),
+        },
+        { logger },
+      );
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Ignoring "global: true"'));
+      expect(config.getGlobal()).toBe(false);
+    });
+
     it("should not warn when CLI --global is explicitly passed alongside inputRoot", async () => {
       const inputRoot = join(testDir, "central-rules");
       await writeFileContent(
@@ -620,6 +665,20 @@ describe("config-resolver", () => {
       });
 
       expect(config.getInputRoot()).toBe(localRoot);
+    });
+
+    it("should reject a config-file inputRoot that fails validateBaseDir", async () => {
+      // Symmetric with the CLI-flag flow: an inputRoot from rulesync.jsonc
+      // must also be validated. Picking the filesystem root is the cleanest
+      // way to trigger validateBaseDir without depending on platform path
+      // separators in the assertion.
+      await writeFileContent(join(testDir, "rulesync.jsonc"), JSON.stringify({ inputRoot: "/" }));
+
+      await expect(
+        ConfigResolver.resolve({
+          configPath: join(testDir, "rulesync.jsonc"),
+        }),
+      ).rejects.toThrow(/filesystem root|normalized absolute path|Path traversal/);
     });
   });
 

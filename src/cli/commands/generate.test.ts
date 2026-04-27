@@ -173,6 +173,36 @@ describe("generateCommand", () => {
         { logger: mockLogger },
       );
     });
+
+    it("should warn when baseDir and baseDirs disagree on non-empty values", async () => {
+      const options: GenerateOptions = { baseDir: ["a"], baseDirs: ["b"] };
+
+      await generateCommand(mockLogger, options);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Both 'baseDirs' and 'baseDir'"),
+      );
+    });
+
+    it("should not warn when baseDir and baseDirs match exactly", async () => {
+      const options: GenerateOptions = { baseDir: ["a", "b"], baseDirs: ["a", "b"] };
+
+      await generateCommand(mockLogger, options);
+
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("Both 'baseDirs' and 'baseDir'"),
+      );
+    });
+
+    it("should not warn when only baseDir is provided", async () => {
+      const options: GenerateOptions = { baseDir: ["a"] };
+
+      await generateCommand(mockLogger, options);
+
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("Both 'baseDirs' and 'baseDir'"),
+      );
+    });
   });
 
   describe("rulesync directory check", () => {
