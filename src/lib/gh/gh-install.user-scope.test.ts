@@ -138,7 +138,7 @@ describe("installGh — user scope", () => {
     setupSingleSkill("git-commit", [{ name: "SKILL.md" }]);
 
     const result = await installGh({
-      outputRoot: projectDir,
+      projectRoot: projectDir,
       sources: [source({ source: "owner/repo", agent: "claude-code", scope: "user" })],
       logger,
     });
@@ -159,7 +159,7 @@ describe("installGh — user scope", () => {
     setupSingleSkill("av-skill", [{ name: "SKILL.md" }]);
 
     await installGh({
-      outputRoot: projectDir,
+      projectRoot: projectDir,
       sources: [source({ source: "owner/repo", agent: "antigravity", scope: "user" })],
       logger,
     });
@@ -195,7 +195,7 @@ describe("installGh — user scope", () => {
 
     const localLogger = createMockLogger();
     await installGh({
-      outputRoot: projectDir,
+      projectRoot: projectDir,
       sources: [source({ source: "owner/repo", agent: "claude-code", scope: "user" })],
       logger: localLogger,
     });
@@ -234,7 +234,7 @@ describe("installGh — user scope", () => {
     );
 
     await installGh({
-      outputRoot: projectDir,
+      projectRoot: projectDir,
       sources: [source({ source: "owner/repo", agent: "claude-code", scope: "user" })],
       logger,
     });
@@ -256,7 +256,7 @@ describe("installGh — user scope", () => {
     );
 
     await installGh({
-      outputRoot: projectDir,
+      projectRoot: projectDir,
       sources: [source({ source: "owner/repo", agent: "claude-code", scope: "user" })],
       options: { update: true },
       logger,
@@ -270,7 +270,7 @@ describe("installGh — user scope", () => {
     // Re-run install to trigger another stale-cleanup pass; the sentinel
     // (which is not in any lockfile entry) must survive.
     await installGh({
-      outputRoot: projectDir,
+      projectRoot: projectDir,
       sources: [source({ source: "owner/repo", agent: "claude-code", scope: "user" })],
       options: { update: true },
       logger,

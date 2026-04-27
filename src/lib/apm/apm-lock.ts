@@ -66,12 +66,12 @@ export const ApmLockSchema = z.looseObject({
 });
 export type ApmLock = z.infer<typeof ApmLockSchema>;
 
-export function getApmLockPath(outputRoot: string): string {
-  return join(outputRoot, APM_LOCKFILE_FILE_NAME);
+export function getApmLockPath(projectRoot: string): string {
+  return join(projectRoot, APM_LOCKFILE_FILE_NAME);
 }
 
-export async function apmLockExists(outputRoot: string): Promise<boolean> {
-  return fileExists(getApmLockPath(outputRoot));
+export async function apmLockExists(projectRoot: string): Promise<boolean> {
+  return fileExists(getApmLockPath(projectRoot));
 }
 
 /**
@@ -129,8 +129,8 @@ export function parseApmLock(content: string): ApmLock | null {
   return parsed.data;
 }
 
-export async function readApmLock(outputRoot: string): Promise<ApmLock | null> {
-  const path = getApmLockPath(outputRoot);
+export async function readApmLock(projectRoot: string): Promise<ApmLock | null> {
+  const path = getApmLockPath(projectRoot);
   if (!(await fileExists(path))) {
     return null;
   }
@@ -138,8 +138,8 @@ export async function readApmLock(outputRoot: string): Promise<ApmLock | null> {
   return parseApmLock(content);
 }
 
-export async function writeApmLock(params: { outputRoot: string; lock: ApmLock }): Promise<void> {
-  const path = getApmLockPath(params.outputRoot);
+export async function writeApmLock(params: { projectRoot: string; lock: ApmLock }): Promise<void> {
+  const path = getApmLockPath(params.projectRoot);
   const content = serializeApmLock(params.lock);
   await writeFileContent(path, content);
 }

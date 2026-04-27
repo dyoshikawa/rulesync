@@ -52,7 +52,7 @@ export type McpGenerateResult = {
 export async function executeGenerate(options: GenerateOptions = {}): Promise<McpGenerateResult> {
   try {
     // Check if .rulesync directory exists
-    const exists = await checkRulesyncDirExists({ outputRoot: process.cwd() });
+    const exists = await checkRulesyncDirExists({ inputRoot: process.cwd() });
     if (!exists) {
       return {
         success: false,

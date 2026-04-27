@@ -165,9 +165,13 @@ function warnUnsupportedTargets(params: {
 
 /**
  * Check if .rulesync directory exists.
+ *
+ * The `.rulesync/` directory lives under the *input* root (where source rules
+ * are read from), not under any individual output root, so callers always pass
+ * `config.getInputRoot()` here.
  */
-export async function checkRulesyncDirExists(params: { outputRoot: string }): Promise<boolean> {
-  return fileExists(join(params.outputRoot, RULESYNC_RELATIVE_DIR_PATH));
+export async function checkRulesyncDirExists(params: { inputRoot: string }): Promise<boolean> {
+  return fileExists(join(params.inputRoot, RULESYNC_RELATIVE_DIR_PATH));
 }
 
 /**

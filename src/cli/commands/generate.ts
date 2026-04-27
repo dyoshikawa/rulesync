@@ -70,7 +70,12 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
         "It will be removed in a future major release.",
     );
   }
-  const outputRootsResolved = outputRoots ?? baseDir;
+  // Treat `outputRoots: []` as "not provided" so a programmatic caller
+  // passing an empty array does not silently win over a non-empty `baseDir`.
+  // Without this, `outputRoots ?? baseDir` would resolve to `[]` and override
+  // the deprecated alias even when the alias carried real values.
+  const outputRootsResolved =
+    outputRoots !== undefined && outputRoots.length > 0 ? outputRoots : baseDir;
   if (
     baseDir !== undefined &&
     outputRoots !== undefined &&
@@ -97,14 +102,14 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
 
   logger.debug("Generating files...");
 
-  if (!(await checkRulesyncDirExists({ outputRoot: config.getInputRoot() }))) {
+  if (!(await checkRulesyncDirExists({ inputRoot: config.getInputRoot() }))) {
     throw new CLIError(
       ".rulesync directory not found. Run 'rulesync init' first.",
       ErrorCodes.RULESYNC_DIR_NOT_FOUND,
     );
   }
 
-  logger.debug(`Base directories: ${config.getOutputRoots().join(", ")}`);
+  logger.debug(`Output roots: ${config.getOutputRoots().join(", ")}`);
 
   const features = config.getFeatures();
 

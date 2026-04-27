@@ -237,6 +237,26 @@ describe("generateCommand", () => {
         expect.stringContaining("Both '--output-roots' and '--base-dir'"),
       );
     });
+
+    it("should fall back to deprecated baseDir when outputRoots is an empty array", async () => {
+      // A programmatic caller passing `outputRoots: []` together with a
+      // populated `baseDir` must not silently lose the alias's values to
+      // the empty array. The empty array is treated as "not provided" so
+      // the deprecated alias still flows through to the resolver.
+      const options: GenerateOptions = { baseDir: ["a", "b"], outputRoots: [] };
+
+      await generateCommand(mockLogger, options);
+
+      expect(ConfigResolver.resolve).toHaveBeenCalledWith(
+        expect.objectContaining({ outputRoots: ["a", "b"] }),
+        { logger: mockLogger },
+      );
+      // The override warning must NOT fire here because the empty array is
+      // treated as "not provided" — there is nothing to disagree about.
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("Both '--output-roots' and '--base-dir'"),
+      );
+    });
   });
 
   describe("rulesync directory check", () => {
@@ -747,13 +767,13 @@ describe("generateCommand", () => {
       );
     });
 
-    it("should log base directories", async () => {
+    it("should log output roots", async () => {
       mockConfig.getOutputRoots.mockReturnValue(["dir1", "dir2"]);
       const options: GenerateOptions = {};
 
       await generateCommand(mockLogger, options);
 
-      expect(mockLogger.debug).toHaveBeenCalledWith("Base directories: dir1, dir2");
+      expect(mockLogger.debug).toHaveBeenCalledWith("Output roots: dir1, dir2");
     });
 
     it("should log success for each processor type", async () => {

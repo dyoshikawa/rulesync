@@ -45,7 +45,7 @@ describe("checkRulesyncDirExists", () => {
   it("should return true when .rulesync directory exists", async () => {
     vi.mocked(fileExists).mockResolvedValue(true);
 
-    const result = await checkRulesyncDirExists({ outputRoot: "/project" });
+    const result = await checkRulesyncDirExists({ inputRoot: "/project" });
 
     expect(result).toBe(true);
     expect(fileExists).toHaveBeenCalledWith("/project/.rulesync");
@@ -54,7 +54,7 @@ describe("checkRulesyncDirExists", () => {
   it("should return false when .rulesync directory does not exist", async () => {
     vi.mocked(fileExists).mockResolvedValue(false);
 
-    const result = await checkRulesyncDirExists({ outputRoot: "/project" });
+    const result = await checkRulesyncDirExists({ inputRoot: "/project" });
 
     expect(result).toBe(false);
     expect(fileExists).toHaveBeenCalledWith("/project/.rulesync");

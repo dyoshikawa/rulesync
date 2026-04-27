@@ -148,7 +148,7 @@ describe("generate", () => {
 
     // Single check, scoped to the input root, not per outputRoot.
     expect(checkRulesyncDirExists).toHaveBeenCalledTimes(1);
-    expect(checkRulesyncDirExists).toHaveBeenCalledWith({ outputRoot: inputRootMock });
+    expect(checkRulesyncDirExists).toHaveBeenCalledWith({ inputRoot: inputRootMock });
   });
 
   it("should forward inputRoot to ConfigResolver.resolve", async () => {
@@ -156,6 +156,18 @@ describe("generate", () => {
 
     expect(ConfigResolver.resolve).toHaveBeenCalledWith(
       expect.objectContaining({ inputRoot: "./central-rules" }),
+    );
+  });
+
+  it("should accept the deprecated `baseDirs` alias and forward it to the resolver", async () => {
+    // The deprecated `baseDirs` alias is declared on `GenerateOptions` so TS
+    // callers can pass it without a compile error. The resolver itself is
+    // responsible for emitting the one-shot deprecation warning and mapping
+    // the value to `outputRoots`; here we only assert the value is forwarded.
+    await generate({ baseDirs: ["/legacy-a", "/legacy-b"] });
+
+    expect(ConfigResolver.resolve).toHaveBeenCalledWith(
+      expect.objectContaining({ baseDirs: ["/legacy-a", "/legacy-b"] }),
     );
   });
 

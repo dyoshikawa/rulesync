@@ -49,7 +49,7 @@ describe("installCommand", () => {
       expect(resolveAndFetchSources).toHaveBeenCalledWith(
         expect.objectContaining({
           sources,
-          outputRoot: process.cwd(),
+          projectRoot: process.cwd(),
           options: {
             updateSources: undefined,
             frozen: undefined,
@@ -182,7 +182,7 @@ describe("installCommand", () => {
 
       expect(installApm).toHaveBeenCalledWith(
         expect.objectContaining({
-          outputRoot: process.cwd(),
+          projectRoot: process.cwd(),
           options: expect.objectContaining({ update: true, token: "tok" }),
         }),
       );
@@ -235,7 +235,7 @@ describe("installCommand", () => {
       expect(installGh).toHaveBeenCalledWith(
         expect.objectContaining({
           sources,
-          outputRoot: process.cwd(),
+          projectRoot: process.cwd(),
           options: { update: undefined, frozen: undefined, token: undefined },
         }),
       );
