@@ -24,6 +24,11 @@ export const GeminiCliCommandFrontmatterSchema = z.looseObject({
 
 // Translate rulesync universal command syntax (Claude Code compatible) into
 // Gemini CLI's native syntax. See docs/reference/command-syntax.md.
+//
+// Note: this translation only rewrites the universal forms (`$ARGUMENTS` and
+// `` !`cmd` ``). Bodies that already contain Gemini-native forms (`{{args}}`
+// or `!{cmd}`) are left untouched, which gives us the documented
+// "we do not re-translate already-Gemini-native forms" property.
 function translateRulesyncBodyToGemini(body: string): string {
   return body.replace(/!`([^`\n]+)`/g, "!{$1}").replace(/\$ARGUMENTS\b/g, "{{args}}");
 }
@@ -128,9 +133,11 @@ export class GeminiCliCommand extends ToolCommand {
     // Merge geminicli-specific fields from rulesync frontmatter
     const geminicliFields = rulesyncFrontmatter.geminicli ?? {};
 
-    // Translate universal command syntax to Gemini CLI's native syntax. If the
-    // user provided an explicit `geminicli.prompt` override, respect it as-is to
-    // avoid double-translation when they intentionally hand-write Gemini syntax.
+    // Translate universal command syntax to Gemini CLI's native syntax. The
+    // translated body is used as the default `prompt`, but any explicit
+    // `geminicli.prompt` field carried in `geminicliFields` will overwrite it
+    // via the spread below — users who hand-author Gemini-native syntax in the
+    // `geminicli` section are assumed to want it emitted verbatim.
     const translatedPrompt = translateRulesyncBodyToGemini(rulesyncCommand.getBody());
 
     const geminiFrontmatter: GeminiCliCommandFrontmatter = {

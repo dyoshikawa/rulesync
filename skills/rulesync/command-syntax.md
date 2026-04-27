@@ -15,15 +15,17 @@ These are written exactly as Claude Code accepts them, so writing a rulesync com
 
 The table below shows how each placeholder is translated for the supported tools. "pass-through" means the placeholder is emitted verbatim because the target tool already understands the universal form.
 
-| Tool            | `$ARGUMENTS` | `` !`cmd` `` |
-| --------------- | ------------ | ------------ |
-| Claude Code     | pass-through | pass-through |
-| Codex CLI       | pass-through | pass-through |
-| Gemini CLI      | `{{args}}`   | `!{cmd}`     |
-| Pi              | pass-through | pass-through |
-| Other tools[^1] | pass-through | pass-through |
+| Tool              | `$ARGUMENTS` | `` !`cmd` `` |
+| ----------------- | ------------ | ------------ |
+| Claude Code       | pass-through | pass-through |
+| Codex CLI[^codex] | pass-through | pass-through |
+| Gemini CLI        | `{{args}}`   | `!{cmd}`     |
+| Pi                | pass-through | pass-through |
+| Other tools[^1]   | pass-through | pass-through |
 
 [^1]: Tools not listed do not have a documented translation; their command body is emitted as-is.
+
+[^codex]: Codex CLI prompt files are forwarded to the LLM verbatim; the placeholders are passed to the model as literal text rather than being substituted by the engine.
 
 The translation also runs in reverse when you import an existing tool command file via `rulesync import`, so e.g. a Gemini CLI command containing `{{args}}` becomes `$ARGUMENTS` in the generated `.rulesync/commands/*.md`.
 
