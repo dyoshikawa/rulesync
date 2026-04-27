@@ -28,8 +28,8 @@ const originalCwd = process.cwd();
 // below intentionally use a single representative tool per feature: the
 // goal here is to confirm the `--input-root` plumbing reaches each
 // feature's processor — not to re-walk the matrix. The rules block above
-// does parameterise across multiple tools because rule output paths vary
-// most across tools.
+// does iterate across multiple tools because rule output paths vary most
+// across tools.
 describe("E2E: --input-root (read from A, write to B)", () => {
   let sourceDir = "";
   let outputDir = "";
