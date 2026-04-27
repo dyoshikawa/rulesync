@@ -668,17 +668,22 @@ describe("config-resolver", () => {
     });
 
     it("should reject a config-file inputRoot that fails validateBaseDir", async () => {
-      // Symmetric with the CLI-flag flow: an inputRoot from rulesync.jsonc
-      // must also be validated. Picking the filesystem root is the cleanest
-      // way to trigger validateBaseDir without depending on platform path
-      // separators in the assertion.
+      // This test specifically pins the symmetric `validateBaseDir` block that
+      // runs on `configByFile.inputRoot` (config-resolver.ts ~line 181). The
+      // `configBaseDir` pre-check is unaffected here because cwd is inside the
+      // test temp dir and CLI `inputRoot` is unset; only the config-file
+      // inputRoot triggers validation. Picking the filesystem root forces the
+      // dedicated "filesystem root" error message — distinct from the
+      // "Path traversal" / "normalized absolute path" messages that would
+      // come from the pre-check, so removing the symmetric block would no
+      // longer satisfy this assertion.
       await writeFileContent(join(testDir, "rulesync.jsonc"), JSON.stringify({ inputRoot: "/" }));
 
       await expect(
         ConfigResolver.resolve({
           configPath: join(testDir, "rulesync.jsonc"),
         }),
-      ).rejects.toThrow(/filesystem root|normalized absolute path|Path traversal/);
+      ).rejects.toThrow(/baseDir must not be the filesystem root/);
     });
   });
 

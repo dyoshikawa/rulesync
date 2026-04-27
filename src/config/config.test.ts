@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { isAbsolute, resolve } from "node:path";
+
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { ALL_FEATURES } from "../types/features.js";
 import { ALL_TOOL_TARGETS } from "../types/tool-targets.js";
@@ -601,6 +603,47 @@ describe("Config", () => {
             silent: false,
           } as unknown as ConfigParams),
       ).toThrow(/at least one of 'targets' or 'features' must be provided/);
+    });
+  });
+
+  describe("getInputRoot", () => {
+    let originalCwd: string;
+
+    beforeEach(() => {
+      originalCwd = process.cwd();
+    });
+
+    afterEach(() => {
+      process.chdir(originalCwd);
+    });
+
+    it("snapshots process.cwd() at construction time when no inputRoot is supplied", () => {
+      const config = createConfig({});
+      const snapshot = config.getInputRoot();
+      expect(isAbsolute(snapshot)).toBe(true);
+      expect(snapshot).toBe(originalCwd);
+      // Subsequent chdir calls must not affect the captured value.
+      // process.chdir to the parent directory which should always exist.
+      const parent = resolve(originalCwd, "..");
+      process.chdir(parent);
+      expect(config.getInputRoot()).toBe(snapshot);
+    });
+
+    it("preserves an absolute inputRoot exactly as supplied", () => {
+      const absolute = resolve(originalCwd, "some-absolute-path");
+      const config = createConfig({ inputRoot: absolute });
+      expect(config.getInputRoot()).toBe(absolute);
+    });
+
+    it("resolves a relative inputRoot to absolute against the construction-time cwd", () => {
+      const config = createConfig({ inputRoot: "./central-rules" });
+      const expected = resolve(originalCwd, "central-rules");
+      expect(config.getInputRoot()).toBe(expected);
+      expect(isAbsolute(config.getInputRoot())).toBe(true);
+      // Later chdir must not change the captured value.
+      const parent = resolve(originalCwd, "..");
+      process.chdir(parent);
+      expect(config.getInputRoot()).toBe(expected);
     });
   });
 });

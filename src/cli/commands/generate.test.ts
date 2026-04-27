@@ -194,6 +194,30 @@ describe("generateCommand", () => {
       );
     });
 
+    it("should not warn when baseDir and baseDirs match as a set (different order)", async () => {
+      // Order is irrelevant — `baseDirs: ["a","b"]` and `baseDir: ["b","a"]`
+      // describe the same set of output roots, so no override is happening.
+      const options: GenerateOptions = { baseDir: ["b", "a"], baseDirs: ["a", "b"] };
+
+      await generateCommand(mockLogger, options);
+
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("Both 'baseDirs' and 'baseDir'"),
+      );
+    });
+
+    it("should warn when baseDir and baseDirs differ as sets", async () => {
+      // Different sets — `["a"]` vs `["a","b"]` — must trigger the override
+      // warning even though one is a subset of the other.
+      const options: GenerateOptions = { baseDir: ["a"], baseDirs: ["a", "b"] };
+
+      await generateCommand(mockLogger, options);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Both 'baseDirs' and 'baseDir'"),
+      );
+    });
+
     it("should not warn when only baseDir is provided", async () => {
       const options: GenerateOptions = { baseDir: ["a"] };
 

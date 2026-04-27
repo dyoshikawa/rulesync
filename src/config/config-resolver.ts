@@ -214,9 +214,9 @@ export class ConfigResolver {
     const resolvedInputRoot = inputRoot ?? configByFile.inputRoot;
     if (resolvedInputRoot !== undefined && global === undefined && configByFile.global === true) {
       warn(
-        `Ignoring "global: true" from ${validatedConfigPath} because inputRoot ` +
-          `was provided (CLI --input-root or config-file inputRoot); pass --global ` +
-          `explicitly to keep user-scope output. Output will be project-scope (global=false).`,
+        `Ignoring "global: true" from ${validatedConfigPath} because an inputRoot ` +
+          `was configured; pass global=true (CLI: --global) to keep user-scope output. ` +
+          `Output will be project-scope (global=false).`,
       );
     }
     const configGlobal = resolvedInputRoot !== undefined ? false : configByFile.global;

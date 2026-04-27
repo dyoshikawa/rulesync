@@ -644,10 +644,6 @@ describe("file utilities", () => {
 
   describe("validateBaseDir", () => {
     describe("should allow safe paths", () => {
-      it("should allow current directory", () => {
-        expect(() => validateBaseDir(".")).not.toThrow();
-      });
-
       it("should allow simple directory names", () => {
         expect(() => validateBaseDir("src")).not.toThrow();
         expect(() => validateBaseDir("config")).not.toThrow();
@@ -699,6 +695,20 @@ describe("file utilities", () => {
         expect(() => validateBaseDir("   ")).toThrow("cannot be an empty string");
         expect(() => validateBaseDir("\t")).toThrow("cannot be an empty string");
         expect(() => validateBaseDir("\n")).toThrow("cannot be an empty string");
+      });
+    });
+
+    describe("should reject current-directory shortcuts", () => {
+      it("should reject `.`", () => {
+        expect(() => validateBaseDir(".")).toThrow(/must not be the current directory shortcut/);
+      });
+
+      it("should reject `./`", () => {
+        expect(() => validateBaseDir("./")).toThrow(/must not be the current directory shortcut/);
+      });
+
+      it("should reject `.\\` (Windows-style)", () => {
+        expect(() => validateBaseDir(".\\")).toThrow(/must not be the current directory shortcut/);
       });
     });
 

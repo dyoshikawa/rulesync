@@ -19,6 +19,17 @@ import { runGenerate } from "./e2e-helper.js";
 
 const originalCwd = process.cwd();
 
+// This suite verifies that `--input-root` correctly redirects the source
+// root for each feature end-to-end. The Tool × Feature matrix itself is
+// preserved by the project-wide e2e suites (e.g. `e2e-rules.spec.ts` and
+// the per-tool feature suites) and by the unit-level coverage in each
+// processor's tests (e.g. `src/features/<feature>/<feature>-processor.test.ts`,
+// which exercise `inputRoot` threading per tool). The per-feature blocks
+// below intentionally use a single representative tool per feature: the
+// goal here is to confirm the `--input-root` plumbing reaches each
+// feature's processor — not to re-walk the matrix. The rules block above
+// does parameterise across multiple tools because rule output paths vary
+// most across tools.
 describe("E2E: --input-root (read from A, write to B)", () => {
   let sourceDir = "";
   let outputDir = "";
@@ -71,10 +82,8 @@ Rules live in sourceDir; output must land in outputDir.
     },
   );
 
-  // Tool × Feature happy-path coverage with --input-root: one tool per
-  // feature is sufficient per CLAUDE.md (the matrix is preserved by the
-  // per-feature suites; here we only verify --input-root threads through
-  // each feature's processor correctly).
+  // Per-feature smoke tests below: each one picks a single representative
+  // tool. See suite-level comment — matrix-wide coverage lives elsewhere.
 
   it("should read commands from --input-root and write claudecode output to cwd", async () => {
     const commandContent = `---

@@ -12,6 +12,22 @@ export type GenerateOptions = ConfigResolverResolveParams & {
 };
 
 /**
+ * Compares two `baseDir` lists as sets — order-insensitive and
+ * duplicate-insensitive. Used to decide whether `--base-dir` and the
+ * programmatic `baseDirs` actually differ. Identical sets like
+ * `["a", "b"]` vs `["b", "a"]` should NOT trigger the override warning.
+ */
+function sameDirSets(a: readonly string[], b: readonly string[]): boolean {
+  const aSet = new Set(a);
+  const bSet = new Set(b);
+  if (aSet.size !== bSet.size) return false;
+  for (const v of aSet) {
+    if (!bSet.has(v)) return false;
+  }
+  return true;
+}
+
+/**
  * Log feature generation result with appropriate prefix based on dry run mode.
  */
 function logFeatureResult(
@@ -43,14 +59,15 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
   // When both the CLI singular `baseDir` (from `--base-dir`) and the
   // programmatic plural `baseDirs` are supplied with non-empty, differing
   // values, prefer the explicit programmatic field but warn the user so the
-  // override is visible. Identical or empty inputs are silently merged.
+  // override is visible. Identical (as a set, order-insensitive) or empty
+  // inputs are silently merged.
   const baseDirsResolved = baseDirs ?? baseDir;
   if (
     baseDir !== undefined &&
     baseDirs !== undefined &&
     baseDir.length > 0 &&
     baseDirs.length > 0 &&
-    JSON.stringify(baseDirs) !== JSON.stringify(baseDir)
+    !sameDirSets(baseDirs, baseDir)
   ) {
     logger.warn(
       `Both 'baseDirs' and 'baseDir' (from --base-dir) were provided with ` +

@@ -303,9 +303,11 @@ export function validateBaseDir(baseDir: string): void {
 
   if (isAbsolute(baseDir)) {
     // Defense-in-depth: split on both POSIX and Windows separators and
-    // reject any `..` segment. On POSIX, `resolve()` does not treat `\` as
-    // a separator, so a Windows-style traversal like `/foo\..\bar` would
-    // otherwise slip past the normalized-equality check below.
+    // reject any `..` segment. POSIX `resolve()` ignores `\` as a separator,
+    // and Windows `resolve()` ignores `/` in some legacy paths, so a
+    // cross-platform attacker-style input like `/foo\..\bar` or `C:/foo/../bar`
+    // would otherwise slip past the normalized-equality check below. This
+    // layered check applies on both platforms.
     const segments = baseDir.split(/[/\\]/);
     if (segments.includes("..")) {
       throw new Error(`Path traversal detected: ${baseDir}`);
@@ -331,6 +333,19 @@ export function validateBaseDir(baseDir: string): void {
       );
     }
     return;
+  }
+
+  // Relative-path branch. `checkPathTraversal` rejects values that escape
+  // `process.cwd()`, but allows no-op directories like `.` and `./` because
+  // they don't escape — those are still useless as `baseDir` values (they
+  // mean "the current working directory," which is precisely what callers
+  // get for free by omitting the option). Reject them explicitly so we
+  // surface the misconfiguration instead of silently mapping to cwd.
+  if (baseDir === "." || baseDir === "./" || baseDir === ".\\") {
+    throw new Error(
+      `baseDir must not be the current directory shortcut "${baseDir}". ` +
+        `Pass a specific project directory instead, or omit the option to use cwd.`,
+    );
   }
 
   checkPathTraversal({ relativePath: baseDir, intendedRootDir: process.cwd() });

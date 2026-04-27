@@ -1,4 +1,4 @@
-import { isAbsolute } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 
 import { minLength, optional, refine, z } from "zod/mini";
 
@@ -226,7 +226,7 @@ export class Config {
   private readonly gitignoreDestination: GitignoreDestination;
   private readonly dryRun: boolean;
   private readonly check: boolean;
-  private readonly inputRoot: string | undefined;
+  private readonly inputRoot: string;
   private readonly sources: SourceEntry[];
 
   constructor({
@@ -297,7 +297,18 @@ export class Config {
     this.gitignoreDestination = gitignoreDestination ?? "gitignore";
     this.dryRun = dryRun ?? false;
     this.check = check ?? false;
-    this.inputRoot = inputRoot;
+    // Capture the input root once at construction time. When no `inputRoot`
+    // was provided we snapshot `process.cwd()` so subsequent `getInputRoot()`
+    // calls are pure (independent of any later `chdir`). Relative `inputRoot`
+    // values are resolved against the current working directory eagerly for
+    // the same reason. The schema accepts relative paths because they're a
+    // legitimate input form; we normalize them here.
+    this.inputRoot =
+      inputRoot === undefined
+        ? process.cwd()
+        : isAbsolute(inputRoot)
+          ? inputRoot
+          : resolve(inputRoot);
     this.sources = sources ?? [];
   }
 
@@ -594,13 +605,12 @@ export class Config {
    * is always an absolute path captured at config-construction time, so this
    * accessor is pure and never depends on a live `process.cwd()` read.
    *
-   * `ConfigResolver` defaults this to the captured CWD when no `inputRoot`
-   * was supplied; programmatic callers constructing `new Config(...)` should
-   * pass an absolute `inputRoot` (the legacy behavior of falling back to
-   * `process.cwd()` is retained for those callers only).
+   * When no `inputRoot` was supplied to the constructor, `process.cwd()` is
+   * snapshotted once during construction. When a relative `inputRoot` is
+   * supplied, it is resolved to absolute against the construction-time cwd.
    */
   public getInputRoot(): string {
-    return this.inputRoot ?? process.cwd();
+    return this.inputRoot;
   }
 
   public getSources(): SourceEntry[] {
