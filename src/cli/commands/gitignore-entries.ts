@@ -85,6 +85,12 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   // Cursor
   { target: "cursor", feature: "rules", entry: "**/.cursor/" },
   { target: "cursor", feature: "ignore", entry: "**/.cursorignore" },
+  // .cursor/cli.json (project) and .cursor/cli-config.json (global) are
+  // already covered by the broader **/.cursor/ entry above; the additional
+  // `permissions` and `hooks` tags below register the same prefix under the
+  // matching feature so target+feature filtering still resolves correctly.
+  { target: "cursor", feature: "permissions", entry: "**/.cursor/" },
+  { target: "cursor", feature: "hooks", entry: "**/.cursor/" },
 
   // deepagents-cli
   { target: "deepagents", feature: "rules", entry: "**/.deepagents/AGENTS.md" },
@@ -158,6 +164,15 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
     feature: "mcp",
     entry: "**/.copilot/mcp-config.json",
   },
+  // Project: <project>/.github/agents/*.agent.md
+  // Global: ~/.copilot/agents/
+  { target: "copilotcli", feature: "subagents", entry: "**/.github/agents/" },
+  { target: "copilotcli", feature: "subagents", entry: "**/.copilot/agents/" },
+  // Project: <project>/.github/hooks/copilotcli-hooks.json
+  // Global: ~/.copilot/hooks/copilot-hooks.json (rulesync convention pending
+  //         official documentation of a global hooks location)
+  { target: "copilotcli", feature: "hooks", entry: "**/.github/hooks/" },
+  { target: "copilotcli", feature: "hooks", entry: "**/.copilot/hooks/" },
 
   // Junie
   { target: "junie", feature: "rules", entry: "**/.junie/guidelines.md" },

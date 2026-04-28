@@ -31,7 +31,12 @@ export class CursorHooks extends ToolHooks {
     });
   }
 
-  static getSettablePaths(): ToolHooksSettablePaths {
+  static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
+    // Cursor uses the same `.cursor/hooks.json` filename for both project and
+    // global scope. The only thing that changes is the resolution root
+    // (project root vs. home directory), which the harness handles by
+    // overriding `outputRoot` when `--global` is passed.
+    // Reference: https://cursor.com/docs/agent/hooks
     return {
       relativeDirPath: ".cursor",
       relativeFilePath: "hooks.json",
@@ -41,8 +46,9 @@ export class CursorHooks extends ToolHooks {
   static async fromFile({
     outputRoot = process.cwd(),
     validate = true,
+    global = false,
   }: ToolHooksFromFileParams): Promise<CursorHooks> {
-    const paths = CursorHooks.getSettablePaths();
+    const paths = CursorHooks.getSettablePaths({ global });
     const fileContent = await readFileContent(
       join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
     );
@@ -59,7 +65,8 @@ export class CursorHooks extends ToolHooks {
     outputRoot = process.cwd(),
     rulesyncHooks,
     validate = true,
-  }: ToolHooksFromRulesyncHooksParams): CursorHooks {
+    global = false,
+  }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): CursorHooks {
     const config = rulesyncHooks.getJson();
     const cursorSupported: Set<string> = new Set(CURSOR_HOOK_EVENTS);
     const sharedHooks: HooksConfig["hooks"] = {};
@@ -93,7 +100,7 @@ export class CursorHooks extends ToolHooks {
       hooks: mappedHooks,
     };
     const fileContent = JSON.stringify(cursorConfig, null, 2);
-    const paths = CursorHooks.getSettablePaths();
+    const paths = CursorHooks.getSettablePaths({ global });
     return new CursorHooks({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,

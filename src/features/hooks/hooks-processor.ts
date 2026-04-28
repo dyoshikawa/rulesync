@@ -23,6 +23,7 @@ import type { Logger } from "../../utils/logger.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { CodexcliHooks } from "./codexcli-hooks.js";
 import { CopilotHooks } from "./copilot-hooks.js";
+import { CopilotcliHooks } from "./copilotcli-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { DeepagentsHooks } from "./deepagents-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
@@ -43,6 +44,7 @@ const hooksProcessorToolTargetTuple = [
   "claudecode",
   "codexcli",
   "copilot",
+  "copilotcli",
   "opencode",
   "factorydroid",
   "geminicli",
@@ -87,7 +89,7 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
       class: CursorHooks,
       meta: {
         supportsProject: true,
-        supportsGlobal: false,
+        supportsGlobal: true,
         supportsImport: true,
       },
       supportedEvents: CURSOR_HOOK_EVENTS,
@@ -130,6 +132,24 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
       meta: {
         supportsProject: true,
         supportsGlobal: false,
+        supportsImport: true,
+      },
+      supportedEvents: COPILOT_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: false,
+    },
+  ],
+  [
+    "copilotcli",
+    {
+      class: CopilotcliHooks,
+      meta: {
+        // Copilot CLI hooks support both project and global scope.
+        // Project: <project>/.github/hooks/copilotcli-hooks.json
+        // Global:  ~/.copilot/hooks/copilot-hooks.json
+        // Reference: https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/use-hooks
+        supportsProject: true,
+        supportsGlobal: true,
         supportsImport: true,
       },
       supportedEvents: COPILOT_HOOK_EVENTS,

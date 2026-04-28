@@ -38,7 +38,7 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
 
 ## `.rulesync/hooks.json`
 
-Hooks run scripts at lifecycle events (e.g. session start, before tool use). Events use **canonical camelCase** in this file, and Rulesync translates them per tool: Cursor uses them as-is; Claude Code, Factory Droid, Codex CLI, and Gemini CLI get PascalCase (with a few tool-specific name mappings) in their settings files; OpenCode and Kilo hooks are emitted as JavaScript plugins (`.opencode/plugins/rulesync-hooks.js`, `.kilo/plugins/rulesync-hooks.js`); Copilot maps event names to its own camelCase (e.g. `beforeSubmitPrompt` → `userPromptSubmitted`, `afterError` → `errorOccurred`) and uses `powershell`/`bash` command fields; deepagents-cli uses a dot-notation (e.g. `session.start`, `tool.error`).
+Hooks run scripts at lifecycle events (e.g. session start, before tool use). Events use **canonical camelCase** in this file, and Rulesync translates them per tool: Cursor uses them as-is; Claude Code, Factory Droid, Codex CLI, and Gemini CLI get PascalCase (with a few tool-specific name mappings) in their settings files; OpenCode and Kilo hooks are emitted as JavaScript plugins (`.opencode/plugins/rulesync-hooks.js`, `.kilo/plugins/rulesync-hooks.js`); Copilot and Copilot CLI map event names to their own camelCase (e.g. `beforeSubmitPrompt` → `userPromptSubmitted`, `afterError` → `errorOccurred`) and use `powershell`/`bash` command fields; deepagents-cli uses a dot-notation (e.g. `session.start`, `tool.error`).
 
 Example:
 
@@ -88,7 +88,7 @@ Example:
 
 - `version`: Schema version (currently `1`).
 - `hooks`: Map of canonical event names to an array of hook entries. These are dispatched to every tool that supports the given event.
-- `cursor.hooks`, `claudecode.hooks`, `opencode.hooks`, `kilo.hooks`, `copilot.hooks`, `factorydroid.hooks`, `geminicli.hooks`, `codexcli.hooks`, `deepagents.hooks`: Tool-specific **override keys**. Entries under these keys are emitted only for the corresponding tool, so tool-only events (e.g. `afterFileEdit` for Cursor/OpenCode/Kilo, `worktreeCreate` for Claude Code, `afterError` for Copilot) can coexist with shared ones without leaking to other tools.
+- `cursor.hooks`, `claudecode.hooks`, `opencode.hooks`, `kilo.hooks`, `copilot.hooks`, `copilotcli.hooks`, `factorydroid.hooks`, `geminicli.hooks`, `codexcli.hooks`, `deepagents.hooks`: Tool-specific **override keys**. Entries under these keys are emitted only for the corresponding tool, so tool-only events (e.g. `afterFileEdit` for Cursor/OpenCode/Kilo, `worktreeCreate` for Claude Code, `afterError` for Copilot/Copilot CLI) can coexist with shared ones without leaking to other tools. `copilotcli.hooks` falls back to `copilot.hooks`, which in turn falls back to the shared `hooks` block.
 
 **Hook entry keys:**
 
@@ -101,42 +101,47 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 
 ### Hook event × tool matrix
 
-| Event                  | Cursor | Claude Code | OpenCode | Kilo | Copilot | Factory Droid | Gemini CLI | Codex CLI | deepagents |
-| ---------------------- | :----: | :---------: | :------: | :--: | :-----: | :-----------: | :--------: | :-------: | :--------: |
-| `sessionStart`         |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |      ✅       |     ✅     |    ✅     |     ✅     |
-| `sessionEnd`           |   ✅   |     ✅      |    —     |  —   |   ✅    |      ✅       |     ✅     |     —     |     ✅     |
-| `beforeSubmitPrompt`   |   ✅   |     ✅      |    —     |  —   |   ✅    |      ✅       |     ✅     |    ✅     |     ✅     |
-| `preToolUse`           |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |      ✅       |     ✅     |    ✅     |     —      |
-| `postToolUse`          |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |      ✅       |     ✅     |    ✅     |     —      |
-| `postToolUseFailure`   |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     ✅     |
-| `stop`                 |   ✅   |     ✅      |    ✅    |  ✅  |    —    |      ✅       |     ✅     |    ✅     |     ✅     |
-| `subagentStart`        |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
-| `subagentStop`         |   ✅   |     ✅      |    —     |  —   |    —    |      ✅       |     —      |     —     |     —      |
-| `preCompact`           |   ✅   |     ✅      |    —     |  —   |    —    |      ✅       |     ✅     |     —     |     ✅     |
-| `afterFileEdit`        |   ✅   |      —      |    ✅    |  ✅  |    —    |       —       |     —      |     —     |     —      |
-| `beforeShellExecution` |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
-| `afterShellExecution`  |   ✅   |      —      |    ✅    |  ✅  |    —    |       —       |     —      |     —     |     —      |
-| `beforeMCPExecution`   |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
-| `afterMCPExecution`    |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
-| `beforeReadFile`       |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
-| `beforeAgentResponse`  |   —    |      —      |    —     |  —   |    —    |       —       |     ✅     |     —     |     —      |
-| `afterAgentResponse`   |   ✅   |      —      |    —     |  —   |    —    |       —       |     ✅     |     —     |     —      |
-| `afterAgentThought`    |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
-| `beforeTabFileRead`    |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
-| `afterTabFileEdit`     |   ✅   |      —      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
-| `beforeToolSelection`  |   —    |      —      |    —     |  —   |    —    |       —       |     ✅     |     —     |     —      |
-| `permissionRequest`    |   —    |     ✅      |    ✅    |  ✅  |    —    |      ✅       |     —      |    ✅     |     ✅     |
-| `notification`         |   —    |     ✅      |    —     |  —   |    —    |      ✅       |     ✅     |     —     |     —      |
-| `setup`                |   —    |     ✅      |    —     |  —   |    —    |      ✅       |     —      |     —     |     —      |
-| `worktreeCreate`       |   —    |     ✅      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
-| `worktreeRemove`       |   —    |     ✅      |    —     |  —   |    —    |       —       |     —      |     —     |     —      |
-| `afterError`           |   —    |      —      |    —     |  —   |   ✅    |       —       |     —      |     —     |     —      |
+| Event                  | Cursor | Claude Code | OpenCode | Kilo | Copilot | Copilot CLI | Factory Droid | Gemini CLI | Codex CLI | deepagents |
+| ---------------------- | :----: | :---------: | :------: | :--: | :-----: | :---------: | :-----------: | :--------: | :-------: | :--------: |
+| `sessionStart`         |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |
+| `sessionEnd`           |   ✅   |     ✅      |    —     |  —   |   ✅    |     ✅      |      ✅       |     ✅     |     —     |     ✅     |
+| `beforeSubmitPrompt`   |   ✅   |     ✅      |    —     |  —   |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |
+| `preToolUse`           |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     —      |
+| `postToolUse`          |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     —      |
+| `postToolUseFailure`   |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     ✅     |
+| `stop`                 |   ✅   |     ✅      |    ✅    |  ✅  |    —    |      —      |      ✅       |     ✅     |    ✅     |     ✅     |
+| `subagentStart`        |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |
+| `subagentStop`         |   ✅   |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     —      |     —     |     —      |
+| `preCompact`           |   ✅   |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     ✅     |     —     |     ✅     |
+| `afterFileEdit`        |   ✅   |      —      |    ✅    |  ✅  |    —    |      —      |       —       |     —      |     —     |     —      |
+| `beforeShellExecution` |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |
+| `afterShellExecution`  |   ✅   |      —      |    ✅    |  ✅  |    —    |      —      |       —       |     —      |     —     |     —      |
+| `beforeMCPExecution`   |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |
+| `afterMCPExecution`    |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |
+| `beforeReadFile`       |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |
+| `beforeAgentResponse`  |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     ✅     |     —     |     —      |
+| `afterAgentResponse`   |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     ✅     |     —     |     —      |
+| `afterAgentThought`    |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |
+| `beforeTabFileRead`    |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |
+| `afterTabFileEdit`     |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |
+| `beforeToolSelection`  |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     ✅     |     —     |     —      |
+| `permissionRequest`    |   —    |     ✅      |    ✅    |  ✅  |    —    |      —      |      ✅       |     —      |    ✅     |     ✅     |
+| `notification`         |   —    |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     ✅     |     —     |     —      |
+| `setup`                |   —    |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     —      |     —     |     —      |
+| `worktreeCreate`       |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |
+| `worktreeRemove`       |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |
+| `afterError`           |   —    |      —      |    —     |  —   |   ✅    |     ✅      |       —       |     —      |     —     |     —      |
 
 > **Note:** `worktreeCreate` and `worktreeRemove` are Claude Code-specific events and do not support the `matcher` field. Any matcher defined in the config is ignored for these events.
 
 > **Note:** Rulesync implements OpenCode hooks as a plugin at `.opencode/plugins/rulesync-hooks.js` and Kilo hooks as a plugin at `.kilo/plugins/rulesync-hooks.js`, so importing from OpenCode/Kilo to rulesync is not supported. Both only support command-type hooks (not prompt-type).
 
 > **Note:** GitHub Copilot's format uses separate `powershell` and `bash` fields for hooks. Rulesync supports only a single `command` field and resolves this by emitting the command under the `powershell` key on Windows, and under the `bash` key on all other platforms.
+
+> **Note:** Hook file paths per tool:
+>
+> - **Copilot (cloud agent)** — `<project>/.github/hooks/copilot-hooks.json`.
+> - **Copilot CLI** — project: `<project>/.github/hooks/copilotcli-hooks.json`; global: `~/.copilot/hooks/copilot-hooks.json`. The Copilot CLI docs let you choose any filename inside `.github/hooks/`, so Rulesync uses the CLI-specific name to avoid colliding with the cloud-agent file when both targets are enabled. The global path is a Rulesync convention; the official Copilot CLI documentation does not currently enumerate a global hooks location, so this placement may change if the spec later mandates an alternate layout.
 
 > **Note:** Because each AI tool evolves its own hook surface at its own pace, the matrix above reflects the events Rulesync currently translates. When a tool ships a new event that Rulesync does not yet support, the most reliable path is to open an issue — the matrix is the intended baseline to compare against.
 
@@ -484,5 +489,7 @@ For Kiro, this generates tool permission settings in `.kiro/agents/default.json`
 - `edit` / `write` map to `toolsSettings.write.allowedPaths` / `toolsSettings.write.deniedPaths`
 - `webfetch` / `websearch` with pattern `*` map to `allowedTools` entries (`web_fetch` / `web_search`)
 - `ask` rules are skipped with a warning (Kiro config does not support explicit ask entries)
+
+For Cursor CLI, this generates `permissions` entries in `.cursor/cli.json` (project mode) or `~/.cursor/cli-config.json` (global mode). Cursor CLI only supports `allow` and `deny` decisions, so `ask` rules are skipped with a warning. Tool categories are mapped to PascalCase Cursor tool names (`bash` → `Shell`, `read` → `Read`, `edit`/`write` → `Write`, `webfetch` → `WebFetch`, `mcp__*` → `Mcp`). Existing Cursor-specific entries that Rulesync does not manage (for example, MCP entries with extra fields) are preserved on round-trip.
 
 > **Note: Interaction with ignore feature.** Both the ignore feature and the permissions feature can manage `Read` tool deny entries in `.claude/settings.json`. When both features configure the `Read` tool, the **permissions feature takes precedence** and a warning is emitted. If you only need to restrict file reads based on glob patterns, use the ignore feature (`.rulesync/.aiignore`). Use permissions only when you need fine-grained `allow`/`ask`/`deny` control over the `Read` tool.

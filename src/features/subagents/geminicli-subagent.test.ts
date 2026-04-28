@@ -49,6 +49,16 @@ Body content`;
         relativeDirPath: join(".gemini", "agents"),
       });
     });
+
+    it("should return same .gemini/agents path in global mode (resolved relative to home)", () => {
+      // Per https://github.com/google-gemini/gemini-cli/blob/main/docs/core/subagents.md
+      // global subagents live at ~/.gemini/agents/*.md, which uses the same
+      // relative directory as project mode resolved against the home dir.
+      const paths = GeminiCliSubagent.getSettablePaths({ global: true });
+      expect(paths).toEqual({
+        relativeDirPath: join(".gemini", "agents"),
+      });
+    });
   });
 
   describe("constructor", () => {

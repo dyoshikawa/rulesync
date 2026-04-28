@@ -36,6 +36,10 @@ describe("E2E: subagents", () => {
       outputPath: join(".github", "agents", "planner.agent.md"),
     },
     {
+      target: "copilotcli",
+      outputPath: join(".github", "agents", "planner.agent.md"),
+    },
+    {
       target: "deepagents",
       outputPath: join(".deepagents", "agents", "planner.md"),
     },
@@ -230,7 +234,9 @@ describe("E2E: subagents (global mode)", () => {
   it.each([
     { target: "claudecode", outputPath: join(".claude", "agents", "planner.md") },
     { target: "codexcli", outputPath: join(".codex", "agents", "planner.toml") },
+    { target: "copilotcli", outputPath: join(".copilot", "agents", "planner.agent.md") },
     { target: "cursor", outputPath: join(".cursor", "agents", "planner.md") },
+    { target: "geminicli", outputPath: join(".gemini", "agents", "planner.md") },
     { target: "opencode", outputPath: join(".config", "opencode", "agent", "planner.md") },
     { target: "rovodev", outputPath: join(".rovodev", "subagents", "planner.md") },
     { target: "takt", outputPath: join(".takt", "facets", "personas", "planner.md") },

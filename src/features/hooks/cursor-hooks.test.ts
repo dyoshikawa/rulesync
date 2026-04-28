@@ -27,6 +27,13 @@ describe("CursorHooks", () => {
       const paths = CursorHooks.getSettablePaths();
       expect(paths).toEqual({ relativeDirPath: ".cursor", relativeFilePath: "hooks.json" });
     });
+
+    it("should return the same .cursor/hooks.json shape in global mode (resolved relative to home)", () => {
+      // Cursor uses identical filename for project and global — only the
+      // resolution root (project vs. home) differs, which is the harness's job.
+      const paths = CursorHooks.getSettablePaths({ global: true });
+      expect(paths).toEqual({ relativeDirPath: ".cursor", relativeFilePath: "hooks.json" });
+    });
   });
 
   describe("fromRulesyncHooks", () => {

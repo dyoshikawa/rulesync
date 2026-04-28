@@ -200,6 +200,7 @@ export const HooksConfigSchema = z.looseObject({
   cursor: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   claudecode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   copilot: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  copilotcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   opencode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   kilo: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   factorydroid: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
