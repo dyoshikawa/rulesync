@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { parse as parseToml } from "smol-toml";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
@@ -9,8 +10,6 @@ import {
   GeminiCliCommand,
   GeminiCliCommandFrontmatter,
   GeminiCliCommandFrontmatterSchema,
-  translateGeminiBodyToRulesync,
-  translateRulesyncBodyToGemini,
 } from "./geminicli-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 
@@ -818,74 +817,112 @@ Token {{args}}-foo and prefix{{args}} here.
       });
 
       expect(geminiCommand.getBody().trimEnd()).toBe("Run !{echo `hello`}.");
+
+      // The on-disk TOML must parse cleanly (the basic-string serializer
+      // escapes the embedded backtick as part of the prompt value) and must
+      // not contain an unescaped `"""` triple-quote — a malformed serializer
+      // could otherwise break out of a multi-line literal.
+      const fileContent = geminiCommand.getFileContent();
+      expect(fileContent).not.toContain('"""');
+      expect(() => parseToml(fileContent)).not.toThrow();
+      const parsed = parseToml(fileContent) as { prompt: string };
+      expect(parsed.prompt).toContain("Run !{echo `hello`}.");
     });
   });
 
-  describe("translateRulesyncBodyToGemini (direct unit tests)", () => {
+  describe("forward translation edge cases (rulesync → Gemini CLI)", () => {
+    const translateBody = (body: string): string => {
+      const rulesyncCommand = new RulesyncCommand({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "edge.md",
+        frontmatter: { targets: ["geminicli"], description: "edge" },
+        body,
+        fileContent: "",
+        validate: true,
+      });
+      const geminiCommand = GeminiCliCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand,
+        validate: true,
+      });
+      // The serializer appends a trailing \n; strip it for comparison so the
+      // assertions focus on the translation output itself.
+      return geminiCommand.getBody().replace(/\n$/, "");
+    };
+
     it("translates $ARGUMENTS to {{args}}", () => {
-      expect(translateRulesyncBodyToGemini("Focus on $ARGUMENTS.")).toBe("Focus on {{args}}.");
+      expect(translateBody("Focus on $ARGUMENTS.")).toBe("Focus on {{args}}.");
     });
 
     it("translates !`cmd` to !{cmd}", () => {
-      expect(translateRulesyncBodyToGemini("Run !`git status`.")).toBe("Run !{git status}.");
+      expect(translateBody("Run !`git status`.")).toBe("Run !{git status}.");
     });
 
     it("preserves $ARGUMENTSx (no leading or trailing word boundary mismatch)", () => {
-      expect(translateRulesyncBodyToGemini("$ARGUMENTSx remains")).toBe("$ARGUMENTSx remains");
+      expect(translateBody("$ARGUMENTSx remains")).toBe("$ARGUMENTSx remains");
     });
 
     it("translates $ARGUMENTS-foo (hyphen is not a word char)", () => {
-      expect(translateRulesyncBodyToGemini("$ARGUMENTS-foo")).toBe("{{args}}-foo");
+      expect(translateBody("$ARGUMENTS-foo")).toBe("{{args}}-foo");
     });
 
     it("translates a leading $ARGUMENTS at start of input", () => {
-      expect(translateRulesyncBodyToGemini("$ARGUMENTS go")).toBe("{{args}} go");
+      expect(translateBody("$ARGUMENTS go")).toBe("{{args}} go");
     });
 
     it("translates a trailing $ARGUMENTS at end of input", () => {
-      expect(translateRulesyncBodyToGemini("go $ARGUMENTS")).toBe("go {{args}}");
+      expect(translateBody("go $ARGUMENTS")).toBe("go {{args}}");
     });
 
     it("translates prefix$ARGUMENTS (no leading boundary anchor)", () => {
-      expect(translateRulesyncBodyToGemini("prefix$ARGUMENTS")).toBe("prefix{{args}}");
+      expect(translateBody("prefix$ARGUMENTS")).toBe("prefix{{args}}");
     });
 
     it("preserves $ARGUMENTS_FOO (underscore is a word char)", () => {
-      expect(translateRulesyncBodyToGemini("$ARGUMENTS_FOO")).toBe("$ARGUMENTS_FOO");
+      expect(translateBody("$ARGUMENTS_FOO")).toBe("$ARGUMENTS_FOO");
     });
 
     it("rewrites nested !`echo $ARGUMENTS` to !{echo {{args}}}", () => {
-      expect(translateRulesyncBodyToGemini("Run !`echo $ARGUMENTS`.")).toBe(
-        "Run !{echo {{args}}}.",
-      );
+      expect(translateBody("Run !`echo $ARGUMENTS`.")).toBe("Run !{echo {{args}}}.");
     });
   });
 
-  describe("translateGeminiBodyToRulesync (direct unit tests)", () => {
+  describe("reverse translation edge cases (Gemini CLI → rulesync)", () => {
+    const translateBody = (body: string): string => {
+      const tomlContent = `description = "edge"\nprompt = ${JSON.stringify(body)}\n`;
+      const geminiCommand = new GeminiCliCommand({
+        outputRoot: testDir,
+        relativeDirPath: join(".gemini", "commands"),
+        relativeFilePath: "edge.toml",
+        fileContent: tomlContent,
+        validate: true,
+      });
+      return geminiCommand.toRulesyncCommand().getBody();
+    };
+
     it("translates {{args}} to $ARGUMENTS", () => {
-      expect(translateGeminiBodyToRulesync("Focus on {{args}}.")).toBe("Focus on $ARGUMENTS.");
+      expect(translateBody("Focus on {{args}}.")).toBe("Focus on $ARGUMENTS.");
     });
 
     it("translates {{ args }} (with whitespace) to $ARGUMENTS", () => {
-      expect(translateGeminiBodyToRulesync("Focus on {{ args }}.")).toBe("Focus on $ARGUMENTS.");
+      expect(translateBody("Focus on {{ args }}.")).toBe("Focus on $ARGUMENTS.");
     });
 
     it("translates !{cmd} to !`cmd`", () => {
-      expect(translateGeminiBodyToRulesync("Run !{git status}.")).toBe("Run !`git status`.");
+      expect(translateBody("Run !{git status}.")).toBe("Run !`git status`.");
     });
 
     it("translates multiple !{...} occurrences", () => {
-      expect(translateGeminiBodyToRulesync("A !{cmd1} B !{cmd2} C")).toBe("A !`cmd1` B !`cmd2` C");
+      expect(translateBody("A !{cmd1} B !{cmd2} C")).toBe("A !`cmd1` B !`cmd2` C");
     });
 
     it("translates nested !{echo {{args}}} to !`echo $ARGUMENTS` in one pass", () => {
-      expect(translateGeminiBodyToRulesync("Run !{echo {{args}}} now.")).toBe(
-        "Run !`echo $ARGUMENTS` now.",
-      );
+      expect(translateBody("Run !{echo {{args}}} now.")).toBe("Run !`echo $ARGUMENTS` now.");
     });
 
     it("handles multi-line bodies", () => {
-      expect(translateGeminiBodyToRulesync("Line1 !{a}\nLine2 with {{args}}\nLine3 !{b}")).toBe(
+      expect(translateBody("Line1 !{a}\nLine2 with {{args}}\nLine3 !{b}")).toBe(
         "Line1 !`a`\nLine2 with $ARGUMENTS\nLine3 !`b`",
       );
     });
@@ -893,7 +930,7 @@ Token {{args}}-foo and prefix{{args}} here.
     it("does not match across newlines for !{...}", () => {
       // The non-greedy [^}\n]+? still excludes newlines, matching the
       // forward direction's `!\`[^\`\n]+\`` anchor.
-      expect(translateGeminiBodyToRulesync("!{abc\ndef}")).toBe("!{abc\ndef}");
+      expect(translateBody("!{abc\ndef}")).toBe("!{abc\ndef}");
     });
   });
 

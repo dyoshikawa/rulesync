@@ -39,10 +39,9 @@ export const GeminiCliCommandFrontmatterSchema = z.looseObject({
  *
  * Bodies that already contain Gemini-native forms (`{{args}}` or `!{cmd}`)
  * are left untouched, which gives us the documented "we do not re-translate
- * already-Gemini-native forms" property. This is exported for direct unit
- * testing.
+ * already-Gemini-native forms" property.
  */
-export function translateRulesyncBodyToGemini(body: string): string {
+function translateRulesyncBodyToGemini(body: string): string {
   return body.replace(/!`([^`\n]+)`/g, "!{$1}").replace(/\$ARGUMENTS\b/g, "{{args}}");
 }
 
@@ -59,10 +58,8 @@ export function translateRulesyncBodyToGemini(body: string): string {
  * `!{echo {{args}}}` round-trip back to `` !`echo $ARGUMENTS` `` in a single
  * pass: the inner `{{args}}` is rewritten to `$ARGUMENTS`, and then the
  * non-greedy `!{...}` match consumes the smallest possible body.
- *
- * Exported for direct unit testing.
  */
-export function translateGeminiBodyToRulesync(body: string): string {
+function translateGeminiBodyToRulesync(body: string): string {
   return body.replace(/\{\{\s*args\s*\}\}/g, "$ARGUMENTS").replace(/!\{([^}\n]+?)\}/g, "!`$1`");
 }
 
@@ -164,12 +161,15 @@ export class GeminiCliCommand extends ToolCommand {
     // Merge geminicli-specific fields from rulesync frontmatter
     const geminicliFields = rulesyncFrontmatter.geminicli ?? {};
 
-    // Translate universal command syntax to Gemini CLI's native syntax. The
-    // translated body is used as the default `prompt`, but any explicit
-    // `geminicli.prompt` field carried in `geminicliFields` will overwrite it
-    // via the spread below — users who hand-author Gemini-native syntax in the
-    // `geminicli` section are assumed to want it emitted verbatim.
-    const translatedPrompt = translateRulesyncBodyToGemini(rulesyncCommand.getBody());
+    // Translate universal command syntax to Gemini CLI's native syntax —
+    // unless an explicit `geminicli.prompt` override is present, in which
+    // case the user is hand-authoring the Gemini-native body and we skip
+    // translation entirely. Short-circuiting here avoids running the regex
+    // pipeline only to discard its result via the spread below.
+    const hasPromptOverride = typeof geminicliFields.prompt === "string";
+    const translatedPrompt = hasPromptOverride
+      ? ""
+      : translateRulesyncBodyToGemini(rulesyncCommand.getBody());
 
     const geminiFrontmatter: GeminiCliCommandFrontmatter = {
       description: rulesyncFrontmatter.description,
@@ -187,10 +187,21 @@ export class GeminiCliCommand extends ToolCommand {
     if (geminiFrontmatter.description !== undefined) {
       tomlObject.description = geminiFrontmatter.description;
     }
-    // Preserve the historical behavior of emitting a trailing newline on the
-    // prompt body. The previous implementation used a `"""\n${body}\n"""`
-    // multi-line literal, which TOML parses as `${body}\n`; downstream code
-    // and tests rely on this trailing newline.
+    // Preserve the historical trailing-newline behavior of the prompt body.
+    //
+    // Before the migration to `stringifyToml`, the serializer wrote
+    // `prompt = """\n${body}\n"""` — a multi-line basic string in which the
+    // surrounding literal newlines are real bytes on disk, parsed back into
+    // a single trailing `\n` by `parseToml`. Downstream code, snapshots, and
+    // round-trip tests rely on that trailing newline being present in
+    // `parsed.prompt`.
+    //
+    // The new `stringifyToml`-based serializer emits a basic single-line
+    // string with `\n` escape sequences instead. The on-disk *shape* is
+    // therefore different (no surrounding `"""`, escaped `\n` in place of
+    // raw newline bytes), but the parsed-string equivalence is preserved by
+    // unconditionally ensuring the in-memory value ends with `\n` before
+    // serialization. This keeps the externally-observable contract stable.
     tomlObject.prompt = geminiFrontmatter.prompt.endsWith("\n")
       ? geminiFrontmatter.prompt
       : `${geminiFrontmatter.prompt}\n`;
