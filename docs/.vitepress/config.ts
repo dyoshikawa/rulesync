@@ -107,6 +107,7 @@ export default defineConfig({
           },
           { text: "CLI Commands", link: "/reference/cli-commands" },
           { text: "File Formats", link: "/reference/file-formats" },
+          { text: "Command Syntax", link: "/reference/command-syntax" },
           { text: "MCP Server", link: "/reference/mcp-server" },
         ],
       },

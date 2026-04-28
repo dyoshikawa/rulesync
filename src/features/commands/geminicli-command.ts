@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { parse as parseToml } from "smol-toml";
+import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import { z } from "zod/mini";
 
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
@@ -21,6 +21,47 @@ export const GeminiCliCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   prompt: z.string(),
 });
+
+/**
+ * Translate rulesync universal command syntax (Claude Code compatible) into
+ * Gemini CLI's native syntax. See docs/reference/command-syntax.md.
+ *
+ * Replacement order:
+ *   1. `` !`cmd` `` → `!{cmd}`  (backtick shell expansion → brace form)
+ *   2. `$ARGUMENTS` → `{{args}}` (handled after step 1 so that
+ *      `` !`echo $ARGUMENTS` `` survives as `!{echo {{args}}}` rather than
+ *      requiring two passes).
+ *
+ * `$ARGUMENTS\b` uses a trailing word boundary so `$ARGUMENTSx` and
+ * `$ARGUMENTS_FOO` are left alone, while `$ARGUMENTS-foo` (hyphen is not a
+ * word char) is rewritten. There is no leading anchor, so `prefix$ARGUMENTS`
+ * is rewritten to `prefix{{args}}`.
+ *
+ * Bodies that already contain Gemini-native forms (`{{args}}` or `!{cmd}`)
+ * are left untouched, which gives us the documented "we do not re-translate
+ * already-Gemini-native forms" property.
+ */
+function translateRulesyncBodyToGemini(body: string): string {
+  return body.replace(/!`([^`\n]+)`/g, "!{$1}").replace(/\$ARGUMENTS\b/g, "{{args}}");
+}
+
+/**
+ * Inverse of {@link translateRulesyncBodyToGemini}, used when importing a
+ * Gemini CLI command file back into rulesync's universal syntax.
+ *
+ * Replacement order is intentionally inverted from the forward direction:
+ *   1. `{{args}}` → `$ARGUMENTS` (handled first)
+ *   2. `!{cmd}` → `` !`cmd` `` (handled second, with a non-greedy body
+ *      `[^}\n]+?`)
+ *
+ * Doing `{{args}}` first ensures that nested forms like
+ * `!{echo {{args}}}` round-trip back to `` !`echo $ARGUMENTS` `` in a single
+ * pass: the inner `{{args}}` is rewritten to `$ARGUMENTS`, and then the
+ * non-greedy `!{...}` match consumes the smallest possible body.
+ */
+function translateGeminiBodyToRulesync(body: string): string {
+  return body.replace(/\{\{\s*args\s*\}\}/g, "$ARGUMENTS").replace(/!\{([^}\n]+?)\}/g, "!`$1`");
+}
 
 export type GeminiCliCommandFrontmatter = z.infer<typeof GeminiCliCommandFrontmatterSchema>;
 
@@ -89,13 +130,19 @@ export class GeminiCliCommand extends ToolCommand {
       ...(Object.keys(restFields).length > 0 && { geminicli: restFields }),
     };
 
-    // Generate proper file content with Rulesync specific frontmatter
-    const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
+    const universalBody = translateGeminiBodyToRulesync(this.body);
+
+    // Generate proper file content with Rulesync specific frontmatter. The
+    // `body` and `fileContent` fields below are derived from the same
+    // `universalBody` source string, so they stay in sync — `body` is the
+    // raw markdown content while `fileContent` is the same content wrapped
+    // with YAML frontmatter for on-disk serialization.
+    const fileContent = stringifyFrontmatter(universalBody, rulesyncFrontmatter);
 
     return new RulesyncCommand({
       outputRoot: process.cwd(), // RulesyncCommand outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
-      body: this.body,
+      body: universalBody,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
       fileContent,
@@ -114,22 +161,53 @@ export class GeminiCliCommand extends ToolCommand {
     // Merge geminicli-specific fields from rulesync frontmatter
     const geminicliFields = rulesyncFrontmatter.geminicli ?? {};
 
+    // Translate universal command syntax to Gemini CLI's native syntax —
+    // unless an explicit `geminicli.prompt` override is present, in which
+    // case the user is hand-authoring the Gemini-native body and we skip
+    // translation entirely. Short-circuiting here avoids running the regex
+    // pipeline only to discard its result via the spread below.
+    const hasPromptOverride = typeof geminicliFields.prompt === "string";
+    const translatedPrompt = hasPromptOverride
+      ? ""
+      : translateRulesyncBodyToGemini(rulesyncCommand.getBody());
+
     const geminiFrontmatter: GeminiCliCommandFrontmatter = {
       description: rulesyncFrontmatter.description,
-      prompt: rulesyncCommand.getBody(),
+      prompt: translatedPrompt,
       ...geminicliFields,
     };
 
-    // Generate proper file content with TOML format
-    // Note: TOML format only supports description and prompt fields
-    // Extra fields from geminicli section are stored in the object but not serialized to TOML
-    const descriptionLine =
-      geminiFrontmatter.description !== undefined
-        ? `description = "${geminiFrontmatter.description}"\n`
-        : "";
-    const tomlContent = `${descriptionLine}prompt = """
-${geminiFrontmatter.prompt}
-"""`;
+    // Serialize via smol-toml's stringify so that special characters in the
+    // description / prompt (`"`, `\`, control chars, embedded `"""`, etc.)
+    // are properly escaped instead of breaking out of the TOML literal. The
+    // serializer emits each value as a basic string with JSON-style escaping
+    // — multi-line bodies are encoded with `\n` escape sequences, which
+    // round-trip cleanly through `parseToml`.
+    const tomlObject: Record<string, unknown> = {};
+    if (geminiFrontmatter.description !== undefined) {
+      tomlObject.description = geminiFrontmatter.description;
+    }
+    // Preserve the historical trailing-newline behavior of the prompt body.
+    //
+    // Before the migration to `stringifyToml`, the serializer wrote
+    // `prompt = """\n${body}\n"""` — a multi-line basic string in which the
+    // surrounding literal newlines are real bytes on disk, parsed back into
+    // a single trailing `\n` by `parseToml`. Downstream code, snapshots, and
+    // round-trip tests rely on that trailing newline being present in
+    // `parsed.prompt`.
+    //
+    // The new `stringifyToml`-based serializer emits a basic single-line
+    // string with `\n` escape sequences instead. The on-disk *shape* is
+    // therefore different (no surrounding `"""`, escaped `\n` in place of
+    // raw newline bytes), but the parsed-string equivalence is preserved by
+    // unconditionally ensuring the in-memory value ends with `\n` before
+    // serialization. This keeps the externally-observable contract stable.
+    tomlObject.prompt = geminiFrontmatter.prompt.endsWith("\n")
+      ? geminiFrontmatter.prompt
+      : `${geminiFrontmatter.prompt}\n`;
+    // Note: TOML output only carries description and prompt. Extra fields
+    // from the `geminicli` rulesync section are intentionally not serialized.
+    const tomlContent = stringifyToml(tomlObject);
 
     const paths = this.getSettablePaths({ global });
 
