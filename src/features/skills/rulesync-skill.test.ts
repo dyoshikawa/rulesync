@@ -91,6 +91,7 @@ describe("RulesyncSkill", () => {
         description: "Claude Code specific skill",
         claudecode: {
           "allowed-tools": ["Bash", "Read", "Write"],
+          "scheduled-task": true,
         },
       };
 
@@ -103,6 +104,7 @@ describe("RulesyncSkill", () => {
 
       expect(skill.getFrontmatter().claudecode).toEqual({
         "allowed-tools": ["Bash", "Read", "Write"],
+        "scheduled-task": true,
       });
     });
 

@@ -336,6 +336,16 @@ export class SkillsProcessor extends DirFeatureProcessor {
 
     const toolSkills = rulesyncSkills
       .map((rulesyncSkill) => {
+        const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+        const isClaudecodeScheduledTask =
+          rulesyncFrontmatter.claudecode?.["scheduled-task"] === true;
+        if (
+          isClaudecodeScheduledTask &&
+          this.toolTarget !== "claudecode" &&
+          this.toolTarget !== "claudecode-legacy"
+        ) {
+          return null;
+        }
         if (!factory.class.isTargetedByRulesyncSkill(rulesyncSkill)) {
           return null;
         }
