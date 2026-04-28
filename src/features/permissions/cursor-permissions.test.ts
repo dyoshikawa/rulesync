@@ -309,4 +309,101 @@ describe("CursorPermissions", () => {
       expect(JSON.parse(instance.getFileContent())).toEqual({ permissions: {} });
     });
   });
+
+  describe("edit/write category merging", () => {
+    it("should merge rulesync 'edit' and 'write' rules into a single Cursor Write entry", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {
+            edit: { "src/**": "allow" },
+            write: { "docs/**": "allow" },
+          },
+        }),
+      });
+
+      const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const parsed = JSON.parse(cursorPermissions.getFileContent());
+      expect(parsed.permissions.allow).toEqual(
+        expect.arrayContaining(["Write(src/**)", "Write(docs/**)"]),
+      );
+      // Ensure the rulesync `edit` category did not leak into a non-existent
+      // Cursor `Edit` type.
+      expect(JSON.stringify(parsed.permissions.allow)).not.toContain("Edit(");
+    });
+  });
+
+  describe("malformed input tolerance", () => {
+    it("should ignore a non-object root value in the existing config", async () => {
+      const logger = createMockLogger();
+      const cursorDir = join(testDir, ".cursor");
+      await ensureDir(cursorDir);
+      // Hand-edited config that erroneously serialized an array at the root.
+      await writeFileContent(join(cursorDir, "cli.json"), JSON.stringify(["unexpected"]));
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({ permission: { bash: { ls: "allow" } } }),
+      });
+
+      const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const parsed = JSON.parse(cursorPermissions.getFileContent());
+      expect(parsed.permissions.allow).toContain("Shell(ls)");
+    });
+
+    it("should ignore non-object permissions field on import", () => {
+      const cursorPermissions = new CursorPermissions({
+        relativeDirPath: ".cursor",
+        relativeFilePath: "cli.json",
+        fileContent: JSON.stringify({ permissions: "totally-broken" }),
+      });
+      const json = cursorPermissions.toRulesyncPermissions().getJson();
+      expect(json.permission).toEqual({});
+    });
+
+    it("should drop non-string entries from allow/deny on import", () => {
+      const cursorPermissions = new CursorPermissions({
+        relativeDirPath: ".cursor",
+        relativeFilePath: "cli.json",
+        fileContent: JSON.stringify({
+          permissions: {
+            allow: ["Shell(git status)", 42, null, "Read(src/**)"],
+            deny: ["Shell(rm -rf *)", { weird: true }],
+          },
+        }),
+      });
+      const json = cursorPermissions.toRulesyncPermissions().getJson();
+      expect(json.permission.bash?.["git status"]).toBe("allow");
+      expect(json.permission.read?.["src/**"]).toBe("allow");
+      expect(json.permission.bash?.["rm -rf *"]).toBe("deny");
+    });
+
+    it("should fall back to plain 'mcp' canonical category when the Mcp pattern is unrecognized", () => {
+      // Forward-compat: future Cursor variants with a different shape (e.g.
+      // `server:tool(arg)`) should not silently mangle into the per-tool
+      // canonical category.
+      const cursorPermissions = new CursorPermissions({
+        relativeDirPath: ".cursor",
+        relativeFilePath: "cli.json",
+        fileContent: JSON.stringify({
+          permissions: { allow: ["Mcp(unknown-shape-no-colon)"] },
+        }),
+      });
+      const json = cursorPermissions.toRulesyncPermissions().getJson();
+      expect(json.permission.mcp).toBeDefined();
+    });
+  });
 });

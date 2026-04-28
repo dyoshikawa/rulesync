@@ -79,10 +79,14 @@ function toCursorType(canonical: string): string {
 
 /**
  * For per-tool MCP canonical categories like `mcp__puppeteer__navigate`, the
- * server+tool address is encoded in the category name itself, so the user's
- * pattern is collapsed into Cursor's `server:tool` syntax. Non-`*` patterns are
- * preserved when explicitly provided (rare, but supported for forward
- * compatibility with future Cursor argument matching).
+ * server+tool address is encoded in the category name itself, so the rulesync
+ * pattern collapses to Cursor's `server:tool` syntax. Non-`*` patterns
+ * forward-write `server:tool(<pattern>)` for symmetry with the other
+ * categories, but note that Cursor CLI does not currently document this
+ * argument-match form — it is preserved here only so the generated entry
+ * round-trips back to the original canonical pattern via
+ * {@link toCanonicalCategory}'s fallback (the entry is treated as plain `mcp`
+ * on import in that case).
  */
 function toCursorPattern(canonical: string, pattern: string): string {
   if (isMcpScopedCategory(canonical)) {
@@ -102,9 +106,10 @@ function toCursorPattern(canonical: string, pattern: string): string {
 function toCanonicalCategory(cursorType: string, pattern: string): string {
   if (cursorType === "Mcp") {
     // `Mcp(server:tool)` → canonical category `mcp__server__tool` with `*` pattern.
-    // Parse the pattern's server:tool prefix; preserve any trailing `(...)` as
-    // the canonical pattern (forward-compat — Cursor docs do not currently
-    // define this shape, but the round-trip stays lossless).
+    // The Cursor CLI docs only define the bare `server:tool` shape, so any
+    // pattern that does not match it (including potential future
+    // `server:tool(arg)` variants) falls back to the plain `mcp` category to
+    // avoid silently mangling unknown future syntax.
     const match = pattern.match(/^([^:()]+):([^()]+)$/);
     if (match) {
       const server = match[1] ?? "*";
@@ -151,6 +156,36 @@ type CursorCliConfig = {
   };
   [key: string]: unknown;
 };
+
+/**
+ * Narrow `JSON.parse` output to a plain object before treating it as a Cursor
+ * CLI config. Cursor's `cli.json` is documented as an object; if a hand-edited
+ * file contains an array, primitive, or `null`, we silently fall back to an
+ * empty config so the rest of the merge pipeline can produce a fresh,
+ * well-formed file rather than crashing on `.permissions` access.
+ */
+function asCursorCliConfig(value: unknown): CursorCliConfig {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  // The signature is structurally compatible — `CursorCliConfig` is just
+  // `Record<string, unknown>` with a typed optional `permissions` field, and
+  // every downstream access goes through additional narrowing helpers
+  // (`asCursorPermissionEntryArray`, the `permissions` object guard) before
+  // touching specific properties.
+  return { ...value };
+}
+
+/**
+ * Coerce the `permissions.allow` / `permissions.deny` fields into string
+ * arrays, dropping non-string entries defensively. Cursor only documents
+ * arrays of strings here; tolerating malformed input keeps a single bad
+ * line from breaking the entire generate run.
+ */
+function asCursorPermissionEntryArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string");
+}
 
 export class CursorPermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
@@ -210,7 +245,7 @@ export class CursorPermissions extends ToolPermissions {
     );
     let settings: CursorCliConfig;
     try {
-      settings = JSON.parse(existingContent);
+      settings = asCursorCliConfig(JSON.parse(existingContent));
     } catch (error) {
       throw new Error(
         `Failed to parse existing Cursor CLI config at ${filePath}: ${formatError(error)}`,
@@ -228,11 +263,17 @@ export class CursorPermissions extends ToolPermissions {
       Object.keys(config.permission).map((category) => toCursorType(category)),
     );
 
-    const existingPermissions = settings.permissions ?? {};
-    const preservedAllow = (existingPermissions.allow ?? []).filter(
+    const existingPermissionsRaw = settings.permissions;
+    const existingPermissions =
+      existingPermissionsRaw !== null &&
+      typeof existingPermissionsRaw === "object" &&
+      !Array.isArray(existingPermissionsRaw)
+        ? existingPermissionsRaw
+        : {};
+    const preservedAllow = asCursorPermissionEntryArray(existingPermissions.allow).filter(
       (entry) => !managedTypes.has(parseCursorPermissionEntry(entry).type),
     );
-    const preservedDeny = (existingPermissions.deny ?? []).filter(
+    const preservedDeny = asCursorPermissionEntryArray(existingPermissions.deny).filter(
       (entry) => !managedTypes.has(parseCursorPermissionEntry(entry).type),
     );
 
@@ -269,7 +310,7 @@ export class CursorPermissions extends ToolPermissions {
   toRulesyncPermissions(): RulesyncPermissions {
     let settings: CursorCliConfig;
     try {
-      settings = JSON.parse(this.getFileContent());
+      settings = asCursorCliConfig(JSON.parse(this.getFileContent()));
     } catch (error) {
       throw new Error(
         `Failed to parse Cursor CLI permissions content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
@@ -277,10 +318,16 @@ export class CursorPermissions extends ToolPermissions {
       );
     }
 
-    const permissions = settings.permissions ?? {};
+    const permissionsRaw = settings.permissions;
+    const permissions =
+      permissionsRaw !== null &&
+      typeof permissionsRaw === "object" &&
+      !Array.isArray(permissionsRaw)
+        ? permissionsRaw
+        : {};
     const config = convertCursorToRulesyncPermissions({
-      allow: permissions.allow ?? [],
-      deny: permissions.deny ?? [],
+      allow: asCursorPermissionEntryArray(permissions.allow),
+      deny: asCursorPermissionEntryArray(permissions.deny),
     });
 
     return this.toRulesyncPermissionsDefault({
