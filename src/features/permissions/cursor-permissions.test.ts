@@ -338,6 +338,32 @@ describe("CursorPermissions", () => {
       // Cursor `Edit` type.
       expect(JSON.stringify(parsed.permissions.allow)).not.toContain("Edit(");
     });
+
+    it("should deduplicate when 'edit' and 'write' produce the same Cursor entry", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {
+            edit: { "src/**": "allow" },
+            write: { "src/**": "allow" },
+          },
+        }),
+      });
+
+      const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const parsed = JSON.parse(cursorPermissions.getFileContent());
+      const writeSrcEntries: string[] = (parsed.permissions.allow as string[]).filter(
+        (e) => e === "Write(src/**)",
+      );
+      expect(writeSrcEntries.length).toBe(1);
+    });
   });
 
   describe("malformed input tolerance", () => {
@@ -362,6 +388,39 @@ describe("CursorPermissions", () => {
 
       const parsed = JSON.parse(cursorPermissions.getFileContent());
       expect(parsed.permissions.allow).toContain("Shell(ls)");
+    });
+
+    it("should preserve sibling keys and rewrite a non-object permissions field on generate", async () => {
+      const logger = createMockLogger();
+      const cursorDir = join(testDir, ".cursor");
+      await ensureDir(cursorDir);
+      // Hand-edited config where `permissions` is a string and another sibling
+      // key (`model`) should round-trip untouched.
+      await writeFileContent(
+        join(cursorDir, "cli.json"),
+        JSON.stringify({ permissions: "totally-broken", model: "x" }),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+        }),
+      });
+
+      const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const parsed = JSON.parse(cursorPermissions.getFileContent());
+      expect(parsed.model).toBe("x");
+      expect(parsed.permissions).toEqual({ allow: ["Shell(git *)"] });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("non-object `permissions` field"),
+      );
     });
 
     it("should ignore non-object permissions field on import", () => {
@@ -404,6 +463,75 @@ describe("CursorPermissions", () => {
       });
       const json = cursorPermissions.toRulesyncPermissions().getJson();
       expect(json.permission.mcp).toBeDefined();
+    });
+
+    it("should fall back to plain 'mcp' for multi-colon Mcp patterns", () => {
+      // Multi-colon shapes like `Mcp(a:b:c)` are not part of the documented
+      // `server:tool` form, so they collapse to the plain `mcp` category
+      // rather than producing a per-tool canonical category with a colon
+      // smuggled into the tool name.
+      const cursorPermissions = new CursorPermissions({
+        relativeDirPath: ".cursor",
+        relativeFilePath: "cli.json",
+        fileContent: JSON.stringify({
+          permissions: { allow: ["Mcp(a:b:c)"] },
+        }),
+      });
+      const json = cursorPermissions.toRulesyncPermissions().getJson();
+      expect(json.permission.mcp).toBeDefined();
+      expect(json.permission.mcp__a__b).toBeUndefined();
+    });
+
+    it("should warn when generate-side existing config root is non-object", async () => {
+      const logger = createMockLogger();
+      const cursorDir = join(testDir, ".cursor");
+      await ensureDir(cursorDir);
+      await writeFileContent(join(cursorDir, "cli.json"), JSON.stringify(["unexpected"]));
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({ permission: { bash: { ls: "allow" } } }),
+      });
+
+      await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("is not a JSON object"));
+    });
+
+    it("should warn when generate-side existing allow array contains non-string entries", async () => {
+      const logger = createMockLogger();
+      const cursorDir = join(testDir, ".cursor");
+      await ensureDir(cursorDir);
+      await writeFileContent(
+        join(cursorDir, "cli.json"),
+        JSON.stringify({
+          permissions: {
+            allow: ["Mcp(custom:tool)", 42],
+            deny: [null],
+          },
+        }),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({ permission: { bash: { ls: "allow" } } }),
+      });
+
+      await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("contains a non-string entry"),
+      );
     });
   });
 });

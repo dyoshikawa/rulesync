@@ -6,6 +6,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -108,9 +109,10 @@ function toCanonicalCategory(cursorType: string, pattern: string): string {
     // `Mcp(server:tool)` → canonical category `mcp__server__tool` with `*` pattern.
     // The Cursor CLI docs only define the bare `server:tool` shape, so any
     // pattern that does not match it (including potential future
-    // `server:tool(arg)` variants) falls back to the plain `mcp` category to
-    // avoid silently mangling unknown future syntax.
-    const match = pattern.match(/^([^:()]+):([^()]+)$/);
+    // `server:tool(arg)` variants and multi-colon `server:tool:more` shapes)
+    // falls back to the plain `mcp` category to avoid silently mangling
+    // unknown future syntax.
+    const match = pattern.match(/^([^:()]+):([^:()]+)$/);
     if (match) {
       const server = match[1] ?? "*";
       const tool = match[2] ?? "*";
@@ -160,19 +162,26 @@ type CursorCliConfig = {
 /**
  * Narrow `JSON.parse` output to a plain object before treating it as a Cursor
  * CLI config. Cursor's `cli.json` is documented as an object; if a hand-edited
- * file contains an array, primitive, or `null`, we silently fall back to an
- * empty config so the rest of the merge pipeline can produce a fresh,
- * well-formed file rather than crashing on `.permissions` access.
+ * file contains an array, primitive, or `null`, we fall back to an empty
+ * config so the rest of the merge pipeline can produce a fresh, well-formed
+ * file rather than crashing on `.permissions` access. A warning is emitted
+ * (when a logger is supplied) so the user is alerted to the malformed input.
+ *
+ * The shallow `{ ...value }` spread is intentional: the project bans `as`
+ * assertions outside tests, so returning `value` directly would not satisfy
+ * the `CursorCliConfig` return type without a cast. Spreading produces a
+ * fresh `Record<string, unknown>` that is structurally assignable. Every
+ * downstream access still goes through additional narrowing helpers
+ * (`asCursorPermissionEntryArray`, the `permissions` object guard) before
+ * touching specific properties.
  */
-function asCursorCliConfig(value: unknown): CursorCliConfig {
+function asCursorCliConfig(value: unknown, logger?: Logger, sourceLabel?: string): CursorCliConfig {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    logger?.warn(
+      `Cursor CLI config${sourceLabel ? ` at ${sourceLabel}` : ""} is not a JSON object; ignoring existing content.`,
+    );
     return {};
   }
-  // The signature is structurally compatible — `CursorCliConfig` is just
-  // `Record<string, unknown>` with a typed optional `permissions` field, and
-  // every downstream access goes through additional narrowing helpers
-  // (`asCursorPermissionEntryArray`, the `permissions` object guard) before
-  // touching specific properties.
   return { ...value };
 }
 
@@ -180,11 +189,26 @@ function asCursorCliConfig(value: unknown): CursorCliConfig {
  * Coerce the `permissions.allow` / `permissions.deny` fields into string
  * arrays, dropping non-string entries defensively. Cursor only documents
  * arrays of strings here; tolerating malformed input keeps a single bad
- * line from breaking the entire generate run.
+ * line from breaking the entire generate run. When a logger is supplied,
+ * dropped entries trigger a warning so users notice the malformed data.
  */
-function asCursorPermissionEntryArray(value: unknown): string[] {
+function asCursorPermissionEntryArray(
+  value: unknown,
+  logger?: Logger,
+  fieldLabel?: string,
+): string[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === "string");
+  const result: string[] = [];
+  for (const item of value) {
+    if (typeof item === "string") {
+      result.push(item);
+    } else {
+      logger?.warn(
+        `Cursor CLI permissions${fieldLabel ? `.${fieldLabel}` : ""} contains a non-string entry; dropping ${JSON.stringify(item)}.`,
+      );
+    }
+  }
+  return result;
 }
 
 export class CursorPermissions extends ToolPermissions {
@@ -245,7 +269,7 @@ export class CursorPermissions extends ToolPermissions {
     );
     let settings: CursorCliConfig;
     try {
-      settings = asCursorCliConfig(JSON.parse(existingContent));
+      settings = asCursorCliConfig(JSON.parse(existingContent), logger, filePath);
     } catch (error) {
       throw new Error(
         `Failed to parse existing Cursor CLI config at ${filePath}: ${formatError(error)}`,
@@ -264,19 +288,38 @@ export class CursorPermissions extends ToolPermissions {
     );
 
     const existingPermissionsRaw = settings.permissions;
-    const existingPermissions =
+    let existingPermissions: Record<string, unknown>;
+    if (existingPermissionsRaw === undefined) {
+      existingPermissions = {};
+    } else if (
       existingPermissionsRaw !== null &&
       typeof existingPermissionsRaw === "object" &&
       !Array.isArray(existingPermissionsRaw)
-        ? existingPermissionsRaw
-        : {};
-    const preservedAllow = asCursorPermissionEntryArray(existingPermissions.allow).filter(
-      (entry) => !managedTypes.has(parseCursorPermissionEntry(entry).type),
-    );
-    const preservedDeny = asCursorPermissionEntryArray(existingPermissions.deny).filter(
-      (entry) => !managedTypes.has(parseCursorPermissionEntry(entry).type),
-    );
+    ) {
+      existingPermissions = existingPermissionsRaw;
+    } else {
+      logger?.warn(
+        `Cursor CLI config at ${filePath} has a non-object \`permissions\` field; ignoring existing permissions.`,
+      );
+      existingPermissions = {};
+    }
+    const preservedAllow = asCursorPermissionEntryArray(
+      existingPermissions.allow,
+      logger,
+      "allow",
+    ).filter((entry) => !managedTypes.has(parseCursorPermissionEntry(entry).type));
+    const preservedDeny = asCursorPermissionEntryArray(
+      existingPermissions.deny,
+      logger,
+      "deny",
+    ).filter((entry) => !managedTypes.has(parseCursorPermissionEntry(entry).type));
 
+    // Spread the existing `permissions` object so unknown keys (e.g. a future
+    // `cwd` or other forward-compat fields a user has hand-edited) are
+    // preserved verbatim alongside the managed `allow` / `deny` arrays. This
+    // is intentional: rulesync only governs `allow` / `deny`, and dropping
+    // unrecognized keys would lose user-authored configuration on every
+    // round-trip.
     const mergedPermissions: Record<string, unknown> = {
       ...existingPermissions,
     };
@@ -325,6 +368,9 @@ export class CursorPermissions extends ToolPermissions {
       !Array.isArray(permissionsRaw)
         ? permissionsRaw
         : {};
+    // The import path intentionally does not thread a logger; malformed input
+    // here is silently tolerated since `toRulesyncPermissions` is best-effort
+    // and may be invoked transitively by callers without a logger context.
     const config = convertCursorToRulesyncPermissions({
       allow: asCursorPermissionEntryArray(permissions.allow),
       deny: asCursorPermissionEntryArray(permissions.deny),
