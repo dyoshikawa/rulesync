@@ -103,15 +103,24 @@ export class ClinePermissions extends ToolPermissions {
 
     for (const [category, rules] of Object.entries(config.permission)) {
       if (category !== "bash") {
-        logger?.warn(
-          `Cline command permissions only support shell commands. Skipping category '${category}'.`,
+        // Strong warning: Cline does not support non-shell categories at all, so the user's intent
+        // for `read` / `edit` / `write` / `webfetch` / `websearch` deny rules is silently dropped.
+        // Use `error` rather than `warn` to make this conspicuous in CI logs. Cline cannot enforce
+        // these so users should rely on a different tool (e.g. ignore feature) to constrain reads.
+        logger?.error(
+          `Cline command permissions only support shell commands. Category '${category}' is ` +
+            `dropped entirely; Cline cannot enforce it. Consider using the rulesync ignore feature ` +
+            `for read/write restrictions.`,
         );
         continue;
       }
       for (const [pattern, action] of Object.entries(rules)) {
         if (action === "ask") {
-          logger?.warn(
-            `Cline command permissions do not support 'ask'. Skipping rule: bash:${pattern}`,
+          // `ask` cannot be expressed in Cline (which only knows allow/deny), so the rule is
+          // dropped. Surface as `error` to make the silent loss visible.
+          logger?.error(
+            `Cline command permissions do not support 'ask'. Skipping rule: bash:${pattern}. ` +
+              `Cline cannot prompt the user for shell commands.`,
           );
           continue;
         }
@@ -123,10 +132,24 @@ export class ClinePermissions extends ToolPermissions {
       }
     }
 
+    const dedupedAllow = uniq(allow.toSorted());
+    const dedupedDeny = uniq(deny.toSorted());
+    const denySet = new Set(dedupedDeny);
+    const collisions = dedupedAllow.filter((p) => denySet.has(p));
+    if (collisions.length > 0) {
+      logger?.warn(
+        `Cline command permissions: pattern(s) ${collisions
+          .map((p) => `'${p}'`)
+          .join(", ")} appear in both 'allow' and 'deny'. Cline's evaluation order is not ` +
+          `documented to guarantee deny-priority; the resulting behavior is undefined. ` +
+          `Consider removing the duplicate rule from rulesync.`,
+      );
+    }
+
     const next: ClineCommandPermissions = {
       ...existing,
-      allow: uniq(allow.toSorted()),
-      deny: uniq(deny.toSorted()),
+      allow: dedupedAllow,
+      deny: dedupedDeny,
       allowRedirects: existing.allowRedirects ?? false,
     };
 

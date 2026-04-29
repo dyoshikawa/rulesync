@@ -7,7 +7,7 @@ import {
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
 import { QwencodePermissions } from "./qwencode-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
@@ -27,10 +27,6 @@ describe("QwencodePermissions", () => {
 
   it("should resolve settable paths", () => {
     expect(QwencodePermissions.getSettablePaths()).toEqual({
-      relativeDirPath: ".qwen",
-      relativeFilePath: "settings.json",
-    });
-    expect(QwencodePermissions.getSettablePaths({ global: true })).toEqual({
       relativeDirPath: ".qwen",
       relativeFilePath: "settings.json",
     });
@@ -123,5 +119,61 @@ describe("QwencodePermissions", () => {
       relativeFilePath: "settings.json",
     });
     expect(instance.isDeletable()).toBe(false);
+  });
+
+  it("should round-trip patterns containing nested parentheses", () => {
+    const instance = new QwencodePermissions({
+      relativeDirPath: ".qwen",
+      relativeFilePath: "settings.json",
+      fileContent: JSON.stringify({
+        permissions: {
+          allow: ["Bash(echo (a))", "Bash(grep (foo|bar))"],
+        },
+      }),
+    });
+
+    const config = instance.toRulesyncPermissions().getJson();
+    // Last `)` is used as the closing delimiter so the inner parens are preserved.
+    expect(config.permission.bash).toEqual({
+      "echo (a)": "allow",
+      "grep (foo|bar)": "allow",
+    });
+  });
+
+  it("should warn on malformed entries with trailing characters and fall back to '*'", () => {
+    const instance = new QwencodePermissions({
+      relativeDirPath: ".qwen",
+      relativeFilePath: "settings.json",
+      fileContent: JSON.stringify({
+        permissions: {
+          // Malformed: trailing chars after closing paren.
+          allow: ["Bash(npm *)trailing"],
+        },
+      }),
+    });
+
+    // Round-trip uses the parser internally.
+    const config = instance.toRulesyncPermissions().getJson();
+    expect(config.permission.bash).toEqual({ "*": "allow" });
+  });
+
+  it("should not create the .qwen directory when generating with no existing file (dry-run safe)", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { bash: { "git *": "allow" } },
+      }),
+    });
+
+    await QwencodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    // The construction phase MUST NOT create the destination file/directory; that is
+    // performed only by `writeAiFiles`. This protects dry-run mode.
+    expect(await fileExists(join(testDir, ".qwen"))).toBe(false);
+    expect(await fileExists(join(testDir, ".qwen", "settings.json"))).toBe(false);
   });
 });

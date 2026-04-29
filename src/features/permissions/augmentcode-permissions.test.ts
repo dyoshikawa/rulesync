@@ -6,6 +6,7 @@ import {
   RULESYNC_PERMISSIONS_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { AugmentcodePermissions } from "./augmentcode-permissions.js";
@@ -68,7 +69,7 @@ describe("AugmentcodePermissions", () => {
     expect(view.permission.type).toBe("allow");
   });
 
-  it("should preserve unrelated toolPermissions entries and other top-level keys", async () => {
+  it("should preserve unrelated toolPermissions entries, top-level keys, and existing launch-process deny entries (fail-closed)", async () => {
     const settingsDir = join(testDir, ".augment");
     await ensureDir(settingsDir);
     await writeFileContent(
@@ -84,6 +85,11 @@ describe("AugmentcodePermissions", () => {
             toolName: "launch-process",
             shellInputRegex: "^old$",
             permission: { type: "deny" },
+          },
+          {
+            toolName: "launch-process",
+            shellInputRegex: "^old-allow$",
+            permission: { type: "allow" },
           },
         ],
       }),
@@ -104,10 +110,184 @@ describe("AugmentcodePermissions", () => {
 
     const content = JSON.parse(instance.getFileContent());
     expect(content.userName).toBe("alice");
-    const entries = content.toolPermissions as Array<{ toolName: string }>;
+    const entries = content.toolPermissions as Array<{
+      toolName: string;
+      shellInputRegex?: string;
+      permission: { type: string };
+    }>;
     expect(entries.find((e) => e.toolName === "custom-tool")).toBeDefined();
-    // Old launch-process entry should be replaced (managed)
-    expect(entries.filter((e) => e.toolName === "launch-process")).toHaveLength(1);
+    // The existing launch-process *deny* entry (`^old$`) must survive (fail-closed preservation #5).
+    expect(
+      entries.find(
+        (e) =>
+          e.toolName === "launch-process" &&
+          e.permission.type === "deny" &&
+          e.shellInputRegex === "^old$",
+      ),
+    ).toBeDefined();
+    // The existing launch-process *allow* entry should be replaced — rulesync owns the namespace
+    // for non-deny entries.
+    expect(
+      entries.find(
+        (e) =>
+          e.toolName === "launch-process" &&
+          e.permission.type === "allow" &&
+          e.shellInputRegex === "^old-allow$",
+      ),
+    ).toBeUndefined();
+    // Newly generated launch-process entry from rulesync should be present.
+    expect(
+      entries.find(
+        (e) =>
+          e.toolName === "launch-process" &&
+          e.permission.type === "allow" &&
+          e.shellInputRegex === "^git .*$",
+      ),
+    ).toBeDefined();
+  });
+
+  it("should drop a duplicate existing launch-process deny entry that exactly matches a generated one", async () => {
+    const settingsDir = join(testDir, ".augment");
+    await ensureDir(settingsDir);
+    await writeFileContent(
+      join(settingsDir, "settings.json"),
+      JSON.stringify({
+        toolPermissions: [
+          {
+            toolName: "launch-process",
+            shellInputRegex: "^rm .*$",
+            permission: { type: "deny" },
+          },
+        ],
+      }),
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { bash: { "rm *": "deny" } },
+      }),
+    });
+
+    const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const entries = JSON.parse(instance.getFileContent()).toolPermissions as Array<{
+      toolName: string;
+      shellInputRegex?: string;
+      permission: { type: string };
+    }>;
+    // Exactly one occurrence of the matching entry — no duplication.
+    expect(
+      entries.filter(
+        (e) =>
+          e.toolName === "launch-process" &&
+          e.shellInputRegex === "^rm .*$" &&
+          e.permission.type === "deny",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("should fail-closed for non-bash categories: a single deny collapses all rules to a catch-all deny entry", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          read: { "src/**": "allow", ".env": "deny" },
+        },
+      }),
+    });
+
+    const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    const entries = JSON.parse(instance.getFileContent()).toolPermissions as Array<{
+      toolName: string;
+      shellInputRegex?: string;
+      permission: { type: string };
+    }>;
+    const view = entries.filter((e) => e.toolName === "view");
+    expect(view).toHaveLength(1);
+    expect(view[0]?.permission.type).toBe("deny");
+    expect(view[0]?.shellInputRegex).toBeUndefined();
+    // Aggregated warn for the collapse
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("contains a 'deny' rule"));
+  });
+
+  it("should drop non-wildcard non-bash patterns when no deny exists and aggregate-warn once per category", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          read: { "src/**": "allow", "lib/**": "allow", "*": "ask" },
+        },
+      }),
+    });
+
+    const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    const entries = JSON.parse(instance.getFileContent()).toolPermissions as Array<{
+      toolName: string;
+      shellInputRegex?: string;
+      permission: { type: string };
+    }>;
+    const view = entries.filter((e) => e.toolName === "view");
+    // Only the catch-all `*` ask entry should be emitted; the non-`*` allow patterns are dropped.
+    expect(view).toEqual([{ toolName: "view", permission: { type: "ask-user" } }]);
+    // Aggregate warn (single call) listing the dropped patterns.
+    const dropCalls = logger.warn.mock.calls.filter(
+      (c: unknown[]) => typeof c[0] === "string" && c[0].includes("dropping non-wildcard patterns"),
+    );
+    expect(dropCalls).toHaveLength(1);
+    expect(dropCalls[0]?.[0]).toContain("src/**");
+    expect(dropCalls[0]?.[0]).toContain("lib/**");
+  });
+
+  it("should sort generated entries deny-first then specific-first to make first-match-wins safe", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          // Deliberately put catch-all first in input to verify we sort by specificity, not by
+          // insertion order.
+          bash: { "*": "ask", "git *": "allow", "rm -rf *": "deny" },
+        },
+      }),
+    });
+
+    const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const entries = JSON.parse(instance.getFileContent()).toolPermissions as Array<{
+      toolName: string;
+      shellInputRegex?: string;
+      permission: { type: string };
+    }>;
+    const launchEntries = entries.filter((e) => e.toolName === "launch-process");
+    // Expect: deny first, then specific allow, then catch-all ask.
+    expect(launchEntries[0]?.permission.type).toBe("deny");
+    expect(launchEntries[0]?.shellInputRegex).toBe("^rm -rf .*$");
+    expect(launchEntries[1]?.permission.type).toBe("allow");
+    expect(launchEntries[1]?.shellInputRegex).toBe("^git .*$");
+    expect(launchEntries[2]?.permission.type).toBe("ask-user");
+    expect(launchEntries[2]?.shellInputRegex).toBeUndefined();
   });
 
   it("should round-trip toolPermissions back to rulesync format", () => {

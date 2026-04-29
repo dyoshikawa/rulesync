@@ -55,7 +55,7 @@ describe("ClinePermissions", () => {
     expect(content.allowRedirects).toBe(false);
   });
 
-  it("should warn on non-bash categories and 'ask' rules", async () => {
+  it("should error on non-bash categories and 'ask' rules (silent loss must be conspicuous)", async () => {
     const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -74,10 +74,10 @@ describe("ClinePermissions", () => {
       logger,
     });
 
-    expect(logger.warn).toHaveBeenCalledWith(
+    expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining("Cline command permissions only support shell commands"),
     );
-    expect(logger.warn).toHaveBeenCalledWith(
+    expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining("Cline command permissions do not support 'ask'"),
     );
   });

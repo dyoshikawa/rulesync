@@ -6,7 +6,7 @@ import { z } from "zod/mini";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -62,16 +62,34 @@ function toCanonicalToolName(qwenName: string): string {
   return QWEN_TO_CANONICAL_TOOL_NAMES[qwenName] ?? qwenName;
 }
 
-function parseQwenPermissionEntry(entry: string): { toolName: string; pattern: string } {
+function parseQwenPermissionEntry(
+  entry: string,
+  options: { logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"] } = {},
+): { toolName: string; pattern: string } {
   const parenIndex = entry.indexOf("(");
   if (parenIndex === -1) {
     return { toolName: entry, pattern: "*" };
   }
   const toolName = entry.slice(0, parenIndex);
-  if (!entry.endsWith(")")) {
+  // Use `lastIndexOf(')')` so patterns containing nested parentheses (e.g. `Bash(echo (a))`) round-trip
+  // without truncating the inner content. If no closing paren is found, the entry is malformed.
+  const lastParenIndex = entry.lastIndexOf(")");
+  if (lastParenIndex < parenIndex) {
+    options.logger?.warn(
+      `Qwen permissions: malformed entry '${entry}' is missing a closing parenthesis; ` +
+        `falling back to catch-all pattern '*'.`,
+    );
     return { toolName, pattern: "*" };
   }
-  const pattern = entry.slice(parenIndex + 1, -1);
+  // The entry MUST end with the last `)` — anything trailing it (e.g. `Bash(...)x`) is malformed.
+  if (lastParenIndex !== entry.length - 1) {
+    options.logger?.warn(
+      `Qwen permissions: malformed entry '${entry}' has trailing characters after the closing ` +
+        `parenthesis; falling back to catch-all pattern '*'.`,
+    );
+    return { toolName, pattern: "*" };
+  }
+  const pattern = entry.slice(parenIndex + 1, lastParenIndex);
   return { toolName, pattern: pattern || "*" };
 }
 
@@ -125,10 +143,9 @@ export class QwencodePermissions extends ToolPermissions {
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<QwencodePermissions> {
     const paths = QwencodePermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const existingContent = await readOrInitializeFileContent(
-      filePath,
-      JSON.stringify({}, null, 2),
-    );
+    // Use null-fallback (instead of readOrInitializeFileContent) so generation has no filesystem
+    // side effects when the destination directory does not yet exist (important for dry-run).
+    const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
 
     let settings: QwenSettings;
     try {
@@ -163,7 +180,12 @@ export class QwencodePermissions extends ToolPermissions {
       (entry) => !managedToolNames.has(parseQwenPermissionEntry(entry).toolName),
     );
 
-    const mergedPermissions: Record<string, unknown> = {
+    const mergedPermissions: {
+      allow?: string[];
+      ask?: string[];
+      deny?: string[];
+      [k: string]: unknown;
+    } = {
       ...existingPermissions,
     };
 

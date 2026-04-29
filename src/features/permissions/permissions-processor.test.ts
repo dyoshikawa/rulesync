@@ -9,12 +9,16 @@ import {
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
+import { AugmentcodePermissions } from "./augmentcode-permissions.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
+import { ClinePermissions } from "./cline-permissions.js";
 import { CodexcliPermissions } from "./codexcli-permissions.js";
 import { GeminicliPermissions } from "./geminicli-permissions.js";
+import { KiloPermissions } from "./kilo-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
 import { PermissionsProcessor } from "./permissions-processor.js";
+import { QwencodePermissions } from "./qwencode-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
 const logger = createMockLogger();
@@ -260,6 +264,86 @@ default_permissions = "rulesync"
 
       expect(files).toHaveLength(1);
       expect(files[0]).toBeInstanceOf(GeminicliPermissions);
+    });
+
+    it("should load AugmentCode .augment/settings.json", async () => {
+      const augmentDir = join(testDir, ".augment");
+      await ensureDir(augmentDir);
+      await writeFileContent(
+        join(augmentDir, "settings.json"),
+        JSON.stringify({
+          toolPermissions: [{ toolName: "launch-process", permission: { type: "ask-user" } }],
+        }),
+      );
+
+      const processor = new PermissionsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "augmentcode",
+      });
+
+      const files = await processor.loadToolFiles();
+
+      expect(files).toHaveLength(1);
+      expect(files[0]).toBeInstanceOf(AugmentcodePermissions);
+    });
+
+    it("should load Cline .cline/command-permissions.json", async () => {
+      const clineDir = join(testDir, ".cline");
+      await ensureDir(clineDir);
+      await writeFileContent(
+        join(clineDir, "command-permissions.json"),
+        JSON.stringify({ allow: ["git *"], deny: ["rm *"] }),
+      );
+
+      const processor = new PermissionsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "cline",
+      });
+
+      const files = await processor.loadToolFiles();
+
+      expect(files).toHaveLength(1);
+      expect(files[0]).toBeInstanceOf(ClinePermissions);
+    });
+
+    it("should load Kilo kilo.jsonc", async () => {
+      await writeFileContent(
+        join(testDir, "kilo.jsonc"),
+        JSON.stringify({ permission: { bash: { "git *": "allow" } } }),
+      );
+
+      const processor = new PermissionsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "kilo",
+      });
+
+      const files = await processor.loadToolFiles();
+
+      expect(files).toHaveLength(1);
+      expect(files[0]).toBeInstanceOf(KiloPermissions);
+    });
+
+    it("should load Qwencode .qwen/settings.json", async () => {
+      const qwenDir = join(testDir, ".qwen");
+      await ensureDir(qwenDir);
+      await writeFileContent(
+        join(qwenDir, "settings.json"),
+        JSON.stringify({ permissions: { allow: ["Bash(npm *)"] } }),
+      );
+
+      const processor = new PermissionsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "qwencode",
+      });
+
+      const files = await processor.loadToolFiles();
+
+      expect(files).toHaveLength(1);
+      expect(files[0]).toBeInstanceOf(QwencodePermissions);
     });
 
     it("should load Kiro .kiro/agents/default.json", async () => {

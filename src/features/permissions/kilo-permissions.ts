@@ -35,7 +35,20 @@ export class KiloPermissions extends ToolPermissions {
 
   constructor(params: AiFileParams) {
     super(params);
-    this.json = KiloPermissionsConfigSchema.parse(parseJsonc(this.fileContent || "{}"));
+    // Always parse the JSONC payload so consumers can call `getJson()` without re-parsing,
+    // but only enforce schema validation when `params.validate !== false` (this matches
+    // `RulesyncPermissions` behavior and avoids throwing during `forDeletion` / dry-run /
+    // import scenarios where the input may be intentionally permissive).
+    const parsed = parseJsonc(this.fileContent || "{}");
+    if (params.validate !== false) {
+      this.json = KiloPermissionsConfigSchema.parse(parsed);
+    } else {
+      // Permissive path: do not throw. Use safeParse so we still get a typed value when the input
+      // happens to match; otherwise fall back to an empty `permission`. This keeps the public
+      // `getJson()` shape stable and avoids `as` type assertions.
+      const result = KiloPermissionsConfigSchema.safeParse(parsed);
+      this.json = result.success ? result.data : {};
+    }
   }
 
   getJson(): KiloPermissionsConfig {

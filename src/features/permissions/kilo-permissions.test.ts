@@ -103,4 +103,31 @@ describe("KiloPermissions", () => {
     });
     expect(instance.isDeletable()).toBe(false);
   });
+
+  it("should NOT throw on schema-incompatible input when validate=false (parsing deferred)", () => {
+    // Permission value of `true` is not in the schema enum, but with validate=false the constructor
+    // must not throw. This matches the behavior of `RulesyncPermissions` and is required so that
+    // `forDeletion` and dry-run scenarios can construct the instance without strict parsing.
+    expect(
+      () =>
+        new KiloPermissions({
+          relativeDirPath: ".",
+          relativeFilePath: "kilo.jsonc",
+          fileContent: JSON.stringify({ permission: { bash: 12345 } }),
+          validate: false,
+        }),
+    ).not.toThrow();
+  });
+
+  it("should throw on schema-incompatible input when validate=true (default)", () => {
+    expect(
+      () =>
+        new KiloPermissions({
+          relativeDirPath: ".",
+          relativeFilePath: "kilo.jsonc",
+          fileContent: JSON.stringify({ permission: { bash: 12345 } }),
+          validate: true,
+        }),
+    ).toThrow();
+  });
 });
