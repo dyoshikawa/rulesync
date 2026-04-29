@@ -152,6 +152,7 @@ function buildCursorPermissionEntry(type: string, pattern: string): string {
 }
 
 type CursorCliConfig = {
+  version?: unknown;
   permissions?: {
     allow?: string[];
     deny?: string[];
@@ -338,7 +339,20 @@ export class CursorPermissions extends ToolPermissions {
       delete mergedPermissions.deny;
     }
 
-    const merged = { ...settings, permissions: mergedPermissions };
+    // Cursor CLI documents `version: 1` as a Required Field for both
+    // `.cursor/cli.json` (project) and `~/.cursor/cli-config.json` (global).
+    // Reference: https://cursor.com/docs/cli/reference/configuration
+    //
+    // When generating from a fresh `{}` settings object the existing `version`
+    // is `undefined`, so we default-stamp `1` to produce a schema-conforming
+    // file. Any pre-existing `version` value (including a non-`1` value) is
+    // preserved verbatim to keep the round-trip stable; if Cursor ever bumps
+    // the schema version, hand-edited values will not be silently overwritten.
+    const merged = {
+      ...settings,
+      version: settings.version ?? 1,
+      permissions: mergedPermissions,
+    };
     const fileContent = JSON.stringify(merged, null, 2);
 
     return new CursorPermissions({

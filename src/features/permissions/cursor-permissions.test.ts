@@ -170,6 +170,77 @@ describe("CursorPermissions", () => {
       expect(parsed.permissions.deny).toContain("Mcp(github:create_issue)");
     });
 
+    it("should default-stamp version: 1 when generating from a fresh config (project)", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+        }),
+      });
+
+      const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const parsed = JSON.parse(cursorPermissions.getFileContent());
+      expect(parsed.version).toBe(1);
+    });
+
+    it("should default-stamp version: 1 when generating from a fresh config (global)", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+        }),
+      });
+
+      const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+        global: true,
+      });
+
+      const parsed = JSON.parse(cursorPermissions.getFileContent());
+      expect(parsed.version).toBe(1);
+    });
+
+    it("should preserve a pre-existing non-1 version value", async () => {
+      const logger = createMockLogger();
+      const cursorDir = join(testDir, ".cursor");
+      await ensureDir(cursorDir);
+      await writeFileContent(
+        join(cursorDir, "cli.json"),
+        JSON.stringify({
+          version: 2,
+          permissions: {},
+        }),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+        }),
+      });
+
+      const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const parsed = JSON.parse(cursorPermissions.getFileContent());
+      expect(parsed.version).toBe(2);
+    });
+
     it("should write to global path .cursor/cli-config.json when global=true", async () => {
       const logger = createMockLogger();
       const rulesyncPermissions = new RulesyncPermissions({
