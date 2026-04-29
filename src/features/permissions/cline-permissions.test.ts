@@ -55,37 +55,69 @@ describe("ClinePermissions", () => {
     expect(content.allowRedirects).toBe(false);
   });
 
-  it("should aggregate translation losses into a single warn call (project convention)", async () => {
+  it("should translate ask rules to deny (fail-closed) and aggregate notices into a single warn", async () => {
     const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
       fileContent: JSON.stringify({
         permission: {
-          bash: { "git *": "allow", "*": "ask" },
+          bash: { "git *": "allow", "rm *": "ask" },
           read: { "src/**": "allow" },
         },
       }),
     });
 
-    await ClinePermissions.fromRulesyncPermissions({
+    const instance = await ClinePermissions.fromRulesyncPermissions({
       outputRoot: testDir,
       rulesyncPermissions,
       logger,
     });
 
-    // Project convention: translation losses are surfaced via `logger.warn`, not `logger.error`,
-    // so CI gates that treat error lines as failures do not blow up.
+    // ask is translated to deny (fail-closed) since Cline lacks ask semantics.
+    const content = JSON.parse(instance.getFileContent());
+    expect(content.allow).toEqual(["git *"]);
+    expect(content.deny).toEqual(["rm *"]);
+
+    // Project convention: translation notices surface via `logger.warn`, not `logger.error`.
     expect(logger.error).not.toHaveBeenCalled();
-    // A single aggregated warn message that mentions both losses.
     const warnCalls = logger.warn.mock.calls.filter(
       (c: unknown[]) =>
-        typeof c[0] === "string" && c[0].includes("WARNING: silent loss of permission rule"),
+        typeof c[0] === "string" && c[0].includes("Cline command permissions translation notice"),
     );
     expect(warnCalls).toHaveLength(1);
     const message = warnCalls[0]?.[0] as string;
     expect(message).toContain("non-bash categories [read]");
-    expect(message).toContain("'ask' rules for bash patterns [*]");
+    expect(message).toContain("translated to 'deny' for fail-closed safety");
+    expect(message).toContain("rm *");
+  });
+
+  it("should preserve user-added denies in the existing file (additive deny)", async () => {
+    const dir = join(testDir, ".cline");
+    await ensureDir(dir);
+    await writeFileContent(
+      join(dir, "command-permissions.json"),
+      JSON.stringify({ allow: ["old-allow"], deny: ["sudo *"], allowRedirects: false }),
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { bash: { "git *": "allow", "rm *": "deny" } },
+      }),
+    });
+
+    const instance = await ClinePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const content = JSON.parse(instance.getFileContent());
+    // `allow` is wholesale-replaced; the previous `old-allow` entry must be gone.
+    expect(content.allow).toEqual(["git *"]);
+    // `deny` is additive: the user-added `sudo *` survives alongside the new `rm *`.
+    expect(content.deny).toEqual(["rm *", "sudo *"]);
   });
 
   it("should preserve allowRedirects from existing file", async () => {

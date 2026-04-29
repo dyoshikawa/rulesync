@@ -101,13 +101,12 @@ export class ClinePermissions extends ToolPermissions {
     const allow: string[] = [];
     const deny: string[] = [];
 
-    // Translation losses are aggregated and surfaced via a single `logger.warn` per call so that
+    // Translation notices are aggregated and surfaced via a single `logger.warn` per call so that
     // (a) CI gates that treat `error` lines as failures don't fail spuriously, matching the
     // project convention used by every other permissions translator, and
-    // (b) the user still sees one prominent "WARNING: silent loss of permission rule" message
-    // listing exactly what was dropped.
+    // (b) the user still sees one prominent "WARNING" message describing the translation.
     const droppedCategories: string[] = [];
-    const droppedAskPatterns: string[] = [];
+    const translatedAskPatterns: string[] = [];
 
     for (const [category, rules] of Object.entries(config.permission)) {
       if (category !== "bash") {
@@ -116,7 +115,10 @@ export class ClinePermissions extends ToolPermissions {
       }
       for (const [pattern, action] of Object.entries(rules)) {
         if (action === "ask") {
-          droppedAskPatterns.push(pattern);
+          // Cline has no `ask` semantics. Translate to `deny` for fail-closed safety so the
+          // protective intent of the rule is preserved instead of being silently dropped.
+          translatedAskPatterns.push(pattern);
+          deny.push(pattern);
           continue;
         }
         if (action === "allow") {
@@ -127,7 +129,7 @@ export class ClinePermissions extends ToolPermissions {
       }
     }
 
-    if (droppedCategories.length > 0 || droppedAskPatterns.length > 0) {
+    if (droppedCategories.length > 0 || translatedAskPatterns.length > 0) {
       const parts: string[] = [];
       if (droppedCategories.length > 0) {
         parts.push(
@@ -135,21 +137,25 @@ export class ClinePermissions extends ToolPermissions {
             `commands; use the rulesync ignore feature for read/write restrictions)`,
         );
       }
-      if (droppedAskPatterns.length > 0) {
+      if (translatedAskPatterns.length > 0) {
         parts.push(
-          `'ask' rules for bash patterns [${droppedAskPatterns.join(", ")}] (Cline only knows ` +
-            `allow/deny and cannot prompt the user)`,
+          `'ask' rules for bash patterns [${translatedAskPatterns.join(", ")}] translated to ` +
+            `'deny' for fail-closed safety, since Cline lacks 'ask'`,
         );
       }
-      logger?.warn(
-        `WARNING: silent loss of permission rule(s) when generating Cline command permissions: ` +
-          `${parts.join("; ")}.`,
-      );
+      logger?.warn(`WARNING: Cline command permissions translation notice: ${parts.join("; ")}.`);
     }
 
     const dedupedAllow = uniq(allow.toSorted());
     const dedupedDeny = uniq(deny.toSorted());
-    const denySet = new Set(dedupedDeny);
+
+    // `deny` is additive (fail-closed): preserve any user-added denies in the existing file so a
+    // regenerate that drops a pattern from `.rulesync/permissions.json` does not silently weaken
+    // the protective surface. `allow` remains wholesale-replaced because rulesync owns the
+    // permissive surface and additive merges of `allow` would re-introduce removed permissions.
+    const mergedDeny = uniq([...(existing.deny ?? []), ...dedupedDeny]).toSorted();
+
+    const denySet = new Set(mergedDeny);
     const collisions = dedupedAllow.filter((p) => denySet.has(p));
     if (collisions.length > 0) {
       logger?.warn(
@@ -164,7 +170,7 @@ export class ClinePermissions extends ToolPermissions {
     const next: ClineCommandPermissions = {
       ...existing,
       allow: dedupedAllow,
-      deny: dedupedDeny,
+      deny: mergedDeny,
       allowRedirects: existing.allowRedirects ?? false,
     };
 

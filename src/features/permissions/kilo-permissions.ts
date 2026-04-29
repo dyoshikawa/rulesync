@@ -30,6 +30,28 @@ type KiloPermissionsConfig = z.infer<typeof KiloPermissionsConfigSchema>;
 
 const KILO_FILE_NAME = "kilo.jsonc";
 
+/**
+ * Extract the patterns associated with `deny` from a Kilo per-tool permission value. The value
+ * shape is either a string catch-all (`"allow" | "ask" | "deny"`) or a `{ <pattern>: <action> }`
+ * map. Used by the per-key merge in `fromRulesyncPermissions` to detect denies that would be
+ * lost by replacing a tool key.
+ */
+function collectKiloDenyPatterns(value: unknown): string[] {
+  if (typeof value === "string") {
+    return value === "deny" ? ["*"] : [];
+  }
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const patterns: string[] = [];
+    for (const [pattern, action] of Object.entries(value)) {
+      if (action === "deny") {
+        patterns.push(pattern);
+      }
+    }
+    return patterns;
+  }
+  return [];
+}
+
 export class KiloPermissions extends ToolPermissions {
   private readonly json: KiloPermissionsConfig;
 
@@ -93,15 +115,61 @@ export class KiloPermissions extends ToolPermissions {
     outputRoot = process.cwd(),
     rulesyncPermissions,
     global = false,
+    logger,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<KiloPermissions> {
     const basePaths = KiloPermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, basePaths.relativeDirPath, basePaths.relativeFilePath);
 
     const fileContent = await readFileContentOrNull(filePath);
-    const parsed = parseJsonc(fileContent ?? "{}");
+    const parsedRaw = parseJsonc(fileContent ?? "{}");
+    const parsed: Record<string, unknown> =
+      parsedRaw && typeof parsedRaw === "object" && !Array.isArray(parsedRaw) ? parsedRaw : {};
+
+    // Per-key merge:
+    // - Tool keys present in rulesync output replace the corresponding key entirely (rulesync is
+    //   authoritative for any key it manages — we do not perform per-pattern merge inside a key).
+    // - Tool keys present only in the existing `parsed.permission` are preserved as-is so
+    //   user-added Kilo-only entries (e.g. a `kilo`-only category not represented in rulesync)
+    //   are not silently wiped on regenerate.
+    // - When a key is replaced AND the existing one had `deny` rules that disappear from the
+    //   regenerated output, an aggregated `logger.warn` enumerates the dropped patterns.
+    const parsedPermission = parsed.permission;
+    const existingPermission: Record<string, unknown> =
+      parsedPermission && typeof parsedPermission === "object" && !Array.isArray(parsedPermission)
+        ? { ...parsedPermission }
+        : {};
+    const rulesyncPermission = rulesyncPermissions.getJson().permission;
+
+    const droppedDenyByKey: Record<string, string[]> = {};
+    for (const key of Object.keys(rulesyncPermission)) {
+      const previous = existingPermission[key];
+      const previousDenyPatterns = collectKiloDenyPatterns(previous);
+      const nextDenyPatterns = new Set(collectKiloDenyPatterns(rulesyncPermission[key]));
+      const dropped = previousDenyPatterns.filter((p) => !nextDenyPatterns.has(p));
+      if (dropped.length > 0) {
+        droppedDenyByKey[key] = dropped;
+      }
+    }
+
+    if (Object.keys(droppedDenyByKey).length > 0) {
+      const summary = Object.entries(droppedDenyByKey)
+        .map(([key, patterns]) => `${key}: [${patterns.join(", ")}]`)
+        .join("; ");
+      logger?.warn(
+        `WARNING: Kilo permissions regeneration drops existing 'deny' rule(s) because rulesync ` +
+          `output owns these tool keys. Dropped — ${summary}. To preserve these denies, add ` +
+          `them to '.rulesync/permissions.json'.`,
+      );
+    }
+
+    const mergedPermission: Record<string, unknown> = { ...existingPermission };
+    for (const [key, value] of Object.entries(rulesyncPermission)) {
+      mergedPermission[key] = value;
+    }
+
     const nextJson = {
       ...parsed,
-      permission: rulesyncPermissions.getJson().permission,
+      permission: mergedPermission,
     };
 
     return new KiloPermissions({

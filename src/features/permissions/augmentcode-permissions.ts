@@ -212,11 +212,15 @@ export class AugmentcodePermissions extends ToolPermissions {
 
     const existingEntries = settings.toolPermissions ?? [];
 
-    // Preservation policy:
-    // - For non-launch-process managed toolNames (view, str-replace-editor, save-file, web-fetch, web-search):
-    //   replace entirely (Rulesync owns the namespace; non-bash entries do not have a documented matcher).
-    // - For launch-process: preserve existing `deny` entries to fail-closed if the user manually added them,
-    //   except those that exactly match a generated entry (which will be re-emitted from rulesync).
+    // Preservation policy (fail-closed):
+    // - Entries with unmanaged toolNames: kept verbatim (Rulesync does not own that namespace).
+    // - Entries with managed toolNames AND `permission.type === "deny"`: preserved so user-added
+    //   denies cannot be silently dropped by regeneration. This applies to ALL managed tools
+    //   (launch-process / view / str-replace-editor / save-file / web-fetch / web-search), not
+    //   just shell commands. Duplicates that exactly match a generated entry are dropped to avoid
+    //   double-emitting the same row.
+    // - Existing managed-tool `allow` / `ask-user` entries: replaced (rulesync owns the
+    //   permissive surface for managed namespaces).
     const generatedKeys = new Set(
       generated.map((e) => `${e.toolName}|${e.shellInputRegex ?? ""}|${e.permission.type}`),
     );
@@ -225,9 +229,9 @@ export class AugmentcodePermissions extends ToolPermissions {
       // Keep all entries whose toolName is unmanaged.
       if (!MANAGED_AUGMENT_TOOL_NAMES.has(entry.toolName)) return true;
 
-      // For launch-process: keep existing `deny` entries (fail-closed) unless they are duplicated by
-      // a generated entry (which would be re-emitted with the same shape).
-      if (entry.toolName === "launch-process" && entry.permission.type === "deny") {
+      // For ANY managed tool: keep existing `deny` entries (fail-closed) unless they are
+      // duplicated by a generated entry (which would be re-emitted with the same shape).
+      if (entry.permission.type === "deny") {
         const key = `${entry.toolName}|${entry.shellInputRegex ?? ""}|${entry.permission.type}`;
         return !generatedKeys.has(key);
       }

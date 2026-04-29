@@ -202,6 +202,64 @@ describe("AugmentcodePermissions", () => {
     expect(denyIndex).toBeLessThan(allowIndex);
   });
 
+  it("should preserve existing deny entries for ALL managed tool names, not just launch-process", async () => {
+    // Regression: previously preservation only protected `launch-process` denies, so user-added
+    // denies on `view`, `str-replace-editor`, `save-file`, `web-fetch`, `web-search` were silently
+    // dropped on regenerate — fail-open. They must now survive.
+    const settingsDir = join(testDir, ".augment");
+    await ensureDir(settingsDir);
+    await writeFileContent(
+      join(settingsDir, "settings.json"),
+      JSON.stringify({
+        toolPermissions: [
+          { toolName: "view", permission: { type: "deny" } },
+          { toolName: "save-file", permission: { type: "deny" } },
+          { toolName: "view", permission: { type: "allow" } },
+        ],
+      }),
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        // rulesync emits a generated catch-all `view` allow under fail-closed rules.
+        permission: { read: { "*": "allow" } },
+      }),
+    });
+
+    const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const entries = JSON.parse(instance.getFileContent()).toolPermissions as Array<{
+      toolName: string;
+      shellInputRegex?: string;
+      permission: { type: string };
+    }>;
+    // Preserved denies for non-bash managed tools must survive.
+    expect(
+      entries.find((e) => e.toolName === "view" && e.permission.type === "deny"),
+    ).toBeDefined();
+    expect(
+      entries.find((e) => e.toolName === "save-file" && e.permission.type === "deny"),
+    ).toBeDefined();
+    // Existing managed-tool ALLOW entries are still replaced by generated ones.
+    const viewAllows = entries.filter(
+      (e) => e.toolName === "view" && e.permission.type === "allow",
+    );
+    expect(viewAllows).toHaveLength(1);
+    // First-match-wins: the preserved view deny must come BEFORE the generated view allow.
+    const denyIndex = entries.findIndex(
+      (e) => e.toolName === "view" && e.permission.type === "deny",
+    );
+    const allowIndex = entries.findIndex(
+      (e) => e.toolName === "view" && e.permission.type === "allow",
+    );
+    expect(denyIndex).toBeLessThan(allowIndex);
+  });
+
   it("should drop a duplicate existing launch-process deny entry that exactly matches a generated one", async () => {
     const settingsDir = join(testDir, ".augment");
     await ensureDir(settingsDir);

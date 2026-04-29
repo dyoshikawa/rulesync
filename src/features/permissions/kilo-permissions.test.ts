@@ -6,6 +6,7 @@ import {
   RULESYNC_PERMISSIONS_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { KiloPermissions } from "./kilo-permissions.js";
@@ -67,6 +68,108 @@ describe("KiloPermissions", () => {
 
     expect(json.model).toBe("x");
     expect(json.permission.bash["git *"]).toBe("allow");
+  });
+
+  it("should preserve existing tool keys not present in rulesync output (per-key merge)", async () => {
+    await writeFileContent(
+      join(testDir, "kilo.jsonc"),
+      JSON.stringify({
+        permission: {
+          // `bash` is replaced by rulesync.
+          bash: { "old *": "allow" },
+          // `read` is NOT in the rulesync output and must be preserved verbatim.
+          read: { ".env": "deny" },
+        },
+      }),
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { bash: { "git *": "allow" } },
+      }),
+    });
+
+    const instance = await KiloPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+    const json = JSON.parse(instance.getFileContent());
+
+    // Replaced managed key.
+    expect(json.permission.bash).toEqual({ "git *": "allow" });
+    expect(json.permission.bash["old *"]).toBeUndefined();
+    // Preserved unmanaged key.
+    expect(json.permission.read).toEqual({ ".env": "deny" });
+  });
+
+  it("should warn (aggregated) when replacing a key drops existing deny patterns", async () => {
+    await writeFileContent(
+      join(testDir, "kilo.jsonc"),
+      JSON.stringify({
+        permission: {
+          bash: { "rm -rf *": "deny", "sudo *": "deny" },
+        },
+      }),
+    );
+
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        // rulesync output drops both denies — only allow git.
+        permission: { bash: { "git *": "allow" } },
+      }),
+    });
+
+    await KiloPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    expect(logger.error).not.toHaveBeenCalled();
+    const warnCalls = logger.warn.mock.calls.filter(
+      (c: unknown[]) =>
+        typeof c[0] === "string" && c[0].includes("Kilo permissions regeneration drops existing"),
+    );
+    expect(warnCalls).toHaveLength(1);
+    const message = warnCalls[0]?.[0] as string;
+    expect(message).toContain("bash");
+    expect(message).toContain("rm -rf *");
+    expect(message).toContain("sudo *");
+  });
+
+  it("should NOT warn when the rulesync output preserves the existing deny patterns", async () => {
+    await writeFileContent(
+      join(testDir, "kilo.jsonc"),
+      JSON.stringify({
+        permission: { bash: { "rm -rf *": "deny" } },
+      }),
+    );
+
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { bash: { "rm -rf *": "deny", "git *": "allow" } },
+      }),
+    });
+
+    await KiloPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    const warnCalls = logger.warn.mock.calls.filter(
+      (c: unknown[]) =>
+        typeof c[0] === "string" && c[0].includes("Kilo permissions regeneration drops existing"),
+    );
+    expect(warnCalls).toHaveLength(0);
   });
 
   it("should round-trip permissions back to rulesync format", async () => {
