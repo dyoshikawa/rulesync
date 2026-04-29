@@ -72,32 +72,49 @@ describe("PermissionsProcessor", () => {
   });
 
   describe("getToolTargets", () => {
-    it("should return claudecode, codexcli, cursor, geminicli, kiro and opencode for project mode", () => {
+    it("should return all permissions tool targets for project mode", () => {
       const targets = PermissionsProcessor.getToolTargets();
       expect(targets).toEqual([
+        "augmentcode",
+        "claudecode",
+        "cline",
+        "codexcli",
+        "cursor",
+        "geminicli",
+        "kilo",
+        "kiro",
+        "opencode",
+        "qwencode",
+      ]);
+    });
+
+    it("should return targets that support global mode", () => {
+      const targets = PermissionsProcessor.getToolTargets({ global: true });
+      expect(targets).toEqual([
+        "augmentcode",
         "claudecode",
         "codexcli",
         "cursor",
         "geminicli",
-        "kiro",
+        "kilo",
         "opencode",
+        "qwencode",
       ]);
-    });
-
-    it("should return claudecode, codexcli, cursor, geminicli and opencode for global mode", () => {
-      const targets = PermissionsProcessor.getToolTargets({ global: true });
-      expect(targets).toEqual(["claudecode", "codexcli", "cursor", "geminicli", "opencode"]);
     });
 
     it("should return importable targets", () => {
       const targets = PermissionsProcessor.getToolTargets({ importOnly: true });
       expect(targets).toEqual([
+        "augmentcode",
         "claudecode",
+        "cline",
         "codexcli",
         "cursor",
         "geminicli",
+        "kilo",
         "kiro",
         "opencode",
+        "qwencode",
       ]);
     });
   });

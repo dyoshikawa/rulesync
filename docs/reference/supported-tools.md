@@ -15,16 +15,16 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Cursor              | cursor       |  ✅   |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
 | Factory Droid       | factorydroid | ✅ 🌏 |        |  ✅ 🌏   |    🎮    |    🎮     |   🎮   | ✅ 🌏 |             |
 | OpenCode            | opencode     | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
-| Cline               | cline        |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |       |             |
-| Kilo Code           | kilo         | ✅ 🌏 |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |       |             |
+| Cline               | cline        |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |       |     ✅      |
+| Kilo Code           | kilo         | ✅ 🌏 |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |       |    ✅ 🌏    |
 | Roo Code            | roo          |  ✅   |   ✅   |    ✅    |    ✅    |    🎮     | ✅ 🌏  |       |             |
 | Rovodev (Atlassian) | rovodev      | ✅ 🌏 |        |    🌏    |          |   ✅ 🌏   | ✅ 🌏  |       |             |
 | Takt                | takt         | ✅ 🌏 |        |          |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |             |
-| Qwen Code           | qwencode     |  ✅   |   ✅   |          |          |           |        |       |             |
+| Qwen Code           | qwencode     |  ✅   |   ✅   |          |          |           |        |       |    ✅ 🌏    |
 | Kiro                | kiro         |  ✅   |   ✅   |    ✅    |    ✅    |    ✅     |   ✅   |       |     ✅      |
 | Google Antigravity  | antigravity  |  ✅   |        |          |    ✅    |           | ✅ 🌏  |       |             |
 | JetBrains Junie     | junie        |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |    ✅     |   ✅   |       |             |
-| AugmentCode         | augmentcode  |  ✅   |   ✅   |          |          |           |        |       |             |
+| AugmentCode         | augmentcode  |  ✅   |   ✅   |          |          |           |        |       |    ✅ 🌏    |
 | Windsurf            | windsurf     |  ✅   |   ✅   |          |          |           | ✅ 🌏  |       |             |
 | Warp                | warp         |  ✅   |        |          |          |           |        |       |             |
 | Replit              | replit       |  ✅   |        |          |          |           |   ✅   |       |             |
