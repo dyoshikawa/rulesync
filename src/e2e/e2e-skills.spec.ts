@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
-import { readFileContent, writeFileContent } from "../utils/file.js";
+import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
   runGenerate,
   runImport,
@@ -357,5 +357,98 @@ Non-root skill body
     );
     expect(generatedContent).toContain("Root skill body");
     expect(generatedContent).not.toContain("Non-root skill body");
+  });
+});
+
+describe("E2E: skills (claudecode scheduled-task)", () => {
+  const { getTestDir } = useTestDirectory();
+
+  it("should route claudecode scheduled-task skills to .claude/scheduled-tasks/", async () => {
+    const testDir = getTestDir();
+
+    const skillContent = `---
+name: weekly-review
+description: "A scheduled-task skill for E2E testing"
+targets: ["*"]
+claudecode:
+  scheduled-task: true
+---
+This is the scheduled task body content.
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "weekly-review", "SKILL.md"),
+      skillContent,
+    );
+
+    await runGenerate({ target: "claudecode", features: "skills" });
+
+    const generatedContent = await readFileContent(
+      join(testDir, ".claude", "scheduled-tasks", "weekly-review", "SKILL.md"),
+    );
+    expect(generatedContent).toContain("scheduled task body content");
+
+    expect(await fileExists(join(testDir, ".claude", "skills", "weekly-review", "SKILL.md"))).toBe(
+      false,
+    );
+  });
+
+  it.each([
+    {
+      target: "cursor",
+      excludedPath: join(".cursor", "skills", "weekly-review", "SKILL.md"),
+    },
+    {
+      target: "geminicli",
+      excludedPath: join(".gemini", "skills", "weekly-review", "SKILL.md"),
+    },
+    {
+      target: "copilot",
+      excludedPath: join(".github", "skills", "weekly-review", "SKILL.md"),
+    },
+  ])(
+    "should not emit claudecode scheduled-task skills to $target even with targets: ['*']",
+    async ({ target, excludedPath }) => {
+      const testDir = getTestDir();
+
+      const skillContent = `---
+name: weekly-review
+description: "A scheduled-task skill for E2E testing"
+targets: ["*"]
+claudecode:
+  scheduled-task: true
+---
+This is the scheduled task body content.
+`;
+      await writeFileContent(
+        join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "weekly-review", "SKILL.md"),
+        skillContent,
+      );
+
+      await runGenerate({ target, features: "skills" });
+
+      expect(await fileExists(join(testDir, excludedPath))).toBe(false);
+    },
+  );
+
+  it("should import claudecode skills from .claude/scheduled-tasks/ with scheduled-task flag", async () => {
+    const testDir = getTestDir();
+
+    const skillContent = `---
+name: weekly-review
+description: "A scheduled-task skill for E2E testing"
+---
+This is the scheduled task body content.`;
+    await writeFileContent(
+      join(testDir, ".claude", "scheduled-tasks", "weekly-review", "SKILL.md"),
+      skillContent,
+    );
+
+    await runImport({ target: "claudecode", features: "skills" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "weekly-review", "SKILL.md"),
+    );
+    expect(importedContent).toContain("scheduled task body content");
+    expect(importedContent).toContain("scheduled-task: true");
   });
 });
