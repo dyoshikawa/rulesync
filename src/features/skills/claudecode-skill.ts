@@ -15,6 +15,9 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
+const CLAUDE_SKILLS_DIR_PATH = join(".claude", "skills");
+const CLAUDE_SCHEDULED_TASKS_DIR_PATH = join(".claude", "scheduled-tasks");
+
 export const ClaudecodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
@@ -78,12 +81,9 @@ export class ClaudecodeSkill extends ToolSkill {
   }: {
     global?: boolean;
   } = {}): ToolSkillSettablePaths {
-    // Claude Code skills use the same relative path for both project and global modes
-    // The actual location differs based on outputRoot:
-    // - Project mode: {process.cwd()}/.claude/skills/
-    // - Global mode: {getHomeDirectory()}/.claude/skills/
     return {
-      relativeDirPath: join(".claude", "skills"),
+      relativeDirPath: CLAUDE_SKILLS_DIR_PATH,
+      alternativeSkillRoots: [CLAUDE_SCHEDULED_TASKS_DIR_PATH],
     };
   }
 
@@ -124,6 +124,7 @@ export class ClaudecodeSkill extends ToolSkill {
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
+      ...(this.relativeDirPath === CLAUDE_SCHEDULED_TASKS_DIR_PATH && { "scheduled-task": true }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -167,10 +168,13 @@ export class ClaudecodeSkill extends ToolSkill {
     };
 
     const settablePaths = ClaudecodeSkill.getSettablePaths({ global });
+    const relativeDirPath = rulesyncFrontmatter.claudecode?.["scheduled-task"]
+      ? CLAUDE_SCHEDULED_TASKS_DIR_PATH
+      : settablePaths.relativeDirPath;
 
     return new ClaudecodeSkill({
       outputRoot,
-      relativeDirPath: settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
       frontmatter: claudecodeFrontmatter,
       body: rulesyncSkill.getBody(),
@@ -181,7 +185,11 @@ export class ClaudecodeSkill extends ToolSkill {
   }
 
   static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
+    const frontmatter = rulesyncSkill.getFrontmatter();
+    const targets = frontmatter.targets;
+    if (frontmatter.claudecode?.["scheduled-task"]) {
+      return true;
+    }
     return targets.includes("*") || targets.includes("claudecode");
   }
 

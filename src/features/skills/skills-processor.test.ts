@@ -209,6 +209,33 @@ describe("SkillsProcessor", () => {
       expect(toolDirs[0]).toBeInstanceOf(ClaudecodeSkill);
     });
 
+    it("should not convert claudecode scheduled-task skills for non-claudecode targets", async () => {
+      const cursorProcessor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "cursor",
+      });
+
+      const scheduledTaskSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "scheduled-task-only",
+        frontmatter: {
+          name: "scheduled-task-only",
+          description: "Scheduled task only",
+          targets: ["*"],
+          claudecode: {
+            "scheduled-task": true,
+          },
+        },
+        body: "Content",
+        validate: false,
+      });
+
+      const toolDirs = await cursorProcessor.convertRulesyncDirsToToolDirs([scheduledTaskSkill]);
+      expect(toolDirs).toEqual([]);
+    });
+
     it("should throw error for unsupported tool target", async () => {
       // Create processor with mock tool target (bypassing constructor validation)
       const processorWithMockTarget = Object.create(SkillsProcessor.prototype);

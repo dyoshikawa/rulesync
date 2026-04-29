@@ -209,11 +209,13 @@ describe("ClaudecodeSkill", () => {
     it("should return default paths", () => {
       const paths = ClaudecodeSkill.getSettablePaths();
       expect(paths.relativeDirPath).toBe(join(".claude", "skills"));
+      expect(paths.alternativeSkillRoots).toEqual([join(".claude", "scheduled-tasks")]);
     });
 
     it("should return same paths for global mode", () => {
       const paths = ClaudecodeSkill.getSettablePaths({ global: true });
       expect(paths.relativeDirPath).toBe(join(".claude", "skills"));
+      expect(paths.alternativeSkillRoots).toEqual([join(".claude", "scheduled-tasks")]);
     });
   });
 
@@ -368,6 +370,23 @@ describe("ClaudecodeSkill", () => {
 
       const rulesyncSkill = skill.toRulesyncSkill();
       expect(rulesyncSkill.getOtherFiles()).toEqual(otherFiles);
+    });
+
+    it("should mark scheduled-task when converting scheduled-task directory", () => {
+      const skill = new ClaudecodeSkill({
+        dirName: "weekly-review",
+        relativeDirPath: join(".claude", "scheduled-tasks"),
+        frontmatter: {
+          name: "weekly-review",
+          description: "Weekly review task",
+        },
+        body: "Run weekly review",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().claudecode).toEqual({
+        "scheduled-task": true,
+      });
     });
   });
 
@@ -568,6 +587,27 @@ describe("ClaudecodeSkill", () => {
 
       expect(claudecodeSkill.getGlobal()).toBe(true);
     });
+
+    it("should route scheduled-task skills to scheduled-tasks directory", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "weekly-review",
+        frontmatter: {
+          name: "weekly-review",
+          description: "Weekly review task",
+          claudecode: {
+            "scheduled-task": true,
+          },
+        },
+        body: "Run weekly review",
+      });
+
+      const claudecodeSkill = ClaudecodeSkill.fromRulesyncSkill({
+        rulesyncSkill,
+        global: true,
+      });
+
+      expect(claudecodeSkill.getRelativeDirPath()).toBe(join(".claude", "scheduled-tasks"));
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {
@@ -581,6 +621,23 @@ describe("ClaudecodeSkill", () => {
         dirName: "test-skill",
         frontmatter: rulesyncFrontmatter,
         body: "Test body",
+      });
+
+      expect(ClaudecodeSkill.isTargetedByRulesyncSkill(rulesyncSkill)).toBe(true);
+    });
+
+    it("should target scheduled-task even when targets does not include claudecode", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "scheduled-only",
+        frontmatter: {
+          name: "scheduled-only",
+          description: "Scheduled task",
+          targets: ["cursor"],
+          claudecode: {
+            "scheduled-task": true,
+          },
+        },
+        body: "Scheduled body",
       });
 
       expect(ClaudecodeSkill.isTargetedByRulesyncSkill(rulesyncSkill)).toBe(true);
