@@ -48,6 +48,13 @@ export type CopilotRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal & {
   };
 };
 
+const normalizeRelativePath = (path: string): string =>
+  path.replace(/\\/g, "/").replace(/\/+/g, "/");
+
+const sameRelativePath = (leftDir: string, leftFile: string, rightDir: string, rightFile: string) =>
+  normalizeRelativePath(join(leftDir, leftFile)) ===
+  normalizeRelativePath(join(rightDir, rightFile));
+
 /**
  * Rule generator for GitHub Copilot
  *
@@ -209,8 +216,12 @@ export class CopilotRule extends ToolRule {
   }: ToolRuleFromFileParams): Promise<CopilotRule> {
     const paths = this.getSettablePaths({ global });
     const isRoot = relativeDirPath
-      ? join(relativeDirPath, relativeFilePath) ===
-        join(paths.root.relativeDirPath, paths.root.relativeFilePath)
+      ? sameRelativePath(
+          relativeDirPath,
+          relativeFilePath,
+          paths.root.relativeDirPath,
+          paths.root.relativeFilePath,
+        )
       : relativeFilePath === paths.root.relativeFilePath;
     const resolvedRelativeDirPath =
       relativeDirPath ??
@@ -270,9 +281,12 @@ export class CopilotRule extends ToolRule {
     global = false,
   }: ToolRuleForDeletionParams): CopilotRule {
     const paths = this.getSettablePaths({ global });
-    const isRoot =
-      join(relativeDirPath, relativeFilePath) ===
-      join(paths.root.relativeDirPath, paths.root.relativeFilePath);
+    const isRoot = sameRelativePath(
+      relativeDirPath,
+      relativeFilePath,
+      paths.root.relativeDirPath,
+      paths.root.relativeFilePath,
+    );
 
     return new CopilotRule({
       outputRoot,
