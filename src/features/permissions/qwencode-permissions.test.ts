@@ -121,22 +121,32 @@ describe("QwencodePermissions", () => {
     expect(instance.isDeletable()).toBe(false);
   });
 
-  it("should round-trip patterns containing nested parentheses", () => {
+  it("should round-trip patterns containing nested parentheses (single, sequential, and multi-nest)", () => {
     const instance = new QwencodePermissions({
       relativeDirPath: ".qwen",
       relativeFilePath: "settings.json",
       fileContent: JSON.stringify({
         permissions: {
-          allow: ["Bash(echo (a))", "Bash(grep (foo|bar))"],
+          allow: [
+            // Single-level nesting (baseline).
+            "Bash(echo (a))",
+            "Bash(grep (foo|bar))",
+            // Sequential parens at the same nesting level — each opens and closes before the next.
+            "Bash(grep (foo) | wc (-l))",
+            // Multi-level nesting — `lastIndexOf(')')` must still anchor on the outermost `)`.
+            "Bash(echo ((deep)))",
+          ],
         },
       }),
     });
 
     const config = instance.toRulesyncPermissions().getJson();
-    // Last `)` is used as the closing delimiter so the inner parens are preserved.
+    // Last `)` is used as the closing delimiter so all inner parens (single, sequential, deep) are preserved.
     expect(config.permission.bash).toEqual({
       "echo (a)": "allow",
       "grep (foo|bar)": "allow",
+      "grep (foo) | wc (-l)": "allow",
+      "echo ((deep))": "allow",
     });
   });
 

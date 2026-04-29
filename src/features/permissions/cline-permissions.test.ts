@@ -55,7 +55,7 @@ describe("ClinePermissions", () => {
     expect(content.allowRedirects).toBe(false);
   });
 
-  it("should error on non-bash categories and 'ask' rules (silent loss must be conspicuous)", async () => {
+  it("should aggregate translation losses into a single warn call (project convention)", async () => {
     const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -74,12 +74,18 @@ describe("ClinePermissions", () => {
       logger,
     });
 
-    expect(logger.error).toHaveBeenCalledWith(
-      expect.stringContaining("Cline command permissions only support shell commands"),
+    // Project convention: translation losses are surfaced via `logger.warn`, not `logger.error`,
+    // so CI gates that treat error lines as failures do not blow up.
+    expect(logger.error).not.toHaveBeenCalled();
+    // A single aggregated warn message that mentions both losses.
+    const warnCalls = logger.warn.mock.calls.filter(
+      (c: unknown[]) =>
+        typeof c[0] === "string" && c[0].includes("WARNING: silent loss of permission rule"),
     );
-    expect(logger.error).toHaveBeenCalledWith(
-      expect.stringContaining("Cline command permissions do not support 'ask'"),
-    );
+    expect(warnCalls).toHaveLength(1);
+    const message = warnCalls[0]?.[0] as string;
+    expect(message).toContain("non-bash categories [read]");
+    expect(message).toContain("'ask' rules for bash patterns [*]");
   });
 
   it("should preserve allowRedirects from existing file", async () => {

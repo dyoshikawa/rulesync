@@ -236,12 +236,15 @@ export class AugmentcodePermissions extends ToolPermissions {
       return false;
     });
 
-    const sortedGenerated = sortAugmentEntries(generated);
+    // Sort the COMBINED list (generated + preserved) so that preserved `deny` entries cannot be
+    // shadowed by a generated catch-all `allow`/`ask` under AugmentCode's first-match-wins
+    // evaluation. Sorting a single time over the union also keeps preserved entries in their
+    // correct fail-closed slot regardless of how many were retained.
+    const sortedAll = sortAugmentEntries([...generated, ...preservedEntries]);
 
     const merged: AugmentSettings = {
       ...settings,
-      // Generated entries first (sorted by specificity / deny-priority), then preserved trailing entries.
-      toolPermissions: [...sortedGenerated, ...preservedEntries],
+      toolPermissions: sortedAll,
     };
 
     const fileContent = JSON.stringify(merged, null, 2);
@@ -386,15 +389,25 @@ function convertRulesyncToAugmentEntries({
  * Sort AugmentCode tool-permission entries to make the `first-match-wins` semantics safe and predictable.
  *
  * Augment evaluates `toolPermissions` top-to-bottom and stops at the first match. To prevent a
- * catch-all rule from shadowing a specific one, we place **more specific** rules first. Within the
- * same specificity bucket we still apply a fail-closed bias by ordering `deny` before `ask` before
- * `allow`.
+ * catch-all rule from shadowing a specific one, we place **more specific** rules first. We also
+ * apply a fail-closed bias by ordering `deny` before `ask` before `allow` *before* falling back
+ * to a regex-length specificity heuristic — this way a `deny` always wins over an `allow` of
+ * equal-or-greater regex length.
  *
  * Ordering, applied stably:
- *   1. Entries with `shellInputRegex` (specific) come before entries without (`launch-process` catch-all).
- *   2. Among entries with `shellInputRegex`, longer regex first (more specific).
- *   3. Within the same specificity bucket, `deny` < `ask` < `allow` (fail-closed bias).
- *   4. Otherwise preserve insertion order.
+ *   1. Entries with `shellInputRegex` (specific) come before entries without (`launch-process`
+ *      catch-all).
+ *   2. Within each "has-regex" bucket, fail-closed type priority: `deny` < `ask-user` < `allow`.
+ *      This is intentionally applied BEFORE the length-based heuristic so e.g. `^rm .*$` (deny)
+ *      lands above `^git .*$` (allow) regardless of which is the longer string.
+ *   3. Among same-type regex entries, longer regex first (more specific).
+ *   4. Within the catch-all (no-regex) bucket, the same fail-closed type priority.
+ *   5. Otherwise preserve insertion order.
+ *
+ * Heuristic limits: regex-length is a coarse proxy for specificity. It does not detect actual
+ * pattern overlap, so when two regexes match overlapping inputs the resulting precedence
+ * depends on length, not semantics. The deny-first bias above ensures the dangerous case
+ * (deny shadowed by a longer allow) is handled correctly even so.
  */
 function sortAugmentEntries(entries: AugmentToolPermission[]): AugmentToolPermission[] {
   const typePriority: Record<AugmentPermissionType, number> = {
@@ -408,16 +421,17 @@ function sortAugmentEntries(entries: AugmentToolPermission[]): AugmentToolPermis
     const bHasRegex = b.entry.shellInputRegex ? 1 : 0;
     // 1. Entries with shellInputRegex come FIRST.
     if (aHasRegex !== bHasRegex) return bHasRegex - aHasRegex;
-    // 2. Among regex entries, longer regex first.
+    // 2. Apply fail-closed type priority BEFORE length-based specificity, so that within the
+    //    has-regex bucket a `deny` cannot be ordered after an `allow` of greater regex length.
+    const aType = typePriority[a.entry.permission.type];
+    const bType = typePriority[b.entry.permission.type];
+    if (aType !== bType) return aType - bType;
+    // 3. Within the same fail-closed bucket and same regex-presence bucket, longer regex first.
     if (a.entry.shellInputRegex && b.entry.shellInputRegex) {
       const aLen = a.entry.shellInputRegex.length;
       const bLen = b.entry.shellInputRegex.length;
       if (aLen !== bLen) return bLen - aLen;
     }
-    // 3. Within same specificity, deny < ask-user < allow.
-    const aType = typePriority[a.entry.permission.type];
-    const bType = typePriority[b.entry.permission.type];
-    if (aType !== bType) return aType - bType;
     // 4. Stable.
     return a.index - b.index;
   });

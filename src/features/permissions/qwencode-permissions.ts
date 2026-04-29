@@ -7,6 +7,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { ConsoleLogger, type Logger } from "../../utils/logger.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -33,6 +34,11 @@ const QwenSettingsSchema = z.looseObject({
 });
 
 type QwenSettings = z.infer<typeof QwenSettingsSchema>;
+
+// Module-level logger used by the importing direction (toRulesyncPermissions), where the
+// instance method has no `logger` parameter. The exporting direction (fromRulesyncPermissions)
+// forwards the caller-supplied logger explicitly.
+const moduleLogger: Logger = new ConsoleLogger();
 
 /**
  * Mapping from rulesync canonical tool category names (lowercase) to Qwen Code tool names (PascalCase).
@@ -64,7 +70,7 @@ function toCanonicalToolName(qwenName: string): string {
 
 function parseQwenPermissionEntry(
   entry: string,
-  options: { logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"] } = {},
+  options: { logger?: Logger } = {},
 ): { toolName: string; pattern: string } {
   const parenIndex = entry.indexOf("(");
   if (parenIndex === -1) {
@@ -140,6 +146,7 @@ export class QwencodePermissions extends ToolPermissions {
     outputRoot = process.cwd(),
     rulesyncPermissions,
     global = false,
+    logger,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<QwencodePermissions> {
     const paths = QwencodePermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
@@ -171,13 +178,13 @@ export class QwencodePermissions extends ToolPermissions {
 
     const existingPermissions = settings.permissions ?? {};
     const preservedAllow = (existingPermissions.allow ?? []).filter(
-      (entry) => !managedToolNames.has(parseQwenPermissionEntry(entry).toolName),
+      (entry) => !managedToolNames.has(parseQwenPermissionEntry(entry, { logger }).toolName),
     );
     const preservedAsk = (existingPermissions.ask ?? []).filter(
-      (entry) => !managedToolNames.has(parseQwenPermissionEntry(entry).toolName),
+      (entry) => !managedToolNames.has(parseQwenPermissionEntry(entry, { logger }).toolName),
     );
     const preservedDeny = (existingPermissions.deny ?? []).filter(
-      (entry) => !managedToolNames.has(parseQwenPermissionEntry(entry).toolName),
+      (entry) => !managedToolNames.has(parseQwenPermissionEntry(entry, { logger }).toolName),
     );
 
     const mergedPermissions: {
@@ -302,12 +309,17 @@ function convertQwenToRulesyncPermissions(params: {
   allow: string[];
   ask: string[];
   deny: string[];
+  logger?: Logger;
 }): PermissionsConfig {
   const permission: Record<string, Record<string, PermissionAction>> = {};
+  // Forward a logger to `parseQwenPermissionEntry` so its malformed-entry warnings are not
+  // dead code in production. Default to the module-level ConsoleLogger when the caller did not
+  // supply one (the instance-side `toRulesyncPermissions()` has no logger parameter to thread).
+  const logger = params.logger ?? moduleLogger;
 
   const processEntries = (entries: string[], action: PermissionAction) => {
     for (const entry of entries) {
-      const { toolName, pattern } = parseQwenPermissionEntry(entry);
+      const { toolName, pattern } = parseQwenPermissionEntry(entry, { logger });
       const canonical = toCanonicalToolName(toolName);
       if (!permission[canonical]) {
         permission[canonical] = {};

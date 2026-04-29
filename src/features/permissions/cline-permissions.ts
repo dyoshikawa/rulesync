@@ -101,27 +101,22 @@ export class ClinePermissions extends ToolPermissions {
     const allow: string[] = [];
     const deny: string[] = [];
 
+    // Translation losses are aggregated and surfaced via a single `logger.warn` per call so that
+    // (a) CI gates that treat `error` lines as failures don't fail spuriously, matching the
+    // project convention used by every other permissions translator, and
+    // (b) the user still sees one prominent "WARNING: silent loss of permission rule" message
+    // listing exactly what was dropped.
+    const droppedCategories: string[] = [];
+    const droppedAskPatterns: string[] = [];
+
     for (const [category, rules] of Object.entries(config.permission)) {
       if (category !== "bash") {
-        // Strong warning: Cline does not support non-shell categories at all, so the user's intent
-        // for `read` / `edit` / `write` / `webfetch` / `websearch` deny rules is silently dropped.
-        // Use `error` rather than `warn` to make this conspicuous in CI logs. Cline cannot enforce
-        // these so users should rely on a different tool (e.g. ignore feature) to constrain reads.
-        logger?.error(
-          `Cline command permissions only support shell commands. Category '${category}' is ` +
-            `dropped entirely; Cline cannot enforce it. Consider using the rulesync ignore feature ` +
-            `for read/write restrictions.`,
-        );
+        droppedCategories.push(category);
         continue;
       }
       for (const [pattern, action] of Object.entries(rules)) {
         if (action === "ask") {
-          // `ask` cannot be expressed in Cline (which only knows allow/deny), so the rule is
-          // dropped. Surface as `error` to make the silent loss visible.
-          logger?.error(
-            `Cline command permissions do not support 'ask'. Skipping rule: bash:${pattern}. ` +
-              `Cline cannot prompt the user for shell commands.`,
-          );
+          droppedAskPatterns.push(pattern);
           continue;
         }
         if (action === "allow") {
@@ -130,6 +125,26 @@ export class ClinePermissions extends ToolPermissions {
           deny.push(pattern);
         }
       }
+    }
+
+    if (droppedCategories.length > 0 || droppedAskPatterns.length > 0) {
+      const parts: string[] = [];
+      if (droppedCategories.length > 0) {
+        parts.push(
+          `non-bash categories [${droppedCategories.join(", ")}] (Cline only enforces shell ` +
+            `commands; use the rulesync ignore feature for read/write restrictions)`,
+        );
+      }
+      if (droppedAskPatterns.length > 0) {
+        parts.push(
+          `'ask' rules for bash patterns [${droppedAskPatterns.join(", ")}] (Cline only knows ` +
+            `allow/deny and cannot prompt the user)`,
+        );
+      }
+      logger?.warn(
+        `WARNING: silent loss of permission rule(s) when generating Cline command permissions: ` +
+          `${parts.join("; ")}.`,
+      );
     }
 
     const dedupedAllow = uniq(allow.toSorted());

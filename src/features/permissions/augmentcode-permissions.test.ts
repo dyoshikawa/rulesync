@@ -146,6 +146,62 @@ describe("AugmentcodePermissions", () => {
     ).toBeDefined();
   });
 
+  it("preserved launch-process deny must NOT be shadowed by a generated catch-all allow under first-match-wins", async () => {
+    // Regression: previously `[...sortedGenerated, ...preservedEntries]` placed preserved entries
+    // unsorted at the tail. If the user supplied `bash: { "*": "allow" }` the generated catch-all
+    // allow (no regex) ended up FIRST and shadowed the preserved `^rm .*$` deny — making it dead
+    // code under AugmentCode's first-match-wins evaluation.
+    const settingsDir = join(testDir, ".augment");
+    await ensureDir(settingsDir);
+    await writeFileContent(
+      join(settingsDir, "settings.json"),
+      JSON.stringify({
+        toolPermissions: [
+          {
+            toolName: "launch-process",
+            shellInputRegex: "^rm .*$",
+            permission: { type: "deny" },
+          },
+        ],
+      }),
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { bash: { "*": "allow" } },
+      }),
+    });
+
+    const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const entries = JSON.parse(instance.getFileContent()).toolPermissions as Array<{
+      toolName: string;
+      shellInputRegex?: string;
+      permission: { type: string };
+    }>;
+    const denyIndex = entries.findIndex(
+      (e) =>
+        e.toolName === "launch-process" &&
+        e.shellInputRegex === "^rm .*$" &&
+        e.permission.type === "deny",
+    );
+    const allowIndex = entries.findIndex(
+      (e) =>
+        e.toolName === "launch-process" &&
+        e.shellInputRegex === undefined &&
+        e.permission.type === "allow",
+    );
+    expect(denyIndex).toBeGreaterThanOrEqual(0);
+    expect(allowIndex).toBeGreaterThanOrEqual(0);
+    // Deny MUST come before the catch-all allow.
+    expect(denyIndex).toBeLessThan(allowIndex);
+  });
+
   it("should drop a duplicate existing launch-process deny entry that exactly matches a generated one", async () => {
     const settingsDir = join(testDir, ".augment");
     await ensureDir(settingsDir);
