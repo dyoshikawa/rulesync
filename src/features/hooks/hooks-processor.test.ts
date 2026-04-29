@@ -451,13 +451,14 @@ describe("HooksProcessor", () => {
   });
 
   describe("getToolTargets", () => {
-    it("should return cursor, claudecode, copilot, opencode, kilo, factorydroid, and geminicli for project mode", () => {
+    it("should return cursor, claudecode, copilot, copilotcli, opencode, kilo, factorydroid, and geminicli for project mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: false });
       expect(targets).toEqual([
         "cursor",
         "claudecode",
         "codexcli",
         "copilot",
+        "copilotcli",
         "kilo",
         "opencode",
         "factorydroid",
@@ -465,11 +466,13 @@ describe("HooksProcessor", () => {
       ]);
     });
 
-    it("should return claudecode, opencode, kilo, factorydroid, and geminicli for global mode", () => {
+    it("should return cursor, claudecode, copilotcli, opencode, kilo, factorydroid, and geminicli for global mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: true });
       expect(targets).toEqual([
+        "cursor",
         "claudecode",
         "codexcli",
+        "copilotcli",
         "kilo",
         "opencode",
         "factorydroid",
@@ -485,6 +488,7 @@ describe("HooksProcessor", () => {
         "claudecode",
         "codexcli",
         "copilot",
+        "copilotcli",
         "factorydroid",
         "geminicli",
       ]);
@@ -493,8 +497,10 @@ describe("HooksProcessor", () => {
     it("should exclude non-importable targets when importOnly is true in global mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: true, importOnly: true });
       expect(targets).toEqual([
+        "cursor",
         "claudecode",
         "codexcli",
+        "copilotcli",
         "factorydroid",
         "geminicli",
         "deepagents",

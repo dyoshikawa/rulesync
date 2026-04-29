@@ -918,7 +918,7 @@ Second global content`;
   });
 
   describe("getToolTargets with global: true", () => {
-    it("should return claudecode, codexcli, cursor, kilo, opencode, and rovodev as global-supported targets", () => {
+    it("should return claudecode, codexcli, copilotcli, cursor, geminicli, kilo, opencode, and rovodev as global-supported targets", () => {
       const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
 
       expect(Array.isArray(toolTargets)).toBe(true);
@@ -926,7 +926,9 @@ Second global content`;
         "claudecode",
         "claudecode-legacy",
         "codexcli",
+        "copilotcli",
         "cursor",
+        "geminicli",
         "kilo",
         "opencode",
         "rovodev",
@@ -940,7 +942,6 @@ Second global content`;
       expect(toolTargets).not.toContain("copilot");
       expect(toolTargets).not.toContain("agentsmd");
       expect(toolTargets).not.toContain("factorydroid");
-      expect(toolTargets).not.toContain("geminicli");
       expect(toolTargets).not.toContain("roo");
     });
 
@@ -965,6 +966,7 @@ Second global content`;
           "claudecode-legacy",
           "codexcli",
           "copilot",
+          "copilotcli",
           "cursor",
           "deepagents",
           "factorydroid",

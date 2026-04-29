@@ -128,7 +128,14 @@ export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
 /** Hook events supported by Kilo. (Currently identical to OpenCode) */
 export const KILO_HOOK_EVENTS: readonly HookEvent[] = OPENCODE_HOOK_EVENTS;
 
-/** Hook events supported by Copilot. */
+/**
+ * Hook events supported by GitHub Copilot.
+ *
+ * Reused by the Copilot CLI tool target (`copilotcli-hooks.ts`); both targets
+ * share the same six-event surface (`sessionStart`, `sessionEnd`,
+ * `userPromptSubmitted` ← `beforeSubmitPrompt`, `preToolUse`, `postToolUse`,
+ * `errorOccurred` ← `afterError`).
+ */
 export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
   "sessionEnd",
@@ -200,6 +207,7 @@ export const HooksConfigSchema = z.looseObject({
   cursor: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   claudecode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   copilot: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  copilotcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   opencode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   kilo: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   factorydroid: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),

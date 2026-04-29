@@ -110,6 +110,33 @@ describe("E2E: permissions", () => {
     expect(policyContent).toContain('toolName = "web_fetch"');
   });
 
+  it("should generate cursor permissions into .cursor/cli.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow", "rm -rf *": "deny" },
+            read: { "src/**": "allow" },
+            webfetch: { "github.com": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "cursor", features: "permissions" });
+
+    const generated = JSON.parse(await readFileContent(join(testDir, ".cursor", "cli.json")));
+    expect(generated.permissions.allow).toEqual(
+      expect.arrayContaining(["Shell(git *)", "Read(src/**)", "WebFetch(github.com)"]),
+    );
+    expect(generated.permissions.deny).toEqual(expect.arrayContaining(["Shell(rm -rf *)"]));
+  });
+
   it("should generate kiro permissions into .kiro/agents/default.json", async () => {
     const testDir = getTestDir();
 
@@ -473,6 +500,37 @@ describe("E2E: permissions (global mode)", () => {
     expect(policyContent).toContain('decision = "allow"');
     expect(policyContent).toContain('toolName = "read_file"');
     expect(policyContent).toContain('decision = "deny"');
+  });
+
+  it("should generate cursor permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git status *": "allow", "rm -rf *": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "cursor",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(
+      await readFileContent(join(homeDir, ".cursor", "cli-config.json")),
+    );
+    expect(generated.permissions.allow).toContain("Shell(git status *)");
+    expect(generated.permissions.deny).toContain("Shell(rm -rf *)");
   });
 });
 

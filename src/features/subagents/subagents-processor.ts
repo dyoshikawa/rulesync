@@ -13,6 +13,7 @@ import { AgentsmdSubagent } from "./agentsmd-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { CodexCliSubagent } from "./codexcli-subagent.js";
 import { CopilotSubagent } from "./copilot-subagent.js";
+import { CopilotcliSubagent } from "./copilotcli-subagent.js";
 import { CursorSubagent } from "./cursor-subagent.js";
 import { DeepagentsSubagent } from "./deepagents-subagent.js";
 import { FactorydroidSubagent } from "./factorydroid-subagent.js";
@@ -67,6 +68,7 @@ const subagentsProcessorToolTargetTuple = [
   "claudecode-legacy",
   "codexcli",
   "copilot",
+  "copilotcli",
   "cursor",
   "deepagents",
   "factorydroid",
@@ -125,6 +127,16 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     },
   ],
   [
+    "copilotcli",
+    {
+      class: CopilotcliSubagent,
+      // Copilot CLI custom agents support both project (.github/agents/) and
+      // user/global (~/.copilot/agents/) scopes natively.
+      // Reference: https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-custom-agents-for-cli
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.agent.md" },
+    },
+  ],
+  [
     "cursor",
     {
       class: CursorSubagent,
@@ -149,7 +161,7 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     "geminicli",
     {
       class: GeminiCliSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
     },
   ],
   [

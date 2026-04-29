@@ -35,6 +35,7 @@ describe("E2E: hooks", () => {
     { target: "codexcli", outputPath: join(".codex", "hooks.json") },
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
     { target: "copilot", outputPath: join(".github", "hooks", "copilot-hooks.json") },
+    { target: "copilotcli", outputPath: join(".github", "hooks", "copilotcli-hooks.json") },
     { target: "factorydroid", outputPath: join(".factory", "settings.json") },
   ])("should generate $target hooks", async ({ target, outputPath }) => {
     const testDir = getTestDir();
@@ -80,8 +81,8 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks).toBeDefined();
         expect(parsed.hooks.sessionStart).toBeDefined();
         expect(parsed.hooks.stop).toBeDefined();
-      } else if (target === "copilot") {
-        // Copilot uses camelCase event names. Note: copilot does NOT support
+      } else if (target === "copilot" || target === "copilotcli") {
+        // Copilot and Copilot CLI use camelCase event names. Neither supports
         // the `stop` hook event (see COPILOT_HOOK_EVENTS in src/types/hooks.ts),
         // so audit.sh is intentionally dropped during generation and cannot be
         // asserted here.
@@ -252,6 +253,8 @@ describe("E2E: hooks (global mode)", () => {
     { target: "opencode", outputPath: join(".config", "opencode", "plugins", "rulesync-hooks.js") },
     { target: "factorydroid", outputPath: join(".factory", "settings.json") },
     { target: "deepagents", outputPath: join(".deepagents", "hooks.json") },
+    { target: "cursor", outputPath: join(".cursor", "hooks.json") },
+    { target: "copilotcli", outputPath: join(".copilot", "hooks", "copilot-hooks.json") },
   ])("should generate $target hooks in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
@@ -282,6 +285,12 @@ describe("E2E: hooks (global mode)", () => {
       expect(generatedContent).toContain("RulesyncHooksPlugin");
       expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
       expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+    } else if (target === "copilotcli") {
+      // Copilot CLI does not support the `stop` hook event, so audit.sh is
+      // intentionally dropped during generation.
+      const parsed = JSON.parse(generatedContent);
+      expect(parsed.hooks.sessionStart).toBeDefined();
+      expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
     } else {
       assertHookCommandsPreserved(JSON.parse(generatedContent));
     }

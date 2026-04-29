@@ -9,6 +9,7 @@ import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
+import { CursorPermissions } from "./cursor-permissions.js";
 import { GeminicliPermissions } from "./geminicli-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
@@ -24,6 +25,7 @@ import { ToolPermissions } from "./tool-permissions.js";
 const permissionsProcessorToolTargetTuple = [
   "claudecode",
   "codexcli",
+  "cursor",
   "geminicli",
   "kiro",
   "opencode",
@@ -65,6 +67,17 @@ const toolPermissionsFactories = new Map<PermissionsProcessorToolTarget, ToolPer
     "codexcli",
     {
       class: CodexcliPermissions,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "cursor",
+    {
+      class: CursorPermissions,
       meta: {
         supportsProject: true,
         supportsGlobal: true,
