@@ -492,4 +492,136 @@ describe("AugmentcodePermissions", () => {
     const config = instance.toRulesyncPermissions().getJson();
     expect(config.permission.read).toEqual({ "*": "ask" });
   });
+
+  describe("non-roundtrippable shellInputRegex import behavior (Finding F)", () => {
+    // When a user authors a `shellInputRegex` that is not faithfully
+    // roundtrippable through the glob representation (for example unanchored
+    // `"rm"` or alternation `"rm|del"`), naive conversion would silently
+    // narrow or otherwise change the deny on re-export. Apply asymmetric
+    // fallback: deny -> "*" (fail-closed); allow/ask -> lossy with warning.
+
+    it("should fall back to '*' (fail-closed) for deny with unanchored shellInputRegex", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [
+            {
+              toolName: "launch-process",
+              shellInputRegex: "rm",
+              permission: { type: "deny" },
+            },
+          ],
+        }),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+      // Without the broadening, the deny would import as glob `"rm"` and
+      // re-export as `"^rm$"`, narrowing the protection to the literal
+      // string `"rm"`. Broadening to `"*"` keeps the protective intent.
+      expect(config.permission.bash).toEqual({ "*": "deny" });
+    });
+
+    it("should fall back to '*' (fail-closed) for deny with alternation in shellInputRegex", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [
+            {
+              toolName: "launch-process",
+              shellInputRegex: "^rm|del$",
+              permission: { type: "deny" },
+            },
+          ],
+        }),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+      expect(config.permission.bash).toEqual({ "*": "deny" });
+    });
+
+    it("should preserve faithful imports for fully roundtrippable deny regex", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [
+            {
+              toolName: "launch-process",
+              shellInputRegex: "^rm .*$",
+              permission: { type: "deny" },
+            },
+          ],
+        }),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+      // `^rm .*$` is roundtrippable via shellRegexToGlob → `rm *`.
+      expect(config.permission.bash).toEqual({ "rm *": "deny" });
+    });
+
+    it("should still import (with warning) lossy allow patterns rather than dropping or broadening", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [
+            {
+              toolName: "launch-process",
+              shellInputRegex: "git",
+              permission: { type: "allow" },
+            },
+          ],
+        }),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+      // Allow is NOT broadened to `*` (that would weaken security). The lossy
+      // glob `git` is preserved; the warn at import time tells the user the
+      // re-export will produce `^git$`, which differs from the original
+      // unanchored regex.
+      expect(config.permission.bash).toEqual({ git: "allow" });
+    });
+  });
+
+  describe("validate()", () => {
+    it("should succeed for well-formed AugmentCode settings JSON", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [{ toolName: "launch-process", permission: { type: "allow" } }],
+        }),
+      });
+      const result = instance.validate();
+      expect(result.success).toBe(true);
+      expect(result.error).toBeNull();
+    });
+
+    it("should fail when fileContent is not parseable JSON", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: "{ not json",
+      });
+      const result = instance.validate();
+      expect(result.success).toBe(false);
+      expect(result.error).not.toBeNull();
+    });
+
+    it("should fail when fileContent does not match schema", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        // `toolPermissions[].permission.type` must be one of "allow"/"deny"/"ask-user".
+        fileContent: JSON.stringify({
+          toolPermissions: [{ toolName: "view", permission: { type: "bogus" } }],
+        }),
+      });
+      const result = instance.validate();
+      expect(result.success).toBe(false);
+      expect(result.error).not.toBeNull();
+    });
+  });
 });

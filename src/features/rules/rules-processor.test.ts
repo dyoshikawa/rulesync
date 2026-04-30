@@ -2208,4 +2208,41 @@ targets: ["claudecode"]
       );
     });
   });
+
+  describe("loadRulesyncFiles with inputRoot", () => {
+    // Mirror the per-feature inputRoot threading assertion used in
+    // commands-processor.test.ts: when inputRoot is set, loadRulesyncFiles
+    // reads from `<inputRoot>/.rulesync/rules` instead of
+    // `<process.cwd()>/.rulesync/rules`.
+    it("should read rulesync rule files from inputRoot instead of process.cwd()", async () => {
+      // Source rules live in a custom directory — NOT under cwd's `.rulesync/`.
+      const customInputRoot = join(testDir, "custom-rulesync-dir");
+      await ensureDir(join(customInputRoot, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(customInputRoot, RULESYNC_RULES_RELATIVE_DIR_PATH, "overview.md"),
+        `---
+root: true
+targets: ["*"]
+---
+# Input-root rule`,
+      );
+
+      // outputRoot is process.cwd() (testDir) where the rulesync directory
+      // does NOT exist. If inputRoot threading is broken, this test fails
+      // because no rules would be found under testDir/.rulesync/rules/.
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        inputRoot: customInputRoot,
+        toolTarget: "claudecode",
+      });
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+      expect(rulesyncFiles).toHaveLength(1);
+      const content = await readFileContent(
+        join(customInputRoot, RULESYNC_RULES_RELATIVE_DIR_PATH, "overview.md"),
+      );
+      expect(content).toContain("Input-root rule");
+    });
+  });
 });

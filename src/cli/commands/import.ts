@@ -6,8 +6,12 @@ import { calculateTotalCount } from "../../utils/result.js";
 
 // `inputRoot` is intentionally excluded: it only affects where source rules
 // are *read from* during `generate`, and `import` does not consume them. Keeping
-// it in the option type would be misleading and would surface a noisy
-// "Ignoring global: true" warning from the resolver during `import`.
+// it in the option type would be misleading. Note that this avoids surfacing
+// the "Ignoring `global: true`" warning on direct programmatic / CLI callers;
+// users with a `inputRoot` set in their config file (e.g. `rulesync.jsonc`) may
+// still see the warning because `ConfigResolver.resolve` reads `configByFile`
+// regardless of this `Omit`. That residual warning is actionable — it tells
+// the user their config-file `inputRoot` is being ignored during `import`.
 //
 // The deprecated `baseDirs` programmatic alias is also excluded so that the
 // CLI's import options never expose a deprecated field — `outputRoots` is the

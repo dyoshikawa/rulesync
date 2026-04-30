@@ -467,6 +467,42 @@ This is skill content`;
       const rulesyncSkill = rulesyncDirs[0] as RulesyncSkill;
       expect(rulesyncSkill.getFrontmatter().name).toBe("skill-1");
     });
+
+    // Mirror the per-feature inputRoot threading assertion used in
+    // commands-processor.test.ts: when inputRoot is set, loadRulesyncDirs
+    // reads from `<inputRoot>/.rulesync/skills` instead of
+    // `<process.cwd()>/.rulesync/skills`.
+    it("should read rulesync skill dirs from inputRoot instead of process.cwd()", async () => {
+      const customInputRoot = join(testDir, "custom-rulesync-dir");
+      const customSkillsDir = join(customInputRoot, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+      await ensureDir(customSkillsDir);
+
+      const skillDir = join(customSkillsDir, "input-root-skill");
+      await ensureDir(skillDir);
+
+      const skillContent = `---
+name: input-root-skill
+description: Skill loaded from inputRoot
+---
+Body from inputRoot`;
+
+      await writeFileContent(join(skillDir, "SKILL.md"), skillContent);
+
+      // outputRoot is testDir (process.cwd()); no skills exist there, so
+      // a successful load proves the inputRoot-aware processor read from inputRoot.
+      const inputRootProcessor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        inputRoot: customInputRoot,
+        toolTarget: "claudecode",
+      });
+
+      const rulesyncDirs = await inputRootProcessor.loadRulesyncDirs();
+
+      expect(rulesyncDirs).toHaveLength(1);
+      expect(rulesyncDirs[0]).toBeInstanceOf(RulesyncSkill);
+      expect((rulesyncDirs[0] as RulesyncSkill).getFrontmatter().name).toBe("input-root-skill");
+    });
   });
 
   describe("loadToolDirs", () => {
