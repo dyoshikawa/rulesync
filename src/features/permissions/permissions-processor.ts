@@ -7,12 +7,16 @@ import type { ToolFile } from "../../types/tool-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
+import { AugmentcodePermissions } from "./augmentcode-permissions.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
+import { ClinePermissions } from "./cline-permissions.js";
 import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
 import { CursorPermissions } from "./cursor-permissions.js";
 import { GeminicliPermissions } from "./geminicli-permissions.js";
+import { KiloPermissions } from "./kilo-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
+import { QwencodePermissions } from "./qwencode-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import type {
   ToolPermissionsForDeletionParams,
@@ -23,12 +27,16 @@ import type {
 import { ToolPermissions } from "./tool-permissions.js";
 
 const permissionsProcessorToolTargetTuple = [
+  "augmentcode",
   "claudecode",
+  "cline",
   "codexcli",
   "cursor",
   "geminicli",
+  "kilo",
   "kiro",
   "opencode",
+  "qwencode",
 ] as const;
 
 export type PermissionsProcessorToolTarget = (typeof permissionsProcessorToolTargetTuple)[number];
@@ -53,12 +61,34 @@ type ToolPermissionsFactory = {
 
 const toolPermissionsFactories = new Map<PermissionsProcessorToolTarget, ToolPermissionsFactory>([
   [
+    "augmentcode",
+    {
+      class: AugmentcodePermissions,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
     "claudecode",
     {
       class: ClaudecodePermissions,
       meta: {
         supportsProject: true,
         supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "cline",
+    {
+      class: ClinePermissions,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
         supportsImport: true,
       },
     },
@@ -97,6 +127,17 @@ const toolPermissionsFactories = new Map<PermissionsProcessorToolTarget, ToolPer
     },
   ],
   [
+    "kilo",
+    {
+      class: KiloPermissions,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
     "kiro",
     {
       class: KiroPermissions,
@@ -111,6 +152,17 @@ const toolPermissionsFactories = new Map<PermissionsProcessorToolTarget, ToolPer
     "opencode",
     {
       class: OpencodePermissions,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "qwencode",
+    {
+      class: QwencodePermissions,
       meta: {
         supportsProject: true,
         supportsGlobal: true,

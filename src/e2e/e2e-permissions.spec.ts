@@ -168,6 +168,123 @@ describe("E2E: permissions", () => {
     expect(content.allowedTools).toContain("web_fetch");
   });
 
+  it("should generate kilo permissions into kilo.jsonc", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "*": "ask", "git *": "allow" },
+            read: { ".env": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "kilo", features: "permissions" });
+
+    const content = JSON.parse(await readFileContent(join(testDir, "kilo.jsonc")));
+    expect(content.permission.bash["git *"]).toBe("allow");
+    expect(content.permission.read[".env"]).toBe("deny");
+  });
+
+  it("should generate augmentcode permissions into .augment/settings.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow", "rm *": "deny" },
+            read: { "*": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "augmentcode", features: "permissions" });
+
+    const content = JSON.parse(await readFileContent(join(testDir, ".augment", "settings.json")));
+    const entries = augmentToolPermissionsOf(content);
+    expect(
+      entries.some(
+        (e) =>
+          e.toolName === "launch-process" &&
+          e.shellInputRegex === "^git .*$" &&
+          e.permission.type === "allow",
+      ),
+    ).toBe(true);
+    expect(
+      entries.some(
+        (e) =>
+          e.toolName === "launch-process" &&
+          e.shellInputRegex === "^rm .*$" &&
+          e.permission.type === "deny",
+      ),
+    ).toBe(true);
+    expect(entries.some((e) => e.toolName === "view" && e.permission.type === "allow")).toBe(true);
+  });
+
+  it("should generate cline permissions into .cline/command-permissions.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow", "rm *": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "cline", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, ".cline", "command-permissions.json")),
+    );
+    expect(content.allow).toContain("git *");
+    expect(content.deny).toContain("rm *");
+    expect(content.allowRedirects).toBe(false);
+  });
+
+  it("should generate qwencode permissions into .qwen/settings.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow", "rm *": "deny" },
+            read: { ".env": "deny" },
+            webfetch: { "github.com": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "qwencode", features: "permissions" });
+
+    const content = JSON.parse(await readFileContent(join(testDir, ".qwen", "settings.json")));
+    expect(content.permissions.allow).toContain("Bash(git *)");
+    expect(content.permissions.allow).toContain("WebFetch(github.com)");
+    expect(content.permissions.deny).toContain("Bash(rm *)");
+    expect(content.permissions.deny).toContain("Read(.env)");
+  });
+
   it("should remove denied Kiro web tools from existing allowedTools", async () => {
     const testDir = getTestDir();
 
@@ -306,6 +423,124 @@ default_permissions = "rulesync"
     expect(content.permission.read["src/**"]).toBe("allow");
     expect(content.permission.bash["rm *"]).toBe("deny");
     expect(content.permission.webfetch["example.com"]).toBe("deny");
+  });
+
+  it("should import kilo permissions into .rulesync/permissions.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, "kilo.jsonc"),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "*": "ask", "git *": "allow" },
+            read: { ".env": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runImport({ target: "kilo", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.bash["git *"]).toBe("allow");
+    expect(content.permission.read[".env"]).toBe("deny");
+  });
+
+  it("should import augmentcode permissions into .rulesync/permissions.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".augment", "settings.json"),
+      JSON.stringify(
+        {
+          toolPermissions: [
+            {
+              toolName: "launch-process",
+              shellInputRegex: "^git .*$",
+              permission: { type: "allow" },
+            },
+            {
+              toolName: "view",
+              permission: { type: "deny" },
+            },
+            {
+              toolName: "save-file",
+              permission: { type: "ask-user" },
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runImport({ target: "augmentcode", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.bash["git *"]).toBe("allow");
+    expect(content.permission.read["*"]).toBe("deny");
+    expect(content.permission.write["*"]).toBe("ask");
+  });
+
+  it("should import cline permissions into .rulesync/permissions.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".cline", "command-permissions.json"),
+      JSON.stringify(
+        {
+          allow: ["git *", "npm *"],
+          deny: ["rm -rf *"],
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runImport({ target: "cline", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.bash["git *"]).toBe("allow");
+    expect(content.permission.bash["npm *"]).toBe("allow");
+    expect(content.permission.bash["rm -rf *"]).toBe("deny");
+  });
+
+  it("should import qwencode permissions into .rulesync/permissions.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".qwen", "settings.json"),
+      JSON.stringify(
+        {
+          permissions: {
+            allow: ["Bash(git *)", "Read(src/**)"],
+            ask: ["Bash(git push *)"],
+            deny: ["Bash(rm -rf *)"],
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runImport({ target: "qwencode", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.bash["git *"]).toBe("allow");
+    expect(content.permission.bash["git push *"]).toBe("ask");
+    expect(content.permission.bash["rm -rf *"]).toBe("deny");
+    expect(content.permission.read["src/**"]).toBe("allow");
   });
 
   it("should import kiro permissions into .rulesync/permissions.json", async () => {
@@ -532,7 +767,137 @@ describe("E2E: permissions (global mode)", () => {
     expect(generated.permissions.allow).toContain("Shell(git status *)");
     expect(generated.permissions.deny).toContain("Shell(rm -rf *)");
   });
+
+  it("should generate kilo permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "*": "ask", "git status *": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "kilo",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(
+      await readFileContent(join(homeDir, ".config", "kilo", "kilo.jsonc")),
+    );
+    expect(generated.permission.bash["git status *"]).toBe("allow");
+  });
+
+  it("should generate augmentcode permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git status *": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "augmentcode",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(await readFileContent(join(homeDir, ".augment", "settings.json")));
+    const entries = augmentToolPermissionsOf(generated);
+    expect(
+      entries.some(
+        (e) =>
+          e.toolName === "launch-process" &&
+          e.shellInputRegex === "^git status .*$" &&
+          e.permission.type === "allow",
+      ),
+    ).toBe(true);
+  });
+
+  it("should generate qwencode permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git status *": "allow" },
+            read: { ".env": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "qwencode",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(await readFileContent(join(homeDir, ".qwen", "settings.json")));
+    expect(generated.permissions.allow).toContain("Bash(git status *)");
+    expect(generated.permissions.deny).toContain("Read(.env)");
+  });
 });
+
+type AugmentEntry = {
+  toolName: string;
+  shellInputRegex?: string;
+  permission: { type: string };
+};
+
+function augmentToolPermissionsOf(value: unknown): AugmentEntry[] {
+  if (!value || typeof value !== "object") {
+    return [];
+  }
+  const record: Record<string, unknown> = { ...value };
+  const entries = record.toolPermissions;
+  if (!Array.isArray(entries)) {
+    return [];
+  }
+  return entries.flatMap((entry: unknown) => {
+    if (!entry || typeof entry !== "object") {
+      return [];
+    }
+    const e: Record<string, unknown> = { ...entry };
+    const toolName = typeof e.toolName === "string" ? e.toolName : null;
+    const rawPermission = e.permission;
+    if (!rawPermission || typeof rawPermission !== "object") {
+      return [];
+    }
+    const permission: Record<string, unknown> = { ...rawPermission };
+    if (!toolName || typeof permission.type !== "string") {
+      return [];
+    }
+    const shellInputRegex = typeof e.shellInputRegex === "string" ? e.shellInputRegex : undefined;
+    return [{ toolName, shellInputRegex, permission: { type: permission.type } }];
+  });
+}
 
 function toTable(value: unknown): Record<string, unknown> {
   if (value && typeof value === "object" && !Array.isArray(value)) {

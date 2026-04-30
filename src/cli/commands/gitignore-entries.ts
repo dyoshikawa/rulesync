@@ -45,6 +45,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "augmentcode", feature: "rules", entry: "**/.augment/rules/" },
   { target: "augmentcode", feature: "rules", entry: "**/.augment-guidelines" },
   { target: "augmentcode", feature: "ignore", entry: "**/.augmentignore" },
+  { target: "augmentcode", feature: "permissions", entry: "**/.augment/settings.json" },
 
   // Claude Code
   { target: "claudecode", feature: "rules", entry: "**/CLAUDE.md" },
@@ -73,6 +74,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "cline", feature: "commands", entry: "**/.clinerules/workflows/" },
   { target: "cline", feature: "ignore", entry: "**/.clineignore" },
   { target: "cline", feature: "mcp", entry: "**/.cline/mcp.json" },
+  { target: "cline", feature: "permissions", entry: "**/.cline/command-permissions.json" },
 
   // Codex CLI
   { target: "codexcli", feature: "ignore", entry: "**/.codexignore" },
@@ -186,6 +188,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "kilo", feature: "commands", entry: "**/.kilo/workflows/" },
   { target: "kilo", feature: "mcp", entry: "**/.kilo/mcp.json" },
   { target: "kilo", feature: "ignore", entry: "**/.kiloignore" },
+  { target: "kilo", feature: "permissions", entry: "**/kilo.jsonc" },
 
   // Kiro
   { target: "kiro", feature: "rules", entry: "**/.kiro/steering/" },
@@ -217,6 +220,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   // Qwen Code
   { target: "qwencode", feature: "rules", entry: "**/QWEN.md" },
   { target: "qwencode", feature: "general", entry: "**/.qwen/memories/" },
+  { target: "qwencode", feature: "permissions", entry: "**/.qwen/settings.json" },
 
   // Replit
   { target: "replit", feature: "rules", entry: "**/replit.md" },
