@@ -620,6 +620,24 @@ This should be treated as a non-root rule.`;
       expect(copilotRule.getBody()).toBe("This should be treated as a non-root rule.");
     });
 
+    it("should normalize separators when detecting explicit root paths", async () => {
+      const githubDir = join(testDir, ".github");
+      await ensureDir(githubDir);
+
+      const rootContent = "Root detected with mixed separators.";
+      await writeFileContent(join(githubDir, "copilot-instructions.md"), rootContent);
+
+      const copilotRule = await CopilotRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: ".github\\",
+        relativeFilePath: "copilot-instructions.md",
+        validate: true,
+      });
+
+      expect(copilotRule.isRoot()).toBe(true);
+      expect(copilotRule.getBody()).toBe(rootContent);
+    });
+
     it("should detect root only when both relativeDirPath and filename match", async () => {
       const githubDir = join(testDir, ".github");
       await ensureDir(githubDir);
