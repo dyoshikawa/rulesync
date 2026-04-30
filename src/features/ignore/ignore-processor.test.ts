@@ -132,6 +132,34 @@ describe("IgnoreProcessor", () => {
         expect.stringContaining("Failed to load rulesync ignore file"),
       );
     });
+
+    // Mirror the per-feature inputRoot threading assertion used in
+    // commands-processor.test.ts: when inputRoot is set, loadRulesyncFiles
+    // calls RulesyncIgnore.fromFile with `outputRoot === inputRoot` so the
+    // ignore file is read from the custom rulesync dir instead of process.cwd().
+    it("should pass inputRoot to RulesyncIgnore.fromFile when inputRoot is set", async () => {
+      const customInputRoot = join(testDir, "custom-rulesync-dir");
+      const mockRulesyncIgnore = new MockRulesyncIgnore({
+        outputRoot: customInputRoot,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+        fileContent: "tmp/",
+      });
+      (RulesyncIgnoreMock as any).fromFile.mockResolvedValue(mockRulesyncIgnore as any);
+
+      const processor = new IgnoreProcessor({
+        logger,
+        outputRoot: testDir,
+        inputRoot: customInputRoot,
+        toolTarget: "cursor",
+      });
+
+      const files = await processor.loadRulesyncFiles();
+      expect(files).toHaveLength(1);
+      expect((RulesyncIgnoreMock as any).fromFile).toHaveBeenCalledWith({
+        outputRoot: customInputRoot,
+      });
+    });
   });
 
   describe("loadToolFiles", () => {

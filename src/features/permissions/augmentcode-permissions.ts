@@ -6,6 +6,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { ConsoleLogger, type Logger } from "../../utils/logger.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -14,6 +15,11 @@ import {
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
 } from "./tool-permissions.js";
+
+// Module-level logger used by the importing direction (toRulesyncPermissions),
+// where the instance method has no `logger` parameter. Mirrors the Qwen
+// permissions translator's pattern.
+const moduleLogger: Logger = new ConsoleLogger();
 
 /**
  * AugmentCode CLI uses `.augment/settings.json` (project) or `~/.augment/settings.json` (global).
@@ -142,6 +148,51 @@ function shellRegexToGlob(regex: string): string {
     i += 1;
   }
   return glob;
+}
+
+/**
+ * Detect whether an AugmentCode `shellInputRegex` is faithfully roundtrippable
+ * through our glob-based representation. Rulesync stores patterns as globs,
+ * and on re-export `globToShellRegex` always produces an anchored pattern of
+ * the form `^...$` whose body contains only literal characters, escaped
+ * metacharacters, `.*` (from `*`), and `.` (from `?`).
+ *
+ * A user-authored regex that is unanchored or uses regex features outside
+ * that small subset (`+`, `|`, character classes, groups, quantifiers) cannot
+ * be losslessly converted to a glob; a naive conversion would silently narrow
+ * (e.g. `"rm"` → glob `"rm"` → re-exported as `"^rm$"`, which only matches
+ * the exact string `"rm"`) or otherwise change the matched set.
+ */
+function isShellRegexRoundtrippable(regex: string): boolean {
+  if (!regex.startsWith("^") || !regex.endsWith("$")) {
+    return false;
+  }
+  const body = regex.slice(1, -1);
+  let i = 0;
+  while (i < body.length) {
+    const ch = body[i];
+    if (ch === "\\" && i + 1 < body.length) {
+      // Skip escaped char.
+      i += 2;
+      continue;
+    }
+    if (ch === "." && body[i + 1] === "*") {
+      i += 2;
+      continue;
+    }
+    if (ch === ".") {
+      i += 1;
+      continue;
+    }
+    // Any unescaped regex metacharacter that we don't generate marks the
+    // regex as non-roundtrippable. `.` is handled above; the remaining ones
+    // here are regex-only constructs.
+    if (/[$^|+?*(){}[\]]/.test(ch ?? "")) {
+      return false;
+    }
+    i += 1;
+  }
+  return true;
 }
 
 const MANAGED_AUGMENT_TOOL_NAMES = new Set(Object.values(CANONICAL_TO_AUGMENT_TOOL_NAMES));
@@ -280,6 +331,7 @@ export class AugmentcodePermissions extends ToolPermissions {
 
     const config = convertAugmentToRulesyncPermissions({
       entries: settings.toolPermissions ?? [],
+      logger: moduleLogger,
     });
 
     return this.toRulesyncPermissionsDefault({
@@ -288,7 +340,24 @@ export class AugmentcodePermissions extends ToolPermissions {
   }
 
   validate(): ValidationResult {
-    return { success: true, error: null };
+    // Mirror Kilo's `safeParse`-based pattern: actually verify that the file
+    // content is JSON-parseable and conforms to the AugmentCode settings
+    // schema. A no-op validate would let malformed files slip past the
+    // generate/import boundary and surface as confusing errors deeper in the
+    // pipeline.
+    try {
+      const parsed = JSON.parse(this.fileContent || "{}");
+      const result = AugmentSettingsSchema.safeParse(parsed);
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
+      return { success: true, error: null };
+    } catch (error) {
+      return {
+        success: false,
+        error: new Error(`Failed to parse AugmentCode permissions JSON: ${formatError(error)}`),
+      };
+    }
   }
 
   static forDeletion({
@@ -444,8 +513,10 @@ function sortAugmentEntries(entries: AugmentToolPermission[]): AugmentToolPermis
 
 function convertAugmentToRulesyncPermissions({
   entries,
+  logger,
 }: {
   entries: AugmentToolPermission[];
+  logger?: Logger;
 }): PermissionsConfig {
   // Iteration-order-independent fail-closed precedence: when multiple entries collapse to the
   // same `(canonical, pattern)` key (which happens for the non-launch-process managed tools that
@@ -468,10 +539,47 @@ function convertAugmentToRulesyncPermissions({
     // AugmentCode schema does not carry per-pattern information, so they are imported as the
     // catch-all `*` pattern. This is the inverse of the fail-closed export side and is documented
     // in `docs/reference/file-formats.md`.
-    const pattern =
-      entry.toolName === "launch-process" && entry.shellInputRegex
-        ? shellRegexToGlob(entry.shellInputRegex)
-        : "*";
+    let pattern: string;
+    if (entry.toolName === "launch-process" && entry.shellInputRegex) {
+      const regex = entry.shellInputRegex;
+      if (isShellRegexRoundtrippable(regex)) {
+        // Faithful import: glob round-trips back to an equivalent regex.
+        pattern = shellRegexToGlob(regex);
+      } else {
+        // Non-roundtrippable user-authored regex (e.g. unanchored `"rm"`,
+        // alternation `"rm|del"`, character classes `"[a-z]+"`). Naively
+        // converting via `shellRegexToGlob` would silently weaken the rule on
+        // re-export — for example `"rm"` would round-trip to `"^rm$"`, which
+        // only matches the exact string. Apply asymmetric fallback per the
+        // category:
+        // - `deny`: broaden to `*` (fail-closed) — over-blocking is safer than
+        //   under-blocking, so a user-authored deny continues to protect
+        //   against the original threat surface (and more).
+        // - `allow` / `ask`: warn but proceed with the lossy conversion. We
+        //   cannot safely broaden these because broadening an allow would
+        //   weaken security; dropping them would silently strip the user's
+        //   rule. Lossy conversion preserves the user's intent on the most
+        //   common patterns at the cost of the narrow regex semantics that
+        //   only AugmentCode supports.
+        if (action === "deny") {
+          logger?.warn(
+            `AugmentCode permissions: shellInputRegex '${regex}' on tool '${entry.toolName}' ` +
+              `is not faithfully roundtrippable to a glob. Importing as the catch-all '*' ` +
+              `pattern (fail-closed) so the deny rule cannot be silently narrowed on regenerate.`,
+          );
+          pattern = "*";
+        } else {
+          pattern = shellRegexToGlob(regex);
+          logger?.warn(
+            `AugmentCode permissions: shellInputRegex '${regex}' on tool '${entry.toolName}' ` +
+              `is not faithfully roundtrippable to a glob. Importing as glob '${pattern}'; ` +
+              `the rule may match a different set of inputs after regenerate.`,
+          );
+        }
+      }
+    } else {
+      pattern = "*";
+    }
 
     if (!permission[canonical]) {
       permission[canonical] = {};

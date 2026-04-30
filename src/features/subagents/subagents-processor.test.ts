@@ -563,6 +563,39 @@ Global agent content`;
       const rulesyncSubagent = rulesyncFiles[0] as RulesyncSubagent;
       expect(rulesyncSubagent.getFrontmatter().name).toBe("global-agent");
     });
+
+    // Mirror the per-feature inputRoot threading assertion used in
+    // commands-processor.test.ts: when inputRoot is set, loadRulesyncFiles
+    // reads from `<inputRoot>/.rulesync/subagents` instead of
+    // `<process.cwd()>/.rulesync/subagents`.
+    it("should read rulesync subagent files from inputRoot instead of process.cwd()", async () => {
+      const customInputRoot = join(testDir, "custom-rulesync-dir");
+      const customSubagentsDir = join(customInputRoot, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+      await ensureDir(customSubagentsDir);
+
+      const subagentContent = `---
+name: input-root-agent
+description: Subagent loaded from inputRoot
+targets: ["*"]
+---
+Body from inputRoot`;
+
+      await writeFileContent(join(customSubagentsDir, "input-root-agent.md"), subagentContent);
+
+      // outputRoot is testDir (process.cwd()); no subagents file exists there,
+      // so a successful load proves the inputRoot-aware processor read from inputRoot.
+      const inputRootProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        inputRoot: customInputRoot,
+        toolTarget: "claudecode",
+      });
+
+      const rulesyncFiles = await inputRootProcessor.loadRulesyncFiles();
+      expect(rulesyncFiles).toHaveLength(1);
+      expect(rulesyncFiles[0]).toBeInstanceOf(RulesyncSubagent);
+      expect((rulesyncFiles[0] as RulesyncSubagent).getFrontmatter().name).toBe("input-root-agent");
+    });
   });
 
   describe("loadToolFiles", () => {

@@ -207,4 +207,42 @@ describe("QwencodePermissions", () => {
     expect(await fileExists(join(testDir, ".qwen"))).toBe(false);
     expect(await fileExists(join(testDir, ".qwen", "settings.json"))).toBe(false);
   });
+
+  describe("validate()", () => {
+    it("should succeed for well-formed Qwen settings JSON", () => {
+      const instance = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          permissions: { allow: ["Bash(git *)"], deny: ["Bash(rm -rf *)"] },
+        }),
+      });
+      const result = instance.validate();
+      expect(result.success).toBe(true);
+      expect(result.error).toBeNull();
+    });
+
+    it("should fail when fileContent is not parseable JSON", () => {
+      const instance = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: "{ not json",
+      });
+      const result = instance.validate();
+      expect(result.success).toBe(false);
+      expect(result.error).not.toBeNull();
+    });
+
+    it("should fail when fileContent does not match schema", () => {
+      const instance = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        // `permissions.allow` must be an array of strings, not numbers.
+        fileContent: JSON.stringify({ permissions: { allow: [42] } }),
+      });
+      const result = instance.validate();
+      expect(result.success).toBe(false);
+      expect(result.error).not.toBeNull();
+    });
+  });
 });
