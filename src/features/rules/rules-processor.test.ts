@@ -2239,10 +2239,13 @@ targets: ["*"]
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
       expect(rulesyncFiles).toHaveLength(1);
-      const content = await readFileContent(
-        join(customInputRoot, RULESYNC_RULES_RELATIVE_DIR_PATH, "overview.md"),
-      );
-      expect(content).toContain("Input-root rule");
+      // Assert directly on the loaded rule, not by re-reading the file we
+      // just wrote: the meaningful check is that the rule's parsed body and
+      // frontmatter come from the inputRoot file, not from anywhere under
+      // outputRoot/process.cwd().
+      const loadedRule = rulesyncFiles[0] as RulesyncRule;
+      expect(loadedRule.getFrontmatter().root).toBe(true);
+      expect(loadedRule.getBody()).toContain("Input-root rule");
     });
   });
 });

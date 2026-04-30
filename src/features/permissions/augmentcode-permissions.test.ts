@@ -9,6 +9,7 @@ import {
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { ConsoleLogger } from "../../utils/logger.js";
 import { AugmentcodePermissions } from "./augmentcode-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
@@ -500,6 +501,16 @@ describe("AugmentcodePermissions", () => {
     // narrow or otherwise change the deny on re-export. Apply asymmetric
     // fallback: deny -> "*" (fail-closed); allow/ask -> lossy with warning.
 
+    // The import path uses the module-level `ConsoleLogger` rather than an
+    // injected logger, so to assert on warn message contents we spy on
+    // `ConsoleLogger.prototype.warn`. The spy bypasses `isSuppressed()` (which
+    // would normally swallow `console.warn` under NODE_ENV=test) because
+    // `vi.spyOn` replaces the method itself, not its underlying `console.warn`.
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+      warnSpy = vi.spyOn(ConsoleLogger.prototype, "warn").mockImplementation(() => {});
+    });
+
     it("should fall back to '*' (fail-closed) for deny with unanchored shellInputRegex", () => {
       const instance = new AugmentcodePermissions({
         relativeDirPath: ".augment",
@@ -520,6 +531,16 @@ describe("AugmentcodePermissions", () => {
       // re-export as `"^rm$"`, narrowing the protection to the literal
       // string `"rm"`. Broadening to `"*"` keeps the protective intent.
       expect(config.permission.bash).toEqual({ "*": "deny" });
+      // Assert the user-visible explanation: the warn must explicitly say the
+      // import broadened to the catch-all `*` (fail-closed) so users can audit
+      // the change.
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      const warnMessage = warnSpy.mock.calls[0]?.[0] as string;
+      expect(warnMessage).toContain("'rm'");
+      expect(warnMessage).toContain("launch-process");
+      expect(warnMessage).toContain("not faithfully roundtrippable");
+      expect(warnMessage).toContain("catch-all '*'");
+      expect(warnMessage).toContain("fail-closed");
     });
 
     it("should fall back to '*' (fail-closed) for deny with alternation in shellInputRegex", () => {
@@ -539,6 +560,10 @@ describe("AugmentcodePermissions", () => {
 
       const config = instance.toRulesyncPermissions().getJson();
       expect(config.permission.bash).toEqual({ "*": "deny" });
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      const warnMessage = warnSpy.mock.calls[0]?.[0] as string;
+      expect(warnMessage).toContain("'^rm|del$'");
+      expect(warnMessage).toContain("fail-closed");
     });
 
     it("should preserve faithful imports for fully roundtrippable deny regex", () => {
@@ -559,6 +584,9 @@ describe("AugmentcodePermissions", () => {
       const config = instance.toRulesyncPermissions().getJson();
       // `^rm .*$` is roundtrippable via shellRegexToGlob → `rm *`.
       expect(config.permission.bash).toEqual({ "rm *": "deny" });
+      // Roundtrippable inputs should NOT trigger any warning — silence is the
+      // signal that no semantics were lost.
+      expect(warnSpy).not.toHaveBeenCalled();
     });
 
     it("should still import (with warning) lossy allow patterns rather than dropping or broadening", () => {
@@ -582,6 +610,11 @@ describe("AugmentcodePermissions", () => {
       // re-export will produce `^git$`, which differs from the original
       // unanchored regex.
       expect(config.permission.bash).toEqual({ git: "allow" });
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      const warnMessage = warnSpy.mock.calls[0]?.[0] as string;
+      expect(warnMessage).toContain("'git'");
+      expect(warnMessage).toContain("Importing as glob 'git'");
+      expect(warnMessage).toContain("may match a different set of inputs after regenerate");
     });
   });
 
