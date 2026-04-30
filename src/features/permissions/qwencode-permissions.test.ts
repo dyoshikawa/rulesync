@@ -150,21 +150,42 @@ describe("QwencodePermissions", () => {
     });
   });
 
-  it("should warn on malformed entries with trailing characters and fall back to '*'", () => {
+  it("should drop malformed allow entries (fail-closed: do not broaden a narrow rule into '*')", () => {
     const instance = new QwencodePermissions({
       relativeDirPath: ".qwen",
       relativeFilePath: "settings.json",
       fileContent: JSON.stringify({
         permissions: {
-          // Malformed: trailing chars after closing paren.
-          allow: ["Bash(npm *)trailing"],
+          // Malformed: trailing chars after closing paren and missing closing paren.
+          allow: ["Bash(npm *)trailing", "Bash(rm -rf"],
+          // A well-formed entry alongside malformed ones must still survive.
+          ask: ["Bash(npm install)", "Bash(rm -rf"],
         },
       }),
     });
 
-    // Round-trip uses the parser internally.
     const config = instance.toRulesyncPermissions().getJson();
-    expect(config.permission.bash).toEqual({ "*": "allow" });
+    // Allow has only malformed entries — Bash should NOT appear because each malformed entry
+    // is dropped (NOT broadened into `*`).
+    expect(config.permission.bash?.["*"]).toBeUndefined();
+    // Ask retains the well-formed entry; the malformed one is dropped.
+    expect(config.permission.bash?.["npm install"]).toBe("ask");
+  });
+
+  it("should still fall back to '*' for malformed deny entries (fail-closed: broader is safer)", () => {
+    const instance = new QwencodePermissions({
+      relativeDirPath: ".qwen",
+      relativeFilePath: "settings.json",
+      fileContent: JSON.stringify({
+        permissions: {
+          deny: ["Bash(rm -rf"],
+        },
+      }),
+    });
+
+    const config = instance.toRulesyncPermissions().getJson();
+    // Deny falls open into `*` because broadening a deny is the safer direction.
+    expect(config.permission.bash).toEqual({ "*": "deny" });
   });
 
   it("should not create the .qwen directory when generating with no existing file (dry-run safe)", async () => {

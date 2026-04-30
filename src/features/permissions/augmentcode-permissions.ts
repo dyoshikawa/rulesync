@@ -447,6 +447,16 @@ function convertAugmentToRulesyncPermissions({
 }: {
   entries: AugmentToolPermission[];
 }): PermissionsConfig {
+  // Iteration-order-independent fail-closed precedence: when multiple entries collapse to the
+  // same `(canonical, pattern)` key (which happens for the non-launch-process managed tools that
+  // always use the catch-all `*` pattern on the import side), pick the most restrictive action
+  // rather than letting the last entry silently overwrite earlier ones.
+  // Precedence: deny > ask > allow.
+  const actionPriority: Record<PermissionAction, number> = {
+    deny: 2,
+    ask: 1,
+    allow: 0,
+  };
   const permission: Record<string, Record<string, PermissionAction>> = {};
 
   for (const entry of entries) {
@@ -466,7 +476,10 @@ function convertAugmentToRulesyncPermissions({
     if (!permission[canonical]) {
       permission[canonical] = {};
     }
-    permission[canonical][pattern] = action;
+    const existing = permission[canonical][pattern];
+    if (existing === undefined || actionPriority[action] > actionPriority[existing]) {
+      permission[canonical][pattern] = action;
+    }
   }
 
   return { permission };

@@ -442,4 +442,54 @@ describe("AugmentcodePermissions", () => {
     });
     expect(instance.isDeletable()).toBe(false);
   });
+
+  it("should resolve fail-closed when an AugmentCode file has both deny and allow for the same managed non-bash tool (deny first)", () => {
+    const instance = new AugmentcodePermissions({
+      relativeDirPath: ".augment",
+      relativeFilePath: "settings.json",
+      fileContent: JSON.stringify({
+        toolPermissions: [
+          { toolName: "view", permission: { type: "deny" } },
+          { toolName: "view", permission: { type: "allow" } },
+        ],
+      }),
+    });
+
+    const config = instance.toRulesyncPermissions().getJson();
+    // Without fail-closed precedence, last-write-wins would silently turn this into `allow`.
+    expect(config.permission.read).toEqual({ "*": "deny" });
+  });
+
+  it("should resolve fail-closed when an AugmentCode file has both allow and deny for the same managed non-bash tool (allow first)", () => {
+    const instance = new AugmentcodePermissions({
+      relativeDirPath: ".augment",
+      relativeFilePath: "settings.json",
+      fileContent: JSON.stringify({
+        toolPermissions: [
+          { toolName: "view", permission: { type: "allow" } },
+          { toolName: "view", permission: { type: "deny" } },
+        ],
+      }),
+    });
+
+    const config = instance.toRulesyncPermissions().getJson();
+    // Reverse iteration order: precedence still picks `deny`.
+    expect(config.permission.read).toEqual({ "*": "deny" });
+  });
+
+  it("should resolve precedence as deny > ask > allow when collapsing managed non-bash tool entries", () => {
+    const instance = new AugmentcodePermissions({
+      relativeDirPath: ".augment",
+      relativeFilePath: "settings.json",
+      fileContent: JSON.stringify({
+        toolPermissions: [
+          { toolName: "view", permission: { type: "allow" } },
+          { toolName: "view", permission: { type: "ask-user" } },
+        ],
+      }),
+    });
+
+    const config = instance.toRulesyncPermissions().getJson();
+    expect(config.permission.read).toEqual({ "*": "ask" });
+  });
 });

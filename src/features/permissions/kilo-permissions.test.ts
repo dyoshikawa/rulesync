@@ -233,4 +233,37 @@ describe("KiloPermissions", () => {
         }),
     ).toThrow();
   });
+
+  it("fromFile should throw on malformed JSONC instead of silently dropping existing rules", async () => {
+    // Missing closing brace — `jsonc-parser`'s best-effort `parse()` would silently coerce this
+    // to `undefined`/`{}`, which would cause a regenerate to overwrite the corrupted file with
+    // an empty `permission: {}` and lose the user's `deny` rules. We now surface the error.
+    await writeFileContent(
+      join(testDir, "kilo.jsonc"),
+      '{ "permission": { "bash": { "rm -rf *": "deny"',
+    );
+
+    await expect(KiloPermissions.fromFile({ outputRoot: testDir })).rejects.toThrow(
+      /Failed to parse Kilo Code config/,
+    );
+  });
+
+  it("fromRulesyncPermissions should throw on malformed JSONC instead of silently overwriting", async () => {
+    await writeFileContent(
+      join(testDir, "kilo.jsonc"),
+      '{ "permission": { "bash": { "rm -rf *": "deny"',
+    );
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({ permission: { bash: { "git *": "allow" } } }),
+    });
+
+    await expect(
+      KiloPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      }),
+    ).rejects.toThrow(/Failed to parse Kilo Code config/);
+  });
 });

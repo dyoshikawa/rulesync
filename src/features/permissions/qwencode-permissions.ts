@@ -68,13 +68,17 @@ function toCanonicalToolName(qwenName: string): string {
   return QWEN_TO_CANONICAL_TOOL_NAMES[qwenName] ?? qwenName;
 }
 
+type ParsedQwenEntry =
+  | { ok: true; toolName: string; pattern: string }
+  | { ok: false; toolName: string; raw: string };
+
 function parseQwenPermissionEntry(
   entry: string,
   options: { logger?: Logger } = {},
-): { toolName: string; pattern: string } {
+): ParsedQwenEntry {
   const parenIndex = entry.indexOf("(");
   if (parenIndex === -1) {
-    return { toolName: entry, pattern: "*" };
+    return { ok: true, toolName: entry, pattern: "*" };
   }
   const toolName = entry.slice(0, parenIndex);
   // Use `lastIndexOf(')')` so patterns containing nested parentheses (e.g. `Bash(echo (a))`) round-trip
@@ -82,21 +86,19 @@ function parseQwenPermissionEntry(
   const lastParenIndex = entry.lastIndexOf(")");
   if (lastParenIndex < parenIndex) {
     options.logger?.warn(
-      `Qwen permissions: malformed entry '${entry}' is missing a closing parenthesis; ` +
-        `falling back to catch-all pattern '*'.`,
+      `Qwen permissions: malformed entry '${entry}' is missing a closing parenthesis.`,
     );
-    return { toolName, pattern: "*" };
+    return { ok: false, toolName, raw: entry };
   }
   // The entry MUST end with the last `)` — anything trailing it (e.g. `Bash(...)x`) is malformed.
   if (lastParenIndex !== entry.length - 1) {
     options.logger?.warn(
-      `Qwen permissions: malformed entry '${entry}' has trailing characters after the closing ` +
-        `parenthesis; falling back to catch-all pattern '*'.`,
+      `Qwen permissions: malformed entry '${entry}' has trailing characters after the closing parenthesis.`,
     );
-    return { toolName, pattern: "*" };
+    return { ok: false, toolName, raw: entry };
   }
   const pattern = entry.slice(parenIndex + 1, lastParenIndex);
-  return { toolName, pattern: pattern || "*" };
+  return { ok: true, toolName, pattern: pattern || "*" };
 }
 
 function buildQwenPermissionEntry(toolName: string, pattern: string): string {
@@ -177,6 +179,8 @@ export class QwencodePermissions extends ToolPermissions {
     );
 
     const existingPermissions = settings.permissions ?? {};
+    // For preservation filtering we only need the tool name; whether the entry is malformed is
+    // irrelevant here since we are forwarding it verbatim back into the merged output.
     const preservedAllow = (existingPermissions.allow ?? []).filter(
       (entry) => !managedToolNames.has(parseQwenPermissionEntry(entry, { logger }).toolName),
     );
@@ -319,7 +323,22 @@ function convertQwenToRulesyncPermissions(params: {
 
   const processEntries = (entries: string[], action: PermissionAction) => {
     for (const entry of entries) {
-      const { toolName, pattern } = parseQwenPermissionEntry(entry, { logger });
+      const parsed = parseQwenPermissionEntry(entry, { logger });
+      if (!parsed.ok) {
+        // Fail-closed asymmetry by category:
+        // - `deny`: keep the existing fallback to `*` so a malformed deny still blocks (broader is safer).
+        // - `allow` / `ask`: dropping is safer than broadening a narrow user rule into `*`. The
+        //   already-emitted warn from `parseQwenPermissionEntry` makes the drop visible.
+        if (action === "deny") {
+          const canonical = toCanonicalToolName(parsed.toolName);
+          if (!permission[canonical]) {
+            permission[canonical] = {};
+          }
+          permission[canonical]["*"] = action;
+        }
+        continue;
+      }
+      const { toolName, pattern } = parsed;
       const canonical = toCanonicalToolName(toolName);
       if (!permission[canonical]) {
         permission[canonical] = {};

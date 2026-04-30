@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { parse as parseJsonc } from "jsonc-parser";
+import { type ParseError, parse as parseJsonc, printParseErrorCode } from "jsonc-parser";
 import { z } from "zod/mini";
 
 import type { AiFileParams } from "../../types/ai-file.js";
@@ -29,6 +29,32 @@ const KiloPermissionsConfigSchema = z.looseObject({
 type KiloPermissionsConfig = z.infer<typeof KiloPermissionsConfigSchema>;
 
 const KILO_FILE_NAME = "kilo.jsonc";
+
+/**
+ * Parse a JSONC string and throw on syntax errors. The `jsonc-parser` `parse()` function is
+ * non-throwing best-effort: invalid input silently yields a partial value (often `undefined`,
+ * coerced to `{}` by callers). That behavior would silently drop a user's existing `deny` rules
+ * when their `kilo.jsonc` has a typo, so we surface the first parse error as a thrown exception
+ * — matching the strict `JSON.parse` behavior used by the Cline/AugmentCode/Qwen permissions
+ * implementations.
+ */
+function parseKiloJsoncStrict(content: string, filePath: string): Record<string, unknown> {
+  const errors: ParseError[] = [];
+  const parsed = parseJsonc(content, errors, { allowTrailingComma: true });
+  const first = errors[0];
+  if (first) {
+    throw new Error(
+      `Failed to parse Kilo Code config at ${filePath}: ${printParseErrorCode(first.error)} at offset ${first.offset}`,
+    );
+  }
+  // Normalize the loosely-typed return of `jsonc-parser` into a record. Non-object roots
+  // (`null`, arrays, primitives) are coerced to `{}` so the per-key merge logic in callers does
+  // not need to defend against them.
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    return parsed;
+  }
+  return {};
+}
 
 /**
  * Extract the patterns associated with `deny` from a Kilo per-tool permission value. The value
@@ -99,7 +125,7 @@ export class KiloPermissions extends ToolPermissions {
 
     const fileContent = await readFileContentOrNull(filePath);
 
-    const parsed = parseJsonc(fileContent ?? "{}");
+    const parsed = parseKiloJsoncStrict(fileContent ?? "{}", filePath);
     const nextJson = { ...parsed, permission: parsed.permission ?? {} };
 
     return new KiloPermissions({
@@ -121,9 +147,7 @@ export class KiloPermissions extends ToolPermissions {
     const filePath = join(outputRoot, basePaths.relativeDirPath, basePaths.relativeFilePath);
 
     const fileContent = await readFileContentOrNull(filePath);
-    const parsedRaw = parseJsonc(fileContent ?? "{}");
-    const parsed: Record<string, unknown> =
-      parsedRaw && typeof parsedRaw === "object" && !Array.isArray(parsedRaw) ? parsedRaw : {};
+    const parsed = parseKiloJsoncStrict(fileContent ?? "{}", filePath);
 
     // Per-key merge:
     // - Tool keys present in rulesync output replace the corresponding key entirely (rulesync is
