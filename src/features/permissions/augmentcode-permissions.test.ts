@@ -494,7 +494,7 @@ describe("AugmentcodePermissions", () => {
     expect(config.permission.read).toEqual({ "*": "ask" });
   });
 
-  describe("non-roundtrippable shellInputRegex import behavior (Finding F)", () => {
+  describe("non-roundtrippable shellInputRegex import behavior", () => {
     // When a user authors a `shellInputRegex` that is not faithfully
     // roundtrippable through the glob representation (for example unanchored
     // `"rm"` or alternation `"rm|del"`), naive conversion would silently
@@ -509,6 +509,13 @@ describe("AugmentcodePermissions", () => {
     let warnSpy: ReturnType<typeof vi.spyOn>;
     beforeEach(() => {
       warnSpy = vi.spyOn(ConsoleLogger.prototype, "warn").mockImplementation(() => {});
+    });
+    // Restore the prototype-level spy locally instead of relying on the outer
+    // describe's `vi.restoreAllMocks()`. This keeps the cleanup co-located with
+    // the spy so a future refactor (splitting this describe out, or removing
+    // the outer cleanup) cannot silently leak the spy across other test files.
+    afterEach(() => {
+      warnSpy.mockRestore();
     });
 
     it("should fall back to '*' (fail-closed) for deny with unanchored shellInputRegex", () => {
@@ -655,6 +662,50 @@ describe("AugmentcodePermissions", () => {
       const result = instance.validate();
       expect(result.success).toBe(false);
       expect(result.error).not.toBeNull();
+    });
+
+    it("should throw when constructed with validate: true and malformed JSON", () => {
+      // `fromFile({ validate: true })` flows through the constructor with
+      // `validate: true`; the constructor must invoke `validate()` and throw
+      // on failure so callers reading `validate: true` see schema violations
+      // surface immediately rather than deeper in the pipeline.
+      expect(
+        () =>
+          new AugmentcodePermissions({
+            relativeDirPath: ".augment",
+            relativeFilePath: "settings.json",
+            fileContent: "{ not json",
+            validate: true,
+          }),
+      ).toThrow();
+    });
+
+    it("should throw when constructed with validate: true and schema violation", () => {
+      expect(
+        () =>
+          new AugmentcodePermissions({
+            relativeDirPath: ".augment",
+            relativeFilePath: "settings.json",
+            fileContent: JSON.stringify({
+              toolPermissions: [{ toolName: "view", permission: { type: "bogus" } }],
+            }),
+            validate: true,
+          }),
+      ).toThrow();
+    });
+
+    it("should not throw when constructed with validate: false even with malformed JSON", () => {
+      // `forDeletion` and other permissive paths pass `validate: false` and
+      // must not be rejected at construction time.
+      expect(
+        () =>
+          new AugmentcodePermissions({
+            relativeDirPath: ".augment",
+            relativeFilePath: "settings.json",
+            fileContent: "{ not json",
+            validate: false,
+          }),
+      ).not.toThrow();
     });
   });
 });

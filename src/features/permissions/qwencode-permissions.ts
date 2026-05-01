@@ -114,6 +114,17 @@ export class QwencodePermissions extends ToolPermissions {
       ...params,
       fileContent: params.fileContent ?? "{}",
     });
+    // Mirror `RulesyncPermissions` so that `fromFile({ validate: true })` actually
+    // verifies schema conformance and throws on malformed input. Without this
+    // wiring, the `validate()` method exists but is never invoked at construction
+    // time, so callers reading `validate: true` would falsely assume validation
+    // already ran.
+    if (params.validate) {
+      const result = this.validate();
+      if (!result.success) {
+        throw result.error;
+      }
+    }
   }
 
   override isDeletable(): boolean {
