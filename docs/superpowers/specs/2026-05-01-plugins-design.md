@@ -53,7 +53,7 @@ Rejected for V1 because it would unnecessarily disrupt existing configs that alr
 ```jsonc
 {
   "targets": ["cursor", "claudecode", "codexcli", "geminicli", "antigravity"],
-  "features": ["skills", "commands", "subagents", "mcp", "hooks"]
+  "features": ["skills", "commands", "subagents", "mcp", "hooks"],
 }
 ```
 
@@ -66,7 +66,7 @@ Users enable `plugins` like any other feature:
 ```jsonc
 {
   "targets": ["cursor", "claudecode", "codexcli", "geminicli", "antigravity"],
-  "features": ["skills", "commands", "subagents", "mcp", "hooks", "plugins"]
+  "features": ["skills", "commands", "subagents", "mcp", "hooks", "plugins"],
 }
 ```
 
@@ -79,8 +79,8 @@ V1 introduces `targetFeatures` as a simple override map:
   "targets": ["cursor", "claudecode", "codexcli", "geminicli", "antigravity"],
   "features": ["skills", "commands", "subagents", "mcp", "hooks"],
   "targetFeatures": {
-    "codexcli": ["skills", "mcp", "plugins"]
-  }
+    "codexcli": ["skills", "mcp", "plugins"],
+  },
 }
 ```
 
@@ -118,16 +118,16 @@ Example:
           "codexcli": {
             "artifact": {
               "kind": "skillsBundle",
-              "path": "skills"
+              "path": "skills",
             },
             "install": {
-              "strategy": "userSkillsDir"
-            }
-          }
-        }
-      ]
-    }
-  ]
+              "strategy": "userSkillsDir",
+            },
+          },
+        },
+      ],
+    },
+  ],
 }
 ```
 
@@ -158,12 +158,12 @@ Example local manifest:
   "codexcli": {
     "artifact": {
       "kind": "skillsBundle",
-      "path": "skills"
+      "path": "skills",
     },
     "install": {
-      "strategy": "userSkillsDir"
-    }
-  }
+      "strategy": "userSkillsDir",
+    },
+  },
 }
 ```
 
