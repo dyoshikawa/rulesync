@@ -40,13 +40,13 @@ rulesync generate --check --targets "*" --features "*"
 # Generate from a shared rules directory (without cd-ing into it)
 rulesync generate --input-root ~/.aiglobal --targets "*" --features rules
 
-# Install skills from declarative sources in rulesync.jsonc
+# Install skills and plugins from declarative sources in rulesync.jsonc
 rulesync install
 
 # Force re-resolve all source refs (ignore lockfile)
 rulesync install --update
 
-# Fail if lockfile is missing or out of sync (for CI); fetch missing skills using locked refs
+# Fail if lockfile is missing or out of sync (for CI)
 rulesync install --frozen
 
 # Install then generate (typical workflow)
@@ -77,18 +77,18 @@ The `generate` command reads source files from `.rulesync/` and writes AI tool c
 
 ### Options
 
-| Option                      | Description                                                                               | Default               |
-| --------------------------- | ----------------------------------------------------------------------------------------- | --------------------- |
-| `--targets, -t <tools>`     | Comma-separated list of tools (e.g. `claudecode,copilot` or `*`)                          | From `rulesync.jsonc` |
-| `--features, -f <features>` | Comma-separated list of features (rules, commands, subagents, skills, ignore, mcp, hooks) | From `rulesync.jsonc` |
-| `--input-root <path>`       | Path to the directory containing `.rulesync/` source files (currently `generate` only)    | CWD                   |
-| `--dry-run`                 | Show what would change without writing files                                              | `false`               |
-| `--check`                   | Like `--dry-run` but exits with code 1 if files are not up to date                        | `false`               |
-| `--global`                  | Generate for global (user-scope) configuration files                                      | `false`               |
-| `--simulate-commands`       | Generate simulated commands for tools that do not support them natively                   | `false`               |
-| `--simulate-subagents`      | Generate simulated subagents for tools that do not support them natively                  | `false`               |
-| `--simulate-skills`         | Generate simulated skills for tools that do not support them natively                     | `false`               |
-| `--delete`                  | Delete existing generated files before writing                                            | From `rulesync.jsonc` |
+| Option                      | Description                                                                                        | Default               |
+| --------------------------- | -------------------------------------------------------------------------------------------------- | --------------------- |
+| `--targets, -t <tools>`     | Comma-separated list of tools (e.g. `claudecode,copilot` or `*`)                                   | From `rulesync.jsonc` |
+| `--features, -f <features>` | Comma-separated list of features (rules, commands, subagents, skills, ignore, mcp, hooks, plugins) | From `rulesync.jsonc` |
+| `--input-root <path>`       | Path to the directory containing `.rulesync/` source files (currently `generate` only)             | CWD                   |
+| `--dry-run`                 | Show what would change without writing files                                                       | `false`               |
+| `--check`                   | Like `--dry-run` but exits with code 1 if files are not up to date                                 | `false`               |
+| `--global`                  | Generate for global (user-scope) configuration files                                               | `false`               |
+| `--simulate-commands`       | Generate simulated commands for tools that do not support them natively                            | `false`               |
+| `--simulate-subagents`      | Generate simulated subagents for tools that do not support them natively                           | `false`               |
+| `--simulate-skills`         | Generate simulated skills for tools that do not support them natively                              | `false`               |
+| `--delete`                  | Delete existing generated files before writing                                                     | From `rulesync.jsonc` |
 
 ### Examples
 

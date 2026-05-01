@@ -2,6 +2,7 @@ import { isAbsolute, resolve } from "node:path";
 
 import { minLength, optional, refine, z } from "zod/mini";
 
+import { PluginSourceEntrySchema } from "../lib/plugins/plugin-manifest.js";
 import {
   ALL_FEATURES,
   Feature,
@@ -12,6 +13,7 @@ import {
   isFeatureValueEnabled,
   PerFeatureConfig,
   PerTargetFeatures,
+  PerTargetFeaturesValueSchema,
   PerTargetFeaturesValue,
   RulesyncFeatures,
   RulesyncFeaturesSchema,
@@ -38,6 +40,7 @@ export const GITIGNORE_DESTINATION_KEY = "gitignoreDestination";
 export const SourceEntrySchema = z.object({
   source: z.string().check(minLength(1, "source must be a non-empty string")),
   skills: optional(z.array(z.string())),
+  plugins: optional(z.array(PluginSourceEntrySchema)),
   transport: optional(z.enum(["github", "git"])),
   ref: optional(
     z.string().check(
@@ -80,6 +83,7 @@ export const ConfigParamsSchema = z.object({
   inputRoot: optional(z.string()),
   // Declarative skill sources
   sources: optional(z.array(SourceEntrySchema)),
+  targetFeatures: optional(z.record(z.string(), PerTargetFeaturesValueSchema)),
 });
 // We override the inferred `targets` / `features` types with the hand-written
 // unions so that callers can supply a partial per-target / per-feature object
@@ -112,6 +116,7 @@ type InferredPartialConfigParams = z.infer<typeof PartialConfigParamsSchema>;
 export type PartialConfigParams = Omit<InferredPartialConfigParams, "targets" | "features"> & {
   targets?: RulesyncConfigTargets;
   features?: RulesyncFeatures;
+  targetFeatures?: PerTargetFeatures;
 };
 
 // Schema for config file that includes $schema property for editor support.
@@ -130,6 +135,7 @@ type InferredConfigFile = z.infer<typeof ConfigFileSchema>;
 export type ConfigFile = Omit<InferredConfigFile, "targets" | "features"> & {
   targets?: RulesyncConfigTargets;
   features?: RulesyncFeatures;
+  targetFeatures?: PerTargetFeatures;
 };
 
 export const RequiredConfigParamsSchema = z.required(ConfigParamsSchema);
@@ -137,6 +143,7 @@ type InferredRequiredConfigParams = z.infer<typeof RequiredConfigParamsSchema>;
 export type RequiredConfigParams = Omit<InferredRequiredConfigParams, "targets" | "features"> & {
   targets?: RulesyncConfigTargets;
   features?: RulesyncFeatures;
+  targetFeatures?: PerTargetFeatures;
 };
 
 /**
@@ -236,6 +243,7 @@ export class Config {
   private readonly check: boolean;
   private readonly inputRoot: string;
   private readonly sources: SourceEntry[];
+  private readonly targetFeatures: PerTargetFeatures;
 
   constructor({
     outputRoots,
@@ -254,6 +262,7 @@ export class Config {
     check,
     inputRoot,
     sources,
+    targetFeatures,
   }: ConfigParams) {
     // Defense-in-depth: enforce the same mutual-exclusivity rule that the
     // file loader applies, so programmatic `new Config(...)` callers can't
@@ -323,6 +332,7 @@ export class Config {
           ? inputRoot
           : resolve(inputRoot);
     this.sources = sources ?? [];
+    this.targetFeatures = targetFeatures ?? {};
   }
 
   /**
@@ -434,6 +444,13 @@ export class Config {
   public getFeatures(): Features;
   public getFeatures(target: ToolTarget): Features;
   public getFeatures(target?: ToolTarget): Features {
+    if (target) {
+      const override = this.targetFeatures[target];
+      if (override) {
+        return Config.normalizeTargetFeatures(override);
+      }
+    }
+
     // New object form on `targets`: per-target features come from the
     // targets object values.
     if (isRulesyncConfigTargetsObject(this.targets)) {
@@ -460,10 +477,14 @@ export class Config {
 
     // Array format - traditional behavior
     if (this.features.includes("*")) {
-      return [...ALL_FEATURES];
+      return Config.collectAllFeatures([[...ALL_FEATURES], ...Object.values(this.targetFeatures)]);
     }
 
-    return this.features.filter((feature): feature is Feature => feature !== "*");
+    const baseFeatures = this.features.filter((feature): feature is Feature => feature !== "*");
+    if (target === undefined && Object.keys(this.targetFeatures).length > 0) {
+      return Config.collectAllFeatures([baseFeatures, ...Object.values(this.targetFeatures)]);
+    }
+    return baseFeatures;
   }
 
   /**
@@ -519,6 +540,9 @@ export class Config {
    * feature is not enabled for the given target.
    */
   public getFeatureOptions(target: ToolTarget, feature: Feature): FeatureOptions | undefined {
+    if (this.targetFeatures[target]) {
+      return undefined;
+    }
     const value = isRulesyncConfigTargetsObject(this.targets)
       ? this.targets[target]
       : !Array.isArray(this.features)
@@ -572,7 +596,11 @@ export class Config {
    * Check if per-target features configuration is being used.
    */
   public hasPerTargetFeatures(): boolean {
-    return isRulesyncConfigTargetsObject(this.targets) || !Array.isArray(this.features);
+    return (
+      isRulesyncConfigTargetsObject(this.targets) ||
+      !Array.isArray(this.features) ||
+      Object.keys(this.targetFeatures).length > 0
+    );
   }
 
   /**
@@ -638,6 +666,10 @@ export class Config {
 
   public getSources(): SourceEntry[] {
     return this.sources;
+  }
+
+  public getTargetFeatures(): PerTargetFeatures {
+    return this.targetFeatures;
   }
 
   /**

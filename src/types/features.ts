@@ -11,6 +11,7 @@ export const ALL_FEATURES = [
   "skills",
   "hooks",
   "permissions",
+  "plugins",
 ] as const;
 
 export const ALL_FEATURES_WITH_WILDCARD = [...ALL_FEATURES, "*"] as const;

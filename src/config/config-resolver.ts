@@ -71,6 +71,7 @@ const getDefaults = (): ConfigDefaults => ({
   check: false,
   inputRoot: undefined,
   sources: [],
+  targetFeatures: {},
 });
 
 const loadConfigFromFile = async (filePath: string): Promise<PartialConfigParams> => {
@@ -132,6 +133,7 @@ const mergeConfigs = (
     check: localConfig.check ?? baseConfig.check,
     inputRoot: localConfig.inputRoot ?? baseConfig.inputRoot,
     sources: localConfig.sources ?? baseConfig.sources,
+    targetFeatures: localConfig.targetFeatures ?? baseConfig.targetFeatures,
   };
 };
 
@@ -309,6 +311,7 @@ export class ConfigResolver {
       // captured `cwd` so the value is still deterministic.
       inputRoot: resolvedInputRoot !== undefined ? resolve(resolvedInputRoot) : cwd,
       sources: configByFile.sources ?? getDefaults().sources,
+      targetFeatures: configByFile.targetFeatures ?? getDefaults().targetFeatures,
     };
     return new Config(configParams);
   }

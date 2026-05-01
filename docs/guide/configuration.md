@@ -70,12 +70,31 @@ Example:
   // unconditionally to prevent accidental commits of generated rule files.
   "gitignoreTargetsOnly": true,
 
-  // Declarative skill sources — installed via 'rulesync install'
+  // Declarative sources for external skills/plugins — installed via 'rulesync install'
   // See the "Declarative Skill Sources" section for details.
   // "sources": [
   //   { "source": "owner/repo" },
   //   { "source": "org/repo", "skills": ["specific-skill"] },
+  //   {
+  //     "source": "obra/superpowers",
+  //     "plugins": [
+  //       {
+  //         "name": "superpowers",
+  //         "targets": ["codexcli"],
+  //         "codexcli": {
+  //           "artifact": { "kind": "skillsBundle", "path": "skills" },
+  //           "install": { "strategy": "userSkillsDir" },
+  //         },
+  //       },
+  //     ],
+  //   },
   // ],
+
+  // Optional per-target feature override. When present, this replaces the
+  // root `features` array for that tool.
+  // "targetFeatures": {
+  //   "codexcli": ["skills", "mcp", "plugins"],
+  // },
 }
 ```
 
