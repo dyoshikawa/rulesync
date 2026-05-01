@@ -188,7 +188,10 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "kilo", feature: "commands", entry: "**/.kilo/workflows/" },
   { target: "kilo", feature: "mcp", entry: "**/.kilo/mcp.json" },
   { target: "kilo", feature: "ignore", entry: "**/.kiloignore" },
-  { target: "kilo", feature: "permissions", entry: "**/kilo.jsonc" },
+  // No `**/kilo.jsonc` entry: structurally identical to `opencode.jsonc` (no
+  // entry). The Kilo translator preserves non-permissions Kilo settings on
+  // round-trip, so the file is intended to be checked in by the user — adding
+  // `**/kilo.jsonc` would be too aggressive.
 
   // Kiro
   { target: "kiro", feature: "rules", entry: "**/.kiro/steering/" },

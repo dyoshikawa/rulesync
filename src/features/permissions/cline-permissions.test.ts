@@ -171,4 +171,82 @@ describe("ClinePermissions", () => {
     });
     expect(instance.isDeletable()).toBe(false);
   });
+
+  describe("validate()", () => {
+    it("should succeed for well-formed Cline command-permissions JSON", () => {
+      const instance = new ClinePermissions({
+        relativeDirPath: ".cline",
+        relativeFilePath: "command-permissions.json",
+        fileContent: JSON.stringify({ allow: ["git *"], deny: ["rm -rf *"] }),
+      });
+      const result = instance.validate();
+      expect(result.success).toBe(true);
+      expect(result.error).toBeNull();
+    });
+
+    it("should fail when fileContent is not parseable JSON", () => {
+      const instance = new ClinePermissions({
+        relativeDirPath: ".cline",
+        relativeFilePath: "command-permissions.json",
+        fileContent: "{ not json",
+      });
+      const result = instance.validate();
+      expect(result.success).toBe(false);
+      expect(result.error).not.toBeNull();
+    });
+
+    it("should fail when fileContent does not match schema", () => {
+      const instance = new ClinePermissions({
+        relativeDirPath: ".cline",
+        relativeFilePath: "command-permissions.json",
+        // `allow` must be an array of strings; numbers should fail validation.
+        fileContent: JSON.stringify({ allow: [123] }),
+      });
+      const result = instance.validate();
+      expect(result.success).toBe(false);
+      expect(result.error).not.toBeNull();
+    });
+
+    it("should throw when constructed with validate: true and malformed JSON", () => {
+      // `fromFile({ validate: true })` flows through the constructor with
+      // `validate: true`; the constructor must invoke `validate()` and throw
+      // on failure so callers reading `validate: true` see schema violations
+      // surface immediately rather than deeper in the pipeline.
+      expect(
+        () =>
+          new ClinePermissions({
+            relativeDirPath: ".cline",
+            relativeFilePath: "command-permissions.json",
+            fileContent: "{ not json",
+            validate: true,
+          }),
+      ).toThrow();
+    });
+
+    it("should throw when constructed with validate: true and schema violation", () => {
+      expect(
+        () =>
+          new ClinePermissions({
+            relativeDirPath: ".cline",
+            relativeFilePath: "command-permissions.json",
+            fileContent: JSON.stringify({ allow: [123] }),
+            validate: true,
+          }),
+      ).toThrow();
+    });
+
+    it("should not throw when constructed with validate: false even with malformed JSON", () => {
+      // `forDeletion` and other permissive paths pass `validate: false` and
+      // must not be rejected at construction time.
+      expect(
+        () =>
+          new ClinePermissions({
+            relativeDirPath: ".cline",
+            relativeFilePath: "command-permissions.json",
+            fileContent: "{ not json",
+            validate: false,
+          }),
+      ).not.toThrow();
+    });
+  });
 });

@@ -159,6 +159,38 @@ describe("PermissionsProcessor", () => {
 
       expect(files).toHaveLength(0);
     });
+
+    // Mirror the per-feature inputRoot threading assertion used in
+    // commands-processor.test.ts: when inputRoot is set, loadRulesyncFiles
+    // reads `<inputRoot>/.rulesync/permissions.json` instead of
+    // `<process.cwd()>/.rulesync/permissions.json`.
+    it("should read rulesync permissions file from inputRoot instead of process.cwd()", async () => {
+      const customInputRoot = join(testDir, "custom-rulesync-dir");
+      const customRulesyncDir = join(customInputRoot, RULESYNC_RELATIVE_DIR_PATH);
+      await ensureDir(customRulesyncDir);
+      await writeFileContent(
+        join(customRulesyncDir, RULESYNC_PERMISSIONS_FILE_NAME),
+        JSON.stringify({
+          permission: {
+            bash: { "git *": "allow" },
+          },
+        }),
+      );
+
+      // outputRoot is testDir (process.cwd()); no permissions file exists
+      // there, so a successful load proves the processor read from inputRoot.
+      const processor = new PermissionsProcessor({
+        logger,
+        outputRoot: testDir,
+        inputRoot: customInputRoot,
+        toolTarget: "claudecode",
+      });
+
+      const files = await processor.loadRulesyncFiles();
+
+      expect(files).toHaveLength(1);
+      expect(files[0]).toBeInstanceOf(RulesyncPermissions);
+    });
   });
 
   describe("loadToolFiles", () => {

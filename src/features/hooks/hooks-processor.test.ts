@@ -123,6 +123,36 @@ describe("HooksProcessor", () => {
       expect(files).toHaveLength(1);
       expect(files[0]).toBeInstanceOf(RulesyncHooks);
     });
+
+    // Mirror the per-feature inputRoot threading assertion used in
+    // commands-processor.test.ts: when inputRoot is set, loadRulesyncFiles
+    // reads `<inputRoot>/.rulesync/hooks.json` instead of
+    // `<process.cwd()>/.rulesync/hooks.json`.
+    it("should read rulesync hooks file from inputRoot instead of process.cwd()", async () => {
+      const customInputRoot = join(testDir, "custom-rulesync-dir");
+      await ensureDir(join(customInputRoot, RULESYNC_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(customInputRoot, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+        JSON.stringify({
+          version: 1,
+          hooks: { sessionStart: [{ type: "command", command: "from-input-root" }] },
+        }),
+      );
+
+      // outputRoot is testDir; no hooks file exists there, so a successful
+      // load proves the processor read from inputRoot.
+      const processor = new HooksProcessor({
+        logger,
+        outputRoot: testDir,
+        inputRoot: customInputRoot,
+        toolTarget: "claudecode",
+      });
+      const files = await processor.loadRulesyncFiles();
+      expect(files).toHaveLength(1);
+      expect(files[0]).toBeInstanceOf(RulesyncHooks);
+      const json = (files[0] as RulesyncHooks).getJson();
+      expect(json.hooks.sessionStart?.[0]?.command).toBe("from-input-root");
+    });
   });
 
   describe("loadToolFiles", () => {

@@ -765,10 +765,21 @@ describe("file utilities", () => {
         );
       });
 
-      it("should reject absolute paths with backslash '..' segments", () => {
-        // Mixed separators should still be caught so Windows-style input
-        // constructed unsafely is not silently accepted on POSIX callers.
-        expect(() => validateOutputRoot("/foo\\..\\bar")).toThrow("Path traversal detected");
+      it("should accept POSIX absolute paths whose components contain literal backslashes", () => {
+        // On POSIX `\` is a regular filename character, not a separator. The
+        // segment check intentionally only treats `/` as a separator on POSIX
+        // so that legitimate filenames like `/srv/foo\bar` are not falsely
+        // rejected. (See platform-aware split in `validateOutputRoot`.) On
+        // Windows, the same input would be split on both `/` and `\` and
+        // rejected because `..` becomes a segment.
+        if (process.platform === "win32") {
+          expect(() => validateOutputRoot("/foo\\..\\bar")).toThrow("Path traversal detected");
+        } else {
+          // On POSIX, the input is `resolve()`-equal to itself (no traversal
+          // is collapsed because `\..\` is not a path component), so the
+          // normalized-equality check passes too.
+          expect(() => validateOutputRoot("/foo\\..\\bar")).not.toThrow();
+        }
       });
     });
   });

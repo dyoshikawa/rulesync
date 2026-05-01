@@ -9,6 +9,7 @@ import {
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { ConsoleLogger } from "../../utils/logger.js";
 import { AugmentcodePermissions } from "./augmentcode-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
@@ -491,5 +492,220 @@ describe("AugmentcodePermissions", () => {
 
     const config = instance.toRulesyncPermissions().getJson();
     expect(config.permission.read).toEqual({ "*": "ask" });
+  });
+
+  describe("non-roundtrippable shellInputRegex import behavior", () => {
+    // When a user authors a `shellInputRegex` that is not faithfully
+    // roundtrippable through the glob representation (for example unanchored
+    // `"rm"` or alternation `"rm|del"`), naive conversion would silently
+    // narrow or otherwise change the deny on re-export. Apply asymmetric
+    // fallback: deny -> "*" (fail-closed); allow/ask -> lossy with warning.
+
+    // The import path uses the module-level `ConsoleLogger` rather than an
+    // injected logger, so to assert on warn message contents we spy on
+    // `ConsoleLogger.prototype.warn`. The spy bypasses `isSuppressed()` (which
+    // would normally swallow `console.warn` under NODE_ENV=test) because
+    // `vi.spyOn` replaces the method itself, not its underlying `console.warn`.
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+      warnSpy = vi.spyOn(ConsoleLogger.prototype, "warn").mockImplementation(() => {});
+    });
+    // Restore the prototype-level spy locally instead of relying on the outer
+    // describe's `vi.restoreAllMocks()`. This keeps the cleanup co-located with
+    // the spy so a future refactor (splitting this describe out, or removing
+    // the outer cleanup) cannot silently leak the spy across other test files.
+    afterEach(() => {
+      warnSpy.mockRestore();
+    });
+
+    it("should fall back to '*' (fail-closed) for deny with unanchored shellInputRegex", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [
+            {
+              toolName: "launch-process",
+              shellInputRegex: "rm",
+              permission: { type: "deny" },
+            },
+          ],
+        }),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+      // Without the broadening, the deny would import as glob `"rm"` and
+      // re-export as `"^rm$"`, narrowing the protection to the literal
+      // string `"rm"`. Broadening to `"*"` keeps the protective intent.
+      expect(config.permission.bash).toEqual({ "*": "deny" });
+      // Assert the user-visible explanation: the warn must explicitly say the
+      // import broadened to the catch-all `*` (fail-closed) so users can audit
+      // the change.
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      const warnMessage = warnSpy.mock.calls[0]?.[0] as string;
+      expect(warnMessage).toContain("'rm'");
+      expect(warnMessage).toContain("launch-process");
+      expect(warnMessage).toContain("not faithfully roundtrippable");
+      expect(warnMessage).toContain("catch-all '*'");
+      expect(warnMessage).toContain("fail-closed");
+    });
+
+    it("should fall back to '*' (fail-closed) for deny with alternation in shellInputRegex", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [
+            {
+              toolName: "launch-process",
+              shellInputRegex: "^rm|del$",
+              permission: { type: "deny" },
+            },
+          ],
+        }),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+      expect(config.permission.bash).toEqual({ "*": "deny" });
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      const warnMessage = warnSpy.mock.calls[0]?.[0] as string;
+      expect(warnMessage).toContain("'^rm|del$'");
+      expect(warnMessage).toContain("fail-closed");
+    });
+
+    it("should preserve faithful imports for fully roundtrippable deny regex", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [
+            {
+              toolName: "launch-process",
+              shellInputRegex: "^rm .*$",
+              permission: { type: "deny" },
+            },
+          ],
+        }),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+      // `^rm .*$` is roundtrippable via shellRegexToGlob → `rm *`.
+      expect(config.permission.bash).toEqual({ "rm *": "deny" });
+      // Roundtrippable inputs should NOT trigger any warning — silence is the
+      // signal that no semantics were lost.
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("should still import (with warning) lossy allow patterns rather than dropping or broadening", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [
+            {
+              toolName: "launch-process",
+              shellInputRegex: "git",
+              permission: { type: "allow" },
+            },
+          ],
+        }),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+      // Allow is NOT broadened to `*` (that would weaken security). The lossy
+      // glob `git` is preserved; the warn at import time tells the user the
+      // re-export will produce `^git$`, which differs from the original
+      // unanchored regex.
+      expect(config.permission.bash).toEqual({ git: "allow" });
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      const warnMessage = warnSpy.mock.calls[0]?.[0] as string;
+      expect(warnMessage).toContain("'git'");
+      expect(warnMessage).toContain("Importing as glob 'git'");
+      expect(warnMessage).toContain("may match a different set of inputs after regenerate");
+    });
+  });
+
+  describe("validate()", () => {
+    it("should succeed for well-formed AugmentCode settings JSON", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [{ toolName: "launch-process", permission: { type: "allow" } }],
+        }),
+      });
+      const result = instance.validate();
+      expect(result.success).toBe(true);
+      expect(result.error).toBeNull();
+    });
+
+    it("should fail when fileContent is not parseable JSON", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: "{ not json",
+      });
+      const result = instance.validate();
+      expect(result.success).toBe(false);
+      expect(result.error).not.toBeNull();
+    });
+
+    it("should fail when fileContent does not match schema", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        // `toolPermissions[].permission.type` must be one of "allow"/"deny"/"ask-user".
+        fileContent: JSON.stringify({
+          toolPermissions: [{ toolName: "view", permission: { type: "bogus" } }],
+        }),
+      });
+      const result = instance.validate();
+      expect(result.success).toBe(false);
+      expect(result.error).not.toBeNull();
+    });
+
+    it("should throw when constructed with validate: true and malformed JSON", () => {
+      // `fromFile({ validate: true })` flows through the constructor with
+      // `validate: true`; the constructor must invoke `validate()` and throw
+      // on failure so callers reading `validate: true` see schema violations
+      // surface immediately rather than deeper in the pipeline.
+      expect(
+        () =>
+          new AugmentcodePermissions({
+            relativeDirPath: ".augment",
+            relativeFilePath: "settings.json",
+            fileContent: "{ not json",
+            validate: true,
+          }),
+      ).toThrow();
+    });
+
+    it("should throw when constructed with validate: true and schema violation", () => {
+      expect(
+        () =>
+          new AugmentcodePermissions({
+            relativeDirPath: ".augment",
+            relativeFilePath: "settings.json",
+            fileContent: JSON.stringify({
+              toolPermissions: [{ toolName: "view", permission: { type: "bogus" } }],
+            }),
+            validate: true,
+          }),
+      ).toThrow();
+    });
+
+    it("should not throw when constructed with validate: false even with malformed JSON", () => {
+      // `forDeletion` and other permissive paths pass `validate: false` and
+      // must not be rejected at construction time.
+      expect(
+        () =>
+          new AugmentcodePermissions({
+            relativeDirPath: ".augment",
+            relativeFilePath: "settings.json",
+            fileContent: "{ not json",
+            validate: false,
+          }),
+      ).not.toThrow();
+    });
   });
 });

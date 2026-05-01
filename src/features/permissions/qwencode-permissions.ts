@@ -114,6 +114,17 @@ export class QwencodePermissions extends ToolPermissions {
       ...params,
       fileContent: params.fileContent ?? "{}",
     });
+    // Mirror `RulesyncPermissions` so that `fromFile({ validate: true })` actually
+    // verifies schema conformance and throws on malformed input. Without this
+    // wiring, the `validate()` method exists but is never invoked at construction
+    // time, so callers reading `validate: true` would falsely assume validation
+    // already ran.
+    if (params.validate) {
+      const result = this.validate();
+      if (!result.success) {
+        throw result.error;
+      }
+    }
   }
 
   override isDeletable(): boolean {
@@ -261,7 +272,24 @@ export class QwencodePermissions extends ToolPermissions {
   }
 
   validate(): ValidationResult {
-    return { success: true, error: null };
+    // Mirror Kilo's `safeParse`-based pattern: actually verify that the file
+    // content is JSON-parseable and conforms to the Qwen settings schema.
+    // A no-op validate would let malformed files slip past the
+    // generate/import boundary and surface as confusing errors deeper in the
+    // pipeline.
+    try {
+      const parsed = JSON.parse(this.fileContent || "{}");
+      const result = QwenSettingsSchema.safeParse(parsed);
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
+      return { success: true, error: null };
+    } catch (error) {
+      return {
+        success: false,
+        error: new Error(`Failed to parse Qwen permissions JSON: ${formatError(error)}`),
+      };
+    }
   }
 
   static forDeletion({

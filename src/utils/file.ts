@@ -305,13 +305,17 @@ export function validateOutputRoot(outputRoot: string): void {
   }
 
   if (isAbsolute(outputRoot)) {
-    // Defense-in-depth: split on both POSIX and Windows separators and
-    // reject any `..` segment. POSIX `resolve()` ignores `\` as a separator,
-    // and Windows `resolve()` ignores `/` in some legacy paths, so a
-    // cross-platform attacker-style input like `/foo\..\bar` or `C:/foo/../bar`
-    // would otherwise slip past the normalized-equality check below. This
-    // layered check applies on both platforms.
-    const segments = outputRoot.split(/[/\\]/);
+    // Defense-in-depth: split on path separators and reject any `..` segment.
+    // The separator set is platform-aware because POSIX paths can legitimately
+    // contain a literal backslash inside a filename component (e.g.
+    // `/srv/foo\bar`), and treating `\` as a separator there would falsely
+    // split such filenames. On Windows, both `/` and `\` are valid path
+    // separators (Windows `resolve()` ignores `/` in some legacy paths), so
+    // we keep the dual-separator split there to catch cross-platform inputs
+    // like `C:/foo\..\bar` that would otherwise slip past the
+    // normalized-equality check below.
+    const separatorRegex = process.platform === "win32" ? /[/\\]/ : /\//;
+    const segments = outputRoot.split(separatorRegex);
     if (segments.includes("..")) {
       throw new Error(`Path traversal detected: ${outputRoot}`);
     }
