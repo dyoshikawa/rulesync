@@ -61,11 +61,6 @@ type PluginPackage = {
   resolvedCommit: string;
 };
 
-type RemotePluginFile = {
-  relativePath: string;
-  content: string;
-};
-
 export async function installPlugins(params: {
   config: Config;
   projectRoot: string;
@@ -87,11 +82,13 @@ export async function installPlugins(params: {
   }
 
   for (const target of enabledTargets) {
-    if (target !== "codexcli") {
+    if (target !== "codexcli" && target !== "claudecode") {
       logger.warn(`Target '${target}' does not support the feature 'plugins'. Skipping.`);
     }
   }
-  const supportedTargets = enabledTargets.filter((target) => target === "codexcli");
+  const supportedTargets = enabledTargets.filter(
+    (target) => target === "codexcli" || target === "claudecode",
+  );
   if (supportedTargets.length === 0) {
     return {
       installedPluginCount: 0,
@@ -247,39 +244,22 @@ async function fetchCuratedPlugins(params: {
         if (!declaredPlugin.targets.some((target) => enabledTargets.includes(target))) {
           continue;
         }
-        if (!declaredPlugin.codexcli) {
-          continue;
+
+        const targetConfigs: Array<{ target: string; artifactPath: string }> = [];
+        if (enabledTargets.includes("codexcli") && declaredPlugin.codexcli) {
+          targetConfigs.push({
+            target: "codexcli",
+            artifactPath: declaredPlugin.codexcli.artifact.path,
+          });
         }
-
-        const artifactBasePath = declaredPlugin.codexcli.artifact.path;
-        const files = await listDirectoryRecursive({
-          client,
-          owner: parsed.owner,
-          repo: parsed.repo,
-          path: artifactBasePath,
-          ref: resolvedCommit,
-          semaphore,
-        });
-
-        const remoteFiles: RemotePluginFile[] = [];
-        for (const file of files) {
-          if (file.type !== "file") {
-            continue;
-          }
-          if (file.size > MAX_FILE_SIZE) {
-            logger.warn(
-              `Skipping file "${file.path}" (${(file.size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit).`,
-            );
-            continue;
-          }
-          const relativePath = file.path.substring(artifactBasePath.length + 1);
-          const content = await client.getFileContent(
-            parsed.owner,
-            parsed.repo,
-            file.path,
-            resolvedCommit,
-          );
-          remoteFiles.push({ relativePath, content });
+        if (enabledTargets.includes("claudecode") && declaredPlugin.claudecode) {
+          targetConfigs.push({
+            target: "claudecode",
+            artifactPath: declaredPlugin.claudecode.artifact.path,
+          });
+        }
+        if (targetConfigs.length === 0) {
+          continue;
         }
 
         const pluginDir = join(
@@ -288,16 +268,48 @@ async function fetchCuratedPlugins(params: {
           declaredPlugin.name,
         );
         await removeDirectory(pluginDir);
-        for (const file of remoteFiles) {
-          checkPathTraversal({
-            relativePath: join(artifactBasePath, file.relativePath),
-            intendedRootDir: pluginDir,
+
+        const seenArtifactPaths = new Set<string>();
+        for (const { artifactPath } of targetConfigs) {
+          if (seenArtifactPaths.has(artifactPath)) {
+            continue;
+          }
+          seenArtifactPaths.add(artifactPath);
+
+          const files = await listDirectoryRecursive({
+            client,
+            owner: parsed.owner,
+            repo: parsed.repo,
+            path: artifactPath,
+            ref: resolvedCommit,
+            semaphore,
           });
-          await writeFileContent(
-            join(pluginDir, artifactBasePath, file.relativePath),
-            file.content,
-          );
+
+          for (const file of files) {
+            if (file.type !== "file") {
+              continue;
+            }
+            if (file.size > MAX_FILE_SIZE) {
+              logger.warn(
+                `Skipping file "${file.path}" (${(file.size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit).`,
+              );
+              continue;
+            }
+            const relativePath = file.path.substring(artifactPath.length + 1);
+            const content = await client.getFileContent(
+              parsed.owner,
+              parsed.repo,
+              file.path,
+              resolvedCommit,
+            );
+            checkPathTraversal({
+              relativePath: join(artifactPath, relativePath),
+              intendedRootDir: pluginDir,
+            });
+            await writeFileContent(join(pluginDir, artifactPath, relativePath), content);
+          }
         }
+
         await writeFileContent(
           join(pluginDir, RULESYNC_PLUGIN_MANIFEST_FILE_NAME),
           JSON.stringify(declaredPlugin, null, 2) + "\n",
@@ -325,21 +337,22 @@ async function fetchCuratedPlugins(params: {
 
 async function installPluginForTarget(params: {
   plugin: PluginPackage;
-  target: "codexcli";
+  target: "codexcli" | "claudecode";
   existingLock: Awaited<ReturnType<typeof readPluginLock>>;
   nextLock: ReturnType<typeof createEmptyPluginLock>;
   frozen: boolean;
 }): Promise<{ changed: boolean; deployedFileCount: number }> {
   const { plugin, target, existingLock, nextLock, frozen } = params;
-  const codexConfig = plugin.manifest.codexcli;
-  if (!codexConfig) {
+  const targetConfig =
+    target === "codexcli" ? plugin.manifest.codexcli : plugin.manifest.claudecode;
+  if (!targetConfig) {
     return { changed: false, deployedFileCount: 0 };
   }
 
-  const artifactDir = join(plugin.pluginDir, codexConfig.artifact.path);
+  const artifactDir = join(plugin.pluginDir, targetConfig.artifact.path);
   if (!(await directoryExists(artifactDir))) {
     throw new Error(
-      `Plugin "${plugin.manifest.name}" is missing artifact directory "${codexConfig.artifact.path}".`,
+      `Plugin "${plugin.manifest.name}" is missing artifact directory "${targetConfig.artifact.path}".`,
     );
   }
 
@@ -353,7 +366,10 @@ async function installPluginForTarget(params: {
     });
   }
 
-  const installDir = join(getHomeDirectory(), ".codex", "skills");
+  const installDir =
+    target === "codexcli"
+      ? join(getHomeDirectory(), ".codex", "skills")
+      : join(getHomeDirectory(), ".claude", "skills");
   const lockEntry = existingLock
     ? findPluginInstallation(existingLock, {
         plugin: plugin.manifest.name,
@@ -428,7 +444,7 @@ async function installPluginForTarget(params: {
     resolved_commit: plugin.resolvedCommit,
     target,
     scope: "user",
-    install_strategy: codexConfig.install.strategy,
+    install_strategy: targetConfig.install.strategy,
     install_dir: installDir,
     deployed_files: filePayloads.map((file) => file.relativePath),
     content_hash: contentHash,

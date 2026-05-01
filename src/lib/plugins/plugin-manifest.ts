@@ -26,10 +26,25 @@ export const CodexcliPluginConfigSchema = z.object({
   install: CodexcliPluginInstallSchema,
 });
 
+export const ClaudecodePluginArtifactSchema = z.object({
+  kind: z.enum(["skillsBundle"]),
+  path: RelativePluginPathSchema,
+});
+
+export const ClaudecodePluginInstallSchema = z.object({
+  strategy: z.enum(["userSkillsDir"]),
+});
+
+export const ClaudecodePluginConfigSchema = z.object({
+  artifact: ClaudecodePluginArtifactSchema,
+  install: ClaudecodePluginInstallSchema,
+});
+
 export const PluginManifestSchema = z.object({
   name: z.string().check(minLength(1, "name must be a non-empty string")),
   targets: ToolTargetsSchema,
   codexcli: optional(CodexcliPluginConfigSchema),
+  claudecode: optional(ClaudecodePluginConfigSchema),
 });
 
 export type PluginManifest = z.infer<typeof PluginManifestSchema>;
@@ -38,6 +53,7 @@ export const PluginSourceEntrySchema = z.object({
   name: z.string().check(minLength(1, "name must be a non-empty string")),
   targets: ToolTargetsSchema,
   codexcli: optional(CodexcliPluginConfigSchema),
+  claudecode: optional(ClaudecodePluginConfigSchema),
 });
 
 export type PluginSourceEntry = z.infer<typeof PluginSourceEntrySchema>;

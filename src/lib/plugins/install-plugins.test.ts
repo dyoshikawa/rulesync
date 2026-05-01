@@ -168,6 +168,142 @@ describe("installPlugins", () => {
     expect(lock?.installations[0]?.target).toBe("codexcli");
   });
 
+  it("fetches a declared claudecode plugin, deploys it to user skills, and writes the plugin lock", async () => {
+    const config = new Config({
+      outputRoots: [testDir],
+      targets: ["claudecode"],
+      features: ["plugins"],
+      targetFeatures: {
+        claudecode: ["plugins"],
+      },
+      verbose: false,
+      delete: false,
+      silent: false,
+      inputRoot: testDir,
+      sources: [
+        {
+          source: "obra/superpowers",
+          ref: "main",
+          plugins: [
+            {
+              name: "superpowers",
+              targets: ["claudecode"],
+              claudecode: {
+                artifact: {
+                  kind: "skillsBundle",
+                  path: "skills",
+                },
+                install: {
+                  strategy: "userSkillsDir",
+                },
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = await installPlugins({
+      config,
+      projectRoot: testDir,
+      logger: createMockLogger(),
+    });
+
+    expect(result).toEqual({
+      installedPluginCount: 1,
+      installedFileCount: 1,
+      sourcesProcessed: 1,
+      localPluginsProcessed: 0,
+    });
+
+    const deployedPath = join(homeDir, ".claude", "skills", "plugin-skill", "SKILL.md");
+    expect(await fileExists(deployedPath)).toBe(true);
+    expect(await readFileContent(deployedPath)).toContain("name: plugin-skill");
+
+    const curatedPath = join(
+      testDir,
+      RULESYNC_CURATED_PLUGINS_RELATIVE_DIR_PATH,
+      "superpowers",
+      "skills",
+      "plugin-skill",
+      "SKILL.md",
+    );
+    expect(await fileExists(curatedPath)).toBe(true);
+
+    const lock = await readPluginLock(testDir);
+    expect(lock?.installations).toHaveLength(1);
+    expect(lock?.installations[0]?.plugin).toBe("superpowers");
+    expect(lock?.installations[0]?.target).toBe("claudecode");
+    expect(lock?.installations[0]?.install_dir).toBe(join(homeDir, ".claude", "skills"));
+  });
+
+  it("installs both codexcli and claudecode for a plugin that supports both targets", async () => {
+    const config = new Config({
+      outputRoots: [testDir],
+      targets: ["codexcli", "claudecode"],
+      features: ["plugins"],
+      targetFeatures: {
+        codexcli: ["plugins"],
+        claudecode: ["plugins"],
+      },
+      verbose: false,
+      delete: false,
+      silent: false,
+      inputRoot: testDir,
+      sources: [
+        {
+          source: "obra/superpowers",
+          ref: "main",
+          plugins: [
+            {
+              name: "superpowers",
+              targets: ["codexcli", "claudecode"],
+              codexcli: {
+                artifact: {
+                  kind: "skillsBundle",
+                  path: "skills",
+                },
+                install: {
+                  strategy: "userSkillsDir",
+                },
+              },
+              claudecode: {
+                artifact: {
+                  kind: "skillsBundle",
+                  path: "skills",
+                },
+                install: {
+                  strategy: "userSkillsDir",
+                },
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = await installPlugins({
+      config,
+      projectRoot: testDir,
+      logger: createMockLogger(),
+    });
+
+    expect(result.installedPluginCount).toBe(2);
+    expect(result.installedFileCount).toBe(2);
+
+    expect(await fileExists(join(homeDir, ".codex", "skills", "plugin-skill", "SKILL.md"))).toBe(
+      true,
+    );
+    expect(await fileExists(join(homeDir, ".claude", "skills", "plugin-skill", "SKILL.md"))).toBe(
+      true,
+    );
+
+    const lock = await readPluginLock(testDir);
+    expect(lock?.installations).toHaveLength(2);
+    const targets = lock?.installations.map((i) => i.target).toSorted();
+    expect(targets).toEqual(["claudecode", "codexcli"]);
+  });
+
   it("installs local plugins with higher precedence than curated ones", async () => {
     await writeFileContent(
       join(testDir, ".rulesync", "plugins", "superpowers", "plugin.jsonc"),
