@@ -40,11 +40,26 @@ export const ClaudecodePluginConfigSchema = z.object({
   install: ClaudecodePluginInstallSchema,
 });
 
+export const GeminicliPluginArtifactSchema = z.object({
+  kind: z.enum(["skillsBundle"]),
+  path: RelativePluginPathSchema,
+});
+
+export const GeminicliPluginInstallSchema = z.object({
+  strategy: z.enum(["userSkillsDir"]),
+});
+
+export const GeminicliPluginConfigSchema = z.object({
+  artifact: GeminicliPluginArtifactSchema,
+  install: GeminicliPluginInstallSchema,
+});
+
 export const PluginManifestSchema = z.object({
   name: z.string().check(minLength(1, "name must be a non-empty string")),
   targets: ToolTargetsSchema,
   codexcli: optional(CodexcliPluginConfigSchema),
   claudecode: optional(ClaudecodePluginConfigSchema),
+  geminicli: optional(GeminicliPluginConfigSchema),
 });
 
 export type PluginManifest = z.infer<typeof PluginManifestSchema>;
@@ -54,6 +69,7 @@ export const PluginSourceEntrySchema = z.object({
   targets: ToolTargetsSchema,
   codexcli: optional(CodexcliPluginConfigSchema),
   claudecode: optional(ClaudecodePluginConfigSchema),
+  geminicli: optional(GeminicliPluginConfigSchema),
 });
 
 export type PluginSourceEntry = z.infer<typeof PluginSourceEntrySchema>;

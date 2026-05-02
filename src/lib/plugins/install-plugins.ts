@@ -82,12 +82,12 @@ export async function installPlugins(params: {
   }
 
   for (const target of enabledTargets) {
-    if (target !== "codexcli" && target !== "claudecode") {
+    if (target !== "codexcli" && target !== "claudecode" && target !== "geminicli") {
       logger.warn(`Target '${target}' does not support the feature 'plugins'. Skipping.`);
     }
   }
   const supportedTargets = enabledTargets.filter(
-    (target) => target === "codexcli" || target === "claudecode",
+    (target) => target === "codexcli" || target === "claudecode" || target === "geminicli",
   );
   if (supportedTargets.length === 0) {
     return {
@@ -258,6 +258,12 @@ async function fetchCuratedPlugins(params: {
             artifactPath: declaredPlugin.claudecode.artifact.path,
           });
         }
+        if (enabledTargets.includes("geminicli") && declaredPlugin.geminicli) {
+          targetConfigs.push({
+            target: "geminicli",
+            artifactPath: declaredPlugin.geminicli.artifact.path,
+          });
+        }
         if (targetConfigs.length === 0) {
           continue;
         }
@@ -337,14 +343,18 @@ async function fetchCuratedPlugins(params: {
 
 async function installPluginForTarget(params: {
   plugin: PluginPackage;
-  target: "codexcli" | "claudecode";
+  target: "codexcli" | "claudecode" | "geminicli";
   existingLock: Awaited<ReturnType<typeof readPluginLock>>;
   nextLock: ReturnType<typeof createEmptyPluginLock>;
   frozen: boolean;
 }): Promise<{ changed: boolean; deployedFileCount: number }> {
   const { plugin, target, existingLock, nextLock, frozen } = params;
   const targetConfig =
-    target === "codexcli" ? plugin.manifest.codexcli : plugin.manifest.claudecode;
+    target === "codexcli"
+      ? plugin.manifest.codexcli
+      : target === "claudecode"
+        ? plugin.manifest.claudecode
+        : plugin.manifest.geminicli;
   if (!targetConfig) {
     return { changed: false, deployedFileCount: 0 };
   }
@@ -369,7 +379,9 @@ async function installPluginForTarget(params: {
   const installDir =
     target === "codexcli"
       ? join(getHomeDirectory(), ".codex", "skills")
-      : join(getHomeDirectory(), ".claude", "skills");
+      : target === "claudecode"
+        ? join(getHomeDirectory(), ".claude", "skills")
+        : join(getHomeDirectory(), ".gemini", "skills");
   const lockEntry = existingLock
     ? findPluginInstallation(existingLock, {
         plugin: plugin.manifest.name,
