@@ -12,6 +12,7 @@ import {
   KILO_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
   GEMINICLI_HOOK_EVENTS,
+  QODER_HOOK_EVENTS,
   type HookEvent,
   type HookType,
 } from "../../types/hooks.js";
@@ -30,6 +31,7 @@ import { FactorydroidHooks } from "./factorydroid-hooks.js";
 import { GeminicliHooks } from "./geminicli-hooks.js";
 import { KiloHooks } from "./kilo-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
+import { QoderHooks } from "./qoder-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import type {
   ToolHooksForDeletionParams,
@@ -49,6 +51,7 @@ const hooksProcessorToolTargetTuple = [
   "factorydroid",
   "geminicli",
   "deepagents",
+  "qoder",
 ] as const;
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
@@ -217,6 +220,16 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
       supportedEvents: DEEPAGENTS_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: false,
+    },
+  ],
+  [
+    "qoder",
+    {
+      class: QoderHooks,
+      meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
+      supportedEvents: QODER_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
     },
   ],
 ]);

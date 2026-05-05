@@ -493,6 +493,7 @@ describe("HooksProcessor", () => {
         "opencode",
         "factorydroid",
         "geminicli",
+        "qoder",
       ]);
     });
 
@@ -521,6 +522,7 @@ describe("HooksProcessor", () => {
         "copilotcli",
         "factorydroid",
         "geminicli",
+        "qoder",
       ]);
     });
 

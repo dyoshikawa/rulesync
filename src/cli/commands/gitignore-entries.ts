@@ -220,6 +220,14 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "pi", feature: "commands", entry: "**/.pi/prompts/" },
   { target: "pi", feature: "skills", entry: "**/.pi/skills/" },
 
+  // Qoder
+  { target: "qoder", feature: "rules", entry: "**/.qoder/rules/" },
+  { target: "qoder", feature: "mcp", entry: "**/.qoder/mcp.json" },
+  { target: "qoder", feature: "commands", entry: "**/.qoder/commands/" },
+  { target: "qoder", feature: "subagents", entry: "**/.qoder/agents/" },
+  { target: "qoder", feature: "skills", entry: "**/.qoder/skills/" },
+  { target: "qoder", feature: "hooks", entry: "**/.qoder/settings.json" },
+
   // Qwen Code
   { target: "qwencode", feature: "rules", entry: "**/QWEN.md" },
   { target: "qwencode", feature: "general", entry: "**/.qwen/memories/" },

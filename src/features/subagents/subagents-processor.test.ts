@@ -1008,6 +1008,7 @@ Second global content`;
           "kilo",
           "kiro",
           "opencode",
+          "qoder",
           "roo",
           "rovodev",
           "takt",

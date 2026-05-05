@@ -22,6 +22,7 @@ import { JunieSubagent } from "./junie-subagent.js";
 import { KiloSubagent } from "./kilo-subagent.js";
 import { KiroSubagent } from "./kiro-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
+import { QoderSubagent } from "./qoder-subagent.js";
 import { RooSubagent } from "./roo-subagent.js";
 import { RovodevSubagent } from "./rovodev-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
@@ -76,6 +77,7 @@ const subagentsProcessorToolTargetTuple = [
   "junie",
   "kiro",
   "opencode",
+  "qoder",
   "roo",
   "rovodev",
   "takt",
@@ -190,6 +192,13 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     {
       class: OpenCodeSubagent,
       meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+    },
+  ],
+  [
+    "qoder",
+    {
+      class: QoderSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
     },
   ],
   [

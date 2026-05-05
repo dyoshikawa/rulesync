@@ -186,6 +186,15 @@ export const GEMINICLI_HOOK_EVENTS: readonly HookEvent[] = [
   "notification",
 ];
 
+/** Hook events supported by Qoder. */
+export const QODER_HOOK_EVENTS: readonly HookEvent[] = [
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+  "beforeSubmitPrompt",
+  "stop",
+];
+
 /** Hook events supported by Codex CLI. */
 export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -214,6 +223,7 @@ export const HooksConfigSchema = z.looseObject({
   geminicli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   codexcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   deepagents: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  qoder: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
 });
 
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;
@@ -382,6 +392,24 @@ export const CANONICAL_TO_CODEXCLI_EVENT_NAMES: Record<string, string> = {
  */
 export const CODEXCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_CODEXCLI_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to Qoder PascalCase.
+ */
+export const CANONICAL_TO_QODER_EVENT_NAMES: Record<string, string> = {
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  postToolUseFailure: "PostToolUseFailure",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  stop: "Stop",
+};
+
+/**
+ * Map Qoder PascalCase event names to canonical camelCase.
+ */
+export const QODER_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_QODER_EVENT_NAMES).map(([k, v]) => [v, k]),
 );
 
 /**
