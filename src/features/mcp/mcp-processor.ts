@@ -20,6 +20,7 @@ import { JunieMcp } from "./junie-mcp.js";
 import { KiloMcp } from "./kilo-mcp.js";
 import { KiroMcp } from "./kiro-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
+import { QoderMcp } from "./qoder-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
 import { RovodevMcp } from "./rovodev-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -49,6 +50,7 @@ const mcpProcessorToolTargetTuple = [
   "kilo",
   "kiro",
   "junie",
+  "qoder",
   "opencode",
   "roo",
   "rovodev",
@@ -254,6 +256,18 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
         supportsGlobal: true,
         supportsEnabledTools: true,
         supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
+    "qoder",
+    {
+      class: QoderMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
       },
     },
   ],
