@@ -33,6 +33,7 @@ describe("tool targets", () => {
         "kiro",
         "opencode",
         "pi",
+        "qoder",
         "qwencode",
         "replit",
         "roo",
