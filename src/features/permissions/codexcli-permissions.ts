@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 
 import * as smolToml from "smol-toml";
 
@@ -18,9 +18,15 @@ import {
 
 const RULESYNC_PROFILE_NAME = "rulesync";
 const RULESYNC_BASH_RULES_FILE_NAME = "rulesync.rules";
+const CODEX_PROJECT_ROOTS_KEY = ":project_roots";
+const CODEX_GLOB_SCAN_MAX_DEPTH = 8;
+
+type CodexFilesystemAccess = "read" | "write" | "none";
+type CodexFilesystemRuleTable = Record<string, CodexFilesystemAccess>;
+type CodexFilesystem = Record<string, CodexFilesystemAccess | CodexFilesystemRuleTable | number>;
 
 type CodexPermissionProfile = {
-  filesystem?: Record<string, "read" | "write" | "none">;
+  filesystem?: CodexFilesystem;
   network?: {
     domains?: Record<string, "allow" | "deny">;
   };
@@ -162,20 +168,31 @@ function convertRulesyncToCodexProfile({
   config: PermissionsConfig;
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): CodexPermissionProfile {
-  const filesystem: Record<string, "read" | "write" | "none"> = {};
+  const filesystem: CodexFilesystem = {};
+  const projectRootFilesystem: CodexFilesystemRuleTable = {};
   const domains: Record<string, "allow" | "deny"> = {};
 
   for (const [toolName, rules] of Object.entries(config.permission)) {
     if (toolName === "read") {
       for (const [pattern, action] of Object.entries(rules)) {
-        filesystem[pattern] = mapReadAction(action);
+        addFilesystemRule({
+          filesystem,
+          projectRootFilesystem,
+          pattern,
+          access: mapReadAction(action),
+        });
       }
       continue;
     }
 
     if (toolName === "edit" || toolName === "write") {
       for (const [pattern, action] of Object.entries(rules)) {
-        filesystem[pattern] = mapWriteAction(action);
+        addFilesystemRule({
+          filesystem,
+          projectRootFilesystem,
+          pattern,
+          access: mapWriteAction(action),
+        });
       }
       continue;
     }
@@ -198,6 +215,13 @@ function convertRulesyncToCodexProfile({
     );
   }
 
+  if (Object.keys(projectRootFilesystem).length > 0) {
+    if (Object.keys(projectRootFilesystem).some((pattern) => pattern.includes("**"))) {
+      filesystem.glob_scan_max_depth = CODEX_GLOB_SCAN_MAX_DEPTH;
+    }
+    filesystem[CODEX_PROJECT_ROOTS_KEY] = projectRootFilesystem;
+  }
+
   return {
     ...(Object.keys(filesystem).length > 0 ? { filesystem } : {}),
     ...(Object.keys(domains).length > 0 ? { network: { domains } } : {}),
@@ -211,13 +235,15 @@ function convertCodexProfileToRulesync(profile?: CodexPermissionProfile): Permis
     permission.read = {};
     permission.edit = {};
     for (const [pattern, access] of Object.entries(profile.filesystem)) {
-      if (access === "none") {
-        permission.read[pattern] = "deny";
-        permission.edit[pattern] = "deny";
-      } else if (access === "read") {
-        permission.read[pattern] = "allow";
-      } else {
-        permission.edit[pattern] = "allow";
+      if (isCodexFilesystemAccess(access)) {
+        addRulesyncFilesystemRule(permission, pattern, access);
+        continue;
+      }
+
+      if (isCodexFilesystemRuleTable(access)) {
+        for (const [nestedPattern, nestedAccess] of Object.entries(access)) {
+          addRulesyncFilesystemRule(permission, nestedPattern, nestedAccess);
+        }
       }
     }
   }
@@ -244,6 +270,54 @@ function toCodexProfile(value: unknown): CodexPermissionProfile | undefined {
   };
 }
 
+function addFilesystemRule({
+  filesystem,
+  projectRootFilesystem,
+  pattern,
+  access,
+}: {
+  filesystem: CodexFilesystem;
+  projectRootFilesystem: CodexFilesystemRuleTable;
+  pattern: string;
+  access: CodexFilesystemAccess;
+}): void {
+  if (canBeCodexFilesystemRoot(pattern)) {
+    filesystem[pattern] = access;
+    return;
+  }
+
+  projectRootFilesystem[pattern] = access;
+}
+
+function canBeCodexFilesystemRoot(pattern: string): boolean {
+  return (
+    isAbsolute(pattern) ||
+    /^[A-Za-z]:[\\/]/.test(pattern) ||
+    pattern.startsWith("~/") ||
+    pattern === "~" ||
+    pattern.startsWith(":")
+  );
+}
+
+function addRulesyncFilesystemRule(
+  permission: PermissionsConfig["permission"],
+  pattern: string,
+  access: CodexFilesystemAccess,
+): void {
+  if (access === "none") {
+    permission.read ??= {};
+    permission.edit ??= {};
+    permission.read[pattern] = "deny";
+    permission.edit[pattern] = "deny";
+  } else if (access === "read") {
+    permission.read ??= {};
+    permission.read[pattern] = "allow";
+  } else {
+    permission.edit ??= {};
+    permission.edit[pattern] = "allow";
+  }
+}
+
 function toMutableTable(value: unknown): UnknownTable {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
@@ -251,12 +325,42 @@ function toMutableTable(value: unknown): UnknownTable {
   return { ...value };
 }
 
-function toFilesystemRecord(value: unknown): Record<string, "read" | "write" | "none"> | undefined {
+function toFilesystemRecord(value: unknown): CodexFilesystem | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const result: Record<string, "read" | "write" | "none"> = {};
+  const result: CodexFilesystem = {};
   for (const [key, raw] of Object.entries(value)) {
-    if (typeof raw !== "string") continue;
-    if (raw === "read" || raw === "write" || raw === "none") {
+    if (isCodexFilesystemAccess(raw)) {
+      result[key] = raw;
+      continue;
+    }
+
+    if (key === "glob_scan_max_depth" && typeof raw === "number") {
+      result[key] = raw;
+      continue;
+    }
+
+    const nested = toCodexFilesystemRuleTable(raw);
+    if (nested) {
+      result[key] = nested;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function isCodexFilesystemAccess(value: unknown): value is CodexFilesystemAccess {
+  return value === "read" || value === "write" || value === "none";
+}
+
+function isCodexFilesystemRuleTable(value: unknown): value is CodexFilesystemRuleTable {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  return Object.values(value).every(isCodexFilesystemAccess);
+}
+
+function toCodexFilesystemRuleTable(value: unknown): CodexFilesystemRuleTable | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const result: CodexFilesystemRuleTable = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (isCodexFilesystemAccess(raw)) {
       result[key] = raw;
     }
   }

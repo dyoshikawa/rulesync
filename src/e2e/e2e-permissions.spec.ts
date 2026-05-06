@@ -48,8 +48,13 @@ describe("E2E: permissions", () => {
         {
           permission: {
             bash: { "git status": "allow", "npm publish": "ask", "rm -rf": "deny" },
-            read: { "/workspace/project/**": "allow", "/workspace/project/.env": "deny" },
-            write: { "/workspace/project/src/**": "allow" },
+            read: {
+              "**/*.tf": "deny",
+              "src/**": "allow",
+              "/workspace/project/**": "allow",
+              "/workspace/project/.env": "deny",
+            },
+            write: { "docs/**": "allow", "/workspace/project/src/**": "allow" },
             webfetch: { "github.com": "allow", "example.com": "deny" },
           },
         },
@@ -68,8 +73,13 @@ describe("E2E: permissions", () => {
     const filesystem = toTable(rulesyncProfile.filesystem);
     const network = toTable(rulesyncProfile.network);
     const domains = toTable(network.domains);
+    const projectRoots = toTable(filesystem[":project_roots"]);
     expect(filesystem["/workspace/project/**"]).toBe("read");
     expect(filesystem["/workspace/project/src/**"]).toBe("write");
+    expect(filesystem.glob_scan_max_depth).toBe(8);
+    expect(projectRoots["**/*.tf"]).toBe("none");
+    expect(projectRoots["src/**"]).toBe("read");
+    expect(projectRoots["docs/**"]).toBe("write");
     expect(domains["github.com"]).toBe("allow");
 
     const rulesContent = await readFileContent(join(testDir, ".codex", "rules", "rulesync.rules"));
