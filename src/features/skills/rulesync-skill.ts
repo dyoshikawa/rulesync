@@ -20,6 +20,7 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       model: z.optional(z.string()),
       "disable-model-invocation": z.optional(z.boolean()),
       "scheduled-task": z.optional(z.boolean()),
+      paths: z.optional(z.union([z.string(), z.array(z.string())])),
     }),
   ),
   codexcli: z.optional(
@@ -70,6 +71,7 @@ export type RulesyncSkillFrontmatterInput = {
     model?: string;
     "disable-model-invocation"?: boolean;
     "scheduled-task"?: boolean;
+    paths?: string | string[];
   };
   codexcli?: {
     "short-description"?: string;
