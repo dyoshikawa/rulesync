@@ -1,8 +1,10 @@
 import { join } from "node:path";
-
 import * as smolToml from "smol-toml";
 
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { RulesyncHooks } from "./rulesync-hooks.js";
+import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
+
 import {
   CODEXCLI_HOOK_EVENTS,
   CODEXCLI_TO_CANONICAL_EVENT_NAMES,
@@ -11,8 +13,6 @@ import {
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import type { RulesyncHooks } from "./rulesync-hooks.js";
-import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import { canonicalToToolHooks, toolHooksToCanonical } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
@@ -32,7 +32,7 @@ const CODEXCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
 };
 
 /**
- * Build the content for `.codex/config.toml` with `[features] codex_hooks = true`.
+ * Build the content for `.codex/config.toml` with `[features] hooks = true`.
  * Reads the existing file (if any), parses TOML, sets the flag, and returns the content
  * without writing to disk. The caller is responsible for writing via the normal write phase.
  */
@@ -60,7 +60,9 @@ async function buildCodexConfigTomlContent({
     configToml.features = {} as smolToml.TomlTable;
   }
   // eslint-disable-next-line no-type-assertion/no-type-assertion
-  (configToml.features as smolToml.TomlTable).codex_hooks = true;
+  const features = configToml.features as smolToml.TomlTable;
+  delete features.codex_hooks;
+  features.hooks = true;
 
   return smolToml.stringify(configToml);
 }
