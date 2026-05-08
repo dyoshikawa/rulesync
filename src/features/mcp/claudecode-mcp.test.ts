@@ -351,6 +351,7 @@ describe("ClaudecodeMcp", () => {
       expect(claudecodeMcp).toBeInstanceOf(ClaudecodeMcp);
       expect(claudecodeMcp.getJson()).toEqual({ mcpServers: {} });
       expect(claudecodeMcp.getFilePath()).toBe(join(testDir, ".claude/.claude.json"));
+      expect(claudecodeMcp.isDeletable()).toBe(false);
     });
 
     it("should preserve non-mcpServers properties in global mode", async () => {
