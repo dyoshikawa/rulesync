@@ -29,7 +29,7 @@ runs:
         elif [[ "$INPUT_TEXT" == *"/deepseek"* ]]; then
           echo "model=openrouter/deepseek/deepseek-v4-pro" >> $GITHUB_OUTPUT
         else
-          echo "model=opencode-go/deepseek-v4-pro" >> $GITHUB_OUTPUT
+          echo "model=openrouter/deepseek/deepseek-v4-pro" >> $GITHUB_OUTPUT
         fi
         CLEANED="${INPUT_TEXT//\/oc/}"
         CLEANED="${CLEANED//\/opencode/}"
