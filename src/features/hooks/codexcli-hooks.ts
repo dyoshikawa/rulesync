@@ -1,10 +1,8 @@
 import { join } from "node:path";
+
 import * as smolToml from "smol-toml";
 
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import type { RulesyncHooks } from "./rulesync-hooks.js";
-import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
-
 import {
   CODEXCLI_HOOK_EVENTS,
   CODEXCLI_TO_CANONICAL_EVENT_NAMES,
@@ -13,6 +11,8 @@ import {
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { RulesyncHooks } from "./rulesync-hooks.js";
+import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import { canonicalToToolHooks, toolHooksToCanonical } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
