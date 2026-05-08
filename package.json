@@ -94,7 +94,7 @@
     "gray-matter": "4.0.3",
     "js-yaml": "4.1.1",
     "jsonc-parser": "3.3.1",
-    "smol-toml": "1.6.0",
+    "smol-toml": "1.6.1",
     "sury": "10.0.4",
     "zod": "4.3.6"
   },
