@@ -32,7 +32,7 @@ const CODEXCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
 };
 
 /**
- * Build the content for `.codex/config.toml` with `[features] codex_hooks = true`.
+ * Build the content for `.codex/config.toml` with `[features] hooks = true`.
  * Reads the existing file (if any), parses TOML, sets the flag, and returns the content
  * without writing to disk. The caller is responsible for writing via the normal write phase.
  */
@@ -60,7 +60,9 @@ async function buildCodexConfigTomlContent({
     configToml.features = {} as smolToml.TomlTable;
   }
   // eslint-disable-next-line no-type-assertion/no-type-assertion
-  (configToml.features as smolToml.TomlTable).codex_hooks = true;
+  const features = configToml.features as smolToml.TomlTable;
+  delete features.codex_hooks;
+  features.hooks = true;
 
   return smolToml.stringify(configToml);
 }
