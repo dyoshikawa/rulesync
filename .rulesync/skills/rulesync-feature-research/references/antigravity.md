@@ -2,17 +2,17 @@
 
 ## Official Docs
 
-| Feature       | Official docs                                                               | Upstream surface                                                              |
-| ------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| index         | `https://antigravity.google/`                                               | Google Antigravity product site                                               |
-| `rules`       | `https://codelabs.developers.google.com/getting-started-google-antigravity` | Rules customization panel; project and workspace guidance                     |
-| `commands`    | `https://codelabs.developers.google.com/getting-started-google-antigravity` | Workflows customization panel and slash-triggered workflows                   |
-| `skills`      | No public official Google Antigravity skills URL captured                   | Rulesync maps `.agent/skills`; verify upstream docs before expanding behavior |
-| `mcp`         | No Rulesync-supported Antigravity MCP target found                          | No Rulesync Antigravity MCP target                                            |
-| `ignore`      | No Rulesync-supported Antigravity ignore target found                       | No Rulesync Antigravity ignore target                                         |
-| `subagents`   | No Rulesync-supported Antigravity subagents target found                    | No Rulesync Antigravity subagents target                                      |
-| `hooks`       | No Rulesync-supported Antigravity hooks target found                        | No Rulesync Antigravity hooks target                                          |
-| `permissions` | No Rulesync-supported Antigravity permissions target found                  | No Rulesync Antigravity permissions target                                    |
+| Feature       | Official docs                                                               | Upstream surface                                                         |
+| ------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| index         | `https://antigravity.google/`                                               | Google Antigravity product site                                          |
+| `rules`       | `https://codelabs.developers.google.com/getting-started-google-antigravity` | Rules customization panel; project and workspace guidance                |
+| `ignore`      | No dedicated upstream ignore surface found                                  | No Rulesync-supported Antigravity ignore target                          |
+| `mcp`         | No dedicated upstream MCP surface found                                     | No Rulesync-supported Antigravity MCP target                             |
+| `commands`    | `https://codelabs.developers.google.com/getting-started-google-antigravity` | Workflows customization panel and slash-triggered workflows              |
+| `subagents`   | No dedicated upstream subagents surface found                               | No Rulesync-supported Antigravity subagents target                       |
+| `skills`      | No dedicated upstream skills surface found                                  | Rulesync maps `.agent/skills`; verify upstream before expanding behavior |
+| `hooks`       | No dedicated upstream hooks surface found                                   | No Rulesync-supported Antigravity hooks target                           |
+| `permissions` | No dedicated upstream permissions surface found                             | No Rulesync-supported Antigravity permissions target                     |
 
 ## Client Anchors
 

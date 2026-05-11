@@ -6,7 +6,7 @@
 | ------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------- |
 | index         | `https://opencode.ai/docs/`                | OpenCode docs index                                                                           |
 | `rules`       | `https://opencode.ai/docs/rules/`          | `AGENTS.md`, global `~/.config/opencode/AGENTS.md`, Claude Code compatibility, `instructions` |
-| `ignore`      | No dedicated OpenCode ignore surface found | No Rulesync OpenCode ignore target                                                            |
+| `ignore`      | No dedicated upstream ignore surface found | No Rulesync-supported OpenCode ignore target                                                  |
 | `mcp`         | `https://opencode.ai/docs/mcp-servers/`    | `opencode.json` `mcp`, `local`/`remote` servers, `environment`, `enabled`, tool gates         |
 | `commands`    | `https://opencode.ai/docs/commands/`       | `.opencode/commands/*.md`, `~/.config/opencode/commands`, config `command` entries            |
 | `subagents`   | `https://opencode.ai/docs/agents/`         | `.opencode/agent/*.md`, `~/.config/opencode/agent`, agent modes, tools, permissions           |

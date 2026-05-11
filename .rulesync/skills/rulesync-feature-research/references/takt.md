@@ -2,17 +2,17 @@
 
 ## Official Docs
 
-| Feature       | Official docs                               | Upstream surface                    |
-| ------------- | ------------------------------------------- | ----------------------------------- |
-| index         | `https://github.com/nrslib/takt`            | TAKT repository                     |
-| `rules`       | `https://nrslib.com/faceted-prompting/`     | Faceted prompting policies          |
-| `commands`    | `https://nrslib.com/faceted-prompting/`     | Faceted prompting instructions      |
-| `subagents`   | `https://nrslib.com/faceted-prompting/`     | Faceted prompting personas          |
-| `skills`      | `https://nrslib.com/faceted-prompting/`     | Faceted prompting knowledge         |
-| `mcp`         | No dedicated TAKT MCP file surface found    | No Rulesync TAKT MCP target         |
-| `ignore`      | No dedicated TAKT ignore file surface found | No Rulesync TAKT ignore target      |
-| `hooks`       | No dedicated TAKT hooks file surface found  | No Rulesync TAKT hooks target       |
-| `permissions` | No dedicated TAKT permissions target found  | No Rulesync TAKT permissions target |
+| Feature       | Official docs                                   | Upstream surface                              |
+| ------------- | ----------------------------------------------- | --------------------------------------------- |
+| index         | `https://github.com/nrslib/takt`                | TAKT repository                               |
+| `rules`       | `https://nrslib.com/faceted-prompting/`         | Faceted prompting policies                    |
+| `ignore`      | No dedicated upstream ignore surface found      | No Rulesync-supported TAKT ignore target      |
+| `mcp`         | No dedicated upstream MCP surface found         | No Rulesync-supported TAKT MCP target         |
+| `commands`    | `https://nrslib.com/faceted-prompting/`         | Faceted prompting instructions                |
+| `subagents`   | `https://nrslib.com/faceted-prompting/`         | Faceted prompting personas                    |
+| `skills`      | `https://nrslib.com/faceted-prompting/`         | Faceted prompting knowledge                   |
+| `hooks`       | No dedicated upstream hooks surface found       | No Rulesync-supported TAKT hooks target       |
+| `permissions` | No dedicated upstream permissions surface found | No Rulesync-supported TAKT permissions target |
 
 ## Client Anchors
 

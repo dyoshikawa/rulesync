@@ -6,13 +6,13 @@
 | ------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | index         | `https://docs.warp.dev/`                                  | Warp documentation index                                                        |
 | `rules`       | `https://docs.warp.dev/agent-platform/capabilities/rules` | Global Rules, Project Rules, `AGENTS.md`, `WARP.md`, imported legacy rule files |
-| `ignore`      | No dedicated Warp ignore file surface found               | No Rulesync Warp ignore target                                                  |
-| `mcp`         | No Rulesync-supported Warp MCP target found               | No Rulesync Warp MCP target                                                     |
-| `commands`    | No dedicated Warp custom command target found             | No Rulesync Warp commands target                                                |
-| `subagents`   | No dedicated Warp subagent target found                   | No Rulesync Warp subagents target                                               |
-| `skills`      | No dedicated Warp Agent Skills surface found              | No Rulesync Warp skills target                                                  |
-| `hooks`       | No dedicated Warp hooks file surface found                | No Rulesync Warp hooks target                                                   |
-| `permissions` | No dedicated Rulesync Warp permissions target found       | No Rulesync Warp permissions target                                             |
+| `ignore`      | No dedicated upstream ignore surface found                | No Rulesync-supported Warp ignore target                                        |
+| `mcp`         | No dedicated upstream MCP surface found                   | No Rulesync-supported Warp MCP target                                           |
+| `commands`    | No dedicated upstream commands surface found              | No Rulesync-supported Warp commands target                                      |
+| `subagents`   | No dedicated upstream subagents surface found             | No Rulesync-supported Warp subagents target                                     |
+| `skills`      | No dedicated upstream skills surface found                | No Rulesync-supported Warp skills target                                        |
+| `hooks`       | No dedicated upstream hooks surface found                 | No Rulesync-supported Warp hooks target                                         |
+| `permissions` | No dedicated upstream permissions surface found           | No Rulesync-supported Warp permissions target                                   |
 
 ## Client Anchors
 

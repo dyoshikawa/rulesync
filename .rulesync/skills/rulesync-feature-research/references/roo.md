@@ -2,17 +2,17 @@
 
 ## Official Docs
 
-| Feature       | Official docs                                            | Upstream surface                                                                         |
-| ------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| index         | `https://docs.roocode.com/`                              | Roo Code documentation index and shutdown notice                                         |
-| `rules`       | `https://docs.roocode.com/features/custom-instructions`  | `.roo/rules`, `.roorules`, mode-specific rules, AGENTS.md compatibility                  |
-| `ignore`      | `https://docs.roocode.com/features/rooignore`            | `.rooignore` file surface                                                                |
-| `mcp`         | `https://docs.roocode.com/features/mcp/using-mcp-in-roo` | MCP server configuration                                                                 |
-| `commands`    | `https://docs.roocode.com/features/slash-commands`       | `.roo/commands` reusable command files                                                   |
-| `subagents`   | `https://docs.roocode.com/features/custom-modes`         | Custom modes / orchestrator-style delegation; Rulesync maps this as simulated subagents  |
-| `skills`      | `https://docs.roocode.com/features/skills`               | Roo skills surface                                                                       |
-| `hooks`       | No dedicated Roo Code hooks page found                   | No Rulesync Roo hooks target                                                             |
-| `permissions` | No dedicated Rulesync Roo permissions target             | Roo modes can constrain tool groups, but Rulesync does not map a Roo permissions feature |
+| Feature       | Official docs                                            | Upstream surface                                                                        |
+| ------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| index         | `https://docs.roocode.com/`                              | Roo Code documentation index and shutdown notice                                        |
+| `rules`       | `https://docs.roocode.com/features/custom-instructions`  | `.roo/rules`, `.roorules`, mode-specific rules, AGENTS.md compatibility                 |
+| `ignore`      | `https://docs.roocode.com/features/rooignore`            | `.rooignore` file surface                                                               |
+| `mcp`         | `https://docs.roocode.com/features/mcp/using-mcp-in-roo` | MCP server configuration                                                                |
+| `commands`    | `https://docs.roocode.com/features/slash-commands`       | `.roo/commands` reusable command files                                                  |
+| `subagents`   | `https://docs.roocode.com/features/custom-modes`         | Custom modes / orchestrator-style delegation; Rulesync maps this as simulated subagents |
+| `skills`      | `https://docs.roocode.com/features/skills`               | Roo skills surface                                                                      |
+| `hooks`       | No dedicated upstream hooks surface found                | No Rulesync-supported Roo hooks target                                                  |
+| `permissions` | No dedicated upstream permissions surface found          | Roo modes can constrain tool groups, but no Rulesync-supported Roo permissions target   |
 
 ## Client Anchors
 

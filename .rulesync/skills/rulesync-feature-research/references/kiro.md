@@ -6,7 +6,7 @@
 | ------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------- |
 | index         | `https://kiro.dev/docs/`                              | Kiro IDE documentation index                                                  |
 | `rules`       | `https://kiro.dev/docs/steering/`                     | `.kiro/steering`, global `~/.kiro/steering`, AGENTS.md steering directives    |
-| `ignore`      | No dedicated Kiro ignore page captured                | Rulesync maps `.kiroignore`; verify upstream before extending ignore behavior |
+| `ignore`      | No dedicated upstream ignore surface found            | Rulesync maps `.kiroignore`; verify upstream before extending ignore behavior |
 | `mcp`         | `https://kiro.dev/docs/mcp/`                          | MCP server configuration and prompt/resource mentions                         |
 | `commands`    | `https://kiro.dev/docs/chat/slash-commands/`          | Slash commands for hooks, steering files, and skill commands                  |
 | `subagents`   | `https://kiro.dev/docs/cli/reference/slash-commands/` | `/agent` command, `.kiro/agents`, `~/.kiro/agents`                            |

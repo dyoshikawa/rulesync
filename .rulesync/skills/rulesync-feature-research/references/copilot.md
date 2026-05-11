@@ -6,13 +6,13 @@
 | ------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | index         | `https://docs.github.com/en/copilot`                                                                              | GitHub Copilot documentation index                                                                   |
 | `rules`       | `https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions`            | `.github/copilot-instructions.md`, `.github/instructions/*.instructions.md`, agent instruction files |
+| `ignore`      | No dedicated upstream ignore surface found                                                                        | No Rulesync-supported Copilot ignore target                                                          |
 | `mcp`         | `https://docs.github.com/en/copilot/customizing-copilot/extending-copilot-chat-with-mcp`                          | `.vscode/mcp.json`, MCP server definitions                                                           |
 | `commands`    | `https://docs.github.com/en/copilot/concepts/about-customizing-github-copilot-chat-responses`                     | Prompt files such as `.github/prompts/*.prompt.md`                                                   |
 | `subagents`   | `https://docs.github.com/en/copilot/concepts/agents/copilot-cli/about-custom-agents`                              | Agent profiles in `.github/agents/*.md`                                                              |
 | `skills`      | `https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills` | Agent skills in `.github/skills/<name>/SKILL.md`                                                     |
 | `hooks`       | `https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks`                                     | Repository hooks in `.github/hooks/*.json`                                                           |
-| `ignore`      | No dedicated GitHub Copilot ignore file surface found                                                             | No Rulesync Copilot ignore target                                                                    |
-| `permissions` | No repository-level Copilot permission file surface found                                                         | No Rulesync Copilot permissions target                                                               |
+| `permissions` | No dedicated upstream permissions surface found                                                                   | No Rulesync-supported Copilot permissions target                                                     |
 
 ## Client Anchors
 

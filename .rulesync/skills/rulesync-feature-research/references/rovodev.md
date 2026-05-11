@@ -6,13 +6,13 @@
 | ------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | index         | `https://support.atlassian.com/rovo/docs/use-rovo-dev-cli/`                         | Rovo Dev CLI documentation index                                                             |
 | `rules`       | `https://support.atlassian.com/rovo/docs/use-memory-in-rovo-dev-cli/`               | User memory `~/.rovodev/AGENTS.md`, project `AGENTS.md`, `AGENTS.local.md`, legacy migration |
+| `ignore`      | No dedicated upstream ignore surface found                                          | No Rulesync-supported Rovo Dev ignore target                                                 |
 | `mcp`         | `https://support.atlassian.com/rovo/docs/connect-to-an-mcp-server-in-rovo-dev-cli/` | MCP server configuration in Rovo Dev CLI                                                     |
+| `commands`    | No dedicated upstream commands surface found                                        | No Rulesync-supported Rovo Dev commands target                                               |
 | `subagents`   | `https://support.atlassian.com/rovo/docs/use-subagents-in-rovo-dev-cli/`            | `.rovodev/subagents`, `~/.rovodev/subagents`, Markdown files with YAML frontmatter           |
 | `skills`      | `https://support.atlassian.com/rovo/docs/extend-rovo-dev-cli-with-agent-skills/`    | `.rovodev/skills`, Agent Skills directories                                                  |
-| `ignore`      | No dedicated Rovo Dev ignore file surface found                                     | No Rulesync Rovo Dev ignore target                                                           |
-| `commands`    | No dedicated Rovo Dev custom command file target found                              | No Rulesync Rovo Dev commands target                                                         |
-| `hooks`       | No dedicated Rovo Dev hooks file surface found                                      | No Rulesync Rovo Dev hooks target                                                            |
-| `permissions` | `https://support.atlassian.com/rovo/docs/use-tools-in-rovo-dev-cli/`                | Tool controls exist upstream; no Rulesync Rovo Dev permissions target                        |
+| `hooks`       | No dedicated upstream hooks surface found                                           | No Rulesync-supported Rovo Dev hooks target                                                  |
+| `permissions` | `https://support.atlassian.com/rovo/docs/use-tools-in-rovo-dev-cli/`                | Tool controls exist upstream; no Rulesync-supported Rovo Dev permissions target              |
 
 ## Client Anchors
 

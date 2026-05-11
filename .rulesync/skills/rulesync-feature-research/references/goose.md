@@ -2,17 +2,17 @@
 
 ## Official Docs
 
-| Feature       | Official docs                                                               | Upstream surface                                                      |
-| ------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| index         | `https://goose-docs.ai/docs/`                                               | Goose documentation index                                             |
-| `rules`       | `https://goose-docs.ai/docs/guides/context-engineering/using-goosehints/`   | `.goosehints`, `AGENTS.md`, nested hints                              |
-| `ignore`      | `https://goose-docs.ai/docs/guides/using-gooseignore/`                      | `.gooseignore`, global `~/.config/goose/.gooseignore`, local override |
-| `mcp`         | No dedicated Rulesync Goose MCP target                                      | Upstream extensions are outside the current Rulesync Goose map        |
-| `commands`    | No dedicated Goose command file surface found                               | No Rulesync Goose commands target                                     |
-| `subagents`   | No dedicated Goose subagent file surface found                              | No Rulesync Goose subagents target                                    |
-| `skills`      | No dedicated Goose Agent Skills surface found                               | No Rulesync Goose skills target                                       |
-| `hooks`       | No dedicated Goose hooks surface found                                      | No Rulesync Goose hooks target                                        |
-| `permissions` | No dedicated Goose permissions target beyond `.gooseignore` access controls | No Rulesync Goose permissions target                                  |
+| Feature       | Official docs                                                             | Upstream surface                                                      |
+| ------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| index         | `https://goose-docs.ai/docs/category/getting-started/`                    | Goose documentation index                                             |
+| `rules`       | `https://goose-docs.ai/docs/guides/context-engineering/using-goosehints/` | `.goosehints`, `AGENTS.md`, nested hints                              |
+| `ignore`      | `https://goose-docs.ai/docs/guides/using-gooseignore/`                    | `.gooseignore`, global `~/.config/goose/.gooseignore`, local override |
+| `mcp`         | No dedicated upstream MCP surface found                                   | Upstream extensions exist; no Rulesync-supported Goose MCP target     |
+| `commands`    | No dedicated upstream commands surface found                              | No Rulesync-supported Goose commands target                           |
+| `subagents`   | No dedicated upstream subagents surface found                             | No Rulesync-supported Goose subagents target                          |
+| `skills`      | No dedicated upstream skills surface found                                | No Rulesync-supported Goose skills target                             |
+| `hooks`       | No dedicated upstream hooks surface found                                 | No Rulesync-supported Goose hooks target                              |
+| `permissions` | No dedicated upstream permissions surface found                           | No Rulesync-supported Goose permissions target                        |
 
 ## Client Anchors
 
