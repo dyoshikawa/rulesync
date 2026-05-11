@@ -15,8 +15,31 @@ surface, and the local rulesync implementation.
 
 | Request target            | Read                                                                  |
 | ------------------------- | --------------------------------------------------------------------- |
+| `antigravity`             | `references/antigravity.md`                                           |
+| `augmentcode`             | `references/augmentcode.md`                                           |
 | `claudecode`              | `references/claudecode.md`                                            |
+| `cline`                   | `references/cline.md`                                                 |
 | `codexcli`                | `references/codexcli.md`                                              |
+| `copilot`                 | `references/copilot.md`                                               |
+| `copilotcli`              | `references/copilotcli.md`                                            |
+| `cursor`                  | `references/cursor.md`                                                |
+| `deepagents`              | `references/deepagents.md`                                            |
+| `factorydroid`            | `references/factorydroid.md`                                          |
+| `geminicli`               | `references/geminicli.md`                                             |
+| `goose`                   | `references/goose.md`                                                 |
+| `junie`                   | `references/junie.md`                                                 |
+| `kilo`                    | `references/kilo.md`                                                  |
+| `kiro`                    | `references/kiro.md`                                                  |
+| `opencode`                | `references/opencode.md`                                              |
+| `pi`                      | `references/pi.md`                                                    |
+| `qwencode`                | `references/qwencode.md`                                              |
+| `replit`                  | `references/replit.md`                                                |
+| `roo`                     | `references/roo.md`                                                   |
+| `rovodev`                 | `references/rovodev.md`                                               |
+| `takt`                    | `references/takt.md`                                                  |
+| `warp`                    | `references/warp.md`                                                  |
+| `windsurf`                | `references/windsurf.md`                                              |
+| `zed`                     | `references/zed.md`                                                   |
 | Any other rulesync target | `references/rulesync-source-map.md` + the closest existing client map |
 
 A target without `references/<client>.md` is To be coming, not unsupported.
