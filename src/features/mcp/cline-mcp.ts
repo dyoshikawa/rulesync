@@ -59,11 +59,22 @@ export class ClineMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
   }: ToolMcpFromRulesyncMcpParams): ClineMcp {
+    // Preserve top-level fields ($schema, config, etc.) from the source
+    // JSON, but use getMcpServers() (not getJson().mcpServers) so
+    // rulesync-only fields and codex-only fields (`envVars`) are stripped
+    // before writing the cline config.
+    const json = rulesyncMcp.getJson();
+    const fileContent = JSON.stringify(
+      { ...json, mcpServers: rulesyncMcp.getMcpServers() },
+      null,
+      2,
+    );
+
     return new ClineMcp({
       outputRoot,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent: rulesyncMcp.getFileContent(),
+      fileContent,
       validate,
     });
   }

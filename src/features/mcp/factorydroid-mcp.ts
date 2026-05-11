@@ -59,11 +59,14 @@ export class FactorydroidMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
   }: ToolMcpFromRulesyncMcpParams): FactorydroidMcp {
-    const json = rulesyncMcp.getJson();
+    // Use getMcpServers() (not getJson()) so rulesync-only fields and
+    // codex-only fields (`envVars`) are stripped before writing the
+    // Factory Droid config.
+    const mcpServers = rulesyncMcp.getMcpServers();
 
     // Factory Droid uses standard MCP format without transformations
     const factorydroidConfig = {
-      mcpServers: json.mcpServers || {},
+      mcpServers,
     };
 
     const fileContent = JSON.stringify(factorydroidConfig, null, 2);

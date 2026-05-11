@@ -72,7 +72,10 @@ export class GeminiCliMcp extends ToolMcp {
       JSON.stringify({ mcpServers: {} }, null, 2),
     );
     const json = JSON.parse(fileContent);
-    const newJson = { ...json, mcpServers: rulesyncMcp.getJson().mcpServers };
+    // Use getMcpServers() (not getJson()) so rulesync-only fields and
+    // codex-only fields (`envVars`) are stripped before writing the
+    // gemini settings file.
+    const newJson = { ...json, mcpServers: rulesyncMcp.getMcpServers() };
 
     return new GeminiCliMcp({
       outputRoot,

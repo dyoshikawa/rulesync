@@ -141,14 +141,19 @@ export class RulesyncMcp extends RulesyncFile {
   }
 
   getMcpServers(): McpServers {
-    const entries = Object.entries(this.json.mcpServers);
+    // Tolerate missing/empty mcpServers (e.g., a RulesyncMcp constructed
+    // from `{}` with validation disabled). Callers that previously read
+    // `getJson().mcpServers` via the `isMcpServers` guard relied on this
+    // resilience.
+    const mcpServers = this.json.mcpServers ?? {};
+    const entries = Object.entries(mcpServers);
 
     return Object.fromEntries(
       entries.map(([serverName, serverConfig]) => {
-        // `env_vars` is codex-specific: the codex generator reads it directly
+        // `envVars` is codex-specific: the codex generator reads it directly
         // from the unfiltered source JSON. Strip here so it does not leak
         // into other tools' outputs.
-        return [serverName, omit(serverConfig, ["targets", "description", "exposed", "env_vars"])];
+        return [serverName, omit(serverConfig, ["targets", "description", "exposed", "envVars"])];
       }),
     );
   }

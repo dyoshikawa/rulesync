@@ -361,9 +361,11 @@ You can control which individual tools from an MCP server are enabled or disable
 - `enabledTools`: An array of tool names that should be explicitly enabled for this server.
 - `disabledTools`: An array of tool names that should be explicitly disabled for this server.
 
-### Codex-specific: pass shell env vars to MCP servers (`env_vars`)
+### Codex-specific: pass shell env vars to MCP servers (`envVars`)
 
-Codex CLI supports a per-server `env_vars` array that names shell environment variables to inherit when launching the MCP server process. This is distinct from `env` (which is a literal `{name: value}` map) — `env_vars` is a list of names whose values come from the user's environment.
+Codex CLI supports a per-server array of shell env var names to inherit when launching the MCP server process. The source schema uses `envVars` (camelCase, matching the project convention used by sibling fields like `enabledTools`/`disabledTools`); the codex generator renames it to `env_vars` (snake_case) for codex's native `config.toml` format.
+
+This is distinct from `env` (which is a literal `{name: value}` map) — `envVars` is a list of names whose **values come from the user's environment at runtime**. Both fields may coexist on the same server.
 
 ```json
 {
@@ -376,15 +378,25 @@ Codex CLI supports a per-server `env_vars` array that names shell environment va
         "git+https://github.com/BeehiveInnovations/pal-mcp-server.git",
         "pal-mcp-server"
       ],
-      "env_vars": ["OPENAI_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY"]
+      "envVars": ["OPENAI_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY"]
     }
   }
 }
 ```
 
-- Emitted only into the codex CLI output (`~/.codex/config.toml` or project `.codex/config.toml`).
-- Stripped from `getMcpServers()` so it does not leak into other tools' generated configs (Claude Code, Kilo, OpenCode, Gemini CLI, etc. each ignore it).
-- Use this for secrets and API keys you do not want to literal-encode into a committed `mcp.json`.
+Generated `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.pal]
+type = "stdio"
+command = "uvx"
+args = ["--from", "git+https://github.com/BeehiveInnovations/pal-mcp-server.git", "pal-mcp-server"]
+env_vars = ["OPENAI_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY"]
+```
+
+- Emitted only into the codex CLI output. Stripped from `RulesyncMcp.getMcpServers()` so it does not appear in other tools' generated configs (Claude Code, Kilo, OpenCode, Gemini CLI, Cursor, Cline, Junie, Factorydroid, Rovodev, etc.).
+- Use this for secrets and API keys you do not want literal-encoded into a committed `mcp.json`.
+- Precedence: codex CLI resolves these names from the user's runtime shell environment. If a name is also set in `env` (literal value), the codex CLI behavior is upstream-defined — see codex documentation for the exact resolution rule.
 
 ## `.rulesync/.aiignore` or `.rulesyncignore`
 

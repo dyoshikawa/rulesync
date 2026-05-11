@@ -954,9 +954,28 @@ describe("CursorMcp", () => {
         validate: true,
       });
 
-      expect(cursorMcp.getJson()).toEqual({
-        mcpServers: rulesyncMcpData.mcpServers,
+      // `targets` is a rulesync-only field and is stripped from non-codex
+      // tool outputs by `RulesyncMcp.getMcpServers()`. The cursor output
+      // must contain everything else but not `targets`.
+      const json = cursorMcp.getJson() as any;
+      expect(json.mcpServers["complex-server"]).toEqual({
+        command: "node",
+        args: ["complex-server.js", "--port", "3000"],
+        env: {
+          NODE_ENV: "production",
+          DEBUG: "mcp:*",
+        },
       });
+      expect(json.mcpServers["python-server"]).toEqual({
+        command: "python",
+        args: ["python-server.py"],
+        env: {
+          PYTHONPATH: "/usr/local/lib/python3.9/site-packages",
+        },
+      });
+      // `targets` should be stripped.
+      expect(json.mcpServers["complex-server"].targets).toBeUndefined();
+      expect(json.mcpServers["python-server"].targets).toBeUndefined();
     });
 
     it("should use custom outputRoot when provided", async () => {
