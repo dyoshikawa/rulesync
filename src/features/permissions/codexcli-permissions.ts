@@ -220,7 +220,7 @@ function convertRulesyncToCodexProfile({
   if (Object.keys(projectRootFilesystem).length > 0) {
     if (typeof filesystem[CODEX_PROJECT_ROOTS_KEY] === "string") {
       logger?.warn(
-        `":project_roots" is set as a direct filesystem access rule in the permissions, but it will be overwritten by project-root rules. Consider removing the direct ":project_roots" entry.`,
+        `"${CODEX_PROJECT_ROOTS_KEY}" is set as a direct filesystem access rule in the permissions, but it will be overwritten by project-root rules. Consider removing the direct "${CODEX_PROJECT_ROOTS_KEY}" entry.`,
       );
     }
     if (Object.keys(projectRootFilesystem).some((pattern) => pattern.includes("**"))) {
@@ -290,7 +290,7 @@ function addFilesystemRule({
   access: CodexFilesystemAccess;
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): void {
-  if (pattern === "") {
+  if (pattern.trim() === "") {
     logger?.warn("Skipping empty pattern in filesystem permissions.");
     return;
   }

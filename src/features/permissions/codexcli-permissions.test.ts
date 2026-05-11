@@ -179,6 +179,61 @@ glob_scan_max_depth = 8
     expect(json.permission.edit?.["docs/**"]).toBe("allow");
   });
 
+  it("should warn when :project_roots is set as a direct string access rule", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          read: {
+            ":project_roots": "deny",
+            "src/**": "allow",
+          },
+        },
+      }),
+    });
+
+    await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('":project_roots" is set as a direct filesystem access rule'),
+    );
+  });
+
+  it("should skip empty string patterns with a warning", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          read: {
+            "": "allow",
+            "src/**": "allow",
+          },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    expect(logger.warn).toHaveBeenCalledWith("Skipping empty pattern in filesystem permissions.");
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).not.toContain('""');
+  });
+
   it("should load existing .codex/config.toml", async () => {
     const codexDir = join(testDir, ".codex");
     await ensureDir(codexDir);
