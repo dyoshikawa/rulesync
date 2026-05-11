@@ -12,21 +12,24 @@
       "commands": true,
       "mcp": false,
       "subagents": true,
-      "skills": true
+      "skills": true,
+      "hooks": true
     },
     "claudecode": {
       "rules": true,
       "commands": true,
       "mcp": true,
       "subagents": true,
-      "skills": true
+      "skills": true,
+      "hooks": true
     },
     "opencode": {
       "rules": true,
       "commands": true,
       "mcp": true,
       "subagents": true,
-      "skills": true
+      "skills": true,
+      "hooks": true
     },
     "takt": {
       "rules": true,
