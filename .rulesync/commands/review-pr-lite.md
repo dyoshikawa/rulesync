@@ -49,3 +49,12 @@ Integrate all findings into one review result. Please output the PR number in th
 - Present findings first, ordered by severity.
 - If no findings are discovered, explicitly state that no findings were found.
 - Keep the summary brief and focused on risk and testing gaps.
+
+## Step 4: Check GitHub Actions Workflows
+
+After completing the content review, check the status of the GitHub Actions workflows for $target_pr (for example, using `gh pr checks` or `gh run list`).
+
+- Report the status of every workflow run to the user, including runs that are still in progress.
+- For each failing workflow, also report:
+  - The likely cause of the failure (based on the relevant logs or job output).
+  - Candidate solutions or next steps to resolve it.
