@@ -456,40 +456,46 @@ fontSize = 14
       expect(codexcliMcp.getToml().mcp_servers).toEqual({});
     });
 
-    it("should strip empty env object from remote (sse) server", async () => {
-      // codex CLI rejects empty `[mcp_servers.X.env]` for streamable_http
-      // transports (sse/http) with: "env is not supported for streamable_http".
-      const jsonData = {
-        mcpServers: {
-          "aws-knowledge": {
-            type: "sse",
-            url: "https://knowledge-mcp.global.api.aws",
-            env: {},
+    // codex CLI rejects empty `[mcp_servers.X.env]` for remote transports
+    // (sse / http / streamable_http) with: "env is not supported for
+    // streamable_http". The recursive `removeEmptyEntries` strip handles all
+    // three transport types uniformly.
+    it.each(["sse", "http", "streamable_http"] as const)(
+      "should strip empty env object from remote (%s) server and preserve other fields",
+      async (transport) => {
+        const jsonData = {
+          mcpServers: {
+            "aws-knowledge": {
+              type: transport,
+              url: "https://knowledge-mcp.global.api.aws",
+              env: {},
+            },
           },
-        },
-      };
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify(jsonData),
-      });
+        };
+        const rulesyncMcp = new RulesyncMcp({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify(jsonData),
+        });
 
-      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
-        outputRoot: testDir,
-        rulesyncMcp,
-        global: true,
-      });
+        const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+          outputRoot: testDir,
+          rulesyncMcp,
+          global: true,
+        });
 
-      const server = (
-        codexcliMcp.getToml().mcp_servers as Record<string, Record<string, unknown>>
-      )?.["aws-knowledge"];
-      expect(server).toBeDefined();
-      expect(server?.env).toBeUndefined();
-      // file content should not contain a `[mcp_servers."aws-knowledge".env]` header
-      expect(codexcliMcp.getFileContent()).not.toContain(`.env]`);
-    });
+        const server = (
+          codexcliMcp.getToml().mcp_servers as Record<string, Record<string, unknown>>
+        )?.["aws-knowledge"];
+        expect(server).toBeDefined();
+        expect(server?.env).toBeUndefined();
+        // Defensive: assert non-env fields survive the strip.
+        expect(server?.type).toBe(transport);
+        expect(server?.url).toBe("https://knowledge-mcp.global.api.aws");
+      },
+    );
 
-    it("should strip empty env object from stdio server (clean output)", async () => {
+    it("should strip empty env object from stdio server and preserve other fields", async () => {
       const jsonData = {
         mcpServers: {
           local: {
@@ -517,6 +523,9 @@ fontSize = 14
       )?.["local"];
       expect(server).toBeDefined();
       expect(server?.env).toBeUndefined();
+      // Defensive: assert non-env fields survive the strip.
+      expect(server?.command).toBe("node");
+      expect(server?.args).toEqual(["server.js"]);
     });
 
     it("should preserve populated env table on stdio server", async () => {
@@ -547,6 +556,9 @@ fontSize = 14
       )?.["local"];
       expect(server).toBeDefined();
       expect(server?.env).toEqual({ NODE_ENV: "production" });
+      // Defensive: command/args also survive.
+      expect(server?.command).toBe("node");
+      expect(server?.args).toEqual(["server.js"]);
     });
 
     it("should convert disabled: true to enabled = false in codex format", async () => {
