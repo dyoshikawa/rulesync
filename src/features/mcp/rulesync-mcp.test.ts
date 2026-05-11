@@ -986,6 +986,54 @@ describe("RulesyncMcp", () => {
     });
   });
 
+  describe("getMcpServers field stripping", () => {
+    it("should strip codex-specific env_vars from getMcpServers output", () => {
+      // env_vars is codex-only; it must NOT leak into other tools' generated
+      // configs (claudecode, opencode, kilo, geminicli, etc.) which all
+      // consume getMcpServers(). The codex generator reads env_vars directly
+      // from getJson() instead.
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            pal: {
+              type: "stdio",
+              command: "uvx",
+              args: ["pal-mcp-server"],
+              env_vars: ["OPENAI_API_KEY", "OPENROUTER_API_KEY"],
+            },
+          },
+        }),
+      });
+
+      const servers = rulesyncMcp.getMcpServers();
+
+      expect(servers.pal).toBeDefined();
+      expect((servers.pal as any).command).toBe("uvx");
+      expect((servers.pal as any).env_vars).toBeUndefined();
+    });
+
+    it("should still expose env_vars via getJson() for the codex generator", () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            pal: {
+              type: "stdio",
+              command: "uvx",
+              env_vars: ["OPENAI_API_KEY"],
+            },
+          },
+        }),
+      });
+
+      const fromJson = rulesyncMcp.getJson().mcpServers.pal;
+      expect((fromJson as any).env_vars).toEqual(["OPENAI_API_KEY"]);
+    });
+  });
+
   describe("integration and edge cases", () => {
     it("should handle large JSON structures", () => {
       const largeJsonData = {

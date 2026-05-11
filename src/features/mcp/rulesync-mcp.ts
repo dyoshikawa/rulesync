@@ -145,7 +145,10 @@ export class RulesyncMcp extends RulesyncFile {
 
     return Object.fromEntries(
       entries.map(([serverName, serverConfig]) => {
-        return [serverName, omit(serverConfig, ["targets", "description", "exposed"])];
+        // `env_vars` is codex-specific: the codex generator reads it directly
+        // from the unfiltered source JSON. Strip here so it does not leak
+        // into other tools' outputs.
+        return [serverName, omit(serverConfig, ["targets", "description", "exposed", "env_vars"])];
       }),
     );
   }

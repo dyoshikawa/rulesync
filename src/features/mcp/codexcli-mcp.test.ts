@@ -565,6 +565,41 @@ fontSize = 14
       expect(mcpServers["my-server"].disabled_tools).toEqual(["delete"]);
     });
 
+    it("should emit codex-specific env_vars array from source", async () => {
+      // env_vars is a codex CLI-specific field that tells codex to pass
+      // through named shell env vars to the MCP server process. Source:
+      //   "pal": { ..., "env_vars": ["OPENAI_API_KEY", "JIRA_PERSONAL_TOKEN"] }
+      // Output:
+      //   [mcp_servers.pal]
+      //   env_vars = ["OPENAI_API_KEY", "JIRA_PERSONAL_TOKEN"]
+      const jsonData = {
+        mcpServers: {
+          pal: {
+            type: "stdio",
+            command: "uvx",
+            args: ["pal-mcp-server"],
+            env_vars: ["OPENAI_API_KEY", "JIRA_PERSONAL_TOKEN"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const mcpServers = codexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers.pal.env_vars).toEqual(["OPENAI_API_KEY", "JIRA_PERSONAL_TOKEN"]);
+      // smoke check that the serialized TOML contains the array
+      expect(codexcliMcp.getFileContent()).toContain("env_vars");
+    });
+
     it("should convert enabledTools/disabledTools for multiple servers", async () => {
       const jsonData = {
         mcpServers: {

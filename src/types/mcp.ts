@@ -17,6 +17,11 @@ export const McpServerSchema = z.looseObject({
   tools: z.optional(z.array(z.string())),
   kiroAutoApprove: z.optional(z.array(z.string())),
   kiroAutoBlock: z.optional(z.array(z.string())),
+  // Codex CLI-specific: list of shell env var names that codex should pass
+  // through from the user's environment to the MCP server process. Only
+  // honoured by the codex generator; stripped by `RulesyncMcp.getMcpServers()`
+  // so it does not leak into other tools' configs.
+  env_vars: z.optional(z.array(z.string())),
   headers: z.optional(z.record(z.string(), z.string())),
   enabledTools: z.optional(z.array(z.string())),
   disabledTools: z.optional(z.array(z.string())),

@@ -361,6 +361,31 @@ You can control which individual tools from an MCP server are enabled or disable
 - `enabledTools`: An array of tool names that should be explicitly enabled for this server.
 - `disabledTools`: An array of tool names that should be explicitly disabled for this server.
 
+### Codex-specific: pass shell env vars to MCP servers (`env_vars`)
+
+Codex CLI supports a per-server `env_vars` array that names shell environment variables to inherit when launching the MCP server process. This is distinct from `env` (which is a literal `{name: value}` map) — `env_vars` is a list of names whose values come from the user's environment.
+
+```json
+{
+  "mcpServers": {
+    "pal": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/BeehiveInnovations/pal-mcp-server.git",
+        "pal-mcp-server"
+      ],
+      "env_vars": ["OPENAI_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY"]
+    }
+  }
+}
+```
+
+- Emitted only into the codex CLI output (`~/.codex/config.toml` or project `.codex/config.toml`).
+- Stripped from `getMcpServers()` so it does not leak into other tools' generated configs (Claude Code, Kilo, OpenCode, Gemini CLI, etc. each ignore it).
+- Use this for secrets and API keys you do not want to literal-encode into a committed `mcp.json`.
+
 ## `.rulesync/.aiignore` or `.rulesyncignore`
 
 Rulesync supports a single ignore list that can live in either location below:
