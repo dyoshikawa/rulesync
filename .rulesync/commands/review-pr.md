@@ -11,10 +11,20 @@ target_pr = $ARGUMENTS
 
 If target_pr is not provided, use the PR of the current branch.
 
+## Important: Do Not Switch the Local Branch
+
+- Do NOT check out, switch, or otherwise move the local branch (e.g., `git checkout`, `git switch`, `gh pr checkout`).
+- To inspect the PR's changes, use `git` and `gh` commands that read remote state without moving the working tree. For example:
+  - `gh pr view $target_pr` to read PR metadata and description.
+  - `gh pr diff $target_pr` to read the diff.
+  - `gh pr view $target_pr --json files` or `gh api` to list changed files.
+  - `git fetch origin pull/<PR_NUMBER>/head:refs/remotes/origin/pr-<PR_NUMBER>` and `git diff origin/main...origin/pr-<PR_NUMBER>` if a local read-only ref is needed.
+- When invoking subagents, explicitly instruct them that switching the local branch is forbidden and that they must inspect changes via `git`/`gh` commands only.
+
 Execute the following in parallel:
 
-- Call code-reviewer subagent to review the code changes in $target_pr.
-- Call security-reviewer subagent to review the security issues in $target_pr.
+- Call code-reviewer subagent to review the code changes in $target_pr. Pass along the rule that the local branch must not be switched and that diffs must be obtained via `git`/`gh` commands.
+- Call security-reviewer subagent to review the security issues in $target_pr. Pass along the rule that the local branch must not be switched and that diffs must be obtained via `git`/`gh` commands.
 
 Integrate and report the execution results from each subagent. Additionaly, please output PR number in the result so that the user can easily find the PR.
 
