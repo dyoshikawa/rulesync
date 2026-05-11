@@ -10,7 +10,7 @@
 | `mcp`         | `https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md`        | `settings.json` `mcpServers`, stdio/SSE/HTTP transports, tool include/exclude settings        |
 | `commands`    | `https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/custom-commands.md`     | `.gemini/commands/*.toml`, `description`, `prompt`, `{{args}}`, `!{...}`                      |
 | `subagents`   | `https://github.com/google-gemini/gemini-cli/blob/main/docs/core/subagents.md`          | `.gemini/agents/*.md`, YAML frontmatter, tools, MCP, model, run limits                        |
-| `skills`      | `https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/cli-reference.md`       | Agent skills management commands, `.gemini/skills`, reload/list/install/enable/disable        |
+| `skills`      | `https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/skills.md`              | Agent skills management commands, `.gemini/skills`, reload/list/install/enable/disable        |
 | `hooks`       | `https://github.com/google-gemini/gemini-cli/blob/main/docs/hooks/writing-hooks.md`     | `.gemini/settings.json` hooks, matcher groups, command hooks, hook-specific JSON output       |
 | `permissions` | `https://github.com/google-gemini/gemini-cli/blob/main/docs/reference/configuration.md` | Policy engine, approval modes, `allowed-tools`, `allowed-mcp-server-names`, security settings |
 

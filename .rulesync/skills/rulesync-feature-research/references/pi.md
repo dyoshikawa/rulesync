@@ -12,7 +12,7 @@
 | `ignore`      | No dedicated Pi ignore file surface found     | No Rulesync Pi ignore target                                                                     |
 | `subagents`   | No dedicated Pi subagent target found         | No Rulesync Pi subagents target                                                                  |
 | `hooks`       | No dedicated Pi hooks target found            | No Rulesync Pi hooks target                                                                      |
-| `permissions` | `https://pi.dev/docs/latest/settings`         | Tool selection and settings exist upstream; no Rulesync Pi permissions target                    |
+| `permissions` | No dedicated Pi permissions page captured     | Tool selection and settings exist upstream; no Rulesync Pi permissions target                    |
 
 ## Client Anchors
 

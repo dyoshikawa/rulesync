@@ -2,17 +2,17 @@
 
 ## Official Docs
 
-| Feature       | Official docs                                                              | Upstream surface                                                                                     |
-| ------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| index         | `https://qwenlm.github.io/qwen-code-docs/en/cli/index`                     | Qwen Code CLI documentation index                                                                    |
-| `rules`       | `https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/` | Context files such as `QWEN.md`, hierarchical instructional context                                  |
-| `ignore`      | `https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/` | `.qwenignore`, `context.fileFiltering.respectQwenIgnore`                                             |
-| `mcp`         | `https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/`           | `settings.json` `mcpServers`; Rulesync Qwen Code MCP is not currently README-supported               |
-| `skills`      | `https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/` | `.qwen/skills` noted in project `.qwen` directory; Rulesync Qwen Code skills not currently supported |
-| `permissions` | `https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/` | `permissions.allow`, `permissions.ask`, `permissions.deny`, tool aliases, approval modes             |
-| `commands`    | No Rulesync-supported Qwen Code commands target found                      | Upstream slash command settings exist; no Rulesync Qwen Code commands target                         |
-| `subagents`   | No Rulesync-supported Qwen Code subagents target found                     | Upstream may expose SubAgents; no Rulesync Qwen Code subagents target                                |
-| `hooks`       | No Rulesync-supported Qwen Code hooks target found                         | No Rulesync Qwen Code hooks target                                                                   |
+| Feature       | Official docs                                                                 | Upstream surface                                                                                     |
+| ------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| index         | `https://qwenlm.github.io/qwen-code-docs/en/`                                 | Qwen Code documentation index                                                                        |
+| `rules`       | `https://qwenlm.github.io/qwen-code-docs/en/users/features/memory/`           | Context files such as `QWEN.md`, hierarchical instructional context                                  |
+| `ignore`      | `https://qwenlm.github.io/qwen-code-docs/en/users/configuration/qwen-ignore/` | `.qwenignore`, `context.fileFiltering.respectQwenIgnore`                                             |
+| `mcp`         | `https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/`              | `settings.json` `mcpServers`; Rulesync Qwen Code MCP is not currently README-supported               |
+| `skills`      | `https://qwenlm.github.io/qwen-code-docs/en/users/features/skills/`           | `.qwen/skills` noted in project `.qwen` directory; Rulesync Qwen Code skills not currently supported |
+| `permissions` | `https://qwenlm.github.io/qwen-code-docs/en/users/features/approval-mode/`    | Approval mode and tool approval controls                                                             |
+| `commands`    | No Rulesync-supported Qwen Code commands target found                         | Upstream slash command settings exist; no Rulesync Qwen Code commands target                         |
+| `subagents`   | No Rulesync-supported Qwen Code subagents target found                        | Upstream may expose SubAgents; no Rulesync Qwen Code subagents target                                |
+| `hooks`       | No Rulesync-supported Qwen Code hooks target found                            | No Rulesync Qwen Code hooks target                                                                   |
 
 ## Client Anchors
 

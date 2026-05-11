@@ -2,17 +2,17 @@
 
 ## Official Docs
 
-| Feature       | Official docs                                          | Upstream surface                                                                                   |
-| ------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| index         | `https://docs.cursor.com/en/cli/using`                 | Cursor CLI overview, rules, MCP, command approval, non-interactive mode                            |
-| `rules`       | `https://docs.cursor.com/context/rules`                | `.cursor/rules/*.mdc`, User Rules, `AGENTS.md`, `.cursorrules` legacy                              |
-| `ignore`      | `https://docs.cursor.com/en/context/ignore-files`      | `.cursorignore` and global ignore settings                                                         |
-| `mcp`         | `https://docs.cursor.com/cli/mcp`                      | Cursor CLI MCP, shared `mcp.json` configuration, project/global/nested precedence                  |
-| `commands`    | `https://docs.cursor.com/en/agent/chat/commands`       | `.cursor/commands/*.md`, reusable slash-command workflows                                          |
-| `subagents`   | `https://cursor.com/docs/plugins`                      | Plugin-bundled agents/subagents and marketplace surfaces                                           |
-| `skills`      | `https://cursor.com/docs/plugins`                      | Plugin-bundled skills and marketplace surfaces                                                     |
-| `hooks`       | `https://cursor.com/docs/hooks`                        | `.cursor/hooks.json`, hook events, command/prompt hook entries                                     |
-| `permissions` | `https://docs.cursor.com/en/cli/reference/permissions` | `.cursor/cli.json`, `~/.cursor/cli-config.json`, `Shell`, `Read`, `Write`, `WebFetch`, `Mcp` rules |
+| Feature       | Official docs                                       | Upstream surface                                                                                   |
+| ------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| index         | `https://cursor.com/docs/cli/using`                 | Cursor CLI overview, rules, MCP, command approval, non-interactive mode                            |
+| `rules`       | `https://cursor.com/docs/rules`                     | `.cursor/rules/*.mdc`, User Rules, `AGENTS.md`, `.cursorrules` legacy                              |
+| `ignore`      | `https://cursor.com/docs/reference/ignore-file`     | `.cursorignore` and global ignore settings                                                         |
+| `mcp`         | `https://cursor.com/docs/cli/mcp`                   | Cursor CLI MCP, shared `mcp.json` configuration, project/global/nested precedence                  |
+| `commands`    | `https://cursor.com/help/customization/skills`      | Cursor has merged reusable command-like workflows into Skills; Rulesync still maps command files   |
+| `subagents`   | `https://cursor.com/docs/plugins`                   | Plugin-bundled agents/subagents and marketplace surfaces                                           |
+| `skills`      | `https://cursor.com/docs/plugins`                   | Plugin-bundled skills and marketplace surfaces                                                     |
+| `hooks`       | `https://cursor.com/docs/hooks`                     | `.cursor/hooks.json`, hook events, command/prompt hook entries                                     |
+| `permissions` | `https://cursor.com/docs/cli/reference/permissions` | `.cursor/cli.json`, `~/.cursor/cli-config.json`, `Shell`, `Read`, `Write`, `WebFetch`, `Mcp` rules |
 
 ## Client Anchors
 
