@@ -456,6 +456,99 @@ fontSize = 14
       expect(codexcliMcp.getToml().mcp_servers).toEqual({});
     });
 
+    it("should strip empty env object from remote (sse) server", async () => {
+      // codex CLI rejects empty `[mcp_servers.X.env]` for streamable_http
+      // transports (sse/http) with: "env is not supported for streamable_http".
+      const jsonData = {
+        mcpServers: {
+          "aws-knowledge": {
+            type: "sse",
+            url: "https://knowledge-mcp.global.api.aws",
+            env: {},
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const server = (
+        codexcliMcp.getToml().mcp_servers as Record<string, Record<string, unknown>>
+      )?.["aws-knowledge"];
+      expect(server).toBeDefined();
+      expect(server?.env).toBeUndefined();
+      // file content should not contain a `[mcp_servers."aws-knowledge".env]` header
+      expect(codexcliMcp.getFileContent()).not.toContain(`.env]`);
+    });
+
+    it("should strip empty env object from stdio server (clean output)", async () => {
+      const jsonData = {
+        mcpServers: {
+          local: {
+            type: "stdio",
+            command: "node",
+            args: ["server.js"],
+            env: {},
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const server = (
+        codexcliMcp.getToml().mcp_servers as Record<string, Record<string, unknown>>
+      )?.["local"];
+      expect(server).toBeDefined();
+      expect(server?.env).toBeUndefined();
+    });
+
+    it("should preserve populated env table on stdio server", async () => {
+      const jsonData = {
+        mcpServers: {
+          local: {
+            type: "stdio",
+            command: "node",
+            args: ["server.js"],
+            env: { NODE_ENV: "production" },
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const server = (
+        codexcliMcp.getToml().mcp_servers as Record<string, Record<string, unknown>>
+      )?.["local"];
+      expect(server).toBeDefined();
+      expect(server?.env).toEqual({ NODE_ENV: "production" });
+    });
+
     it("should convert disabled: true to enabled = false in codex format", async () => {
       const jsonData = {
         mcpServers: {
