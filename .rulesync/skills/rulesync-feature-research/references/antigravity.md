@@ -6,13 +6,13 @@
 | ------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | index         | `https://antigravity.google/`                                               | Google Antigravity product site                                          |
 | `rules`       | `https://codelabs.developers.google.com/getting-started-google-antigravity` | Rules customization panel; project and workspace guidance                |
-| `ignore`      | No dedicated upstream ignore surface found                                  | No Rulesync-supported Antigravity ignore target                          |
-| `mcp`         | No dedicated upstream MCP surface found                                     | No Rulesync-supported Antigravity MCP target                             |
+| `ignore`      | No dedicated upstream ignore surface in map                                 | No Rulesync-supported Antigravity ignore target in map                   |
+| `mcp`         | No dedicated upstream MCP surface in map                                    | No Rulesync-supported Antigravity MCP target in map                      |
 | `commands`    | `https://codelabs.developers.google.com/getting-started-google-antigravity` | Workflows customization panel and slash-triggered workflows              |
-| `subagents`   | No dedicated upstream subagents surface found                               | No Rulesync-supported Antigravity subagents target                       |
-| `skills`      | No dedicated upstream skills surface found                                  | Rulesync maps `.agent/skills`; verify upstream before expanding behavior |
-| `hooks`       | No dedicated upstream hooks surface found                                   | No Rulesync-supported Antigravity hooks target                           |
-| `permissions` | No dedicated upstream permissions surface found                             | No Rulesync-supported Antigravity permissions target                     |
+| `subagents`   | No dedicated upstream subagents surface in map                              | No Rulesync-supported Antigravity subagents target in map                |
+| `skills`      | No dedicated upstream skills surface in map                                 | Rulesync maps `.agent/skills`; verify upstream before expanding behavior |
+| `hooks`       | No dedicated upstream hooks surface in map                                  | No Rulesync-supported Antigravity hooks target in map                    |
+| `permissions` | No dedicated upstream permissions surface in map                            | No Rulesync-supported Antigravity permissions target in map              |
 
 ## Client Anchors
 

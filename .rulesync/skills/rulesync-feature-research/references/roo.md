@@ -11,8 +11,8 @@
 | `commands`    | `https://docs.roocode.com/features/slash-commands`       | `.roo/commands` reusable command files                                                  |
 | `subagents`   | `https://docs.roocode.com/features/custom-modes`         | Custom modes / orchestrator-style delegation; Rulesync maps this as simulated subagents |
 | `skills`      | `https://docs.roocode.com/features/skills`               | Roo skills surface                                                                      |
-| `hooks`       | No dedicated upstream hooks surface found                | No Rulesync-supported Roo hooks target                                                  |
-| `permissions` | No dedicated upstream permissions surface found          | Roo modes can constrain tool groups, but no Rulesync-supported Roo permissions target   |
+| `hooks`       | No dedicated upstream hooks surface in map               | No Rulesync-supported Roo hooks target in map                                           |
+| `permissions` | No dedicated upstream permissions surface in map         | Roo modes can constrain tool groups, but no Rulesync-supported Roo permissions target   |
 
 ## Client Anchors
 

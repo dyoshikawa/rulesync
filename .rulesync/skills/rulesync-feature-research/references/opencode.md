@@ -2,17 +2,17 @@
 
 ## Official Docs
 
-| Feature       | Official docs                              | Upstream surface                                                                              |
-| ------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| index         | `https://opencode.ai/docs/`                | OpenCode docs index                                                                           |
-| `rules`       | `https://opencode.ai/docs/rules/`          | `AGENTS.md`, global `~/.config/opencode/AGENTS.md`, Claude Code compatibility, `instructions` |
-| `ignore`      | No dedicated upstream ignore surface found | No Rulesync-supported OpenCode ignore target                                                  |
-| `mcp`         | `https://opencode.ai/docs/mcp-servers/`    | `opencode.json` `mcp`, `local`/`remote` servers, `environment`, `enabled`, tool gates         |
-| `commands`    | `https://opencode.ai/docs/commands/`       | `.opencode/commands/*.md`, `~/.config/opencode/commands`, config `command` entries            |
-| `subagents`   | `https://opencode.ai/docs/agents/`         | `.opencode/agent/*.md`, `~/.config/opencode/agent`, agent modes, tools, permissions           |
-| `skills`      | `https://opencode.ai/docs/skills/`         | `.opencode/skills/<name>/SKILL.md`, compatible `.claude/skills`, `.agents/skills`, metadata   |
-| `hooks`       | `https://opencode.ai/docs/plugins/`        | Plugin events such as `session.created`, `tool.execute.before`, `permission.asked`            |
-| `permissions` | `https://opencode.ai/docs/permissions`     | `permission` config, `allow`/`ask`/`deny`, granular tool rules, per-agent overrides           |
+| Feature       | Official docs                               | Upstream surface                                                                              |
+| ------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| index         | `https://opencode.ai/docs/`                 | OpenCode docs index                                                                           |
+| `rules`       | `https://opencode.ai/docs/rules/`           | `AGENTS.md`, global `~/.config/opencode/AGENTS.md`, Claude Code compatibility, `instructions` |
+| `ignore`      | No dedicated upstream ignore surface in map | No Rulesync-supported OpenCode ignore target in map                                           |
+| `mcp`         | `https://opencode.ai/docs/mcp-servers/`     | `opencode.json` `mcp`, `local`/`remote` servers, `environment`, `enabled`, tool gates         |
+| `commands`    | `https://opencode.ai/docs/commands/`        | `.opencode/commands/*.md`, `~/.config/opencode/commands`, config `command` entries            |
+| `subagents`   | `https://opencode.ai/docs/agents/`          | `.opencode/agent/*.md`, `~/.config/opencode/agent`, agent modes, tools, permissions           |
+| `skills`      | `https://opencode.ai/docs/skills/`          | `.opencode/skills/<name>/SKILL.md`, compatible `.claude/skills`, `.agents/skills`, metadata   |
+| `hooks`       | `https://opencode.ai/docs/plugins/`         | Plugin events such as `session.created`, `tool.execute.before`, `permission.asked`            |
+| `permissions` | `https://opencode.ai/docs/permissions`      | `permission` config, `allow`/`ask`/`deny`, granular tool rules, per-agent overrides           |
 
 ## Client Anchors
 

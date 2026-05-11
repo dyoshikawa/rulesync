@@ -2,17 +2,17 @@
 
 ## Official Docs
 
-| Feature       | Official docs                                   | Upstream surface                              |
-| ------------- | ----------------------------------------------- | --------------------------------------------- |
-| index         | `https://github.com/nrslib/takt`                | TAKT repository                               |
-| `rules`       | `https://nrslib.com/faceted-prompting/`         | Faceted prompting policies                    |
-| `ignore`      | No dedicated upstream ignore surface found      | No Rulesync-supported TAKT ignore target      |
-| `mcp`         | No dedicated upstream MCP surface found         | No Rulesync-supported TAKT MCP target         |
-| `commands`    | `https://nrslib.com/faceted-prompting/`         | Faceted prompting instructions                |
-| `subagents`   | `https://nrslib.com/faceted-prompting/`         | Faceted prompting personas                    |
-| `skills`      | `https://nrslib.com/faceted-prompting/`         | Faceted prompting knowledge                   |
-| `hooks`       | No dedicated upstream hooks surface found       | No Rulesync-supported TAKT hooks target       |
-| `permissions` | No dedicated upstream permissions surface found | No Rulesync-supported TAKT permissions target |
+| Feature       | Official docs                                    | Upstream surface                                     |
+| ------------- | ------------------------------------------------ | ---------------------------------------------------- |
+| index         | `https://github.com/nrslib/takt`                 | TAKT repository                                      |
+| `rules`       | `https://nrslib.com/faceted-prompting/`          | Faceted prompting policies                           |
+| `ignore`      | No dedicated upstream ignore surface in map      | No Rulesync-supported TAKT ignore target in map      |
+| `mcp`         | No dedicated upstream MCP surface in map         | No Rulesync-supported TAKT MCP target in map         |
+| `commands`    | `https://nrslib.com/faceted-prompting/`          | Faceted prompting instructions                       |
+| `subagents`   | `https://nrslib.com/faceted-prompting/`          | Faceted prompting personas                           |
+| `skills`      | `https://nrslib.com/faceted-prompting/`          | Faceted prompting knowledge                          |
+| `hooks`       | No dedicated upstream hooks surface in map       | No Rulesync-supported TAKT hooks target in map       |
+| `permissions` | No dedicated upstream permissions surface in map | No Rulesync-supported TAKT permissions target in map |
 
 ## Client Anchors
 

@@ -6,7 +6,7 @@
 | ------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | index         | `https://docs.factory.ai/cli/getting-started/quickstart`  | Factory Droid CLI documentation                                                                                  |
 | `rules`       | `https://docs.factory.ai/cli/configuration/agents-md`     | `AGENTS.md`, nested AGENTS.md, personal `~/.factory/AGENTS.md`                                                   |
-| `ignore`      | No dedicated upstream ignore surface found                | No Rulesync-supported Factory Droid ignore target                                                                |
+| `ignore`      | No dedicated upstream ignore surface in map               | No Rulesync-supported Factory Droid ignore target in map                                                         |
 | `mcp`         | `https://docs.factory.ai/cli/configuration/mcp`           | `.factory/mcp.json`, `~/.factory/mcp.json`, stdio and HTTP servers                                               |
 | `commands`    | `https://docs.factory.ai/cli/configuration/skills`        | Legacy `.factory/commands` files, now merged with skills                                                         |
 | `subagents`   | `https://docs.factory.ai/cli/configuration/custom-droids` | Custom droids in `.factory/droids` and `~/.factory/droids`                                                       |

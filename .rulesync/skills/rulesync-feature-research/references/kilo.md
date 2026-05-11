@@ -11,7 +11,7 @@
 | `commands`    | `https://kilo.ai/docs/customize/custom-modes`                          | Mode and workflow customization surfaces; Rulesync maps command files                       |
 | `subagents`   | `https://kilo.ai/docs/customize/custom-subagents`                      | Custom modes/agents; no README-supported Rulesync Kilo subagents target                     |
 | `skills`      | `https://kilo.ai/docs/customize/skills`                                | `.kilocode/skills`, `~/.kilocode/skills`, mode-specific `skills-{mode}` directories         |
-| `hooks`       | No dedicated upstream hooks surface found                              | Adapter exists in source, but no README-supported Rulesync Kilo hooks target                |
+| `hooks`       | No dedicated upstream hooks surface in map                             | Adapter exists in source, but no README-supported Rulesync Kilo hooks target                |
 | `permissions` | `https://kilo.ai/docs/getting-started/settings/auto-approving-actions` | `kilo.jsonc` permission values, `allow`/`ask`/`deny`, built-in and MCP tool permission keys |
 
 ## Client Anchors

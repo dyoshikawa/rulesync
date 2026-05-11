@@ -7,12 +7,12 @@
 | index         | `https://goose-docs.ai/docs/category/getting-started/`                    | Goose documentation index                                             |
 | `rules`       | `https://goose-docs.ai/docs/guides/context-engineering/using-goosehints/` | `.goosehints`, `AGENTS.md`, nested hints                              |
 | `ignore`      | `https://goose-docs.ai/docs/guides/using-gooseignore/`                    | `.gooseignore`, global `~/.config/goose/.gooseignore`, local override |
-| `mcp`         | No dedicated upstream MCP surface found                                   | Upstream extensions exist; no Rulesync-supported Goose MCP target     |
-| `commands`    | No dedicated upstream commands surface found                              | No Rulesync-supported Goose commands target                           |
-| `subagents`   | No dedicated upstream subagents surface found                             | No Rulesync-supported Goose subagents target                          |
-| `skills`      | No dedicated upstream skills surface found                                | No Rulesync-supported Goose skills target                             |
-| `hooks`       | No dedicated upstream hooks surface found                                 | No Rulesync-supported Goose hooks target                              |
-| `permissions` | No dedicated upstream permissions surface found                           | No Rulesync-supported Goose permissions target                        |
+| `mcp`         | No dedicated upstream MCP surface in map                                  | Upstream extensions exist; no Rulesync-supported Goose MCP target     |
+| `commands`    | No dedicated upstream commands surface in map                             | No Rulesync-supported Goose commands target in map                    |
+| `subagents`   | No dedicated upstream subagents surface in map                            | No Rulesync-supported Goose subagents target in map                   |
+| `skills`      | No dedicated upstream skills surface in map                               | No Rulesync-supported Goose skills target in map                      |
+| `hooks`       | No dedicated upstream hooks surface in map                                | No Rulesync-supported Goose hooks target in map                       |
+| `permissions` | No dedicated upstream permissions surface in map                          | No Rulesync-supported Goose permissions target in map                 |
 
 ## Client Anchors
 

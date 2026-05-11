@@ -8,10 +8,10 @@
 | `rules`       | `https://qwenlm.github.io/qwen-code-docs/en/users/features/memory/`           | Context files such as `QWEN.md`, hierarchical instructional context                              |
 | `ignore`      | `https://qwenlm.github.io/qwen-code-docs/en/users/configuration/qwen-ignore/` | `.qwenignore`, `context.fileFiltering.respectQwenIgnore`                                         |
 | `mcp`         | `https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/`              | `settings.json` `mcpServers`; no README-supported Rulesync Qwen Code MCP target                  |
-| `commands`    | No dedicated upstream commands surface found                                  | Upstream slash command settings exist; no Rulesync-supported Qwen Code commands target           |
-| `subagents`   | No dedicated upstream subagents surface found                                 | Upstream may expose SubAgents; no Rulesync-supported Qwen Code subagents target                  |
+| `commands`    | No dedicated upstream commands surface in map                                 | Upstream slash command settings exist; no Rulesync-supported Qwen Code commands target           |
+| `subagents`   | No dedicated upstream subagents surface in map                                | Upstream may expose SubAgents; no Rulesync-supported Qwen Code subagents target                  |
 | `skills`      | `https://qwenlm.github.io/qwen-code-docs/en/users/features/skills/`           | `.qwen/skills` noted in project `.qwen` directory; no Rulesync-supported Qwen Code skills target |
-| `hooks`       | No dedicated upstream hooks surface found                                     | No Rulesync-supported Qwen Code hooks target                                                     |
+| `hooks`       | No dedicated upstream hooks surface in map                                    | No Rulesync-supported Qwen Code hooks target in map                                              |
 | `permissions` | `https://qwenlm.github.io/qwen-code-docs/en/users/features/approval-mode/`    | Approval mode and tool approval controls                                                         |
 
 ## Client Anchors

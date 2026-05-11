@@ -11,7 +11,7 @@
 | `commands`    | `https://junie.jetbrains.com/docs/slash-commands.html`              | Custom slash commands and Junie CLI command locations                        |
 | `subagents`   | `https://junie.jetbrains.com/docs/parameters.html`                  | Agent location flags and default per-user/per-project agent discovery        |
 | `skills`      | `https://junie.jetbrains.com/docs/parameters.html`                  | Skill location flags and default per-user/per-project skill discovery        |
-| `hooks`       | No dedicated upstream hooks surface found                           | No Rulesync-supported Junie hooks target                                     |
+| `hooks`       | No dedicated upstream hooks surface in map                          | No Rulesync-supported Junie hooks target in map                              |
 | `permissions` | `https://junie.jetbrains.com/docs/action-allowlist.html`            | Action Allowlist; no Rulesync-supported Junie permissions target             |
 
 ## Client Anchors

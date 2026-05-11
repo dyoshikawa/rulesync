@@ -7,11 +7,11 @@
 | index         | `https://docs.augmentcode.com/`                                    | Augment documentation index                                                                      |
 | `rules`       | `https://docs.augmentcode.com/cli/rules`                           | `.augment/rules`, `~/.augment/rules`, AGENTS.md and CLAUDE.md hierarchical rules                 |
 | `ignore`      | `https://docs.augmentcode.com/cli/setup-auggie/workspace-indexing` | `.augmentignore`, `.gitignore` interaction, workspace indexing filters                           |
-| `mcp`         | No dedicated upstream MCP surface found                            | MCP tool names appear in permissions; no Rulesync-supported AugmentCode MCP target               |
-| `commands`    | No dedicated upstream commands surface found                       | No Rulesync-supported AugmentCode commands target                                                |
-| `subagents`   | No dedicated upstream subagents surface found                      | No Rulesync-supported AugmentCode subagents target                                               |
-| `skills`      | No dedicated upstream skills surface found                         | No Rulesync-supported AugmentCode skills target                                                  |
-| `hooks`       | No dedicated upstream hooks surface found                          | No Rulesync-supported AugmentCode hooks target                                                   |
+| `mcp`         | No dedicated upstream MCP surface in map                           | MCP tool names appear in permissions; no Rulesync-supported AugmentCode MCP target               |
+| `commands`    | No dedicated upstream commands surface in map                      | No Rulesync-supported AugmentCode commands target in map                                         |
+| `subagents`   | No dedicated upstream subagents surface in map                     | No Rulesync-supported AugmentCode subagents target in map                                        |
+| `skills`      | No dedicated upstream skills surface in map                        | No Rulesync-supported AugmentCode skills target in map                                           |
+| `hooks`       | No dedicated upstream hooks surface in map                         | No Rulesync-supported AugmentCode hooks target in map                                            |
 | `permissions` | `https://docs.augmentcode.com/cli/permissions`                     | `~/.augment/settings.json`, `toolPermissions`, `allow`/`deny`/`ask-user`, first-match-wins rules |
 
 ## Client Anchors

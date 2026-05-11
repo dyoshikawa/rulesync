@@ -6,7 +6,7 @@
 | ------------- | -------------------------------------------------------------- | ------------------------------------------------------------ |
 | index         | `https://developers.openai.com/codex/llms.txt`                 | Docs index                                                   |
 | `rules`       | `https://developers.openai.com/codex/guides/agents-md`         | `AGENTS.md` and override behavior                            |
-| `ignore`      | No dedicated upstream ignore surface found                     | No Rulesync-supported Codex CLI ignore target                |
+| `ignore`      | No dedicated upstream ignore surface in map                    | No Rulesync-supported Codex CLI ignore target in map         |
 | `mcp`         | `https://developers.openai.com/codex/mcp`                      | MCP server config, transports, authentication                |
 | `commands`    | `https://developers.openai.com/codex/custom-prompts`           | `~/.codex/prompts/*.md`, metadata, arguments                 |
 | `subagents`   | `https://developers.openai.com/codex/subagents`                | Subagent files, fields, model and tool config                |

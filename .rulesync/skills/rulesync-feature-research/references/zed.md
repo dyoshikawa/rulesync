@@ -8,10 +8,10 @@
 | `rules`       | `https://zed.dev/docs/ai/rules`                             | `.rules`, AGENTS.md-compatible files, Rules Library; no Rulesync-supported Zed rules target |
 | `ignore`      | `https://zed.dev/docs/reference/all-settings#private-files` | `.zed/settings.json`, `private_files` glob list                                             |
 | `mcp`         | `https://zed.dev/docs/ai/configuration`                     | AI configuration and external agents; no Rulesync-supported Zed MCP target                  |
-| `commands`    | No dedicated upstream commands surface found                | No Rulesync-supported Zed commands target                                                   |
-| `subagents`   | No dedicated upstream subagents surface found               | No Rulesync-supported Zed subagents target                                                  |
-| `skills`      | No dedicated upstream skills surface found                  | No Rulesync-supported Zed skills target                                                     |
-| `hooks`       | No dedicated upstream hooks surface found                   | No Rulesync-supported Zed hooks target                                                      |
+| `commands`    | No dedicated upstream commands surface in map               | No Rulesync-supported Zed commands target in map                                            |
+| `subagents`   | No dedicated upstream subagents surface in map              | No Rulesync-supported Zed subagents target in map                                           |
+| `skills`      | No dedicated upstream skills surface in map                 | No Rulesync-supported Zed skills target in map                                              |
+| `hooks`       | No dedicated upstream hooks surface in map                  | No Rulesync-supported Zed hooks target in map                                               |
 | `permissions` | `https://zed.dev/docs/ai/agent-settings`                    | `agent.tool_permissions`; no Rulesync-supported Zed permissions target                      |
 
 ## Client Anchors
