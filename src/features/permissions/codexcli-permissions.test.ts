@@ -54,6 +54,42 @@ describe("CodexcliPermissions", () => {
     expect(fileContent).toContain('"example.com" = "deny"');
   });
 
+  it("should place relative filesystem globs under the Codex project root table", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          read: {
+            "**/*.tf": "deny",
+            "src/**": "allow",
+            "/workspace/project/**": "allow",
+          },
+          write: {
+            "docs/**": "allow",
+          },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain("[permissions.rulesync.filesystem]");
+    expect(fileContent).toContain("glob_scan_max_depth = 8");
+    expect(fileContent).toContain('"/workspace/project/**" = "read"');
+    expect(fileContent).toContain('[permissions.rulesync.filesystem.":project_roots"]');
+    expect(fileContent).toContain('"**/*.tf" = "none"');
+    expect(fileContent).toContain('"src/**" = "read"');
+    expect(fileContent).toContain('"docs/**" = "write"');
+  });
+
   it("should convert Codex CLI permissions profile to rulesync format", () => {
     const codexPermissions = new CodexcliPermissions({
       outputRoot: testDir,
@@ -83,6 +119,35 @@ default_permissions = "rulesync"
     expect(json.permission.webfetch?.["example.com"]).toBe("deny");
   });
 
+  it("should import nested Codex project root filesystem rules", () => {
+    const codexPermissions = new CodexcliPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".codex",
+      relativeFilePath: "config.toml",
+      fileContent: `
+default_permissions = "rulesync"
+
+[permissions.rulesync.filesystem]
+glob_scan_max_depth = 8
+"/workspace/project/**" = "read"
+
+[permissions.rulesync.filesystem.":project_roots"]
+"**/*.tf" = "none"
+"src/**" = "read"
+"docs/**" = "write"
+`,
+    });
+
+    const rulesyncPermissions = codexPermissions.toRulesyncPermissions();
+    const json = rulesyncPermissions.getJson();
+
+    expect(json.permission.read?.["/workspace/project/**"]).toBe("allow");
+    expect(json.permission.read?.["**/*.tf"]).toBe("deny");
+    expect(json.permission.edit?.["**/*.tf"]).toBe("deny");
+    expect(json.permission.read?.["src/**"]).toBe("allow");
+    expect(json.permission.edit?.["docs/**"]).toBe("allow");
+  });
+
   it("should load existing .codex/config.toml", async () => {
     const codexDir = join(testDir, ".codex");
     await ensureDir(codexDir);
@@ -108,7 +173,7 @@ default_permissions = "rulesync"
     });
 
     const content = rulesFile.getFileContent();
-    expect(rulesFile.getRelativeDirPath()).toBe(".codex/rules");
+    expect(rulesFile.getRelativeDirPath()).toBe(join(".codex", "rules"));
     expect(rulesFile.getRelativeFilePath()).toBe("rulesync.rules");
     expect(content).toContain('pattern = ["git", "status"]');
     expect(content).toContain('decision = "allow"');
