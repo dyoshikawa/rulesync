@@ -1095,6 +1095,16 @@ describe("McpProcessor", () => {
       expect(targets).toContain("cursor");
       expect(targets).toContain("roo");
       expect(targets).toContain("codexcli"); // codexcli supports both project and global
+      expect(targets).toContain("kilo"); // kilo supports both project and global
+    });
+
+    it("should include kilo in global tool targets", () => {
+      // Kilo CLI is an OpenCode fork and reads global MCP from
+      // ~/.config/kilo/kilo.json(c), so it must be present in the
+      // global-mode supported targets list.
+      const globalTargets = McpProcessor.getToolTargets({ global: true });
+      expect(globalTargets).toContain("kilo");
+      expect(globalTargets).toContain("opencode"); // sanity: parity with opencode
     });
   });
 
