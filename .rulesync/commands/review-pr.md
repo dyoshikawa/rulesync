@@ -22,3 +22,12 @@ Integrate and report the execution results from each subagent. Additionaly, plea
 
 - Assign a severity level to each finding: low, mid, high, or critical.
 - Assign a sequential number to each finding (e.g., #1, #2, #3, ...).
+
+## After the Review: Check GitHub Actions Workflows
+
+After completing the content review, check the status of the GitHub Actions workflows for $target_pr (for example, using `gh pr checks` or `gh run list`).
+
+- Report the status of every workflow run to the user, including runs that are still in progress.
+- For each failing workflow, also report:
+  - The likely cause of the failure (based on the relevant logs or job output).
+  - Candidate solutions or next steps to resolve it.
