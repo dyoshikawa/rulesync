@@ -7,7 +7,7 @@ on:
 
 permissions:
   contents: read # Minimum required
-  pull-requests: write # Required for commenting and closing PRs
+  pull-requests: write # Required for commenting on PRs
 
 jobs:
   check-policy:
@@ -51,8 +51,7 @@ jobs:
           EOF
             )
             gh pr comment "$PR_NUMBER" --body "$COMMENT_BODY"
-            echo "::error::PR exceeds the addition line limit for external contributors ($PR_ADDITIONS > $MAX_ADDITIONS)."
-            exit 1
+            echo "::warning::PR exceeds the addition line limit for external contributors ($PR_ADDITIONS > $MAX_ADDITIONS)."
           fi
 
           # Check 2: Open PR count (on 'opened' and 'reopened' events; skipped on synchronize
@@ -66,14 +65,10 @@ jobs:
           Thank you for your contribution! Unfortunately, you currently have **${OPEN_PR_COUNT} open PRs** (including this one), which exceeds the limit of **${MAX_OPEN_PRS}** for external contributors.
 
           Please wait for an existing PR to be reviewed/merged, or close one before opening a new one. See [CONTRIBUTING.md](https://github.com/${GH_REPO}/blob/main/CONTRIBUTING.md) for details.
-
-          This PR has been automatically closed.
           EOF
             )
               gh pr comment "$PR_NUMBER" --body "$COMMENT_BODY"
-              gh pr close "$PR_NUMBER"
-              echo "::error::Author has too many open PRs ($OPEN_PR_COUNT > $MAX_OPEN_PRS)."
-              exit 1
+              echo "::warning::Author has too many open PRs ($OPEN_PR_COUNT > $MAX_OPEN_PRS)."
             fi
           fi
 
