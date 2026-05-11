@@ -348,6 +348,48 @@ describe("ClaudecodeSkill", () => {
       });
     });
 
+    it("should convert to RulesyncSkill with paths as string", () => {
+      const frontmatter: ClaudecodeSkillFrontmatter = {
+        name: "paths-string-skill",
+        description: "Skill with comma-separated paths",
+        paths: "src/**/*.ts,test/**/*.ts",
+      };
+
+      const skill = new ClaudecodeSkill({
+        dirName: "paths-string-skill",
+        frontmatter,
+        body: "Paths string body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+
+      expect(rulesyncFrontmatter.claudecode).toEqual({
+        paths: "src/**/*.ts,test/**/*.ts",
+      });
+    });
+
+    it("should convert to RulesyncSkill with paths as array", () => {
+      const frontmatter: ClaudecodeSkillFrontmatter = {
+        name: "paths-array-skill",
+        description: "Skill with paths list",
+        paths: ["src/**/*.ts", "test/**/*.ts"],
+      };
+
+      const skill = new ClaudecodeSkill({
+        dirName: "paths-array-skill",
+        frontmatter,
+        body: "Paths array body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+
+      expect(rulesyncFrontmatter.claudecode).toEqual({
+        paths: ["src/**/*.ts", "test/**/*.ts"],
+      });
+    });
+
     it("should preserve other files during conversion", () => {
       const frontmatter: ClaudecodeSkillFrontmatter = {
         name: "test-skill",
@@ -502,6 +544,40 @@ describe("ClaudecodeSkill", () => {
 
       const claudecodeSkill = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
       expect(claudecodeSkill.getFrontmatter()["disable-model-invocation"]).toBe(false);
+    });
+
+    it("should convert from RulesyncSkill with paths as string", () => {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
+        name: "paths-string-skill",
+        description: "Skill with comma-separated paths",
+        claudecode: { paths: "src/**/*.ts,test/**/*.ts" },
+      };
+
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "paths-string-skill",
+        frontmatter: rulesyncFrontmatter,
+        body: "Paths string body",
+      });
+
+      const claudecodeSkill = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(claudecodeSkill.getFrontmatter().paths).toBe("src/**/*.ts,test/**/*.ts");
+    });
+
+    it("should convert from RulesyncSkill with paths as array", () => {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
+        name: "paths-array-skill",
+        description: "Skill with paths list",
+        claudecode: { paths: ["src/**/*.ts", "test/**/*.ts"] },
+      };
+
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "paths-array-skill",
+        frontmatter: rulesyncFrontmatter,
+        body: "Paths array body",
+      });
+
+      const claudecodeSkill = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(claudecodeSkill.getFrontmatter().paths).toEqual(["src/**/*.ts", "test/**/*.ts"]);
     });
 
     it("should set correct relativeDirPath", () => {
@@ -922,6 +998,42 @@ Global skill content.`;
       });
       expect(result.success).toBe(false);
     });
+
+    it("should validate frontmatter with paths as string", () => {
+      const result = ClaudecodeSkillFrontmatterSchema.safeParse({
+        name: "test-skill",
+        description: "Test",
+        paths: "src/**/*.ts,test/**/*.ts",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should validate frontmatter with paths as array", () => {
+      const result = ClaudecodeSkillFrontmatterSchema.safeParse({
+        name: "test-skill",
+        description: "Test",
+        paths: ["src/**/*.ts", "test/**/*.ts"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject paths with invalid type", () => {
+      const result = ClaudecodeSkillFrontmatterSchema.safeParse({
+        name: "test-skill",
+        description: "Test",
+        paths: 123,
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject paths with array containing non-strings", () => {
+      const result = ClaudecodeSkillFrontmatterSchema.safeParse({
+        name: "test-skill",
+        description: "Test",
+        paths: ["src/**/*.ts", 42],
+      });
+      expect(result.success).toBe(false);
+    });
   });
 
   describe("round-trip conversion", () => {
@@ -961,6 +1073,44 @@ Global skill content.`;
       const restored = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
 
       expect(restored.getFrontmatter()["disable-model-invocation"]).toBe(false);
+    });
+
+    it("should preserve paths string through round-trip", () => {
+      const originalFrontmatter: ClaudecodeSkillFrontmatter = {
+        name: "round-trip-skill",
+        description: "Round trip test",
+        paths: "src/**/*.ts,test/**/*.ts",
+      };
+
+      const original = new ClaudecodeSkill({
+        dirName: "round-trip-skill",
+        frontmatter: originalFrontmatter,
+        body: "Round trip body",
+      });
+
+      const rulesyncSkill = original.toRulesyncSkill();
+      const restored = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+
+      expect(restored.getFrontmatter().paths).toBe("src/**/*.ts,test/**/*.ts");
+    });
+
+    it("should preserve paths array through round-trip", () => {
+      const originalFrontmatter: ClaudecodeSkillFrontmatter = {
+        name: "round-trip-skill",
+        description: "Round trip test",
+        paths: ["src/**/*.ts", "test/**/*.ts"],
+      };
+
+      const original = new ClaudecodeSkill({
+        dirName: "round-trip-skill",
+        frontmatter: originalFrontmatter,
+        body: "Round trip body",
+      });
+
+      const rulesyncSkill = original.toRulesyncSkill();
+      const restored = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+
+      expect(restored.getFrontmatter().paths).toEqual(["src/**/*.ts", "test/**/*.ts"]);
     });
 
     it("should preserve model through ClaudecodeSkill -> RulesyncSkill -> ClaudecodeSkill", () => {

@@ -24,6 +24,7 @@ export const ClaudecodeSkillFrontmatterSchema = z.looseObject({
   "allowed-tools": z.optional(z.array(z.string())),
   model: z.optional(z.string()),
   "disable-model-invocation": z.optional(z.boolean()),
+  paths: z.optional(z.union([z.string(), z.array(z.string())])),
 });
 
 export type ClaudecodeSkillFrontmatter = z.infer<typeof ClaudecodeSkillFrontmatterSchema>;
@@ -124,6 +125,7 @@ export class ClaudecodeSkill extends ToolSkill {
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
+      ...(frontmatter.paths !== undefined && { paths: frontmatter.paths }),
       ...(this.relativeDirPath === CLAUDE_SCHEDULED_TASKS_DIR_PATH && { "scheduled-task": true }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
@@ -164,6 +166,9 @@ export class ClaudecodeSkill extends ToolSkill {
       }),
       ...(rulesyncFrontmatter.claudecode?.["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": rulesyncFrontmatter.claudecode["disable-model-invocation"],
+      }),
+      ...(rulesyncFrontmatter.claudecode?.paths !== undefined && {
+        paths: rulesyncFrontmatter.claudecode.paths,
       }),
     };
 
