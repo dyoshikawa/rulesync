@@ -119,6 +119,37 @@ default_permissions = "rulesync"
     expect(json.permission.webfetch?.["example.com"]).toBe("deny");
   });
 
+  it("should not set glob_scan_max_depth when project-root globs contain only single-level wildcards", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          read: {
+            "src/*": "allow",
+          },
+          write: {
+            "docs/*": "allow",
+          },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain('[permissions.rulesync.filesystem.":project_roots"]');
+    expect(fileContent).toContain('"src/*" = "read"');
+    expect(fileContent).toContain('"docs/*" = "write"');
+    expect(fileContent).not.toContain("glob_scan_max_depth");
+  });
+
   it("should import nested Codex project root filesystem rules", () => {
     const codexPermissions = new CodexcliPermissions({
       outputRoot: testDir,

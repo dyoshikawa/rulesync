@@ -19,7 +19,7 @@ import {
 const RULESYNC_PROFILE_NAME = "rulesync";
 const RULESYNC_BASH_RULES_FILE_NAME = "rulesync.rules";
 const CODEX_PROJECT_ROOTS_KEY = ":project_roots";
-const CODEX_GLOB_SCAN_MAX_DEPTH = 8;
+const CODEX_GLOB_SCAN_MAX_DEPTH = 8; // Matches Codex CLI default glob_scan_max_depth
 
 type CodexFilesystemAccess = "read" | "write" | "none";
 type CodexFilesystemRuleTable = Record<string, CodexFilesystemAccess>;
@@ -180,6 +180,7 @@ function convertRulesyncToCodexProfile({
           projectRootFilesystem,
           pattern,
           access: mapReadAction(action),
+          logger,
         });
       }
       continue;
@@ -192,6 +193,7 @@ function convertRulesyncToCodexProfile({
           projectRootFilesystem,
           pattern,
           access: mapWriteAction(action),
+          logger,
         });
       }
       continue;
@@ -216,6 +218,11 @@ function convertRulesyncToCodexProfile({
   }
 
   if (Object.keys(projectRootFilesystem).length > 0) {
+    if (typeof filesystem[CODEX_PROJECT_ROOTS_KEY] === "string") {
+      logger?.warn(
+        `":project_roots" is set as a direct filesystem access rule in the permissions, but it will be overwritten by project-root rules. Consider removing the direct ":project_roots" entry.`,
+      );
+    }
     if (Object.keys(projectRootFilesystem).some((pattern) => pattern.includes("**"))) {
       filesystem.glob_scan_max_depth = CODEX_GLOB_SCAN_MAX_DEPTH;
     }
@@ -275,12 +282,19 @@ function addFilesystemRule({
   projectRootFilesystem,
   pattern,
   access,
+  logger,
 }: {
   filesystem: CodexFilesystem;
   projectRootFilesystem: CodexFilesystemRuleTable;
   pattern: string;
   access: CodexFilesystemAccess;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): void {
+  if (pattern === "") {
+    logger?.warn("Skipping empty pattern in filesystem permissions.");
+    return;
+  }
+
   if (canBeCodexFilesystemRoot(pattern)) {
     filesystem[pattern] = access;
     return;
