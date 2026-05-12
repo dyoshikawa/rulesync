@@ -119,6 +119,37 @@ default_permissions = "rulesync"
     expect(json.permission.webfetch?.["example.com"]).toBe("deny");
   });
 
+  it("should not set glob_scan_max_depth when project-root globs contain only single-level wildcards", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          read: {
+            "src/*": "allow",
+          },
+          write: {
+            "docs/*": "allow",
+          },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain('[permissions.rulesync.filesystem.":project_roots"]');
+    expect(fileContent).toContain('"src/*" = "read"');
+    expect(fileContent).toContain('"docs/*" = "write"');
+    expect(fileContent).not.toContain("glob_scan_max_depth");
+  });
+
   it("should import nested Codex project root filesystem rules", () => {
     const codexPermissions = new CodexcliPermissions({
       outputRoot: testDir,
@@ -146,6 +177,61 @@ glob_scan_max_depth = 8
     expect(json.permission.edit?.["**/*.tf"]).toBe("deny");
     expect(json.permission.read?.["src/**"]).toBe("allow");
     expect(json.permission.edit?.["docs/**"]).toBe("allow");
+  });
+
+  it("should warn when :project_roots is set as a direct string access rule", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          read: {
+            ":project_roots": "deny",
+            "src/**": "allow",
+          },
+        },
+      }),
+    });
+
+    await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('":project_roots" is set as a direct filesystem access rule'),
+    );
+  });
+
+  it("should skip empty string patterns with a warning", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          read: {
+            "": "allow",
+            "src/**": "allow",
+          },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    expect(logger.warn).toHaveBeenCalledWith("Skipping empty pattern in filesystem permissions.");
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).not.toContain('""');
   });
 
   it("should load existing .codex/config.toml", async () => {
