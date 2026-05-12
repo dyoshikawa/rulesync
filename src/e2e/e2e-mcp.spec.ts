@@ -230,6 +230,7 @@ describe("E2E: mcp (global mode)", () => {
     { target: "deepagents", outputPath: join(".deepagents", ".mcp.json") },
     { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
     { target: "rovodev", outputPath: join(".rovodev", "mcp.json") },
+    { target: "kilo", outputPath: join(".config", "kilo", "kilo.jsonc") },
   ])("should generate $target mcp in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
