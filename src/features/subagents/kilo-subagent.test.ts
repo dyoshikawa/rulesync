@@ -165,6 +165,36 @@ describe("KiloSubagent", () => {
     expect(toolSubagent.getFrontmatter().mode).toBe("subagent");
   });
 
+  it("should honour explicit kilo.mode = 'all' override (matches default)", () => {
+    // Symmetry test: explicit `kilo.mode: all` matches the new default but
+    // is a valid explicit value. Guards against any future regression
+    // where the defaulting logic accidentally overrides user intent.
+    const rulesyncSubagent = new RulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      relativeFilePath: "explicit-all.md",
+      frontmatter: {
+        targets: ["kilo"],
+        name: "explicit-all",
+        description: "Explicitly all mode",
+        kilo: {
+          mode: "all",
+        },
+      },
+      body: "Body",
+      validate: false,
+    });
+
+    const toolSubagent = KiloSubagent.fromRulesyncSubagent({
+      rulesyncSubagent,
+      global: true,
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+    }) as KiloSubagent;
+
+    expect(toolSubagent.getFrontmatter().mode).toBe("all");
+  });
+
   it("should preserve primary mode for Kilo subagent", () => {
     // Regression test for: kilo.mode was hardcoded to 'subagent' instead of being preserved
     const rulesyncSubagent = new RulesyncSubagent({
