@@ -1,6 +1,6 @@
-# Declarative Skill Sources
+# Declarative Sources
 
-Rulesync can fetch skills from external repositories using the `install` command. Instead of manually running `fetch` for each skill source, declare them in your `rulesync.jsonc` and run `rulesync install` to resolve and fetch them. Then `rulesync generate` picks them up as local curated skills. Typical workflow: `rulesync install && rulesync generate`.
+Rulesync can fetch skills and install plugins from external repositories using the `install` command. Instead of manually running `fetch` for each source, declare them in your `rulesync.jsonc` and run `rulesync install`. For curated skills, `rulesync generate` then picks them up as local curated skills. For install-managed plugins, `rulesync install` performs the target deployment directly.
 
 ## Configuration
 
@@ -17,6 +17,22 @@ Add a `sources` array to your `rulesync.jsonc`:
 
     // Fetch only specific skills by name
     { "source": "anthropics/skills", "skills": ["skill-creator"] },
+
+    // Install a codexcli plugin from an explicit plugin declaration
+    {
+      "source": "obra/superpowers",
+      "ref": "main",
+      "plugins": [
+        {
+          "name": "superpowers",
+          "targets": ["codexcli"],
+          "codexcli": {
+            "artifact": { "kind": "skillsBundle", "path": "skills" },
+            "install": { "strategy": "userSkillsDir" },
+          },
+        },
+      ],
+    },
 
     // With ref pinning and subdirectory path (same syntax as fetch command)
     { "source": "owner/repo@v1.0.0:path/to/skills" },
@@ -37,13 +53,14 @@ Add a `sources` array to your `rulesync.jsonc`:
 
 Each entry in `sources` accepts:
 
-| Property    | Type       | Description                                                                                                                      |
-| ----------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `source`    | `string`   | Repository source. For GitHub transport: `owner/repo` or `owner/repo@ref:path`. For git transport: a full git URL.               |
-| `skills`    | `string[]` | Optional list of skill names to fetch. If omitted, all skills are fetched.                                                       |
-| `transport` | `string`   | `"github"` (default) uses the GitHub REST API. `"git"` uses git CLI and works with any git remote.                               |
-| `ref`       | `string`   | Branch, tag, or ref to fetch from. Defaults to the remote's default branch. For GitHub transport, use the `@ref` source syntax.  |
-| `path`      | `string`   | Path to the skills directory within the repository. Defaults to `"skills"`. For GitHub transport, use the `:path` source syntax. |
+| Property    | Type       | Description                                                                                                                        |
+| ----------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `source`    | `string`   | Repository source. For GitHub transport: `owner/repo` or `owner/repo@ref:path`. For git transport: a full git URL.                 |
+| `skills`    | `string[]` | Optional list of skill names to fetch. If omitted, all skills are fetched.                                                         |
+| `plugins`   | `object[]` | Optional explicit plugin declarations. V1 supports `codexcli` plugins with `skillsBundle` artifacts installed via `userSkillsDir`. |
+| `transport` | `string`   | `"github"` (default) uses the GitHub REST API. `"git"` uses git CLI and works with any git remote.                                 |
+| `ref`       | `string`   | Branch, tag, or ref to fetch from. Defaults to the remote's default branch. For GitHub transport, use the `@ref` source syntax.    |
+| `path`      | `string`   | Path to the skills directory within the repository. Defaults to `"skills"`. For GitHub transport, use the `:path` source syntax.   |
 
 ## How It Works
 
@@ -57,15 +74,22 @@ When `rulesync install` runs and `sources` is configured:
    - **First-declared source wins** — If two sources provide a skill with the same name, the one declared first in the `sources` array is used.
 5. **Output** — Fetched skills are written to `.rulesync/skills/.curated/<skill-name>/`. This directory is automatically added to `.gitignore` by `rulesync gitignore`.
 
+For V1 plugins:
+
+1. **Explicit declaration** — RuleSync reads `sources[].plugins[]`; plugin packages are not auto-discovered.
+2. **Curated materialization** — External plugin payloads are written to `.rulesync/plugins/.curated/<plugin-name>/`.
+3. **Precedence rules** — Local plugins in `.rulesync/plugins/<plugin-name>/` override curated plugins with the same name.
+4. **Install-managed deployment** — For `codexcli`, `rulesync install` deploys `skillsBundle` payloads into the Codex user skills directory and records deployment state in `rulesync-plugins.lock.yaml`.
+
 ## Install Modes
 
 `rulesync install` supports three install modes via `--mode <mode>`:
 
-| Mode       | Manifest input               | Lockfile                 | Skill output layout                                                          |
-| ---------- | ---------------------------- | ------------------------ | ---------------------------------------------------------------------------- |
-| `rulesync` | `rulesync.jsonc` `sources`   | `rulesync.lock`          | `.rulesync/skills/.curated/<name>/` (then re-emitted by `rulesync generate`) |
-| `apm`      | `apm.yml` `dependencies.apm` | `rulesync-apm.lock.yaml` | `.github/instructions/`, `.github/skills/` (APM v1 layout)                   |
-| `gh`       | `rulesync.jsonc` `sources`   | `rulesync-gh.lock.yaml`  | Per-agent / per-scope dirs (matching `gh skill install`)                     |
+| Mode       | Manifest input               | Lockfile                                         | Output layout                                                                                                     |
+| ---------- | ---------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `rulesync` | `rulesync.jsonc` `sources`   | `rulesync.lock` and `rulesync-plugins.lock.yaml` | Skills: `.rulesync/skills/.curated/<name>/`; Plugins: `.rulesync/plugins/.curated/<name>/` plus target deployment |
+| `apm`      | `apm.yml` `dependencies.apm` | `rulesync-apm.lock.yaml`                         | `.github/instructions/`, `.github/skills/` (APM v1 layout)                                                        |
+| `gh`       | `rulesync.jsonc` `sources`   | `rulesync-gh.lock.yaml`                          | Per-agent / per-scope dirs (matching `gh skill install`)                                                          |
 
 When `--mode` is omitted, rulesync defaults to `rulesync` mode. If `apm.yml` is present and `sources` is also defined, you must pass `--mode apm` or `--mode rulesync` to disambiguate.
 

@@ -310,6 +310,49 @@ describe("config-resolver", () => {
     });
   });
 
+  describe("targetFeatures configuration", () => {
+    it("should load targetFeatures overrides from config file", async () => {
+      const configContent = JSON.stringify({
+        targets: ["claudecode", "codexcli"],
+        features: ["rules", "skills"],
+        targetFeatures: {
+          codexcli: ["skills", "plugins"],
+        },
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getFeatures("claudecode")).toEqual(["rules", "skills"]);
+      expect(config.getFeatures("codexcli")).toEqual(["skills", "plugins"]);
+    });
+
+    it("should let rulesync.local.jsonc override targetFeatures", async () => {
+      const baseConfigContent = JSON.stringify({
+        targets: ["claudecode", "codexcli"],
+        features: ["rules", "skills"],
+        targetFeatures: {
+          codexcli: ["skills"],
+        },
+      });
+      const localConfigContent = JSON.stringify({
+        targetFeatures: {
+          codexcli: ["skills", "plugins"],
+        },
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), baseConfigContent);
+      await writeFileContent(join(testDir, "rulesync.local.jsonc"), localConfigContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getFeatures("codexcli")).toEqual(["skills", "plugins"]);
+    });
+  });
+
   describe("configPath security", () => {
     it("should accept configPath within current directory", async () => {
       const configContent = JSON.stringify({

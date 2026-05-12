@@ -55,6 +55,7 @@ const FEATURE_PATHS: Record<Feature, string[]> = {
   mcp: [RULESYNC_MCP_FILE_NAME],
   hooks: [RULESYNC_HOOKS_FILE_NAME],
   permissions: [RULESYNC_PERMISSIONS_FILE_NAME],
+  plugins: ["plugins"],
 };
 
 /**

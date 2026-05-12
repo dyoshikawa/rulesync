@@ -23,7 +23,14 @@ export const RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH = join(
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
   ".curated",
 );
+export const RULESYNC_PLUGINS_RELATIVE_DIR_PATH = join(RULESYNC_RELATIVE_DIR_PATH, "plugins");
+export const RULESYNC_CURATED_PLUGINS_RELATIVE_DIR_PATH = join(
+  RULESYNC_PLUGINS_RELATIVE_DIR_PATH,
+  ".curated",
+);
 export const RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH = "rulesync.lock";
+export const RULESYNC_PLUGINS_LOCK_FILE_NAME = "rulesync-plugins.lock.yaml";
+export const RULESYNC_PLUGIN_MANIFEST_FILE_NAME = "plugin.jsonc";
 
 // File names (without path)
 export const RULESYNC_MCP_FILE_NAME = "mcp.json";

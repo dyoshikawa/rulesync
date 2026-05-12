@@ -146,6 +146,7 @@ describe("Config", () => {
       expect(features).toContain("subagents");
       expect(features).toContain("skills");
       expect(features).toContain("hooks");
+      expect(features).toContain("plugins");
     });
 
     it("should return target-specific features when using object format", () => {
@@ -335,6 +336,33 @@ describe("Config", () => {
       });
       // Other features enabled via wildcard have no options
       expect(config.getFeatureOptions("claudecode", "rules")).toBeUndefined();
+    });
+  });
+
+  describe("targetFeatures overrides", () => {
+    it("should use targetFeatures as a full override for the target", () => {
+      const config = createConfig({
+        targets: ["claudecode", "codexcli"],
+        features: ["rules", "skills", "mcp"],
+        targetFeatures: {
+          codexcli: ["skills", "plugins"],
+        },
+      });
+
+      expect(config.getFeatures("claudecode")).toEqual(["rules", "skills", "mcp"]);
+      expect(config.getFeatures("codexcli")).toEqual(["skills", "plugins"]);
+    });
+
+    it("should include override-only features in aggregate getFeatures()", () => {
+      const config = createConfig({
+        targets: ["claudecode", "codexcli"],
+        features: ["rules"],
+        targetFeatures: {
+          codexcli: ["plugins"],
+        },
+      });
+
+      expect(config.getFeatures()).toEqual(["rules", "plugins"]);
     });
   });
 

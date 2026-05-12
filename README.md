@@ -70,40 +70,41 @@ See [Quick Start guide](https://dyoshikawa.github.io/rulesync/getting-started/qu
 
 ## Supported Tools and Features
 
-| Tool                | --targets    | rules | ignore |   mcp    | commands | subagents | skills | hooks | permissions |
-| ------------------- | ------------ | :---: | :----: | :------: | :------: | :-------: | :----: | :---: | :---------: |
-| AGENTS.md           | agentsmd     |  ✅   |        |          |    🎮    |    🎮     |   🎮   |       |             |
-| AgentsSkills        | agentsskills |       |        |          |          |           |   ✅   |       |             |
-| Claude Code         | claudecode   | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
-| Codex CLI           | codexcli     | ✅ 🌏 |        | ✅ 🌏 🔧 |    🌏    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
-| Gemini CLI          | geminicli    | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |    ✅     | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
-| Goose               | goose        | ✅ 🌏 |   ✅   |          |          |           |        |       |             |
-| GitHub Copilot      | copilot      | ✅ 🌏 |        |    ✅    |    ✅    |    ✅     |   ✅   |  ✅   |             |
-| GitHub Copilot CLI  | copilotcli   | ✅ 🌏 |        |  ✅ 🌏   |          |   ✅ 🌏   |        | ✅ 🌏 |             |
-| Cursor              | cursor       |  ✅   |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
-| deepagents-cli      | deepagents   |  ✅   |        |  ✅ 🌏   |          |    ✅     |   ✅   |  🌏   |             |
-| Factory Droid       | factorydroid | ✅ 🌏 |        |  ✅ 🌏   |    🎮    |    🎮     |   🎮   | ✅ 🌏 |             |
-| OpenCode            | opencode     | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
-| Cline               | cline        |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |       |     ✅      |
-| Kilo Code           | kilo         | ✅ 🌏 |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |       |    ✅ 🌏    |
-| Roo Code            | roo          |  ✅   |   ✅   |    ✅    |    ✅    |    🎮     | ✅ 🌏  |       |             |
-| Rovodev (Atlassian) | rovodev      | ✅ 🌏 |        |    🌏    |          |   ✅ 🌏   | ✅ 🌏  |       |             |
-| Takt                | takt         | ✅ 🌏 |        |          |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |             |
-| Qwen Code           | qwencode     |  ✅   |   ✅   |          |          |           |        |       |    ✅ 🌏    |
-| Kiro                | kiro         |  ✅   |   ✅   |    ✅    |    ✅    |    ✅     |   ✅   |       |     ✅      |
-| Google Antigravity  | antigravity  |  ✅   |        |          |    ✅    |           | ✅ 🌏  |       |             |
-| JetBrains Junie     | junie        |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |    ✅     |   ✅   |       |             |
-| AugmentCode         | augmentcode  |  ✅   |   ✅   |          |          |           |        |       |    ✅ 🌏    |
-| Windsurf            | windsurf     |  ✅   |   ✅   |          |          |           | ✅ 🌏  |       |             |
-| Warp                | warp         |  ✅   |        |          |          |           |        |       |             |
-| Replit              | replit       |  ✅   |        |          |          |           |   ✅   |       |             |
-| Pi Coding Agent     | pi           | ✅ 🌏 |        |          |  ✅ 🌏   |           | ✅ 🌏  |       |             |
-| Zed                 | zed          |       |   ✅   |          |          |           |        |       |             |
+| Tool                | --targets    | rules | ignore |   mcp    | commands | subagents | skills | hooks | permissions | plugins |
+| ------------------- | ------------ | :---: | :----: | :------: | :------: | :-------: | :----: | :---: | :---------: | :-----: |
+| AGENTS.md           | agentsmd     |  ✅   |        |          |    🎮    |    🎮     |   🎮   |       |             |         |
+| AgentsSkills        | agentsskills |       |        |          |          |           |   ✅   |       |             |         |
+| Claude Code         | claudecode   | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |  📦 🌏  |
+| Codex CLI           | codexcli     | ✅ 🌏 |        | ✅ 🌏 🔧 |    🌏    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |  📦 🌏  |
+| Gemini CLI          | geminicli    | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |    ✅     | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |  📦 🌏  |
+| Goose               | goose        | ✅ 🌏 |   ✅   |          |          |           |        |       |             |         |
+| GitHub Copilot      | copilot      | ✅ 🌏 |        |    ✅    |    ✅    |    ✅     |   ✅   |  ✅   |             |         |
+| GitHub Copilot CLI  | copilotcli   | ✅ 🌏 |        |  ✅ 🌏   |          |   ✅ 🌏   |        | ✅ 🌏 |             |         |
+| Cursor              | cursor       |  ✅   |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |         |
+| deepagents-cli      | deepagents   |  ✅   |        |  ✅ 🌏   |          |    ✅     |   ✅   |  🌏   |             |         |
+| Factory Droid       | factorydroid | ✅ 🌏 |        |  ✅ 🌏   |    🎮    |    🎮     |   🎮   | ✅ 🌏 |             |         |
+| OpenCode            | opencode     | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |         |
+| Cline               | cline        |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |       |     ✅      |         |
+| Kilo Code           | kilo         | ✅ 🌏 |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |       |    ✅ 🌏    |         |
+| Roo Code            | roo          |  ✅   |   ✅   |    ✅    |    ✅    |    🎮     | ✅ 🌏  |       |             |         |
+| Rovodev (Atlassian) | rovodev      | ✅ 🌏 |        |    🌏    |          |   ✅ 🌏   | ✅ 🌏  |       |             |         |
+| Takt                | takt         | ✅ 🌏 |        |          |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |             |         |
+| Qwen Code           | qwencode     |  ✅   |   ✅   |          |          |           |        |       |    ✅ 🌏    |         |
+| Kiro                | kiro         |  ✅   |   ✅   |    ✅    |    ✅    |    ✅     |   ✅   |       |     ✅      |         |
+| Google Antigravity  | antigravity  |  ✅   |        |          |    ✅    |           | ✅ 🌏  |       |             |         |
+| JetBrains Junie     | junie        |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |    ✅     |   ✅   |       |             |         |
+| AugmentCode         | augmentcode  |  ✅   |   ✅   |          |          |           |        |       |    ✅ 🌏    |         |
+| Windsurf            | windsurf     |  ✅   |   ✅   |          |          |           | ✅ 🌏  |       |             |         |
+| Warp                | warp         |  ✅   |        |          |          |           |        |       |             |         |
+| Replit              | replit       |  ✅   |        |          |          |           |   ✅   |       |             |         |
+| Pi Coding Agent     | pi           | ✅ 🌏 |        |          |  ✅ 🌏   |           | ✅ 🌏  |       |             |         |
+| Zed                 | zed          |       |   ✅   |          |          |           |        |       |             |         |
 
 - ✅: Supports project mode
 - 🌏: Supports global mode
 - 🎮: Supports simulated commands/subagents/skills (Project mode only)
 - 🔧: Supports MCP tool config (`enabledTools`/`disabledTools`)
+- 📦: Install-managed via `rulesync install` rather than `rulesync generate`
 
 Some features accept per-feature options (e.g., Claude Code's `ignore` feature supports `fileMode: "local"` to write to `settings.local.json` instead of `settings.json`). See [Configuration > Per-feature options](https://dyoshikawa.github.io/rulesync/guide/configuration#per-feature-options) for details.
 

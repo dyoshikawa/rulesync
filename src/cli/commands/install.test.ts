@@ -6,6 +6,7 @@ import { Config } from "../../config/config.js";
 import { installApm } from "../../lib/apm/apm-install.js";
 import { apmManifestExists } from "../../lib/apm/apm-manifest.js";
 import { installGh } from "../../lib/gh/gh-install.js";
+import { installPlugins } from "../../lib/plugins/install-plugins.js";
 import { resolveAndFetchSources } from "../../lib/sources.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { installCommand } from "./install.js";
@@ -16,10 +17,16 @@ vi.mock("../../lib/sources.js");
 vi.mock("../../lib/apm/apm-install.js");
 vi.mock("../../lib/apm/apm-manifest.js");
 vi.mock("../../lib/gh/gh-install.js");
+vi.mock("../../lib/plugins/install-plugins.js");
 
-function createMockConfig(sources: SourceEntry[]): Config {
+function createMockConfig(
+  sources: SourceEntry[],
+  featureMap: Partial<Record<string, string[]>> = {},
+): Config {
   return {
     getSources: () => sources,
+    getTargets: () => Object.keys(featureMap),
+    getFeatures: (target?: string) => (target ? (featureMap[target] ?? []) : []),
   } as unknown as Config;
 }
 
@@ -42,6 +49,12 @@ describe("installCommand", () => {
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
         fetchedSkillCount: 3,
         sourcesProcessed: 1,
+      });
+      vi.mocked(installPlugins).mockResolvedValue({
+        installedPluginCount: 0,
+        installedFileCount: 0,
+        sourcesProcessed: 0,
+        localPluginsProcessed: 0,
       });
 
       await installCommand(mockLogger, {});
@@ -67,6 +80,12 @@ describe("installCommand", () => {
         fetchedSkillCount: 0,
         sourcesProcessed: 1,
       });
+      vi.mocked(installPlugins).mockResolvedValue({
+        installedPluginCount: 0,
+        installedFileCount: 0,
+        sourcesProcessed: 0,
+        localPluginsProcessed: 0,
+      });
 
       await installCommand(mockLogger, {});
 
@@ -77,6 +96,12 @@ describe("installCommand", () => {
 
     it("should warn and return early when no sources defined", async () => {
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig([]));
+      vi.mocked(installPlugins).mockResolvedValue({
+        installedPluginCount: 0,
+        installedFileCount: 0,
+        sourcesProcessed: 0,
+        localPluginsProcessed: 0,
+      });
 
       await installCommand(mockLogger, {});
 
@@ -89,6 +114,12 @@ describe("installCommand", () => {
     it("should warn and suggest --mode apm when apm.yml is present but no sources", async () => {
       vi.mocked(apmManifestExists).mockResolvedValue(true);
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig([]));
+      vi.mocked(installPlugins).mockResolvedValue({
+        installedPluginCount: 0,
+        installedFileCount: 0,
+        sourcesProcessed: 0,
+        localPluginsProcessed: 0,
+      });
 
       await installCommand(mockLogger, {});
 
@@ -116,6 +147,12 @@ describe("installCommand", () => {
         fetchedSkillCount: 0,
         sourcesProcessed: 1,
       });
+      vi.mocked(installPlugins).mockResolvedValue({
+        installedPluginCount: 0,
+        installedFileCount: 0,
+        sourcesProcessed: 0,
+        localPluginsProcessed: 0,
+      });
 
       await installCommand(mockLogger, { update: true });
 
@@ -133,6 +170,12 @@ describe("installCommand", () => {
         fetchedSkillCount: 0,
         sourcesProcessed: 1,
       });
+      vi.mocked(installPlugins).mockResolvedValue({
+        installedPluginCount: 0,
+        installedFileCount: 0,
+        sourcesProcessed: 0,
+        localPluginsProcessed: 0,
+      });
 
       await installCommand(mockLogger, { frozen: true });
 
@@ -149,6 +192,12 @@ describe("installCommand", () => {
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
         fetchedSkillCount: 0,
         sourcesProcessed: 1,
+      });
+      vi.mocked(installPlugins).mockResolvedValue({
+        installedPluginCount: 0,
+        installedFileCount: 0,
+        sourcesProcessed: 0,
+        localPluginsProcessed: 0,
       });
 
       await installCommand(mockLogger, { token: "my-token" });
@@ -287,6 +336,42 @@ describe("installCommand", () => {
       vi.mocked(resolveAndFetchSources).mockRejectedValue(new Error("Network error"));
 
       await expect(installCommand(mockLogger, {})).rejects.toThrow("Network error");
+    });
+  });
+
+  describe("plugins", () => {
+    it("installs plugins when the plugins feature is enabled for codexcli", async () => {
+      const sources: SourceEntry[] = [{ source: "obra/superpowers" }];
+      vi.mocked(ConfigResolver.resolve).mockResolvedValue(
+        createMockConfig(sources, { codexcli: ["skills", "plugins"] }),
+      );
+      vi.mocked(resolveAndFetchSources).mockResolvedValue({
+        fetchedSkillCount: 0,
+        sourcesProcessed: 1,
+      });
+      vi.mocked(installPlugins).mockResolvedValue({
+        installedPluginCount: 1,
+        installedFileCount: 4,
+        sourcesProcessed: 1,
+        localPluginsProcessed: 0,
+      });
+
+      await installCommand(mockLogger, {});
+
+      expect(installPlugins).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.anything(),
+          projectRoot: process.cwd(),
+          options: {
+            update: undefined,
+            frozen: undefined,
+            token: undefined,
+          },
+        }),
+      );
+      expect(mockLogger.success).toHaveBeenCalledWith(
+        "Installed 1 plugin(s) (4 file(s) deployed).",
+      );
     });
   });
 });

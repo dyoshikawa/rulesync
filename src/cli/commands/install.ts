@@ -2,6 +2,7 @@ import { ConfigResolver } from "../../config/config-resolver.js";
 import { installApm } from "../../lib/apm/apm-install.js";
 import { apmManifestExists } from "../../lib/apm/apm-manifest.js";
 import { installGh } from "../../lib/gh/gh-install.js";
+import { installPlugins } from "../../lib/plugins/install-plugins.js";
 import { resolveAndFetchSources } from "../../lib/sources.js";
 import type { Logger } from "../../utils/logger.js";
 
@@ -58,6 +59,22 @@ async function runRulesyncInstall(logger: Logger, options: InstallCommandOptions
   }
 
   if (sources.length === 0) {
+    const pluginResult = await installPlugins({
+      config,
+      projectRoot,
+      options: {
+        update: options.update,
+        frozen: options.frozen,
+        token: options.token,
+      },
+      logger,
+    });
+    if (pluginResult.installedPluginCount > 0) {
+      logger.success(
+        `Installed ${pluginResult.installedPluginCount} plugin(s) (${pluginResult.installedFileCount} file(s) deployed).`,
+      );
+      return;
+    }
     if (apmExists) {
       logger.warn(
         "No sources defined in rulesync.jsonc, but apm.yml is present. Did you mean --mode apm?",
@@ -92,6 +109,23 @@ async function runRulesyncInstall(logger: Logger, options: InstallCommandOptions
     );
   } else {
     logger.success(`All skills up to date (${result.sourcesProcessed} source(s) checked).`);
+  }
+
+  const pluginResult = await installPlugins({
+    config,
+    projectRoot,
+    options: {
+      update: options.update,
+      frozen: options.frozen,
+      token: options.token,
+    },
+    logger,
+  });
+
+  if (pluginResult.installedPluginCount > 0) {
+    logger.success(
+      `Installed ${pluginResult.installedPluginCount} plugin(s) (${pluginResult.installedFileCount} file(s) deployed).`,
+    );
   }
 }
 
