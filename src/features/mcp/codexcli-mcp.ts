@@ -5,6 +5,7 @@ import * as smolToml from "smol-toml";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { isRecord } from "../../utils/type-guards.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -19,10 +20,6 @@ const MAX_REMOVE_EMPTY_ENTRIES_DEPTH = 32;
 
 const PROTOTYPE_POLLUTION_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (!isRecord(value)) return false;
   const proto = Object.getPrototypeOf(value);
@@ -33,6 +30,7 @@ function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
   const result: McpServers = {};
 
   for (const [name, config] of Object.entries(codexMcp)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(name)) continue;
     if (!isRecord(config)) continue;
 
     const converted: Record<string, unknown> = {};
@@ -66,6 +64,7 @@ function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
   const result: Record<string, Record<string, unknown>> = {};
 
   for (const [name, config] of Object.entries(mcpServers)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(name)) continue;
     const converted: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(config)) {
       if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
@@ -174,7 +173,7 @@ export class CodexcliMcp extends ToolMcp {
     const filteredMcpServers = this.removeEmptyEntries(converted);
 
     for (const name of Object.keys(converted)) {
-      if (!(name in filteredMcpServers)) {
+      if (!Object.hasOwn(filteredMcpServers, name)) {
         // oxlint-disable-next-line no-console
         console.warn(
           `MCP server "${name}" had no non-empty configuration and was dropped from the codex CLI config`,
@@ -213,7 +212,13 @@ export class CodexcliMcp extends ToolMcp {
     depth = 0,
   ): Record<string, unknown> {
     if (!obj) return {};
-    if (depth > MAX_REMOVE_EMPTY_ENTRIES_DEPTH) return obj;
+    if (depth > MAX_REMOVE_EMPTY_ENTRIES_DEPTH) {
+      // oxlint-disable-next-line no-console
+      console.warn(
+        `removeEmptyEntries: maximum recursion depth (${MAX_REMOVE_EMPTY_ENTRIES_DEPTH}) exceeded; empty nested objects may remain`,
+      );
+      return obj;
+    }
 
     const filtered: Record<string, unknown> = {};
 
