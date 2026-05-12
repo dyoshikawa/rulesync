@@ -399,6 +399,41 @@ describe("GeminiCliMcp", () => {
   });
 
   describe("fromRulesyncMcp", () => {
+    it("should strip codex-only envVars from gemini output", async () => {
+      // Regression test: prior to migrating fromRulesyncMcp to
+      // `getMcpServers()`, the gemini generator read mcpServers from
+      // `rulesyncMcp.getJson()` (unfiltered), causing codex-only fields like
+      // `envVars` to leak into ~/.gemini/settings.json. Strip must apply
+      // here so the field is absent from gemini output.
+      const jsonData = {
+        mcpServers: {
+          pal: {
+            type: "stdio",
+            command: "uvx",
+            args: ["pal-mcp-server"],
+            envVars: ["OPENAI_API_KEY"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const geminiCliMcp = await GeminiCliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+      });
+
+      const json = geminiCliMcp.getJson() as any;
+      expect(json.mcpServers.pal).toBeDefined();
+      expect(json.mcpServers.pal.envVars).toBeUndefined();
+      // Defensive: other fields survive.
+      expect(json.mcpServers.pal.command).toBe("uvx");
+      expect(json.mcpServers.pal.args).toEqual(["pal-mcp-server"]);
+    });
+
     it("should create instance from RulesyncMcp with default parameters", async () => {
       const jsonData = {
         mcpServers: {

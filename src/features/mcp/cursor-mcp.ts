@@ -149,8 +149,10 @@ export class CursorMcp extends ToolMcp {
       );
     }
 
-    const rulesyncJson = rulesyncMcp.getJson();
-    const mcpServers = isMcpServers(rulesyncJson.mcpServers) ? rulesyncJson.mcpServers : {};
+    // Use getMcpServers() (not getJson()) so rulesync-only fields and
+    // codex-only fields (`envVars`) are stripped before writing the
+    // cursor config.
+    const mcpServers = rulesyncMcp.getMcpServers();
     const transformedServers = convertEnvToCursorFormat(mcpServers);
 
     const cursorConfig = { ...json, mcpServers: transformedServers };

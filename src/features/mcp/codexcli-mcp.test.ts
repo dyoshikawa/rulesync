@@ -670,6 +670,102 @@ fontSize = 14
       expect(mcpServers["my-server"].disabled_tools).toEqual(["delete"]);
     });
 
+    it("should rename source envVars (camelCase) to codex env_vars (snake_case)", async () => {
+      // The source schema uses `envVars` (camelCase) for consistency with
+      // `enabledTools`/`disabledTools`. The codex generator renames it to
+      // `env_vars` (snake_case) to match codex's native config.toml format.
+      // Source:
+      //   "pal": { ..., "envVars": ["OPENAI_API_KEY", "JIRA_PERSONAL_TOKEN"] }
+      // Output:
+      //   [mcp_servers.pal]
+      //   env_vars = ["OPENAI_API_KEY", "JIRA_PERSONAL_TOKEN"]
+      const jsonData = {
+        mcpServers: {
+          pal: {
+            type: "stdio",
+            command: "uvx",
+            args: ["pal-mcp-server"],
+            envVars: ["OPENAI_API_KEY", "JIRA_PERSONAL_TOKEN"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const mcpServers = codexcliMcp.getToml().mcp_servers as any;
+      // Output uses snake_case (codex native).
+      expect(mcpServers.pal.env_vars).toEqual(["OPENAI_API_KEY", "JIRA_PERSONAL_TOKEN"]);
+      // Source key (camelCase) must NOT appear in codex output.
+      expect(mcpServers.pal.envVars).toBeUndefined();
+      // Defensive: other fields survive.
+      expect(mcpServers.pal.command).toBe("uvx");
+      expect(mcpServers.pal.args).toEqual(["pal-mcp-server"]);
+    });
+
+    it("should coexist envVars and env on the same server", async () => {
+      // `envVars` (list of names inherited from shell) and `env` (literal
+      // name→value map) are distinct concepts. Both must serialize correctly
+      // on the same server.
+      const jsonData = {
+        mcpServers: {
+          pal: {
+            type: "stdio",
+            command: "uvx",
+            args: ["pal-mcp-server"],
+            envVars: ["OPENAI_API_KEY"],
+            env: { LOG_LEVEL: "debug" },
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const server = (codexcliMcp.getToml().mcp_servers as any).pal;
+      expect(server.env_vars).toEqual(["OPENAI_API_KEY"]);
+      expect(server.env).toEqual({ LOG_LEVEL: "debug" });
+    });
+
+    it("should round-trip envVars through codex import", async () => {
+      // codex config.toml → toRulesyncMcp() → rulesync representation must
+      // expose `envVars` in source schema form (camelCase).
+      const tomlContent = `[mcp_servers.pal]
+type = "stdio"
+command = "uvx"
+args = ["pal-mcp-server"]
+env_vars = ["OPENAI_API_KEY"]
+`;
+      const codexcliMcp = new CodexcliMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: tomlContent,
+      });
+
+      const rulesyncMcp = codexcliMcp.toRulesyncMcp();
+      const json = JSON.parse(rulesyncMcp.getFileContent());
+
+      expect(json.mcpServers.pal.envVars).toEqual(["OPENAI_API_KEY"]);
+      expect(json.mcpServers.pal.env_vars).toBeUndefined();
+    });
+
     it("should convert enabledTools/disabledTools for multiple servers", async () => {
       const jsonData = {
         mcpServers: {

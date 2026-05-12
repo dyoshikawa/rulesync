@@ -33,6 +33,11 @@ function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
         converted["enabledTools"] = value;
       } else if (key === "disabled_tools") {
         converted["disabledTools"] = value;
+      } else if (key === "env_vars") {
+        // codex stores env-var passthrough names in snake_case (`env_vars`);
+        // the rulesync source schema uses camelCase (`envVars`) for
+        // consistency with `enabledTools`/`disabledTools`/etc.
+        converted["envVars"] = value;
       } else {
         converted[key] = value;
       }
@@ -58,6 +63,12 @@ function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
         converted["enabled_tools"] = value;
       } else if (key === "disabledTools") {
         converted["disabled_tools"] = value;
+      } else if (key === "envVars") {
+        // Rename camelCase source `envVars` → snake_case `env_vars`
+        // for codex's native config.toml format. See `enabledTools`
+        // precedent above. `envVars` itself is stripped from
+        // getMcpServers() so non-codex tools never receive it.
+        converted["env_vars"] = value;
       } else {
         converted[key] = value;
       }

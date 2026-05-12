@@ -114,8 +114,10 @@ export class RovodevMcp extends ToolMcp {
     );
     const json = parseRovodevMcpJson(fileContent, paths.relativeDirPath, paths.relativeFilePath);
 
-    const rulesyncJson = rulesyncMcp.getJson();
-    const mcpServers = isMcpServers(rulesyncJson.mcpServers) ? rulesyncJson.mcpServers : {};
+    // Use getMcpServers() (not getJson()) so rulesync-only fields and
+    // codex-only fields (`envVars`) are stripped before writing the
+    // rovodev config.
+    const mcpServers = rulesyncMcp.getMcpServers();
 
     const rovodevConfig = { ...json, mcpServers };
 
