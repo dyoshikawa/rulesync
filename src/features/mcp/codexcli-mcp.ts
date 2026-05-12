@@ -182,9 +182,23 @@ export class CodexcliMcp extends ToolMcp {
     const filtered: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(obj)) {
-      // Skip null values and empty objects
+      // Skip null values
       if (value === null) continue;
-      if (typeof value === "object" && Object.keys(value).length === 0) continue;
+
+      // Recurse into nested plain objects so empty inner tables (e.g.
+      // `env: {}`) are stripped too. Without this, smol-toml emits an
+      // empty `[mcp_servers.X.env]` header, which codex CLI rejects for
+      // remote (sse/http/streamable_http) transports with:
+      //   "env is not supported for streamable_http"
+      // Arrays are preserved verbatim, including empty ones, since an
+      // empty array can be a meaningful explicit override.
+      if (typeof value === "object" && !Array.isArray(value)) {
+        // eslint-disable-next-line no-type-assertion/no-type-assertion
+        const cleaned = this.removeEmptyEntries(value as Record<string, unknown>);
+        if (Object.keys(cleaned).length === 0) continue;
+        filtered[key] = cleaned;
+        continue;
+      }
 
       filtered[key] = value;
     }
