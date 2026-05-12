@@ -488,10 +488,10 @@ fontSize = 14
           codexcliMcp.getToml().mcp_servers as Record<string, Record<string, unknown>>
         )?.["aws-knowledge"];
         expect(server).toBeDefined();
-        expect(server?.env).toBeUndefined();
+        expect(server!.env).toBeUndefined();
         // Defensive: assert non-env fields survive the strip.
-        expect(server?.type).toBe(transport);
-        expect(server?.url).toBe("https://knowledge-mcp.global.api.aws");
+        expect(server!.type).toBe(transport);
+        expect(server!.url).toBe("https://knowledge-mcp.global.api.aws");
       },
     );
 
@@ -522,10 +522,10 @@ fontSize = 14
         codexcliMcp.getToml().mcp_servers as Record<string, Record<string, unknown>>
       )?.["local"];
       expect(server).toBeDefined();
-      expect(server?.env).toBeUndefined();
+      expect(server!.env).toBeUndefined();
       // Defensive: assert non-env fields survive the strip.
-      expect(server?.command).toBe("node");
-      expect(server?.args).toEqual(["server.js"]);
+      expect(server!.command).toBe("node");
+      expect(server!.args).toEqual(["server.js"]);
     });
 
     it("should preserve populated env table on stdio server", async () => {
@@ -555,10 +555,73 @@ fontSize = 14
         codexcliMcp.getToml().mcp_servers as Record<string, Record<string, unknown>>
       )?.["local"];
       expect(server).toBeDefined();
-      expect(server?.env).toEqual({ NODE_ENV: "production" });
+      expect(server!.env).toEqual({ NODE_ENV: "production" });
       // Defensive: command/args also survive.
-      expect(server?.command).toBe("node");
-      expect(server?.args).toEqual(["server.js"]);
+      expect(server!.command).toBe("node");
+      expect(server!.args).toEqual(["server.js"]);
+    });
+
+    it("should not emit .env] in serialized TOML for server with env: {}", async () => {
+      // The actual failure mode is smol-toml emitting a `[mcp_servers.X.env]`
+      // header that Codex CLI rejects. This test asserts directly on the
+      // serialized TOML string to map to the Codex 0.130+ rejection condition.
+      const jsonData = {
+        mcpServers: {
+          "aws-knowledge": {
+            type: "streamable_http",
+            url: "https://knowledge-mcp.global.api.aws",
+            env: {},
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      expect(codexcliMcp.getFileContent()).not.toContain(".env]");
+    });
+
+    it("should preserve array elements verbatim even when they are empty objects", async () => {
+      // Arrays are not recursed into by removeEmptyEntries. If an array
+      // element is a plain object like `{}`, it survives unmodified so the
+      // empty inline table is preserved in TOML output. This boundary is
+      // intentional: the current mcp_servers.* schema is a map, not an
+      // array, and an empty inline table in TOML (`[{}, "a"]`) differs from
+      // a table header (`[mcp_servers.X.env]`) that Codex CLI rejects.
+      const jsonData = {
+        mcpServers: {
+          local: {
+            type: "stdio",
+            command: "node",
+            args: [{}, { flag: "--verbose" }],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const server = (
+        codexcliMcp.getToml().mcp_servers as Record<string, Record<string, unknown>>
+      )?.["local"];
+      expect(server).toBeDefined();
+      expect(server!.args).toEqual([{}, { flag: "--verbose" }]);
     });
 
     it("should convert disabled: true to enabled = false in codex format", async () => {
