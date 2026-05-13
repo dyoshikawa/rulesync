@@ -10,6 +10,7 @@ import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
+import { McpProcessor } from "./mcp-processor.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
 describe("ClaudecodeMcp", () => {
@@ -457,6 +458,35 @@ describe("ClaudecodeMcp", () => {
       // Read-only invariant: legacy file is byte-identical after read.
       // Confirms fromFile never writes to the legacy path.
       expect(await readFileContent(legacyPath)).toBe(legacyOnDisk);
+    });
+
+    it("should pass legacy fallback warnings through the processor path", async () => {
+      // Regression guard: `fromFile` warnings must surface through the
+      // real processor/CLI path, not just direct class calls.
+      const legacyContent = {
+        mcpServers: { "legacy-server": { command: "node", args: ["legacy.js"] } },
+      };
+      const legacyPath = join(testDir, ".claude", ".claude.json");
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(legacyPath, JSON.stringify(legacyContent));
+
+      const logger = createMockLogger();
+      const processor = new McpProcessor({
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+        global: true,
+        logger,
+      });
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getFilePath()).toBe(legacyPath);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const warnMessage = logger.warn.mock.calls[0]?.[0] as string;
+      expect(warnMessage).toContain(legacyPath);
+      expect(warnMessage).toContain(join(testDir, ".claude.json"));
+      expect(warnMessage).toContain("deprecated");
     });
 
     it("should NOT fall back to legacy path in local mode", async () => {

@@ -2,7 +2,6 @@ import { join } from "node:path";
 
 import { ValidationResult } from "../../types/ai-file.js";
 import { fileExists, readFileContent, readOrInitializeFileContent } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -62,7 +61,7 @@ export class ClaudecodeMcp extends ToolMcp {
     validate = true,
     global = false,
     logger,
-  }: ToolMcpFromFileParams & { logger?: Logger }): Promise<ClaudecodeMcp> {
+  }: ToolMcpFromFileParams): Promise<ClaudecodeMcp> {
     const paths = this.getSettablePaths({ global });
     const recommendedPath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
 

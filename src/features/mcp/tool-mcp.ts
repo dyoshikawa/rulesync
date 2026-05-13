@@ -5,6 +5,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
+import type { Logger } from "../../utils/logger.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
 export type ToolMcpParams = AiFileParams;
@@ -19,7 +20,9 @@ export type ToolMcpFromRulesyncMcpParams = Omit<
 export type ToolMcpFromFileParams = Pick<
   AiFileFromFileParams,
   "outputRoot" | "validate" | "global"
->;
+> & {
+  logger?: Logger;
+};
 
 export type ToolMcpForDeletionParams = {
   outputRoot?: string;

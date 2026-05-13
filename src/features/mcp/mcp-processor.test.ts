@@ -221,6 +221,7 @@ describe("McpProcessor", () => {
           outputRoot: testDir,
           validate: true,
           global: false,
+          logger: expect.any(Object),
         });
       });
 
@@ -248,6 +249,7 @@ describe("McpProcessor", () => {
           outputRoot: testDir,
           validate: true,
           global: false,
+          logger: expect.any(Object),
         });
       });
 
@@ -276,6 +278,7 @@ describe("McpProcessor", () => {
           outputRoot: testDir,
           validate: true,
           global: true,
+          logger: expect.any(Object),
         });
       });
     });
@@ -305,6 +308,7 @@ describe("McpProcessor", () => {
           outputRoot: testDir,
           validate: true,
           global: false,
+          logger: expect.any(Object),
         });
       });
     });
@@ -334,6 +338,7 @@ describe("McpProcessor", () => {
           outputRoot: testDir,
           validate: true,
           global: false,
+          logger: expect.any(Object),
         });
       });
     });
@@ -363,6 +368,7 @@ describe("McpProcessor", () => {
           outputRoot: testDir,
           validate: true,
           global: false,
+          logger: expect.any(Object),
         });
       });
 
@@ -391,6 +397,7 @@ describe("McpProcessor", () => {
           outputRoot: testDir,
           validate: true,
           global: true,
+          logger: expect.any(Object),
         });
       });
     });
@@ -420,6 +427,7 @@ describe("McpProcessor", () => {
           outputRoot: testDir,
           validate: true,
           global: false,
+          logger: expect.any(Object),
         });
       });
     });
@@ -449,6 +457,7 @@ describe("McpProcessor", () => {
           outputRoot: testDir,
           validate: true,
           global: false,
+          logger: expect.any(Object),
         });
       });
 
@@ -477,6 +486,7 @@ describe("McpProcessor", () => {
           outputRoot: testDir,
           validate: true,
           global: true,
+          logger: expect.any(Object),
         });
       });
     });
@@ -505,6 +515,7 @@ describe("McpProcessor", () => {
           outputRoot: testDir,
           validate: true,
           global: true,
+          logger: expect.any(Object),
         });
       });
 
@@ -551,6 +562,7 @@ describe("McpProcessor", () => {
           outputRoot: testDir,
           validate: true,
           global: false,
+          logger: expect.any(Object),
         });
       });
     });
