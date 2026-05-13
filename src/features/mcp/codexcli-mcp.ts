@@ -17,6 +17,18 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
+const CODEX_TO_RULESYNC_FIELD_MAP: Record<string, string> = {
+  enabled_tools: "enabledTools",
+  disabled_tools: "disabledTools",
+  env_vars: "envVars",
+};
+
+const RULESYNC_TO_CODEX_FIELD_MAP: Record<string, string> = {
+  enabledTools: "enabled_tools",
+  disabledTools: "disabled_tools",
+  envVars: "env_vars",
+};
+
 const MAX_REMOVE_EMPTY_ENTRIES_DEPTH = 32;
 
 const PROTOTYPE_POLLUTION_KEYS = new Set(["__proto__", "constructor", "prototype"]);
@@ -27,12 +39,15 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return proto === null || proto === Object.prototype;
 }
 
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
 function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
   const result: McpServers = {};
 
   for (const [name, config] of Object.entries(codexMcp)) {
-    if (PROTOTYPE_POLLUTION_KEYS.has(name)) continue;
-    if (!isRecord(config)) continue;
+    if (PROTOTYPE_POLLUTION_KEYS.has(name) || !isRecord(config)) continue;
 
     const converted: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(config)) {
@@ -41,15 +56,11 @@ function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
         if (value === false) {
           converted["disabled"] = true;
         }
-      } else if (key === "enabled_tools") {
-        converted["enabledTools"] = value;
-      } else if (key === "disabled_tools") {
-        converted["disabledTools"] = value;
-      } else if (key === "env_vars") {
-        // codex stores env-var passthrough names in snake_case (`env_vars`);
-        // the rulesync source schema uses camelCase (`envVars`) for
-        // consistency with `enabledTools`/`disabledTools`/etc.
-        converted["envVars"] = value;
+      } else if (key in CODEX_TO_RULESYNC_FIELD_MAP) {
+        const mappedKey = CODEX_TO_RULESYNC_FIELD_MAP[key];
+        if (mappedKey && isStringArray(value)) {
+          converted[mappedKey] = value;
+        }
       } else {
         converted[key] = value;
       }
@@ -74,16 +85,11 @@ function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
         if (value === true) {
           converted["enabled"] = false;
         }
-      } else if (key === "enabledTools") {
-        converted["enabled_tools"] = value;
-      } else if (key === "disabledTools") {
-        converted["disabled_tools"] = value;
-      } else if (key === "envVars") {
-        // Rename camelCase source `envVars` → snake_case `env_vars`
-        // for codex's native config.toml format. See `enabledTools`
-        // precedent above. `envVars` itself is stripped from
-        // getMcpServers() so non-codex tools never receive it.
-        converted["env_vars"] = value;
+      } else if (key in RULESYNC_TO_CODEX_FIELD_MAP) {
+        const mappedKey = RULESYNC_TO_CODEX_FIELD_MAP[key];
+        if (mappedKey && isStringArray(value)) {
+          converted[mappedKey] = value;
+        }
       } else {
         converted[key] = value;
       }
@@ -170,8 +176,23 @@ export class CodexcliMcp extends ToolMcp {
 
     const configToml = smolToml.parse(configTomlFileContent);
 
-    const mcpServers = rulesyncMcp.getJson().mcpServers;
-    const converted = convertToCodexFormat(mcpServers);
+    const strippedMcpServers = rulesyncMcp.getMcpServers();
+    const rawMcpServers = rulesyncMcp.getJson().mcpServers;
+    const mcpServersWithCodexFields = Object.fromEntries(
+      Object.entries(strippedMcpServers).map(([serverName, serverConfig]) => {
+        const rawServer = isRecord(rawMcpServers) ? rawMcpServers[serverName] : undefined;
+        return [
+          serverName,
+          {
+            ...serverConfig,
+            ...(isRecord(rawServer) && isStringArray(rawServer.envVars)
+              ? { envVars: rawServer.envVars }
+              : {}),
+          },
+        ];
+      }),
+    );
+    const converted = convertToCodexFormat(mcpServersWithCodexFields);
     const filteredMcpServers = this.removeEmptyEntries(converted);
 
     for (const name of Object.keys(converted)) {
