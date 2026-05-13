@@ -5,6 +5,7 @@ import * as smolToml from "smol-toml";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { warnWithFallback } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -65,6 +66,7 @@ function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
 
   for (const [name, config] of Object.entries(mcpServers)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(name)) continue;
+    if (!isRecord(config)) continue;
     const converted: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(config)) {
       if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
@@ -174,8 +176,8 @@ export class CodexcliMcp extends ToolMcp {
 
     for (const name of Object.keys(converted)) {
       if (!Object.hasOwn(filteredMcpServers, name)) {
-        // oxlint-disable-next-line no-console
-        console.warn(
+        warnWithFallback(
+          undefined,
           `MCP server "${name}" had no non-empty configuration and was dropped from the codex CLI config`,
         );
       }
@@ -213,8 +215,8 @@ export class CodexcliMcp extends ToolMcp {
   ): Record<string, unknown> {
     if (!obj) return {};
     if (depth > MAX_REMOVE_EMPTY_ENTRIES_DEPTH) {
-      // oxlint-disable-next-line no-console
-      console.warn(
+      warnWithFallback(
+        undefined,
         `removeEmptyEntries: maximum recursion depth (${MAX_REMOVE_EMPTY_ENTRIES_DEPTH}) exceeded; empty nested objects may remain`,
       );
       return obj;

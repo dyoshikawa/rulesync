@@ -624,6 +624,127 @@ fontSize = 14
       expect(server!.args).toEqual([{}, { flag: "--verbose" }]);
     });
 
+    it("should strip prototype-pollution keys at server-name level on outbound conversion", async () => {
+      // Use JSON string so that `__proto__` becomes an own enumerable
+      // property rather than setting the prototype of the object literal.
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: `{
+          "mcpServers": {
+            "__proto__": { "command": "evil" },
+            "constructor": { "command": "evil" },
+            "prototype": { "command": "evil" },
+            "ok": { "type": "stdio", "command": "node", "args": ["server.js"] }
+          }
+        }`,
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const servers = codexcliMcp.getToml().mcp_servers as Record<string, unknown>;
+      expect(Object.hasOwn(servers, "__proto__")).toBe(false);
+      expect(Object.hasOwn(servers, "constructor")).toBe(false);
+      expect(Object.hasOwn(servers, "prototype")).toBe(false);
+      expect(Object.hasOwn(servers, "ok")).toBe(true);
+      expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    });
+
+    it("should strip prototype-pollution keys at config-key level on outbound conversion", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: `{
+          "mcpServers": {
+            "local": {
+              "type": "stdio",
+              "command": "node",
+              "args": ["server.js"],
+              "__proto__": "x",
+              "constructor": "x",
+              "prototype": "x"
+            }
+          }
+        }`,
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const server = (
+        codexcliMcp.getToml().mcp_servers as Record<string, Record<string, unknown>>
+      )?.["local"];
+      expect(server).toBeDefined();
+      expect(Object.hasOwn(server!, "__proto__")).toBe(false);
+      expect(Object.hasOwn(server!, "constructor")).toBe(false);
+      expect(Object.hasOwn(server!, "prototype")).toBe(false);
+      expect(server!.command).toBe("node");
+    });
+
+    it("should strip prototype-pollution keys in nested env via removeEmptyEntries", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: `{
+          "mcpServers": {
+            "local": {
+              "type": "stdio",
+              "command": "node",
+              "args": ["server.js"],
+              "env": { "__proto__": "x", "NODE_ENV": "production" }
+            }
+          }
+        }`,
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const server = (
+        codexcliMcp.getToml().mcp_servers as Record<string, Record<string, unknown>>
+      )?.["local"];
+      expect(server).toBeDefined();
+      const env = server!.env as Record<string, unknown>;
+      expect(Object.hasOwn(env, "__proto__")).toBe(false);
+      expect(env.NODE_ENV).toBe("production");
+    });
+
+    it("should strip prototype-pollution server-name keys on inbound conversion", () => {
+      // smol-toml installs `__proto__` as an own enumerable data property
+      // (via `Object.defineProperty`), so this round-trip exercises the
+      // `PROTOTYPE_POLLUTION_KEYS.has(name)` guard in convertFromCodexFormat.
+      const tomlContent = `[mcp_servers."__proto__"]
+command = "evil"
+
+[mcp_servers.ok]
+command = "node"
+args = ["server.js"]
+`;
+
+      const codexcliMcp = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: tomlContent,
+      });
+
+      const rulesyncMcp = codexcliMcp.toRulesyncMcp();
+      const parsed = JSON.parse(rulesyncMcp.getFileContent()) as {
+        mcpServers: Record<string, unknown>;
+      };
+      expect(Object.hasOwn(parsed.mcpServers, "__proto__")).toBe(false);
+      expect(Object.hasOwn(parsed.mcpServers, "ok")).toBe(true);
+    });
+
     it("should convert disabled: true to enabled = false in codex format", async () => {
       const jsonData = {
         mcpServers: {
