@@ -15,16 +15,33 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
+const MAX_REMOVE_EMPTY_ENTRIES_DEPTH = 32;
+const PROTOTYPE_POLLUTION_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+function isPrototypePollutionKey(key: string): boolean {
+  return PROTOTYPE_POLLUTION_KEYS.has(key);
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value) as unknown;
+  return prototype === Object.prototype || prototype === null;
+}
+
 function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
   const result: McpServers = {};
 
   for (const [name, config] of Object.entries(codexMcp)) {
-    if (typeof config !== "object" || config === null || Array.isArray(config)) {
+    if (isPrototypePollutionKey(name) || !isPlainRecord(config)) {
       continue;
     }
 
     const converted: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(config)) {
+      if (isPrototypePollutionKey(key)) continue;
+
       if (key === "enabled") {
         if (value === false) {
           converted["disabled"] = true;
@@ -49,12 +66,16 @@ function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
   return result;
 }
 
-function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
+function convertToCodexFormat(mcpServers: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, Record<string, unknown>> = {};
 
   for (const [name, config] of Object.entries(mcpServers)) {
+    if (isPrototypePollutionKey(name) || !isPlainRecord(config)) continue;
+
     const converted: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(config)) {
+      if (isPrototypePollutionKey(key)) continue;
+
       if (key === "disabled") {
         if (value === true) {
           converted["enabled"] = false;
@@ -155,8 +176,10 @@ export class CodexcliMcp extends ToolMcp {
 
     const configToml = smolToml.parse(configTomlFileContent);
 
-    const mcpServers = rulesyncMcp.getJson().mcpServers;
-    const converted = convertToCodexFormat(mcpServers);
+    const rulesyncMcpServers = rulesyncMcp.getJson().mcpServers;
+    const converted = convertToCodexFormat(
+      isPlainRecord(rulesyncMcpServers) ? rulesyncMcpServers : {},
+    );
     const filteredMcpServers = this.removeEmptyEntries(converted);
 
     // eslint-disable-next-line no-type-assertion/no-type-assertion
@@ -187,12 +210,23 @@ export class CodexcliMcp extends ToolMcp {
 
   private static removeEmptyEntries(
     obj: Record<string, unknown> | undefined,
+    depth = 0,
   ): Record<string, unknown> {
     if (!obj) return {};
 
     const filtered: Record<string, unknown> = {};
 
+    if (depth >= MAX_REMOVE_EMPTY_ENTRIES_DEPTH) {
+      for (const [key, value] of Object.entries(obj)) {
+        if (isPrototypePollutionKey(key) || value === null) continue;
+        filtered[key] = value;
+      }
+      return filtered;
+    }
+
     for (const [key, value] of Object.entries(obj)) {
+      if (isPrototypePollutionKey(key)) continue;
+
       // Skip null values
       if (value === null) continue;
 
@@ -202,10 +236,10 @@ export class CodexcliMcp extends ToolMcp {
       // remote (sse/http/streamable_http) transports with:
       //   "env is not supported for streamable_http"
       // Arrays are preserved verbatim, including empty ones, since an
-      // empty array can be a meaningful explicit override.
-      if (typeof value === "object" && !Array.isArray(value)) {
-        // eslint-disable-next-line no-type-assertion/no-type-assertion
-        const cleaned = this.removeEmptyEntries(value as Record<string, unknown>);
+      // empty array can be a meaningful explicit override. Array elements
+      // are not recursed into.
+      if (isPlainRecord(value)) {
+        const cleaned = this.removeEmptyEntries(value, depth + 1);
         if (Object.keys(cleaned).length === 0) continue;
         filtered[key] = cleaned;
         continue;
