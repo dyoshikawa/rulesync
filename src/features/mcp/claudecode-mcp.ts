@@ -90,7 +90,7 @@ export class ClaudecodeMcp extends ToolMcp {
       );
       if (await fileExists(legacyPath)) {
         logger?.warn(
-          `⚠️  Using deprecated path "${legacyPath}". Please migrate to "${recommendedPath}"`,
+          `Warning: using deprecated path "${legacyPath}". Please migrate to "${recommendedPath}"`,
         );
         const fileContent = await readFileContent(legacyPath);
         const json = JSON.parse(fileContent);
@@ -151,7 +151,7 @@ export class ClaudecodeMcp extends ToolMcp {
 
   toRulesyncMcp(): RulesyncMcp {
     return this.toRulesyncMcpDefault({
-      fileContent: JSON.stringify({ mcpServers: this.json.mcpServers }, null, 2),
+      fileContent: JSON.stringify({ mcpServers: this.json.mcpServers ?? {} }, null, 2),
     });
   }
 

@@ -40,7 +40,7 @@ export abstract class ToolMcp extends ToolFile {
   constructor({ ...rest }: ToolMcpParams) {
     super({
       ...rest,
-      validate: true, // Skip validation during construction
+      validate: true, // ToolMcp runs subclass validation below when requested
     });
 
     // Validate after setting patterns, if validation was requested
