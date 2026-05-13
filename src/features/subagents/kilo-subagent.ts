@@ -50,7 +50,16 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
     const kiloFrontmatter: KiloSubagentFrontmatter = {
       ...kiloSection,
       description: rulesyncFrontmatter.description,
-      mode: typeof kiloSection.mode === "string" ? kiloSection.mode : "subagent",
+      // Kilo CLI's documented default for user-defined agents is "all"
+      // (available both as a top-level pick AND as a subagent). See
+      // https://kilocode.ai/docs/customize/custom-modes — "mode" reference:
+      //   all — Available both as a top-level pick and as a subagent
+      //         (default for user-defined agents).
+      // Previously this defaulted to "subagent", which hid generated
+      // agents from Kilo's agent picker. The explicit `kilo.mode` override
+      // in source frontmatter still wins, so users wanting subagent-only
+      // can opt in with `kilo: { mode: subagent }`.
+      mode: typeof kiloSection.mode === "string" ? kiloSection.mode : "all",
       ...(rulesyncFrontmatter.name && { name: rulesyncFrontmatter.name }),
     };
 
