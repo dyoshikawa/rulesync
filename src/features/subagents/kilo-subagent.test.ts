@@ -100,7 +100,7 @@ describe("KiloSubagent", () => {
   it("should build Kilo subagent with default mode 'all' when not specified", () => {
     // Kilo's documented default for user-defined agents is `all` (available
     // both as a top-level pick AND as a subagent). See:
-    // https://kilocode.ai/docs/customize/custom-modes
+    // https://kilo.ai/docs/customize/custom-modes
     // Previously rulesync defaulted to "subagent", which hid generated
     // agents from the Kilo agent picker.
     const rulesyncSubagent = new RulesyncSubagent({
@@ -165,10 +165,7 @@ describe("KiloSubagent", () => {
     expect(toolSubagent.getFrontmatter().mode).toBe("subagent");
   });
 
-  it("should honour explicit kilo.mode = 'all' override (matches default)", () => {
-    // Symmetry test: explicit `kilo.mode: all` matches the new default but
-    // is a valid explicit value. Guards against any future regression
-    // where the defaulting logic accidentally overrides user intent.
+  it("should preserve explicit kilo.mode = 'all' with other Kilo-specific fields", () => {
     const rulesyncSubagent = new RulesyncSubagent({
       outputRoot: testDir,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -179,6 +176,7 @@ describe("KiloSubagent", () => {
         description: "Explicitly all mode",
         kilo: {
           mode: "all",
+          temperature: 0.4,
         },
       },
       body: "Body",
@@ -192,7 +190,10 @@ describe("KiloSubagent", () => {
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
     }) as KiloSubagent;
 
-    expect(toolSubagent.getFrontmatter().mode).toBe("all");
+    expect(toolSubagent.getFrontmatter()).toMatchObject({
+      mode: "all",
+      temperature: 0.4,
+    });
   });
 
   it("should preserve primary mode for Kilo subagent", () => {
@@ -268,7 +269,7 @@ Assist with any tasks`,
     expect(result.success).toBe(true);
   });
 
-  it("should apply default mode 'subagent' when mode is omitted", async () => {
+  it("should apply default mode 'all' when mode is omitted", async () => {
     const dirPath = join(testDir, ".kilo", "agent");
     const filePath = join(dirPath, "no-mode.md");
 
@@ -285,7 +286,7 @@ Body content`,
       relativeFilePath: "no-mode.md",
     });
 
-    expect(subagent.getFrontmatter().mode).toBe("subagent");
+    expect(subagent.getFrontmatter().mode).toBe("all");
   });
 
   it("should preserve custom mode value when explicitly set", async () => {
