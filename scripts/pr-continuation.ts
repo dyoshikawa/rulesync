@@ -1,12 +1,31 @@
 // oxlint-disable no-console
 
 // Maintainer helper: continue work on a contributor's PR from a fork.
-// SECURITY NOTE: This script fetches the PR head and pushes it to a branch on
-// the configured remote (default: origin). When the remote is this repository,
-// that branch is treated as an in-repo branch by GitHub Actions and may receive
-// repository secrets via push / same-repo pull_request events. Always review
-// the PR diff, package scripts (postinstall, etc.), and `.github/workflows/*`
-// changes BEFORE running this script.
+//
+// PREREQUISITE: The final step calls `git gtr new`, which is NOT a Git
+// built-in. It resolves to `git-gtr`, the binary shipped by
+// dyoshikawa/git-worktree-runner, and must be available on PATH. If it is
+// missing, the script will fail at the last step with
+// `git: 'gtr' is not a git command`.
+//
+// SECURITY NOTE: Pushing a contributor's commits to a branch on this repo
+// turns those commits into in-repo, "trusted" code from the GitHub Actions
+// perspective. Same-repo `push` / `pull_request` events expose a wider
+// `GITHUB_TOKEN` permission set (and any workflow `secrets.*`) than fork PRs
+// receive. Before running this script against a fork PR, review the PR diff
+// for any change that could be weaponized once the code runs as an in-repo
+// branch:
+//   - `.github/workflows/**`     (workflow definitions, triggers, permissions)
+//   - `.github/actions/**`       (composite / local actions)
+//   - `package.json` fields:     `scripts` (postinstall / prepare /
+//                                prepublishOnly / etc.), `trustedDependencies`,
+//                                `simple-git-hooks`
+//   - `pnpm-workspace.yaml`      (`allowBuilds` entries — re-enabling a
+//                                postinstall opens a code-execution path)
+//   - `vitest.config.*`, `tsup.config.*`, `eslint.config.*`, `scripts/**`
+//   - Test files that import/execute shell commands or write to the filesystem
+// When in doubt, check out the PR locally in a sandbox first and inspect what
+// runs during `pnpm install`, `pnpm test`, and `pnpm build`.
 
 import { simpleGit, type SimpleGit } from "simple-git";
 
