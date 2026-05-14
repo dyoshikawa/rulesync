@@ -5,6 +5,8 @@ import * as smolToml from "smol-toml";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { warnWithFallback } from "../../utils/logger.js";
+import { isRecord } from "../../utils/type-guards.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -15,16 +17,26 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
+const MAX_REMOVE_EMPTY_ENTRIES_DEPTH = 32;
+
+const PROTOTYPE_POLLUTION_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === null || proto === Object.prototype;
+}
+
 function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
   const result: McpServers = {};
 
   for (const [name, config] of Object.entries(codexMcp)) {
-    if (typeof config !== "object" || config === null || Array.isArray(config)) {
-      continue;
-    }
+    if (PROTOTYPE_POLLUTION_KEYS.has(name)) continue;
+    if (!isRecord(config)) continue;
 
     const converted: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(config)) {
+      if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
       if (key === "enabled") {
         if (value === false) {
           converted["disabled"] = true;
@@ -53,8 +65,11 @@ function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
   const result: Record<string, Record<string, unknown>> = {};
 
   for (const [name, config] of Object.entries(mcpServers)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(name)) continue;
+    if (!isRecord(config)) continue;
     const converted: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(config)) {
+      if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
       if (key === "disabled") {
         if (value === true) {
           converted["enabled"] = false;
@@ -159,6 +174,15 @@ export class CodexcliMcp extends ToolMcp {
     const converted = convertToCodexFormat(mcpServers);
     const filteredMcpServers = this.removeEmptyEntries(converted);
 
+    for (const name of Object.keys(converted)) {
+      if (!Object.hasOwn(filteredMcpServers, name)) {
+        warnWithFallback(
+          undefined,
+          `MCP server "${name}" had no non-empty configuration and was dropped from the codex CLI config`,
+        );
+      }
+    }
+
     // eslint-disable-next-line no-type-assertion/no-type-assertion
     configToml["mcp_servers"] = filteredMcpServers as smolToml.TomlTable;
 
@@ -187,12 +211,21 @@ export class CodexcliMcp extends ToolMcp {
 
   private static removeEmptyEntries(
     obj: Record<string, unknown> | undefined,
+    depth = 0,
   ): Record<string, unknown> {
     if (!obj) return {};
+    if (depth > MAX_REMOVE_EMPTY_ENTRIES_DEPTH) {
+      warnWithFallback(
+        undefined,
+        `removeEmptyEntries: maximum recursion depth (${MAX_REMOVE_EMPTY_ENTRIES_DEPTH}) exceeded; empty nested objects may remain`,
+      );
+      return obj;
+    }
 
     const filtered: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(obj)) {
+      if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
       // Skip null values
       if (value === null) continue;
 
@@ -201,11 +234,12 @@ export class CodexcliMcp extends ToolMcp {
       // empty `[mcp_servers.X.env]` header, which codex CLI rejects for
       // remote (sse/http/streamable_http) transports with:
       //   "env is not supported for streamable_http"
-      // Arrays are preserved verbatim, including empty ones, since an
-      // empty array can be a meaningful explicit override.
-      if (typeof value === "object" && !Array.isArray(value)) {
-        // eslint-disable-next-line no-type-assertion/no-type-assertion
-        const cleaned = this.removeEmptyEntries(value as Record<string, unknown>);
+      // Arrays are preserved verbatim — individual array elements are not
+      // recursed into because an empty inline table like `[{}, "a"]` in
+      // TOML differs from a table header `[mcp_servers.X.env]` that codex
+      // CLI rejects. Only plain objects trigger the recursive strip.
+      if (isPlainObject(value)) {
+        const cleaned = this.removeEmptyEntries(value, depth + 1);
         if (Object.keys(cleaned).length === 0) continue;
         filtered[key] = cleaned;
         continue;
