@@ -215,7 +215,13 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
       class: KiloMcp,
       meta: {
         supportsProject: true,
-        supportsGlobal: false,
+        // Kilo CLI reads global MCP from `~/.config/kilo/kilo.json` (or
+        // `kilo.jsonc`). The path machinery in `KiloMcp.getSettablePaths`
+        // already routes global mode to that location; only this flag
+        // was gating it off. Kilo is an OpenCode fork and uses an
+        // identical native MCP schema, so global parity with opencode
+        // is the natural state.
+        supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
       },
