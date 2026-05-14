@@ -144,7 +144,7 @@ You are a primary agent. You appear in the Tab rotation.
     const testDir = getTestDir();
 
     // Kilo's documented default for user-defined agents is `all`
-    // (https://kilocode.ai/docs/customize/custom-modes). Rulesync must
+    // (https://kilo.ai/docs/customize/custom-modes). Rulesync must
     // emit `mode: all` when source frontmatter has no `kilo.mode`,
     // otherwise generated agents are hidden from Kilo's agent picker.
     const subagentContent = `---

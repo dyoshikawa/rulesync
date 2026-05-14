@@ -235,6 +235,8 @@ opencode: # for OpenCode-specific parameters
   permission:
     bash:
       "git diff": allow
+kilo: # for Kilo-specific parameters
+  mode: all # (optional, defaults to "all") use "subagent" for hidden/subagent-only agents
 takt: # takt specific parameters (optional; emitted under .takt/facets/personas/)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
 ---
@@ -247,6 +249,8 @@ Attention, again, you are just the planner, so though you can read any files and
 ```
 
 > **Gemini CLI note (as of 2026-04-01):** Subagents are generated to `.gemini/agents/`. To enable the agents feature, set `"experimental": { "enableAgents": true }` in your `.gemini/settings.json`.
+
+> **Kilo note (as of 2026-05-13):** Kilo's documented default for user-defined agents is `mode: all`, which makes the agent available both as a top-level pick and as a subagent. Set `kilo.mode: subagent` to opt into hidden/subagent-only behavior.
 
 ## `.rulesync/skills/*/SKILL.md`
 

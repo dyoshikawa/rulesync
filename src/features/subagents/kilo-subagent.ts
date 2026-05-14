@@ -1,15 +1,12 @@
 import { join } from "node:path";
 
+import { z } from "zod/mini";
+
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
-import {
-  OpenCodeStyleSubagent,
-  OpenCodeStyleSubagentFrontmatter,
-  OpenCodeStyleSubagentFrontmatterSchema,
-  OpenCodeStyleSubagentParams,
-} from "./opencode-style-subagent.js";
+import { OpenCodeStyleSubagent, OpenCodeStyleSubagentParams } from "./opencode-style-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
@@ -19,8 +16,14 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
-export const KiloSubagentFrontmatterSchema = OpenCodeStyleSubagentFrontmatterSchema;
-export type KiloSubagentFrontmatter = OpenCodeStyleSubagentFrontmatter;
+export const KiloSubagentFrontmatterSchema = z.looseObject({
+  description: z.optional(z.string()),
+  // Kilo's documented default for user-defined agents is "all":
+  // available both as a top-level pick and as a subagent.
+  mode: z._default(z.string(), "all"),
+  name: z.optional(z.string()),
+});
+export type KiloSubagentFrontmatter = z.infer<typeof KiloSubagentFrontmatterSchema>;
 export type KiloSubagentParams = OpenCodeStyleSubagentParams;
 
 export class KiloSubagent extends OpenCodeStyleSubagent {
@@ -47,21 +50,11 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const kiloSection = rulesyncFrontmatter.kilo ?? {};
 
-    const kiloFrontmatter: KiloSubagentFrontmatter = {
+    const kiloFrontmatter: KiloSubagentFrontmatter = KiloSubagentFrontmatterSchema.parse({
       ...kiloSection,
       description: rulesyncFrontmatter.description,
-      // Kilo CLI's documented default for user-defined agents is "all"
-      // (available both as a top-level pick AND as a subagent). See
-      // https://kilocode.ai/docs/customize/custom-modes — "mode" reference:
-      //   all — Available both as a top-level pick and as a subagent
-      //         (default for user-defined agents).
-      // Previously this defaulted to "subagent", which hid generated
-      // agents from Kilo's agent picker. The explicit `kilo.mode` override
-      // in source frontmatter still wins, so users wanting subagent-only
-      // can opt in with `kilo: { mode: subagent }`.
-      mode: typeof kiloSection.mode === "string" ? kiloSection.mode : "all",
       ...(rulesyncFrontmatter.name && { name: rulesyncFrontmatter.name }),
-    };
+    });
 
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, kiloFrontmatter);
@@ -118,15 +111,17 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolSubagentForDeletionParams): KiloSubagent {
     return new KiloSubagent({
       outputRoot,
       relativeDirPath,
       relativeFilePath,
-      frontmatter: { description: "", mode: "subagent" },
+      frontmatter: { description: "", mode: "all" },
       body: "",
       fileContent: "",
       validate: false,
+      global,
     });
   }
 }
