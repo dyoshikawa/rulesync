@@ -1,1 +1,6 @@
+allowBuilds:
+  "@openrouter/sdk": false
+  esbuild: false
+  simple-git-hooks: false
+  tldjs: false
 minimumReleaseAge: 1440 # 1 day
