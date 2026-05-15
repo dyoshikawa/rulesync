@@ -5,7 +5,7 @@ import { z } from "zod/mini";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
+import { readFileContent, toPosixPath } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
@@ -48,12 +48,18 @@ export type CopilotRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal & {
   };
 };
 
-const normalizeRelativePath = (path: string): string =>
-  path.replace(/\\/g, "/").replace(/\/+/g, "/");
+// toPosixPath converts backslashes to forward slashes so paths compare equally
+// on Windows and POSIX. The extra slash collapse covers a WSL/mixed-separator
+// edge case where `node:path/posix.join` keeps a literal backslash inside an
+// input segment (e.g. ".github\\") and produces ".github//instructions/x.md"
+// after the backslash is rewritten.
+const normalizeRelativePath = (p: string): string => toPosixPath(p).replace(/\/+/g, "/");
 
-const sameRelativePath = (leftDir: string, leftFile: string, rightDir: string, rightFile: string) =>
-  normalizeRelativePath(join(leftDir, leftFile)) ===
-  normalizeRelativePath(join(rightDir, rightFile));
+type RelativePathParts = { dir: string; file: string };
+
+const sameRelativePath = (left: RelativePathParts, right: RelativePathParts): boolean =>
+  normalizeRelativePath(join(left.dir, left.file)) ===
+  normalizeRelativePath(join(right.dir, right.file));
 
 /**
  * Rule generator for GitHub Copilot
@@ -217,10 +223,8 @@ export class CopilotRule extends ToolRule {
     const paths = this.getSettablePaths({ global });
     const isRoot = relativeDirPath
       ? sameRelativePath(
-          relativeDirPath,
-          relativeFilePath,
-          paths.root.relativeDirPath,
-          paths.root.relativeFilePath,
+          { dir: relativeDirPath, file: relativeFilePath },
+          { dir: paths.root.relativeDirPath, file: paths.root.relativeFilePath },
         )
       : relativeFilePath === paths.root.relativeFilePath;
     const resolvedRelativeDirPath =
@@ -282,10 +286,8 @@ export class CopilotRule extends ToolRule {
   }: ToolRuleForDeletionParams): CopilotRule {
     const paths = this.getSettablePaths({ global });
     const isRoot = sameRelativePath(
-      relativeDirPath,
-      relativeFilePath,
-      paths.root.relativeDirPath,
-      paths.root.relativeFilePath,
+      { dir: relativeDirPath, file: relativeFilePath },
+      { dir: paths.root.relativeDirPath, file: paths.root.relativeFilePath },
     );
 
     return new CopilotRule({

@@ -796,6 +796,28 @@ description: "Test trimming"
     });
   });
 
+  describe("forDeletion", () => {
+    it("should mark root deletion target when separators are mixed", () => {
+      const copilotRule = CopilotRule.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: ".github\\",
+        relativeFilePath: "copilot-instructions.md",
+      });
+
+      expect(copilotRule.isRoot()).toBe(true);
+    });
+
+    it("should treat non-root paths as non-root even with mixed separators", () => {
+      const copilotRule = CopilotRule.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: ".github\\instructions",
+        relativeFilePath: "feature.instructions.md",
+      });
+
+      expect(copilotRule.isRoot()).toBe(false);
+    });
+  });
+
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
       const copilotRule = new CopilotRule({
