@@ -270,10 +270,10 @@ claudecode: # for claudecode-specific parameters
     - "Write"
     - "Grep"
   disable-model-invocation: true # (optional) disable model invocation for this skill
-  scheduled-task: true # (optional) emit to .claude/scheduled-tasks/<name>/SKILL.md instead of .claude/skills/<name>/SKILL.md
   paths: # (optional) glob patterns (string or list) limiting auto-activation
     - "src/**/*.ts"
     - "test/**/*.ts"
+  scheduled-task: true # (optional) emit to .claude/scheduled-tasks/<name>/SKILL.md instead of .claude/skills/<name>/SKILL.md
 codexcli: # for codexcli-specific parameters
   short-description: A brief user-facing description
 takt: # takt specific parameters (optional; emitted under .takt/facets/knowledge/ — frontmatter is dropped on emit)
