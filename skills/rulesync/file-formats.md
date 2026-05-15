@@ -296,6 +296,8 @@ Skills are directory-based and can include additional files alongside SKILL.md.
 When `claudecode.scheduled-task: true` is set, that skill is emitted only as a Claude Code scheduled task and is not emitted to other tools even if `targets` contains `"*"`.
 ```
 
+`claudecode.paths` accepts either the YAML list shown above or a comma-separated string (e.g. `paths: "src/**/*.ts,test/**/*.ts"`); the two forms are equivalent.
+
 ## `.rulesync/mcp.json`
 
 Example:
