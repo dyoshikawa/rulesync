@@ -390,6 +390,45 @@ describe("ClaudecodeSkill", () => {
       });
     });
 
+    it("should preserve an empty paths string through toRulesyncSkill", () => {
+      const frontmatter: ClaudecodeSkillFrontmatter = {
+        name: "empty-paths-string-skill",
+        description: "Skill with an empty comma-separated paths string",
+        paths: "",
+      };
+
+      const skill = new ClaudecodeSkill({
+        dirName: "empty-paths-string-skill",
+        frontmatter,
+        body: "Empty paths string body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+
+      // Empty string is a defined value, so the spread keeps it in the output.
+      expect(rulesyncFrontmatter.claudecode).toEqual({ paths: "" });
+    });
+
+    it("should preserve an empty paths array through toRulesyncSkill", () => {
+      const frontmatter: ClaudecodeSkillFrontmatter = {
+        name: "empty-paths-array-skill",
+        description: "Skill with an empty paths array",
+        paths: [],
+      };
+
+      const skill = new ClaudecodeSkill({
+        dirName: "empty-paths-array-skill",
+        frontmatter,
+        body: "Empty paths array body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+
+      expect(rulesyncFrontmatter.claudecode).toEqual({ paths: [] });
+    });
+
     it("should preserve other files during conversion", () => {
       const frontmatter: ClaudecodeSkillFrontmatter = {
         name: "test-skill",
@@ -900,6 +939,52 @@ Global skill content.`;
       });
 
       expect(skill.getGlobal()).toBe(true);
+    });
+
+    it("should load skill with paths as YAML list", async () => {
+      const skillDir = join(testDir, ".claude", "skills", "paths-list-skill");
+      await ensureDir(skillDir);
+
+      const content = `---
+name: paths-list-skill
+description: Skill with paths list
+paths:
+  - "src/**/*.ts"
+  - "test/**/*.ts"
+---
+
+This skill has YAML-list path globs.`;
+
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), content);
+
+      const skill = await ClaudecodeSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "paths-list-skill",
+      });
+
+      expect(skill.getFrontmatter().paths).toEqual(["src/**/*.ts", "test/**/*.ts"]);
+    });
+
+    it("should load skill with paths as comma-separated string", async () => {
+      const skillDir = join(testDir, ".claude", "skills", "paths-string-skill");
+      await ensureDir(skillDir);
+
+      const content = `---
+name: paths-string-skill
+description: Skill with paths string
+paths: "src/**/*.ts,test/**/*.ts"
+---
+
+This skill has a comma-separated paths string.`;
+
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), content);
+
+      const skill = await ClaudecodeSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "paths-string-skill",
+      });
+
+      expect(skill.getFrontmatter().paths).toBe("src/**/*.ts,test/**/*.ts");
     });
   });
 
