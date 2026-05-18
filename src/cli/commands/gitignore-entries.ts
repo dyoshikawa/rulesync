@@ -203,6 +203,10 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   // Keep this after ignore entries like "**/.aiignore" so the exception remains effective.
   { target: "common", feature: "general", entry: "!.rulesync/.aiignore" },
 
+  // AMP
+  { target: "amp", feature: "mcp", entry: "**/.amp/settings.json" },
+  { target: "amp", feature: "mcp", entry: "**/.amp/settings.jsonc" },
+
   // OpenCode
   { target: "opencode", feature: "commands", entry: "**/.opencode/command/" },
   { target: "opencode", feature: "subagents", entry: "**/.opencode/agent/" },

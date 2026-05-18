@@ -14,6 +14,7 @@ describe("tool targets", () => {
       const expectedTargets = [
         "agentsmd",
         "agentsskills",
+        "amp",
         "antigravity",
         "augmentcode",
         "augmentcode-legacy",

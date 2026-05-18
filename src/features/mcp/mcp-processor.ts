@@ -7,6 +7,7 @@ import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
+import { AmpMcp } from "./amp-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
@@ -36,6 +37,7 @@ import {
  * Using a tuple to preserve order for consistent iteration.
  */
 const mcpProcessorToolTargetTuple = [
+  "amp",
   "claudecode",
   "claudecode-legacy",
   "cline",
@@ -89,6 +91,18 @@ type ToolMcpFactory = {
  * Using Map to preserve insertion order for consistent iteration.
  */
 const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
+  [
+    "amp",
+    {
+      class: AmpMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
   [
     "claudecode",
     {

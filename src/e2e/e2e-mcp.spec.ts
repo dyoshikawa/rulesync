@@ -19,6 +19,7 @@ describe("E2E: mcp", () => {
   const { getTestDir } = useTestDirectory();
 
   it.each([
+    { target: "amp", outputPath: join(".amp", "settings.jsonc") },
     { target: "claudecode", outputPath: ".mcp.json" },
     { target: "cursor", outputPath: join(".cursor", "mcp.json") },
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
