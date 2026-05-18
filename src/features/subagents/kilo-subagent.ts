@@ -1,15 +1,12 @@
 import { join } from "node:path";
 
+import { z } from "zod/mini";
+
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
-import {
-  OpenCodeStyleSubagent,
-  OpenCodeStyleSubagentFrontmatter,
-  OpenCodeStyleSubagentFrontmatterSchema,
-  OpenCodeStyleSubagentParams,
-} from "./opencode-style-subagent.js";
+import { OpenCodeStyleSubagent, OpenCodeStyleSubagentParams } from "./opencode-style-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
@@ -19,13 +16,39 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
-export const KiloSubagentFrontmatterSchema = OpenCodeStyleSubagentFrontmatterSchema;
-export type KiloSubagentFrontmatter = OpenCodeStyleSubagentFrontmatter;
-export type KiloSubagentParams = OpenCodeStyleSubagentParams;
+export const KiloSubagentFrontmatterSchema = z.looseObject({
+  description: z.optional(z.string()),
+  mode: z._default(z.string(), "subagent"),
+  name: z.optional(z.string()),
+  displayName: z.optional(z.string()),
+  deprecated: z.optional(z.boolean()),
+  native: z.optional(z.boolean()),
+  hidden: z.optional(z.boolean()),
+  top_p: z.optional(z.number()),
+  temperature: z.optional(z.number()),
+  color: z.optional(z.string()),
+  permission: z.optional(z.string()),
+  model: z.optional(z.string()),
+  variant: z.optional(z.string()),
+  prompt: z.optional(z.string()),
+  options: z.optional(z.looseObject({})),
+  steps: z.optional(z.array(z.looseObject({}))),
+  disable: z.optional(z.boolean()),
+});
+export type KiloSubagentFrontmatter = z.infer<typeof KiloSubagentFrontmatterSchema>;
+export type KiloSubagentParams = Omit<OpenCodeStyleSubagentParams, "frontmatter"> & {
+  frontmatter: KiloSubagentFrontmatter;
+};
 
 export class KiloSubagent extends OpenCodeStyleSubagent {
+  declare protected readonly frontmatter: KiloSubagentFrontmatter;
+
   protected getToolTarget(): Extract<ToolTarget, "opencode" | "kilo"> {
     return "kilo";
+  }
+
+  getFrontmatter(): KiloSubagentFrontmatter {
+    return this.frontmatter;
   }
 
   static getSettablePaths({
