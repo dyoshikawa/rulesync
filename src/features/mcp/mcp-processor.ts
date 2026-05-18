@@ -396,6 +396,7 @@ export class McpProcessor extends FeatureProcessor {
           outputRoot: this.outputRoot,
           validate: true,
           global: this.global,
+          logger: this.logger,
         }),
       ];
       this.logger.debug(`Successfully loaded ${toolMcps.length} ${this.toolTarget} MCP files`);
