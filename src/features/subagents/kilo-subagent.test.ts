@@ -97,7 +97,12 @@ describe("KiloSubagent", () => {
     expect(toolSubagent.getRelativeDirPath()).toBe(join(".config", "kilo", "agent"));
   });
 
-  it("should build Kilo subagent with default mode when not specified", () => {
+  it("should build Kilo subagent with default mode 'all' when not specified", () => {
+    // Kilo's documented default for user-defined agents is `all` (available
+    // both as a top-level pick AND as a subagent). See:
+    // https://kilo.ai/docs/customize/custom-modes
+    // Previously rulesync defaulted to "subagent", which hid generated
+    // agents from the Kilo agent picker.
     const rulesyncSubagent = new RulesyncSubagent({
       outputRoot: testDir,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -126,9 +131,69 @@ describe("KiloSubagent", () => {
       name: "docs-writer",
       description: "Writes documentation",
       model: "model-x",
-      mode: "subagent",
+      mode: "all",
     });
     expect(toolSubagent.getRelativeDirPath()).toBe(join(".config", "kilo", "agent"));
+  });
+
+  it("should still honour explicit kilo.mode = 'subagent' override", () => {
+    // Users who want the old behavior (hidden, subagent-only) can opt in
+    // by setting `kilo: { mode: subagent }` in source frontmatter.
+    const rulesyncSubagent = new RulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      relativeFilePath: "hidden-helper.md",
+      frontmatter: {
+        targets: ["kilo"],
+        name: "hidden-helper",
+        description: "Subagent-only helper",
+        kilo: {
+          mode: "subagent",
+        },
+      },
+      body: "Body",
+      validate: false,
+    });
+
+    const toolSubagent = KiloSubagent.fromRulesyncSubagent({
+      rulesyncSubagent,
+      global: true,
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+    }) as KiloSubagent;
+
+    expect(toolSubagent.getFrontmatter().mode).toBe("subagent");
+  });
+
+  it("should preserve explicit kilo.mode = 'all' with other Kilo-specific fields", () => {
+    const rulesyncSubagent = new RulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      relativeFilePath: "explicit-all.md",
+      frontmatter: {
+        targets: ["kilo"],
+        name: "explicit-all",
+        description: "Explicitly all mode",
+        kilo: {
+          mode: "all",
+          temperature: 0.4,
+        },
+      },
+      body: "Body",
+      validate: false,
+    });
+
+    const toolSubagent = KiloSubagent.fromRulesyncSubagent({
+      rulesyncSubagent,
+      global: true,
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+    }) as KiloSubagent;
+
+    expect(toolSubagent.getFrontmatter()).toMatchObject({
+      mode: "all",
+      temperature: 0.4,
+    });
   });
 
   it("should preserve primary mode for Kilo subagent", () => {
@@ -204,7 +269,7 @@ Assist with any tasks`,
     expect(result.success).toBe(true);
   });
 
-  it("should apply default mode 'subagent' when mode is omitted", async () => {
+  it("should apply default mode 'all' when mode is omitted", async () => {
     const dirPath = join(testDir, ".kilo", "agent");
     const filePath = join(dirPath, "no-mode.md");
 
@@ -221,7 +286,7 @@ Body content`,
       relativeFilePath: "no-mode.md",
     });
 
-    expect(subagent.getFrontmatter().mode).toBe("subagent");
+    expect(subagent.getFrontmatter().mode).toBe("all");
   });
 
   it("should preserve custom mode value when explicitly set", async () => {

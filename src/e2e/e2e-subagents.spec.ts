@@ -140,6 +140,61 @@ You are a primary agent. You appear in the Tab rotation.
     expect(generatedContent).toContain("A primary mode agent");
   });
 
+  it("should default kilo.mode to 'all' when omitted in source", async () => {
+    const testDir = getTestDir();
+
+    // Kilo's documented default for user-defined agents is `all`
+    // (https://kilo.ai/docs/customize/custom-modes). Rulesync must
+    // emit `mode: all` when source frontmatter has no `kilo.mode`,
+    // otherwise generated agents are hidden from Kilo's agent picker.
+    const subagentContent = `---
+name: planner
+targets: ["*"]
+description: "Plans implementation tasks"
+---
+You are the planner. Analyze files and create a plan.
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+      subagentContent,
+    );
+
+    await runGenerate({ target: "kilo", features: "subagents" });
+
+    const generatedContent = await readFileContent(join(testDir, ".kilo", "agent", "planner.md"));
+    expect(generatedContent).toContain("mode: all");
+    expect(generatedContent).not.toContain("mode: subagent");
+    expect(generatedContent).toContain("Analyze files and create a plan.");
+  });
+
+  it("should preserve explicit kilo.mode: subagent override", async () => {
+    const testDir = getTestDir();
+
+    // Users who want the previous (hidden) behavior can opt back in by
+    // explicitly setting `kilo.mode: subagent` in source frontmatter.
+    const subagentContent = `---
+name: hidden-helper
+targets: ["*"]
+description: "A subagent-only helper"
+kilo:
+  mode: subagent
+---
+You are a subagent-only helper.
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "hidden-helper.md"),
+      subagentContent,
+    );
+
+    await runGenerate({ target: "kilo", features: "subagents" });
+
+    const generatedContent = await readFileContent(
+      join(testDir, ".kilo", "agent", "hidden-helper.md"),
+    );
+    expect(generatedContent).toContain("mode: subagent");
+    expect(generatedContent).not.toContain("mode: all");
+  });
+
   it.each([
     { target: "claudecode", orphanPath: join(".claude", "agents", "orphan.md") },
     { target: "cursor", orphanPath: join(".cursor", "agents", "orphan.md") },

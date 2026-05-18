@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
@@ -19,7 +19,7 @@ import {
 
 export const KiloSubagentFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
-  mode: z._default(z.string(), "subagent"),
+  mode: z._default(z.string(), "all"),
   name: z.optional(z.string()),
   displayName: z.optional(z.string()),
   deprecated: z.optional(z.boolean()),
@@ -88,7 +88,7 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
     const kiloFrontmatter: KiloSubagentFrontmatter = KiloSubagentFrontmatterSchema.parse({
       ...kiloSection,
       description: rulesyncFrontmatter.description,
-      mode: typeof kiloSection.mode === "string" ? kiloSection.mode : "subagent",
+      mode: typeof kiloSection.mode === "string" ? kiloSection.mode : "all",
       ...(rulesyncFrontmatter.name && { name: rulesyncFrontmatter.name }),
     });
 
@@ -153,7 +153,7 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
       outputRoot,
       relativeDirPath,
       relativeFilePath,
-      frontmatter: { description: "", mode: "subagent" },
+      frontmatter: { description: "", mode: "all" },
       body: "",
       fileContent: "",
       validate: false,

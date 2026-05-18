@@ -5,7 +5,7 @@ import { setTimeout } from "node:timers/promises";
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_MCP_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
-import { readFileContent, writeFileContent } from "../utils/file.js";
+import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
   runGenerate,
   runImport,
@@ -221,7 +221,7 @@ describe("E2E: mcp (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
 
   it.each([
-    { target: "claudecode", outputPath: join(".claude", ".claude.json") },
+    { target: "claudecode", outputPath: ".claude.json" },
     { target: "cursor", outputPath: join(".cursor", "mcp.json") },
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
     { target: "opencode", outputPath: join(".config", "opencode", "opencode.jsonc") },
@@ -230,6 +230,7 @@ describe("E2E: mcp (global mode)", () => {
     { target: "deepagents", outputPath: join(".deepagents", ".mcp.json") },
     { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
     { target: "rovodev", outputPath: join(".rovodev", "mcp.json") },
+    { target: "kilo", outputPath: join(".config", "kilo", "kilo.jsonc") },
   ])("should generate $target mcp in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
@@ -264,6 +265,78 @@ describe("E2E: mcp (global mode)", () => {
     // Verify that the expected output file was generated and contains the server
     const generatedContent = await readFileContent(join(homeDir, outputPath));
     expect(generatedContent).toContain("test-server");
+  });
+
+  it("should preserve legacy ~/.claude/.claude.json when writing to recommended path (global)", async () => {
+    // Pins both behaviors end-to-end: (a) canonical ~/.claude.json receives
+    // fresh mcpServers AND preserves Claude Code's own user-config keys via
+    // RMW; (b) legacy ~/.claude/.claude.json is byte-identical after
+    // generate (matches the no-destructive-action invariant from PR #333).
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    // Pre-seed the canonical ~/.claude.json with Claude Code's own keys.
+    await writeFileContent(
+      join(homeDir, ".claude.json"),
+      JSON.stringify(
+        {
+          mcpServers: { "previously-managed": { command: "node" } },
+          projects: { "/home/user/proj-a": { allowedTools: ["*"] } },
+          feedbackSurveyState: { lastShownAt: 1234567890 },
+        },
+        null,
+        2,
+      ),
+    );
+
+    // Pre-seed a legacy orphan with specific content for byte-identical check.
+    const legacyPath = join(homeDir, ".claude", ".claude.json");
+    const legacyContent = JSON.stringify(
+      { mcpServers: { "stale-server": { command: "node", args: ["stale.js"] } } },
+      null,
+      2,
+    );
+    await writeFileContent(legacyPath, legacyContent);
+
+    // Source: a fresh server in .rulesync/mcp.json.
+    const mcpContent = JSON.stringify(
+      {
+        root: true,
+        mcpServers: {
+          "test-server": {
+            description: "Test MCP server",
+            type: "stdio",
+            command: "echo",
+            args: ["hello"],
+            env: {},
+          },
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(projectDir, RULESYNC_MCP_RELATIVE_FILE_PATH), mcpContent);
+
+    await runGenerate({
+      target: "claudecode",
+      features: "mcp",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // Canonical ~/.claude.json has fresh mcpServers from rulesync and
+    // retains Claude Code's own user-config keys via RMW spread.
+    const newContent = await readFileContent(join(homeDir, ".claude.json"));
+    expect(newContent).toContain("test-server");
+    expect(newContent).not.toContain("previously-managed");
+    expect(newContent).toContain("projects");
+    expect(newContent).toContain("/home/user/proj-a");
+    expect(newContent).toContain("feedbackSurveyState");
+    expect(newContent).toContain("1234567890");
+
+    // Legacy file is preserved byte-for-byte. rulesync never modifies it.
+    expect(await fileExists(legacyPath)).toBe(true);
+    expect(await readFileContent(legacyPath)).toBe(legacyContent);
   });
 
   it("should ignore non-root mcp in global mode", async () => {
@@ -314,7 +387,7 @@ describe("E2E: mcp (global mode)", () => {
     });
 
     // Verify: root mcp content is present, non-root mcp content is absent
-    const generatedContent = await readFileContent(join(homeDir, ".claude", ".claude.json"));
+    const generatedContent = await readFileContent(join(homeDir, ".claude.json"));
     expect(generatedContent).toContain("root-server");
     expect(generatedContent).not.toContain("non-root-server");
   });
