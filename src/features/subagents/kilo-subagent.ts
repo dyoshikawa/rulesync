@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
@@ -51,6 +52,20 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
     return this.frontmatter;
   }
 
+  validate(): ValidationResult {
+    const result = KiloSubagentFrontmatterSchema.safeParse(this.frontmatter);
+    if (result.success) {
+      return { success: true, error: null };
+    }
+
+    return {
+      success: false,
+      error: new Error(
+        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
+      ),
+    };
+  }
+
   static getSettablePaths({
     global = false,
   }: {
@@ -70,12 +85,12 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const kiloSection = rulesyncFrontmatter.kilo ?? {};
 
-    const kiloFrontmatter: KiloSubagentFrontmatter = {
+    const kiloFrontmatter: KiloSubagentFrontmatter = KiloSubagentFrontmatterSchema.parse({
       ...kiloSection,
       description: rulesyncFrontmatter.description,
       mode: typeof kiloSection.mode === "string" ? kiloSection.mode : "subagent",
       ...(rulesyncFrontmatter.name && { name: rulesyncFrontmatter.name }),
-    };
+    });
 
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, kiloFrontmatter);
@@ -132,6 +147,7 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolSubagentForDeletionParams): KiloSubagent {
     return new KiloSubagent({
       outputRoot,
@@ -141,6 +157,7 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
       body: "",
       fileContent: "",
       validate: false,
+      global,
     });
   }
 }
