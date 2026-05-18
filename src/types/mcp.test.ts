@@ -23,21 +23,43 @@ describe("isMcpServers", () => {
 });
 
 describe("McpServerSchema", () => {
-  it("should accept valid envVars names", () => {
+  it("should accept valid uppercase envVars names", () => {
     const result = McpServerSchema.safeParse({
       command: "node",
       envVars: ["OPENAI_API_KEY", "_PRIVATE", "KEY_123"],
     });
-
     expect(result.success).toBe(true);
   });
 
-  it("should reject invalid envVars names", () => {
+  it("should accept valid lowercase envVars names (POSIX compliant)", () => {
     const result = McpServerSchema.safeParse({
       command: "node",
-      envVars: ["1BAD", "HAS-DASH", ""],
+      envVars: ["openai_api_key", "_private_key"],
     });
+    expect(result.success).toBe(true);
+  });
 
+  it("should reject envVars names starting with a digit", () => {
+    const result = McpServerSchema.safeParse({
+      command: "node",
+      envVars: ["1BAD"],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("should reject envVars names with invalid characters like dashes", () => {
+    const result = McpServerSchema.safeParse({
+      command: "node",
+      envVars: ["HAS-DASH"],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("should reject empty envVars names", () => {
+    const result = McpServerSchema.safeParse({
+      command: "node",
+      envVars: [""],
+    });
     expect(result.success).toBe(false);
   });
 });

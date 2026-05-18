@@ -6,7 +6,7 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import { warnWithFallback } from "../../utils/logger.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isPlainObject, isRecord, isStringArray } from "../../utils/type-guards.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -32,16 +32,6 @@ const RULESYNC_TO_CODEX_FIELD_MAP: Record<string, string> = {
 const MAX_REMOVE_EMPTY_ENTRIES_DEPTH = 32;
 
 const PROTOTYPE_POLLUTION_KEYS = new Set(["__proto__", "constructor", "prototype"]);
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (!isRecord(value)) return false;
-  const proto = Object.getPrototypeOf(value);
-  return proto === null || proto === Object.prototype;
-}
-
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "string");
-}
 
 function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
   const result: McpServers = {};
@@ -72,7 +62,10 @@ function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
   return result;
 }
 
-function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
+function convertToCodexFormat(
+  mcpServers: McpServers,
+  logger?: import("../../utils/logger.js").Logger,
+): Record<string, unknown> {
   const result: Record<string, Record<string, unknown>> = {};
 
   for (const [name, config] of Object.entries(mcpServers)) {
@@ -87,8 +80,15 @@ function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
         }
       } else if (key in RULESYNC_TO_CODEX_FIELD_MAP) {
         const mappedKey = RULESYNC_TO_CODEX_FIELD_MAP[key];
-        if (mappedKey && isStringArray(value)) {
-          converted[mappedKey] = value;
+        if (mappedKey) {
+          if (isStringArray(value)) {
+            converted[mappedKey] = value;
+          } else {
+            warnWithFallback(
+              logger,
+              `[CodexCliMcp] Skipping invalid value type for mapped key '${key}': expected string array, got ${typeof value}`,
+            );
+          }
         }
       } else {
         converted[key] = value;
@@ -185,6 +185,8 @@ export class CodexcliMcp extends ToolMcp {
           serverName,
           {
             ...serverConfig,
+            // Only envVars needs manual re-merging here. Other codex-specific fields
+            // (like disabledTools) are preserved by RulesyncMcp's filtering natively.
             ...(isRecord(rawServer) && isStringArray(rawServer.envVars)
               ? { envVars: rawServer.envVars }
               : {}),
@@ -192,7 +194,7 @@ export class CodexcliMcp extends ToolMcp {
         ];
       }),
     );
-    const converted = convertToCodexFormat(mcpServersWithCodexFields);
+    const converted = convertToCodexFormat(mcpServersWithCodexFields, undefined);
     const filteredMcpServers = this.removeEmptyEntries(converted);
 
     for (const name of Object.keys(converted)) {

@@ -2,12 +2,7 @@ import matter from "gray-matter";
 import { dump, load } from "js-yaml";
 
 import { formatError } from "./error.js";
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (value === null || typeof value !== "object") return false;
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
+import { isPlainObject } from "./type-guards.js";
 
 function deepRemoveNullishValue(value: unknown): unknown {
   if (value === null || value === undefined) {
