@@ -12,7 +12,7 @@
 | `subagents`   | `https://docs.langchain.com/oss/javascript/deepagents/cli/overview`          | `task` delegation to subagents                                                                                   |
 | `skills`      | `https://docs.langchain.com/oss/javascript/deepagents/cli/memory-and-skills` | `.deepagents/skills`, `.agents/skills`, `~/.deepagents/<agent>/skills`, progressive skill loading                |
 | `hooks`       | No dedicated upstream hooks surface in map                                   | Rulesync maps `.deepagents/hooks.json`; verify upstream before expanding hook behavior                           |
-| `permissions` | `https://docs.langchain.com/oss/javascript/deepagents/cli/overview`          | CLI approval controls and non-interactive shell allow list; no Rulesync-supported Deep Agents permissions target |
+| `permissions` | `https://docs.langchain.com/oss/javascript/deepagents/cli/overview`          | CLI approval controls and non-interactive shell allow list                                                       |
 
 ## Client Anchors
 

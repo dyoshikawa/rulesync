@@ -11,7 +11,7 @@
 | `commands`    | `https://docs.cline.bot/core-workflows/using-commands`      | Slash commands and workflow-style reusable commands                              |
 | `subagents`   | No dedicated upstream subagents surface in map              | No Rulesync-supported Cline subagents target in map                              |
 | `skills`      | `https://docs.cline.bot/customization/skills`               | `.cline/skills`, `~/.cline/skills`, `.clinerules/skills`, `.claude/skills`       |
-| `hooks`       | `https://docs.cline.bot/cline-cli/configuration`            | CLI configuration exposes Hooks tab; no Rulesync-supported Cline hooks target    |
+| `hooks`       | `https://docs.cline.bot/cline-cli/configuration`            | CLI configuration exposes a Hooks tab                                            |
 | `permissions` | `https://docs.cline.bot/features/auto-approve`              | Auto approve settings for read, edit, commands, browser, MCP, and request limits |
 
 ## Client Anchors

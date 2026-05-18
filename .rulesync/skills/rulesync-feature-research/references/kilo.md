@@ -6,10 +6,10 @@
 | ------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | index         | `https://kilo.ai/docs/`                                                | Kilo Code documentation index                                                               |
 | `rules`       | `https://kilo.ai/docs/customize/custom-instructions`                   | Custom instructions, `.kilo/rules-*`, `.kilorules-*`, mode-specific instructions            |
-| `ignore`      | `https://kilo.ai/docs/customize/context/kilocodeignore`                | `.kilocodeignore` access-control surface; Rulesync currently maps `.kiloignore`             |
+| `ignore`      | `https://kilo.ai/docs/customize/context/kilocodeignore`                | `.kilocodeignore` access-control surface                                                    |
 | `mcp`         | `https://kilo.ai/docs/automate/mcp/using-in-kilo-code`                 | `kilo.jsonc`, `.kilo/kilo.jsonc`, global `~/.config/kilo/kilo.jsonc`, MCP tool permissions  |
-| `commands`    | `https://kilo.ai/docs/customize/custom-modes`                          | Mode and workflow customization surfaces; Rulesync maps command files                       |
-| `subagents`   | `https://kilo.ai/docs/customize/custom-subagents`                      | Custom modes/agents; no README-supported Rulesync Kilo subagents target                     |
+| `commands`    | `https://kilo.ai/docs/customize/custom-modes`                          | Mode and workflow customization surfaces                                                    |
+| `subagents`   | `https://kilo.ai/docs/customize/custom-subagents`                      | Custom modes/agents; adapter exists in source, but no README-supported Rulesync Kilo subagents target |
 | `skills`      | `https://kilo.ai/docs/customize/skills`                                | `.kilocode/skills`, `~/.kilocode/skills`, mode-specific `skills-{mode}` directories         |
 | `hooks`       | No dedicated upstream hooks surface in map                             | Adapter exists in source, but no README-supported Rulesync Kilo hooks target                |
 | `permissions` | `https://kilo.ai/docs/getting-started/settings/auto-approving-actions` | `kilo.jsonc` permission values, `allow`/`ask`/`deny`, built-in and MCP tool permission keys |

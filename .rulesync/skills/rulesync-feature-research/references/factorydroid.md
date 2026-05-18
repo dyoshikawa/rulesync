@@ -12,7 +12,7 @@
 | `subagents`   | `https://docs.factory.ai/cli/configuration/custom-droids` | Custom droids in `.factory/droids` and `~/.factory/droids`                                                       |
 | `skills`      | `https://docs.factory.ai/cli/configuration/skills`        | `.factory/skills/<name>/SKILL.md`, `skill.mdx`, invocation controls                                              |
 | `hooks`       | `https://docs.factory.ai/reference/hooks-reference`       | `.factory/settings.json`, hook events, matcher groups, command hooks                                             |
-| `permissions` | `https://docs.factory.ai/cli/configuration/settings`      | `commandAllowlist`, `commandDenylist`, autonomy settings; no Rulesync-supported Factory Droid permissions target |
+| `permissions` | `https://docs.factory.ai/cli/configuration/settings`      | `commandAllowlist`, `commandDenylist`, autonomy settings                                                         |
 
 ## Client Anchors
 

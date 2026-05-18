@@ -68,8 +68,15 @@ Collect:
 1. Canonical target and feature lists from `references/rulesync-source-map.md`.
 2. Rulesync support labels from README, source, processor gates, and dry-run.
 3. Official docs from the selected client map.
-4. Re-check any `No dedicated upstream ... in map` row through official docs/site,
-   then web search if needed; confirm candidate URLs with Curl or Fetch.
+4. Re-check sentinel rows through official docs/site, then web search if needed;
+   confirm candidate URLs with Curl or Fetch. Recognized sentinel phrases:
+   - `No dedicated upstream <feature> surface in map` — upstream has no
+     dedicated docs surface that this row could point at.
+   - `No Rulesync-supported <feature> target in map` — no Rulesync adapter is
+     known to target this feature.
+   - `Rulesync maps <surface>; verify upstream before expanding behavior` —
+     Rulesync ships an adapter, but the upstream docs surface is thin or
+     missing; treat as low confidence until re-verified.
 5. Client anchors for surfaces not obvious from naming rules.
 6. Dry-run output for generator gates and output roots.
 
@@ -120,9 +127,8 @@ deprecated surfaces that should be replaced. Each bullet should name the
 feature and user-visible missing capability. Write `None` only when every
 observed difference is an intentional mapping or already covered behavior.
 
-For gaps based on `No dedicated upstream ... in map` or
-`No Rulesync-supported ... in map`, re-check during the current run before
-claiming absence.
+For gaps based on any of the sentinel phrases listed in Collect step 4,
+re-check during the current run before claiming absence or low confidence.
 
 Do not list tests, fixtures, refactors, source locations, or implementation
 chores unless they are necessary to explain the capability gap. Do not write
