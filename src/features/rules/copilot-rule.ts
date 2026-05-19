@@ -48,11 +48,15 @@ export type CopilotRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal & {
   };
 };
 
-// toPosixPath converts backslashes to forward slashes so paths compare equally
-// on Windows and POSIX. The extra slash collapse covers a WSL/mixed-separator
-// edge case where `node:path/posix.join` keeps a literal backslash inside an
-// input segment (e.g. ".github\\") and produces ".github//instructions/x.md"
-// after the backslash is rewritten.
+// toPosixPath converts backslashes to forward slashes so paths compare
+// equally on Windows and POSIX. The extra slash collapse covers a
+// mixed-separator edge case where `node:path.join` on POSIX treats a
+// trailing backslash as a literal character: joining `.github\\` (one
+// literal backslash) with `copilot-instructions.md` produces
+// `.github\\/copilot-instructions.md`, which becomes
+// `.github//copilot-instructions.md` after `toPosixPath`. The slash
+// collapse below normalizes that back to a single `/` so the result
+// compares equal to the canonical `.github/copilot-instructions.md`.
 const normalizeRelativePath = (p: string): string => toPosixPath(p).replace(/\/+/g, "/");
 
 type RelativePathParts = { dir: string; file: string };

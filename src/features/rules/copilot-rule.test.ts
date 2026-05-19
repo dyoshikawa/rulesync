@@ -620,11 +620,11 @@ This should be treated as a non-root rule.`;
       expect(copilotRule.getBody()).toBe("This should be treated as a non-root rule.");
     });
 
-    it("should normalize separators when detecting explicit root paths", async () => {
+    it("should normalize a trailing-backslash relativeDirPath when detecting explicit root paths", async () => {
       const githubDir = join(testDir, ".github");
       await ensureDir(githubDir);
 
-      const rootContent = "Root detected with mixed separators.";
+      const rootContent = "Root detected with a trailing backslash on relativeDirPath.";
       await writeFileContent(join(githubDir, "copilot-instructions.md"), rootContent);
 
       const copilotRule = await CopilotRule.fromFile({
@@ -636,6 +636,40 @@ This should be treated as a non-root rule.`;
 
       expect(copilotRule.isRoot()).toBe(true);
       expect(copilotRule.getBody()).toBe(rootContent);
+    });
+
+    it("should treat non-root paths as non-root when relativeDirPath has a mid-path backslash", async () => {
+      // Symmetric coverage to the forDeletion equivalent — exercises the
+      // sameRelativePath check on the fromFile call site so the original
+      // coverage gap flagged in #1603 is closed on both call sites.
+      //
+      // Note on the fixture path: fromFile reads the file from the *raw*
+      // relativeDirPath after the root check (only the comparison goes
+      // through normalizeRelativePath). On POSIX `\` is a regular filename
+      // character, so we materialize the directory at the literal
+      // ".github\instructions" name so the read inside fromFile succeeds.
+      const literalDir = join(testDir, ".github\\instructions");
+      await ensureDir(literalDir);
+      const fileContent = `---
+description: "Mid-path backslash on relativeDirPath"
+applyTo: "**/*.ts"
+---
+
+This should resolve to a non-root rule.`;
+      await writeFileContent(join(literalDir, "feature.instructions.md"), fileContent);
+
+      const copilotRule = await CopilotRule.fromFile({
+        outputRoot: testDir,
+        // Mid-path backslash (".github\\instructions" → ".github\instructions").
+        // sameRelativePath normalizes both sides before comparing against
+        // paths.root, so the comparison correctly returns false here.
+        relativeDirPath: ".github\\instructions",
+        relativeFilePath: "feature.instructions.md",
+        validate: true,
+      });
+
+      expect(copilotRule.isRoot()).toBe(false);
+      expect(copilotRule.getBody()).toBe("This should resolve to a non-root rule.");
     });
 
     it("should detect root only when both relativeDirPath and filename match", async () => {
@@ -797,7 +831,7 @@ description: "Test trimming"
   });
 
   describe("forDeletion", () => {
-    it("should mark root deletion target when separators are mixed", () => {
+    it("should mark root deletion target when relativeDirPath has a trailing backslash", () => {
       const copilotRule = CopilotRule.forDeletion({
         outputRoot: testDir,
         relativeDirPath: ".github\\",
@@ -807,7 +841,7 @@ description: "Test trimming"
       expect(copilotRule.isRoot()).toBe(true);
     });
 
-    it("should treat non-root paths as non-root even with mixed separators", () => {
+    it("should treat non-root paths as non-root when relativeDirPath has a mid-path backslash", () => {
       const copilotRule = CopilotRule.forDeletion({
         outputRoot: testDir,
         relativeDirPath: ".github\\instructions",
