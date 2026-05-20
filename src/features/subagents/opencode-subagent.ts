@@ -109,6 +109,7 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolSubagentForDeletionParams): OpenCodeSubagent {
     return new OpenCodeSubagent({
       outputRoot,
@@ -118,6 +119,7 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
       body: "",
       fileContent: "",
       validate: false,
+      global,
     });
   }
 }
