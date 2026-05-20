@@ -313,7 +313,7 @@ Body content`,
       KiloSubagent.fromFile({
         relativeFilePath: "invalid-type.md",
       }),
-    ).rejects.toThrow("xpected number, received string");
+    ).rejects.toThrow("Expected number, received string");
   });
 
   it("should preserve custom mode value when explicitly set", async () => {
