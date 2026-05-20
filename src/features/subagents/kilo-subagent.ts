@@ -44,6 +44,16 @@ export type KiloSubagentParams = Omit<OpenCodeStyleSubagentParams, "frontmatter"
 export class KiloSubagent extends OpenCodeStyleSubagent {
   declare protected readonly frontmatter: KiloSubagentFrontmatter;
 
+  constructor(params: KiloSubagentParams) {
+    super(params);
+    if (params.validate) {
+      const result = this.validate();
+      if (!result.success) {
+        throw result.error;
+      }
+    }
+  }
+
   protected getToolTarget(): Extract<ToolTarget, "opencode" | "kilo"> {
     return "kilo";
   }
@@ -88,7 +98,6 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
     const kiloFrontmatter: KiloSubagentFrontmatter = KiloSubagentFrontmatterSchema.parse({
       ...kiloSection,
       description: rulesyncFrontmatter.description,
-      mode: typeof kiloSection.mode === "string" ? kiloSection.mode : "all",
       ...(rulesyncFrontmatter.name && { name: rulesyncFrontmatter.name }),
     });
 

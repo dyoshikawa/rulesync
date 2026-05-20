@@ -250,7 +250,7 @@ Attention, again, you are just the planner, so though you can read any files and
 
 > **Gemini CLI note (as of 2026-04-01):** Subagents are generated to `.gemini/agents/`. To enable the agents feature, set `"experimental": { "enableAgents": true }` in your `.gemini/settings.json`.
 
-> **Kilo note (as of 2026-05-13):** Kilo's documented default for user-defined agents is `mode: all`, which makes the agent available both as a top-level pick and as a subagent. Set `kilo.mode: subagent` to opt into hidden/subagent-only behavior.
+> **Kilo note (as of 2026-05-13):** Kilo's documented default for user-defined agents is `mode: all`, which makes the agent available both as a top-level pick and as a subagent. Set `kilo.mode: subagent` to opt into hidden/subagent-only behavior. Other supported fields include `displayName`, `temperature`, `top_p`, `model`, `permission`, `prompt`, `color`, `native`, `hidden`, `variant`, `disable`, `deprecated`, `steps`, and `options`.
 
 ## `.rulesync/skills/*/SKILL.md`
 

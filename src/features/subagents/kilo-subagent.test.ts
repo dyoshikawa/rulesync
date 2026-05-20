@@ -289,6 +289,14 @@ Body content`,
     expect(subagent.getFrontmatter().mode).toBe("all");
   });
 
+  it("should fail validation on invalid schema types", () => {
+    const result = KiloSubagentFrontmatterSchema.safeParse({
+      mode: "subagent",
+      temperature: "hot", // invalid: should be number
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("should preserve custom mode value when explicitly set", async () => {
     const dirPath = join(testDir, ".kilo", "agent");
     const filePath = join(dirPath, "custom-mode.md");
