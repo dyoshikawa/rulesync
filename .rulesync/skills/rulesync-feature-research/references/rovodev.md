@@ -12,7 +12,7 @@
 | `subagents`   | `https://support.atlassian.com/rovo/docs/use-subagents-in-rovo-dev-cli/`            | `.rovodev/subagents`, `~/.rovodev/subagents`, Markdown files with YAML frontmatter           |
 | `skills`      | `https://support.atlassian.com/rovo/docs/extend-rovo-dev-cli-with-agent-skills/`    | `.rovodev/skills`, Agent Skills directories                                                  |
 | `hooks`       | No dedicated upstream hooks surface in map                                          | No Rulesync-supported Rovo Dev hooks target in map                                           |
-| `permissions` | `https://support.atlassian.com/rovo/docs/use-tools-in-rovo-dev-cli/`                | Tool controls exist upstream; no Rulesync-supported Rovo Dev permissions target              |
+| `permissions` | `https://support.atlassian.com/rovo/docs/use-tools-in-rovo-dev-cli/`                | Tool controls exist upstream                                                                 |
 
 ## Client Anchors
 
