@@ -46,10 +46,17 @@ function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
         if (value === false) {
           converted["disabled"] = true;
         }
-      } else if (key in CODEX_TO_RULESYNC_FIELD_MAP) {
+      } else if (Object.hasOwn(CODEX_TO_RULESYNC_FIELD_MAP, key)) {
         const mappedKey = CODEX_TO_RULESYNC_FIELD_MAP[key];
-        if (mappedKey && isStringArray(value)) {
-          converted[mappedKey] = value;
+        if (mappedKey) {
+          if (isStringArray(value)) {
+            converted[mappedKey] = value;
+          } else {
+            warnWithFallback(
+              undefined,
+              `Ignored malformed array for ${key} in MCP server ${name}`,
+            );
+          }
         }
       } else {
         converted[key] = value;
@@ -78,7 +85,7 @@ function convertToCodexFormat(
         if (value === true) {
           converted["enabled"] = false;
         }
-      } else if (key in RULESYNC_TO_CODEX_FIELD_MAP) {
+      } else if (Object.hasOwn(RULESYNC_TO_CODEX_FIELD_MAP, key)) {
         const mappedKey = RULESYNC_TO_CODEX_FIELD_MAP[key];
         if (mappedKey) {
           if (isStringArray(value)) {
