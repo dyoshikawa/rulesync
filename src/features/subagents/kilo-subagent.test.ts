@@ -297,6 +297,25 @@ Body content`,
     expect(result.success).toBe(false);
   });
 
+  it("should throw during fromFile on invalid schema types", async () => {
+    const dirPath = join(testDir, ".kilo", "agent");
+    const filePath = join(dirPath, "invalid-type.md");
+
+    await writeFileContent(
+      filePath,
+      `---
+temperature: "hot"
+---
+Body content`,
+    );
+
+    await expect(
+      KiloSubagent.fromFile({
+        relativeFilePath: "invalid-type.md",
+      }),
+    ).rejects.toThrow("xpected number, received string");
+  });
+
   it("should preserve custom mode value when explicitly set", async () => {
     const dirPath = join(testDir, ".kilo", "agent");
     const filePath = join(dirPath, "custom-mode.md");
