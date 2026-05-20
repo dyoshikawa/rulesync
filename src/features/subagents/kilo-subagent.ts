@@ -46,7 +46,7 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
 
   constructor(params: KiloSubagentParams) {
     super(params);
-    if (params.validate) {
+    if (params.validate !== false) {
       const result = this.validate();
       if (!result.success) {
         throw result.error;
@@ -65,6 +65,8 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
   validate(): ValidationResult {
     const result = KiloSubagentFrontmatterSchema.safeParse(this.frontmatter);
     if (result.success) {
+      // @ts-expect-error - readonly
+      this.frontmatter = result.data;
       return { success: true, error: null };
     }
 
@@ -95,11 +97,18 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const kiloSection = rulesyncFrontmatter.kilo ?? {};
 
-    const kiloFrontmatter: KiloSubagentFrontmatter = KiloSubagentFrontmatterSchema.parse({
+    const parseResult = KiloSubagentFrontmatterSchema.safeParse({
       ...kiloSection,
       description: rulesyncFrontmatter.description,
       ...(rulesyncFrontmatter.name && { name: rulesyncFrontmatter.name }),
     });
+
+    if (!parseResult.success) {
+      throw new Error(
+        `Invalid frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(parseResult.error)}`,
+      );
+    }
+    const kiloFrontmatter: KiloSubagentFrontmatter = parseResult.data;
 
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, kiloFrontmatter);
