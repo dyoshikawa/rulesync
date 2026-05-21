@@ -289,6 +289,33 @@ Body content`,
     expect(subagent.getFrontmatter().mode).toBe("all");
   });
 
+  it("should fail validation on invalid schema types", () => {
+    const result = KiloSubagentFrontmatterSchema.safeParse({
+      mode: "subagent",
+      temperature: "hot", // invalid: should be number
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("should throw during fromFile on invalid schema types", async () => {
+    const dirPath = join(testDir, ".kilo", "agent");
+    const filePath = join(dirPath, "invalid-type.md");
+
+    await writeFileContent(
+      filePath,
+      `---
+temperature: "hot"
+---
+Body content`,
+    );
+
+    await expect(
+      KiloSubagent.fromFile({
+        relativeFilePath: "invalid-type.md",
+      }),
+    ).rejects.toThrow("Invalid input: expected number, received string");
+  });
+
   it("should preserve custom mode value when explicitly set", async () => {
     const dirPath = join(testDir, ".kilo", "agent");
     const filePath = join(dirPath, "custom-mode.md");
@@ -307,5 +334,130 @@ Body content`,
     });
 
     expect(subagent.getFrontmatter().mode).toBe("all");
+  });
+
+  it("should accept and expose all explicit Kilo frontmatter fields", async () => {
+    const dirPath = join(testDir, ".kilo", "agent");
+    const filePath = join(dirPath, "full-fields.md");
+
+    await writeFileContent(
+      filePath,
+      `---
+description: Full featured agent
+mode: subagent
+name: full-fields
+displayName: Full Fields Agent
+deprecated: false
+native: false
+hidden: true
+top_p: 0.9
+temperature: 0.7
+color: "#ff0000"
+permission: read-only
+model: claude-3-5-sonnet
+variant: fast
+prompt: You are a helpful assistant
+disable: false
+---
+Agent body`,
+    );
+
+    const subagent = await KiloSubagent.fromFile({
+      relativeFilePath: "full-fields.md",
+    });
+
+    const fm = subagent.getFrontmatter();
+    expect(fm.displayName).toBe("Full Fields Agent");
+    expect(fm.deprecated).toBe(false);
+    expect(fm.native).toBe(false);
+    expect(fm.hidden).toBe(true);
+    expect(fm.top_p).toBe(0.9);
+    expect(fm.temperature).toBe(0.7);
+    expect(fm.color).toBe("#ff0000");
+    expect(fm.permission).toBe("read-only");
+    expect(fm.model).toBe("claude-3-5-sonnet");
+    expect(fm.variant).toBe("fast");
+    expect(fm.prompt).toBe("You are a helpful assistant");
+    expect(fm.disable).toBe(false);
+  });
+
+  it("should pass through explicit Kilo fields via fromRulesyncSubagent", () => {
+    const rulesyncSubagent = new RulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      relativeFilePath: "full-kilo.md",
+      frontmatter: {
+        targets: ["kilo"],
+        name: "full-kilo",
+        description: "Agent with all Kilo fields",
+        kilo: {
+          mode: "subagent",
+          displayName: "Full Kilo",
+          deprecated: false,
+          native: false,
+          hidden: true,
+          top_p: 0.95,
+          temperature: 0.3,
+          color: "blue",
+          permission: "write",
+          model: "gpt-4o",
+          variant: "default",
+          prompt: "Be concise",
+          disable: false,
+        },
+      },
+      body: "Kilo agent body",
+      validate: false,
+    });
+
+    const toolSubagent = KiloSubagent.fromRulesyncSubagent({
+      rulesyncSubagent,
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+    }) as KiloSubagent;
+
+    const fm = toolSubagent.getFrontmatter();
+    expect(fm.displayName).toBe("Full Kilo");
+    expect(fm.deprecated).toBe(false);
+    expect(fm.native).toBe(false);
+    expect(fm.hidden).toBe(true);
+    expect(fm.top_p).toBe(0.95);
+    expect(fm.temperature).toBe(0.3);
+    expect(fm.color).toBe("blue");
+    expect(fm.permission).toBe("write");
+    expect(fm.model).toBe("gpt-4o");
+    expect(fm.variant).toBe("default");
+    expect(fm.prompt).toBe("Be concise");
+    expect(fm.disable).toBe(false);
+  });
+
+  it("should validate schema accepts all explicit Kilo fields", () => {
+    const result = KiloSubagentFrontmatterSchema.safeParse({
+      description: "Agent",
+      mode: "subagent",
+      displayName: "My Agent",
+      deprecated: true,
+      native: false,
+      hidden: false,
+      top_p: 0.8,
+      temperature: 0.5,
+      color: "green",
+      permission: "read",
+      model: "claude-sonnet-4",
+      variant: "extended",
+      prompt: "Think carefully",
+      options: { key: "value" },
+      steps: [{ name: "step1" }],
+      disable: false,
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.displayName).toBe("My Agent");
+      expect(result.data.deprecated).toBe(true);
+      expect(result.data.top_p).toBe(0.8);
+      expect(result.data.steps).toEqual([{ name: "step1" }]);
+      expect(result.data.options).toEqual({ key: "value" });
+    }
   });
 });
