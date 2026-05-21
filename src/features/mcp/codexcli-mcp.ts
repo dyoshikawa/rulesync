@@ -52,10 +52,7 @@ function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
           if (isStringArray(value)) {
             converted[mappedKey] = value;
           } else {
-            warnWithFallback(
-              undefined,
-              `Ignored malformed array for ${key} in MCP server ${name}`,
-            );
+            warnWithFallback(undefined, `Ignored malformed array for ${key} in MCP server ${name}`);
           }
         }
       } else {
