@@ -176,6 +176,67 @@ describe("CursorMcp", () => {
 
       expect(exported.mcpServers["no-env-server"]?.env).toBeUndefined();
     });
+
+    it("should convert env vars in headers when exporting (fromRulesyncMcp)", async () => {
+      const rulesyncConfig = {
+        mcpServers: {
+          "remote-server": {
+            type: "sse",
+            url: "https://example.com/api/mcp",
+            headers: {
+              Authorization: "Bearer ${API_KEY}",
+              "X-Static": "plain-value",
+            },
+          },
+        },
+      };
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(rulesyncConfig),
+      });
+
+      const cursorMcp = await CursorMcp.fromRulesyncMcp({
+        rulesyncMcp,
+        validate: false,
+      });
+      const exported = cursorMcp.getJson() as {
+        mcpServers: Record<string, { headers?: Record<string, string> }>;
+      };
+
+      expect(exported.mcpServers["remote-server"]?.headers?.Authorization).toBe(
+        "Bearer ${env:API_KEY}",
+      );
+      expect(exported.mcpServers["remote-server"]?.headers?.["X-Static"]).toBe("plain-value");
+    });
+
+    it("should convert env vars in headers when importing (toRulesyncMcp)", () => {
+      const cursorConfig = {
+        mcpServers: {
+          "remote-server": {
+            type: "sse",
+            url: "https://example.com/api/mcp",
+            headers: {
+              Authorization: "Bearer ${env:API_KEY}",
+              "X-Static": "plain-value",
+            },
+          },
+        },
+      };
+
+      const cursorMcp = new CursorMcp({
+        relativeDirPath: ".cursor",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify(cursorConfig),
+      });
+
+      const rulesyncMcp = cursorMcp.toRulesyncMcp();
+      const exported = JSON.parse(rulesyncMcp.getFileContent());
+
+      expect(exported.mcpServers["remote-server"].headers.Authorization).toBe("Bearer ${API_KEY}");
+      expect(exported.mcpServers["remote-server"].headers["X-Static"]).toBe("plain-value");
+    });
   });
 
   describe("getSettablePaths", () => {
