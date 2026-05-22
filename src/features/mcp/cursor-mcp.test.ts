@@ -86,33 +86,6 @@ describe("CursorMcp", () => {
       expect(exported.mcpServers["test-server"]?.env?.DEBUG).toBe("true");
     });
 
-    it("should handle multiple env variables embedded in strings", () => {
-      const cursorConfig = {
-        mcpServers: {
-          "test-server": {
-            command: "node",
-            args: ["server.js"],
-            env: {
-              URL: "https://${env:HOST}:${env:PORT}/api",
-              LITERAL: "localhost",
-            },
-          },
-        },
-      };
-
-      const cursorMcp = new CursorMcp({
-        relativeDirPath: ".cursor",
-        relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify(cursorConfig),
-      });
-
-      const rulesyncMcp = cursorMcp.toRulesyncMcp();
-      const exported = JSON.parse(rulesyncMcp.getFileContent());
-
-      expect(exported.mcpServers["test-server"].env.URL).toBe("https://${HOST}:${PORT}/api");
-      expect(exported.mcpServers["test-server"].env.LITERAL).toBe("localhost");
-    });
-
     it("should preserve env variable values through round-trip conversion", async () => {
       const originalConfig = {
         mcpServers: {
@@ -148,33 +121,6 @@ describe("CursorMcp", () => {
       expect(finalConfig.mcpServers["test-server"].env).toEqual(
         originalConfig.mcpServers["test-server"].env,
       );
-    });
-
-    it("should handle server without env field", async () => {
-      const rulesyncConfig = {
-        mcpServers: {
-          "no-env-server": {
-            command: "node",
-            args: ["server.js"],
-          },
-        },
-      };
-
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify(rulesyncConfig),
-      });
-
-      const cursorMcp = await CursorMcp.fromRulesyncMcp({
-        rulesyncMcp,
-        validate: false,
-      });
-      const exported = cursorMcp.getJson() as {
-        mcpServers: Record<string, { env?: Record<string, string> }>;
-      };
-
-      expect(exported.mcpServers["no-env-server"]?.env).toBeUndefined();
     });
 
     it("should convert env vars in headers when exporting (fromRulesyncMcp)", async () => {

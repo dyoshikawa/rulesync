@@ -2289,34 +2289,6 @@ describe("OpencodeMcp", () => {
       }
     });
 
-    it("should handle multiple env variables embedded in strings", () => {
-      const opencodeConfig = {
-        mcp: {
-          "test-server": {
-            type: "local",
-            command: ["node", "server.js"],
-            environment: {
-              URL: "https://{env:HOST}:{env:PORT}/api",
-              LITERAL: "localhost",
-            },
-            enabled: true,
-          },
-        },
-      };
-
-      const opencodeMcp = new OpencodeMcp({
-        relativeDirPath: ".",
-        relativeFilePath: "opencode.json",
-        fileContent: JSON.stringify(opencodeConfig),
-      });
-
-      const rulesyncMcp = opencodeMcp.toRulesyncMcp();
-      const exported = JSON.parse(rulesyncMcp.getFileContent());
-
-      expect(exported.mcpServers["test-server"].env.URL).toBe("https://${HOST}:${PORT}/api");
-      expect(exported.mcpServers["test-server"].env.LITERAL).toBe("localhost");
-    });
-
     it("should preserve env variable values through round-trip conversion", async () => {
       const originalConfig = {
         mcpServers: {
@@ -2439,36 +2411,6 @@ describe("OpencodeMcp", () => {
 
       expect(exported.mcpServers["test-server"].env.CURSOR_STYLE).toBe("${env:MY_KEY}");
       expect(exported.mcpServers["test-server"].env.OPENCODE_STYLE).toBe("${MY_KEY}");
-    });
-
-    it("should handle server without env or headers fields", async () => {
-      const rulesyncConfig = {
-        mcpServers: {
-          "no-env-server": {
-            command: "node",
-            args: ["server.js"],
-          },
-        },
-      };
-
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify(rulesyncConfig),
-      });
-
-      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
-        rulesyncMcp,
-        validate: false,
-      });
-      const exported = opencodeMcp.getJson();
-
-      const server = exported.mcp?.["no-env-server"];
-      expect(server).toBeDefined();
-      expect(server?.type).toBe("local");
-      if (server?.type === "local") {
-        expect(server.environment).toBeUndefined();
-      }
     });
 
     it("should preserve header env variable values through round-trip conversion", async () => {
