@@ -148,6 +148,7 @@ describe("OpencodeHooks", () => {
       const content = opencodeHooks.getFileContent();
       expect(content).toContain('new RegExp(".*")');
       expect(content).toContain('new RegExp("Read*")');
+      expect(content).not.toContain("const __re =");
       expect(content).toContain("all-tools.sh");
       expect(content).toContain("read-tools.sh");
     });
