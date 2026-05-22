@@ -11,6 +11,9 @@ function validateAndSanitizeMatcher(matcher: string): string {
   for (const char of CONTROL_CHARS) {
     sanitized = sanitized.replaceAll(char, "");
   }
+  // Normalize glob-style wildcard `*` to regex equivalent `.*` before validation.
+  // rulesync already applies this glob→regex convention in other features (e.g. file-formats.md).
+  sanitized = sanitized.replace(/^\*$/, ".*");
   try {
     new RegExp(sanitized);
   } catch {
