@@ -121,6 +121,37 @@ describe("KiloHooks", () => {
       expect(content).toContain(".rulesync/hooks/lint.sh");
     });
 
+    it("should normalize only bare wildcard matcher to regex match-all pattern", () => {
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [
+            { type: "command", command: "all-tools.sh", matcher: "*" },
+            { type: "command", command: "read-tools.sh", matcher: "Read*" },
+          ],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const kiloHooks = KiloHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = kiloHooks.getFileContent();
+      expect(content).toContain('new RegExp(".*")');
+      expect(content).toContain('new RegExp("Read*")');
+      expect(content).toContain("all-tools.sh");
+      expect(content).toContain("read-tools.sh");
+    });
+
     it("should generate tool event handlers without matcher when not specified", () => {
       const config = {
         version: 1,
