@@ -16,6 +16,74 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
+// OpenCode env variable format: {env:VAR} (no $ prefix)
+// Canonical rulesync format: ${VAR}
+const OPENCODE_ENV_VAR_PATTERN = /(?<!\$)\{env:([^}]+)\}/g;
+
+/**
+ * Convert a record's string values from OpenCode {env:VAR} to canonical ${VAR} format.
+ * Uses negative lookbehind to avoid matching Cursor's ${env:VAR} format.
+ */
+function convertRecordFromOpencodeEnvFormat(
+  record: Record<string, string>,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(record).map(([k, v]) => [k, v.replace(OPENCODE_ENV_VAR_PATTERN, "${$1}")]),
+  );
+}
+
+/**
+ * Convert a record's string values from canonical ${VAR} to OpenCode {env:VAR} format.
+ * Avoids double-converting values already in {env:} or ${env:} form.
+ */
+function convertRecordToOpencodeEnvFormat(record: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(record).map(([k, v]) => [k, v.replace(/\$\{(?!env:)([^}:]+)\}/g, "{env:$1}")]),
+  );
+}
+
+/**
+ * Convert OpenCode env format to canonical format across all servers
+ * - {env:VAR} -> ${VAR} in env and headers values
+ */
+function convertEnvFromOpencodeFormat(mcpServers: McpServers): McpServers {
+  return Object.fromEntries(
+    Object.entries(mcpServers).map(([name, config]) => [
+      name,
+      {
+        ...config,
+        ...(config.env && {
+          env: convertRecordFromOpencodeEnvFormat(config.env),
+        }),
+        ...(config.headers && {
+          headers: convertRecordFromOpencodeEnvFormat(config.headers),
+        }),
+      },
+    ]),
+  );
+}
+
+/**
+ * Convert canonical env format to OpenCode format across all servers
+ * - ${VAR} -> {env:VAR} in env and headers values
+ */
+function convertEnvToOpencodeFormat(mcpServers: McpServers): McpServers {
+  return Object.fromEntries(
+    Object.entries(mcpServers).map(([name, config]) => [
+      name,
+      {
+        ...config,
+        ...(config.env && {
+          env: convertRecordToOpencodeEnvFormat(config.env),
+        }),
+        ...(config.headers && {
+          headers: convertRecordToOpencodeEnvFormat(config.headers),
+        }),
+      },
+    ]),
+  );
+}
+
 // OpenCode MCP server schemas
 // OpenCode uses "local"/"remote" instead of "stdio"/"sse"/"http",
 // "environment" instead of "env", and "enabled" instead of "disabled"
@@ -288,9 +356,9 @@ export class OpencodeMcp extends ToolMcp {
     }
 
     const json = parseJsonc(fileContent);
-    const { mcp: convertedMcp, tools: mcpTools } = convertToOpencodeFormat(
-      rulesyncMcp.getMcpServers(),
-    );
+    const mcpServers = rulesyncMcp.getMcpServers();
+    const transformedServers = convertEnvToOpencodeFormat(mcpServers);
+    const { mcp: convertedMcp, tools: mcpTools } = convertToOpencodeFormat(transformedServers);
 
     const { tools: _existingTools, ...jsonWithoutTools } = json;
     const newJson = {
@@ -310,8 +378,9 @@ export class OpencodeMcp extends ToolMcp {
 
   toRulesyncMcp(): RulesyncMcp {
     const convertedMcpServers = convertFromOpencodeFormat(this.json.mcp ?? {}, this.json.tools);
+    const transformedServers = convertEnvFromOpencodeFormat(convertedMcpServers);
     return this.toRulesyncMcpDefault({
-      fileContent: JSON.stringify({ mcpServers: convertedMcpServers }, null, 2),
+      fileContent: JSON.stringify({ mcpServers: transformedServers }, null, 2),
     });
   }
 
