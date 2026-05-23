@@ -6,6 +6,10 @@ import { z } from "zod/mini";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import {
+  convertEnvVarRefsFromToolFormat,
+  convertEnvVarRefsToToolFormat,
+} from "./mcp-env-var-format.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -15,6 +19,9 @@ import {
   ToolMcpParams,
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
+
+// Negative lookbehind avoids matching Cursor's ${env:VAR} format
+const OPENCODE_ENV_VAR_PATTERN = /(?<!\$)\{env:([^}:]+)\}/g;
 
 // OpenCode MCP server schemas
 // OpenCode uses "local"/"remote" instead of "stdio"/"sse"/"http",
@@ -288,9 +295,12 @@ export class OpencodeMcp extends ToolMcp {
     }
 
     const json = parseJsonc(fileContent);
-    const { mcp: convertedMcp, tools: mcpTools } = convertToOpencodeFormat(
-      rulesyncMcp.getMcpServers(),
-    );
+    const mcpServers = rulesyncMcp.getMcpServers();
+    const transformedServers = convertEnvVarRefsToToolFormat({
+      mcpServers,
+      replacement: "{env:$1}",
+    });
+    const { mcp: convertedMcp, tools: mcpTools } = convertToOpencodeFormat(transformedServers);
 
     const { tools: _existingTools, ...jsonWithoutTools } = json;
     const newJson = {
@@ -310,8 +320,12 @@ export class OpencodeMcp extends ToolMcp {
 
   toRulesyncMcp(): RulesyncMcp {
     const convertedMcpServers = convertFromOpencodeFormat(this.json.mcp ?? {}, this.json.tools);
+    const transformedServers = convertEnvVarRefsFromToolFormat({
+      mcpServers: convertedMcpServers,
+      pattern: OPENCODE_ENV_VAR_PATTERN,
+    });
     return this.toRulesyncMcpDefault({
-      fileContent: JSON.stringify({ mcpServers: convertedMcpServers }, null, 2),
+      fileContent: JSON.stringify({ mcpServers: transformedServers }, null, 2),
     });
   }
 

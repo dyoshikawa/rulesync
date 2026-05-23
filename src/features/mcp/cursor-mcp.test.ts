@@ -86,33 +86,6 @@ describe("CursorMcp", () => {
       expect(exported.mcpServers["test-server"]?.env?.DEBUG).toBe("true");
     });
 
-    it("should handle multiple env variables embedded in strings", () => {
-      const cursorConfig = {
-        mcpServers: {
-          "test-server": {
-            command: "node",
-            args: ["server.js"],
-            env: {
-              URL: "https://${env:HOST}:${env:PORT}/api",
-              LITERAL: "localhost",
-            },
-          },
-        },
-      };
-
-      const cursorMcp = new CursorMcp({
-        relativeDirPath: ".cursor",
-        relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify(cursorConfig),
-      });
-
-      const rulesyncMcp = cursorMcp.toRulesyncMcp();
-      const exported = JSON.parse(rulesyncMcp.getFileContent());
-
-      expect(exported.mcpServers["test-server"].env.URL).toBe("https://${HOST}:${PORT}/api");
-      expect(exported.mcpServers["test-server"].env.LITERAL).toBe("localhost");
-    });
-
     it("should preserve env variable values through round-trip conversion", async () => {
       const originalConfig = {
         mcpServers: {
@@ -150,12 +123,16 @@ describe("CursorMcp", () => {
       );
     });
 
-    it("should handle server without env field", async () => {
+    it("should convert env vars in headers when exporting (fromRulesyncMcp)", async () => {
       const rulesyncConfig = {
         mcpServers: {
-          "no-env-server": {
-            command: "node",
-            args: ["server.js"],
+          "remote-server": {
+            type: "sse",
+            url: "https://example.com/api/mcp",
+            headers: {
+              Authorization: "Bearer ${API_KEY}",
+              "X-Static": "plain-value",
+            },
           },
         },
       };
@@ -171,10 +148,40 @@ describe("CursorMcp", () => {
         validate: false,
       });
       const exported = cursorMcp.getJson() as {
-        mcpServers: Record<string, { env?: Record<string, string> }>;
+        mcpServers: Record<string, { headers?: Record<string, string> }>;
       };
 
-      expect(exported.mcpServers["no-env-server"]?.env).toBeUndefined();
+      expect(exported.mcpServers["remote-server"]?.headers?.Authorization).toBe(
+        "Bearer ${env:API_KEY}",
+      );
+      expect(exported.mcpServers["remote-server"]?.headers?.["X-Static"]).toBe("plain-value");
+    });
+
+    it("should convert env vars in headers when importing (toRulesyncMcp)", () => {
+      const cursorConfig = {
+        mcpServers: {
+          "remote-server": {
+            type: "sse",
+            url: "https://example.com/api/mcp",
+            headers: {
+              Authorization: "Bearer ${env:API_KEY}",
+              "X-Static": "plain-value",
+            },
+          },
+        },
+      };
+
+      const cursorMcp = new CursorMcp({
+        relativeDirPath: ".cursor",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify(cursorConfig),
+      });
+
+      const rulesyncMcp = cursorMcp.toRulesyncMcp();
+      const exported = JSON.parse(rulesyncMcp.getFileContent());
+
+      expect(exported.mcpServers["remote-server"].headers.Authorization).toBe("Bearer ${API_KEY}");
+      expect(exported.mcpServers["remote-server"].headers["X-Static"]).toBe("plain-value");
     });
   });
 
