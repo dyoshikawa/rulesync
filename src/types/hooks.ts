@@ -196,6 +196,16 @@ export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = [
   "permissionRequest",
 ];
 
+/** Hook events supported by Kiro CLI. */
+export const KIRO_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "beforeSubmitPrompt",
+  "preToolUse",
+  "postToolUse",
+  "stop",
+];
+
 const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
 
 /**
@@ -214,6 +224,7 @@ export const HooksConfigSchema = z.looseObject({
   geminicli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   codexcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   deepagents: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  kiro: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
 });
 
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;
@@ -402,4 +413,26 @@ export const CANONICAL_TO_DEEPAGENTS_EVENT_NAMES: Record<string, string> = {
  */
 export const DEEPAGENTS_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_DEEPAGENTS_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to Kiro CLI camelCase.
+ * Kiro CLI uses its own event naming: agentSpawn, userPromptSubmit, preToolUse,
+ * postToolUse, stop. Both `sessionEnd` and `stop` canonical events map to
+ * kiro's `stop`.
+ */
+export const CANONICAL_TO_KIRO_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "agentSpawn",
+  sessionEnd: "stop",
+  beforeSubmitPrompt: "userPromptSubmit",
+  preToolUse: "preToolUse",
+  postToolUse: "postToolUse",
+  stop: "stop",
+};
+
+/**
+ * Map Kiro CLI camelCase event names to canonical camelCase.
+ */
+export const KIRO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_KIRO_EVENT_NAMES).map(([k, v]) => [v, k]),
 );

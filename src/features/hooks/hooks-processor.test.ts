@@ -481,7 +481,7 @@ describe("HooksProcessor", () => {
   });
 
   describe("getToolTargets", () => {
-    it("should return cursor, claudecode, copilot, copilotcli, opencode, kilo, factorydroid, and geminicli for project mode", () => {
+    it("should return cursor, claudecode, copilot, copilotcli, opencode, kilo, factorydroid, geminicli, and kiro for project mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: false });
       expect(targets).toEqual([
         "cursor",
@@ -493,6 +493,7 @@ describe("HooksProcessor", () => {
         "opencode",
         "factorydroid",
         "geminicli",
+        "kiro",
       ]);
     });
 
@@ -521,6 +522,7 @@ describe("HooksProcessor", () => {
         "copilotcli",
         "factorydroid",
         "geminicli",
+        "kiro",
       ]);
     });
 

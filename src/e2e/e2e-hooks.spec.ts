@@ -37,6 +37,7 @@ describe("E2E: hooks", () => {
     { target: "copilot", outputPath: join(".github", "hooks", "copilot-hooks.json") },
     { target: "copilotcli", outputPath: join(".github", "hooks", "copilotcli-hooks.json") },
     { target: "factorydroid", outputPath: join(".factory", "settings.json") },
+    { target: "kiro", outputPath: join(".kiro", "agents", "default.json") },
   ])("should generate $target hooks", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -81,6 +82,13 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks).toBeDefined();
         expect(parsed.hooks.sessionStart).toBeDefined();
         expect(parsed.hooks.stop).toBeDefined();
+      } else if (target === "kiro") {
+        // Kiro CLI uses its own event names: sessionStart → agentSpawn, stop → stop
+        expect(parsed.hooks).toBeDefined();
+        expect(parsed.hooks.agentSpawn).toBeDefined();
+        expect(parsed.hooks.stop).toBeDefined();
+        expect(parsed.hooks.agentSpawn[0].command).toBe(".rulesync/hooks/session-start.sh");
+        expect(parsed.hooks.stop[0].command).toBe(".rulesync/hooks/audit.sh");
       } else if (target === "copilot" || target === "copilotcli") {
         // Copilot and Copilot CLI use camelCase event names. Neither supports
         // the `stop` hook event (see COPILOT_HOOK_EVENTS in src/types/hooks.ts),
@@ -98,7 +106,7 @@ describe("E2E: hooks", () => {
   });
 
   it.each([
-    // claudecode, geminicli, factorydroid use settings.json (isDeletable=false) — excluded
+    // claudecode, geminicli, factorydroid, kiro use shared config files (isDeletable=false) — excluded
     { target: "cursor", orphanPath: join(".cursor", "hooks.json") },
     { target: "opencode", orphanPath: join(".opencode", "plugins", "rulesync-hooks.js") },
     { target: "codexcli", orphanPath: join(".codex", "hooks.json") },
@@ -228,6 +236,15 @@ describe("E2E: hooks (import)", () => {
           sessionStart: [
             { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
           ],
+        },
+      },
+    },
+    {
+      target: "kiro",
+      sourcePath: join(".kiro", "agents", "default.json"),
+      sourceContent: {
+        hooks: {
+          agentSpawn: [{ command: "echo session started" }],
         },
       },
     },

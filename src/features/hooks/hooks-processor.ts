@@ -9,9 +9,10 @@ import {
   CURSOR_HOOK_EVENTS,
   DEEPAGENTS_HOOK_EVENTS,
   FACTORYDROID_HOOK_EVENTS,
-  KILO_HOOK_EVENTS,
-  OPENCODE_HOOK_EVENTS,
   GEMINICLI_HOOK_EVENTS,
+  KILO_HOOK_EVENTS,
+  KIRO_HOOK_EVENTS,
+  OPENCODE_HOOK_EVENTS,
   type HookEvent,
   type HookType,
 } from "../../types/hooks.js";
@@ -29,6 +30,7 @@ import { DeepagentsHooks } from "./deepagents-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
 import { GeminicliHooks } from "./geminicli-hooks.js";
 import { KiloHooks } from "./kilo-hooks.js";
+import { KiroHooks } from "./kiro-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import type {
@@ -49,6 +51,7 @@ const hooksProcessorToolTargetTuple = [
   "factorydroid",
   "geminicli",
   "deepagents",
+  "kiro",
 ] as const;
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
@@ -217,6 +220,22 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
       supportedEvents: DEEPAGENTS_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: false,
+    },
+  ],
+  [
+    "kiro",
+    {
+      class: KiroHooks,
+      meta: {
+        // Kiro hooks are project-level only (consistent with existing Kiro features).
+        // Hooks are written to .kiro/agents/default.json alongside subagent configs.
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsImport: true,
+      },
+      supportedEvents: KIRO_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
     },
   ],
 ]);
