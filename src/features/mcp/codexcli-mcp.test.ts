@@ -927,6 +927,39 @@ args = ["server.js"]
       expect(server.env).toEqual({ LOG_LEVEL: "debug" });
     });
 
+    it("should not leak rulesync-only fields into codex output", async () => {
+      const jsonData = {
+        mcpServers: {
+          pal: {
+            type: "stdio",
+            command: "uvx",
+            args: ["pal-mcp-server"],
+            envVars: ["OPENAI_API_KEY"],
+            targets: ["codexcli"],
+            description: "PAL MCP server",
+            exposed: true,
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const server = (codexcliMcp.getToml().mcp_servers as any).pal;
+      expect(server.env_vars).toEqual(["OPENAI_API_KEY"]);
+      expect(server.targets).toBeUndefined();
+      expect(server.description).toBeUndefined();
+      expect(server.exposed).toBeUndefined();
+    });
+
     it("should round-trip envVars through codex import", async () => {
       // codex config.toml → toRulesyncMcp() → rulesync representation must
       // expose `envVars` in source schema form (camelCase).
@@ -948,6 +981,30 @@ env_vars = ["OPENAI_API_KEY"]
 
       expect(json.mcpServers.pal.envVars).toEqual(["OPENAI_API_KEY"]);
       expect(json.mcpServers.pal.env_vars).toBeUndefined();
+    });
+
+    it("should ignore malformed codex array fields when importing", () => {
+      const tomlContent = `[mcp_servers.pal]
+type = "stdio"
+command = "uvx"
+env_vars = [1, 2, 3]
+enabled_tools = ["read", 2]
+disabled_tools = [false]
+`;
+      const codexcliMcp = new CodexcliMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: tomlContent,
+      });
+
+      const rulesyncMcp = codexcliMcp.toRulesyncMcp();
+      const json = JSON.parse(rulesyncMcp.getFileContent());
+
+      expect(json.mcpServers.pal.envVars).toBeUndefined();
+      expect(json.mcpServers.pal.enabledTools).toBeUndefined();
+      expect(json.mcpServers.pal.disabledTools).toBeUndefined();
+      expect(json.mcpServers.pal.command).toBe("uvx");
     });
 
     it("should convert enabledTools/disabledTools for multiple servers", async () => {
