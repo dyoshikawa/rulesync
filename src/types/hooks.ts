@@ -11,7 +11,7 @@ export const CONTROL_CHARS = ["\n", "\r", "\0"] as const;
  * Used for command and matcher fields that are embedded in generated code.
  */
 const hasControlChars = (val: string): boolean => CONTROL_CHARS.some((char) => val.includes(char));
-const safeString = z.pipe(
+export const safeString = z.pipe(
   z.string(),
   z.custom<string>(
     (val) => typeof val === "string" && !hasControlChars(val),

@@ -84,9 +84,11 @@ describe("KiroHooks", () => {
       expect(parsed.hooks.userPromptSubmit).toBeDefined();
       expect(parsed.hooks.preToolUse).toBeDefined();
       expect(parsed.hooks.postToolUse).toBeDefined();
-      // Both sessionEnd and stop map to kiro's stop. The latter overwrites.
+      // Both sessionEnd and stop map to kiro's stop and are merged.
       expect(parsed.hooks.stop).toBeDefined();
-      expect(parsed.hooks.stop[0].command).toBe("echo stop");
+      expect(parsed.hooks.stop).toHaveLength(2);
+      expect(parsed.hooks.stop[0].command).toBe("echo end");
+      expect(parsed.hooks.stop[1].command).toBe("echo stop");
     });
 
     it("should include matcher and timeout_ms in output", async () => {
@@ -407,7 +409,7 @@ describe("KiroHooks", () => {
         relativeFilePath: "default.json",
       });
       const parsed = JSON.parse(hooks.getFileContent());
-      expect(parsed).toEqual({});
+      expect(parsed).toEqual({ hooks: {} });
     });
   });
 });

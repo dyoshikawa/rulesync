@@ -9,6 +9,7 @@ import {
   KIRO_HOOK_EVENTS,
   CANONICAL_TO_KIRO_EVENT_NAMES,
   KIRO_TO_CANONICAL_EVENT_NAMES,
+  safeString,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
@@ -36,6 +37,10 @@ function canonicalToKiroHooks(config: HooksConfig): Record<string, unknown[]> {
   }
   const effectiveHooks: HooksConfig["hooks"] = {
     ...sharedHooks,
+    // Note: Tool-specific overrides (config.kiro?.hooks) bypass the
+    // KIRO_HOOK_EVENTS filter by design — users who define tool-level overrides
+    // are expected to know the target tool's event surface. The HooksProcessor
+    // already warns about unsupported events before calling this function.
     ...config.kiro?.hooks,
   };
   const kiro: Record<string, unknown[]> = {};
@@ -49,14 +54,20 @@ function canonicalToKiroHooks(config: HooksConfig): Record<string, unknown[]> {
         ...(def.matcher !== undefined &&
           def.matcher !== null &&
           def.matcher !== "" && { matcher: def.matcher }),
-        ...(def.timeout !== undefined && def.timeout !== null && { timeout_ms: def.timeout }),
+        ...(def.timeout !== undefined &&
+          def.timeout !== null &&
+          def.timeout > 0 && { timeout_ms: def.timeout }),
         ...(def.name !== undefined && def.name !== null && { name: def.name }),
         ...(def.description !== undefined &&
           def.description !== null && { description: def.description }),
       });
     }
     if (entries.length > 0) {
-      kiro[kiroEventName] = entries;
+      if (kiro[kiroEventName]) {
+        kiro[kiroEventName].push(...entries);
+      } else {
+        kiro[kiroEventName] = entries;
+      }
     }
   }
   return kiro;
@@ -68,7 +79,7 @@ function canonicalToKiroHooks(config: HooksConfig): Record<string, unknown[]> {
  * versions are accepted and silently ignored during import.
  */
 const KiroHookEntrySchema = z.looseObject({
-  command: z.optional(z.string()),
+  command: z.optional(safeString),
   matcher: z.optional(z.string()),
   timeout_ms: z.optional(z.number()),
   name: z.optional(z.string()),
@@ -208,7 +219,7 @@ export class KiroHooks extends ToolHooks {
       outputRoot,
       relativeDirPath,
       relativeFilePath,
-      fileContent: JSON.stringify({}, null, 2),
+      fileContent: JSON.stringify({ hooks: {} }, null, 2),
       validate: false,
     });
   }
