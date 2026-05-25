@@ -4,6 +4,7 @@ import { parse as parseJsonc } from "jsonc-parser";
 
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -15,12 +16,6 @@ import {
 } from "./tool-mcp.js";
 
 const AMP_MCP_SERVERS_KEY = "amp.mcpServers";
-
-// Block prototype pollution keys
-const PROTOTYPE_POLLUTION_KEYS = new Set(["__proto__", "constructor", "prototype"]);
-
-// Valid transport types for Amp MCP servers
-const VALID_TRANSPORT_TYPES = new Set(["stdio", "sse", "http", "streamable_http"]);
 
 export class AmpMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
@@ -49,6 +44,26 @@ export class AmpMcp extends ToolMcp {
     };
   }
 
+  /**
+   * Probe `<jsonDir>/settings.jsonc` first, falling back to `settings.json`,
+   * so existing user files are read-modified-written in place instead of a
+   * fresh `.json` sibling being created next to a hand-authored `.jsonc`.
+   * Defaults to `settings.jsonc` when neither file exists.
+   */
+  private static async resolveSettingsFile(
+    jsonDir: string,
+  ): Promise<{ fileContent: string | null; relativeFilePath: string }> {
+    const jsoncContent = await readFileContentOrNull(join(jsonDir, "settings.jsonc"));
+    if (jsoncContent !== null) {
+      return { fileContent: jsoncContent, relativeFilePath: "settings.jsonc" };
+    }
+    const jsonContent = await readFileContentOrNull(join(jsonDir, "settings.json"));
+    if (jsonContent !== null) {
+      return { fileContent: jsonContent, relativeFilePath: "settings.json" };
+    }
+    return { fileContent: null, relativeFilePath: "settings.jsonc" };
+  }
+
   static async fromFile({
     outputRoot = process.cwd(),
     validate = true,
@@ -56,26 +71,7 @@ export class AmpMcp extends ToolMcp {
   }: ToolMcpFromFileParams): Promise<AmpMcp> {
     const basePaths = this.getSettablePaths({ global });
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
-
-    let fileContent: string | null = null;
-    let relativeFilePath = "settings.jsonc";
-
-    // Try JSONC first (preferred format), then fall back to JSON
-    const jsoncPath = join(jsonDir, "settings.jsonc");
-    const jsonPath = join(jsonDir, "settings.json");
-
-    fileContent = await readFileContentOrNull(jsoncPath);
-    if (!fileContent) {
-      fileContent = await readFileContentOrNull(jsonPath);
-      if (fileContent) {
-        relativeFilePath = "settings.json";
-      } else {
-        // Neither file exists, default to jsonc
-        relativeFilePath = "settings.jsonc";
-      }
-    } else {
-      relativeFilePath = "settings.jsonc";
-    }
+    const { fileContent, relativeFilePath } = await this.resolveSettingsFile(jsonDir);
 
     // If neither exists, use default empty config
     const parsed = fileContent ? parseJsonc(fileContent) : {};
@@ -105,26 +101,7 @@ export class AmpMcp extends ToolMcp {
   }: ToolMcpFromRulesyncMcpParams): Promise<AmpMcp> {
     const basePaths = this.getSettablePaths({ global });
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
-
-    let fileContent: string | null = null;
-    let relativeFilePath = "settings.jsonc";
-
-    // Try JSONC first (preferred format), then fall back to JSON
-    const jsoncPath = join(jsonDir, "settings.jsonc");
-    const jsonPath = join(jsonDir, "settings.json");
-
-    fileContent = await readFileContentOrNull(jsoncPath);
-    if (!fileContent) {
-      fileContent = await readFileContentOrNull(jsonPath);
-      if (fileContent) {
-        relativeFilePath = "settings.json";
-      } else {
-        // Neither file exists, default to jsonc
-        relativeFilePath = "settings.jsonc";
-      }
-    } else {
-      relativeFilePath = "settings.jsonc";
-    }
+    const { fileContent, relativeFilePath } = await this.resolveSettingsFile(jsonDir);
 
     // If neither exists, use default config
     const parsed = fileContent ? parseJsonc(fileContent) : { [AMP_MCP_SERVERS_KEY]: {} };
@@ -202,7 +179,10 @@ export class AmpMcp extends ToolMcp {
       }
     }
 
-    // Validate amp.mcpServers if present
+    // Validate amp.mcpServers if present. Server-config fields (`type`, etc.)
+    // are intentionally accepted as-is: Amp evolves its transport list
+    // upstream and the project convention (`.claude/rules/coding-guidelines.md`)
+    // is to keep schemas loose so new fields don't require a rulesync release.
     const mcpServers = json[AMP_MCP_SERVERS_KEY];
     if (mcpServers && typeof mcpServers === "object" && !Array.isArray(mcpServers)) {
       for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
@@ -229,20 +209,6 @@ export class AmpMcp extends ToolMcp {
               };
             }
           }
-
-          // Validate type field if present
-          // eslint-disable-next-line no-type-assertion/no-type-assertion
-          const config = serverConfig as Record<string, unknown>;
-          if (config.type !== undefined) {
-            if (typeof config.type !== "string" || !VALID_TRANSPORT_TYPES.has(config.type)) {
-              return {
-                success: false,
-                error: new Error(
-                  `Invalid type "${config.type}" for server "${serverName}". Must be one of: stdio, sse, http, streamable_http`,
-                ),
-              };
-            }
-          }
         }
       }
     }
@@ -263,6 +229,10 @@ export class AmpMcp extends ToolMcp {
     relativeFilePath,
     global = false,
   }: ToolMcpForDeletionParams): AmpMcp {
+    // SAFETY: `isDeletable()` returns false, so the orchestrator never writes
+    // this `{}` content to disk. If a future refactor drops that guard, this
+    // would overwrite the user's entire Amp settings — keep the guard or
+    // throw here instead.
     return new AmpMcp({
       outputRoot,
       relativeDirPath,

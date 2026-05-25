@@ -11,10 +11,14 @@ import {
 const logger = createMockLogger();
 
 // These targets intentionally have no gitignore entries because they either
-// don't generate files (e.g., agentsskills) or share paths with their
-// non-legacy counterparts (e.g., augmentcode-legacy → augmentcode).
+// don't generate files (e.g., agentsskills), share paths with their
+// non-legacy counterparts (e.g., augmentcode-legacy → augmentcode), or write
+// only into a user-owned shared settings file that rulesync must not gitignore
+// (e.g., amp writes the `amp.mcpServers` key into `.amp/settings.{json,jsonc}`
+// alongside the user's other Amp settings).
 const TARGETS_WITHOUT_GITIGNORE_ENTRIES = new Set([
   "agentsskills",
+  "amp",
   "antigravity",
   "augmentcode-legacy",
   "claudecode-legacy",

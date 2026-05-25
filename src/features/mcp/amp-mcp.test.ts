@@ -291,14 +291,16 @@ describe("AmpMcp", () => {
       expect(result.error?.message).toContain("constructor");
     });
 
-    it("should reject invalid transport type", () => {
+    it("should accept unknown transport types (loose schema)", () => {
+      // Amp can add new transport types upstream; rulesync keeps the schema
+      // loose so new fields don't require a release.
       const ampMcp = new AmpMcp({
         relativeDirPath: ".amp",
         relativeFilePath: "settings.json",
         fileContent: JSON.stringify({
           "amp.mcpServers": {
             myserver: {
-              type: "invalid",
+              type: "future-transport",
               command: "npx",
             },
           },
@@ -306,8 +308,7 @@ describe("AmpMcp", () => {
       });
 
       const result = ampMcp.validate();
-      expect(result.success).toBe(false);
-      expect(result.error?.message).toContain("Invalid type");
+      expect(result.success).toBe(true);
     });
   });
 

@@ -6,6 +6,7 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import { warnWithFallback } from "../../utils/logger.js";
+import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import { isPlainObject, isRecord } from "../../utils/type-guards.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -18,8 +19,6 @@ import {
 } from "./tool-mcp.js";
 
 const MAX_REMOVE_EMPTY_ENTRIES_DEPTH = 32;
-
-const PROTOTYPE_POLLUTION_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
 function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
   const result: McpServers = {};

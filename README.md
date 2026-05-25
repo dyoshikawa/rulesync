@@ -74,6 +74,7 @@ See [Quick Start guide](https://dyoshikawa.github.io/rulesync/getting-started/qu
 | ------------------- | ------------ | :---: | :----: | :------: | :------: | :-------: | :----: | :---: | :---------: |
 | AGENTS.md           | agentsmd     |  ✅   |        |          |    🎮    |    🎮     |   🎮   |       |             |
 | AgentsSkills        | agentsskills |       |        |          |          |           |   ✅   |       |             |
+| Amp                 | amp          |       |        |  ✅ 🌏   |          |           |        |       |             |
 | Claude Code         | claudecode   | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
 | Codex CLI           | codexcli     | ✅ 🌏 |        | ✅ 🌏 🔧 |    🌏    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
 | Gemini CLI          | geminicli    | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |    ✅     | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |

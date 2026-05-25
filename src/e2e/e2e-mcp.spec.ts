@@ -113,6 +113,11 @@ describe("E2E: mcp", () => {
 
   it.each([
     {
+      target: "amp",
+      outputPath: join(".amp", "settings.jsonc"),
+      content: JSON.stringify({ "amp.dangerouslyAllowAll": false, "amp.mcpServers": {} }, null, 2),
+    },
+    {
       target: "geminicli",
       outputPath: join(".gemini", "settings.json"),
       content: JSON.stringify({ theme: "dark", mcpServers: {} }, null, 2),
@@ -194,21 +199,41 @@ describe("E2E: mcp (import)", () => {
     { target: "roo", sourcePath: join(".roo", "mcp.json") },
     { target: "kiro", sourcePath: join(".kiro", "settings", "mcp.json") },
     { target: "junie", sourcePath: join(".junie", "mcp", "mcp.json") },
-  ])("should import $target mcp", async ({ target, sourcePath }) => {
-    const testDir = getTestDir();
-
-    const mcpContent = JSON.stringify(
-      {
-        mcpServers: {
-          "test-server": {
-            command: "echo",
-            args: ["hello"],
+    // Amp stores servers under the `amp.mcpServers` key inside the shared
+    // settings file, so the source content shape differs from the other targets.
+    {
+      target: "amp",
+      sourcePath: join(".amp", "settings.jsonc"),
+      sourceContent: JSON.stringify(
+        {
+          "amp.mcpServers": {
+            "test-server": {
+              command: "echo",
+              args: ["hello"],
+            },
           },
         },
-      },
-      null,
-      2,
-    );
+        null,
+        2,
+      ),
+    },
+  ])("should import $target mcp", async ({ target, sourcePath, sourceContent }) => {
+    const testDir = getTestDir();
+
+    const mcpContent =
+      sourceContent ??
+      JSON.stringify(
+        {
+          mcpServers: {
+            "test-server": {
+              command: "echo",
+              args: ["hello"],
+            },
+          },
+        },
+        null,
+        2,
+      );
     await writeFileContent(join(testDir, sourcePath), mcpContent);
 
     await runImport({ target, features: "mcp" });
@@ -232,6 +257,7 @@ describe("E2E: mcp (global mode)", () => {
     { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
     { target: "rovodev", outputPath: join(".rovodev", "mcp.json") },
     { target: "kilo", outputPath: join(".config", "kilo", "kilo.jsonc") },
+    { target: "amp", outputPath: join(".config", "amp", "settings.jsonc") },
   ])("should generate $target mcp in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
