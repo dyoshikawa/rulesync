@@ -19,7 +19,7 @@ updates:
     labels:
       - "dependencies"
       - "automated"
-    reviewers:
+    assignees:
       - "dyoshikawa"
       - "cm-dyoshikawa"
     allow:
@@ -52,6 +52,28 @@ updates:
     labels:
       - "ci"
       - "automated"
-    reviewers:
+    assignees:
+      - "dyoshikawa"
+      - "cm-dyoshikawa"
+
+  # Automatic updates for Docker
+  - package-ecosystem: "docker"
+    directory: "/.devcontainer"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 1
+    open-pull-requests-limit: 1
+    groups:
+      all-docker:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "automated"
+    assignees:
       - "dyoshikawa"
       - "cm-dyoshikawa"

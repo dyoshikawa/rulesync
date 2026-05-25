@@ -2224,4 +2224,238 @@ describe("OpencodeMcp", () => {
       expect(opencodeMcp.getJson().mcp?.fromJson).toBeUndefined();
     });
   });
+
+  describe("env variable format conversion", () => {
+    it("should convert OpenCode env format {env:VAR} to canonical ${VAR} when importing (toRulesyncMcp)", () => {
+      const opencodeConfig = {
+        mcp: {
+          "test-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            environment: {
+              API_KEY: "{env:MY_API_KEY}",
+              DEBUG: "true",
+            },
+            enabled: true,
+          },
+        },
+      };
+
+      const opencodeMcp = new OpencodeMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify(opencodeConfig),
+      });
+
+      const rulesyncMcp = opencodeMcp.toRulesyncMcp();
+      const exported = JSON.parse(rulesyncMcp.getFileContent());
+
+      expect(exported.mcpServers["test-server"].env.API_KEY).toBe("${MY_API_KEY}");
+      expect(exported.mcpServers["test-server"].env.DEBUG).toBe("true");
+    });
+
+    it("should convert canonical env format ${VAR} to OpenCode {env:VAR} when exporting (fromRulesyncMcp)", async () => {
+      const rulesyncConfig = {
+        mcpServers: {
+          "test-server": {
+            command: "node",
+            args: ["server.js"],
+            env: {
+              API_KEY: "${MY_API_KEY}",
+              DEBUG: "true",
+            },
+          },
+        },
+      };
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(rulesyncConfig),
+      });
+
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        rulesyncMcp,
+        validate: false,
+      });
+      const exported = opencodeMcp.getJson();
+
+      const server = exported.mcp?.["test-server"];
+      expect(server).toBeDefined();
+      expect(server?.type).toBe("local");
+      if (server?.type === "local") {
+        expect(server.environment?.API_KEY).toBe("{env:MY_API_KEY}");
+        expect(server.environment?.DEBUG).toBe("true");
+      }
+    });
+
+    it("should preserve env variable values through round-trip conversion", async () => {
+      const originalConfig = {
+        mcpServers: {
+          "test-server": {
+            command: "node",
+            args: ["server.js"],
+            env: {
+              API_KEY: "${MY_API_KEY}",
+              HOST: "${HOST}",
+              LITERAL: "static-value",
+            },
+          },
+        },
+      };
+
+      // Start with canonical format in RulesyncMcp
+      const rulesyncMcp1 = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(originalConfig),
+      });
+
+      // Convert to OpenCode format
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        rulesyncMcp: rulesyncMcp1,
+        validate: false,
+      });
+
+      // Convert back to canonical format
+      const rulesyncMcp2 = opencodeMcp.toRulesyncMcp();
+      const finalConfig = JSON.parse(rulesyncMcp2.getFileContent());
+
+      expect(finalConfig.mcpServers["test-server"].env).toEqual(
+        originalConfig.mcpServers["test-server"].env,
+      );
+    });
+
+    it("should convert env vars in headers for remote servers when exporting (fromRulesyncMcp)", async () => {
+      const rulesyncConfig = {
+        mcpServers: {
+          "remote-server": {
+            type: "sse",
+            url: "https://example.com/api/mcp",
+            headers: {
+              Authorization: "Bearer ${API_KEY}",
+            },
+          },
+        },
+      };
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(rulesyncConfig),
+      });
+
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        rulesyncMcp,
+        validate: false,
+      });
+      const exported = opencodeMcp.getJson();
+
+      const server = exported.mcp?.["remote-server"];
+      expect(server).toBeDefined();
+      expect(server?.type).toBe("remote");
+      if (server?.type === "remote") {
+        expect(server.headers?.Authorization).toBe("Bearer {env:API_KEY}");
+      }
+    });
+
+    it("should convert env vars in headers for remote servers when importing (toRulesyncMcp)", () => {
+      const opencodeConfig = {
+        mcp: {
+          "remote-server": {
+            type: "remote",
+            url: "https://example.com/api/mcp",
+            headers: {
+              Authorization: "Bearer {env:API_KEY}",
+            },
+            enabled: true,
+          },
+        },
+      };
+
+      const opencodeMcp = new OpencodeMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify(opencodeConfig),
+      });
+
+      const rulesyncMcp = opencodeMcp.toRulesyncMcp();
+      const exported = JSON.parse(rulesyncMcp.getFileContent());
+
+      expect(exported.mcpServers["remote-server"].headers.Authorization).toBe("Bearer ${API_KEY}");
+    });
+
+    it("should not convert Cursor format ${env:VAR} during OpenCode import", () => {
+      const opencodeConfig = {
+        mcp: {
+          "test-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            environment: {
+              CURSOR_STYLE: "${env:MY_KEY}",
+              OPENCODE_STYLE: "{env:MY_KEY}",
+            },
+            enabled: true,
+          },
+        },
+      };
+
+      const opencodeMcp = new OpencodeMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify(opencodeConfig),
+      });
+
+      const rulesyncMcp = opencodeMcp.toRulesyncMcp();
+      const exported = JSON.parse(rulesyncMcp.getFileContent());
+
+      expect(exported.mcpServers["test-server"].env.CURSOR_STYLE).toBe("${env:MY_KEY}");
+      expect(exported.mcpServers["test-server"].env.OPENCODE_STYLE).toBe("${MY_KEY}");
+    });
+
+    it("should preserve header env variable values through round-trip conversion", async () => {
+      const originalConfig = {
+        mcpServers: {
+          "remote-server": {
+            type: "sse",
+            url: "https://example.com/api/mcp",
+            headers: {
+              Authorization: "Bearer ${API_KEY}",
+              "X-Custom": "static-value",
+            },
+          },
+        },
+      };
+
+      // Start with canonical format in RulesyncMcp
+      const rulesyncMcp1 = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(originalConfig),
+      });
+
+      // Convert to OpenCode format
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        rulesyncMcp: rulesyncMcp1,
+        validate: false,
+      });
+
+      // Verify intermediate OpenCode format
+      const opencodeJson = opencodeMcp.getJson();
+      const server = opencodeJson.mcp?.["remote-server"];
+      expect(server?.type).toBe("remote");
+      if (server?.type === "remote") {
+        expect(server.headers?.Authorization).toBe("Bearer {env:API_KEY}");
+        expect(server.headers?.["X-Custom"]).toBe("static-value");
+      }
+
+      // Convert back to canonical format
+      const rulesyncMcp2 = opencodeMcp.toRulesyncMcp();
+      const finalConfig = JSON.parse(rulesyncMcp2.getFileContent());
+
+      expect(finalConfig.mcpServers["remote-server"].headers).toEqual(
+        originalConfig.mcpServers["remote-server"].headers,
+      );
+    });
+  });
 });

@@ -12,7 +12,7 @@
 | `subagents`   | `https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-custom-agents-for-cli` | Custom agent profiles used as subagents, `.github/agents/*.agent.md`, `~/.copilot/agents/*.agent.md`                                   |
 | `skills`      | `https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-skills`                   | Agent skills in `.github/skills`, `.claude/skills`, `.agents/skills`, `~/.copilot/skills`, `~/.agents/skills`                          |
 | `hooks`       | `https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/use-hooks`                    | `.github/hooks/<name>.json`, hook events, `bash`/`powershell` command entries                                                          |
-| `permissions` | `https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/allowing-tools`                 | Tool allow/deny behavior and interactive approval; no Rulesync-supported Copilot CLI permissions target                                |
+| `permissions` | `https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/allowing-tools`                 | Tool allow/deny behavior and interactive approval                                                                                      |
 
 ## Client Anchors
 

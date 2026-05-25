@@ -250,7 +250,7 @@ Attention, again, you are just the planner, so though you can read any files and
 
 > **Gemini CLI note (as of 2026-04-01):** Subagents are generated to `.gemini/agents/`. To enable the agents feature, set `"experimental": { "enableAgents": true }` in your `.gemini/settings.json`.
 
-> **Kilo note (as of 2026-05-13):** Kilo's documented default for user-defined agents is `mode: all`, which makes the agent available both as a top-level pick and as a subagent. Set `kilo.mode: subagent` to opt into hidden/subagent-only behavior.
+> **Kilo note (as of 2026-05-13):** Kilo's documented default for user-defined agents is `mode: all`, which makes the agent available both as a top-level pick and as a subagent. Set `kilo.mode: subagent` to opt into hidden/subagent-only behavior. Other supported fields include `displayName`, `temperature`, `top_p`, `model`, `permission`, `prompt`, `color`, `native`, `hidden`, `variant`, `disable`, `deprecated`, `steps`, and `options`.
 
 ## `.rulesync/skills/*/SKILL.md`
 
@@ -400,7 +400,7 @@ env_vars = ["OPENAI_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY"]
 
 - Emitted only into the codex CLI output. Stripped from `RulesyncMcp.getMcpServers()` so it does not appear in other tools' generated configs (Claude Code, Kilo, OpenCode, Gemini CLI, Cursor, Cline, Junie, Factorydroid, Rovodev, etc.).
 - Use this for secrets and API keys you do not want literal-encoded into a committed `mcp.json`.
-- Precedence: codex CLI resolves these names from the user's runtime shell environment. If a name is also set in `env` (literal value), the codex CLI behavior is upstream-defined — see codex documentation for the exact resolution rule.
+- Precedence: codex CLI resolves these names from the user's runtime shell environment. If a name is also set in `env` (literal value), the codex CLI behavior is upstream-defined; see the [Codex configuration reference](https://developers.openai.com/codex/config-reference#mcp_serversid-env_vars) (last checked 2026-05-13) for the exact resolution rule.
 
 ## `.rulesync/.aiignore` or `.rulesyncignore`
 

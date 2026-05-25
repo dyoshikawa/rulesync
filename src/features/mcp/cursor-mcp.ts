@@ -1,9 +1,13 @@
 import { join } from "node:path";
 
 import { ValidationResult } from "../../types/ai-file.js";
-import { isMcpServers, type McpServers } from "../../types/mcp.js";
+import { isMcpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import {
+  convertEnvVarRefsFromToolFormat,
+  convertEnvVarRefsToToolFormat,
+} from "./mcp-env-var-format.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -15,52 +19,6 @@ import {
 } from "./tool-mcp.js";
 
 const CURSOR_ENV_VAR_PATTERN = /\$\{env:([^}]+)\}/g;
-
-/**
- * Convert Cursor env format to canonical format
- * - ${env:VAR} -> ${VAR}
- */
-function convertEnvFromCursorFormat(mcpServers: McpServers): McpServers {
-  return Object.fromEntries(
-    Object.entries(mcpServers).map(([name, config]) => [
-      name,
-      {
-        ...config,
-        ...(config.env && {
-          env: Object.fromEntries(
-            Object.entries(config.env).map(([k, v]) => [
-              k,
-              v.replace(CURSOR_ENV_VAR_PATTERN, "${$1}"),
-            ]),
-          ),
-        }),
-      },
-    ]),
-  );
-}
-
-/**
- * Convert canonical env format to Cursor format
- * - ${VAR} -> ${env:VAR} (avoids double-converting)
- */
-function convertEnvToCursorFormat(mcpServers: McpServers): McpServers {
-  return Object.fromEntries(
-    Object.entries(mcpServers).map(([name, config]) => [
-      name,
-      {
-        ...config,
-        ...(config.env && {
-          env: Object.fromEntries(
-            Object.entries(config.env).map(([k, v]) => [
-              k,
-              v.replace(/\$\{(?!env:)([^}:]+)\}/g, "${env:$1}"),
-            ]),
-          ),
-        }),
-      },
-    ]),
-  );
-}
 
 export type CursorMcpParams = ToolMcpParams;
 
@@ -153,7 +111,10 @@ export class CursorMcp extends ToolMcp {
     // codex-only fields (`envVars`) are stripped before writing the
     // cursor config.
     const mcpServers = rulesyncMcp.getMcpServers();
-    const transformedServers = convertEnvToCursorFormat(mcpServers);
+    const transformedServers = convertEnvVarRefsToToolFormat({
+      mcpServers,
+      replacement: "${env:$1}",
+    });
 
     const cursorConfig = { ...json, mcpServers: transformedServers };
 
@@ -169,7 +130,10 @@ export class CursorMcp extends ToolMcp {
 
   toRulesyncMcp(): RulesyncMcp {
     const mcpServers = isMcpServers(this.json.mcpServers) ? this.json.mcpServers : {};
-    const transformedServers = convertEnvFromCursorFormat(mcpServers);
+    const transformedServers = convertEnvVarRefsFromToolFormat({
+      mcpServers,
+      pattern: CURSOR_ENV_VAR_PATTERN,
+    });
 
     const transformedJson = {
       ...this.json,

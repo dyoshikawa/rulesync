@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { ValidationResult } from "../../types/ai-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
@@ -18,17 +19,63 @@ import {
 
 export const KiloSubagentFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
-  // Kilo's documented default for user-defined agents is "all":
-  // available both as a top-level pick and as a subagent.
   mode: z._default(z.string(), "all"),
   name: z.optional(z.string()),
+  displayName: z.optional(z.string()),
+  deprecated: z.optional(z.boolean()),
+  native: z.optional(z.boolean()),
+  hidden: z.optional(z.boolean()),
+  top_p: z.optional(z.number()),
+  temperature: z.optional(z.number()),
+  color: z.optional(z.string()),
+  permission: z.optional(z.string()),
+  model: z.optional(z.string()),
+  variant: z.optional(z.string()),
+  prompt: z.optional(z.string()),
+  options: z.optional(z.looseObject({})),
+  steps: z.optional(z.array(z.looseObject({}))),
+  disable: z.optional(z.boolean()),
 });
 export type KiloSubagentFrontmatter = z.infer<typeof KiloSubagentFrontmatterSchema>;
-export type KiloSubagentParams = OpenCodeStyleSubagentParams;
+export type KiloSubagentParams = Omit<OpenCodeStyleSubagentParams, "frontmatter"> & {
+  frontmatter: KiloSubagentFrontmatter;
+};
 
 export class KiloSubagent extends OpenCodeStyleSubagent {
+  declare protected readonly frontmatter: KiloSubagentFrontmatter;
+
+  constructor(params: KiloSubagentParams) {
+    super(params);
+    if (params.validate !== false) {
+      const result = this.validate();
+      if (!result.success) {
+        throw result.error;
+      }
+    }
+  }
+
   protected getToolTarget(): Extract<ToolTarget, "opencode" | "kilo"> {
     return "kilo";
+  }
+
+  getFrontmatter(): KiloSubagentFrontmatter {
+    return this.frontmatter;
+  }
+
+  validate(): ValidationResult {
+    const result = KiloSubagentFrontmatterSchema.safeParse(this.frontmatter);
+    if (result.success) {
+      // @ts-expect-error - readonly
+      this.frontmatter = result.data;
+      return { success: true, error: null };
+    }
+
+    return {
+      success: false,
+      error: new Error(
+        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
+      ),
+    };
   }
 
   static getSettablePaths({
@@ -50,11 +97,18 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const kiloSection = rulesyncFrontmatter.kilo ?? {};
 
-    const kiloFrontmatter: KiloSubagentFrontmatter = KiloSubagentFrontmatterSchema.parse({
+    const parseResult = KiloSubagentFrontmatterSchema.safeParse({
       ...kiloSection,
       description: rulesyncFrontmatter.description,
       ...(rulesyncFrontmatter.name && { name: rulesyncFrontmatter.name }),
     });
+
+    if (!parseResult.success) {
+      throw new Error(
+        `Invalid frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(parseResult.error)}`,
+      );
+    }
+    const kiloFrontmatter: KiloSubagentFrontmatter = parseResult.data;
 
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, kiloFrontmatter);

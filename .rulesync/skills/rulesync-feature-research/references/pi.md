@@ -12,7 +12,7 @@
 | `subagents`   | No dedicated upstream subagents surface in map   | No Rulesync-supported Pi subagents target in map                                                 |
 | `skills`      | `https://pi.dev/docs/latest/skills`              | `.pi/skills`, `~/.pi/agent/skills`, `.agents/skills`, packages, settings, `--skill`              |
 | `hooks`       | No dedicated upstream hooks surface in map       | No Rulesync-supported Pi hooks target in map                                                     |
-| `permissions` | No dedicated upstream permissions surface in map | Tool selection and settings exist upstream; no Rulesync-supported Pi permissions target          |
+| `permissions` | No dedicated upstream permissions surface in map | Tool selection and settings exist upstream                                                       |
 
 ## Client Anchors
 

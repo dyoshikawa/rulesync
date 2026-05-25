@@ -22,3 +22,10 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
   const proto = Object.getPrototypeOf(value);
   return proto === null || proto === Object.prototype;
 }
+
+/**
+ * Type guard to check if a value is an array of strings.
+ */
+export function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}

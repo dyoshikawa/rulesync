@@ -11,6 +11,9 @@ function validateAndSanitizeMatcher(matcher: string): string {
   for (const char of CONTROL_CHARS) {
     sanitized = sanitized.replaceAll(char, "");
   }
+  if (sanitized === "*") {
+    sanitized = ".*";
+  }
   try {
     new RegExp(sanitized);
   } catch {

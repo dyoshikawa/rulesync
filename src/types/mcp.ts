@@ -1,4 +1,13 @@
-import { z } from "zod/mini";
+import { refine, z } from "zod/mini";
+
+const EnvVarNameSchema = z
+  .string()
+  .check(
+    refine(
+      (value) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(value),
+      "envVars entries must be valid environment variable names",
+    ),
+  );
 
 export const McpServerSchema = z.looseObject({
   type: z.optional(z.enum(["local", "stdio", "sse", "http"])),
@@ -7,6 +16,16 @@ export const McpServerSchema = z.looseObject({
   url: z.optional(z.string()),
   httpUrl: z.optional(z.string()),
   env: z.optional(z.record(z.string(), z.string())),
+  // Codex CLI-specific: list of shell env var names that codex should pass
+  // through from the user's environment to the MCP server process.
+  // Distinct from `env` (a literal name→value map): `envVars` is a list of
+  // variable NAMES whose values come from the user's shell at runtime.
+  // Only honoured by the codex generator (renamed to `env_vars` in codex
+  // TOML output, matching codex's native field name — see the
+  // `enabledTools`→`enabled_tools` precedent in `codexcli-mcp.ts`).
+  // Stripped by `RulesyncMcp.getMcpServers()` so it does not leak into
+  // other tools' configs.
+  envVars: z.optional(z.array(EnvVarNameSchema)),
   disabled: z.optional(z.boolean()),
   networkTimeout: z.optional(z.number()),
   timeout: z.optional(z.number()),
@@ -17,16 +36,6 @@ export const McpServerSchema = z.looseObject({
   tools: z.optional(z.array(z.string())),
   kiroAutoApprove: z.optional(z.array(z.string())),
   kiroAutoBlock: z.optional(z.array(z.string())),
-  // Codex CLI-specific: list of shell env var names that codex should pass
-  // through from the user's environment to the MCP server process.
-  // Distinct from `env` (a literal name→value map): `envVars` is a list of
-  // variable NAMES whose values come from the user's shell at runtime.
-  // Only honoured by the codex generator (renamed to `env_vars` in codex
-  // TOML output, matching codex's native field name — see the
-  // `enabledTools`→`enabled_tools` precedent in `codexcli-mcp.ts`).
-  // Stripped by `RulesyncMcp.getMcpServers()` so it does not leak into
-  // other tools' configs.
-  envVars: z.optional(z.array(z.string())),
   headers: z.optional(z.record(z.string(), z.string())),
   enabledTools: z.optional(z.array(z.string())),
   disabledTools: z.optional(z.array(z.string())),
