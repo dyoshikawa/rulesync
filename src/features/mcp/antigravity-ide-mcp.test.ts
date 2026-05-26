@@ -228,6 +228,61 @@ describe("AntigravityIdeMcp", () => {
     });
   });
 
+  describe("serverUrl transform", () => {
+    it("should rename canonical `url` to Antigravity's `serverUrl` when generating", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "http-server": {
+              type: "http",
+              url: "https://example.com/mcp",
+              disabledTools: ["danger"],
+            },
+          },
+        }),
+      });
+
+      const antigravityIdeMcp = await AntigravityIdeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+      });
+
+      const server = antigravityIdeMcp.getJson().mcpServers as Record<
+        string,
+        Record<string, unknown>
+      >;
+      expect(server["http-server"]).toEqual({
+        type: "http",
+        serverUrl: "https://example.com/mcp",
+        disabledTools: ["danger"],
+      });
+      expect(server["http-server"]).not.toHaveProperty("url");
+    });
+
+    it("should rename `serverUrl` back to canonical `url` when importing", () => {
+      const antigravityIdeMcp = new AntigravityIdeMcp({
+        relativeDirPath: ".agents",
+        relativeFilePath: "mcp_config.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "http-server": {
+              type: "http",
+              serverUrl: "https://example.com/mcp",
+            },
+          },
+        }),
+      });
+
+      const parsed = JSON.parse(antigravityIdeMcp.toRulesyncMcp().getFileContent());
+      expect(parsed.mcpServers["http-server"]).toEqual({
+        type: "http",
+        url: "https://example.com/mcp",
+      });
+    });
+  });
+
   describe("validate", () => {
     it("should return a successful validation result", () => {
       const antigravityIdeMcp = new AntigravityIdeMcp({

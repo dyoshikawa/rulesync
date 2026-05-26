@@ -54,8 +54,13 @@ function toCanonicalToolName(cliName: string): string {
 
 /**
  * Parse an Antigravity CLI permission entry like "command(npm run *)" into tool
- * name and pattern. If there are no parentheses, the whole entry is the tool
- * name and the pattern defaults to "*".
+ * name and pattern. The tool name is everything before the first "(" and the
+ * pattern is everything up to the final ")", so patterns that themselves
+ * contain parentheses (e.g. "command(echo (a))") round-trip correctly — this
+ * mirrors {@link ClaudecodePermissions}, which the CLI shares its format with.
+ * If there are no parentheses, the whole entry is the tool name and the pattern
+ * defaults to "*". An entry that opens a "(" but does not end with ")" is
+ * treated as malformed and falls back to the bare tool name with pattern "*".
  */
 function parsePermissionEntry(entry: string): { toolName: string; pattern: string } {
   const parenIndex = entry.indexOf("(");
