@@ -206,6 +206,14 @@ export const KIRO_HOOK_EVENTS: readonly HookEvent[] = [
   "stop",
 ];
 
+/**
+ * Hook events supported by Google Antigravity (both the IDE and the CLI).
+ *
+ * Antigravity exposes a Claude-style hooks surface limited to the three
+ * tool/turn lifecycle events it documents.
+ */
+export const ANTIGRAVITY_HOOK_EVENTS: readonly HookEvent[] = ["preToolUse", "postToolUse", "stop"];
+
 const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
 
 /**
@@ -225,6 +233,8 @@ export const HooksConfigSchema = z.looseObject({
   codexcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   deepagents: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   kiro: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  "antigravity-ide": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  "antigravity-cli": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
 });
 
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;
@@ -253,6 +263,24 @@ export const CANONICAL_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
  */
 export const CLAUDE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_CLAUDE_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to Antigravity PascalCase.
+ * Antigravity uses the same PascalCase names as Claude for the three events
+ * it supports.
+ */
+export const CANONICAL_TO_ANTIGRAVITY_EVENT_NAMES: Record<string, string> = {
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  stop: "Stop",
+};
+
+/**
+ * Map Antigravity PascalCase event names to canonical camelCase.
+ */
+export const ANTIGRAVITY_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_ANTIGRAVITY_EVENT_NAMES).map(([k, v]) => [v, k]),
 );
 
 /**

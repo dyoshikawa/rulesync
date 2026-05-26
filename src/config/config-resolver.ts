@@ -24,6 +24,7 @@ import {
   RequiredConfigParams,
 } from "./config.js";
 import {
+  emitAntigravityAliasDeprecationWarning,
   emitBaseDirsConfigFieldDeprecationWarning,
   emitFeaturesObjectFormDeprecationWarning,
 } from "./deprecation-warnings.js";
@@ -310,7 +311,14 @@ export class ConfigResolver {
       inputRoot: resolvedInputRoot !== undefined ? resolve(resolvedInputRoot) : cwd,
       sources: configByFile.sources ?? getDefaults().sources,
     };
-    return new Config(configParams);
+    const config = new Config(configParams);
+    // The legacy `antigravity` target is never produced by wildcard expansion
+    // (it lives in LEGACY_TARGETS), so its presence here means the user
+    // explicitly selected it. Warn that it is now an alias for `antigravity-ide`.
+    if (config.getTargets().includes("antigravity")) {
+      emitAntigravityAliasDeprecationWarning();
+    }
+    return config;
   }
 }
 

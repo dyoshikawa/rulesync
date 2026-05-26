@@ -38,6 +38,8 @@ describe("E2E: hooks", () => {
     { target: "copilotcli", outputPath: join(".github", "hooks", "copilotcli-hooks.json") },
     { target: "factorydroid", outputPath: join(".factory", "settings.json") },
     { target: "kiro", outputPath: join(".kiro", "agents", "default.json") },
+    { target: "antigravity-ide", outputPath: join(".agents", "hooks.json") },
+    { target: "antigravity-cli", outputPath: join(".agents", "hooks.json") },
   ])("should generate $target hooks", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -97,6 +99,14 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks).toBeDefined();
         expect(parsed.hooks.sessionStart).toBeDefined();
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+      } else if (target === "antigravity-ide" || target === "antigravity-cli") {
+        // Antigravity writes the event → matcher-entry map at the top level
+        // (no `hooks` wrapper) and supports only preToolUse/postToolUse/stop
+        // (see ANTIGRAVITY_HOOK_EVENTS in src/types/hooks.ts). `sessionStart`
+        // is therefore dropped, and only audit.sh — mapped to `Stop` — survives
+        // generation.
+        expect(parsed.Stop).toBeDefined();
+        expect(JSON.stringify(parsed)).toContain(".rulesync/hooks/audit.sh");
       } else {
         // codexcli, geminicli, factorydroid: event-name casing/mapping varies
         // per tool, so verify the configured hook command paths are preserved.
@@ -248,16 +258,41 @@ describe("E2E: hooks (import)", () => {
         },
       },
     },
-  ])("should import $target hooks", async ({ target, sourcePath, sourceContent }) => {
-    const testDir = getTestDir();
+    {
+      // Antigravity stores the event → matcher-entry map at the top level
+      // (no `hooks` wrapper) and supports only preToolUse/postToolUse/stop, so
+      // the imported canonical config exposes `preToolUse` rather than
+      // `sessionStart`.
+      target: "antigravity-ide",
+      sourcePath: join(".agents", "hooks.json"),
+      sourceContent: {
+        PreToolUse: [{ matcher: "", hooks: [{ type: "command", command: "echo pre tool" }] }],
+      },
+      expectedEvent: "preToolUse",
+    },
+    {
+      target: "antigravity-cli",
+      sourcePath: join(".agents", "hooks.json"),
+      sourceContent: {
+        PreToolUse: [{ matcher: "", hooks: [{ type: "command", command: "echo pre tool" }] }],
+      },
+      expectedEvent: "preToolUse",
+    },
+  ])(
+    "should import $target hooks",
+    async ({ target, sourcePath, sourceContent, expectedEvent }) => {
+      const testDir = getTestDir();
 
-    await writeFileContent(join(testDir, sourcePath), JSON.stringify(sourceContent, null, 2));
+      await writeFileContent(join(testDir, sourcePath), JSON.stringify(sourceContent, null, 2));
 
-    await runImport({ target, features: "hooks" });
+      await runImport({ target, features: "hooks" });
 
-    const importedContent = await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
-    expect(importedContent).toContain("sessionStart");
-  });
+      const importedContent = await readFileContent(
+        join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+      );
+      expect(importedContent).toContain(expectedEvent ?? "sessionStart");
+    },
+  );
 });
 
 describe("E2E: hooks (global mode)", () => {
@@ -272,6 +307,8 @@ describe("E2E: hooks (global mode)", () => {
     { target: "deepagents", outputPath: join(".deepagents", "hooks.json") },
     { target: "cursor", outputPath: join(".cursor", "hooks.json") },
     { target: "copilotcli", outputPath: join(".copilot", "hooks", "copilot-hooks.json") },
+    { target: "antigravity-ide", outputPath: join(".gemini", "config", "hooks.json") },
+    { target: "antigravity-cli", outputPath: join(".gemini", "config", "hooks.json") },
   ])("should generate $target hooks in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
@@ -308,6 +345,13 @@ describe("E2E: hooks (global mode)", () => {
       const parsed = JSON.parse(generatedContent);
       expect(parsed.hooks.sessionStart).toBeDefined();
       expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+    } else if (target === "antigravity-ide" || target === "antigravity-cli") {
+      // Antigravity writes the event map at the top level and supports only
+      // preToolUse/postToolUse/stop, so `sessionStart` is dropped and only
+      // audit.sh (mapped to `Stop`) survives generation.
+      const parsed = JSON.parse(generatedContent);
+      expect(parsed.Stop).toBeDefined();
+      expect(JSON.stringify(parsed)).toContain(".rulesync/hooks/audit.sh");
     } else {
       assertHookCommandsPreserved(JSON.parse(generatedContent));
     }

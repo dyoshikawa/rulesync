@@ -3,6 +3,7 @@ import { z } from "zod/mini";
 import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import {
+  ANTIGRAVITY_HOOK_EVENTS,
   CLAUDE_HOOK_EVENTS,
   CODEXCLI_HOOK_EVENTS,
   COPILOT_HOOK_EVENTS,
@@ -21,6 +22,7 @@ import type { ToolFile } from "../../types/tool-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
+import { AntigravityCliHooks, AntigravityIdeHooks } from "./antigravity-hooks.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { CodexcliHooks } from "./codexcli-hooks.js";
 import { CopilotHooks } from "./copilot-hooks.js";
@@ -41,6 +43,8 @@ import type {
 import { ToolHooks } from "./tool-hooks.js";
 
 const hooksProcessorToolTargetTuple = [
+  "antigravity-cli",
+  "antigravity-ide",
   "kilo",
   "cursor",
   "claudecode",
@@ -86,6 +90,34 @@ type ToolHooksFactory = {
 };
 
 const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
+  [
+    "antigravity-cli",
+    {
+      class: AntigravityCliHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: ANTIGRAVITY_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "antigravity-ide",
+    {
+      class: AntigravityIdeHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: ANTIGRAVITY_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
   [
     "cursor",
     {

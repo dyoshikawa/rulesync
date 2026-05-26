@@ -14,22 +14,24 @@ According to [the documentation](https://code.claude.com/docs/en/settings), this
 
 > Automatically approve all MCP servers defined in project .mcp.json files
 
-## Google Antigravity doesn't load rules when `.agent` directories are in `.gitignore`
+## Google Antigravity doesn't load rules when `.agents` directories are in `.gitignore`
 
-Google Antigravity has a known limitation where it won't load rules, workflows, and skills if the `.agent/rules/`, `.agent/workflows/`, and `.agent/skills/` directories are listed in `.gitignore`, even with "Agent Gitignore Access" enabled.
+Google Antigravity has a known limitation where it won't load rules, workflows, and skills if the `.agents/rules/`, `.agents/workflows/`, and `.agents/skills/` directories are listed in `.gitignore`, even with "Agent Gitignore Access" enabled.
+
+> **Note:** Antigravity 2.0 uses the plural `.agents/` directory by default (the `antigravity-ide` and `antigravity-cli` targets). The singular `.agent/` directory is the Antigravity 1.x layout, still read for backward compatibility by the deprecated `antigravity` alias target; apply the same workaround to those paths if you target the alias.
 
 **Workaround:** Instead of adding these directories to `.gitignore`, add them to `.git/info/exclude`:
 
 ```bash
 # Remove from .gitignore (if present)
-# **/.agent/rules/
-# **/.agent/workflows/
-# **/.agent/skills/
+# **/.agents/rules/
+# **/.agents/workflows/
+# **/.agents/skills/
 
 # Add to .git/info/exclude
-echo "**/.agent/rules/" >> .git/info/exclude
-echo "**/.agent/workflows/" >> .git/info/exclude
-echo "**/.agent/skills/" >> .git/info/exclude
+echo "**/.agents/rules/" >> .git/info/exclude
+echo "**/.agents/workflows/" >> .git/info/exclude
+echo "**/.agents/skills/" >> .git/info/exclude
 ```
 
 `.git/info/exclude` works like `.gitignore` but is local-only, so it won't affect Antigravity's ability to load the rules while still excluding these directories from Git.

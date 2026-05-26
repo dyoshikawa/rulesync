@@ -890,6 +890,8 @@ Content that would fail parsing`;
       const globalTargets = RulesProcessor.getToolTargets({ global: true });
 
       expect(globalTargets).toEqual([
+        "antigravity-cli",
+        "antigravity-ide",
         "claudecode",
         "claudecode-legacy",
         "codexcli",
@@ -923,6 +925,8 @@ Content that would fail parsing`;
       const globalTargets = RulesProcessor.getToolTargets({ global: true });
 
       // These are the targets that support global mode
+      expect(globalTargets).toContain("antigravity-cli");
+      expect(globalTargets).toContain("antigravity-ide");
       expect(globalTargets).toContain("claudecode");
       expect(globalTargets).toContain("claudecode-legacy");
       expect(globalTargets).toContain("codexcli");
@@ -936,7 +940,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("pi");
       expect(globalTargets).toContain("rovodev");
       expect(globalTargets).toContain("takt");
-      expect(globalTargets.length).toBe(13);
+      expect(globalTargets.length).toBe(15);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

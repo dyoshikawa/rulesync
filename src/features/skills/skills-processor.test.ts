@@ -822,6 +822,8 @@ Content that would fail parsing`;
         new Set([
           "agentsskills",
           "antigravity",
+          "antigravity-cli",
+          "antigravity-ide",
           "claudecode",
           "claudecode-legacy",
           "cline",
@@ -851,6 +853,8 @@ Content that would fail parsing`;
           "agentsmd",
           "agentsskills",
           "antigravity",
+          "antigravity-cli",
+          "antigravity-ide",
           "claudecode",
           "claudecode-legacy",
           "cline",
@@ -880,6 +884,8 @@ Content that would fail parsing`;
         new Set([
           "agentsskills",
           "antigravity",
+          "antigravity-cli",
+          "antigravity-ide",
           "claudecode",
           "claudecode-legacy",
           "cline",
@@ -919,6 +925,8 @@ Content that would fail parsing`;
       const targets = SkillsProcessor.getToolTargetsGlobal();
       expect(targets).toEqual([
         "antigravity",
+        "antigravity-cli",
+        "antigravity-ide",
         "claudecode",
         "claudecode-legacy",
         "cline",
@@ -942,6 +950,8 @@ Content that would fail parsing`;
       const targets = SkillsProcessor.getToolTargets({ global: true });
       expect(targets).toEqual([
         "antigravity",
+        "antigravity-cli",
+        "antigravity-ide",
         "claudecode",
         "claudecode-legacy",
         "cline",

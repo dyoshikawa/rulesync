@@ -873,6 +873,40 @@ describe("E2E: permissions (global mode)", () => {
     expect(generated.permissions.allow).toContain("Bash(git status *)");
     expect(generated.permissions.deny).toContain("Read(.env)");
   });
+
+  it("should generate antigravity-cli permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git status *": "allow", "rm -rf *": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "antigravity-cli",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // The Antigravity CLI uses Claude-Code-style `permissions.allow/deny`
+    // arrays and exposes shell execution as the `command` tool. Permissions are
+    // global-scope only, so there is no project-mode equivalent.
+    const generated = JSON.parse(
+      await readFileContent(join(homeDir, ".gemini", "antigravity-cli", "settings.json")),
+    );
+    expect(generated.permissions.allow).toContain("command(git status *)");
+    expect(generated.permissions.deny).toContain("command(rm -rf *)");
+  });
 });
 
 type AugmentEntry = {

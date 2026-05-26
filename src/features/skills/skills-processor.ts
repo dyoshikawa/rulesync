@@ -11,6 +11,8 @@ import { directoryExists, findFilesByGlobs } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSkill } from "./agentsmd-skill.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
+import { AntigravityCliSkill } from "./antigravity-cli-skill.js";
+import { AntigravityIdeSkill } from "./antigravity-ide-skill.js";
 import { AntigravitySkill } from "./antigravity-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
 import { ClineSkill } from "./cline-skill.js";
@@ -72,6 +74,8 @@ const skillsProcessorToolTargetTuple = [
   "agentsmd",
   "agentsskills",
   "antigravity",
+  "antigravity-cli",
+  "antigravity-ide",
   "claudecode",
   "claudecode-legacy",
   "cline",
@@ -121,6 +125,20 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     "antigravity",
     {
       class: AntigravitySkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "antigravity-cli",
+    {
+      class: AntigravityCliSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "antigravity-ide",
+    {
+      class: AntigravityIdeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

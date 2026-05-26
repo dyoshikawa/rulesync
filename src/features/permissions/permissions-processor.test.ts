@@ -95,6 +95,7 @@ describe("PermissionsProcessor", () => {
     it("should return targets that support global mode", () => {
       const targets = PermissionsProcessor.getToolTargets({ global: true });
       expect(targets).toEqual([
+        "antigravity-cli",
         "augmentcode",
         "claudecode",
         "codexcli",

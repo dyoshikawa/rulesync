@@ -101,36 +101,36 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 
 ### Hook event × tool matrix
 
-| Event                  | Cursor | Claude Code | OpenCode | Kilo | Copilot | Copilot CLI | Factory Droid | Gemini CLI | Codex CLI | deepagents | Kiro |
-| ---------------------- | :----: | :---------: | :------: | :--: | :-----: | :---------: | :-----------: | :--------: | :-------: | :--------: | :--: |
-| `sessionStart`         |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |
-| `sessionEnd`           |   ✅   |     ✅      |    —     |  —   |   ✅    |     ✅      |      ✅       |     ✅     |     —     |     ✅     |  ✅  |
-| `beforeSubmitPrompt`   |   ✅   |     ✅      |    —     |  —   |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |
-| `preToolUse`           |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     —      |  ✅  |
-| `postToolUse`          |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     —      |  ✅  |
-| `postToolUseFailure`   |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     ✅     |  —   |
-| `stop`                 |   ✅   |     ✅      |    ✅    |  ✅  |    —    |      —      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |
-| `subagentStart`        |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |
-| `subagentStop`         |   ✅   |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     —      |     —     |     —      |  —   |
-| `preCompact`           |   ✅   |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     ✅     |     —     |     ✅     |  —   |
-| `afterFileEdit`        |   ✅   |      —      |    ✅    |  ✅  |    —    |      —      |       —       |     —      |     —     |     —      |  —   |
-| `beforeShellExecution` |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |
-| `afterShellExecution`  |   ✅   |      —      |    ✅    |  ✅  |    —    |      —      |       —       |     —      |     —     |     —      |  —   |
-| `beforeMCPExecution`   |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |
-| `afterMCPExecution`    |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |
-| `beforeReadFile`       |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |
-| `beforeAgentResponse`  |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     ✅     |     —     |     —      |  —   |
-| `afterAgentResponse`   |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     ✅     |     —     |     —      |  —   |
-| `afterAgentThought`    |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |
-| `beforeTabFileRead`    |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |
-| `afterTabFileEdit`     |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |
-| `beforeToolSelection`  |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     ✅     |     —     |     —      |  —   |
-| `permissionRequest`    |   —    |     ✅      |    ✅    |  ✅  |    —    |      —      |      ✅       |     —      |    ✅     |     ✅     |  —   |
-| `notification`         |   —    |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     ✅     |     —     |     —      |  —   |
-| `setup`                |   —    |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     —      |     —     |     —      |  —   |
-| `worktreeCreate`       |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |
-| `worktreeRemove`       |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |
-| `afterError`           |   —    |      —      |    —     |  —   |   ✅    |     ✅      |       —       |     —      |     —     |     —      |  —   |
+| Event                  | Cursor | Claude Code | OpenCode | Kilo | Copilot | Copilot CLI | Factory Droid | Gemini CLI | Codex CLI | deepagents | Kiro | Antigravity IDE | Antigravity CLI |
+| ---------------------- | :----: | :---------: | :------: | :--: | :-----: | :---------: | :-----------: | :--------: | :-------: | :--------: | :--: | :-------------: | :-------------: |
+| `sessionStart`         |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |        —        |        —        |
+| `sessionEnd`           |   ✅   |     ✅      |    —     |  —   |   ✅    |     ✅      |      ✅       |     ✅     |     —     |     ✅     |  ✅  |        —        |        —        |
+| `beforeSubmitPrompt`   |   ✅   |     ✅      |    —     |  —   |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |        —        |        —        |
+| `preToolUse`           |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     —      |  ✅  |       ✅        |       ✅        |
+| `postToolUse`          |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     —      |  ✅  |       ✅        |       ✅        |
+| `postToolUseFailure`   |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     ✅     |  —   |        —        |        —        |
+| `stop`                 |   ✅   |     ✅      |    ✅    |  ✅  |    —    |      —      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |       ✅        |       ✅        |
+| `subagentStart`        |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |
+| `subagentStop`         |   ✅   |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     —      |     —     |     —      |  —   |        —        |        —        |
+| `preCompact`           |   ✅   |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     ✅     |     —     |     ✅     |  —   |        —        |        —        |
+| `afterFileEdit`        |   ✅   |      —      |    ✅    |  ✅  |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |
+| `beforeShellExecution` |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |
+| `afterShellExecution`  |   ✅   |      —      |    ✅    |  ✅  |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |
+| `beforeMCPExecution`   |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |
+| `afterMCPExecution`    |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |
+| `beforeReadFile`       |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |
+| `beforeAgentResponse`  |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     ✅     |     —     |     —      |  —   |        —        |        —        |
+| `afterAgentResponse`   |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     ✅     |     —     |     —      |  —   |        —        |        —        |
+| `afterAgentThought`    |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |
+| `beforeTabFileRead`    |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |
+| `afterTabFileEdit`     |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |
+| `beforeToolSelection`  |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     ✅     |     —     |     —      |  —   |        —        |        —        |
+| `permissionRequest`    |   —    |     ✅      |    ✅    |  ✅  |    —    |      —      |      ✅       |     —      |    ✅     |     ✅     |  —   |        —        |        —        |
+| `notification`         |   —    |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     ✅     |     —     |     —      |  —   |        —        |        —        |
+| `setup`                |   —    |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     —      |     —     |     —      |  —   |        —        |        —        |
+| `worktreeCreate`       |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |
+| `worktreeRemove`       |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |
+| `afterError`           |   —    |      —      |    —     |  —   |   ✅    |     ✅      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |
 
 > **Note:** `worktreeCreate` and `worktreeRemove` are Claude Code-specific events and do not support the `matcher` field. Any matcher defined in the config is ignored for these events.
 

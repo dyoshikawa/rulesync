@@ -484,6 +484,8 @@ describe("HooksProcessor", () => {
     it("should return cursor, claudecode, copilot, copilotcli, opencode, kilo, factorydroid, geminicli, and kiro for project mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: false });
       expect(targets).toEqual([
+        "antigravity-cli",
+        "antigravity-ide",
         "cursor",
         "claudecode",
         "codexcli",
@@ -500,6 +502,8 @@ describe("HooksProcessor", () => {
     it("should return cursor, claudecode, copilotcli, opencode, kilo, factorydroid, and geminicli for global mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: true });
       expect(targets).toEqual([
+        "antigravity-cli",
+        "antigravity-ide",
         "cursor",
         "claudecode",
         "codexcli",
@@ -515,6 +519,8 @@ describe("HooksProcessor", () => {
     it("should exclude non-importable targets when importOnly is true", () => {
       const targets = HooksProcessor.getToolTargets({ global: false, importOnly: true });
       expect(targets).toEqual([
+        "antigravity-cli",
+        "antigravity-ide",
         "cursor",
         "claudecode",
         "codexcli",
@@ -529,6 +535,8 @@ describe("HooksProcessor", () => {
     it("should exclude non-importable targets when importOnly is true in global mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: true, importOnly: true });
       expect(targets).toEqual([
+        "antigravity-cli",
+        "antigravity-ide",
         "cursor",
         "claudecode",
         "codexcli",

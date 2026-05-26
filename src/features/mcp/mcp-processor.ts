@@ -7,6 +7,8 @@ import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
+import { AntigravityCliMcp } from "./antigravity-cli-mcp.js";
+import { AntigravityIdeMcp } from "./antigravity-ide-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
@@ -36,6 +38,8 @@ import {
  * Using a tuple to preserve order for consistent iteration.
  */
 const mcpProcessorToolTargetTuple = [
+  "antigravity-cli",
+  "antigravity-ide",
   "claudecode",
   "claudecode-legacy",
   "cline",
@@ -89,6 +93,30 @@ type ToolMcpFactory = {
  * Using Map to preserve insertion order for consistent iteration.
  */
 const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
+  [
+    "antigravity-cli",
+    {
+      class: AntigravityCliMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
+    "antigravity-ide",
+    {
+      class: AntigravityIdeMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: true,
+      },
+    },
+  ],
   [
     "claudecode",
     {
