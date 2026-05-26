@@ -34,3 +34,4 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
   - Do not modify the root `skills/` directory unless you intend to change the official skills distributed to users.
 - The contents of `docs/` and `skills/rulesync/` are automatically synchronized by `scripts/sync-skill-docs.ts`. Be aware that their content may overlap.
 - Always preserve the existence of end-to-end happy-path test cases that cover the Tool × Feature matrix.
+- When researching topics, if the built-in webfetch tool cannot retrieve a page's content (e.g., because the page is a SPA), use the `playwright-cli` skill instead.
