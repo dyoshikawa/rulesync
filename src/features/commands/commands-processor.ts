@@ -23,6 +23,7 @@ import { KiloCommand } from "./kilo-command.js";
 import { KiroCommand } from "./kiro-command.js";
 import { OpenCodeCommand } from "./opencode-command.js";
 import { PiCommand } from "./pi-command.js";
+import { QoderCommand } from "./qoder-command.js";
 import { RooCommand } from "./roo-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { TaktCommand } from "./takt-command.js";
@@ -80,6 +81,7 @@ const commandsProcessorToolTargetTuple = [
   "kiro",
   "opencode",
   "pi",
+  "qoder",
   "roo",
   "takt",
 ] as const;
@@ -284,6 +286,19 @@ const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFac
         extension: "md",
         supportsProject: true,
         supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "qoder",
+    {
+      class: QoderCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: false,
         isSimulated: false,
         supportsSubdirectory: false,
       },
