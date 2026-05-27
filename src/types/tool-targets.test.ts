@@ -15,6 +15,8 @@ describe("tool targets", () => {
         "agentsmd",
         "agentsskills",
         "antigravity",
+        "antigravity-cli",
+        "antigravity-ide",
         "augmentcode",
         "augmentcode-legacy",
         "claudecode",

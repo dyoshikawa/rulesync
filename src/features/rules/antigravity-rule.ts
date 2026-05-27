@@ -73,7 +73,7 @@ export type AntigravityRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> &
  * @param globs - Comma-separated globs string (e.g., "*.ts,*.js") or array of globs
  * @returns Array of glob patterns
  */
-function parseGlobsString(globs: string | string[] | undefined): string[] {
+export function parseGlobsString(globs: string | string[] | undefined): string[] {
   if (!globs) {
     return [];
   }
@@ -104,7 +104,7 @@ function stringifyGlobs(globs: string[] | undefined): string | undefined {
  * @param stored - StoredAntigravity that may have globs as array
  * @returns Normalized AntigravityRuleFrontmatter with globs as string
  */
-function normalizeStoredAntigravity(
+export function normalizeStoredAntigravity(
   stored: StoredAntigravity,
 ): AntigravityRuleFrontmatter | undefined {
   if (!stored) {
@@ -124,7 +124,7 @@ function normalizeStoredAntigravity(
  * May be undefined if no Antigravity-specific config was previously stored.
  * Note: globs may be stored as array in RulesyncRule but should be string in AntigravityRule.
  */
-type StoredAntigravity =
+export type StoredAntigravity =
   | (Omit<AntigravityRuleFrontmatter, "globs"> & { globs?: string | string[] })
   | undefined;
 
@@ -275,7 +275,7 @@ const inferenceStrategy: TriggerStrategy = {
  *
  * DO NOT reorder without understanding the matching logic.
  */
-const STRATEGIES: TriggerStrategy[] = [
+export const STRATEGIES: TriggerStrategy[] = [
   globStrategy,
   manualStrategy,
   alwaysOnStrategy,

@@ -7,6 +7,7 @@ import type { ToolFile } from "../../types/tool-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
+import { AntigravityCliPermissions } from "./antigravity-cli-permissions.js";
 import { AugmentcodePermissions } from "./augmentcode-permissions.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { ClinePermissions } from "./cline-permissions.js";
@@ -27,6 +28,7 @@ import type {
 import { ToolPermissions } from "./tool-permissions.js";
 
 const permissionsProcessorToolTargetTuple = [
+  "antigravity-cli",
   "augmentcode",
   "claudecode",
   "cline",
@@ -60,6 +62,20 @@ type ToolPermissionsFactory = {
 };
 
 const toolPermissionsFactories = new Map<PermissionsProcessorToolTarget, ToolPermissionsFactory>([
+  [
+    "antigravity-cli",
+    {
+      class: AntigravityCliPermissions,
+      meta: {
+        // The Antigravity CLI only reads permissions from the global
+        // `~/.gemini/antigravity-cli/settings.json`; there is no documented
+        // workspace-scoped permissions file.
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
   [
     "augmentcode",
     {

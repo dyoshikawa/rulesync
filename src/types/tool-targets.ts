@@ -7,6 +7,8 @@ export const ALL_TOOL_TARGETS = [
   "agentsmd",
   "agentsskills",
   "antigravity",
+  "antigravity-cli",
+  "antigravity-ide",
   "augmentcode",
   "augmentcode-legacy",
   "claudecode",

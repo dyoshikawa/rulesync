@@ -89,7 +89,7 @@ describe("Config", () => {
       const targets = config.getTargets();
 
       const expectedTargets = ALL_TOOL_TARGETS.filter(
-        (t) => t !== "claudecode-legacy" && t !== "augmentcode-legacy",
+        (t) => t !== "claudecode-legacy" && t !== "augmentcode-legacy" && t !== "antigravity",
       );
 
       expect(targets).toEqual(expectedTargets);

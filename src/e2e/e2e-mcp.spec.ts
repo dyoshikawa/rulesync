@@ -33,6 +33,8 @@ describe("E2E: mcp", () => {
     { target: "roo", outputPath: join(".roo", "mcp.json") },
     { target: "kiro", outputPath: join(".kiro", "settings", "mcp.json") },
     { target: "junie", outputPath: join(".junie", "mcp", "mcp.json") },
+    { target: "antigravity-ide", outputPath: join(".agents", "mcp_config.json") },
+    { target: "antigravity-cli", outputPath: join(".agents", "mcp_config.json") },
   ])("should generate $target mcp", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -193,6 +195,8 @@ describe("E2E: mcp (import)", () => {
     { target: "roo", sourcePath: join(".roo", "mcp.json") },
     { target: "kiro", sourcePath: join(".kiro", "settings", "mcp.json") },
     { target: "junie", sourcePath: join(".junie", "mcp", "mcp.json") },
+    { target: "antigravity-ide", sourcePath: join(".agents", "mcp_config.json") },
+    { target: "antigravity-cli", sourcePath: join(".agents", "mcp_config.json") },
   ])("should import $target mcp", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
@@ -231,6 +235,14 @@ describe("E2E: mcp (global mode)", () => {
     { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
     { target: "rovodev", outputPath: join(".rovodev", "mcp.json") },
     { target: "kilo", outputPath: join(".config", "kilo", "kilo.jsonc") },
+    {
+      target: "antigravity-ide",
+      outputPath: join(".gemini", "antigravity", "mcp_config.json"),
+    },
+    {
+      target: "antigravity-cli",
+      outputPath: join(".gemini", "antigravity-cli", "mcp_config.json"),
+    },
   ])("should generate $target mcp in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
