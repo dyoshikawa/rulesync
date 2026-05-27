@@ -204,8 +204,9 @@ conversation language.
   ```
 
 - Labels: pick a small, precise set from the fetched vocabulary (do not invent
-  labels). Typically `enhancement` plus `considering`; add `codex` for the
-  Codex CLI, `security` only when relevant. Do not add `maintainer-scrap`.
+  labels). Always add `maintainer-scrap` (issues filed by this command are
+  maintainer scraps). Also add `enhancement` plus `considering`; add `codex`
+  for the Codex CLI, and `security` only when relevant.
 
 ```bash
 gh issue create --title "<title>" --body "<body>" --label "<label1>,<label2>"
