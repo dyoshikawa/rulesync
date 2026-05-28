@@ -905,6 +905,7 @@ Content that would fail parsing`;
         "pi",
         "rovodev",
         "takt",
+        "zed",
       ]);
     });
 
@@ -940,7 +941,8 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("pi");
       expect(globalTargets).toContain("rovodev");
       expect(globalTargets).toContain("takt");
-      expect(globalTargets.length).toBe(15);
+      expect(globalTargets).toContain("zed");
+      expect(globalTargets.length).toBe(16);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

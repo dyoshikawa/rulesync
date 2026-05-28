@@ -53,10 +53,15 @@ transition.
   **global mode only**. The canonical `bash` tool maps to Antigravity's
   `command` tool name.
 - **Commands / subagents**: These are intentionally out of scope for
-  `antigravity-cli` today. Antigravity surfaces slash commands through skills,
-  and CLI subagents are only definable through plugin bundles or the
-  `define_subagent` tool — neither maps cleanly onto rulesync's per-feature
-  model. Keep generating them with `geminicli` if you still rely on them.
+  `antigravity-cli` today. Antigravity surfaces slash commands through skills.
+  CLI subagents are defined and managed at runtime (the interactive `/agents`
+  panel and the orchestrator's `invoke_subagent` / `define_subagent` tools), and
+  the only file-based way to ship one is bundled inside a plugin (a namespaced
+  package of skills + subagents + rules + MCP + hooks). There is no standalone,
+  declarative per-agent file (analogous to `geminicli`'s `.gemini/agents/`) that
+  rulesync could generate, and the plugin bundle does not map cleanly onto
+  rulesync's per-feature model. Keep generating subagents with `geminicli` if
+  you still rely on them.
 
 ## Updating `rulesync.jsonc`
 

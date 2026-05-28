@@ -312,7 +312,7 @@ describe("git-client", () => {
       expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(expect.stringContaining("symlink"));
     });
 
-    it.each(["", ".", "./"])(
+    it.each(["", ".", "./", "./.", ".//", ".\\"])(
       "disables sparse-checkout when skillsPath is %j (repo root)",
       async (skillsPath) => {
         mockExecFileAsync.mockResolvedValue({ stdout: "", stderr: "" });
@@ -362,9 +362,13 @@ describe("git-client", () => {
       });
 
       expect(files).toHaveLength(1);
+      // The clone root must be walked directly: a relative path computed against
+      // `<tmpDir>/.` would yield "./root-file.md" instead of "root-file.md".
       expect(files[0]?.relativePath).toBe("root-file.md");
-      // No `<tmpDir>/.` style path should be probed.
       expect(seenDirs).toContain("/tmp/test");
+      // The skills root must be `tmpDir` itself, never a naive `<tmpDir>/.`
+      // (which a string-concatenated `join(tmpDir, ".")` would produce).
+      expect(seenDirs).not.toContain("/tmp/test/.");
     });
 
     it("throws GitClientError at max directory depth", async () => {

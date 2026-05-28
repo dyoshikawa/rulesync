@@ -100,7 +100,7 @@ See [Quick Start guide](https://dyoshikawa.github.io/rulesync/getting-started/qu
 | Warp                   | warp            |  ✅   |        |          |          |           |        |       |             |
 | Replit                 | replit          |  ✅   |        |          |          |           |   ✅   |       |             |
 | Pi Coding Agent        | pi              | ✅ 🌏 |        |          |  ✅ 🌏   |           | ✅ 🌏  |       |             |
-| Zed                    | zed             |       |   ✅   |          |          |           |        |       |             |
+| Zed                    | zed             | ✅ 🌏 |   ✅   |  ✅ 🌏   |          |           | ✅ 🌏  |       |             |
 
 - ✅: Supports project mode
 - 🌏: Supports global mode

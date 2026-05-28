@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { isAbsolute, join, relative } from "node:path";
+import { isAbsolute, join, posix, relative } from "node:path";
 import { promisify } from "node:util";
 
 import { MAX_FILE_SIZE } from "../constants/rulesync-paths.js";
@@ -152,7 +152,10 @@ export async function fetchSkillFiles(params: {
   // instead. Otherwise repositories whose skills live directly at the root
   // (e.g. `<repo>/<skill-name>/SKILL.md` without a `skills/` container)
   // would only yield root-level files like README.md.
-  const isRootPath = skillsPath === "" || skillsPath === "." || skillsPath === "./";
+  // Normalize first so variants like "./.", ".//", or Windows ".\\" are also
+  // recognized as the root and don't fall back to the (buggy) sparse-checkout path.
+  const normalizedSkillsPath = posix.normalize(skillsPath.replace(/\\/g, "/")).replace(/\/+$/, "");
+  const isRootPath = normalizedSkillsPath === "" || normalizedSkillsPath === ".";
   try {
     await execFileAsync(
       "git",

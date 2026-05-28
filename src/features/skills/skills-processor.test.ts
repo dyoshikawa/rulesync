@@ -842,6 +842,7 @@ Content that would fail parsing`;
           "rovodev",
           "takt",
           "windsurf",
+          "zed",
         ]),
       );
     });
@@ -874,6 +875,7 @@ Content that would fail parsing`;
           "rovodev",
           "takt",
           "windsurf",
+          "zed",
         ]),
       );
     });
@@ -904,6 +906,7 @@ Content that would fail parsing`;
           "rovodev",
           "takt",
           "windsurf",
+          "zed",
         ]),
       );
     });
@@ -940,6 +943,7 @@ Content that would fail parsing`;
         "rovodev",
         "takt",
         "windsurf",
+        "zed",
       ]);
       expect(targets).toEqual(skillsProcessorToolTargetsGlobal);
     });
@@ -965,6 +969,7 @@ Content that would fail parsing`;
         "rovodev",
         "takt",
         "windsurf",
+        "zed",
       ]);
       expect(targets).toEqual(skillsProcessorToolTargetsGlobal);
     });

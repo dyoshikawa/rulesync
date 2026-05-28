@@ -35,6 +35,7 @@ describe("E2E: mcp", () => {
     { target: "junie", outputPath: join(".junie", "mcp", "mcp.json") },
     { target: "antigravity-ide", outputPath: join(".agents", "mcp_config.json") },
     { target: "antigravity-cli", outputPath: join(".agents", "mcp_config.json") },
+    { target: "zed", outputPath: join(".zed", "settings.json") },
   ])("should generate $target mcp", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -219,6 +220,30 @@ describe("E2E: mcp (import)", () => {
     const importedContent = await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH));
     expect(importedContent).toContain("test-server");
   });
+
+  // Zed stores MCP servers under `context_servers` (not `mcpServers`) inside a
+  // shared settings.json, so it needs a bespoke source rather than the generic
+  // `mcpServers`-seeded import case above.
+  it("should import zed mcp from context_servers", async () => {
+    const testDir = getTestDir();
+
+    const settingsContent = JSON.stringify(
+      {
+        private_files: ["**/.env"],
+        context_servers: {
+          "test-server": { command: "echo", args: ["hello"] },
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(testDir, ".zed", "settings.json"), settingsContent);
+
+    await runImport({ target: "zed", features: "mcp" });
+
+    const importedContent = await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH));
+    expect(importedContent).toContain("test-server");
+  });
 });
 
 describe("E2E: mcp (global mode)", () => {
@@ -243,6 +268,7 @@ describe("E2E: mcp (global mode)", () => {
       target: "antigravity-cli",
       outputPath: join(".gemini", "antigravity-cli", "mcp_config.json"),
     },
+    { target: "zed", outputPath: join(".config", "zed", "settings.json") },
   ])("should generate $target mcp in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
