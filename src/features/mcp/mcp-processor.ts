@@ -32,6 +32,7 @@ import {
   ToolMcpFromRulesyncMcpParams,
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
+import { ZedMcp } from "./zed-mcp.js";
 
 /**
  * Supported tool targets for McpProcessor.
@@ -56,6 +57,7 @@ const mcpProcessorToolTargetTuple = [
   "opencode",
   "roo",
   "rovodev",
+  "zed",
 ] as const;
 
 export type McpProcessorToolTarget = (typeof mcpProcessorToolTargetTuple)[number];
@@ -309,6 +311,18 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
       class: RovodevMcp,
       meta: {
         supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "zed",
+    {
+      class: ZedMcp,
+      meta: {
+        supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,

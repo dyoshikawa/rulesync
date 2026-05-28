@@ -38,6 +38,7 @@ describe("E2E: rules", () => {
     { target: "warp", outputPath: "WARP.md" },
     { target: "replit", outputPath: "replit.md" },
     { target: "pi", outputPath: "AGENTS.md" },
+    { target: "zed", outputPath: ".rules" },
   ])("should generate $target rules", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -246,6 +247,7 @@ describe("E2E: rules (import)", () => {
       sourcePath: join(".windsurf", "rules", "overview.md"),
       importedFileName: "overview.md",
     },
+    { target: "zed", sourcePath: ".rules", importedFileName: "overview.md" },
   ])("should import $target rules", async ({ target, sourcePath, importedFileName }) => {
     const testDir = getTestDir();
 
@@ -281,6 +283,7 @@ describe("E2E: rules (global mode)", () => {
     { target: "rovodev", outputPath: join(".rovodev", "AGENTS.md") },
     { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
     { target: "pi", outputPath: join(".pi", "agent", "AGENTS.md") },
+    { target: "zed", outputPath: join(".config", "zed", "AGENTS.md") },
   ])("should generate $target rules in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

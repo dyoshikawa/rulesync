@@ -69,6 +69,7 @@ import {
 } from "./tool-rule.js";
 import { WarpRule } from "./warp-rule.js";
 import { WindsurfRule } from "./windsurf-rule.js";
+import { ZedRule } from "./zed-rule.js";
 
 const rulesProcessorToolTargets: ToolTarget[] = [
   "agentsmd",
@@ -100,6 +101,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "takt",
   "warp",
   "windsurf",
+  "zed",
 ];
 export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargets);
 export type RulesProcessorToolTarget = z.infer<typeof RulesProcessorToolTargetSchema>;
@@ -587,6 +589,20 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
         ruleDiscoveryMode: "auto",
         // No additionalConventions.skills needed: Windsurf Cascade auto-discovers
         // skills from .windsurf/skills/ and ~/.codeium/windsurf/skills/ directories.
+      },
+    },
+  ],
+  [
+    "zed",
+    {
+      class: ZedRule,
+      meta: {
+        // Zed reads a single project rules file (`.rules`) and a single global
+        // file (`~/.config/zed/AGENTS.md`). It is root-only with auto discovery,
+        // so there is no non-root location to render a conventions block into.
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
       },
     },
   ],

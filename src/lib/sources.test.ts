@@ -1086,6 +1086,46 @@ describe("resolveAndFetchSources", () => {
     expect(writeFileContent).not.toHaveBeenCalled();
   });
 
+  it("should install each top-level directory as a skill for path '.' with wildcard filter", async () => {
+    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "d".repeat(40) });
+    // Whole-repo fetch (path: ".") returns multiple top-level skill directories
+    // plus a root-level file that must be ignored under the wildcard filter.
+    vi.mocked(fetchSkillFiles).mockResolvedValue([
+      { relativePath: "README.md", content: "root docs", size: 20 },
+      { relativePath: "skill-a/SKILL.md", content: "# Skill A", size: 50 },
+      { relativePath: "skill-b/SKILL.md", content: "# Skill B", size: 50 },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [
+        {
+          source: "https://dev.azure.com/org/_git/multi-skill-repo",
+          transport: "git",
+          path: ".",
+          skills: ["*"],
+        },
+      ],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(2);
+    expect(writeFileContent).toHaveBeenCalledWith(
+      join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "skill-a", "SKILL.md"),
+      "# Skill A",
+    );
+    expect(writeFileContent).toHaveBeenCalledWith(
+      join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "skill-b", "SKILL.md"),
+      "# Skill B",
+    );
+    // The root-level README.md must not be installed as a skill.
+    expect(writeFileContent).not.toHaveBeenCalledWith(
+      expect.stringContaining(join("README.md")),
+      expect.anything(),
+    );
+  });
+
   it("should install single-skill repo with SKILL.md at path root via github transport", async () => {
     mockClientInstance.listDirectory.mockImplementation(
       async (_owner: string, _repo: string, path: string) => {

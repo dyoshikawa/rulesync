@@ -43,6 +43,7 @@ import {
   toolSkillSearchRoots,
 } from "./tool-skill.js";
 import { WindsurfSkill } from "./windsurf-skill.js";
+import { ZedSkill } from "./zed-skill.js";
 
 /**
  * Factory entry for each tool skill class.
@@ -95,6 +96,7 @@ const skillsProcessorToolTargetTuple = [
   "rovodev",
   "takt",
   "windsurf",
+  "zed",
 ] as const;
 
 export type SkillsProcessorToolTarget = (typeof skillsProcessorToolTargetTuple)[number];
@@ -272,6 +274,13 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     "windsurf",
     {
       class: WindsurfSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "zed",
+    {
+      class: ZedSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

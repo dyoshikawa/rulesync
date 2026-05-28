@@ -299,6 +299,15 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   // Warp
   { target: "warp", feature: "rules", entry: "**/.warp/" },
   { target: "warp", feature: "rules", entry: "**/WARP.md" },
+
+  // Zed
+  // `.rules` is the project rules file. `.agents/skills/` is shared with the
+  // antigravity targets (already registered above); re-tagging it for `zed`
+  // ensures target-filtered gitignore runs still include it.
+  // No entry for `.zed/settings.json` (MCP / ignore): it is a user-managed
+  // file, like other tools' settings.json, so it is intentionally not ignored.
+  { target: "zed", feature: "rules", entry: "**/.rules" },
+  { target: "zed", feature: "skills", entry: "**/.agents/skills/" },
 ] as const;
 
 export const ALL_GITIGNORE_ENTRIES: ReadonlyArray<string> = (() => {
