@@ -47,14 +47,14 @@ describe("CodexcliPermissions", () => {
     expect(fileContent).toContain('default_permissions = "rulesync"');
     expect(fileContent).toContain("[permissions.rulesync.filesystem]");
     expect(fileContent).toContain('"/workspace/project/**" = "read"');
-    expect(fileContent).toContain('"/workspace/project/.env" = "none"');
+    expect(fileContent).toContain('"/workspace/project/.env" = "deny"');
     expect(fileContent).toContain('"/workspace/project/src/**" = "write"');
     expect(fileContent).toContain("[permissions.rulesync.network.domains]");
     expect(fileContent).toContain('"github.com" = "allow"');
     expect(fileContent).toContain('"example.com" = "deny"');
   });
 
-  it("should place relative filesystem globs under the Codex project root table", async () => {
+  it("should place relative filesystem globs under the Codex workspace roots table", async () => {
     const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
@@ -84,8 +84,8 @@ describe("CodexcliPermissions", () => {
     expect(fileContent).toContain("[permissions.rulesync.filesystem]");
     expect(fileContent).toContain("glob_scan_max_depth = 8");
     expect(fileContent).toContain('"/workspace/project/**" = "read"');
-    expect(fileContent).toContain('[permissions.rulesync.filesystem.":project_roots"]');
-    expect(fileContent).toContain('"**/*.tf" = "none"');
+    expect(fileContent).toContain('[permissions.rulesync.filesystem.":workspace_roots"]');
+    expect(fileContent).toContain('"**/*.tf" = "deny"');
     expect(fileContent).toContain('"src/**" = "read"');
     expect(fileContent).toContain('"docs/**" = "write"');
   });
@@ -101,7 +101,7 @@ default_permissions = "rulesync"
 [permissions.rulesync.filesystem]
 "/workspace/project/**" = "read"
 "/workspace/project/src/**" = "write"
-"/workspace/project/.env" = "none"
+"/workspace/project/.env" = "deny"
 
 [permissions.rulesync.network.domains]
 "github.com" = "allow"
@@ -119,7 +119,7 @@ default_permissions = "rulesync"
     expect(json.permission.webfetch?.["example.com"]).toBe("deny");
   });
 
-  it("should not set glob_scan_max_depth when project-root globs contain only single-level wildcards", async () => {
+  it("should not set glob_scan_max_depth when workspace-root globs contain only single-level wildcards", async () => {
     const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
@@ -144,13 +144,13 @@ default_permissions = "rulesync"
     });
 
     const fileContent = codexPermissions.getFileContent();
-    expect(fileContent).toContain('[permissions.rulesync.filesystem.":project_roots"]');
+    expect(fileContent).toContain('[permissions.rulesync.filesystem.":workspace_roots"]');
     expect(fileContent).toContain('"src/*" = "read"');
     expect(fileContent).toContain('"docs/*" = "write"');
     expect(fileContent).not.toContain("glob_scan_max_depth");
   });
 
-  it("should import nested Codex project root filesystem rules", () => {
+  it("should import nested Codex workspace root filesystem rules", () => {
     const codexPermissions = new CodexcliPermissions({
       outputRoot: testDir,
       relativeDirPath: ".codex",
@@ -162,8 +162,8 @@ default_permissions = "rulesync"
 glob_scan_max_depth = 8
 "/workspace/project/**" = "read"
 
-[permissions.rulesync.filesystem.":project_roots"]
-"**/*.tf" = "none"
+[permissions.rulesync.filesystem.":workspace_roots"]
+"**/*.tf" = "deny"
 "src/**" = "read"
 "docs/**" = "write"
 `,
@@ -179,7 +179,27 @@ glob_scan_max_depth = 8
     expect(json.permission.edit?.["docs/**"]).toBe("allow");
   });
 
-  it("should warn when :project_roots is set as a direct string access rule", async () => {
+  it("should import legacy nested Codex project root filesystem rules", () => {
+    const codexPermissions = new CodexcliPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".codex",
+      relativeFilePath: "config.toml",
+      fileContent: `
+default_permissions = "rulesync"
+
+[permissions.rulesync.filesystem.":project_roots"]
+"**/*.tf" = "none"
+`,
+    });
+
+    const rulesyncPermissions = codexPermissions.toRulesyncPermissions();
+    const json = rulesyncPermissions.getJson();
+
+    expect(json.permission.read?.["**/*.tf"]).toBe("deny");
+    expect(json.permission.edit?.["**/*.tf"]).toBe("deny");
+  });
+
+  it("should warn when :workspace_roots is set as a direct string access rule", async () => {
     const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
@@ -188,7 +208,7 @@ glob_scan_max_depth = 8
       fileContent: JSON.stringify({
         permission: {
           read: {
-            ":project_roots": "deny",
+            ":workspace_roots": "deny",
             "src/**": "allow",
           },
         },
@@ -202,7 +222,7 @@ glob_scan_max_depth = 8
     });
 
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('":project_roots" is set as a direct filesystem access rule'),
+      expect.stringContaining('":workspace_roots" is set as a direct filesystem access rule'),
     );
   });
 

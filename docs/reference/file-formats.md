@@ -515,11 +515,11 @@ For OpenCode, this generates the `permission` object in `opencode.json` / `openc
 For Codex CLI, this generates a `rulesync` named profile in `.codex/config.toml` under `[permissions.rulesync]` and sets `default_permissions = "rulesync"` (project/global depending on mode). It also generates `.codex/rules/rulesync.rules` from `permission.bash` entries using `prefix_rule(...)`. Current Rulesync-to-Codex mapping supports `bash`, `read`, `edit`/`write`, and `webfetch` categories:
 
 - `bash`: generates one `prefix_rule(...)` per command pattern in `.codex/rules/rulesync.rules` (`allow` → `allow`, `ask` → `prompt`, `deny` → `forbidden`)
-- `read`: `allow` → `read`, `ask`/`deny` → `none` in `permissions.<profile>.filesystem`
-- `edit` / `write`: `allow` → `write`, `ask`/`deny` → `none` in `permissions.<profile>.filesystem`
+- `read`: `allow` → `read`, `ask`/`deny` → `deny` in `permissions.<profile>.filesystem`
+- `edit` / `write`: `allow` → `write`, `ask`/`deny` → `deny` in `permissions.<profile>.filesystem`
 - `webfetch`: `allow`/`deny` map to `permissions.<profile>.network.domains` (Codex does not support `ask` for domain rules)
 
-Relative filesystem globs such as `src/**` or `**/*.tf` are emitted under `permissions.<profile>.filesystem.":project_roots"` instead of the top-level filesystem table, because Codex expects top-level filesystem keys to be absolute paths, `~/...`, or named roots. Rulesync also sets `glob_scan_max_depth = 8` when generated project-root rules contain unbounded `**` patterns.
+Relative filesystem globs such as `src/**` or `**/*.tf` are emitted under `permissions.<profile>.filesystem.":workspace_roots"` instead of the top-level filesystem table, because Codex expects top-level filesystem keys to be absolute paths, `~/...`, or named roots. Rulesync also sets `glob_scan_max_depth = 8` when generated workspace-root rules contain unbounded `**` patterns.
 
 For Gemini CLI, this generates a Policy Engine file at `.gemini/policies/rulesync.toml` (project mode) or `~/.gemini/policies/rulesync.toml` (global mode). Gemini CLI auto-discovers any `*.toml` file under the `policies/` directory, so no `settings.json` modification is required:
 
