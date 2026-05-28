@@ -43,6 +43,14 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       globs: z.optional(z.array(z.string())),
     }),
   ),
+  qoder: z.optional(
+    z.looseObject({
+      trigger: z.optional(z.string()),
+      alwaysApply: z.optional(z.boolean()),
+      description: z.optional(z.string()),
+      globs: z.optional(z.array(z.string())),
+    }),
+  ),
   copilot: z.optional(
     z.looseObject({
       excludeAgent: z.optional(z.union([z.literal("code-review"), z.literal("coding-agent")])),

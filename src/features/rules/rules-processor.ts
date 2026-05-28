@@ -53,6 +53,7 @@ import { KiloRule } from "./kilo-rule.js";
 import { KiroRule } from "./kiro-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
 import { PiRule } from "./pi-rule.js";
+import { QoderRule } from "./qoder-rule.js";
 import { QwencodeRule } from "./qwencode-rule.js";
 import { ReplitRule } from "./replit-rule.js";
 import { RooRule } from "./roo-rule.js";
@@ -93,6 +94,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "kiro",
   "opencode",
   "pi",
+  "qoder",
   "qwencode",
   "replit",
   "roo",
@@ -497,6 +499,17 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
+      },
+    },
+  ],
+  [
+    "qoder",
+    {
+      class: QoderRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
       },
     },
   ],
