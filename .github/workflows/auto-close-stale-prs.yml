@@ -9,12 +9,16 @@ permissions:
   contents: read
   pull-requests: write # Required for commenting on and closing PRs
 
+concurrency:
+  group: auto-close-stale-prs
+  cancel-in-progress: false
+
 jobs:
   close-stale-prs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Close pull requests open for more than 30 days
+      - name: Close pull requests inactive for more than 30 days
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
@@ -31,37 +35,47 @@ jobs:
               per_page: 100,
             });
 
+            // Staleness is measured from the last activity (updated_at), which
+            // advances on commits, comments, and label changes, so actively
+            // maintained PRs are not closed.
             const stalePrs = prs.filter((pr) => {
-              const createdAt = new Date(pr.created_at).getTime();
-              return now - createdAt >= staleThresholdMs;
+              const updatedAt = new Date(pr.updated_at).getTime();
+              return now - updatedAt >= staleThresholdMs;
             });
 
             core.info(
-              `Found ${stalePrs.length} pull request(s) open for more than ${STALE_DAYS} days.`
+              `Found ${stalePrs.length} pull request(s) inactive for more than ${STALE_DAYS} days.`
             );
 
             for (const pr of stalePrs) {
-              const body = [
-                `@${pr.user.login} This pull request has been open for more than ${STALE_DAYS} days and is being closed automatically.`,
-                "",
-                "If this work is still relevant, feel free to reopen it or open a new pull request. Thank you for your contribution!",
-              ].join("\n");
+              try {
+                const mention = pr.user && pr.user.login ? `@${pr.user.login} ` : "";
+                const body = [
+                  `${mention}This pull request has had no activity for more than ${STALE_DAYS} days and is being closed automatically.`,
+                  "",
+                  "If this work is still relevant, feel free to reopen it or open a new pull request. Thank you for your contribution!",
+                ].join("\n");
 
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number: pr.number,
-                body,
-              });
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: pr.number,
+                  body,
+                });
 
-              await github.rest.pulls.update({
-                owner,
-                repo,
-                pull_number: pr.number,
-                state: "closed",
-              });
+                await github.rest.pulls.update({
+                  owner,
+                  repo,
+                  pull_number: pr.number,
+                  state: "closed",
+                });
 
-              core.info(
-                `Closed PR #${pr.number} (created at ${pr.created_at}).`
-              );
+                core.info(
+                  `Closed PR #${pr.number} (last updated at ${pr.updated_at}).`
+                );
+              } catch (error) {
+                core.warning(
+                  `Failed to close PR #${pr.number}: ${error.message}`
+                );
+              }
             }

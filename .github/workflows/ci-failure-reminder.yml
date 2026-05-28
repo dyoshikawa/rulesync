@@ -11,6 +11,10 @@ permissions:
   checks: read # Required for reading check run conclusions
   statuses: read # Required for reading combined commit statuses
 
+concurrency:
+  group: ci-failure-reminder
+  cancel-in-progress: false
+
 jobs:
   remind-ci-failures:
     runs-on: ubuntu-latest
@@ -34,11 +38,12 @@ jobs:
             let commentedCount = 0;
 
             for (const pr of prs) {
-              // Skip drafts (work in progress) and bot authors.
-              if (pr.draft) {
+              // Skip drafts (work in progress) and PRs without a resolvable author.
+              if (pr.draft || !pr.user) {
                 continue;
               }
-              if (pr.user && pr.user.type === "Bot") {
+              // Skip bot authors (e.g. Dependabot); they cannot act on a mention.
+              if (pr.user.type === "Bot") {
                 continue;
               }
 
