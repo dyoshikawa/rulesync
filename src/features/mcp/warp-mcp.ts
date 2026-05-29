@@ -28,22 +28,29 @@ export class WarpMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    if (this.fileContent !== undefined) {
-      try {
-        this.json = JSON.parse(this.fileContent);
-      } catch (error) {
-        throw new Error(
-          `Failed to parse Warp MCP config at ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(error)}`,
-          { cause: error },
-        );
-      }
-    } else {
-      this.json = {};
-    }
+    this.json =
+      this.fileContent !== undefined
+        ? WarpMcp.parseJsonOrThrow(this.fileContent, this.relativeDirPath, this.relativeFilePath)
+        : {};
   }
 
   getJson(): Record<string, unknown> {
     return this.json;
+  }
+
+  private static parseJsonOrThrow(
+    content: string,
+    relativeDirPath: string,
+    relativeFilePath: string,
+  ): Record<string, unknown> {
+    try {
+      return JSON.parse(content);
+    } catch (error) {
+      throw new Error(
+        `Failed to parse Warp MCP config at ${join(relativeDirPath, relativeFilePath)}: ${formatError(error)}`,
+        { cause: error },
+      );
+    }
   }
 
   static getSettablePaths(_options?: { global?: boolean }): ToolMcpSettablePaths {
@@ -61,15 +68,7 @@ export class WarpMcp extends ToolMcp {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? '{"mcpServers":{}}';
-    let json: Record<string, unknown>;
-    try {
-      json = JSON.parse(fileContent);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Warp MCP config at ${join(paths.relativeDirPath, paths.relativeFilePath)}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const json = this.parseJsonOrThrow(fileContent, paths.relativeDirPath, paths.relativeFilePath);
     const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
 
     return new WarpMcp({
@@ -94,15 +93,7 @@ export class WarpMcp extends ToolMcp {
       join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       JSON.stringify({ mcpServers: {} }, null, 2),
     );
-    let json: Record<string, unknown>;
-    try {
-      json = JSON.parse(fileContent);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Warp MCP config at ${join(paths.relativeDirPath, paths.relativeFilePath)}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const json = this.parseJsonOrThrow(fileContent, paths.relativeDirPath, paths.relativeFilePath);
 
     const warpConfig = { ...json, mcpServers: rulesyncMcp.getMcpServers() };
 
