@@ -32,6 +32,7 @@ import {
   ToolMcpFromRulesyncMcpParams,
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
+import { WarpMcp } from "./warp-mcp.js";
 import { ZedMcp } from "./zed-mcp.js";
 
 /**
@@ -57,6 +58,7 @@ const mcpProcessorToolTargetTuple = [
   "opencode",
   "roo",
   "rovodev",
+  "warp",
   "zed",
 ] as const;
 
@@ -311,6 +313,18 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
       class: RovodevMcp,
       meta: {
         supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "warp",
+    {
+      class: WarpMcp,
+      meta: {
+        supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
