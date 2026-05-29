@@ -125,6 +125,40 @@ This is the body of the replit skill.`;
         description: "Test skill description",
       });
     });
+
+    it("should emit standard optional frontmatter from the replit block", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "Test skill description",
+          replit: {
+            "allowed-tools": ["read", "write"],
+            license: "MIT",
+            compatibility: { "agent-skills": ">=1.0.0" },
+            metadata: { author: "rulesync" },
+          },
+        },
+        body: "Test body content",
+        validate: true,
+      });
+
+      const replitSkill = ReplitSkill.fromRulesyncSkill({
+        rulesyncSkill,
+        validate: true,
+      });
+
+      expect(replitSkill.getFrontmatter()).toEqual({
+        name: "Test Skill",
+        description: "Test skill description",
+        "allowed-tools": ["read", "write"],
+        license: "MIT",
+        compatibility: { "agent-skills": ">=1.0.0" },
+        metadata: { author: "rulesync" },
+      });
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {
@@ -203,6 +237,38 @@ This is the body of the replit skill.`;
         targets: ["*"],
       });
       expect(rulesyncSkill.getBody()).toBe("Test body");
+    });
+
+    it("should carry standard optional frontmatter into the replit block", () => {
+      const skill = new ReplitSkill({
+        outputRoot: testDir,
+        relativeDirPath: join(".agents", "skills"),
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "Test description",
+          "allowed-tools": ["read", "write"],
+          license: "MIT",
+          compatibility: { "agent-skills": ">=1.0.0" },
+          metadata: { author: "rulesync" },
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+
+      expect(rulesyncSkill.getFrontmatter()).toEqual({
+        name: "Test Skill",
+        description: "Test description",
+        targets: ["*"],
+        replit: {
+          "allowed-tools": ["read", "write"],
+          license: "MIT",
+          compatibility: { "agent-skills": ">=1.0.0" },
+          metadata: { author: "rulesync" },
+        },
+      });
     });
   });
 

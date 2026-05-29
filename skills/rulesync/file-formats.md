@@ -279,6 +279,25 @@ claudecode: # for claudecode-specific parameters
     - "test/**/*.ts"
 codexcli: # for codexcli-specific parameters
   short-description: A brief user-facing description
+pi: # for Pi Coding Agent-specific parameters (optional)
+  allowed-tools:
+    - "Bash"
+    - "Read"
+  disable-model-invocation: true # (optional) disable model invocation for this skill
+  license: MIT # (optional)
+  compatibility: # (optional) free-form compatibility metadata
+    pi-version: ">=0.75.0"
+  metadata: # (optional) free-form metadata
+    author: rulesync
+replit: # for Replit Agent-specific parameters (optional; Agent Skills standard)
+  allowed-tools:
+    - "Bash"
+    - "Read"
+  license: MIT # (optional)
+  compatibility: # (optional) free-form compatibility metadata
+    agent-skills: ">=1.0.0"
+  metadata: # (optional) free-form metadata
+    author: rulesync
 takt: # takt specific parameters (optional; emitted under .takt/facets/knowledge/ — frontmatter is dropped on emit)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
 ---

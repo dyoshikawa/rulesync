@@ -97,7 +97,7 @@ See [Quick Start guide](https://dyoshikawa.github.io/rulesync/getting-started/qu
 | JetBrains Junie        | junie           |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |    ✅     |   ✅   |       |             |
 | AugmentCode            | augmentcode     |  ✅   |   ✅   |          |          |           |        |       |    ✅ 🌏    |
 | Windsurf               | windsurf        |  ✅   |   ✅   |          |          |           | ✅ 🌏  |       |             |
-| Warp                   | warp            |  ✅   |        |          |          |           |        |       |             |
+| Warp                   | warp            |  ✅   |        |  ✅ 🌏   |          |           |        |       |             |
 | Replit                 | replit          |  ✅   |        |          |          |           |   ✅   |       |             |
 | Pi Coding Agent        | pi              | ✅ 🌏 |        |          |  ✅ 🌏   |           | ✅ 🌏  |       |             |
 | Zed                    | zed             | ✅ 🌏 |   ✅   |  ✅ 🌏   |          |           | ✅ 🌏  |       |             |

@@ -35,7 +35,7 @@ describe("E2E: rules", () => {
     { target: "rovodev", outputPath: join(".rovodev", "AGENTS.md") },
     { target: "qwencode", outputPath: "QWEN.md" },
     { target: "junie", outputPath: join(".junie", "guidelines.md") },
-    { target: "warp", outputPath: "WARP.md" },
+    { target: "warp", outputPath: "AGENTS.md" },
     { target: "replit", outputPath: "replit.md" },
     { target: "pi", outputPath: "AGENTS.md" },
     { target: "zed", outputPath: ".rules" },
@@ -204,7 +204,7 @@ describe("E2E: rules (import)", () => {
       sourcePath: join(".junie", "guidelines.md"),
       importedFileName: "overview.md",
     },
-    { target: "warp", sourcePath: "WARP.md", importedFileName: "overview.md" },
+    { target: "warp", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "replit", sourcePath: "replit.md", importedFileName: "overview.md" },
     { target: "pi", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     {

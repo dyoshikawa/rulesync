@@ -48,6 +48,23 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       license: z.optional(z.string()),
     }),
   ),
+  pi: z.optional(
+    z.looseObject({
+      "allowed-tools": z.optional(z.array(z.string())),
+      "disable-model-invocation": z.optional(z.boolean()),
+      license: z.optional(z.string()),
+      compatibility: z.optional(z.looseObject({})),
+      metadata: z.optional(z.looseObject({})),
+    }),
+  ),
+  replit: z.optional(
+    z.looseObject({
+      "allowed-tools": z.optional(z.array(z.string())),
+      license: z.optional(z.string()),
+      compatibility: z.optional(z.looseObject({})),
+      metadata: z.optional(z.looseObject({})),
+    }),
+  ),
   cline: z.optional(z.looseObject({})),
   roo: z.optional(z.looseObject({})),
   takt: z.optional(
@@ -87,6 +104,19 @@ export type RulesyncSkillFrontmatterInput = {
   };
   copilot?: {
     license?: string;
+  };
+  pi?: {
+    "allowed-tools"?: string[];
+    "disable-model-invocation"?: boolean;
+    license?: string;
+    compatibility?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  };
+  replit?: {
+    "allowed-tools"?: string[];
+    license?: string;
+    compatibility?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
   };
   roo?: Record<string, unknown>;
   cline?: Record<string, unknown>;
