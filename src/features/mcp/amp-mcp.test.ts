@@ -42,7 +42,7 @@ describe("AmpMcp", () => {
   });
 
   describe("isDeletable", () => {
-    it("should always return false because settings.json may contain other Amp settings", () => {
+    it("should always return false because settings.json/.jsonc may contain other Amp settings", () => {
       const ampMcp = new AmpMcp({
         relativeDirPath: ".amp",
         relativeFilePath: "settings.json",
@@ -113,6 +113,15 @@ describe("AmpMcp", () => {
 
       expect(ampMcp.getJson()).toEqual(jsonData);
       expect(ampMcp.getFilePath()).toBe(join(testDir, ".config", "amp", "settings.json"));
+    });
+
+    it("should reject malformed existing settings instead of overwriting them", async () => {
+      await ensureDir(join(testDir, ".amp"));
+      await writeFileContent(join(testDir, ".amp", "settings.jsonc"), "{ not json");
+
+      await expect(AmpMcp.fromFile({ outputRoot: testDir })).rejects.toThrow(
+        "Failed to parse Amp settings",
+      );
     });
   });
 
@@ -222,6 +231,20 @@ describe("AmpMcp", () => {
 
       expect(ampMcp.getFilePath()).toBe(join(testDir, ".config", "amp", "settings.jsonc"));
     });
+
+    it("should reject malformed existing settings instead of replacing them", async () => {
+      await ensureDir(join(testDir, ".amp"));
+      await writeFileContent(join(testDir, ".amp", "settings.jsonc"), "{ not json");
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      await expect(AmpMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp })).rejects.toThrow(
+        "Failed to parse Amp settings",
+      );
+    });
   });
 
   describe("toRulesyncMcp", () => {
@@ -251,6 +274,29 @@ describe("AmpMcp", () => {
           },
         },
       });
+    });
+  });
+
+  describe("getJson", () => {
+    it("should not expose internal mutable settings state", () => {
+      const original = {
+        "amp.mcpServers": {
+          context7: {
+            type: "http",
+            url: "https://mcp.context7.com/mcp",
+          },
+        },
+      };
+      const ampMcp = new AmpMcp({
+        relativeDirPath: ".amp",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify(original),
+      });
+
+      const json = ampMcp.getJson();
+      json["amp.mcpServers"] = { mutated: { command: "echo" } };
+
+      expect(ampMcp.getJson()).toEqual(original);
     });
   });
 
@@ -289,6 +335,38 @@ describe("AmpMcp", () => {
       const result = ampMcp.validate();
       expect(result.success).toBe(false);
       expect(result.error?.message).toContain("constructor");
+    });
+
+    it("should reject non-object amp.mcpServers", () => {
+      const ampMcp = new AmpMcp({
+        relativeDirPath: ".amp",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          "amp.mcpServers": "not an object",
+        }),
+        validate: false,
+      });
+
+      const result = ampMcp.validate();
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toContain("amp.mcpServers");
+    });
+
+    it("should reject non-object server configs", () => {
+      const ampMcp = new AmpMcp({
+        relativeDirPath: ".amp",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          "amp.mcpServers": {
+            context7: "not an object",
+          },
+        }),
+        validate: false,
+      });
+
+      const result = ampMcp.validate();
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toContain("context7");
     });
 
     it("should accept unknown transport types (loose schema)", () => {

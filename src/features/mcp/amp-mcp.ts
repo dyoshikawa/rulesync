@@ -1,10 +1,11 @@
 import { join } from "node:path";
 
-import { parse as parseJsonc } from "jsonc-parser";
+import { parse as parseJsonc, type ParseError, printParseErrorCode } from "jsonc-parser";
 
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
+import { isRecord } from "../../utils/type-guards.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -17,18 +18,55 @@ import {
 
 const AMP_MCP_SERVERS_KEY = "amp.mcpServers";
 
+function parseAmpSettingsJsonc(fileContent: string): Record<string, unknown> {
+  const errors: ParseError[] = [];
+  const parsed: unknown = parseJsonc(fileContent || "{}", errors);
+
+  if (errors.length > 0) {
+    const details = errors
+      .map((error) => `${printParseErrorCode(error.error)} at offset ${error.offset}`)
+      .join(", ");
+    throw new Error(`Failed to parse Amp settings: ${details}`);
+  }
+
+  if (!isRecord(parsed)) {
+    throw new Error("Amp settings must be a JSON object");
+  }
+
+  return parsed;
+}
+
+function filterMcpServers(mcpServers: unknown): Record<string, Record<string, unknown>> {
+  const filtered: Record<string, Record<string, unknown>> = {};
+
+  if (!isRecord(mcpServers)) return filtered;
+
+  for (const [name, config] of Object.entries(mcpServers)) {
+    if (isPrototypePollutionKey(name) || !isRecord(config)) continue;
+
+    const filteredConfig: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(config)) {
+      if (isPrototypePollutionKey(key)) continue;
+      filteredConfig[key] = value;
+    }
+    filtered[name] = filteredConfig;
+  }
+
+  return filtered;
+}
+
 export class AmpMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
 
   constructor(params: ToolMcpParams) {
     super(params);
-    // Use parseJsonc to preserve __proto__ and other special keys
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
-    this.json = parseJsonc(this.fileContent || "{}") as Record<string, unknown>;
+    // jsonc-parser drops `__proto__`, but `constructor`/`prototype` can remain
+    // own keys and must not be copied into generated settings.
+    this.json = parseAmpSettingsJsonc(this.fileContent);
   }
 
   getJson(): Record<string, unknown> {
-    return this.json;
+    return structuredClone(this.json);
   }
 
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
@@ -74,13 +112,10 @@ export class AmpMcp extends ToolMcp {
     const { fileContent, relativeFilePath } = await this.resolveSettingsFile(jsonDir);
 
     // If neither exists, use default empty config
-    const parsed = fileContent ? parseJsonc(fileContent) : {};
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
-    const json = parsed as Record<string, unknown>;
+    const json = fileContent ? parseAmpSettingsJsonc(fileContent) : {};
 
     // Ensure amp.mcpServers exists
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
-    const mcpServers = json[AMP_MCP_SERVERS_KEY] as Record<string, unknown> | undefined;
+    const mcpServers = json[AMP_MCP_SERVERS_KEY];
     const newJson = { ...json, [AMP_MCP_SERVERS_KEY]: mcpServers ?? {} };
 
     return new AmpMcp({
@@ -104,26 +139,9 @@ export class AmpMcp extends ToolMcp {
     const { fileContent, relativeFilePath } = await this.resolveSettingsFile(jsonDir);
 
     // If neither exists, use default config
-    const parsed = fileContent ? parseJsonc(fileContent) : { [AMP_MCP_SERVERS_KEY]: {} };
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
-    const json = parsed as Record<string, unknown>;
+    const json = fileContent ? parseAmpSettingsJsonc(fileContent) : { [AMP_MCP_SERVERS_KEY]: {} };
 
-    // Filter out prototype pollution keys from MCP servers
-    const mcpServers = rulesyncMcp.getMcpServers();
-    const filteredMcpServers: Record<string, unknown> = {};
-
-    for (const [name, config] of Object.entries(mcpServers)) {
-      if (PROTOTYPE_POLLUTION_KEYS.has(name)) continue;
-      if (!config || typeof config !== "object") continue;
-
-      // Filter out pollution keys from the server config
-      const filteredConfig: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(config)) {
-        if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
-        filteredConfig[key] = value;
-      }
-      filteredMcpServers[name] = filteredConfig;
-    }
+    const filteredMcpServers = filterMcpServers(rulesyncMcp.getMcpServers());
 
     const newJson = { ...json, [AMP_MCP_SERVERS_KEY]: filteredMcpServers };
 
@@ -138,24 +156,7 @@ export class AmpMcp extends ToolMcp {
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    // Filter out prototype pollution keys when converting
-    const mcpServers = this.json[AMP_MCP_SERVERS_KEY] ?? {};
-    const filtered: Record<string, unknown> = {};
-
-    if (mcpServers && typeof mcpServers === "object" && !Array.isArray(mcpServers)) {
-      for (const [name, config] of Object.entries(mcpServers)) {
-        if (PROTOTYPE_POLLUTION_KEYS.has(name)) continue;
-        if (!config || typeof config !== "object") continue;
-
-        // Filter out pollution keys from config
-        const filteredConfig: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(config)) {
-          if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
-          filteredConfig[key] = value;
-        }
-        filtered[name] = filteredConfig;
-      }
-    }
+    const filtered = filterMcpServers(this.json[AMP_MCP_SERVERS_KEY]);
 
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers: filtered }, null, 2),
@@ -163,15 +164,19 @@ export class AmpMcp extends ToolMcp {
   }
 
   validate(): ValidationResult {
-    // Parse fileContent directly since this.json may not be initialized yet
-    // when validate() is called from parent constructor
-    const parsed = parseJsonc(this.fileContent || "{}");
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
-    const json = parsed as Record<string, unknown>;
+    let json: Record<string, unknown>;
+    try {
+      json = parseAmpSettingsJsonc(this.fileContent);
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
+    }
 
     // Check for prototype pollution keys at top level
     for (const key of Object.keys(json)) {
-      if (PROTOTYPE_POLLUTION_KEYS.has(key)) {
+      if (isPrototypePollutionKey(key)) {
         return {
           success: false,
           error: new Error(`Prototype pollution key "${key}" is not allowed`),
@@ -184,31 +189,42 @@ export class AmpMcp extends ToolMcp {
     // upstream and the project convention (`.claude/rules/coding-guidelines.md`)
     // is to keep schemas loose so new fields don't require a rulesync release.
     const mcpServers = json[AMP_MCP_SERVERS_KEY];
-    if (mcpServers && typeof mcpServers === "object" && !Array.isArray(mcpServers)) {
-      for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
-        // Check server name for pollution keys
-        if (PROTOTYPE_POLLUTION_KEYS.has(serverName)) {
+    if (mcpServers === undefined) {
+      return { success: true, error: null };
+    }
+
+    if (!isRecord(mcpServers)) {
+      return {
+        success: false,
+        error: new Error(`${AMP_MCP_SERVERS_KEY} must be a JSON object`),
+      };
+    }
+
+    for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
+      if (isPrototypePollutionKey(serverName)) {
+        return {
+          success: false,
+          error: new Error(
+            `Server name "${serverName}" is a prototype pollution key and is not allowed`,
+          ),
+        };
+      }
+
+      if (!isRecord(serverConfig)) {
+        return {
+          success: false,
+          error: new Error(`MCP server "${serverName}" must be a JSON object`),
+        };
+      }
+
+      for (const key of Object.keys(serverConfig)) {
+        if (isPrototypePollutionKey(key)) {
           return {
             success: false,
             error: new Error(
-              `Server name "${serverName}" is a prototype pollution key and is not allowed`,
+              `Config key "${key}" in server "${serverName}" is a prototype pollution key and is not allowed`,
             ),
           };
-        }
-
-        // Validate server config if it's an object
-        if (serverConfig && typeof serverConfig === "object") {
-          // Check config keys for pollution
-          for (const key of Object.keys(serverConfig)) {
-            if (PROTOTYPE_POLLUTION_KEYS.has(key)) {
-              return {
-                success: false,
-                error: new Error(
-                  `Config key "${key}" in server "${serverName}" is a prototype pollution key and is not allowed`,
-                ),
-              };
-            }
-          }
         }
       }
     }

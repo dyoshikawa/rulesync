@@ -64,7 +64,7 @@ describe("E2E: mcp", () => {
   });
 
   it.each([
-    // geminicli, codexcli, opencode, kilo use merged config files (isDeletable=false) — excluded
+    // amp, geminicli, codexcli, opencode, kilo use merged config files (isDeletable=false) — excluded
     { target: "claudecode", orphanPath: ".mcp.json" },
     { target: "cursor", orphanPath: join(".cursor", "mcp.json") },
     { target: "copilot", orphanPath: join(".vscode", "mcp.json") },
@@ -126,6 +126,16 @@ describe("E2E: mcp", () => {
       target: "codexcli",
       outputPath: join(".codex", "config.toml"),
       content: '[ui]\ntheme = "dark"\n',
+    },
+    {
+      target: "opencode",
+      outputPath: "opencode.jsonc",
+      content: JSON.stringify({ theme: "dark", mcp: {} }, null, 2),
+    },
+    {
+      target: "kilo",
+      outputPath: "kilo.jsonc",
+      content: JSON.stringify({ theme: "dark", mcp: {} }, null, 2),
     },
   ])(
     "should succeed in check mode when a $target mcp file is non-deletable",
