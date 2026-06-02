@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -330,6 +331,66 @@ describe("OpencodeHooks", () => {
       expect(content).toContain("format.sh");
       expect(content).toContain('new RegExp("Write")');
       expect(content).toContain('new RegExp("Edit")');
+    });
+
+    it("should generate valid block-scoped regex declarations for multiple matcher handlers", () => {
+      const config = {
+        version: 1,
+        hooks: {
+          postToolUse: [
+            { type: "command", command: "audit-read.sh", matcher: "Read" },
+            { type: "command", command: "audit-write.sh", matcher: "Write" },
+            { type: "command", command: "audit-edit.sh", matcher: "Edit" },
+          ],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = opencodeHooks.getFileContent();
+      expect(content).toContain(
+        [
+          "      {",
+          '        const __re = new RegExp("Read");',
+          "        if (__re.test(input.tool)) {",
+          "          await $`audit-read.sh`;",
+          "        }",
+          "      }",
+        ].join("\n"),
+      );
+      expect(content).toContain(
+        [
+          "      {",
+          '        const __re = new RegExp("Write");',
+          "        if (__re.test(input.tool)) {",
+          "          await $`audit-write.sh`;",
+          "        }",
+          "      }",
+        ].join("\n"),
+      );
+      expect(content).toContain(
+        [
+          "      {",
+          '        const __re = new RegExp("Edit");',
+          "        if (__re.test(input.tool)) {",
+          "          await $`audit-edit.sh`;",
+          "        }",
+          "      }",
+        ].join("\n"),
+      );
+
+      execFileSync("node", ["--input-type=module", "--check"], { input: content });
     });
 
     it("should throw on invalid regex in matcher", () => {

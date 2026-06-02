@@ -92,9 +92,11 @@ export function generateOpencodeStylePluginCode(
       const escapedCommand = escapeForTemplateLiteral(handler.command);
       if (handler.matcher) {
         const safeMatcher = validateAndSanitizeMatcher(handler.matcher);
-        lines.push(`      const __re = new RegExp("${safeMatcher}");`);
-        lines.push(`      if (__re.test(input.tool)) {`);
-        lines.push(`        await $\`${escapedCommand}\`;`);
+        lines.push("      {");
+        lines.push(`        const __re = new RegExp("${safeMatcher}");`);
+        lines.push(`        if (__re.test(input.tool)) {`);
+        lines.push(`          await $\`${escapedCommand}\`;`);
+        lines.push("        }");
         lines.push("      }");
       } else {
         lines.push(`      await $\`${escapedCommand}\`;`);
