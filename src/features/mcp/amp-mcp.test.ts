@@ -420,6 +420,31 @@ describe("AmpMcp", () => {
       expect(ampMcp.getFilePath()).toBe(join(testDir, ".amp", "settings.jsonc"));
     });
 
+    it("should parse settings.jsonc with trailing commas", async () => {
+      const jsoncContent = `{
+  // Amp settings with trailing commas
+  "amp.mcpServers": {
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp",
+    },
+  },
+}`;
+      await ensureDir(join(testDir, ".amp"));
+      await writeFileContent(join(testDir, ".amp", "settings.jsonc"), jsoncContent);
+
+      const ampMcp = await AmpMcp.fromFile({ outputRoot: testDir });
+
+      expect(ampMcp.getJson()).toEqual({
+        "amp.mcpServers": {
+          context7: {
+            type: "http",
+            url: "https://mcp.context7.com/mcp",
+          },
+        },
+      });
+    });
+
     it("should fall back to settings.json if settings.jsonc does not exist", async () => {
       const jsonData = {
         "amp.mcpServers": {
