@@ -35,6 +35,7 @@ describe("E2E: mcp", () => {
     { target: "junie", outputPath: join(".junie", "mcp", "mcp.json") },
     { target: "antigravity-ide", outputPath: join(".agents", "mcp_config.json") },
     { target: "antigravity-cli", outputPath: join(".agents", "mcp_config.json") },
+    { target: "warp", outputPath: join(".warp", ".mcp.json") },
     { target: "zed", outputPath: join(".zed", "settings.json") },
   ])("should generate $target mcp", async ({ target, outputPath }) => {
     const testDir = getTestDir();
@@ -198,6 +199,7 @@ describe("E2E: mcp (import)", () => {
     { target: "junie", sourcePath: join(".junie", "mcp", "mcp.json") },
     { target: "antigravity-ide", sourcePath: join(".agents", "mcp_config.json") },
     { target: "antigravity-cli", sourcePath: join(".agents", "mcp_config.json") },
+    { target: "warp", sourcePath: join(".warp", ".mcp.json") },
   ])("should import $target mcp", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
@@ -268,6 +270,7 @@ describe("E2E: mcp (global mode)", () => {
       target: "antigravity-cli",
       outputPath: join(".gemini", "antigravity-cli", "mcp_config.json"),
     },
+    { target: "warp", outputPath: join(".warp", ".mcp.json") },
     { target: "zed", outputPath: join(".config", "zed", "settings.json") },
   ])("should generate $target mcp in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();

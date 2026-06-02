@@ -38,7 +38,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "common", feature: "general", entry: "**/AGENTS.local.md" },
 
   // AGENTS.md
-  { target: ["agentsmd", "pi"], feature: "rules", entry: "**/AGENTS.md" },
+  { target: ["agentsmd", "pi", "warp"], feature: "rules", entry: "**/AGENTS.md" },
   { target: "agentsmd", feature: "rules", entry: "**/.agents/" },
 
   // Antigravity (IDE + CLI, Antigravity 2.0)
@@ -297,8 +297,9 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "windsurf", feature: "skills", entry: "**/.codeium/windsurf/skills/" },
 
   // Warp
+  // `/init` now writes `AGENTS.md` (handled by the shared AGENTS.md entry above).
   { target: "warp", feature: "rules", entry: "**/.warp/" },
-  { target: "warp", feature: "rules", entry: "**/WARP.md" },
+  { target: "warp", feature: "mcp", entry: "**/.warp/.mcp.json" },
 
   // Zed
   // `.rules` is the project rules file. `.agents/skills/` is shared with the

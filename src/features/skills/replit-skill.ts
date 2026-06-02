@@ -18,6 +18,10 @@ import {
 export const ReplitSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
+  "allowed-tools": z.optional(z.array(z.string())),
+  license: z.optional(z.string()),
+  compatibility: z.optional(z.looseObject({})),
+  metadata: z.optional(z.looseObject({})),
 });
 
 export type ReplitSkillFrontmatter = z.infer<typeof ReplitSkillFrontmatterSchema>;
@@ -111,10 +115,21 @@ export class ReplitSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    const replitBlock = {
+      ...(frontmatter["allowed-tools"] !== undefined && {
+        "allowed-tools": frontmatter["allowed-tools"],
+      }),
+      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
+      ...(frontmatter.compatibility !== undefined && {
+        compatibility: frontmatter.compatibility,
+      }),
+      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+    };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
+      ...(Object.keys(replitBlock).length > 0 && { replit: replitBlock }),
     };
 
     return new RulesyncSkill({
@@ -141,6 +156,7 @@ export class ReplitSkill extends ToolSkill {
     const replitFrontmatter: ReplitSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...rulesyncFrontmatter.replit,
     };
 
     return new ReplitSkill({
