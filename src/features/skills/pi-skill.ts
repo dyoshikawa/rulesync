@@ -25,6 +25,11 @@ import {
 export const PiSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
+  "allowed-tools": z.optional(z.array(z.string())),
+  "disable-model-invocation": z.optional(z.boolean()),
+  license: z.optional(z.string()),
+  compatibility: z.optional(z.looseObject({})),
+  metadata: z.optional(z.looseObject({})),
 });
 
 export type PiSkillFrontmatter = z.infer<typeof PiSkillFrontmatterSchema>;
@@ -122,10 +127,24 @@ export class PiSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    const piBlock = {
+      ...(frontmatter["allowed-tools"] !== undefined && {
+        "allowed-tools": frontmatter["allowed-tools"],
+      }),
+      ...(frontmatter["disable-model-invocation"] !== undefined && {
+        "disable-model-invocation": frontmatter["disable-model-invocation"],
+      }),
+      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
+      ...(frontmatter.compatibility !== undefined && {
+        compatibility: frontmatter.compatibility,
+      }),
+      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+    };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
+      ...(Object.keys(piBlock).length > 0 && { pi: piBlock }),
     };
 
     return new RulesyncSkill({
@@ -152,6 +171,7 @@ export class PiSkill extends ToolSkill {
     const piFrontmatter: PiSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...rulesyncFrontmatter.pi,
     };
 
     return new PiSkill({

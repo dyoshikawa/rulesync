@@ -119,9 +119,8 @@ RUN curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/
 
 # Install global packages
 ENV PNPM_HOME=/home/node/.pnpm
-ENV PATH=$PATH:$PNPM_HOME
+ENV PATH=$PNPM_HOME/bin:$PATH
 RUN mkdir -p "$PNPM_HOME" && \
-    mise exec -- pnpm setup && \
     mise exec -- pnpm add -g \
     @openai/codex \
     @google/gemini-cli

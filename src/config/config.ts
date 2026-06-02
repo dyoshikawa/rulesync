@@ -151,7 +151,7 @@ const CONFLICTING_TARGET_PAIRS: Array<[string, string]> = [
  * Legacy targets that should NOT be included in wildcard (*) expansion.
  * These targets must be explicitly specified.
  */
-const LEGACY_TARGETS = ["augmentcode-legacy", "claudecode-legacy"] as const;
+const LEGACY_TARGETS = ["augmentcode-legacy", "claudecode-legacy", "antigravity"] as const;
 
 /**
  * Validates that the user-authored config does not double-define the

@@ -855,4 +855,60 @@ describe("config-resolver", () => {
       expect(deprecationCalls).toHaveLength(0);
     });
   });
+
+  describe("deprecation alias: 'antigravity' target", () => {
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      resetDeprecationWarningForTests();
+      warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+      delete process.env.RULESYNC_SILENT_DEPRECATION;
+    });
+
+    it("emits the deprecation warning once when the 'antigravity' target is selected", async () => {
+      await ConfigResolver.resolve({
+        targets: ["antigravity"],
+        features: ["rules"],
+      });
+      await ConfigResolver.resolve({
+        targets: ["antigravity"],
+        features: ["rules"],
+      });
+
+      const deprecationCalls = warnSpy.mock.calls.filter((call: unknown[]) =>
+        String(call[0]).includes("DEPRECATED: the 'antigravity' target"),
+      );
+      expect(deprecationCalls).toHaveLength(1);
+    });
+
+    it("does not emit the warning for the split 'antigravity-ide' / 'antigravity-cli' targets", async () => {
+      await ConfigResolver.resolve({
+        targets: ["antigravity-ide", "antigravity-cli"],
+        features: ["rules"],
+      });
+
+      const deprecationCalls = warnSpy.mock.calls.filter((call: unknown[]) =>
+        String(call[0]).includes("DEPRECATED: the 'antigravity' target"),
+      );
+      expect(deprecationCalls).toHaveLength(0);
+    });
+
+    it("suppresses the warning when RULESYNC_SILENT_DEPRECATION is set", async () => {
+      process.env.RULESYNC_SILENT_DEPRECATION = "1";
+
+      await ConfigResolver.resolve({
+        targets: ["antigravity"],
+        features: ["rules"],
+      });
+
+      const deprecationCalls = warnSpy.mock.calls.filter((call: unknown[]) =>
+        String(call[0]).includes("DEPRECATED: the 'antigravity' target"),
+      );
+      expect(deprecationCalls).toHaveLength(0);
+    });
+  });
 });

@@ -32,6 +32,8 @@ import { RooSubagent } from "../subagents/roo-subagent.js";
 import { RovodevSubagent } from "../subagents/rovodev-subagent.js";
 import { SubagentsProcessor } from "../subagents/subagents-processor.js";
 import { AgentsMdRule } from "./agentsmd-rule.js";
+import { AntigravityCliRule } from "./antigravity-cli-rule.js";
+import { AntigravityIdeRule } from "./antigravity-ide-rule.js";
 import { AntigravityRule } from "./antigravity-rule.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
 import { AugmentcodeRule } from "./augmentcode-rule.js";
@@ -67,10 +69,13 @@ import {
 } from "./tool-rule.js";
 import { WarpRule } from "./warp-rule.js";
 import { WindsurfRule } from "./windsurf-rule.js";
+import { ZedRule } from "./zed-rule.js";
 
 const rulesProcessorToolTargets: ToolTarget[] = [
   "agentsmd",
   "antigravity",
+  "antigravity-cli",
+  "antigravity-ide",
   "augmentcode",
   "augmentcode-legacy",
   "claudecode",
@@ -96,6 +101,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "takt",
   "warp",
   "windsurf",
+  "zed",
 ];
 export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargets);
 export type RulesProcessorToolTarget = z.infer<typeof RulesProcessorToolTargetSchema>;
@@ -260,6 +266,32 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
       meta: {
         extension: "md",
         supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
+      },
+    },
+  ],
+  [
+    "antigravity-cli",
+    {
+      class: AntigravityCliRule,
+      meta: {
+        // The Antigravity CLI shares Gemini-CLI-class context files: a root
+        // GEMINI.md that @-references non-root memory files under `.agents/rules/`.
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "toon",
+      },
+    },
+  ],
+  [
+    "antigravity-ide",
+    {
+      class: AntigravityIdeRule,
+      meta: {
+        // The Antigravity IDE auto-discovers rule files under `.agents/rules/`,
+        // so no reference section is needed in the root rule.
+        extension: "md",
+        supportsGlobal: true,
         ruleDiscoveryMode: "auto",
       },
     },
@@ -557,6 +589,20 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
         ruleDiscoveryMode: "auto",
         // No additionalConventions.skills needed: Windsurf Cascade auto-discovers
         // skills from .windsurf/skills/ and ~/.codeium/windsurf/skills/ directories.
+      },
+    },
+  ],
+  [
+    "zed",
+    {
+      class: ZedRule,
+      meta: {
+        // Zed reads a single project rules file (`.rules`) and a single global
+        // file (`~/.config/zed/AGENTS.md`). It is root-only with auto discovery,
+        // so there is no non-root location to render a conventions block into.
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
       },
     },
   ],

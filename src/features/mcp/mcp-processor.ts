@@ -8,6 +8,8 @@ import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
 import { AmpMcp } from "./amp-mcp.js";
+import { AntigravityCliMcp } from "./antigravity-cli-mcp.js";
+import { AntigravityIdeMcp } from "./antigravity-ide-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
@@ -31,6 +33,8 @@ import {
   ToolMcpFromRulesyncMcpParams,
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
+import { WarpMcp } from "./warp-mcp.js";
+import { ZedMcp } from "./zed-mcp.js";
 
 /**
  * Supported tool targets for McpProcessor.
@@ -38,6 +42,8 @@ import {
  */
 const mcpProcessorToolTargetTuple = [
   "amp",
+  "antigravity-cli",
+  "antigravity-ide",
   "claudecode",
   "claudecode-legacy",
   "cline",
@@ -54,6 +60,8 @@ const mcpProcessorToolTargetTuple = [
   "opencode",
   "roo",
   "rovodev",
+  "warp",
+  "zed",
 ] as const;
 
 export type McpProcessorToolTarget = (typeof mcpProcessorToolTargetTuple)[number];
@@ -100,6 +108,30 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "antigravity-cli",
+    {
+      class: AntigravityCliMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
+    "antigravity-ide",
+    {
+      class: AntigravityIdeMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: true,
       },
     },
   ],
@@ -295,6 +327,30 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
       class: RovodevMcp,
       meta: {
         supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "warp",
+    {
+      class: WarpMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "zed",
+    {
+      class: ZedMcp,
+      meta: {
+        supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,

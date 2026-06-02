@@ -31,19 +31,28 @@ Add a `sources` array to your `rulesync.jsonc`:
 
     // Git transport with a local repository
     { "source": "file:///path/to/local/repo", "transport": "git" },
+
+    // Git transport against a single-skill repo whose SKILL.md is at the root
+    {
+      "source": "https://github.com/feature-sliced/skills",
+      "transport": "git",
+      "path": ".",
+    },
   ],
 }
 ```
 
 Each entry in `sources` accepts:
 
-| Property    | Type       | Description                                                                                                                      |
-| ----------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `source`    | `string`   | Repository source. For GitHub transport: `owner/repo` or `owner/repo@ref:path`. For git transport: a full git URL.               |
-| `skills`    | `string[]` | Optional list of skill names to fetch. If omitted, all skills are fetched.                                                       |
-| `transport` | `string`   | `"github"` (default) uses the GitHub REST API. `"git"` uses git CLI and works with any git remote.                               |
-| `ref`       | `string`   | Branch, tag, or ref to fetch from. Defaults to the remote's default branch. For GitHub transport, use the `@ref` source syntax.  |
-| `path`      | `string`   | Path to the skills directory within the repository. Defaults to `"skills"`. For GitHub transport, use the `:path` source syntax. |
+| Property    | Type       | Description                                                                                                                                                                                                           |
+| ----------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `source`    | `string`   | Repository source. For GitHub transport: `owner/repo` or `owner/repo@ref:path`. For git transport: a full git URL.                                                                                                    |
+| `skills`    | `string[]` | Optional list of skill names to fetch. If omitted, all skills are fetched.                                                                                                                                            |
+| `transport` | `string`   | `"github"` (default) uses the GitHub REST API. `"git"` uses git CLI and works with any git remote.                                                                                                                    |
+| `ref`       | `string`   | Branch, tag, or ref to fetch from. Defaults to the remote's default branch. For GitHub transport, use the `@ref` source syntax.                                                                                       |
+| `path`      | `string`   | Path to the skills directory within the repository. Defaults to `"skills"`. Set to `""`, `"."`, or `"./"` to target the entire repository root (see note below). For GitHub transport, use the `:path` source syntax. |
+
+> **Repository-root paths (`path: "."`):** When `path` is `""`, `"."`, or `"./"` (with the `git` transport), rulesync disables sparse-checkout and fetches the **entire** repository tree, then groups each top-level directory as a skill. This is useful for single-skill repositories whose `SKILL.md` lives at the repo root (`<repo>/SKILL.md`) rather than under a `skills/` container. Because the whole tree is fetched, prefer a narrower `path` for large repositories; the fetch is still bounded by rulesync's file-count, total-size, and depth limits.
 
 ## How It Works
 

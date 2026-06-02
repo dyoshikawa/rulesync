@@ -11,6 +11,7 @@ import { checkPathTraversal, findFilesByGlobs } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "./agentsmd-command.js";
 import { AntigravityCommand } from "./antigravity-command.js";
+import { AntigravityIdeCommand } from "./antigravity-ide-command.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
 import { ClineCommand } from "./cline-command.js";
 import { CodexcliCommand } from "./codexcli-command.js";
@@ -67,6 +68,7 @@ type ToolCommandFactory = {
 const commandsProcessorToolTargetTuple = [
   "agentsmd",
   "antigravity",
+  "antigravity-ide",
   "claudecode",
   "claudecode-legacy",
   "cline",
@@ -115,6 +117,19 @@ const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFac
         extension: "md",
         supportsProject: true,
         supportsGlobal: false,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "antigravity-ide",
+    {
+      class: AntigravityIdeCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: false,
       },

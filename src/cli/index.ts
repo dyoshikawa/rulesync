@@ -19,7 +19,7 @@ import { resolveGitignoreTargets } from "./commands/resolve-gitignore-targets.js
 import { updateCommand, UpdateCommandOptions } from "./commands/update.js";
 import { wrapCommand as _wrapCommand } from "./wrap-command.js";
 
-const getVersion = () => "8.19.0";
+const getVersion = () => "8.23.0";
 
 function wrapCommand(
   name: string,

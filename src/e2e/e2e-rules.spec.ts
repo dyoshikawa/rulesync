@@ -25,6 +25,7 @@ describe("E2E: rules", () => {
     { target: "copilot", outputPath: join(".github", "copilot-instructions.md") },
     { target: "opencode", outputPath: "AGENTS.md" },
     { target: "geminicli", outputPath: "GEMINI.md" },
+    { target: "antigravity-cli", outputPath: "GEMINI.md" },
     { target: "goose", outputPath: ".goosehints" },
     { target: "copilotcli", outputPath: join(".github", "copilot-instructions.md") },
     { target: "kilo", outputPath: "AGENTS.md" },
@@ -34,9 +35,10 @@ describe("E2E: rules", () => {
     { target: "rovodev", outputPath: join(".rovodev", "AGENTS.md") },
     { target: "qwencode", outputPath: "QWEN.md" },
     { target: "junie", outputPath: join(".junie", "guidelines.md") },
-    { target: "warp", outputPath: "WARP.md" },
+    { target: "warp", outputPath: "AGENTS.md" },
     { target: "replit", outputPath: "replit.md" },
     { target: "pi", outputPath: "AGENTS.md" },
+    { target: "zed", outputPath: ".rules" },
   ])("should generate $target rules", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -70,6 +72,7 @@ This is a test rule for E2E testing.
     { target: "roo", outputPath: join(".roo", "rules", "overview.md") },
     { target: "kiro", outputPath: join(".kiro", "steering", "overview.md") },
     { target: "antigravity", outputPath: join(".agent", "rules", "overview.md") },
+    { target: "antigravity-ide", outputPath: join(".agents", "rules", "overview.md") },
     { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },
     { target: "windsurf", outputPath: join(".windsurf", "rules", "overview.md") },
     { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
@@ -201,7 +204,7 @@ describe("E2E: rules (import)", () => {
       sourcePath: join(".junie", "guidelines.md"),
       importedFileName: "overview.md",
     },
-    { target: "warp", sourcePath: "WARP.md", importedFileName: "overview.md" },
+    { target: "warp", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "replit", sourcePath: "replit.md", importedFileName: "overview.md" },
     { target: "pi", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     {
@@ -225,6 +228,16 @@ describe("E2E: rules (import)", () => {
       importedFileName: "overview.md",
     },
     {
+      target: "antigravity-ide",
+      sourcePath: join(".agents", "rules", "overview.md"),
+      importedFileName: "overview.md",
+    },
+    {
+      target: "antigravity-cli",
+      sourcePath: "GEMINI.md",
+      importedFileName: "overview.md",
+    },
+    {
       target: "augmentcode",
       sourcePath: join(".augment", "rules", "overview.md"),
       importedFileName: "overview.md",
@@ -234,6 +247,7 @@ describe("E2E: rules (import)", () => {
       sourcePath: join(".windsurf", "rules", "overview.md"),
       importedFileName: "overview.md",
     },
+    { target: "zed", sourcePath: ".rules", importedFileName: "overview.md" },
   ])("should import $target rules", async ({ target, sourcePath, importedFileName }) => {
     const testDir = getTestDir();
 
@@ -260,6 +274,8 @@ describe("E2E: rules (global mode)", () => {
     { target: "opencode", outputPath: join(".config", "opencode", "AGENTS.md") },
     { target: "codexcli", outputPath: join(".codex", "AGENTS.md") },
     { target: "geminicli", outputPath: join(".gemini", "GEMINI.md") },
+    { target: "antigravity-ide", outputPath: join(".gemini", "GEMINI.md") },
+    { target: "antigravity-cli", outputPath: join(".gemini", "GEMINI.md") },
     { target: "goose", outputPath: ".goosehints" },
     { target: "copilotcli", outputPath: join(".copilot", "copilot-instructions.md") },
     { target: "factorydroid", outputPath: join(".factory", "AGENTS.md") },
@@ -267,6 +283,7 @@ describe("E2E: rules (global mode)", () => {
     { target: "rovodev", outputPath: join(".rovodev", "AGENTS.md") },
     { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
     { target: "pi", outputPath: join(".pi", "agent", "AGENTS.md") },
+    { target: "zed", outputPath: join(".config", "zed", "AGENTS.md") },
   ])("should generate $target rules in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

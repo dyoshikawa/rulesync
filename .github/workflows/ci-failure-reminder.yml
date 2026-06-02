@@ -1,0 +1,119 @@
+name: CI Failure Reminder
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write # Required for commenting on PRs
+  checks: read # Required for reading check run conclusions
+  statuses: read # Required for reading combined commit statuses
+
+concurrency:
+  group: ci-failure-reminder
+  cancel-in-progress: false
+
+jobs:
+  remind-ci-failures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Comment on PRs with failing CI
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const REMINDER_MARKER = "ci-failure-reminder";
+            const failingConclusions = new Set(["failure", "timed_out"]);
+            const { owner, repo } = context.repo;
+
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: "open",
+              per_page: 100,
+            });
+
+            let commentedCount = 0;
+
+            for (const pr of prs) {
+              // Skip drafts (work in progress) and PRs without a resolvable author.
+              if (pr.draft || !pr.user) {
+                continue;
+              }
+              // Skip bot authors (e.g. Dependabot); they cannot act on a mention.
+              if (pr.user.type === "Bot") {
+                continue;
+              }
+
+              const headSha = pr.head.sha;
+
+              // Determine whether CI is failing for the head commit.
+              const checkRuns = await github.paginate(github.rest.checks.listForRef, {
+                owner,
+                repo,
+                ref: headSha,
+                per_page: 100,
+              });
+              const hasFailingCheckRun = checkRuns.some((run) =>
+                failingConclusions.has(run.conclusion)
+              );
+
+              let hasFailingStatus = false;
+              try {
+                const { data: combinedStatus } =
+                  await github.rest.repos.getCombinedStatusForRef({
+                    owner,
+                    repo,
+                    ref: headSha,
+                  });
+                hasFailingStatus = combinedStatus.state === "failure";
+              } catch (error) {
+                core.warning(
+                  `Failed to fetch combined status for PR #${pr.number}: ${error.message}`
+                );
+              }
+
+              if (!hasFailingCheckRun && !hasFailingStatus) {
+                continue;
+              }
+
+              // De-duplicate: comment at most once per failing commit (head SHA).
+              const marker = `<!-- ${REMINDER_MARKER}:${headSha} -->`;
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner,
+                repo,
+                issue_number: pr.number,
+                per_page: 100,
+              });
+              const alreadyReminded = comments.some(
+                (comment) => comment.body && comment.body.includes(marker)
+              );
+              if (alreadyReminded) {
+                core.info(
+                  `PR #${pr.number} already has a reminder for ${headSha}; skipping.`
+                );
+                continue;
+              }
+
+              const body = [
+                `@${pr.user.login} The CI checks on this pull request are currently failing.`,
+                "",
+                "Please review the failing checks and push a fix. If you need help, leave a comment and a maintainer will follow up.",
+                "",
+                marker,
+              ].join("\n");
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pr.number,
+                body,
+              });
+
+              commentedCount += 1;
+              core.info(`Commented on PR #${pr.number} (head ${headSha}).`);
+            }
+
+            core.info(`Posted ${commentedCount} CI-failure reminder(s).`);

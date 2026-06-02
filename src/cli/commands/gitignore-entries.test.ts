@@ -22,7 +22,6 @@ const TARGETS_WITHOUT_GITIGNORE_ENTRIES = new Set([
   "antigravity",
   "augmentcode-legacy",
   "claudecode-legacy",
-  "zed",
 ]);
 
 describe("GITIGNORE_ENTRY_REGISTRY", () => {

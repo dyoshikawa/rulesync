@@ -73,13 +73,13 @@ describe("E2E: permissions", () => {
     const filesystem = toTable(rulesyncProfile.filesystem);
     const network = toTable(rulesyncProfile.network);
     const domains = toTable(network.domains);
-    const projectRoots = toTable(filesystem[":project_roots"]);
+    const workspaceRoots = toTable(filesystem[":workspace_roots"]);
     expect(filesystem["/workspace/project/**"]).toBe("read");
     expect(filesystem["/workspace/project/src/**"]).toBe("write");
     expect(filesystem.glob_scan_max_depth).toBe(8);
-    expect(projectRoots["**/*.tf"]).toBe("none");
-    expect(projectRoots["src/**"]).toBe("read");
-    expect(projectRoots["docs/**"]).toBe("write");
+    expect(workspaceRoots["**/*.tf"]).toBe("deny");
+    expect(workspaceRoots["src/**"]).toBe("read");
+    expect(workspaceRoots["docs/**"]).toBe("write");
     expect(domains["github.com"]).toBe("allow");
 
     const rulesContent = await readFileContent(join(testDir, ".codex", "rules", "rulesync.rules"));
@@ -371,7 +371,7 @@ default_permissions = "rulesync"
 [permissions.rulesync.filesystem]
 "/workspace/project/**" = "read"
 "/workspace/project/src/**" = "write"
-"/workspace/project/.env" = "none"
+"/workspace/project/.env" = "deny"
 
 [permissions.rulesync.network.domains]
 "github.com" = "allow"
@@ -872,6 +872,40 @@ describe("E2E: permissions (global mode)", () => {
     const generated = JSON.parse(await readFileContent(join(homeDir, ".qwen", "settings.json")));
     expect(generated.permissions.allow).toContain("Bash(git status *)");
     expect(generated.permissions.deny).toContain("Read(.env)");
+  });
+
+  it("should generate antigravity-cli permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git status *": "allow", "rm -rf *": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "antigravity-cli",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // The Antigravity CLI uses Claude-Code-style `permissions.allow/deny`
+    // arrays and exposes shell execution as the `command` tool. Permissions are
+    // global-scope only, so there is no project-mode equivalent.
+    const generated = JSON.parse(
+      await readFileContent(join(homeDir, ".gemini", "antigravity-cli", "settings.json")),
+    );
+    expect(generated.permissions.allow).toContain("command(git status *)");
+    expect(generated.permissions.deny).toContain("command(rm -rf *)");
   });
 });
 

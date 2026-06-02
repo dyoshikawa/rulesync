@@ -1135,6 +1135,7 @@ describe("CommandsProcessor", () => {
       expect(new Set(targets)).toEqual(
         new Set([
           "antigravity",
+          "antigravity-ide",
           "claudecode",
           "claudecode-legacy",
           "cline",
@@ -1158,6 +1159,7 @@ describe("CommandsProcessor", () => {
         new Set([
           "agentsmd",
           "antigravity",
+          "antigravity-ide",
           "claudecode",
           "claudecode-legacy",
           "cline",
@@ -1182,6 +1184,7 @@ describe("CommandsProcessor", () => {
       const targets = CommandsProcessor.getToolTargets({ global: true });
       expect(new Set(targets)).toEqual(
         new Set([
+          "antigravity-ide",
           "claudecode",
           "claudecode-legacy",
           "cline",

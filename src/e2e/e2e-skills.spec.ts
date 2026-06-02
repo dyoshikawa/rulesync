@@ -68,6 +68,14 @@ describe("E2E: skills", () => {
       outputPath: join(".agent", "skills", "test-skill", "SKILL.md"),
     },
     {
+      target: "antigravity-ide",
+      outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "antigravity-cli",
+      outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
+    },
+    {
       target: "junie",
       outputPath: join(".junie", "skills", "test-skill", "SKILL.md"),
     },
@@ -86,6 +94,10 @@ describe("E2E: skills", () => {
     {
       target: "pi",
       outputPath: join(".pi", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "zed",
+      outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
     },
   ])("should generate $target skills", async ({ target, outputPath }) => {
     const testDir = getTestDir();
@@ -155,10 +167,19 @@ This is the test skill body content.
     { target: "windsurf", orphanPath: join(".windsurf", "skills", "orphan-skill", "SKILL.md") },
     { target: "kiro", orphanPath: join(".kiro", "skills", "orphan-skill", "SKILL.md") },
     { target: "antigravity", orphanPath: join(".agent", "skills", "orphan-skill", "SKILL.md") },
+    {
+      target: "antigravity-ide",
+      orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md"),
+    },
+    {
+      target: "antigravity-cli",
+      orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md"),
+    },
     { target: "junie", orphanPath: join(".junie", "skills", "orphan-skill", "SKILL.md") },
     { target: "replit", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
     { target: "agentsskills", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
     { target: "pi", orphanPath: join(".pi", "skills", "orphan-skill", "SKILL.md") },
+    { target: "zed", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
   ])(
     "should fail in check mode when delete would remove an orphan $target skill file",
     async ({ target, orphanPath }) => {
@@ -205,9 +226,12 @@ describe("E2E: skills (import)", () => {
     { target: "windsurf", sourcePath: join(".windsurf", "skills", "test-skill", "SKILL.md") },
     { target: "kiro", sourcePath: join(".kiro", "skills", "test-skill", "SKILL.md") },
     { target: "antigravity", sourcePath: join(".agent", "skills", "test-skill", "SKILL.md") },
+    { target: "antigravity-ide", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
+    { target: "antigravity-cli", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "junie", sourcePath: join(".junie", "skills", "test-skill", "SKILL.md") },
     { target: "replit", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "pi", sourcePath: join(".pi", "skills", "test-skill", "SKILL.md") },
+    { target: "zed", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
   ])("should import $target skills", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
@@ -276,12 +300,24 @@ describe("E2E: skills (global mode)", () => {
       outputPath: join(".gemini", "antigravity", "skills", "test-skill", "SKILL.md"),
     },
     {
+      target: "antigravity-ide",
+      outputPath: join(".gemini", "antigravity", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "antigravity-cli",
+      outputPath: join(".gemini", "antigravity-cli", "skills", "test-skill", "SKILL.md"),
+    },
+    {
       target: "takt",
       outputPath: join(".takt", "facets", "knowledge", "test-skill.md"),
     },
     {
       target: "pi",
       outputPath: join(".pi", "agent", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "zed",
+      outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
     },
   ])("should generate $target skills in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();

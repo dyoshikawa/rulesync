@@ -226,6 +226,43 @@ Body`,
 
       expect(skill.getRelativeDirPath()).toBe(join(".pi", "agent", "skills"));
     });
+
+    it("should emit Pi-specific frontmatter from the pi block", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "demo",
+        frontmatter: {
+          name: "demo",
+          description: "Demo",
+          targets: ["*"],
+          pi: {
+            "allowed-tools": ["read", "write"],
+            "disable-model-invocation": true,
+            license: "MIT",
+            compatibility: { "pi-version": ">=0.75.0" },
+            metadata: { author: "rulesync" },
+          },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const skill = PiSkill.fromRulesyncSkill({
+        outputRoot: testDir,
+        rulesyncSkill,
+      });
+
+      expect(skill.getFrontmatter()).toEqual({
+        name: "demo",
+        description: "Demo",
+        "allowed-tools": ["read", "write"],
+        "disable-model-invocation": true,
+        license: "MIT",
+        compatibility: { "pi-version": ">=0.75.0" },
+        metadata: { author: "rulesync" },
+      });
+    });
   });
 
   describe("toRulesyncSkill", () => {
@@ -245,6 +282,38 @@ Body`,
         targets: ["*"],
       });
       expect(rulesyncSkill.getBody()).toBe("Body");
+    });
+
+    it("should carry Pi-specific frontmatter into the pi block", () => {
+      const skill = new PiSkill({
+        outputRoot: testDir,
+        relativeDirPath: join(".pi", "skills"),
+        dirName: "demo",
+        frontmatter: {
+          name: "demo",
+          description: "Demo",
+          "allowed-tools": ["read", "write"],
+          "disable-model-invocation": true,
+          license: "MIT",
+          compatibility: { "pi-version": ">=0.75.0" },
+          metadata: { author: "rulesync" },
+        },
+        body: "Body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter()).toEqual({
+        name: "demo",
+        description: "Demo",
+        targets: ["*"],
+        pi: {
+          "allowed-tools": ["read", "write"],
+          "disable-model-invocation": true,
+          license: "MIT",
+          compatibility: { "pi-version": ">=0.75.0" },
+          metadata: { author: "rulesync" },
+        },
+      });
     });
   });
 

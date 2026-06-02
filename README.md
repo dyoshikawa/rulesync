@@ -70,41 +70,54 @@ See [Quick Start guide](https://dyoshikawa.github.io/rulesync/getting-started/qu
 
 ## Supported Tools and Features
 
-| Tool                | --targets    | rules | ignore |   mcp    | commands | subagents | skills | hooks | permissions |
-| ------------------- | ------------ | :---: | :----: | :------: | :------: | :-------: | :----: | :---: | :---------: |
-| AGENTS.md           | agentsmd     |  ✅   |        |          |    🎮    |    🎮     |   🎮   |       |             |
-| AgentsSkills        | agentsskills |       |        |          |          |           |   ✅   |       |             |
-| Amp                 | amp          |       |        |  ✅ 🌏   |          |           |        |       |             |
-| Claude Code         | claudecode   | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
-| Codex CLI           | codexcli     | ✅ 🌏 |        | ✅ 🌏 🔧 |    🌏    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
-| Gemini CLI          | geminicli    | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |    ✅     | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
-| Goose               | goose        | ✅ 🌏 |   ✅   |          |          |           |        |       |             |
-| GitHub Copilot      | copilot      | ✅ 🌏 |        |    ✅    |    ✅    |    ✅     |   ✅   |  ✅   |             |
-| GitHub Copilot CLI  | copilotcli   | ✅ 🌏 |        |  ✅ 🌏   |          |   ✅ 🌏   |        | ✅ 🌏 |             |
-| Cursor              | cursor       |  ✅   |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
-| deepagents-cli      | deepagents   |  ✅   |        |  ✅ 🌏   |          |    ✅     |   ✅   |  🌏   |             |
-| Factory Droid       | factorydroid | ✅ 🌏 |        |  ✅ 🌏   |    🎮    |    🎮     |   🎮   | ✅ 🌏 |             |
-| OpenCode            | opencode     | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
-| Cline               | cline        |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |       |     ✅      |
-| Kilo Code           | kilo         | ✅ 🌏 |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |       |    ✅ 🌏    |
-| Roo Code            | roo          |  ✅   |   ✅   |    ✅    |    ✅    |    🎮     | ✅ 🌏  |       |             |
-| Rovodev (Atlassian) | rovodev      | ✅ 🌏 |        |    🌏    |          |   ✅ 🌏   | ✅ 🌏  |       |             |
-| Takt                | takt         | ✅ 🌏 |        |          |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |             |
-| Qwen Code           | qwencode     |  ✅   |   ✅   |          |          |           |        |       |    ✅ 🌏    |
-| Kiro                | kiro         |  ✅   |   ✅   |    ✅    |    ✅    |    ✅     |   ✅   |       |     ✅      |
-| Google Antigravity  | antigravity  |  ✅   |        |          |    ✅    |           | ✅ 🌏  |       |             |
-| JetBrains Junie     | junie        |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |    ✅     |   ✅   |       |             |
-| AugmentCode         | augmentcode  |  ✅   |   ✅   |          |          |           |        |       |    ✅ 🌏    |
-| Windsurf            | windsurf     |  ✅   |   ✅   |          |          |           | ✅ 🌏  |       |             |
-| Warp                | warp         |  ✅   |        |          |          |           |        |       |             |
-| Replit              | replit       |  ✅   |        |          |          |           |   ✅   |       |             |
-| Pi Coding Agent     | pi           | ✅ 🌏 |        |          |  ✅ 🌏   |           | ✅ 🌏  |       |             |
-| Zed                 | zed          |       |   ✅   |          |          |           |        |       |             |
+The tables below show whether each tool supports a given feature (✅ = supported, blank = not supported). For each tool's `--targets` value and mode details (project / global / simulated), see the [Supported Tools reference](https://rulesync.dyoshikawa.com/reference/supported-tools).
 
-- ✅: Supports project mode
-- 🌏: Supports global mode
-- 🎮: Supports simulated commands/subagents/skills (Project mode only)
-- 🔧: Supports MCP tool config (`enabledTools`/`disabledTools`)
+### AI Coding Tools
+
+| Tool                   | rules | ignore | mcp | commands | subagents | skills | hooks | permissions |
+| ---------------------- | :---: | :----: | :-: | :------: | :-------: | :----: | :---: | :---------: |
+| Amp                    |       |        | ✅  |          |           |        |       |             |
+| Claude Code            |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
+| Codex CLI              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
+| Gemini CLI ⚠️          |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
+| Goose                  |  ✅   |   ✅   |     |          |           |        |       |             |
+| GitHub Copilot         |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |
+| GitHub Copilot CLI     |  ✅   |        | ✅  |          |    ✅     |        |  ✅   |             |
+| Cursor                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
+| deepagents-cli         |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |
+| Factory Droid          |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |
+| OpenCode               |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
+| Cline                  |  ✅   |   ✅   | ✅  |    ✅    |           |   ✅   |       |     ✅      |
+| Kilo Code              |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
+| Roo Code               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |             |
+| Rovodev (Atlassian)    |  ✅   |        | ✅  |          |    ✅     |   ✅   |       |             |
+| Takt                   |  ✅   |        |     |    ✅    |    ✅     |   ✅   |       |             |
+| Qwen Code              |  ✅   |   ✅   |     |          |           |        |       |     ✅      |
+| Kiro                   |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
+| Google Antigravity IDE |  ✅   |        | ✅  |    ✅    |           |   ✅   |  ✅   |             |
+| Google Antigravity CLI |  ✅   |        | ✅  |          |           |   ✅   |  ✅   |     ✅      |
+| Google Antigravity ⚠️  |  ✅   |        |     |    ✅    |           |   ✅   |       |             |
+| JetBrains Junie        |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |             |
+| AugmentCode            |  ✅   |   ✅   |     |          |           |        |       |     ✅      |
+| Windsurf               |  ✅   |   ✅   |     |          |           |   ✅   |       |             |
+| Warp                   |  ✅   |        |     |          |           |        |       |             |
+| Replit                 |  ✅   |        |     |          |           |   ✅   |       |             |
+| Pi Coding Agent        |  ✅   |        |     |    ✅    |           |   ✅   |       |             |
+| Zed                    |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |             |
+
+### Open Standards
+
+| Standard     | rules | ignore | mcp | commands | subagents | skills | hooks | permissions |
+| ------------ | :---: | :----: | :-: | :------: | :-------: | :----: | :---: | :---------: |
+| AGENTS.md    |  ✅   |        |     |    ✅    |    ✅     |   ✅   |       |             |
+| Agent Skills |       |        |     |          |           |   ✅   |       |             |
+
+- ⚠️: Deprecated — still supported, but see the note below
+
+### Deprecation notes
+
+- **Gemini CLI (`geminicli`)** — Google is retiring Gemini CLI on **June 18, 2026**, when it stops serving requests for Google AI Pro/Ultra and free Gemini Code Assist for individuals (Enterprise plans are unaffected). The successor is the **Antigravity CLI (`antigravity-cli`)**. `geminicli` is **not** removed from rulesync — Enterprise access continues and existing `GEMINI.md`/`.gemini/` repositories still rely on it — but new projects should prefer `antigravity-cli`. See the [Gemini CLI → Antigravity CLI migration guide](https://dyoshikawa.github.io/rulesync/guide/geminicli-to-antigravity-cli).
+- **Google Antigravity (`antigravity`)** — Antigravity 2.0 splits into two products with separate global config trees: the desktop **`antigravity-ide`** and the **`antigravity-cli`** (`agy`). The legacy `antigravity` target is now a **deprecated alias for `antigravity-ide`** that keeps its original `.agent/` (singular) paths for backward compatibility. Migrate to `antigravity-ide` (desktop IDE) or `antigravity-cli` (CLI).
 
 Some features accept per-feature options (e.g., Claude Code's `ignore` feature supports `fileMode: "local"` to write to `settings.local.json` instead of `settings.json`). See [Configuration > Per-feature options](https://dyoshikawa.github.io/rulesync/guide/configuration#per-feature-options) for details.
 

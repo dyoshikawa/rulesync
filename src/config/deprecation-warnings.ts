@@ -17,6 +17,7 @@
 let featuresObjectFormWarningEmitted = false;
 let getBaseDirsWarningEmitted = false;
 let baseDirsConfigFieldWarningEmitted = false;
+let antigravityAliasWarningEmitted = false;
 
 export const emitFeaturesObjectFormDeprecationWarning = (): void => {
   if (featuresObjectFormWarningEmitted) return;
@@ -56,6 +57,19 @@ export const emitBaseDirsConfigFieldDeprecationWarning = (): void => {
   );
 };
 
+export const emitAntigravityAliasDeprecationWarning = (): void => {
+  if (antigravityAliasWarningEmitted) return;
+  if (process.env.RULESYNC_SILENT_DEPRECATION) return;
+  antigravityAliasWarningEmitted = true;
+  // oxlint-disable-next-line no-console
+  console.warn(
+    "[rulesync] DEPRECATED: the 'antigravity' target is deprecated; " +
+      "it is now an alias for 'antigravity-ide'. " +
+      "Use 'antigravity-ide' (desktop IDE) or 'antigravity-cli' (the `agy` CLI) instead. " +
+      "It will be removed in a future major release.",
+  );
+};
+
 /**
  * Test-only helper to reset the one-shot emission guards between test runs.
  * Throws in non-test environments so production bundles cannot accidentally
@@ -70,4 +84,5 @@ export const resetDeprecationWarningForTests = (): void => {
   featuresObjectFormWarningEmitted = false;
   getBaseDirsWarningEmitted = false;
   baseDirsConfigFieldWarningEmitted = false;
+  antigravityAliasWarningEmitted = false;
 };

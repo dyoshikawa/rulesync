@@ -312,6 +312,65 @@ describe("git-client", () => {
       expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(expect.stringContaining("symlink"));
     });
 
+    it.each(["", ".", "./", "./.", ".//", ".\\"])(
+      "disables sparse-checkout when skillsPath is %j (repo root)",
+      async (skillsPath) => {
+        mockExecFileAsync.mockResolvedValue({ stdout: "", stderr: "" });
+        vi.mocked(createTempDirectory).mockResolvedValue("/tmp/test");
+        vi.mocked(removeTempDirectory).mockResolvedValue(undefined);
+        vi.mocked(directoryExists).mockResolvedValue(true);
+        vi.mocked(listDirectoryFiles).mockResolvedValue([]);
+
+        await fetchSkillFiles({
+          url: "https://example.com/repo.git",
+          ref: "main",
+          skillsPath,
+        });
+
+        // Must call `sparse-checkout disable`, not `sparse-checkout set ...`.
+        const calls = mockExecFileAsync.mock.calls.map((c: any[]) => c[1] as string[]);
+        const disableCall = calls.find(
+          (args) => args?.includes("sparse-checkout") && args.includes("disable"),
+        );
+        const setCall = calls.find(
+          (args) => args?.includes("sparse-checkout") && args.includes("set"),
+        );
+        expect(disableCall).toBeDefined();
+        expect(setCall).toBeUndefined();
+      },
+    );
+
+    it("uses the clone directory itself as the skills root when skillsPath is the repo root", async () => {
+      mockExecFileAsync.mockResolvedValue({ stdout: "", stderr: "" });
+      vi.mocked(createTempDirectory).mockResolvedValue("/tmp/test");
+      vi.mocked(removeTempDirectory).mockResolvedValue(undefined);
+      const seenDirs: string[] = [];
+      vi.mocked(directoryExists).mockImplementation(async (p: string) => {
+        seenDirs.push(p);
+        // Only treat the clone root as a directory; descended children are
+        // files so the walk terminates quickly.
+        return p === "/tmp/test";
+      });
+      vi.mocked(listDirectoryFiles).mockResolvedValue(["root-file.md"]);
+      vi.mocked(getFileSize).mockResolvedValue(10);
+      vi.mocked(readFileContent).mockResolvedValue("content");
+
+      const files = await fetchSkillFiles({
+        url: "https://example.com/repo.git",
+        ref: "main",
+        skillsPath: ".",
+      });
+
+      expect(files).toHaveLength(1);
+      // The clone root must be walked directly: a relative path computed against
+      // `<tmpDir>/.` would yield "./root-file.md" instead of "root-file.md".
+      expect(files[0]?.relativePath).toBe("root-file.md");
+      expect(seenDirs).toContain("/tmp/test");
+      // The skills root must be `tmpDir` itself, never a naive `<tmpDir>/.`
+      // (which a string-concatenated `join(tmpDir, ".")` would produce).
+      expect(seenDirs).not.toContain("/tmp/test/.");
+    });
+
     it("throws GitClientError at max directory depth", async () => {
       mockExecFileAsync.mockResolvedValue({ stdout: "", stderr: "" });
       vi.mocked(createTempDirectory).mockResolvedValue("/tmp/test");

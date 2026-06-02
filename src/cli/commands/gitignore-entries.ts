@@ -38,8 +38,39 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "common", feature: "general", entry: "**/AGENTS.local.md" },
 
   // AGENTS.md
-  { target: ["agentsmd", "pi"], feature: "rules", entry: "**/AGENTS.md" },
+  { target: ["agentsmd", "pi", "warp"], feature: "rules", entry: "**/AGENTS.md" },
   { target: "agentsmd", feature: "rules", entry: "**/.agents/" },
+
+  // Antigravity (IDE + CLI, Antigravity 2.0)
+  // Both targets share the `.agents/` project tree; the CLI additionally
+  // writes a root `GEMINI.md`. Global-scope paths (under the home directory)
+  // are intentionally not gitignored.
+  {
+    target: ["antigravity-ide", "antigravity-cli"],
+    feature: "rules",
+    entry: "**/.agents/rules/",
+  },
+  { target: "antigravity-cli", feature: "rules", entry: "**/GEMINI.md" },
+  {
+    target: "antigravity-ide",
+    feature: "commands",
+    entry: "**/.agents/workflows/",
+  },
+  {
+    target: ["antigravity-ide", "antigravity-cli"],
+    feature: "skills",
+    entry: "**/.agents/skills/",
+  },
+  {
+    target: ["antigravity-ide", "antigravity-cli"],
+    feature: "mcp",
+    entry: "**/.agents/mcp_config.json",
+  },
+  {
+    target: ["antigravity-ide", "antigravity-cli"],
+    feature: "hooks",
+    entry: "**/.agents/hooks.json",
+  },
 
   // Augment Code
   { target: "augmentcode", feature: "rules", entry: "**/.augment/rules/" },
@@ -266,8 +297,18 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "windsurf", feature: "skills", entry: "**/.codeium/windsurf/skills/" },
 
   // Warp
+  // `/init` now writes `AGENTS.md` (handled by the shared AGENTS.md entry above).
   { target: "warp", feature: "rules", entry: "**/.warp/" },
-  { target: "warp", feature: "rules", entry: "**/WARP.md" },
+  { target: "warp", feature: "mcp", entry: "**/.warp/.mcp.json" },
+
+  // Zed
+  // `.rules` is the project rules file. `.agents/skills/` is shared with the
+  // antigravity targets (already registered above); re-tagging it for `zed`
+  // ensures target-filtered gitignore runs still include it.
+  // No entry for `.zed/settings.json` (MCP / ignore): it is a user-managed
+  // file, like other tools' settings.json, so it is intentionally not ignored.
+  { target: "zed", feature: "rules", entry: "**/.rules" },
+  { target: "zed", feature: "skills", entry: "**/.agents/skills/" },
 ] as const;
 
 export const ALL_GITIGNORE_ENTRIES: ReadonlyArray<string> = (() => {

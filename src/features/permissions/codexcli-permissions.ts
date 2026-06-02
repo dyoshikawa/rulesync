@@ -18,10 +18,11 @@ import {
 
 const RULESYNC_PROFILE_NAME = "rulesync";
 const RULESYNC_BASH_RULES_FILE_NAME = "rulesync.rules";
-const CODEX_PROJECT_ROOTS_KEY = ":project_roots";
+const CODEX_WORKSPACE_ROOTS_KEY = ":workspace_roots";
 const CODEX_GLOB_SCAN_MAX_DEPTH = 8; // Matches Codex CLI default glob_scan_max_depth
 
-type CodexFilesystemAccess = "read" | "write" | "none";
+// `none` is accepted on import for configs generated before Codex CLI v0.131.0.
+type CodexFilesystemAccess = "read" | "write" | "deny" | "none";
 type CodexFilesystemRuleTable = Record<string, CodexFilesystemAccess>;
 type CodexFilesystem = Record<string, CodexFilesystemAccess | CodexFilesystemRuleTable | number>;
 
@@ -169,7 +170,7 @@ function convertRulesyncToCodexProfile({
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): CodexPermissionProfile {
   const filesystem: CodexFilesystem = {};
-  const projectRootFilesystem: CodexFilesystemRuleTable = {};
+  const workspaceRootFilesystem: CodexFilesystemRuleTable = {};
   const domains: Record<string, "allow" | "deny"> = {};
 
   for (const [toolName, rules] of Object.entries(config.permission)) {
@@ -177,7 +178,7 @@ function convertRulesyncToCodexProfile({
       for (const [pattern, action] of Object.entries(rules)) {
         addFilesystemRule({
           filesystem,
-          projectRootFilesystem,
+          workspaceRootFilesystem,
           pattern,
           access: mapReadAction(action),
           logger,
@@ -190,7 +191,7 @@ function convertRulesyncToCodexProfile({
       for (const [pattern, action] of Object.entries(rules)) {
         addFilesystemRule({
           filesystem,
-          projectRootFilesystem,
+          workspaceRootFilesystem,
           pattern,
           access: mapWriteAction(action),
           logger,
@@ -217,16 +218,16 @@ function convertRulesyncToCodexProfile({
     );
   }
 
-  if (Object.keys(projectRootFilesystem).length > 0) {
-    if (typeof filesystem[CODEX_PROJECT_ROOTS_KEY] === "string") {
+  if (Object.keys(workspaceRootFilesystem).length > 0) {
+    if (typeof filesystem[CODEX_WORKSPACE_ROOTS_KEY] === "string") {
       logger?.warn(
-        `"${CODEX_PROJECT_ROOTS_KEY}" is set as a direct filesystem access rule in the permissions, but it will be overwritten by project-root rules. Consider removing the direct "${CODEX_PROJECT_ROOTS_KEY}" entry.`,
+        `"${CODEX_WORKSPACE_ROOTS_KEY}" is set as a direct filesystem access rule in the permissions, but it will be overwritten by workspace-root rules. Consider removing the direct "${CODEX_WORKSPACE_ROOTS_KEY}" entry.`,
       );
     }
-    if (Object.keys(projectRootFilesystem).some((pattern) => pattern.includes("**"))) {
+    if (Object.keys(workspaceRootFilesystem).some((pattern) => pattern.includes("**"))) {
       filesystem.glob_scan_max_depth = CODEX_GLOB_SCAN_MAX_DEPTH;
     }
-    filesystem[CODEX_PROJECT_ROOTS_KEY] = projectRootFilesystem;
+    filesystem[CODEX_WORKSPACE_ROOTS_KEY] = workspaceRootFilesystem;
   }
 
   return {
@@ -279,13 +280,13 @@ function toCodexProfile(value: unknown): CodexPermissionProfile | undefined {
 
 function addFilesystemRule({
   filesystem,
-  projectRootFilesystem,
+  workspaceRootFilesystem,
   pattern,
   access,
   logger,
 }: {
   filesystem: CodexFilesystem;
-  projectRootFilesystem: CodexFilesystemRuleTable;
+  workspaceRootFilesystem: CodexFilesystemRuleTable;
   pattern: string;
   access: CodexFilesystemAccess;
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
@@ -300,7 +301,7 @@ function addFilesystemRule({
     return;
   }
 
-  projectRootFilesystem[pattern] = access;
+  workspaceRootFilesystem[pattern] = access;
 }
 
 function canBeCodexFilesystemRoot(pattern: string): boolean {
@@ -318,7 +319,7 @@ function addRulesyncFilesystemRule(
   pattern: string,
   access: CodexFilesystemAccess,
 ): void {
-  if (access === "none") {
+  if (access === "deny" || access === "none") {
     permission.read ??= {};
     permission.edit ??= {};
     permission.read[pattern] = "deny";
@@ -362,7 +363,7 @@ function toFilesystemRecord(value: unknown): CodexFilesystem | undefined {
 }
 
 function isCodexFilesystemAccess(value: unknown): value is CodexFilesystemAccess {
-  return value === "read" || value === "write" || value === "none";
+  return value === "read" || value === "write" || value === "deny" || value === "none";
 }
 
 function isCodexFilesystemRuleTable(value: unknown): value is CodexFilesystemRuleTable {
@@ -392,12 +393,12 @@ function toDomainRecord(value: unknown): Record<string, "allow" | "deny"> | unde
   return Object.keys(result).length > 0 ? result : undefined;
 }
 
-function mapReadAction(action: PermissionAction): "read" | "none" {
-  return action === "allow" ? "read" : "none";
+function mapReadAction(action: PermissionAction): "read" | "deny" {
+  return action === "allow" ? "read" : "deny";
 }
 
-function mapWriteAction(action: PermissionAction): "write" | "none" {
-  return action === "allow" ? "write" : "none";
+function mapWriteAction(action: PermissionAction): "write" | "deny" {
+  return action === "allow" ? "write" : "deny";
 }
 
 function buildCodexBashRulesContent(config: PermissionsConfig): string {

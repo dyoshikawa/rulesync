@@ -44,7 +44,7 @@ export class WarpRule extends ToolRule {
     return {
       root: {
         relativeDirPath: ".",
-        relativeFilePath: "WARP.md",
+        relativeFilePath: "AGENTS.md",
       },
       nonRoot: {
         relativeDirPath: buildToolPath(".warp", "memories", _options.excludeToolDir),
@@ -79,7 +79,7 @@ export class WarpRule extends ToolRule {
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): WarpRule {
     return new WarpRule(
-      this.buildToolRuleParamsDefault({
+      this.buildToolRuleParamsAgentsmd({
         outputRoot,
         rulesyncRule,
         validate,

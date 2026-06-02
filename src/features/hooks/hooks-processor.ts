@@ -3,15 +3,17 @@ import { z } from "zod/mini";
 import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import {
+  ANTIGRAVITY_HOOK_EVENTS,
   CLAUDE_HOOK_EVENTS,
   CODEXCLI_HOOK_EVENTS,
   COPILOT_HOOK_EVENTS,
   CURSOR_HOOK_EVENTS,
   DEEPAGENTS_HOOK_EVENTS,
   FACTORYDROID_HOOK_EVENTS,
-  KILO_HOOK_EVENTS,
-  OPENCODE_HOOK_EVENTS,
   GEMINICLI_HOOK_EVENTS,
+  KILO_HOOK_EVENTS,
+  KIRO_HOOK_EVENTS,
+  OPENCODE_HOOK_EVENTS,
   type HookEvent,
   type HookType,
 } from "../../types/hooks.js";
@@ -20,6 +22,7 @@ import type { ToolFile } from "../../types/tool-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
+import { AntigravityCliHooks, AntigravityIdeHooks } from "./antigravity-hooks.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { CodexcliHooks } from "./codexcli-hooks.js";
 import { CopilotHooks } from "./copilot-hooks.js";
@@ -29,6 +32,7 @@ import { DeepagentsHooks } from "./deepagents-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
 import { GeminicliHooks } from "./geminicli-hooks.js";
 import { KiloHooks } from "./kilo-hooks.js";
+import { KiroHooks } from "./kiro-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import type {
@@ -39,6 +43,8 @@ import type {
 import { ToolHooks } from "./tool-hooks.js";
 
 const hooksProcessorToolTargetTuple = [
+  "antigravity-cli",
+  "antigravity-ide",
   "kilo",
   "cursor",
   "claudecode",
@@ -49,6 +55,7 @@ const hooksProcessorToolTargetTuple = [
   "factorydroid",
   "geminicli",
   "deepagents",
+  "kiro",
 ] as const;
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
@@ -83,6 +90,34 @@ type ToolHooksFactory = {
 };
 
 const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
+  [
+    "antigravity-cli",
+    {
+      class: AntigravityCliHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: ANTIGRAVITY_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "antigravity-ide",
+    {
+      class: AntigravityIdeHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: ANTIGRAVITY_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
   [
     "cursor",
     {
@@ -217,6 +252,22 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
       supportedEvents: DEEPAGENTS_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: false,
+    },
+  ],
+  [
+    "kiro",
+    {
+      class: KiroHooks,
+      meta: {
+        // Kiro hooks are project-level only (consistent with existing Kiro features).
+        // Hooks are written to .kiro/agents/default.json alongside subagent configs.
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsImport: true,
+      },
+      supportedEvents: KIRO_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
     },
   ],
 ]);

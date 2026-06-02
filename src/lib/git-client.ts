@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { isAbsolute, join, relative } from "node:path";
+import { isAbsolute, join, posix, relative } from "node:path";
 import { promisify } from "node:util";
 
 import { MAX_FILE_SIZE } from "../constants/rulesync-paths.js";
@@ -146,6 +146,16 @@ export async function fetchSkillFiles(params: {
   }
   await checkGitAvailable();
   const tmpDir = await createTempDirectory("rulesync-git-");
+  // Treat empty/"." paths as the repository root. Cone-mode sparse-checkout
+  // with such patterns only restores the top-level files (it intentionally
+  // excludes any subdirectory), so we must check out the entire working tree
+  // instead. Otherwise repositories whose skills live directly at the root
+  // (e.g. `<repo>/<skill-name>/SKILL.md` without a `skills/` container)
+  // would only yield root-level files like README.md.
+  // Normalize first so variants like "./.", ".//", or Windows ".\\" are also
+  // recognized as the root and don't fall back to the (buggy) sparse-checkout path.
+  const normalizedSkillsPath = posix.normalize(skillsPath.replace(/\\/g, "/")).replace(/\/+$/, "");
+  const isRootPath = normalizedSkillsPath === "" || normalizedSkillsPath === ".";
   try {
     await execFileAsync(
       "git",
@@ -163,11 +173,18 @@ export async function fetchSkillFiles(params: {
       ],
       { timeout: GIT_TIMEOUT_MS },
     );
-    await execFileAsync("git", ["-C", tmpDir, "sparse-checkout", "set", "--", skillsPath], {
-      timeout: GIT_TIMEOUT_MS,
-    });
+    if (isRootPath) {
+      // Disable sparse-checkout and restore the full tree.
+      await execFileAsync("git", ["-C", tmpDir, "sparse-checkout", "disable"], {
+        timeout: GIT_TIMEOUT_MS,
+      });
+    } else {
+      await execFileAsync("git", ["-C", tmpDir, "sparse-checkout", "set", "--", skillsPath], {
+        timeout: GIT_TIMEOUT_MS,
+      });
+    }
     await execFileAsync("git", ["-C", tmpDir, "checkout"], { timeout: GIT_TIMEOUT_MS });
-    const skillsDir = join(tmpDir, skillsPath);
+    const skillsDir = isRootPath ? tmpDir : join(tmpDir, skillsPath);
     if (!(await directoryExists(skillsDir))) return [];
     return await walkDirectory(skillsDir, skillsDir, 0, { totalFiles: 0, totalSize: 0 }, logger);
   } catch (error) {

@@ -11,6 +11,8 @@ import { directoryExists, findFilesByGlobs } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSkill } from "./agentsmd-skill.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
+import { AntigravityCliSkill } from "./antigravity-cli-skill.js";
+import { AntigravityIdeSkill } from "./antigravity-ide-skill.js";
 import { AntigravitySkill } from "./antigravity-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
 import { ClineSkill } from "./cline-skill.js";
@@ -41,6 +43,7 @@ import {
   toolSkillSearchRoots,
 } from "./tool-skill.js";
 import { WindsurfSkill } from "./windsurf-skill.js";
+import { ZedSkill } from "./zed-skill.js";
 
 /**
  * Factory entry for each tool skill class.
@@ -72,6 +75,8 @@ const skillsProcessorToolTargetTuple = [
   "agentsmd",
   "agentsskills",
   "antigravity",
+  "antigravity-cli",
+  "antigravity-ide",
   "claudecode",
   "claudecode-legacy",
   "cline",
@@ -91,6 +96,7 @@ const skillsProcessorToolTargetTuple = [
   "rovodev",
   "takt",
   "windsurf",
+  "zed",
 ] as const;
 
 export type SkillsProcessorToolTarget = (typeof skillsProcessorToolTargetTuple)[number];
@@ -121,6 +127,20 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     "antigravity",
     {
       class: AntigravitySkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "antigravity-cli",
+    {
+      class: AntigravityCliSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "antigravity-ide",
+    {
+      class: AntigravityIdeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
@@ -254,6 +274,13 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     "windsurf",
     {
       class: WindsurfSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "zed",
+    {
+      class: ZedSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
