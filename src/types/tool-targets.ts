@@ -6,6 +6,7 @@ import type { PerFeatureConfig, PerTargetFeaturesValue } from "./features.js";
 export const ALL_TOOL_TARGETS = [
   "agentsmd",
   "agentsskills",
+  "amp",
   "antigravity",
   "antigravity-cli",
   "antigravity-ide",
