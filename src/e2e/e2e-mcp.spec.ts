@@ -19,6 +19,7 @@ describe("E2E: mcp", () => {
   const { getTestDir } = useTestDirectory();
 
   it.each([
+    { target: "amp", outputPath: join(".amp", "settings.jsonc") },
     { target: "claudecode", outputPath: ".mcp.json" },
     { target: "cursor", outputPath: join(".cursor", "mcp.json") },
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
@@ -67,7 +68,7 @@ describe("E2E: mcp", () => {
   });
 
   it.each([
-    // geminicli, codexcli, opencode, kilo use merged config files (isDeletable=false) — excluded
+    // amp, geminicli, codexcli, opencode, kilo use merged config files (isDeletable=false) — excluded
     { target: "claudecode", orphanPath: ".mcp.json" },
     { target: "cursor", orphanPath: join(".cursor", "mcp.json") },
     { target: "copilot", orphanPath: join(".vscode", "mcp.json") },
@@ -116,6 +117,11 @@ describe("E2E: mcp", () => {
 
   it.each([
     {
+      target: "amp",
+      outputPath: join(".amp", "settings.jsonc"),
+      content: JSON.stringify({ "amp.dangerouslyAllowAll": false, "amp.mcpServers": {} }, null, 2),
+    },
+    {
       target: "geminicli",
       outputPath: join(".gemini", "settings.json"),
       content: JSON.stringify({ theme: "dark", mcpServers: {} }, null, 2),
@@ -124,6 +130,16 @@ describe("E2E: mcp", () => {
       target: "codexcli",
       outputPath: join(".codex", "config.toml"),
       content: '[ui]\ntheme = "dark"\n',
+    },
+    {
+      target: "opencode",
+      outputPath: "opencode.jsonc",
+      content: JSON.stringify({ theme: "dark", mcp: {} }, null, 2),
+    },
+    {
+      target: "kilo",
+      outputPath: "kilo.jsonc",
+      content: JSON.stringify({ theme: "dark", mcp: {} }, null, 2),
     },
   ])(
     "should succeed in check mode when a $target mcp file is non-deletable",
@@ -197,24 +213,44 @@ describe("E2E: mcp (import)", () => {
     { target: "roo", sourcePath: join(".roo", "mcp.json") },
     { target: "kiro", sourcePath: join(".kiro", "settings", "mcp.json") },
     { target: "junie", sourcePath: join(".junie", "mcp", "mcp.json") },
+    // Amp stores servers under the `amp.mcpServers` key inside the shared
+    // settings file, so the source content shape differs from the other targets.
+    {
+      target: "amp",
+      sourcePath: join(".amp", "settings.jsonc"),
+      sourceContent: JSON.stringify(
+        {
+          "amp.mcpServers": {
+            "test-server": {
+              command: "echo",
+              args: ["hello"],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    },
     { target: "antigravity-ide", sourcePath: join(".agents", "mcp_config.json") },
     { target: "antigravity-cli", sourcePath: join(".agents", "mcp_config.json") },
     { target: "warp", sourcePath: join(".warp", ".mcp.json") },
-  ])("should import $target mcp", async ({ target, sourcePath }) => {
+  ])("should import $target mcp", async ({ target, sourcePath, sourceContent }) => {
     const testDir = getTestDir();
 
-    const mcpContent = JSON.stringify(
-      {
-        mcpServers: {
-          "test-server": {
-            command: "echo",
-            args: ["hello"],
+    const mcpContent =
+      sourceContent ??
+      JSON.stringify(
+        {
+          mcpServers: {
+            "test-server": {
+              command: "echo",
+              args: ["hello"],
+            },
           },
         },
-      },
-      null,
-      2,
-    );
+        null,
+        2,
+      );
     await writeFileContent(join(testDir, sourcePath), mcpContent);
 
     await runImport({ target, features: "mcp" });
@@ -262,6 +298,7 @@ describe("E2E: mcp (global mode)", () => {
     { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
     { target: "rovodev", outputPath: join(".rovodev", "mcp.json") },
     { target: "kilo", outputPath: join(".config", "kilo", "kilo.jsonc") },
+    { target: "amp", outputPath: join(".config", "amp", "settings.jsonc") },
     {
       target: "antigravity-ide",
       outputPath: join(".gemini", "antigravity", "mcp_config.json"),
