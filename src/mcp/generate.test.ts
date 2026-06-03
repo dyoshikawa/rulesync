@@ -55,6 +55,51 @@ description: "Test rule"
       expect(result.config).toBeDefined();
     });
 
+    it("should report a message describing how many files were generated", async () => {
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
+      await ensureDir(rulesDir);
+
+      await writeFileContent(
+        join(rulesDir, "overview.md"),
+        `---
+root: true
+targets: ["*"]
+description: "Test rule"
+---
+# Test Rule`,
+      );
+
+      const result = await executeGenerate({ targets: ["cursor"], features: ["rules"] });
+
+      expect(result.success).toBe(true);
+      expect(result.result?.totalCount).toBeGreaterThan(0);
+      expect(result.message).toContain(`Generated ${result.result?.totalCount} file(s)`);
+    });
+
+    it("should report a no-op message when outputs are already up to date", async () => {
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
+      await ensureDir(rulesDir);
+
+      await writeFileContent(
+        join(rulesDir, "overview.md"),
+        `---
+root: true
+targets: ["*"]
+description: "Test rule"
+---
+# Test Rule`,
+      );
+
+      // First run writes the files; the second run finds them already up to date.
+      await executeGenerate({ targets: ["cursor"], features: ["rules"] });
+      const result = await executeGenerate({ targets: ["cursor"], features: ["rules"] });
+
+      expect(result.success).toBe(true);
+      expect(result.result?.totalCount).toBe(0);
+      expect(result.message).toContain("already up to date");
+      expect(result.message).toContain("successful no-op");
+    });
+
     it("should use rulesync.jsonc settings when no options provided", async () => {
       // Create .rulesync directory
       const rulesyncDir = join(testDir, ".rulesync");

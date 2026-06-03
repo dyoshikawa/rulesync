@@ -32,6 +32,12 @@ export type GenerateOptions = z.infer<typeof generateOptionsSchema>;
 
 export type McpGenerateResult = {
   success: boolean;
+  /**
+   * Human-readable summary of the outcome. Clarifies that a `totalCount` of 0
+   * means "already up to date" (success with nothing to write) rather than a
+   * failure, since `generate` is idempotent and only writes changed files.
+   */
+  message?: string;
   result?: McpResultCounts;
   config?: {
     targets: string[];
@@ -92,6 +98,30 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
   }
 }
 
+/**
+ * Build a human-readable summary of a successful generation.
+ *
+ * `generate` is idempotent: `totalCount` reflects only files whose content
+ * actually changed on disk, so a count of 0 is a normal "nothing to update"
+ * outcome — not a failure. The message makes that explicit so MCP callers do
+ * not misread a zero count as a broken generate.
+ */
+function buildGenerateMessage(params: { totalCount: number; config: Config }): string {
+  const { totalCount, config } = params;
+  const targets = config.getTargets().join(", ");
+  const features = config.getFeatures().join(", ");
+
+  if (totalCount > 0) {
+    return `Generated ${totalCount} file(s) for targets [${targets}] and features [${features}].`;
+  }
+
+  return (
+    `No files needed updating for targets [${targets}] and features [${features}]. ` +
+    `'generate' only writes files whose content changed, so a totalCount of 0 means the ` +
+    `outputs are already up to date — this is a successful no-op, not a failure.`
+  );
+}
+
 function buildSuccessResponse(params: {
   generateResult: GenerateResult;
   config: Config;
@@ -102,6 +132,7 @@ function buildSuccessResponse(params: {
 
   return {
     success: true,
+    message: buildGenerateMessage({ totalCount, config }),
     result: {
       rulesCount: generateResult.rulesCount,
       ignoreCount: generateResult.ignoreCount,
@@ -133,7 +164,7 @@ export const generateTools = {
   executeGenerate: {
     name: "executeGenerate",
     description:
-      "Execute the rulesync generate command to create output files for AI tools. Uses rulesync.jsonc settings by default, but options can override them.",
+      "Execute the rulesync generate command to create output files for AI tools. Uses rulesync.jsonc settings by default, but options can override them. Idempotent: only files whose content changed are written, so a totalCount of 0 means the outputs are already up to date (a successful no-op), not a failure. See the 'message' field for a human-readable summary.",
     parameters: generateToolSchemas.executeGenerate,
     execute: async (options: GenerateOptions = {}): Promise<string> => {
       const result = await executeGenerate(options);

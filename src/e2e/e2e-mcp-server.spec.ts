@@ -211,6 +211,64 @@ describe("E2E: mcp server (daemon over stdio JSON-RPC)", () => {
   });
 
   it(
+    "should generate output files through the daemon and report a no-op on re-run",
+    { timeout: 30_000 },
+    async () => {
+      const testDir = getTestDir();
+
+      const connection = await connectRulesyncMcpServer(testDir);
+      close = connection.close;
+      const { client } = connection;
+
+      // Seed a rule via the MCP tool so generate has something to work with.
+      const putRule = await client.callTool({
+        name: "rulesyncTool",
+        arguments: {
+          feature: "rule",
+          operation: "put",
+          targetPathFromCwd: ".rulesync/rules/overview.md",
+          frontmatter: { root: true, targets: ["*"], description: "Overview" },
+          body: "# Overview",
+        },
+      });
+      expect(putRule.isError).not.toBe(true);
+
+      // First generate: writes the cursor rule file.
+      const firstGenerate = await client.callTool({
+        name: "rulesyncTool",
+        arguments: {
+          feature: "generate",
+          operation: "run",
+          generateOptions: { targets: ["cursor"], features: ["rules"] },
+        },
+      });
+      expect(firstGenerate.isError).not.toBe(true);
+      const firstPayload = JSON.parse(resultText(firstGenerate));
+      expect(firstPayload.success).toBe(true);
+      expect(firstPayload.result.totalCount).toBeGreaterThan(0);
+      expect(firstPayload.message).toContain("Generated");
+
+      // The output file must actually exist on disk.
+      expect(await fileExists(join(testDir, ".cursor", "rules", "overview.mdc"))).toBe(true);
+
+      // Second generate: nothing changed, so it is a successful no-op.
+      const secondGenerate = await client.callTool({
+        name: "rulesyncTool",
+        arguments: {
+          feature: "generate",
+          operation: "run",
+          generateOptions: { targets: ["cursor"], features: ["rules"] },
+        },
+      });
+      expect(secondGenerate.isError).not.toBe(true);
+      const secondPayload = JSON.parse(resultText(secondGenerate));
+      expect(secondPayload.success).toBe(true);
+      expect(secondPayload.result.totalCount).toBe(0);
+      expect(secondPayload.message).toContain("already up to date");
+    },
+  );
+
+  it(
     "should return an error when permissions put is called without content",
     { timeout: 30_000 },
     async () => {
