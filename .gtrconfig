@@ -3,7 +3,7 @@
     includeDirs = .rulesync
 
 [hooks]
-    postCreate = mise trust && mise install && pnpm i
+    postCreate = source ~/.bashrc && mise trust && mise install && pnpm i
     postCd = source ~/.bashrc
 
 [defaults]
