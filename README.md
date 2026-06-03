@@ -70,7 +70,7 @@ See [Quick Start guide](https://dyoshikawa.github.io/rulesync/getting-started/qu
 
 ## Supported Tools and Features
 
-The tables below show whether each tool supports a given feature (✅ = supported, blank = not supported). For each tool's `--targets` value and mode details (project / global / simulated), see the [Supported Tools reference](https://rulesync.dyoshikawa.com/reference/supported-tools).
+The tables below show whether each tool supports a given feature (✅ = supported, blank = not supported). A ✅ means the feature is supported in at least one mode (project, global, or simulated) — for example, Codex CLI `commands` is global-only. For each tool's `--targets` value and full mode breakdown (project / global / simulated / MCP tool config), see the [Supported Tools reference](https://dyoshikawa.github.io/rulesync/reference/supported-tools).
 
 ### AI Coding Tools
 
