@@ -153,9 +153,14 @@ function buildCursorPermissionEntry(type: string, pattern: string): string {
 
 type CursorCliConfig = {
   version?: unknown;
+  editor?: {
+    vimMode?: unknown;
+    [key: string]: unknown;
+  };
   permissions?: {
     allow?: string[];
     deny?: string[];
+    [key: string]: unknown;
   };
   [key: string]: unknown;
 };
@@ -288,6 +293,23 @@ export class CursorPermissions extends ToolPermissions {
       Object.keys(config.permission).map((category) => toCursorType(category)),
     );
 
+    const existingEditorRaw = settings.editor;
+    let existingEditor: Record<string, unknown>;
+    if (existingEditorRaw === undefined) {
+      existingEditor = {};
+    } else if (
+      existingEditorRaw !== null &&
+      typeof existingEditorRaw === "object" &&
+      !Array.isArray(existingEditorRaw)
+    ) {
+      existingEditor = existingEditorRaw;
+    } else {
+      logger?.warn(
+        `Cursor CLI config at ${filePath} has a non-object \`editor\` field; ignoring existing editor settings.`,
+      );
+      existingEditor = {};
+    }
+
     const existingPermissionsRaw = settings.permissions;
     let existingPermissions: Record<string, unknown>;
     if (existingPermissionsRaw === undefined) {
@@ -328,11 +350,7 @@ export class CursorPermissions extends ToolPermissions {
     const mergedAllow = uniq([...preservedAllow, ...allow].toSorted());
     const mergedDeny = uniq([...preservedDeny, ...deny].toSorted());
 
-    if (mergedAllow.length > 0) {
-      mergedPermissions.allow = mergedAllow;
-    } else {
-      delete mergedPermissions.allow;
-    }
+    mergedPermissions.allow = mergedAllow;
     if (mergedDeny.length > 0) {
       mergedPermissions.deny = mergedDeny;
     } else {
@@ -351,6 +369,10 @@ export class CursorPermissions extends ToolPermissions {
     const merged = {
       ...settings,
       version: settings.version ?? 1,
+      editor: {
+        ...existingEditor,
+        vimMode: existingEditor.vimMode ?? false,
+      },
       permissions: mergedPermissions,
     };
     const fileContent = JSON.stringify(merged, null, 2);
