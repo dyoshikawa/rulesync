@@ -14,6 +14,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | GitHub Copilot CLI     | copilotcli      | ✅ 🌏 |        |  ✅ 🌏   |          |   ✅ 🌏   |        | ✅ 🌏 |             |
 | Goose                  | goose           | ✅ 🌏 |   ✅   |          |          |           |        |       |             |
 | Cursor                 | cursor          |  ✅   |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
+| deepagents-cli         | deepagents      |  ✅   |        |  ✅ 🌏   |          |    ✅     |   ✅   |  🌏   |             |
 | Factory Droid          | factorydroid    | ✅ 🌏 |        |  ✅ 🌏   |    🎮    |    🎮     |   🎮   | ✅ 🌏 |             |
 | OpenCode               | opencode        | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
 | Cline                  | cline           |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |           | ✅ 🌏  |       |     ✅      |
