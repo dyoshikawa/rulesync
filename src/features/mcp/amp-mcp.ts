@@ -20,7 +20,7 @@ const AMP_MCP_SERVERS_KEY = "amp.mcpServers";
 
 function parseAmpSettingsJsonc(fileContent: string): Record<string, unknown> {
   const errors: ParseError[] = [];
-  const parsed: unknown = parseJsonc(fileContent || "{}", errors);
+  const parsed: unknown = parseJsonc(fileContent || "{}", errors, { allowTrailingComma: true });
 
   if (errors.length > 0) {
     const details = errors
