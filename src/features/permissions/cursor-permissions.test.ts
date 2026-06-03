@@ -190,6 +190,61 @@ describe("CursorPermissions", () => {
       expect(parsed.version).toBe(1);
     });
 
+    it("should default-stamp editor.vimMode and keep allow as an empty array for deny-only configs", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {
+            bash: { "git push --force*": "deny" },
+          },
+        }),
+      });
+
+      const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const parsed = JSON.parse(cursorPermissions.getFileContent());
+      expect(parsed.editor).toEqual({ vimMode: false });
+      expect(parsed.permissions.allow).toEqual([]);
+      expect(parsed.permissions.deny).toEqual(["Shell(git push --force*)"]);
+    });
+
+    it("should preserve a pre-existing editor.vimMode value", async () => {
+      const logger = createMockLogger();
+      const cursorDir = join(testDir, ".cursor");
+      await ensureDir(cursorDir);
+      await writeFileContent(
+        join(cursorDir, "cli.json"),
+        JSON.stringify({
+          version: 1,
+          editor: { vimMode: true, fontSize: 14 },
+          permissions: {},
+        }),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+        }),
+      });
+
+      const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const parsed = JSON.parse(cursorPermissions.getFileContent());
+      expect(parsed.editor).toEqual({ vimMode: true, fontSize: 14 });
+    });
+
     it("should default-stamp version: 1 when generating from a fresh config (global)", async () => {
       const logger = createMockLogger();
       const rulesyncPermissions = new RulesyncPermissions({
