@@ -41,6 +41,7 @@ import type {
   ToolHooksFromRulesyncHooksParams,
 } from "./tool-hooks.js";
 import { ToolHooks } from "./tool-hooks.js";
+import { WINDSURF_HOOK_EVENTS, WindsurfHooks } from "./windsurf-hooks.js";
 
 const hooksProcessorToolTargetTuple = [
   "antigravity-cli",
@@ -56,6 +57,7 @@ const hooksProcessorToolTargetTuple = [
   "geminicli",
   "deepagents",
   "kiro",
+  "windsurf",
 ] as const;
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
@@ -268,6 +270,23 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
       supportedEvents: KIRO_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
+    },
+  ],
+  [
+    "windsurf",
+    {
+      class: WindsurfHooks,
+      meta: {
+        // Windsurf Cascade Hooks (GA) live in `.windsurf/hooks.json` (project)
+        // and `~/.codeium/windsurf/hooks.json` (global). Each event maps to a
+        // flat array of command/powershell hook objects with no matcher.
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: WINDSURF_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: false,
     },
   ],
 ]);

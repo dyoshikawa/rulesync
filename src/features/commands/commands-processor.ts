@@ -12,6 +12,7 @@ import type { Logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "./agentsmd-command.js";
 import { AntigravityCommand } from "./antigravity-command.js";
 import { AntigravityIdeCommand } from "./antigravity-ide-command.js";
+import { AugmentcodeCommand } from "./augmentcode-command.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
 import { ClineCommand } from "./cline-command.js";
 import { CodexcliCommand } from "./codexcli-command.js";
@@ -34,6 +35,7 @@ import {
   ToolCommandFromRulesyncCommandParams,
   ToolCommandSettablePaths,
 } from "./tool-command.js";
+import { WindsurfCommand } from "./windsurf-command.js";
 
 /**
  * Factory entry for each tool command class.
@@ -69,6 +71,7 @@ const commandsProcessorToolTargetTuple = [
   "agentsmd",
   "antigravity",
   "antigravity-ide",
+  "augmentcode",
   "claudecode",
   "claudecode-legacy",
   "cline",
@@ -84,6 +87,7 @@ const commandsProcessorToolTargetTuple = [
   "pi",
   "roo",
   "takt",
+  "windsurf",
 ] as const;
 
 export type CommandsProcessorToolTarget = (typeof commandsProcessorToolTargetTuple)[number];
@@ -126,6 +130,19 @@ const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFac
     "antigravity-ide",
     {
       class: AntigravityIdeCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "augmentcode",
+    {
+      class: AugmentcodeCommand,
       meta: {
         extension: "md",
         supportsProject: true,
@@ -322,6 +339,22 @@ const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFac
     {
       class: TaktCommand,
       meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "windsurf",
+    {
+      class: WindsurfCommand,
+      meta: {
+        // Windsurf workflows live under `.windsurf/workflows/*.md` (project) and
+        // `~/.codeium/windsurf/global_workflows/*.md` (global). Flat Markdown
+        // files with optional frontmatter; no subdirectory nesting.
         extension: "md",
         supportsProject: true,
         supportsGlobal: true,

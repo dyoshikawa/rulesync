@@ -69,10 +69,11 @@ export class JunieSkill extends ToolSkill {
     }
   }
 
-  static getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths {
-    if (options?.global) {
-      throw new Error("JunieSkill does not support global mode.");
-    }
+  static getSettablePaths(_options?: { global?: boolean }): ToolSkillSettablePaths {
+    // Junie skills use the same relative path for both project and global modes.
+    // The actual location differs based on outputRoot:
+    // - Project mode: {process.cwd()}/.junie/skills/
+    // - Global mode: {getHomeDirectory()}/.junie/skills/
     return {
       relativeDirPath: join(".junie", "skills"),
     };
@@ -138,6 +139,7 @@ export class JunieSkill extends ToolSkill {
   }
 
   static fromRulesyncSkill({
+    outputRoot = process.cwd(),
     rulesyncSkill,
     validate = true,
     global = false,
@@ -151,7 +153,7 @@ export class JunieSkill extends ToolSkill {
     };
 
     return new JunieSkill({
-      outputRoot: rulesyncSkill.getOutputRoot(),
+      outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: junieFrontmatter.name,
       frontmatter: junieFrontmatter,

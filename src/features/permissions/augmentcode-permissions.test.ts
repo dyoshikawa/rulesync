@@ -147,6 +147,120 @@ describe("AugmentcodePermissions", () => {
     ).toBeDefined();
   });
 
+  it("should preserve custom-policy / eventType / webhookUrl / script entries verbatim and place them first", async () => {
+    const settingsDir = join(testDir, ".augment");
+    await ensureDir(settingsDir);
+    await writeFileContent(
+      join(settingsDir, "settings.json"),
+      JSON.stringify({
+        toolPermissions: [
+          {
+            toolName: "github-api",
+            permission: {
+              type: "webhook-policy",
+              webhookUrl: "https://api.company.com/validate-tool",
+            },
+          },
+          {
+            toolName: "launch-process",
+            permission: { type: "script-policy", script: "/path/to/validate-command.sh" },
+          },
+          {
+            toolName: "view",
+            eventType: "tool-response",
+            permission: { type: "allow" },
+          },
+        ],
+      }),
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { bash: { "git *": "allow" } },
+      }),
+    });
+
+    const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const entries = JSON.parse(instance.getFileContent()).toolPermissions as Array<{
+      toolName: string;
+      shellInputRegex?: string;
+      eventType?: string;
+      permission: { type: string; webhookUrl?: string; script?: string };
+    }>;
+
+    // All three special entries survive verbatim (including their policy-specific fields).
+    const webhook = entries.find((e) => e.permission.type === "webhook-policy");
+    expect(webhook).toEqual({
+      toolName: "github-api",
+      permission: {
+        type: "webhook-policy",
+        webhookUrl: "https://api.company.com/validate-tool",
+      },
+    });
+    const script = entries.find((e) => e.permission.type === "script-policy");
+    expect(script?.permission.script).toBe("/path/to/validate-command.sh");
+    const toolResponse = entries.find((e) => e.eventType === "tool-response");
+    expect(toolResponse).toEqual({
+      toolName: "view",
+      eventType: "tool-response",
+      permission: { type: "allow" },
+    });
+
+    // Special entries are placed ahead of all generated basic rules (first-match-wins safety).
+    const firstBasicIndex = entries.findIndex(
+      (e) => e.toolName === "launch-process" && e.permission.type === "allow",
+    );
+    const lastSpecialIndex = Math.max(
+      entries.findIndex((e) => e.permission.type === "webhook-policy"),
+      entries.findIndex((e) => e.permission.type === "script-policy"),
+      entries.findIndex((e) => e.eventType === "tool-response"),
+    );
+    expect(lastSpecialIndex).toBeLessThan(firstBasicIndex);
+  });
+
+  it("should skip special entries on import while importing basic entries", () => {
+    const instance = new AugmentcodePermissions({
+      relativeDirPath: ".augment",
+      relativeFilePath: "settings.json",
+      fileContent: JSON.stringify({
+        toolPermissions: [
+          {
+            toolName: "github-api",
+            permission: {
+              type: "webhook-policy",
+              webhookUrl: "https://api.company.com/validate-tool",
+            },
+          },
+          {
+            toolName: "view",
+            eventType: "tool-response",
+            permission: { type: "deny" },
+          },
+          {
+            toolName: "launch-process",
+            shellInputRegex: "^git .*$",
+            permission: { type: "allow" },
+          },
+        ],
+      }),
+    });
+
+    const config = instance.toRulesyncPermissions().getJson();
+
+    // The basic launch-process allow imports as a bash allow.
+    expect(config.permission.bash).toEqual({ "git *": "allow" });
+    // The webhook-policy entry (github-api) is not imported into any canonical category.
+    expect(config.permission["github-api"]).toBeUndefined();
+    // The tool-response view entry is skipped (special), so `read` is not present.
+    expect(config.permission.read).toBeUndefined();
+  });
+
   it("preserved launch-process deny must NOT be shadowed by a generated catch-all allow under first-match-wins", async () => {
     // Regression: previously `[...sortedGenerated, ...preservedEntries]` placed preserved entries
     // unsorted at the tail. If the user supplied `bash: { "*": "allow" }` the generated catch-all
@@ -494,6 +608,33 @@ describe("AugmentcodePermissions", () => {
     expect(config.permission.read).toEqual({ "*": "ask" });
   });
 
+  it("should not pollute Object.prototype when a malicious toolName targets a reserved key", () => {
+    const instance = new AugmentcodePermissions({
+      relativeDirPath: ".augment",
+      relativeFilePath: "settings.json",
+      fileContent: JSON.stringify({
+        toolPermissions: [
+          { toolName: "__proto__", permission: { type: "allow" } },
+          { toolName: "constructor", permission: { type: "deny" } },
+          { toolName: "prototype", permission: { type: "ask-user" } },
+        ],
+      }),
+    });
+
+    try {
+      instance.toRulesyncPermissions().getJson();
+
+      // The reserved-key entries are skipped, so a freshly created object must
+      // not have inherited any polluted property from Object.prototype.
+      const probe: Record<string, unknown> = {};
+      expect(probe["*"]).toBeUndefined();
+      expect("*" in {}).toBe(false);
+    } finally {
+      // Defensive cleanup so a future regression cannot leak into other tests.
+      Reflect.deleteProperty(Object.prototype, "*");
+    }
+  });
+
   describe("non-roundtrippable shellInputRegex import behavior", () => {
     // When a user authors a `shellInputRegex` that is not faithfully
     // roundtrippable through the glob representation (for example unanchored
@@ -654,14 +795,42 @@ describe("AugmentcodePermissions", () => {
       const instance = new AugmentcodePermissions({
         relativeDirPath: ".augment",
         relativeFilePath: "settings.json",
-        // `toolPermissions[].permission.type` must be one of "allow"/"deny"/"ask-user".
+        // `toolPermissions[].toolName` is required and must be a string. Note that the
+        // `permission.type` is intentionally a loose string now (to accept `webhook-policy` /
+        // `script-policy` and any future type), so an unknown type no longer fails the schema.
         fileContent: JSON.stringify({
-          toolPermissions: [{ toolName: "view", permission: { type: "bogus" } }],
+          toolPermissions: [{ permission: { type: "allow" } }],
         }),
       });
       const result = instance.validate();
       expect(result.success).toBe(false);
       expect(result.error).not.toBeNull();
+    });
+
+    it("should accept custom-policy and unknown permission types without failing the schema", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [
+            {
+              toolName: "github-api",
+              permission: {
+                type: "webhook-policy",
+                webhookUrl: "https://api.company.com/validate-tool",
+              },
+            },
+            {
+              toolName: "launch-process",
+              permission: { type: "script-policy", script: "/path/to/validate.sh" },
+            },
+            { toolName: "view", eventType: "tool-response", permission: { type: "allow" } },
+          ],
+        }),
+      });
+      const result = instance.validate();
+      expect(result.success).toBe(true);
+      expect(result.error).toBeNull();
     });
 
     it("should throw when constructed with validate: true and malformed JSON", () => {
@@ -686,8 +855,10 @@ describe("AugmentcodePermissions", () => {
           new AugmentcodePermissions({
             relativeDirPath: ".augment",
             relativeFilePath: "settings.json",
+            // Missing required `toolName` (string) is a genuine schema violation; an unknown
+            // `permission.type` is intentionally tolerated now and would NOT throw.
             fileContent: JSON.stringify({
-              toolPermissions: [{ toolName: "view", permission: { type: "bogus" } }],
+              toolPermissions: [{ permission: { type: "allow" } }],
             }),
             validate: true,
           }),

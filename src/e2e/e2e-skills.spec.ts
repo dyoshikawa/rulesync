@@ -276,6 +276,10 @@ describe("E2E: skills (global mode)", () => {
       outputPath: join(".gemini", "skills", "test-skill", "SKILL.md"),
     },
     {
+      target: "junie",
+      outputPath: join(".junie", "skills", "test-skill", "SKILL.md"),
+    },
+    {
       target: "cline",
       outputPath: join(".cline", "skills", "test-skill", "SKILL.md"),
     },

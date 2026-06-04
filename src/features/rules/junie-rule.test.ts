@@ -97,8 +97,25 @@ describe("JunieRule", () => {
   });
 
   describe("fromFile", () => {
-    it("should create instance from root guidelines file", async () => {
-      // Setup test file - root guidelines live at outputRoot/.junie/guidelines.md
+    it("should create instance from preferred root AGENTS.md file", async () => {
+      // The preferred root guideline file is .junie/AGENTS.md.
+      const testContent = "# Junie Guidelines\n\nGuidelines from AGENTS.md.";
+      await writeFileContent(join(testDir, ".junie", "AGENTS.md"), testContent);
+
+      const junieRule = await JunieRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "AGENTS.md",
+      });
+
+      expect(junieRule.getRelativeDirPath()).toBe(".junie");
+      expect(junieRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(junieRule.getFileContent()).toBe(testContent);
+      expect(junieRule.getFilePath()).toBe(join(testDir, ".junie/AGENTS.md"));
+      expect(junieRule.isRoot()).toBe(true);
+    });
+
+    it("should create instance from legacy root guidelines.md file", async () => {
+      // Junie still reads the legacy .junie/guidelines.md, so it is accepted on import.
       const testContent = "# Junie Guidelines\n\nGuidelines from file.";
       await writeFileContent(join(testDir, ".junie", "guidelines.md"), testContent);
 
@@ -226,7 +243,8 @@ describe("JunieRule", () => {
 
       expect(junieRule).toBeInstanceOf(JunieRule);
       expect(junieRule.getRelativeDirPath()).toBe(".junie");
-      expect(junieRule.getRelativeFilePath()).toBe("guidelines.md");
+      // Generation targets the preferred `.junie/AGENTS.md`, not the legacy guidelines.md.
+      expect(junieRule.getRelativeFilePath()).toBe("AGENTS.md");
       expect(junieRule.getFileContent()).toContain("# Test RulesyncRule\n\nContent from rulesync.");
       expect(junieRule.isRoot()).toBe(true);
     });

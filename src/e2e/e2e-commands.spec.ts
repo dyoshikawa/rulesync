@@ -17,6 +17,7 @@ describe("E2E: commands", () => {
   it.each([
     { target: "claudecode", outputPath: join(".claude", "commands", "review-pr.md") },
     { target: "cursor", outputPath: join(".cursor", "commands", "review-pr.md") },
+    { target: "augmentcode", outputPath: join(".augment", "commands", "review-pr.md") },
     { target: "geminicli", outputPath: join(".gemini", "commands", "review-pr.toml") },
     { target: "copilot", outputPath: join(".github", "prompts", "review-pr.prompt.md") },
     { target: "opencode", outputPath: join(".opencode", "command", "review-pr.md") },
@@ -29,6 +30,7 @@ describe("E2E: commands", () => {
     { target: "junie", outputPath: join(".junie", "commands", "review-pr.md") },
     { target: "takt", outputPath: join(".takt", "facets", "instructions", "review-pr.md") },
     { target: "pi", outputPath: join(".pi", "prompts", "review-pr.md") },
+    { target: "windsurf", outputPath: join(".windsurf", "workflows", "review-pr.md") },
   ])("should generate $target commands", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -83,6 +85,7 @@ Check the PR diff and provide feedback.
   it.each([
     { target: "claudecode", orphanPath: join(".claude", "commands", "orphan.md") },
     { target: "cursor", orphanPath: join(".cursor", "commands", "orphan.md") },
+    { target: "augmentcode", orphanPath: join(".augment", "commands", "orphan.md") },
     { target: "geminicli", orphanPath: join(".gemini", "commands", "orphan.toml") },
     { target: "copilot", orphanPath: join(".github", "prompts", "orphan.prompt.md") },
     { target: "opencode", orphanPath: join(".opencode", "command", "orphan.md") },
@@ -94,6 +97,7 @@ Check the PR diff and provide feedback.
     { target: "antigravity-ide", orphanPath: join(".agents", "workflows", "orphan.md") },
     { target: "junie", orphanPath: join(".junie", "commands", "orphan.md") },
     { target: "pi", orphanPath: join(".pi", "prompts", "orphan.md") },
+    { target: "windsurf", orphanPath: join(".windsurf", "workflows", "orphan.md") },
   ])(
     "should fail in check mode when delete would remove an orphan $target command file",
     async ({ target, orphanPath }) => {
@@ -128,6 +132,7 @@ describe("E2E: commands (import)", () => {
   it.each([
     { target: "claudecode", sourcePath: join(".claude", "commands", "review-pr.md") },
     { target: "cursor", sourcePath: join(".cursor", "commands", "review-pr.md") },
+    { target: "augmentcode", sourcePath: join(".augment", "commands", "review-pr.md") },
     { target: "copilot", sourcePath: join(".github", "prompts", "review-pr.prompt.md") },
     { target: "opencode", sourcePath: join(".opencode", "command", "review-pr.md") },
     { target: "cline", sourcePath: join(".clinerules", "workflows", "review-pr.md") },
@@ -138,6 +143,7 @@ describe("E2E: commands (import)", () => {
     { target: "antigravity-ide", sourcePath: join(".agents", "workflows", "review-pr.md") },
     { target: "junie", sourcePath: join(".junie", "commands", "review-pr.md") },
     { target: "pi", sourcePath: join(".pi", "prompts", "review-pr.md") },
+    { target: "windsurf", sourcePath: join(".windsurf", "workflows", "review-pr.md") },
   ])("should import $target commands", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
@@ -159,6 +165,7 @@ describe("E2E: commands (global mode)", () => {
   it.each([
     { target: "claudecode", outputPath: join(".claude", "commands", "review-pr.md") },
     { target: "cursor", outputPath: join(".cursor", "commands", "review-pr.md") },
+    { target: "augmentcode", outputPath: join(".augment", "commands", "review-pr.md") },
     { target: "opencode", outputPath: join(".config", "opencode", "command", "review-pr.md") },
     { target: "geminicli", outputPath: join(".gemini", "commands", "review-pr.toml") },
     { target: "codexcli", outputPath: join(".codex", "prompts", "review-pr.md") },
@@ -174,6 +181,10 @@ describe("E2E: commands (global mode)", () => {
       outputPath: join(".takt", "facets", "instructions", "review-pr.md"),
     },
     { target: "pi", outputPath: join(".pi", "agent", "prompts", "review-pr.md") },
+    {
+      target: "windsurf",
+      outputPath: join(".codeium", "windsurf", "global_workflows", "review-pr.md"),
+    },
   ])("should generate $target commands in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

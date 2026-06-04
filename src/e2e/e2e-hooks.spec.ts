@@ -115,6 +115,35 @@ describe("E2E: hooks", () => {
     }
   });
 
+  it("should generate windsurf hooks", async () => {
+    const testDir = getTestDir();
+
+    // Windsurf supports file/command/MCP lifecycle events but not sessionStart/stop,
+    // so this dedicated case uses windsurf-supported canonical events.
+    const hooksContent = JSON.stringify(
+      {
+        version: 1,
+        hooks: {
+          beforeShellExecution: [{ command: ".rulesync/hooks/pre-run.sh" }],
+          afterFileEdit: [{ command: ".rulesync/hooks/post-edit.sh" }],
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
+
+    await runGenerate({ target: "windsurf", features: "hooks" });
+
+    const generatedContent = await readFileContent(join(testDir, ".windsurf", "hooks.json"));
+    const parsed = JSON.parse(generatedContent);
+    // Windsurf maps beforeShellExecution → pre_run_command and afterFileEdit → post_write_code.
+    expect(parsed.hooks.pre_run_command).toBeDefined();
+    expect(parsed.hooks.post_write_code).toBeDefined();
+    expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/pre-run.sh");
+    expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/post-edit.sh");
+  });
+
   it.each([
     // claudecode, geminicli, factorydroid, kiro use shared config files (isDeletable=false) — excluded
     { target: "cursor", orphanPath: join(".cursor", "hooks.json") },
@@ -278,6 +307,19 @@ describe("E2E: hooks (import)", () => {
       },
       expectedEvent: "preToolUse",
     },
+    {
+      // Windsurf hooks.json maps each Windsurf event name to a flat array of
+      // command/powershell hook objects. `pre_run_command` round-trips to the
+      // canonical `beforeShellExecution` event.
+      target: "windsurf",
+      sourcePath: join(".windsurf", "hooks.json"),
+      sourceContent: {
+        hooks: {
+          pre_run_command: [{ command: "echo session started" }],
+        },
+      },
+      expectedEvent: "beforeShellExecution",
+    },
   ])(
     "should import $target hooks",
     async ({ target, sourcePath, sourceContent, expectedEvent }) => {
@@ -355,5 +397,42 @@ describe("E2E: hooks (global mode)", () => {
     } else {
       assertHookCommandsPreserved(JSON.parse(generatedContent));
     }
+  });
+
+  it("should generate windsurf hooks in home directory", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    // Windsurf does not support sessionStart/stop, so this dedicated global case
+    // uses windsurf-supported canonical events.
+    const hooksContent = JSON.stringify(
+      {
+        version: 1,
+        root: true,
+        hooks: {
+          beforeShellExecution: [{ command: ".rulesync/hooks/pre-run.sh" }],
+          afterFileEdit: [{ command: ".rulesync/hooks/post-edit.sh" }],
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
+
+    await runGenerate({
+      target: "windsurf",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generatedContent = await readFileContent(
+      join(homeDir, ".codeium", "windsurf", "hooks.json"),
+    );
+    const parsed = JSON.parse(generatedContent);
+    expect(parsed.hooks.pre_run_command).toBeDefined();
+    expect(parsed.hooks.post_write_code).toBeDefined();
+    expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/pre-run.sh");
+    expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/post-edit.sh");
   });
 });

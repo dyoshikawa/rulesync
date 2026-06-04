@@ -34,7 +34,7 @@ describe("E2E: rules", () => {
     { target: "deepagents", outputPath: join(".deepagents", "AGENTS.md") },
     { target: "rovodev", outputPath: join(".rovodev", "AGENTS.md") },
     { target: "qwencode", outputPath: "QWEN.md" },
-    { target: "junie", outputPath: join(".junie", "guidelines.md") },
+    { target: "junie", outputPath: join(".junie", "AGENTS.md") },
     { target: "warp", outputPath: "AGENTS.md" },
     { target: "replit", outputPath: "replit.md" },
     { target: "pi", outputPath: "AGENTS.md" },
@@ -201,7 +201,7 @@ describe("E2E: rules (import)", () => {
     { target: "qwencode", sourcePath: "QWEN.md", importedFileName: "overview.md" },
     {
       target: "junie",
-      sourcePath: join(".junie", "guidelines.md"),
+      sourcePath: join(".junie", "AGENTS.md"),
       importedFileName: "overview.md",
     },
     { target: "warp", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
@@ -284,6 +284,11 @@ describe("E2E: rules (global mode)", () => {
     { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
     { target: "pi", outputPath: join(".pi", "agent", "AGENTS.md") },
     { target: "zed", outputPath: join(".config", "zed", "AGENTS.md") },
+    { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },
+    {
+      target: "windsurf",
+      outputPath: join(".codeium", "windsurf", "memories", "global_rules.md"),
+    },
   ])("should generate $target rules in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

@@ -65,10 +65,12 @@ describe("JunieSubagent", () => {
     });
   });
 
-  it("should throw error when global mode is requested in getSettablePaths", () => {
-    expect(() => JunieSubagent.getSettablePaths({ global: true })).toThrow(
-      "JunieSubagent does not support global mode.",
-    );
+  it("should return the same .junie/agents path for global mode", () => {
+    // Junie subagents support global mode (~/.junie/agents/); the relative path is
+    // identical to project mode, only the resolved outputRoot differs.
+    expect(JunieSubagent.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: join(".junie", "agents"),
+    });
   });
 
   describe("constructor", () => {

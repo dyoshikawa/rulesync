@@ -496,6 +496,7 @@ describe("HooksProcessor", () => {
         "factorydroid",
         "geminicli",
         "kiro",
+        "windsurf",
       ]);
     });
 
@@ -513,6 +514,7 @@ describe("HooksProcessor", () => {
         "factorydroid",
         "geminicli",
         "deepagents",
+        "windsurf",
       ]);
     });
 
@@ -529,6 +531,7 @@ describe("HooksProcessor", () => {
         "factorydroid",
         "geminicli",
         "kiro",
+        "windsurf",
       ]);
     });
 
@@ -544,6 +547,7 @@ describe("HooksProcessor", () => {
         "factorydroid",
         "geminicli",
         "deepagents",
+        "windsurf",
       ]);
     });
   });

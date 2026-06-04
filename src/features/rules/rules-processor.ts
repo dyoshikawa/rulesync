@@ -302,7 +302,7 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
       class: AugmentcodeRule,
       meta: {
         extension: "md",
-        supportsGlobal: false,
+        supportsGlobal: true,
         ruleDiscoveryMode: "auto",
       },
     },
@@ -585,7 +585,9 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
       class: WindsurfRule,
       meta: {
         extension: "md",
-        supportsGlobal: false,
+        // Project rules live under `.windsurf/rules/*.md`; global rules are a
+        // single plain `~/.codeium/windsurf/memories/global_rules.md` file.
+        supportsGlobal: true,
         ruleDiscoveryMode: "auto",
         // No additionalConventions.skills needed: Windsurf Cascade auto-discovers
         // skills from .windsurf/skills/ and ~/.codeium/windsurf/skills/ directories.

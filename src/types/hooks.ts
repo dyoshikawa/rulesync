@@ -233,6 +233,7 @@ export const HooksConfigSchema = z.looseObject({
   codexcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   deepagents: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   kiro: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  windsurf: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "antigravity-ide": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "antigravity-cli": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
 });

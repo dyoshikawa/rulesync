@@ -1136,6 +1136,7 @@ describe("CommandsProcessor", () => {
         new Set([
           "antigravity",
           "antigravity-ide",
+          "augmentcode",
           "claudecode",
           "claudecode-legacy",
           "cline",
@@ -1149,6 +1150,7 @@ describe("CommandsProcessor", () => {
           "pi",
           "roo",
           "takt",
+          "windsurf",
         ]),
       );
     });
@@ -1160,6 +1162,7 @@ describe("CommandsProcessor", () => {
           "agentsmd",
           "antigravity",
           "antigravity-ide",
+          "augmentcode",
           "claudecode",
           "claudecode-legacy",
           "cline",
@@ -1174,6 +1177,7 @@ describe("CommandsProcessor", () => {
           "pi",
           "roo",
           "takt",
+          "windsurf",
         ]),
       );
     });
@@ -1185,6 +1189,7 @@ describe("CommandsProcessor", () => {
       expect(new Set(targets)).toEqual(
         new Set([
           "antigravity-ide",
+          "augmentcode",
           "claudecode",
           "claudecode-legacy",
           "cline",
@@ -1196,6 +1201,7 @@ describe("CommandsProcessor", () => {
           "opencode",
           "pi",
           "takt",
+          "windsurf",
         ]),
       );
     });

@@ -18,8 +18,11 @@
 
 Common adapter paths: `rulesync-source-map.md`.
 
-| Surface  | Anchor                                                                                                            |
-| -------- | ----------------------------------------------------------------------------------------------------------------- |
-| `rules`  | `.windsurf/rules`, frontmatter `title`, `trigger`, `globs`, and activation conversion in `windsurf-rule.ts`       |
-| `ignore` | Windsurf ignore adapter in `windsurf-ignore.ts`                                                                   |
-| `skills` | Project `.windsurf/skills`, global `.codeium/windsurf/skills`, and Agent Skills conversion in `windsurf-skill.ts` |
+| Surface    | Anchor                                                                                                                                             |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rules`    | `.windsurf/rules` (project) + global `~/.codeium/windsurf/memories/global_rules.md`, `trigger`/`globs` activation conversion in `windsurf-rule.ts` |
+| `commands` | Project `.windsurf/workflows/*.md`, global `~/.codeium/windsurf/global_workflows/*.md` in `windsurf-command.ts`                                    |
+| `mcp`      | Project `.windsurf/mcp_config.json`, global `~/.codeium/windsurf/mcp_config.json` (`mcpServers`) in `windsurf-mcp.ts`                              |
+| `hooks`    | Project `.windsurf/hooks.json`, global `~/.codeium/windsurf/hooks.json`, 12-event bijective mapping in `windsurf-hooks.ts`                         |
+| `ignore`   | Windsurf ignore adapter in `windsurf-ignore.ts`                                                                                                    |
+| `skills`   | Project `.windsurf/skills`, global `.codeium/windsurf/skills`, and Agent Skills conversion in `windsurf-skill.ts`                                  |

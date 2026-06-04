@@ -27,8 +27,12 @@ export type JunieRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
 /**
  * Rule generator for JetBrains Junie AI coding agent
  *
- * Generates .junie/guidelines.md files based on rulesync rule content.
- * Junie uses plain markdown format without frontmatter requirements.
+ * Generates `.junie/AGENTS.md` files based on rulesync rule content. `.junie/AGENTS.md`
+ * is the preferred guideline file in current Junie; the legacy `.junie/guidelines.md`
+ * is still read by Junie and is accepted as an import fallback, but generation always
+ * targets `.junie/AGENTS.md`. Junie uses plain markdown without frontmatter requirements.
+ *
+ * @see https://junie.jetbrains.com/docs/junie-ide-plugin.html
  */
 export class JunieRule extends ToolRule {
   static getSettablePaths(
@@ -40,8 +44,16 @@ export class JunieRule extends ToolRule {
     return {
       root: {
         relativeDirPath: buildToolPath(".junie", ".", _options.excludeToolDir),
-        relativeFilePath: "guidelines.md",
+        relativeFilePath: "AGENTS.md",
       },
+      // Junie still reads the legacy `.junie/guidelines.md`; accept it on import as a
+      // fallback when `.junie/AGENTS.md` is absent so existing repos keep round-tripping.
+      alternativeRoots: [
+        {
+          relativeDirPath: buildToolPath(".junie", ".", _options.excludeToolDir),
+          relativeFilePath: "guidelines.md",
+        },
+      ],
       nonRoot: {
         relativeDirPath: buildToolPath(".junie", "memories", _options.excludeToolDir),
       },
@@ -49,13 +61,13 @@ export class JunieRule extends ToolRule {
   }
 
   /**
-   * Determines whether a given relative file path refers to the root
-   * `guidelines.md` file. Memory files live under `.junie/memories/` and are
-   * passed in as bare filenames (e.g. `memo.md`), so a top-level
-   * `guidelines.md` is unambiguously the root entry.
+   * Determines whether a given relative file path refers to a root guideline file.
+   * The preferred file is `AGENTS.md`; the legacy `guidelines.md` is still accepted.
+   * Memory files live under `.junie/memories/` and are passed in as bare filenames
+   * (e.g. `memo.md`), so a top-level `AGENTS.md`/`guidelines.md` is the root entry.
    */
   private static isRootRelativeFilePath(relativeFilePath: string): boolean {
-    return relativeFilePath === "guidelines.md";
+    return relativeFilePath === "AGENTS.md" || relativeFilePath === "guidelines.md";
   }
 
   static async fromFile({
@@ -65,17 +77,18 @@ export class JunieRule extends ToolRule {
   }: ToolRuleFromFileParams): Promise<JunieRule> {
     const isRoot = JunieRule.isRootRelativeFilePath(relativeFilePath);
     const settablePaths = this.getSettablePaths();
-    const relativePath = isRoot
-      ? join(settablePaths.root.relativeDirPath, settablePaths.root.relativeFilePath)
-      : join(settablePaths.nonRoot.relativeDirPath, relativeFilePath);
+    const relativeDirPath = isRoot
+      ? settablePaths.root.relativeDirPath
+      : settablePaths.nonRoot.relativeDirPath;
+    // Read from the actual discovered filename so the legacy `guidelines.md` fallback
+    // is loaded correctly; generation still normalizes back to `AGENTS.md`.
+    const relativePath = join(relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(join(outputRoot, relativePath));
 
     return new JunieRule({
       outputRoot,
-      relativeDirPath: isRoot
-        ? settablePaths.root.relativeDirPath
-        : settablePaths.nonRoot.relativeDirPath,
-      relativeFilePath: isRoot ? settablePaths.root.relativeFilePath : relativeFilePath,
+      relativeDirPath,
+      relativeFilePath,
       fileContent,
       validate,
       root: isRoot,
