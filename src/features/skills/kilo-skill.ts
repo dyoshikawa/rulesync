@@ -68,7 +68,9 @@ export class KiloSkill extends ToolSkill {
 
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolSkillSettablePaths {
     return {
-      relativeDirPath: global ? join(".config", "kilo", "skills") : join(".kilo", "skills"),
+      // Kilo reads skills from `.kilo/skills` for project scope and `~/.kilo/skills`
+      // for global scope (same relative path, different base directory).
+      relativeDirPath: global ? join(".kilo", "skills") : join(".kilo", "skills"),
     };
   }
 

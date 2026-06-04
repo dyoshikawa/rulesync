@@ -26,18 +26,18 @@ describe("KiloSubagent", () => {
 
   it("should return settable paths for project and global scopes", () => {
     expect(KiloSubagent.getSettablePaths()).toEqual({
-      relativeDirPath: ".kilo/agent",
+      relativeDirPath: ".kilo/agents",
     });
 
     expect(KiloSubagent.getSettablePaths({ global: true })).toEqual({
-      relativeDirPath: join(".config", "kilo", "agent"),
+      relativeDirPath: join(".config", "kilo", "agents"),
     });
   });
 
   it("should create a RulesyncSubagent with kilo section and subagent mode", () => {
     const subagent = new KiloSubagent({
       outputRoot: testDir,
-      relativeDirPath: ".kilo/agent",
+      relativeDirPath: ".kilo/agents",
       relativeFilePath: "review.md",
       frontmatter: {
         description: "Reviews code",
@@ -94,7 +94,7 @@ describe("KiloSubagent", () => {
       model: "model-x",
       mode: "primary",
     });
-    expect(toolSubagent.getRelativeDirPath()).toBe(join(".config", "kilo", "agent"));
+    expect(toolSubagent.getRelativeDirPath()).toBe(join(".config", "kilo", "agents"));
   });
 
   it("should build Kilo subagent with default mode 'all' when not specified", () => {
@@ -133,7 +133,7 @@ describe("KiloSubagent", () => {
       model: "model-x",
       mode: "all",
     });
-    expect(toolSubagent.getRelativeDirPath()).toBe(join(".config", "kilo", "agent"));
+    expect(toolSubagent.getRelativeDirPath()).toBe(join(".config", "kilo", "agents"));
   });
 
   it("should still honour explicit kilo.mode = 'subagent' override", () => {
@@ -235,7 +235,7 @@ describe("KiloSubagent", () => {
   });
 
   it("should load from file and validate frontmatter", async () => {
-    const dirPath = join(testDir, ".kilo", "agent");
+    const dirPath = join(testDir, ".kilo", "agents");
     const filePath = join(dirPath, "general.md");
 
     await writeFileContent(
@@ -270,7 +270,7 @@ Assist with any tasks`,
   });
 
   it("should apply default mode 'all' when mode is omitted", async () => {
-    const dirPath = join(testDir, ".kilo", "agent");
+    const dirPath = join(testDir, ".kilo", "agents");
     const filePath = join(dirPath, "no-mode.md");
 
     await writeFileContent(
@@ -298,7 +298,7 @@ Body content`,
   });
 
   it("should throw during fromFile on invalid schema types", async () => {
-    const dirPath = join(testDir, ".kilo", "agent");
+    const dirPath = join(testDir, ".kilo", "agents");
     const filePath = join(dirPath, "invalid-type.md");
 
     await writeFileContent(
@@ -317,7 +317,7 @@ Body content`,
   });
 
   it("should preserve custom mode value when explicitly set", async () => {
-    const dirPath = join(testDir, ".kilo", "agent");
+    const dirPath = join(testDir, ".kilo", "agents");
     const filePath = join(dirPath, "custom-mode.md");
 
     await writeFileContent(
@@ -337,7 +337,7 @@ Body content`,
   });
 
   it("should accept and expose all explicit Kilo frontmatter fields", async () => {
-    const dirPath = join(testDir, ".kilo", "agent");
+    const dirPath = join(testDir, ".kilo", "agents");
     const filePath = join(dirPath, "full-fields.md");
 
     await writeFileContent(

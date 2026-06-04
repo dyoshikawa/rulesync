@@ -57,6 +57,11 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       metadata: z.optional(z.looseObject({})),
     }),
   ),
+  zed: z.optional(
+    z.looseObject({
+      "disable-model-invocation": z.optional(z.boolean()),
+    }),
+  ),
   replit: z.optional(
     z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
@@ -111,6 +116,9 @@ export type RulesyncSkillFrontmatterInput = {
     license?: string;
     compatibility?: Record<string, unknown>;
     metadata?: Record<string, unknown>;
+  };
+  zed?: {
+    "disable-model-invocation"?: boolean;
   };
   replit?: {
     "allowed-tools"?: string[];

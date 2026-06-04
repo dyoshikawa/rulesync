@@ -21,27 +21,73 @@ import {
 } from "./tool-hooks.js";
 
 /**
- * Antigravity uses a Claude-Code-like `hooks.json` (matcher shape), but the
- * file itself is dedicated to hooks, so the hook map is written at the top
- * level (no `hooks` wrapper object). `projectDirVar` is empty because
- * Antigravity does not document a project-directory variable for commands.
+ * Antigravity uses a Claude-Code-like `hooks.json` (matcher shape). The
+ * `PreToolUse`/`PostToolUse` events use the matcher-based array shape, while
+ * `PreInvocation`/`PostInvocation`/`Stop` are matcher-less handler lists.
+ * `projectDirVar` is empty because Antigravity does not document a
+ * project-directory variable for commands.
  */
 const ANTIGRAVITY_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: ANTIGRAVITY_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_ANTIGRAVITY_EVENT_NAMES,
   toolToCanonicalEventNames: ANTIGRAVITY_TO_CANONICAL_EVENT_NAMES,
   projectDirVar: "",
+  noMatcherEvents: new Set(["preModelInvocation", "postModelInvocation", "stop"]),
 };
+
+/**
+ * Antigravity's `hooks.json` is keyed by a named hook whose value holds the
+ * per-event map (plus an optional `enabled` flag). rulesync writes a single
+ * generated hook under this stable name.
+ */
+const ANTIGRAVITY_HOOK_NAME = "rulesync";
+
+/**
+ * Flatten Antigravity's named-hook wrapper into a single event → matcher-entry
+ * map for import. Accepts both the documented named-hook shape
+ * (`{ "<name>": { "<Event>": [...], "enabled"?: bool } }`) and a legacy flat
+ * shape (`{ "<Event>": [...] }`) so older or hand-written files still import.
+ * The per-hook `enabled` flag is ignored (canonical hooks have no equivalent).
+ */
+function flattenAntigravityHooks(parsed: unknown): Record<string, unknown> {
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return {};
+  }
+  const flat: Record<string, unknown[]> = {};
+  const addEvent = (event: string, entries: unknown): void => {
+    if (!Array.isArray(entries)) {
+      return;
+    }
+    const existing = flat[event];
+    flat[event] = existing ? [...existing, ...entries] : [...entries];
+  };
+  for (const [key, value] of Object.entries(parsed)) {
+    if (Array.isArray(value)) {
+      // Legacy flat shape: the top-level key is the event name itself.
+      addEvent(key, value);
+    } else if (value !== null && typeof value === "object") {
+      // Named-hook wrapper: the top-level key is a hook name; merge its events.
+      for (const [innerKey, innerValue] of Object.entries(value)) {
+        if (innerKey === "enabled") {
+          continue;
+        }
+        addEvent(innerKey, innerValue);
+      }
+    }
+  }
+  return flat;
+}
 
 type AntigravityOverrideKey = "antigravity-ide" | "antigravity-cli";
 
 /**
  * Hooks generator for Google Antigravity (both the IDE and the CLI).
  *
- * Antigravity writes a dedicated `hooks.json` whose content is the
- * Claude-Code-style event → matcher-entry map, written directly at the top
- * level. Project and global modes share the same shape; only the location
- * differs (`.agents/hooks.json` vs `~/.gemini/config/hooks.json`).
+ * Antigravity writes a dedicated `hooks.json` keyed by a named hook whose
+ * value holds the Claude-Code-style event → matcher-entry map
+ * (`{ "<name>": { "<Event>": [...] } }`). Project and global modes share the
+ * same shape; only the location differs (`.agents/hooks.json` vs
+ * `~/.gemini/config/hooks.json`).
  *
  * The IDE and CLI targets share identical paths, so all logic lives on this
  * base class; the two concrete subclasses differ only in which per-target
@@ -103,12 +149,16 @@ export class AntigravityHooks extends ToolHooks {
     await readOrInitializeFileContent(filePath, JSON.stringify({}, null, 2));
 
     const config = rulesyncHooks.getJson();
-    const antigravityHooks = canonicalToToolHooks({
+    const eventMap = canonicalToToolHooks({
       config,
       toolOverrideHooks: config[this.getOverrideKey()]?.hooks,
       converterConfig: ANTIGRAVITY_CONVERTER_CONFIG,
       logger,
     });
+    // Antigravity expects the event map nested under a named hook
+    // (`{ "<name>": { "<Event>": [...] } }`), not flat at the top level.
+    const antigravityHooks =
+      Object.keys(eventMap).length > 0 ? { [ANTIGRAVITY_HOOK_NAME]: eventMap } : {};
     const fileContent = JSON.stringify(antigravityHooks, null, 2);
 
     return new this({
@@ -131,7 +181,7 @@ export class AntigravityHooks extends ToolHooks {
       );
     }
     const hooks = toolHooksToCanonical({
-      hooks: parsed,
+      hooks: flattenAntigravityHooks(parsed),
       converterConfig: ANTIGRAVITY_CONVERTER_CONFIG,
     });
     return this.toRulesyncHooksDefault({

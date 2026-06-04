@@ -72,7 +72,7 @@ export class AntigravityMcp extends ToolMcp {
     return this.json;
   }
 
-  /** Global config subdirectory under `~/.gemini/` (`antigravity` | `antigravity-cli`). */
+  /** Global config subdirectory under `~/.gemini/` (e.g. `antigravity` for the IDE, `config` for the CLI's shared tree). */
   protected static getGlobalSubdir(): string {
     throw new Error("Please implement this method in the subclass.");
   }

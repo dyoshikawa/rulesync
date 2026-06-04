@@ -26,6 +26,7 @@ import type {
   ToolPermissionsSettablePaths,
 } from "./tool-permissions.js";
 import { ToolPermissions } from "./tool-permissions.js";
+import { ZedPermissions } from "./zed-permissions.js";
 
 const permissionsProcessorToolTargetTuple = [
   "antigravity-cli",
@@ -39,6 +40,7 @@ const permissionsProcessorToolTargetTuple = [
   "kiro",
   "opencode",
   "qwencode",
+  "zed",
 ] as const;
 
 export type PermissionsProcessorToolTarget = (typeof permissionsProcessorToolTargetTuple)[number];
@@ -180,6 +182,20 @@ const toolPermissionsFactories = new Map<PermissionsProcessorToolTarget, ToolPer
     {
       class: QwencodePermissions,
       meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "zed",
+    {
+      class: ZedPermissions,
+      meta: {
+        // Zed maps permissions onto `agent.tool_permissions` in the shared
+        // settings file: `.zed/settings.json` (project) and
+        // `~/.config/zed/settings.json` (global).
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,
