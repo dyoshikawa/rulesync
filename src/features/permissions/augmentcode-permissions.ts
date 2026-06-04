@@ -34,14 +34,32 @@ const moduleLogger: Logger = new ConsoleLogger();
  * First match wins.
  */
 
-const AugmentPermissionTypeSchema = z.enum(["allow", "deny", "ask-user"]);
-type AugmentPermissionType = z.infer<typeof AugmentPermissionTypeSchema>;
+// Basic permission types map 1:1 onto rulesync's allow / deny / ask actions.
+const AugmentBasicPermissionTypeSchema = z.enum(["allow", "deny", "ask-user"]);
+type AugmentBasicPermissionType = z.infer<typeof AugmentBasicPermissionTypeSchema>;
 
+const AUGMENT_BASIC_PERMISSION_TYPES = new Set<string>(["allow", "deny", "ask-user"]);
+
+function isBasicAugmentType(type: string): type is AugmentBasicPermissionType {
+  return AUGMENT_BASIC_PERMISSION_TYPES.has(type);
+}
+
+// AugmentCode also supports "custom policy" types (`webhook-policy`, `script-policy`) plus an
+// optional `eventType` (`tool-call` | `tool-response`) and policy-specific `webhookUrl` / `script`
+// fields. Rulesync's canonical permission model only represents allow/deny/ask, so these advanced
+// entries are not converted; instead they are recognized (so parsing does not fail) and preserved
+// verbatim through the generate/import round-trip. See https://docs.augmentcode.com/cli/permissions.
 const AugmentToolPermissionSchema = z.looseObject({
   toolName: z.string(),
   shellInputRegex: z.optional(z.string()),
+  // `tool-call` (default) checks before execution; `tool-response` checks after.
+  eventType: z.optional(z.string()),
   permission: z.looseObject({
-    type: AugmentPermissionTypeSchema,
+    // Broadened to a string so `webhook-policy` / `script-policy` (and any future type) parse
+    // instead of throwing; basic-vs-special handling is done in code via `isBasicAugmentType`.
+    type: z.string(),
+    webhookUrl: z.optional(z.string()),
+    script: z.optional(z.string()),
   }),
 });
 
@@ -74,7 +92,7 @@ function toCanonicalToolName(augmentName: string): string {
   return AUGMENT_TO_CANONICAL_TOOL_NAMES[augmentName] ?? augmentName;
 }
 
-function actionToAugmentType(action: PermissionAction): AugmentPermissionType {
+function actionToAugmentType(action: PermissionAction): AugmentBasicPermissionType {
   switch (action) {
     case "allow":
       return "allow";
@@ -85,7 +103,7 @@ function actionToAugmentType(action: PermissionAction): AugmentPermissionType {
   }
 }
 
-function augmentTypeToAction(type: AugmentPermissionType): PermissionAction {
+function augmentTypeToAction(type: AugmentBasicPermissionType): PermissionAction {
   switch (type) {
     case "allow":
       return "allow";
@@ -94,6 +112,25 @@ function augmentTypeToAction(type: AugmentPermissionType): PermissionAction {
     case "ask-user":
       return "ask";
   }
+}
+
+/**
+ * A "special" entry is one that rulesync's canonical permission model cannot represent:
+ * a custom-policy type (`webhook-policy` / `script-policy` or any non-basic type), a non-default
+ * `eventType` (`tool-response`), or a policy carrying a `webhookUrl` / `script`. Special entries
+ * are preserved verbatim across the round-trip rather than being converted to allow/deny/ask.
+ */
+function isSpecialEntry(entry: AugmentToolPermission): boolean {
+  if (!isBasicAugmentType(entry.permission.type)) {
+    return true;
+  }
+  if (entry.eventType !== undefined && entry.eventType !== "tool-call") {
+    return true;
+  }
+  if (entry.permission.webhookUrl !== undefined || entry.permission.script !== undefined) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -274,7 +311,15 @@ export class AugmentcodePermissions extends ToolPermissions {
 
     const existingEntries = settings.toolPermissions ?? [];
 
-    // Preservation policy (fail-closed):
+    // Special entries (custom policies / non-default eventType / webhookUrl / script) cannot be
+    // expressed in rulesync's canonical model, so they are always preserved verbatim and placed
+    // first. Under AugmentCode's first-match-wins evaluation, keeping them ahead of the generated
+    // basic rules means a user's webhook/script gate or tool-response check is never shadowed by a
+    // regenerated allow/deny/ask entry. Their relative order is preserved.
+    const specialEntries = existingEntries.filter((entry) => isSpecialEntry(entry));
+    const basicExistingEntries = existingEntries.filter((entry) => !isSpecialEntry(entry));
+
+    // Preservation policy (fail-closed) for basic entries:
     // - Entries with unmanaged toolNames: kept verbatim (Rulesync does not own that namespace).
     // - Entries with managed toolNames AND `permission.type === "deny"`: preserved so user-added
     //   denies cannot be silently dropped by regeneration. This applies to ALL managed tools
@@ -287,7 +332,7 @@ export class AugmentcodePermissions extends ToolPermissions {
       generated.map((e) => `${e.toolName}|${e.shellInputRegex ?? ""}|${e.permission.type}`),
     );
 
-    const preservedEntries = existingEntries.filter((entry) => {
+    const preservedBasicEntries = basicExistingEntries.filter((entry) => {
       // Keep all entries whose toolName is unmanaged.
       if (!MANAGED_AUGMENT_TOOL_NAMES.has(entry.toolName)) return true;
 
@@ -302,15 +347,14 @@ export class AugmentcodePermissions extends ToolPermissions {
       return false;
     });
 
-    // Sort the COMBINED list (generated + preserved) so that preserved `deny` entries cannot be
-    // shadowed by a generated catch-all `allow`/`ask` under AugmentCode's first-match-wins
-    // evaluation. Sorting a single time over the union also keeps preserved entries in their
-    // correct fail-closed slot regardless of how many were retained.
-    const sortedAll = sortAugmentEntries([...generated, ...preservedEntries]);
+    // Sort the COMBINED basic list (generated + preserved) so that preserved `deny` entries cannot
+    // be shadowed by a generated catch-all `allow`/`ask` under AugmentCode's first-match-wins
+    // evaluation. Special entries are then prepended verbatim, ahead of all basic rules.
+    const sortedBasic = sortAugmentEntries([...generated, ...preservedBasicEntries]);
 
     const merged: AugmentSettings = {
       ...settings,
-      toolPermissions: sortedAll,
+      toolPermissions: [...specialEntries, ...sortedBasic],
     };
 
     const fileContent = JSON.stringify(merged, null, 2);
@@ -494,11 +538,14 @@ function convertRulesyncToAugmentEntries({
  * (deny shadowed by a longer allow) is handled correctly even so.
  */
 function sortAugmentEntries(entries: AugmentToolPermission[]): AugmentToolPermission[] {
-  const typePriority: Record<AugmentPermissionType, number> = {
+  const typePriority: Record<string, number> = {
     deny: 0,
     "ask-user": 1,
     allow: 2,
   };
+  // Unknown types should never reach here (special entries are handled separately), but fall back
+  // to the most restrictive (deny-level) slot so an unexpected entry is never silently shadowed.
+  const priorityOf = (type: string): number => typePriority[type] ?? 0;
   const decorated = entries.map((entry, index) => ({ entry, index }));
   decorated.sort((a, b) => {
     const aHasRegex = a.entry.shellInputRegex ? 1 : 0;
@@ -507,8 +554,8 @@ function sortAugmentEntries(entries: AugmentToolPermission[]): AugmentToolPermis
     if (aHasRegex !== bHasRegex) return bHasRegex - aHasRegex;
     // 2. Apply fail-closed type priority BEFORE length-based specificity, so that within the
     //    has-regex bucket a `deny` cannot be ordered after an `allow` of greater regex length.
-    const aType = typePriority[a.entry.permission.type];
-    const bType = typePriority[b.entry.permission.type];
+    const aType = priorityOf(a.entry.permission.type);
+    const bType = priorityOf(b.entry.permission.type);
     if (aType !== bType) return aType - bType;
     // 3. Within the same fail-closed bucket and same regex-presence bucket, longer regex first.
     if (a.entry.shellInputRegex && b.entry.shellInputRegex) {
@@ -542,8 +589,28 @@ function convertAugmentToRulesyncPermissions({
   const permission: Record<string, Record<string, PermissionAction>> = {};
 
   for (const entry of entries) {
+    // Special entries (custom policies / non-default eventType / webhookUrl / script) cannot be
+    // represented in rulesync's canonical model. They are preserved verbatim on the generate side,
+    // but there is nothing to import them into here, so skip them with an explanatory warning.
+    if (isSpecialEntry(entry)) {
+      logger?.warn(
+        `AugmentCode permissions: skipping advanced entry for tool '${entry.toolName}' ` +
+          `(type '${entry.permission.type}'${
+            entry.eventType !== undefined ? `, eventType '${entry.eventType}'` : ""
+          }) on import; rulesync's permission model cannot represent custom policies, eventType, ` +
+          `webhookUrl, or script. Such entries are preserved on generate but not imported.`,
+      );
+      continue;
+    }
+
+    const type = entry.permission.type;
+    // After `isSpecialEntry`, the type is guaranteed basic; this guard narrows it for the compiler.
+    if (!isBasicAugmentType(type)) {
+      continue;
+    }
+
     const canonical = toCanonicalToolName(entry.toolName);
-    const action = augmentTypeToAction(entry.permission.type);
+    const action = augmentTypeToAction(type);
 
     // Only launch-process supports per-input pattern recovery via shellInputRegex.
     // For other categories (view, str-replace-editor, save-file, web-fetch, web-search) the

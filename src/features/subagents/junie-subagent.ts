@@ -50,10 +50,11 @@ export class JunieSubagent extends ToolSubagent {
     this.body = body;
   }
 
-  static getSettablePaths(options: { global?: boolean } = {}): ToolSubagentSettablePaths {
-    if (options?.global) {
-      throw new Error("JunieSubagent does not support global mode.");
-    }
+  static getSettablePaths(_options: { global?: boolean } = {}): ToolSubagentSettablePaths {
+    // Junie subagents use the same relative path for both project and global modes.
+    // The actual location differs based on outputRoot:
+    // - Project mode: {process.cwd()}/.junie/agents/
+    // - Global mode: {getHomeDirectory()}/.junie/agents/
     return {
       relativeDirPath: join(".junie", "agents"),
     };
@@ -130,6 +131,7 @@ export class JunieSubagent extends ToolSubagent {
       relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
       fileContent,
       validate,
+      global,
     });
   }
 
@@ -182,6 +184,7 @@ export class JunieSubagent extends ToolSubagent {
       body: content.trim(),
       fileContent,
       validate,
+      global,
     });
   }
 

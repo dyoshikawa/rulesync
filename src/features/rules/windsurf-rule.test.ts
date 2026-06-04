@@ -4,9 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { writeFileContent } from "../../utils/file.js";
+import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import { WindsurfRule } from "./windsurf-rule.js";
+import {
+  WindsurfRule,
+  WindsurfRuleFrontmatter,
+  WindsurfRuleFrontmatterSchema,
+} from "./windsurf-rule.js";
 
 describe("WindsurfRule", () => {
   let testDir: string;
@@ -23,551 +27,606 @@ describe("WindsurfRule", () => {
   });
 
   describe("constructor", () => {
-    it("should create instance with default parameters", () => {
+    it("should create instance with frontmatter and body", () => {
       const windsurfRule = new WindsurfRule({
-        relativeDirPath: ".windsurf/rules",
+        frontmatter: { trigger: "always_on" },
+        relativeDirPath: join(".windsurf", "rules"),
         relativeFilePath: "test-rule.md",
-        fileContent: "# Test Rule\n\nThis is a test rule.",
+        body: "# Test Rule\n\nThis is a test rule.",
       });
 
       expect(windsurfRule).toBeInstanceOf(WindsurfRule);
-      expect(windsurfRule.getRelativeDirPath()).toBe(".windsurf/rules");
+      expect(windsurfRule.getRelativeDirPath()).toBe(join(".windsurf", "rules"));
       expect(windsurfRule.getRelativeFilePath()).toBe("test-rule.md");
-      expect(windsurfRule.getFileContent()).toBe("# Test Rule\n\nThis is a test rule.");
+      expect(windsurfRule.getFileContent().trim()).toBe(`---
+trigger: always_on
+---
+# Test Rule
+
+This is a test rule.`);
     });
 
-    it("should create instance with custom outputRoot", () => {
+    it("should emit a plain body without frontmatter for root (global) rules", () => {
       const windsurfRule = new WindsurfRule({
-        outputRoot: "/custom/path",
-        relativeDirPath: ".windsurf/rules",
-        relativeFilePath: "test-rule.md",
-        fileContent: "# Custom Rule",
-      });
-
-      expect(windsurfRule.getFilePath()).toBe("/custom/path/.windsurf/rules/test-rule.md");
-    });
-
-    it("should validate content by default", () => {
-      expect(() => {
-        const _instance = new WindsurfRule({
-          relativeDirPath: ".windsurf/rules",
-          relativeFilePath: "test-rule.md",
-          fileContent: "", // empty content should be valid since validate always returns success
-        });
-      }).not.toThrow();
-    });
-
-    it("should skip validation when validate is false", () => {
-      expect(() => {
-        const _instance = new WindsurfRule({
-          relativeDirPath: ".windsurf/rules",
-          relativeFilePath: "test-rule.md",
-          fileContent: "invalid content",
-          validate: false,
-        });
-      }).not.toThrow();
-    });
-
-    it("should create instance with root property", () => {
-      const windsurfRule = new WindsurfRule({
-        relativeDirPath: ".windsurf/rules",
-        relativeFilePath: "test-rule.md",
-        fileContent: "# Test Rule",
+        frontmatter: {},
+        relativeDirPath: join(".codeium", "windsurf", "memories"),
+        relativeFilePath: "global_rules.md",
+        body: "# Global\n\nPlain body.",
         root: true,
       });
 
-      expect(windsurfRule.isRoot()).toBe(true);
-    });
-  });
-
-  describe("fromFile", () => {
-    it("should create instance from file", async () => {
-      const ruleContent = "# Test Rule\n\nThis is a test rule from file.";
-      const filePath = join(testDir, ".windsurf", "rules", "test-rule.md");
-      await writeFileContent(filePath, ruleContent);
-
-      const windsurfRule = await WindsurfRule.fromFile({
-        outputRoot: testDir,
-        relativeFilePath: "test-rule.md",
-      });
-
-      expect(windsurfRule).toBeInstanceOf(WindsurfRule);
-      expect(windsurfRule.getRelativeDirPath()).toBe(".windsurf/rules");
-      expect(windsurfRule.getRelativeFilePath()).toBe("test-rule.md");
-      expect(windsurfRule.getFileContent()).toBe(ruleContent);
-      expect(windsurfRule.getFilePath()).toBe(filePath);
+      expect(windsurfRule.getFileContent().trim()).toBe("# Global\n\nPlain body.");
+      expect(windsurfRule.getFileContent()).not.toContain("trigger:");
     });
 
-    it("should create instance from file with validate false", async () => {
-      const ruleContent = "# Another Rule";
-      const filePath = join(testDir, ".windsurf", "rules", "another-rule.md");
-      await writeFileContent(filePath, ruleContent);
-
-      const windsurfRule = await WindsurfRule.fromFile({
-        outputRoot: testDir,
-        relativeFilePath: "another-rule.md",
-        validate: false,
-      });
-
-      expect(windsurfRule.getFileContent()).toBe(ruleContent);
+    it("should throw for invalid frontmatter types", () => {
+      expect(
+        () =>
+          new WindsurfRule({
+            // Invalid: globs should be a string, pass a number to force schema failure.
+            frontmatter: { trigger: "glob", globs: 123 } as any,
+            relativeDirPath: join(".windsurf", "rules"),
+            relativeFilePath: "test-rule.md",
+            body: "# Test",
+          }),
+      ).toThrow();
     });
 
-    it("should create instance from file with custom outputRoot", async () => {
-      const customDir = join(testDir, "custom");
-      const ruleContent = "# Custom Base Dir Rule";
-      await writeFileContent(join(customDir, ".windsurf", "rules", "custom-rule.md"), ruleContent);
-
-      const windsurfRule = await WindsurfRule.fromFile({
-        outputRoot: customDir,
-        relativeFilePath: "custom-rule.md",
-      });
-
-      expect(windsurfRule.getFileContent()).toBe(ruleContent);
-      expect(windsurfRule.getFilePath()).toBe(
-        join(customDir, ".windsurf", "rules", "custom-rule.md"),
-      );
-    });
-
-    it("should throw error when file does not exist", async () => {
-      await expect(
-        WindsurfRule.fromFile({
-          outputRoot: testDir,
-          relativeFilePath: "non-existent.md",
-        }),
-      ).rejects.toThrow();
-    });
-
-    it("should handle nested file paths", async () => {
-      const ruleContent = "# Nested Rule";
-      await writeFileContent(
-        join(testDir, ".windsurf", "rules", "nested", "deep", "nested-rule.md"),
-        ruleContent,
-      );
-
-      const windsurfRule = await WindsurfRule.fromFile({
-        outputRoot: testDir,
-        relativeFilePath: "nested/deep/nested-rule.md",
-      });
-
-      expect(windsurfRule.getFileContent()).toBe(ruleContent);
-      expect(windsurfRule.getRelativeFilePath()).toBe("nested/deep/nested-rule.md");
-    });
-  });
-
-  describe("fromRulesyncRule", () => {
-    it("should create instance from RulesyncRule with default parameters", () => {
-      const rulesyncRule = new RulesyncRule({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "test-rule.md",
-        frontmatter: { description: "Test Rule" },
-        body: "# Test Rule Content",
-      });
-
-      const windsurfRule = WindsurfRule.fromRulesyncRule({
-        rulesyncRule,
-      }) as WindsurfRule;
-
-      expect(windsurfRule).toBeInstanceOf(WindsurfRule);
-      expect(windsurfRule.getRelativeDirPath()).toBe(".windsurf/rules");
-      expect(windsurfRule.getRelativeFilePath()).toBe("test-rule.md");
-      expect(windsurfRule.getFileContent()).toBe(
-        "---\ntitle: Test Rule\ntrigger: always_on\n---\n# Test Rule Content\n",
-      );
-    });
-
-    it("should create instance from RulesyncRule with custom outputRoot", () => {
-      const rulesyncRule = new RulesyncRule({
-        outputRoot: "/existing/path",
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "custom-rule.md",
-        frontmatter: { description: "Custom Rule" },
-        body: "# Custom Content",
-      });
-
-      const windsurfRule = WindsurfRule.fromRulesyncRule({
-        outputRoot: "/custom/path",
-        rulesyncRule,
-      }) as WindsurfRule;
-
-      expect(windsurfRule.getFilePath()).toBe("/custom/path/.windsurf/rules/custom-rule.md");
-      expect(windsurfRule.getFileContent()).toBe(
-        "---\ntitle: Custom Rule\ntrigger: always_on\n---\n# Custom Content\n",
-      );
-    });
-
-    it("should create instance from RulesyncRule with validate false", () => {
-      const rulesyncRule = new RulesyncRule({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "test-rule.md",
-        frontmatter: { description: "Test Rule" },
-        body: "# Content",
-      });
-
-      const windsurfRule = WindsurfRule.fromRulesyncRule({
-        rulesyncRule,
-        validate: false,
-      }) as WindsurfRule;
-
-      expect(windsurfRule).toBeInstanceOf(WindsurfRule);
-      expect(windsurfRule.getFileContent()).toBe(
-        "---\ntitle: Test Rule\ntrigger: always_on\n---\n# Content\n",
-      );
-    });
-
-    it("should handle RulesyncRule with complex frontmatter", () => {
-      const rulesyncRule = new RulesyncRule({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "complex-rule.md",
-        frontmatter: {
-          description: "A complex rule with metadata",
-          targets: ["windsurf", "cursor"],
-        },
-        body: "# Complex Rule\n\nThis is a complex rule with multiple targets.",
-      });
-
-      const windsurfRule = WindsurfRule.fromRulesyncRule({
-        rulesyncRule,
-      }) as WindsurfRule;
-
-      expect(windsurfRule.getFileContent()).toBe(
-        "---\ntitle: A complex rule with metadata\ntrigger: always_on\n---\n# Complex Rule\n\nThis is a complex rule with multiple targets.\n",
-      );
-    });
-
-    it("should handle RulesyncRule with empty content after frontmatter", () => {
-      const rulesyncRule = new RulesyncRule({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "empty-content.md",
-        frontmatter: { description: "Empty Content" },
-        body: "",
-      });
-
-      const windsurfRule = WindsurfRule.fromRulesyncRule({
-        rulesyncRule,
-      }) as WindsurfRule;
-
-      expect(windsurfRule.getFileContent()).toBe(
-        "---\ntitle: Empty Content\ntrigger: always_on\n---\n\n",
-      );
-    });
-
-    it("should include glob trigger and globs when specific globs are set", () => {
-      const rulesyncRule = new RulesyncRule({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "globbed.md",
-        frontmatter: {
-          description: "Globbed Rule",
-          globs: ["src/**/*.ts", "test/**/*.ts"],
-        },
-        body: "# Globbed",
-      });
-
-      const windsurfRule = WindsurfRule.fromRulesyncRule({
-        rulesyncRule,
-      }) as WindsurfRule;
-
-      expect(windsurfRule.getFileContent()).toBe(
-        "---\ntitle: Globbed Rule\ntrigger: glob\nglobs:\n  - src/**/*.ts\n  - test/**/*.ts\n---\n# Globbed\n",
-      );
-    });
-  });
-
-  describe("toRulesyncRule", () => {
-    it("should convert WindsurfRule to RulesyncRule", () => {
-      const windsurfRule = new WindsurfRule({
-        relativeDirPath: ".windsurf/rules",
-        relativeFilePath: "test-rule.md",
-        fileContent: "# Test Rule Content",
-      });
-
-      const rulesyncRule = windsurfRule.toRulesyncRule();
-
-      expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
-      expect(rulesyncRule.getRelativeFilePath()).toBe("test-rule.md");
-      expect(rulesyncRule.getFileContent()).toContain("# Test Rule Content");
-      expect(rulesyncRule.getFrontmatter()).toEqual({
-        root: false,
-        targets: ["*"],
-        description: undefined,
-        globs: [],
-      });
-    });
-
-    it("should convert WindsurfRule with nested path to RulesyncRule", () => {
-      const windsurfRule = new WindsurfRule({
-        relativeDirPath: ".windsurf/rules",
-        relativeFilePath: "category/subcategory/nested-rule.md",
-        fileContent: "# Nested Rule Content",
-      });
-
-      const rulesyncRule = windsurfRule.toRulesyncRule();
-
-      expect(rulesyncRule.getRelativeFilePath()).toBe("category/subcategory/nested-rule.md");
-      expect(rulesyncRule.getFrontmatter().root).toBe(false);
-    });
-
-    it("should preserve file content during conversion", () => {
-      const content =
-        "# Multi-line Rule\n\nThis rule has:\n- Multiple lines\n- Various content\n- Special characters: !@#$%";
-      const windsurfRule = new WindsurfRule({
-        relativeDirPath: ".windsurf/rules",
-        relativeFilePath: "multi-line.md",
-        fileContent: content,
-      });
-
-      const rulesyncRule = windsurfRule.toRulesyncRule();
-
-      expect(rulesyncRule.getFileContent()).toContain(content);
-    });
-
-    it("should handle empty content during conversion", () => {
-      const windsurfRule = new WindsurfRule({
-        relativeDirPath: ".windsurf/rules",
-        relativeFilePath: "empty.md",
-        fileContent: "",
-      });
-
-      const rulesyncRule = windsurfRule.toRulesyncRule();
-
-      expect(rulesyncRule.getFileContent()).toContain(
-        "---\nroot: false\ntargets:\n  - '*'\nglobs: []\n---\n\n",
-      );
-    });
-  });
-
-  describe("validate", () => {
-    it("should always return success", () => {
-      const windsurfRule = new WindsurfRule({
-        relativeDirPath: ".windsurf/rules",
-        relativeFilePath: "test-rule.md",
-        fileContent: "# Test Content",
-      });
-
-      const result = windsurfRule.validate();
-
-      expect(result.success).toBe(true);
-      expect(result.error).toBeNull();
-    });
-
-    it("should return success even for empty content", () => {
-      const windsurfRule = new WindsurfRule({
-        relativeDirPath: ".windsurf/rules",
-        relativeFilePath: "empty.md",
-        fileContent: "",
-      });
-
-      const result = windsurfRule.validate();
-
-      expect(result.success).toBe(true);
-      expect(result.error).toBeNull();
-    });
-
-    it("should return success for any content", () => {
-      const windsurfRule = new WindsurfRule({
-        relativeDirPath: ".windsurf/rules",
-        relativeFilePath: "any-content.md",
-        fileContent: "Any kind of content\nWith special chars: !@#$%^&*()\nAnd unicode: 🚀🎉",
-      });
-
-      const result = windsurfRule.validate();
-
-      expect(result.success).toBe(true);
-      expect(result.error).toBeNull();
-    });
-  });
-
-  describe("inheritance from ToolRule", () => {
-    it("should inherit base functionality from ToolRule", () => {
-      const windsurfRule = new WindsurfRule({
-        relativeDirPath: ".windsurf/rules",
-        relativeFilePath: "inheritance-test.md",
-        fileContent: "# Inheritance Test",
-      });
-
-      // Test inherited methods
-      expect(windsurfRule.getRelativeDirPath()).toBe(".windsurf/rules");
-      expect(windsurfRule.getRelativeFilePath()).toBe("inheritance-test.md");
-      expect(windsurfRule.getFileContent()).toBe("# Inheritance Test");
-      expect(windsurfRule.isRoot()).toBe(false);
-    });
-
-    it("should support root property", () => {
-      const windsurfRule = new WindsurfRule({
-        relativeDirPath: ".windsurf/rules",
-        relativeFilePath: "root-test.md",
-        fileContent: "# Root Test",
-        root: true, // true means it's a root rule
-      });
-
-      expect(windsurfRule.isRoot()).toBe(true);
-    });
-  });
-
-  describe("error handling", () => {
-    it("should handle file read errors in fromFile", async () => {
-      await expect(
-        WindsurfRule.fromFile({
-          outputRoot: "/non-existent-directory",
-          relativeFilePath: "non-existent.md",
-        }),
-      ).rejects.toThrow();
-    });
-
-    it("should handle permission errors gracefully", async () => {
-      // Try to read from a non-existent file in a valid directory
-      await expect(
-        WindsurfRule.fromFile({
-          outputRoot: testDir,
-          relativeFilePath: "restricted/non-existent.md",
-        }),
-      ).rejects.toThrow();
+    it("should skip validation when requested", () => {
+      expect(
+        () =>
+          new WindsurfRule({
+            frontmatter: { trigger: "glob", globs: 123 } as any,
+            relativeDirPath: join(".windsurf", "rules"),
+            relativeFilePath: "test-rule.md",
+            body: "# Test",
+            validate: false,
+          }),
+      ).not.toThrow();
     });
   });
 
   describe("getSettablePaths", () => {
-    it("should return correct paths for nonRoot", () => {
+    it("should return nonRoot path under .windsurf/rules for project scope", () => {
       const paths = WindsurfRule.getSettablePaths();
 
-      expect(paths.nonRoot).toEqual({
-        relativeDirPath: ".windsurf/rules",
+      expect("root" in paths).toBe(false);
+      const nonRoot = (paths as { nonRoot: { relativeDirPath: string } }).nonRoot;
+      expect(nonRoot.relativeDirPath).toBe(join(".windsurf", "rules"));
+    });
+
+    it("should return global root path under .codeium/windsurf/memories/global_rules.md", () => {
+      const paths = WindsurfRule.getSettablePaths({ global: true });
+
+      expect("nonRoot" in paths).toBe(false);
+      const root = (paths as { root: { relativeDirPath: string; relativeFilePath: string } }).root;
+      expect(root.relativeDirPath).toBe(join(".codeium", "windsurf", "memories"));
+      expect(root.relativeFilePath).toBe("global_rules.md");
+    });
+
+    it("should exclude the tool dir for project scope when requested", () => {
+      const paths = WindsurfRule.getSettablePaths({ excludeToolDir: true });
+
+      const nonRoot = (paths as { nonRoot: { relativeDirPath: string } }).nonRoot;
+      expect(nonRoot.relativeDirPath).toBe("rules");
+    });
+  });
+
+  describe("fromFile", () => {
+    it("should parse a project rule file with frontmatter", async () => {
+      const rulesDir = join(testDir, ".windsurf", "rules");
+      await ensureDir(rulesDir);
+      const content = "---\ntrigger: glob\nglobs: '*.ts'\n---\n\n# Glob Rule";
+      await writeFileContent(join(rulesDir, "glob.md"), content);
+
+      const windsurfRule = await WindsurfRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "glob.md",
+      });
+
+      expect(windsurfRule.getRelativeDirPath()).toBe(join(".windsurf", "rules"));
+      expect(windsurfRule.getRelativeFilePath()).toBe("glob.md");
+      expect(windsurfRule.getFrontmatter()).toEqual({ trigger: "glob", globs: "*.ts" });
+      expect(windsurfRule.getBody().trim()).toBe("# Glob Rule");
+    });
+
+    it("should parse all four supported triggers from files", async () => {
+      const rulesDir = join(testDir, ".windsurf", "rules");
+      await ensureDir(rulesDir);
+
+      const testCases = [
+        {
+          file: "glob.md",
+          content: "---\ntrigger: glob\nglobs: '*.ts'\n---\n# Glob",
+          expected: { trigger: "glob", globs: "*.ts" },
+        },
+        {
+          file: "manual.md",
+          content: "---\ntrigger: manual\n---\n# Manual",
+          expected: { trigger: "manual" },
+        },
+        {
+          file: "always-on.md",
+          content: "---\ntrigger: always_on\n---\n# Always On",
+          expected: { trigger: "always_on" },
+        },
+        {
+          file: "model-decision.md",
+          content: "---\ntrigger: model_decision\ndescription: test desc\n---\n# Model Decision",
+          expected: { trigger: "model_decision", description: "test desc" },
+        },
+      ];
+
+      for (const testCase of testCases) {
+        await writeFileContent(join(rulesDir, testCase.file), testCase.content);
+        const rule = await WindsurfRule.fromFile({
+          outputRoot: testDir,
+          relativeFilePath: testCase.file,
+        });
+        expect(rule.getFrontmatter()).toMatchObject(testCase.expected);
+      }
+    });
+
+    it("should parse the global plain-markdown file as a root rule", async () => {
+      const memoriesDir = join(testDir, ".codeium", "windsurf", "memories");
+      await ensureDir(memoriesDir);
+      const content = "# Global Rules\n\nNo frontmatter here.";
+      await writeFileContent(join(memoriesDir, "global_rules.md"), content);
+
+      const windsurfRule = await WindsurfRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "global_rules.md",
+        global: true,
+      });
+
+      expect(windsurfRule.isRoot()).toBe(true);
+      expect(windsurfRule.getRelativeDirPath()).toBe(join(".codeium", "windsurf", "memories"));
+      expect(windsurfRule.getRelativeFilePath()).toBe("global_rules.md");
+      expect(windsurfRule.getBody().trim()).toBe(content);
+      expect(windsurfRule.getFileContent()).not.toContain("trigger:");
+    });
+
+    it("should throw when the file does not exist", async () => {
+      await expect(
+        WindsurfRule.fromFile({
+          outputRoot: testDir,
+          relativeFilePath: "nonexistent.md",
+        }),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe("fromRulesyncRule - trigger inference", () => {
+    it("should infer glob trigger for specific globs", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "glob-rule.md",
+        frontmatter: {
+          globs: ["src/**/*.ts"],
+        },
+        body: "# Glob Rule",
+      });
+
+      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(windsurfRule.getFrontmatter()).toEqual({
+        trigger: "glob",
+        globs: "src/**/*.ts",
+      });
+      expect(windsurfRule.getRelativeDirPath()).toBe(join(".windsurf", "rules"));
+    });
+
+    it("should infer always_on trigger for the **/* wildcard glob", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "always-on.md",
+        frontmatter: {
+          globs: ["**/*"],
+        },
+        body: "# Always On Rule",
+      });
+
+      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(windsurfRule.getFrontmatter()).toEqual({ trigger: "always_on" });
+    });
+
+    it("should infer always_on trigger when no globs are present", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "no-globs.md",
+        frontmatter: {},
+        body: "# No Globs",
+      });
+
+      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(windsurfRule.getFrontmatter()).toEqual({ trigger: "always_on" });
+    });
+
+    it("should kebab-case the filename", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "CodingGuidelines.md",
+        frontmatter: {},
+        body: "# Coding Guidelines",
+      });
+
+      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(windsurfRule.getRelativeFilePath()).toBe("coding-guidelines.md");
+    });
+
+    it("should use a custom outputRoot for project scope", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "custom.md",
+        frontmatter: { globs: [] },
+        body: "# Custom",
+      });
+
+      const windsurfRule = WindsurfRule.fromRulesyncRule({
+        outputRoot: "/custom/base",
+        rulesyncRule,
+      });
+
+      expect(windsurfRule.getFilePath()).toBe(
+        join("/custom/base", ".windsurf", "rules", "custom.md"),
+      );
+    });
+  });
+
+  describe("fromRulesyncRule - persisted trigger precedence", () => {
+    it("should respect a persisted manual trigger regardless of globs", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "persisted.md",
+        frontmatter: {
+          globs: ["**/*"], // Would normally infer always_on.
+          windsurf: {
+            trigger: "manual",
+          },
+        },
+        body: "# Persisted",
+      });
+
+      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(windsurfRule.getFrontmatter()).toEqual({ trigger: "manual" });
+    });
+
+    it("should respect explicit globs in the windsurf block", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "explicit-globs.md",
+        frontmatter: {
+          globs: ["**/*"], // Generic glob.
+          windsurf: {
+            trigger: "glob",
+            globs: ["specific.ts"], // Specific glob overrides generic.
+          },
+        },
+        body: "# Explicit Globs",
+      });
+
+      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(windsurfRule.getFrontmatter()).toEqual({
+        trigger: "glob",
+        globs: "specific.ts",
       });
     });
 
-    it("should have consistent paths structure", () => {
-      const paths = WindsurfRule.getSettablePaths();
+    it("should set model_decision trigger with description from generic frontmatter", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "model-decision.md",
+        frontmatter: {
+          description: "Apply when reasoning about X",
+          windsurf: {
+            trigger: "model_decision",
+          },
+        },
+        body: "# Model Decision",
+      });
 
-      expect(paths).toHaveProperty("nonRoot");
-      expect(paths.nonRoot).toHaveProperty("relativeDirPath");
+      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(windsurfRule.getFrontmatter()).toEqual({
+        trigger: "model_decision",
+        description: "Apply when reasoning about X",
+      });
+    });
+
+    it("should pass through unknown custom triggers (loose schema)", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "unknown-trigger.md",
+        frontmatter: {
+          windsurf: {
+            trigger: "custom-trigger",
+          },
+        },
+        body: "# Unknown Trigger",
+      });
+
+      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule });
+
+      expect((windsurfRule.getFrontmatter() as any).trigger).toBe("custom-trigger");
+    });
+  });
+
+  describe("fromRulesyncRule - global scope", () => {
+    it("should produce a plain root global_rules.md without frontmatter", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "overview.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          globs: ["**/*"],
+        },
+        body: "# Global Overview\n\nPlain body.",
+      });
+
+      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule, global: true });
+
+      expect(windsurfRule.getRelativeDirPath()).toBe(join(".codeium", "windsurf", "memories"));
+      expect(windsurfRule.getRelativeFilePath()).toBe("global_rules.md");
+      expect(windsurfRule.isRoot()).toBe(true);
+      expect(windsurfRule.getFileContent().trim()).toBe("# Global Overview\n\nPlain body.");
+      expect(windsurfRule.getFileContent()).not.toContain("trigger:");
+    });
+
+    it("should emit the body without frontmatter even when globs are present", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "non-root.md",
+        frontmatter: {
+          globs: ["src/**/*.ts"],
+        },
+        body: "# Global Body",
+      });
+
+      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule, global: true });
+
+      expect(windsurfRule.getFileContent().trim()).toBe("# Global Body");
+      expect(windsurfRule.getFileContent()).not.toContain("trigger:");
+      expect(windsurfRule.getFileContent()).not.toContain("globs:");
+    });
+  });
+
+  describe("toRulesyncRule - round-trip of all four triggers", () => {
+    it("should write a windsurf block for each trigger", () => {
+      const testCases: {
+        frontmatter: WindsurfRuleFrontmatter;
+        expectedGlobs: string[];
+        expectedTrigger: string;
+      }[] = [
+        {
+          frontmatter: { trigger: "glob", globs: "*.ts" },
+          expectedGlobs: ["*.ts"],
+          expectedTrigger: "glob",
+        },
+        {
+          frontmatter: { trigger: "manual" },
+          expectedGlobs: [],
+          expectedTrigger: "manual",
+        },
+        {
+          frontmatter: { trigger: "always_on" },
+          expectedGlobs: ["**/*"],
+          expectedTrigger: "always_on",
+        },
+        {
+          frontmatter: { trigger: "model_decision", description: "desc" },
+          expectedGlobs: [],
+          expectedTrigger: "model_decision",
+        },
+      ];
+
+      for (const { frontmatter, expectedGlobs, expectedTrigger } of testCases) {
+        const windsurfRule = new WindsurfRule({
+          frontmatter,
+          relativeDirPath: join(".windsurf", "rules"),
+          relativeFilePath: "test.md",
+          body: "# Test Rule",
+        });
+
+        const rulesyncRule = windsurfRule.toRulesyncRule();
+        expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
+        expect(rulesyncRule.getFrontmatter().globs).toEqual(expectedGlobs);
+        expect(rulesyncRule.getFrontmatter().windsurf?.trigger).toBe(expectedTrigger);
+        expect(rulesyncRule.getFrontmatter().root).toBe(false);
+      }
+    });
+
+    it("should round-trip glob globs into the windsurf block as an array", () => {
+      const windsurfRule = new WindsurfRule({
+        frontmatter: { trigger: "glob", globs: "*.ts" },
+        relativeDirPath: join(".windsurf", "rules"),
+        relativeFilePath: "test.md",
+        body: "# Test",
+      });
+
+      const rulesyncRule = windsurfRule.toRulesyncRule();
+      expect(rulesyncRule.getFrontmatter().windsurf?.globs).toEqual(["*.ts"]);
+    });
+
+    it("should round-trip a global root rule as a default root RulesyncRule", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "overview.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          globs: ["**/*"],
+        },
+        body: "# Global Root",
+      });
+
+      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule, global: true });
+      const result = windsurfRule.toRulesyncRule();
+
+      expect(result).toBeInstanceOf(RulesyncRule);
+      expect(result.getFrontmatter().root).toBe(true);
+      // Default conversion for a root rule does not carry the windsurf key.
+      expect(result.getFrontmatter().windsurf).toBeUndefined();
+      expect(result.getBody().trim()).toBe("# Global Root");
+    });
+  });
+
+  describe("round trip (RulesyncRule -> WindsurfRule -> RulesyncRule)", () => {
+    it("should preserve content and glob trigger through a full round-trip", () => {
+      const initialRulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "round-trip.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          description: "Round trip test",
+          globs: ["*.ts"],
+        },
+        body: "# Round Trip\n\nContent",
+      });
+
+      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule: initialRulesyncRule });
+      const finalRulesyncRule = windsurfRule.toRulesyncRule();
+
+      expect(finalRulesyncRule.getRelativeFilePath()).toBe("round-trip.md");
+      expect(finalRulesyncRule.getBody().trim()).toBe("# Round Trip\n\nContent");
+      expect(finalRulesyncRule.getFrontmatter().globs).toEqual(["*.ts"]);
+      expect(finalRulesyncRule.getFrontmatter().windsurf?.trigger).toBe("glob");
+      expect(finalRulesyncRule.getFrontmatter().windsurf?.globs).toEqual(["*.ts"]);
+    });
+
+    it("should preserve a persisted manual trigger through a full round-trip", () => {
+      const initialRulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "manual.md",
+        frontmatter: {
+          windsurf: { trigger: "manual" },
+        },
+        body: "# Manual",
+      });
+
+      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule: initialRulesyncRule });
+      const finalRulesyncRule = windsurfRule.toRulesyncRule();
+
+      expect(finalRulesyncRule.getFrontmatter().windsurf?.trigger).toBe("manual");
+    });
+  });
+
+  describe("validate", () => {
+    it("should return success for valid frontmatter", () => {
+      const windsurfRule = new WindsurfRule({
+        frontmatter: { trigger: "always_on" },
+        relativeDirPath: join(".windsurf", "rules"),
+        relativeFilePath: "test.md",
+        body: "# Test",
+      });
+
+      const result = windsurfRule.validate();
+
+      expect(result.success).toBe(true);
+      expect(result.error).toBeNull();
+    });
+
+    it("should return error for invalid frontmatter types", () => {
+      const windsurfRule = new WindsurfRule({
+        frontmatter: { trigger: "glob", globs: 123 } as any,
+        relativeDirPath: join(".windsurf", "rules"),
+        relativeFilePath: "test.md",
+        body: "# Test",
+        validate: false,
+      });
+
+      const result = windsurfRule.validate();
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBeInstanceOf(Error);
+    });
+  });
+
+  describe("forDeletion", () => {
+    it("should create a deletable project instance", () => {
+      const windsurfRule = WindsurfRule.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: join(".windsurf", "rules"),
+        relativeFilePath: "old.md",
+      });
+
+      expect(windsurfRule).toBeInstanceOf(WindsurfRule);
+      expect(windsurfRule.isRoot()).toBe(false);
+    });
+
+    it("should mark the instance as root for global deletion", () => {
+      const windsurfRule = WindsurfRule.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: join(".codeium", "windsurf", "memories"),
+        relativeFilePath: "global_rules.md",
+        global: true,
+      });
+
+      expect(windsurfRule.isRoot()).toBe(true);
     });
   });
 
   describe("isTargetedByRulesyncRule", () => {
-    it("should return true for rules targeting windsurf", () => {
-      const rulesyncRule = new RulesyncRule({
-        outputRoot: testDir,
+    const buildRule = (targets: string[]): RulesyncRule =>
+      new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
         frontmatter: {
-          targets: ["windsurf"],
+          root: false,
+          targets: targets as any,
+          globs: [],
         },
-        body: "Test content",
+        body: "# Test",
+        validate: false,
       });
 
-      expect(WindsurfRule.isTargetedByRulesyncRule(rulesyncRule)).toBe(true);
+    it("should return true for the wildcard target", () => {
+      expect(WindsurfRule.isTargetedByRulesyncRule(buildRule(["*"]))).toBe(true);
     });
 
-    it("should return true for rules targeting all tools (*)", () => {
-      const rulesyncRule = new RulesyncRule({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "test.md",
-        frontmatter: {
-          targets: ["*"],
-        },
-        body: "Test content",
-      });
-
-      expect(WindsurfRule.isTargetedByRulesyncRule(rulesyncRule)).toBe(true);
+    it("should return true for the windsurf target", () => {
+      expect(WindsurfRule.isTargetedByRulesyncRule(buildRule(["windsurf"]))).toBe(true);
     });
 
-    it("should return false for rules not targeting windsurf", () => {
-      const rulesyncRule = new RulesyncRule({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "test.md",
-        frontmatter: {
-          targets: ["cursor", "copilot"],
-        },
-        body: "Test content",
-      });
-
-      expect(WindsurfRule.isTargetedByRulesyncRule(rulesyncRule)).toBe(false);
-    });
-
-    it("should return false for empty targets", () => {
-      const rulesyncRule = new RulesyncRule({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "test.md",
-        frontmatter: {
-          targets: [],
-        },
-        body: "Test content",
-      });
-
-      expect(WindsurfRule.isTargetedByRulesyncRule(rulesyncRule)).toBe(false);
-    });
-
-    it("should handle mixed targets including windsurf", () => {
-      const rulesyncRule = new RulesyncRule({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "test.md",
-        frontmatter: {
-          targets: ["cursor", "windsurf", "copilot"],
-        },
-        body: "Test content",
-      });
-
-      expect(WindsurfRule.isTargetedByRulesyncRule(rulesyncRule)).toBe(true);
-    });
-
-    it("should handle undefined targets in frontmatter", () => {
-      const rulesyncRule = new RulesyncRule({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "test.md",
-        frontmatter: {},
-        body: "Test content",
-      });
-
-      expect(WindsurfRule.isTargetedByRulesyncRule(rulesyncRule)).toBe(true);
+    it("should return false for other specific targets", () => {
+      expect(WindsurfRule.isTargetedByRulesyncRule(buildRule(["cursor"]))).toBe(false);
     });
   });
 
-  describe("integration with file system", () => {
-    it("should work with various file extensions", async () => {
-      const extensions = [".md", ".txt", ".rule"];
+  describe("schema", () => {
+    it("should parse valid frontmatter for all four triggers", () => {
+      const testCases = [
+        { trigger: "glob", globs: "*.ts" },
+        { trigger: "manual" },
+        { trigger: "always_on" },
+        { trigger: "model_decision", description: "desc" },
+      ];
 
-      for (const ext of extensions) {
-        const fileName = `test-rule${ext}`;
-        const content = `# Test Rule for ${ext}`;
-        await writeFileContent(join(testDir, ".windsurf", "rules", fileName), content);
-
-        const windsurfRule = await WindsurfRule.fromFile({
-          outputRoot: testDir,
-          relativeFilePath: fileName,
-        });
-
-        expect(windsurfRule.getFileContent()).toBe(content);
-        expect(windsurfRule.getRelativeFilePath()).toBe(fileName);
+      for (const input of testCases) {
+        const result = WindsurfRuleFrontmatterSchema.safeParse(input);
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data).toEqual(input);
+        }
       }
     });
 
-    it("should handle unicode content correctly", async () => {
-      const unicodeContent = "# Unicode Rule 🚀\n\n日本語のルール\nEmoji: 🎉🔥💯";
-      await writeFileContent(join(testDir, ".windsurf", "rules", "unicode.md"), unicodeContent);
-
-      const windsurfRule = await WindsurfRule.fromFile({
-        outputRoot: testDir,
-        relativeFilePath: "unicode.md",
+    it("should allow arbitrary triggers and unknown fields (loose schema)", () => {
+      const result = WindsurfRuleFrontmatterSchema.safeParse({
+        trigger: "custom-trigger",
+        extraField: "value",
       });
-
-      expect(windsurfRule.getFileContent()).toBe(unicodeContent);
-    });
-
-    it("should handle very large files", async () => {
-      // Create a large content string
-      const largeContent = "# Large Rule\n\n" + "A".repeat(10000) + "\n\nEnd of large rule.";
-      await writeFileContent(join(testDir, ".windsurf", "rules", "large.md"), largeContent);
-
-      const windsurfRule = await WindsurfRule.fromFile({
-        outputRoot: testDir,
-        relativeFilePath: "large.md",
-      });
-
-      expect(windsurfRule.getFileContent()).toBe(largeContent);
-      expect(windsurfRule.getFileContent().length).toBe(largeContent.length);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.trigger).toBe("custom-trigger");
+        expect((result.data as any).extraField).toBe("value");
+      }
     });
   });
 });

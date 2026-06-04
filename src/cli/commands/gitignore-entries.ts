@@ -75,6 +75,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   // Augment Code
   { target: "augmentcode", feature: "rules", entry: "**/.augment/rules/" },
   { target: "augmentcode", feature: "rules", entry: "**/.augment-guidelines" },
+  { target: "augmentcode", feature: "commands", entry: "**/.augment/commands/" },
   { target: "augmentcode", feature: "ignore", entry: "**/.augmentignore" },
   { target: "augmentcode", feature: "permissions", entry: "**/.augment/settings.json" },
 
@@ -293,6 +294,10 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "takt", feature: "general", entry: "**/.takt/config.yaml" },
 
   // Windsurf
+  { target: "windsurf", feature: "rules", entry: "**/.windsurf/rules/" },
+  { target: "windsurf", feature: "commands", entry: "**/.windsurf/workflows/" },
+  { target: "windsurf", feature: "mcp", entry: "**/.windsurf/mcp_config.json" },
+  { target: "windsurf", feature: "hooks", entry: "**/.windsurf/hooks.json" },
   { target: "windsurf", feature: "skills", entry: "**/.windsurf/skills/" },
   { target: "windsurf", feature: "skills", entry: "**/.codeium/windsurf/skills/" },
 

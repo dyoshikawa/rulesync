@@ -34,6 +34,7 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 import { WarpMcp } from "./warp-mcp.js";
+import { WindsurfMcp } from "./windsurf-mcp.js";
 import { ZedMcp } from "./zed-mcp.js";
 
 /**
@@ -61,6 +62,7 @@ const mcpProcessorToolTargetTuple = [
   "roo",
   "rovodev",
   "warp",
+  "windsurf",
   "zed",
 ] as const;
 
@@ -342,6 +344,21 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "windsurf",
+    {
+      class: WindsurfMcp,
+      meta: {
+        // Windsurf reads `mcp_config.json` from `.windsurf/` (project) and
+        // `~/.codeium/windsurf/` (global). Each server may carry a
+        // `disabledTools` array, but Windsurf has no `enabledTools` concept.
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: true,
       },
     },
   ],

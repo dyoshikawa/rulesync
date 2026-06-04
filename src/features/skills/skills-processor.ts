@@ -211,7 +211,7 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     "junie",
     {
       class: JunieSkill,
-      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
   [

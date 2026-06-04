@@ -962,6 +962,7 @@ Second global content`;
         "copilotcli",
         "cursor",
         "geminicli",
+        "junie",
         "kilo",
         "opencode",
         "rovodev",

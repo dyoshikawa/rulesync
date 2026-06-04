@@ -54,6 +54,20 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       globs: z.optional(z.array(z.string())),
     }),
   ),
+  windsurf: z.optional(
+    z.looseObject({
+      // Activation mode: always_on | glob | manual | model_decision
+      trigger: z.optional(z.string()),
+      globs: z.optional(z.array(z.string())),
+      description: z.optional(z.string()),
+    }),
+  ),
+  augmentcode: z.optional(
+    z.looseObject({
+      type: z.optional(z.string()),
+      description: z.optional(z.string()),
+    }),
+  ),
   takt: z.optional(
     z.looseObject({
       // Rename the emitted file stem (e.g. "coder.md" → "{name}.md").

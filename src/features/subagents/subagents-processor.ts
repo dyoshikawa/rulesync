@@ -168,7 +168,7 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     "junie",
     {
       class: JunieSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
     },
   ],
   [
