@@ -112,6 +112,35 @@ describe("ZedPermissions", () => {
       // Managed tool written.
       expect(json.agent.tool_permissions.tools.terminal.default).toBe("deny");
     });
+
+    it("should keep an existing tool entry when its category yields no usable rules", async () => {
+      await writeFileContent(
+        join(testDir, ".zed", "settings.json"),
+        JSON.stringify({
+          agent: {
+            tool_permissions: {
+              tools: {
+                terminal: { default: "allow" },
+              },
+            },
+          },
+        }),
+      );
+
+      // `bash` maps to `terminal` but carries no rules, so it produces no entry
+      // and must not drop the user's existing `terminal` config.
+      const rulesyncPermissions = createRulesyncPermissions({
+        bash: {},
+      });
+
+      const permissions = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.agent.tool_permissions.tools.terminal.default).toBe("allow");
+    });
   });
 
   describe("toRulesyncPermissions", () => {

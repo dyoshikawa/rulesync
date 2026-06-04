@@ -5,7 +5,7 @@ import { z } from "zod/mini";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -192,7 +192,9 @@ export class ZedPermissions extends ToolPermissions {
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     // Preserve any existing Zed settings (MCP `context_servers`, ignore
     // `private_files`, unrelated user settings) before writing tool permissions.
-    const existingContent = await readOrInitializeFileContent(filePath, "{}");
+    // Read without initializing so this stays side-effect-free (e.g. under
+    // `--dry-run`/`--check`); the actual write happens later in `writeAiFiles`.
+    const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
     let settings: Record<string, unknown>;
     try {
       settings = JSON.parse(existingContent);
@@ -210,14 +212,6 @@ export class ZedPermissions extends ToolPermissions {
     const toolPermissions = asRecord(agent.tool_permissions);
     const existingTools = asRecord(toolPermissions.tools);
 
-    // Tool names managed by rulesync — drop their existing entries, keep the rest.
-    const managedToolNames = new Set(
-      Object.keys(config.permission).map((category) => toZedToolName(category)),
-    );
-    const preservedTools = Object.fromEntries(
-      Object.entries(existingTools).filter(([toolName]) => !managedToolNames.has(toolName)),
-    );
-
     const managedTools: Record<string, ZedToolPermission> = {};
     for (const [category, rules] of Object.entries(config.permission)) {
       const tool = buildZedToolPermission(rules);
@@ -225,6 +219,13 @@ export class ZedPermissions extends ToolPermissions {
         managedTools[toZedToolName(category)] = tool;
       }
     }
+
+    // Only tools rulesync actually rewrites are "managed" — a category that
+    // yields no usable rules must not silently drop an existing user entry.
+    const managedToolNames = new Set(Object.keys(managedTools));
+    const preservedTools = Object.fromEntries(
+      Object.entries(existingTools).filter(([toolName]) => !managedToolNames.has(toolName)),
+    );
 
     const mergedSettings = {
       ...settings,
