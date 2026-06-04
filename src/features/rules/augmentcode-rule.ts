@@ -204,7 +204,9 @@ export class AugmentcodeRule extends ToolRule {
         root: false,
         targets: ["*"],
         ...(description !== undefined ? { description } : {}),
-        augmentcode,
+        // Only attach the augmentcode block when it carries data; a global rule
+        // imported with empty frontmatter would otherwise emit `augmentcode: {}`.
+        ...(Object.keys(augmentcode).length > 0 ? { augmentcode } : {}),
       },
       body: this.body,
     });

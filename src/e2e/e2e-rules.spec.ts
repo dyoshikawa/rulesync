@@ -284,6 +284,7 @@ describe("E2E: rules (global mode)", () => {
     { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
     { target: "pi", outputPath: join(".pi", "agent", "AGENTS.md") },
     { target: "zed", outputPath: join(".config", "zed", "AGENTS.md") },
+    { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },
     {
       target: "windsurf",
       outputPath: join(".codeium", "windsurf", "memories", "global_rules.md"),

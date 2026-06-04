@@ -608,6 +608,33 @@ describe("AugmentcodePermissions", () => {
     expect(config.permission.read).toEqual({ "*": "ask" });
   });
 
+  it("should not pollute Object.prototype when a malicious toolName targets a reserved key", () => {
+    const instance = new AugmentcodePermissions({
+      relativeDirPath: ".augment",
+      relativeFilePath: "settings.json",
+      fileContent: JSON.stringify({
+        toolPermissions: [
+          { toolName: "__proto__", permission: { type: "allow" } },
+          { toolName: "constructor", permission: { type: "deny" } },
+          { toolName: "prototype", permission: { type: "ask-user" } },
+        ],
+      }),
+    });
+
+    try {
+      instance.toRulesyncPermissions().getJson();
+
+      // The reserved-key entries are skipped, so a freshly created object must
+      // not have inherited any polluted property from Object.prototype.
+      const probe: Record<string, unknown> = {};
+      expect(probe["*"]).toBeUndefined();
+      expect("*" in {}).toBe(false);
+    } finally {
+      // Defensive cleanup so a future regression cannot leak into other tests.
+      Reflect.deleteProperty(Object.prototype, "*");
+    }
+  });
+
   describe("non-roundtrippable shellInputRegex import behavior", () => {
     // When a user authors a `shellInputRegex` that is not faithfully
     // roundtrippable through the glob representation (for example unanchored

@@ -331,6 +331,20 @@ This is a test augment rule.`);
       expect(finalRulesyncRule.getBody().trim()).toBe("# Round Trip\n\nContent");
       expect(finalRulesyncRule.getFrontmatter().augmentcode?.type).toBe("manual");
     });
+
+    it("should omit the augmentcode block when frontmatter is empty", () => {
+      const augmentcodeRule = new AugmentcodeRule({
+        outputRoot: testDir,
+        relativeDirPath: join(".augment", "rules"),
+        relativeFilePath: "global-rule.md",
+        frontmatter: {},
+        body: "# Global Rule\n\nNo typed frontmatter.",
+      });
+
+      const rulesyncRule = augmentcodeRule.toRulesyncRule();
+
+      expect(rulesyncRule.getFrontmatter().augmentcode).toBeUndefined();
+    });
   });
 
   describe("validate", () => {

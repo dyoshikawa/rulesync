@@ -317,6 +317,29 @@ describe("WindsurfHooks", () => {
       expect(parsed.hooks.worktreeCreate).toEqual([{ type: "command", command: "setup.sh" }]);
     });
 
+    it("should drop unknown Windsurf events instead of passing them through", () => {
+      const fileContent = JSON.stringify({
+        hooks: {
+          pre_read_code: [{ command: "read.sh" }],
+          // Not one of the documented 12 events; must not survive import,
+          // otherwise it would be silently dropped on the next generate.
+          some_future_event: [{ command: "future.sh" }],
+        },
+      });
+      const windsurfHooks = new WindsurfHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".windsurf",
+        relativeFilePath: "hooks.json",
+        fileContent,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(windsurfHooks.toRulesyncHooks().getFileContent());
+
+      expect(parsed.hooks.beforeReadFile).toBeDefined();
+      expect(parsed.hooks.some_future_event).toBeUndefined();
+    });
+
     it("should round-trip mappable events through fromRulesyncHooks and back", async () => {
       const config = {
         version: 1,

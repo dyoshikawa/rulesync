@@ -65,6 +65,17 @@ export type WindsurfHookEventName = (typeof WINDSURF_HOOK_EVENT_NAMES)[number];
  * - beforeAgentResponse ⇄ post_cascade_response_with_transcript
  * - worktreeCreate      ⇄ post_setup_worktree
  *
+ * NOTE on the before/after prefix mismatch: rulesync's canonical vocabulary has
+ * no `afterReadFile` or `beforeWriteFile`/`beforeFileEdit` event — the only read
+ * events are `beforeReadFile`/`beforeTabFileRead` (both read-side) and the only
+ * edit events are `afterFileEdit`/`afterTabFileEdit` (both edit-side). To cover
+ * all twelve Windsurf events bijectively we therefore pair the second read/write
+ * event by DOMAIN (read↔read, write↔write) rather than by timing, which inverts
+ * the prefix on `post_read_code` (⇄ beforeTabFileRead) and `pre_write_code`
+ * (⇄ afterTabFileEdit). The alternative — pairing by timing — would leave two
+ * Windsurf events unmapped and drop user hooks. The round-trip stays lossless;
+ * only the human-readable prefix differs, so this is a deliberate trade-off.
+ *
  * Canonical events that have no Windsurf equivalent (e.g. sessionStart, stop)
  * are dropped with a logged warning during export.
  */
@@ -318,7 +329,15 @@ export class WindsurfHooks extends ToolHooks {
         if (!Array.isArray(rawObjects)) {
           continue;
         }
-        const canonicalEvent = WINDSURF_TO_CANONICAL_EVENT_NAMES[windsurfEvent] ?? windsurfEvent;
+        const canonicalEvent = WINDSURF_TO_CANONICAL_EVENT_NAMES[windsurfEvent];
+        if (canonicalEvent === undefined) {
+          // Unknown Windsurf event (not one of the documented 12). Drop it on
+          // import for symmetry with the export side, which drops canonical
+          // events that have no Windsurf equivalent. Passing it through would
+          // let it survive import only to be silently dropped on the next
+          // generate, hiding the data loss from the user.
+          continue;
+        }
         const defs: Record<string, unknown>[] = [];
         for (const rawObject of rawObjects) {
           if (!isRecord(rawObject)) {

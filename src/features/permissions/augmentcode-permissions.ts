@@ -586,6 +586,12 @@ function convertAugmentToRulesyncPermissions({
     ask: 1,
     allow: 0,
   };
+  // Reserved keys that would mutate `Object.prototype` (or the `Object`
+  // constructor) if used as a bracket-assignment key. A hand-crafted
+  // settings.json could set `toolName` — or a `shellInputRegex` that converts
+  // to such a glob — to one of these, so they are rejected defensively before
+  // they are ever used as a map key.
+  const forbiddenMapKeys = new Set(["__proto__", "prototype", "constructor"]);
   const permission: Record<string, Record<string, PermissionAction>> = {};
 
   for (const entry of entries) {
@@ -610,6 +616,13 @@ function convertAugmentToRulesyncPermissions({
     }
 
     const canonical = toCanonicalToolName(entry.toolName);
+    if (forbiddenMapKeys.has(canonical)) {
+      logger?.warn(
+        `AugmentCode permissions: skipping entry for tool '${entry.toolName}' because it maps ` +
+          `to the reserved object key '${canonical}', which cannot be used as a permission key.`,
+      );
+      continue;
+    }
     const action = augmentTypeToAction(type);
 
     // Only launch-process supports per-input pattern recovery via shellInputRegex.
@@ -659,6 +672,13 @@ function convertAugmentToRulesyncPermissions({
       pattern = "*";
     }
 
+    if (forbiddenMapKeys.has(pattern)) {
+      logger?.warn(
+        `AugmentCode permissions: skipping entry for tool '${entry.toolName}' because its ` +
+          `pattern resolves to the reserved object key '${pattern}'.`,
+      );
+      continue;
+    }
     if (!permission[canonical]) {
       permission[canonical] = {};
     }
