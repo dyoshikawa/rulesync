@@ -45,9 +45,7 @@ export function wrapCommand({
     // - No positional: (options, command)
     // - With positional: (arg1, arg2, ..., options, command)
     // The last two are always (options, command)
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
     const command = args[args.length - 1] as Command;
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
     const options = args[args.length - 2] as Record<string, unknown>;
     const positionalArgs = args.slice(0, -2);
     const globalOpts = command.parent?.opts() ?? {};

@@ -223,7 +223,6 @@ function resolveFeatures(features?: string[]): Feature[] {
   if (!features || features.length === 0 || features.includes("*")) {
     return [...ALL_FEATURES];
   }
-  // eslint-disable-next-line no-type-assertion/no-type-assertion
   return features.filter((f): f is Feature => ALL_FEATURES.includes(f as Feature));
 }
 
