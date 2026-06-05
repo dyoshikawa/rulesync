@@ -100,12 +100,12 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks.sessionStart).toBeDefined();
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
       } else if (target === "antigravity-ide" || target === "antigravity-cli") {
-        // Antigravity writes the event → matcher-entry map at the top level
-        // (no `hooks` wrapper) and supports only preToolUse/postToolUse/stop
-        // (see ANTIGRAVITY_HOOK_EVENTS in src/types/hooks.ts). `sessionStart`
-        // is therefore dropped, and only audit.sh — mapped to `Stop` — survives
-        // generation.
-        expect(parsed.Stop).toBeDefined();
+        // Antigravity nests the event → matcher-entry map under a generated
+        // `rulesync` hook name and supports preToolUse/postToolUse/
+        // preModelInvocation/postModelInvocation/stop (see ANTIGRAVITY_HOOK_EVENTS
+        // in src/types/hooks.ts). `sessionStart` is therefore dropped, and only
+        // audit.sh — mapped to `Stop` — survives generation.
+        expect(parsed.rulesync.Stop).toBeDefined();
         expect(JSON.stringify(parsed)).toContain(".rulesync/hooks/audit.sh");
       } else {
         // codexcli, geminicli, factorydroid: event-name casing/mapping varies
@@ -288,18 +288,20 @@ describe("E2E: hooks (import)", () => {
       },
     },
     {
-      // Antigravity stores the event → matcher-entry map at the top level
-      // (no `hooks` wrapper) and supports only preToolUse/postToolUse/stop, so
+      // Antigravity nests the event → matcher-entry map under a named hook, so
       // the imported canonical config exposes `preToolUse` rather than
-      // `sessionStart`.
+      // `sessionStart`. The IDE fixture uses the documented named-hook wrapper.
       target: "antigravity-ide",
       sourcePath: join(".agents", "hooks.json"),
       sourceContent: {
-        PreToolUse: [{ matcher: "", hooks: [{ type: "command", command: "echo pre tool" }] }],
+        rulesync: {
+          PreToolUse: [{ matcher: "", hooks: [{ type: "command", command: "echo pre tool" }] }],
+        },
       },
       expectedEvent: "preToolUse",
     },
     {
+      // The CLI fixture uses the legacy flat shape, which still imports.
       target: "antigravity-cli",
       sourcePath: join(".agents", "hooks.json"),
       sourceContent: {
@@ -388,11 +390,12 @@ describe("E2E: hooks (global mode)", () => {
       expect(parsed.hooks.sessionStart).toBeDefined();
       expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
     } else if (target === "antigravity-ide" || target === "antigravity-cli") {
-      // Antigravity writes the event map at the top level and supports only
-      // preToolUse/postToolUse/stop, so `sessionStart` is dropped and only
-      // audit.sh (mapped to `Stop`) survives generation.
+      // Antigravity nests the event map under a generated `rulesync` hook name
+      // and supports preToolUse/postToolUse/preModelInvocation/
+      // postModelInvocation/stop, so `sessionStart` is dropped and only audit.sh
+      // (mapped to `Stop`) survives generation.
       const parsed = JSON.parse(generatedContent);
-      expect(parsed.Stop).toBeDefined();
+      expect(parsed.rulesync.Stop).toBeDefined();
       expect(JSON.stringify(parsed)).toContain(".rulesync/hooks/audit.sh");
     } else {
       assertHookCommandsPreserved(JSON.parse(generatedContent));

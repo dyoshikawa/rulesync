@@ -161,7 +161,7 @@ You are the planner. Analyze files and create a plan.
 
     await runGenerate({ target: "kilo", features: "subagents" });
 
-    const generatedContent = await readFileContent(join(testDir, ".kilo", "agent", "planner.md"));
+    const generatedContent = await readFileContent(join(testDir, ".kilo", "agents", "planner.md"));
     expect(generatedContent).toContain("mode: all");
     expect(generatedContent).not.toContain("mode: subagent");
     expect(generatedContent).toContain("Analyze files and create a plan.");
@@ -189,7 +189,7 @@ You are a subagent-only helper.
     await runGenerate({ target: "kilo", features: "subagents" });
 
     const generatedContent = await readFileContent(
-      join(testDir, ".kilo", "agent", "hidden-helper.md"),
+      join(testDir, ".kilo", "agents", "hidden-helper.md"),
     );
     expect(generatedContent).toContain("mode: subagent");
     expect(generatedContent).not.toContain("mode: all");

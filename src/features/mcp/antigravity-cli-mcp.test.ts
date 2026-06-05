@@ -33,7 +33,7 @@ describe("AntigravityCliMcp", () => {
     it("should return correct paths for global mode", () => {
       const paths = AntigravityCliMcp.getSettablePaths({ global: true });
 
-      expect(paths.relativeDirPath).toBe(join(".gemini", "antigravity-cli"));
+      expect(paths.relativeDirPath).toBe(join(".gemini", "config"));
       expect(paths.relativeFilePath).toBe("mcp_config.json");
     });
   });
@@ -151,7 +151,7 @@ describe("AntigravityCliMcp", () => {
       });
 
       expect(antigravityCliMcp.getJson()).toEqual(jsonData);
-      expect(antigravityCliMcp.getRelativeDirPath()).toBe(join(".gemini", "antigravity-cli"));
+      expect(antigravityCliMcp.getRelativeDirPath()).toBe(join(".gemini", "config"));
       expect(antigravityCliMcp.getRelativeFilePath()).toBe("mcp_config.json");
     });
   });

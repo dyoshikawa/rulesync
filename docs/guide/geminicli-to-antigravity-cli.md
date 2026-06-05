@@ -33,7 +33,7 @@ transition.
 | ----------- | -------------------------------------- | ------------------------------------------------------------------------------------------- |
 | rules       | root `GEMINI.md` + `.gemini/memories/` | root `GEMINI.md` + `.agents/rules/`; global `~/.gemini/GEMINI.md`                           |
 | skills      | `.gemini/skills/`                      | `.agents/skills/`; global `~/.gemini/antigravity-cli/skills/`                               |
-| mcp         | `.gemini/settings.json` (`mcpServers`) | `.agents/mcp_config.json`; global `~/.gemini/antigravity-cli/mcp_config.json`               |
+| mcp         | `.gemini/settings.json` (`mcpServers`) | `.agents/mcp_config.json`; global `~/.gemini/config/mcp_config.json` (shared config dir)    |
 | hooks       | `.gemini/` (Gemini hook shape)         | `.agents/hooks.json`; global `~/.gemini/config/hooks.json` (Claude-Code-like matcher shape) |
 | permissions | `.gemini/settings.json`                | global `~/.gemini/antigravity-cli/settings.json` (`permissions.allow`/`ask`/`deny`)         |
 | commands    | `.gemini/commands/` (TOML)             | **not yet supported** — Antigravity CLI exposes slash commands via skills                   |
@@ -45,8 +45,12 @@ transition.
   a `disabledTools` array. Rulesync emits the Antigravity-compatible shape
   automatically.
 - **Hooks**: Antigravity uses a Claude-Code-like `hooks.json` with a matcher
-  shape, **not** the Gemini CLI hook format. Rulesync currently translates the
-  `preToolUse`, `postToolUse`, and `stop` events for Antigravity.
+  shape, **not** the Gemini CLI hook format. The event map is nested under a
+  generated `rulesync` hook name (`{ "rulesync": { "<Event>": [...] } }`).
+  Rulesync translates five events for Antigravity: `preToolUse`, `postToolUse`,
+  `preModelInvocation` (→ `PreInvocation`), `postModelInvocation`
+  (→ `PostInvocation`), and `stop`; the model-invocation events and `stop` are
+  matcher-less handler lists.
 - **Permissions**: The Antigravity CLI reads permissions only from the global
   `~/.gemini/antigravity-cli/settings.json`; there is no documented
   workspace-scoped permissions file, so rulesync generates this file in

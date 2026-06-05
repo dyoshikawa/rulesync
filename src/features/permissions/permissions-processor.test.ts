@@ -89,6 +89,7 @@ describe("PermissionsProcessor", () => {
         "kiro",
         "opencode",
         "qwencode",
+        "zed",
       ]);
     });
 
@@ -104,6 +105,7 @@ describe("PermissionsProcessor", () => {
         "kilo",
         "opencode",
         "qwencode",
+        "zed",
       ]);
     });
 
@@ -120,6 +122,7 @@ describe("PermissionsProcessor", () => {
         "kiro",
         "opencode",
         "qwencode",
+        "zed",
       ]);
     });
   });

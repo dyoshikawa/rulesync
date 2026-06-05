@@ -308,7 +308,7 @@ describe("E2E: mcp (global mode)", () => {
     },
     {
       target: "antigravity-cli",
-      outputPath: join(".gemini", "antigravity-cli", "mcp_config.json"),
+      outputPath: join(".gemini", "config", "mcp_config.json"),
     },
     { target: "warp", outputPath: join(".warp", ".mcp.json") },
     { target: "zed", outputPath: join(".config", "zed", "settings.json") },

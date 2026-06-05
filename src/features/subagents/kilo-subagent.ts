@@ -84,7 +84,7 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
     global?: boolean;
   } = {}): ToolSubagentSettablePaths {
     return {
-      relativeDirPath: global ? join(".config", "kilo", "agent") : join(".kilo", "agent"),
+      relativeDirPath: global ? join(".config", "kilo", "agents") : join(".kilo", "agents"),
     };
   }
 

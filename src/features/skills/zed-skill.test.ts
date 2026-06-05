@@ -121,6 +121,25 @@ This is the body of the zed skill.`;
         description: "Test skill description",
       });
     });
+
+    it("should propagate zed.disable-model-invocation into the generated frontmatter", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "manual-skill",
+        frontmatter: {
+          name: "manual-skill",
+          description: "Manual only",
+          zed: { "disable-model-invocation": true },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const zedSkill = ZedSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+
+      expect(zedSkill.getFrontmatter()["disable-model-invocation"]).toBe(true);
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {
@@ -178,6 +197,30 @@ This is the body of the zed skill.`;
         targets: ["*"],
       });
       expect(rulesyncSkill.getBody()).toBe("Test body");
+    });
+
+    it("should round-trip disable-model-invocation into a zed block", () => {
+      const skill = new ZedSkill({
+        outputRoot: testDir,
+        relativeDirPath: join(".agents", "skills"),
+        dirName: "manual-skill",
+        frontmatter: {
+          name: "manual-skill",
+          description: "Manual only",
+          "disable-model-invocation": true,
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+
+      expect(rulesyncSkill.getFrontmatter()).toEqual({
+        name: "manual-skill",
+        description: "Manual only",
+        targets: ["*"],
+        zed: { "disable-model-invocation": true },
+      });
     });
   });
 

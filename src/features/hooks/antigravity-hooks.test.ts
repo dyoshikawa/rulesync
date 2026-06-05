@@ -77,18 +77,49 @@ describe("AntigravityHooks", () => {
 
         const parsed = JSON.parse(hooks.getFileContent());
 
-        // The hook map is written directly at the top level (no `hooks` wrapper).
+        // The event map is nested under the generated `rulesync` hook name.
         expect(parsed.hooks).toBeUndefined();
+        const hookEntry = parsed.rulesync;
+        expect(hookEntry).toBeDefined();
 
         // Supported canonical events are mapped to their Antigravity names.
-        expect(parsed.PreToolUse).toBeDefined();
-        expect(parsed.PreToolUse[0].hooks[0].command).toBe("echo pre");
-        expect(parsed.Stop).toBeDefined();
-        expect(parsed.Stop[0].hooks[0].command).toBe("echo stop");
+        expect(hookEntry.PreToolUse).toBeDefined();
+        expect(hookEntry.PreToolUse[0].hooks[0].command).toBe("echo pre");
+        expect(hookEntry.Stop).toBeDefined();
+        expect(hookEntry.Stop[0].hooks[0].command).toBe("echo stop");
 
         // The unsupported `sessionStart` event is dropped entirely.
-        expect(parsed.SessionStart).toBeUndefined();
-        expect(parsed.sessionStart).toBeUndefined();
+        expect(hookEntry.SessionStart).toBeUndefined();
+        expect(hookEntry.sessionStart).toBeUndefined();
+      });
+
+      it("should emit matcher-less PreInvocation/PostInvocation handler lists", async () => {
+        const rulesyncHooks = new RulesyncHooks(
+          createMockAiFileParams({
+            fileContent: JSON.stringify({
+              version: 1,
+              hooks: {
+                preModelInvocation: [{ type: "command", command: "echo pre-model" }],
+                postModelInvocation: [{ type: "command", command: "echo post-model" }],
+              },
+            }),
+          }),
+        );
+
+        const hooks = await HooksClass.fromRulesyncHooks({
+          outputRoot: testDir,
+          rulesyncHooks,
+          validate: true,
+        });
+
+        const hookEntry = JSON.parse(hooks.getFileContent()).rulesync;
+
+        // Model-invocation events map to Antigravity's PascalCase names and are
+        // emitted as matcher-less handler lists (no `matcher` field).
+        expect(hookEntry.PreInvocation[0]).toEqual({
+          hooks: [{ type: "command", command: "echo pre-model" }],
+        });
+        expect(hookEntry.PostInvocation[0].hooks[0].command).toBe("echo post-model");
       });
 
       it(`should apply the ${overrideKey} per-target override`, async () => {
@@ -115,11 +146,11 @@ describe("AntigravityHooks", () => {
           validate: true,
         });
 
-        const parsed = JSON.parse(hooks.getFileContent());
+        const hookEntry = JSON.parse(hooks.getFileContent()).rulesync;
 
         // The per-target override replaces the shared definition.
-        expect(parsed.PreToolUse[0].hooks[0].command).toBe("echo ide-override");
-        expect(parsed.PostToolUse[0].hooks[0].command).toBe("echo post-override");
+        expect(hookEntry.PreToolUse[0].hooks[0].command).toBe("echo ide-override");
+        expect(hookEntry.PostToolUse[0].hooks[0].command).toBe("echo post-override");
       });
     });
 
@@ -147,6 +178,53 @@ describe("AntigravityHooks", () => {
           type: "command",
           command: "echo stop",
         });
+      });
+
+      it("should unwrap the named-hook wrapper (ignoring `enabled`) on import", () => {
+        const hooks = new HooksClass(
+          createMockAiFileParams({
+            fileContent: JSON.stringify({
+              rulesync: {
+                enabled: false,
+                PreToolUse: [{ hooks: [{ type: "command", command: "echo pre" }] }],
+                PreInvocation: [{ hooks: [{ type: "command", command: "echo pre-model" }] }],
+              },
+            }),
+          }),
+        );
+
+        const parsed = hooks.toRulesyncHooks().getJson();
+
+        expect(parsed.hooks.preToolUse?.[0]).toEqual({ type: "command", command: "echo pre" });
+        expect(parsed.hooks.preModelInvocation?.[0]).toEqual({
+          type: "command",
+          command: "echo pre-model",
+        });
+      });
+
+      it("should ignore prototype-pollution event keys without crashing", () => {
+        // A crafted hooks file with a `__proto__` event key must not make the
+        // flatten step resolve `flat["__proto__"]` to `Object.prototype` (which
+        // would throw `existing is not iterable`). The key is skipped on both
+        // the legacy-flat and the named-hook-wrapper paths.
+        const hooks = new HooksClass(
+          createMockAiFileParams({
+            fileContent: JSON.stringify({
+              __proto__: [{ hooks: [{ type: "command", command: "echo flat-proto" }] }],
+              rulesync: {
+                __proto__: [{ hooks: [{ type: "command", command: "echo wrapped-proto" }] }],
+                Stop: [{ hooks: [{ type: "command", command: "echo stop" }] }],
+              },
+            }),
+          }),
+        );
+
+        const parsed = hooks.toRulesyncHooks().getJson();
+
+        // The valid event still imports; the `__proto__` keys are dropped and
+        // Object.prototype is untouched.
+        expect(parsed.hooks.stop?.[0]).toEqual({ type: "command", command: "echo stop" });
+        expect(({} as Record<string, unknown>).hooks).toBeUndefined();
       });
     });
 

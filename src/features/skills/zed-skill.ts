@@ -112,10 +112,16 @@ export class ZedSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    const zedBlock = {
+      ...(frontmatter["disable-model-invocation"] !== undefined && {
+        "disable-model-invocation": frontmatter["disable-model-invocation"],
+      }),
+    };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
+      ...(Object.keys(zedBlock).length > 0 && { zed: zedBlock }),
     };
 
     return new RulesyncSkill({
@@ -142,6 +148,7 @@ export class ZedSkill extends ToolSkill {
     const zedFrontmatter: ZedSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...rulesyncFrontmatter.zed,
     };
 
     return new ZedSkill({

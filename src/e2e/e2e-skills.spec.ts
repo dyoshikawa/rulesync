@@ -285,7 +285,7 @@ describe("E2E: skills (global mode)", () => {
     },
     {
       target: "kilo",
-      outputPath: join(".config", "kilo", "skills", "test-skill", "SKILL.md"),
+      outputPath: join(".kilo", "skills", "test-skill", "SKILL.md"),
     },
     {
       target: "roo",

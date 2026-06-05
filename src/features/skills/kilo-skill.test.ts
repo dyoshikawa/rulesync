@@ -88,7 +88,7 @@ describe("KiloSkill", () => {
         relativeDirPath: join(".kilo", "skills"),
       });
       expect(KiloSkill.getSettablePaths({ global: true })).toEqual({
-        relativeDirPath: join(".config", "kilo", "skills"),
+        relativeDirPath: join(".kilo", "skills"),
       });
     });
   });
@@ -165,7 +165,7 @@ describe("KiloSkill", () => {
       });
 
       expect(skill).toBeInstanceOf(KiloSkill);
-      expect(skill.getRelativeDirPath()).toBe(join(".config", "kilo", "skills"));
+      expect(skill.getRelativeDirPath()).toBe(join(".kilo", "skills"));
       expect(skill.getFrontmatter()["allowed-tools"]).toEqual(["Bash", "Read"]);
     });
   });
