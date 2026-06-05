@@ -304,7 +304,7 @@ describe("E2E: mcp (global mode)", () => {
     { target: "amp", outputPath: join(".config", "amp", "settings.jsonc") },
     {
       target: "antigravity-ide",
-      outputPath: join(".gemini", "antigravity", "mcp_config.json"),
+      outputPath: join(".gemini", "config", "mcp_config.json"),
     },
     {
       target: "antigravity-cli",

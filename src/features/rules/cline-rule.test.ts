@@ -69,6 +69,25 @@ describe("ClineRule", () => {
     });
   });
 
+  describe("getSettablePaths", () => {
+    it("should return the .clinerules non-root directory in project mode", () => {
+      const paths = ClineRule.getSettablePaths();
+
+      expect(paths).toEqual({ nonRoot: { relativeDirPath: ".clinerules" } });
+    });
+
+    it("should return the cross-tool ~/.agents/AGENTS.md root path in global mode", () => {
+      const paths = ClineRule.getSettablePaths({ global: true });
+
+      expect(paths).toEqual({
+        root: {
+          relativeDirPath: ".agents",
+          relativeFilePath: "AGENTS.md",
+        },
+      });
+    });
+  });
+
   describe("toRulesyncRule", () => {
     it("should convert ClineRule to RulesyncRule", () => {
       const clineRule = new ClineRule({
@@ -183,6 +202,54 @@ describe("ClineRule", () => {
       });
 
       expect(clineRule).toBeInstanceOf(ClineRule);
+    });
+
+    it("should write a global root AGENTS.md under .agents in global mode", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".",
+        relativeFilePath: "overview.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          description: "Global overview",
+          globs: ["**/*"],
+        },
+        body: "# Global Cline Rule",
+      });
+
+      const clineRule = ClineRule.fromRulesyncRule({
+        outputRoot: "/home/user",
+        rulesyncRule,
+        global: true,
+      });
+
+      expect(clineRule).toBeInstanceOf(ClineRule);
+      expect(clineRule.isRoot()).toBe(true);
+      expect(clineRule.getRelativeDirPath()).toBe(".agents");
+      expect(clineRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(clineRule.getFilePath()).toBe(join("/home/user", ".agents", "AGENTS.md"));
+      expect(clineRule.getFileContent()).toContain("# Global Cline Rule");
+    });
+
+    it("should throw for a non-root rule in global mode", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".",
+        relativeFilePath: "detail.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          description: "Detail rule",
+          globs: [],
+        },
+        body: "# Detail",
+      });
+
+      expect(() =>
+        ClineRule.fromRulesyncRule({
+          rulesyncRule,
+          global: true,
+        }),
+      ).toThrow(/does not support non-root rules in global mode/);
     });
   });
 

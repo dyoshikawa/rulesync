@@ -315,7 +315,7 @@ describe("E2E: skills (global mode)", () => {
     },
     {
       target: "antigravity-ide",
-      outputPath: join(".gemini", "antigravity", "skills", "test-skill", "SKILL.md"),
+      outputPath: join(".gemini", "config", "skills", "test-skill", "SKILL.md"),
     },
     {
       target: "antigravity-cli",

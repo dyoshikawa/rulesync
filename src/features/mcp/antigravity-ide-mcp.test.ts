@@ -33,7 +33,7 @@ describe("AntigravityIdeMcp", () => {
     it("should return correct paths for global mode", () => {
       const paths = AntigravityIdeMcp.getSettablePaths({ global: true });
 
-      expect(paths.relativeDirPath).toBe(join(".gemini", "antigravity"));
+      expect(paths.relativeDirPath).toBe(join(".gemini", "config"));
       expect(paths.relativeFilePath).toBe("mcp_config.json");
     });
   });
@@ -151,7 +151,7 @@ describe("AntigravityIdeMcp", () => {
       });
 
       expect(antigravityIdeMcp.getJson()).toEqual(jsonData);
-      expect(antigravityIdeMcp.getRelativeDirPath()).toBe(join(".gemini", "antigravity"));
+      expect(antigravityIdeMcp.getRelativeDirPath()).toBe(join(".gemini", "config"));
       expect(antigravityIdeMcp.getRelativeFilePath()).toBe("mcp_config.json");
     });
   });

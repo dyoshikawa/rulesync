@@ -34,9 +34,9 @@ describe("AntigravityIdeSkill", () => {
       expect(paths.relativeDirPath).toBe(join(".agents", "skills"));
     });
 
-    it("should return .gemini/antigravity/skills as relativeDirPath in global mode", () => {
+    it("should return .gemini/config/skills as relativeDirPath in global mode", () => {
       const paths = AntigravityIdeSkill.getSettablePaths({ global: true });
-      expect(paths.relativeDirPath).toBe(join(".gemini", "antigravity", "skills"));
+      expect(paths.relativeDirPath).toBe(join(".gemini", "config", "skills"));
     });
   });
 
@@ -66,7 +66,7 @@ describe("AntigravityIdeSkill", () => {
     it("should create instance with valid content in global mode", () => {
       const skill = new AntigravityIdeSkill({
         outputRoot: testDir,
-        relativeDirPath: join(".gemini", "antigravity", "skills"),
+        relativeDirPath: join(".gemini", "config", "skills"),
         dirName: "test-skill",
         frontmatter: {
           name: "Test Skill",
@@ -131,7 +131,7 @@ This is the body of the antigravity ide skill.`;
     });
 
     it("should create instance from valid skill directory in global mode", async () => {
-      const skillDir = join(testDir, ".gemini", "antigravity", "skills", "test-skill");
+      const skillDir = join(testDir, ".gemini", "config", "skills", "test-skill");
       await ensureDir(skillDir);
       const skillContent = `---
 name: Test Skill
@@ -359,7 +359,7 @@ Missing description field.`;
     it("should convert to a RulesyncSkill in global mode", () => {
       const skill = new AntigravityIdeSkill({
         outputRoot: testDir,
-        relativeDirPath: join(".gemini", "antigravity", "skills"),
+        relativeDirPath: join(".gemini", "config", "skills"),
         dirName: "test-skill",
         frontmatter: {
           name: "Test Skill",
@@ -397,7 +397,7 @@ Missing description field.`;
     it("should create instance for deletion in global mode", () => {
       const skill = AntigravityIdeSkill.forDeletion({
         outputRoot: testDir,
-        relativeDirPath: join(".gemini", "antigravity", "skills"),
+        relativeDirPath: join(".gemini", "config", "skills"),
         dirName: "skill-to-delete",
         global: true,
       });
