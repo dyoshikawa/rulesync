@@ -895,6 +895,7 @@ Content that would fail parsing`;
         "augmentcode",
         "claudecode",
         "claudecode-legacy",
+        "cline",
         "codexcli",
         "copilot",
         "copilotcli",
@@ -933,6 +934,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("augmentcode");
       expect(globalTargets).toContain("claudecode");
       expect(globalTargets).toContain("claudecode-legacy");
+      expect(globalTargets).toContain("cline");
       expect(globalTargets).toContain("codexcli");
       expect(globalTargets).toContain("copilot");
       expect(globalTargets).toContain("copilotcli");
@@ -946,7 +948,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("takt");
       expect(globalTargets).toContain("windsurf");
       expect(globalTargets).toContain("zed");
-      expect(globalTargets.length).toBe(18);
+      expect(globalTargets.length).toBe(19);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

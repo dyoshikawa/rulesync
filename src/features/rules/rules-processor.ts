@@ -345,8 +345,10 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
     {
       class: ClineRule,
       meta: {
+        // Project scope writes `.clinerules/*.md`; global scope writes a single
+        // cross-tool `~/.agents/AGENTS.md` (Cline CLI v3.0.15+).
         extension: "md",
-        supportsGlobal: false,
+        supportsGlobal: true,
         ruleDiscoveryMode: "auto",
       },
     },
