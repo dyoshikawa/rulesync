@@ -12,7 +12,6 @@ const config: KnipConfig = {
     // Configuration files
     "tsconfig.json",
     "vitest.config.ts",
-    "eslint.config.js",
     ".oxfmtrc.json",
     ".rulesync/**",
     "docs/**",

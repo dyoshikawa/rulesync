@@ -356,7 +356,6 @@ export class Config {
     // array form this means "both values are present".
     const has = (target: string): boolean => {
       if (Array.isArray(targets)) {
-        // eslint-disable-next-line no-type-assertion/no-type-assertion
         return targets.includes(target as RulesyncTargets[number]);
       }
       return Object.prototype.hasOwnProperty.call(targets, target);
@@ -394,7 +393,6 @@ export class Config {
     for (const key of keys) {
       if (key === "*") continue;
       if (!validTargets.has(key)) continue;
-      // eslint-disable-next-line no-type-assertion/no-type-assertion
       result.push(key as ToolTarget);
     }
     return result;
@@ -423,7 +421,6 @@ export class Config {
       // Exclude legacy targets from wildcard expansion
       // Legacy targets must be explicitly specified
       return ALL_TOOL_TARGETS.filter(
-        // eslint-disable-next-line no-type-assertion/no-type-assertion
         (target) => !LEGACY_TARGETS.includes(target as (typeof LEGACY_TARGETS)[number]),
       );
     }
@@ -484,7 +481,6 @@ export class Config {
     for (const [key, val] of Object.entries(value)) {
       if (key === "*") continue;
       if (!isFeatureValueEnabled(val)) continue;
-      // eslint-disable-next-line no-type-assertion/no-type-assertion
       enabled.push(key as Feature);
     }
     return enabled;

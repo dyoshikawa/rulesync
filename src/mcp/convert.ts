@@ -94,7 +94,6 @@ export async function executeConvert(options: ConvertOptions): Promise<McpConver
     // to `*` so every feature that both tools support is attempted.
     const config = await ConfigResolver.resolve({
       targets: [fromTool, ...toTools],
-      // eslint-disable-next-line no-type-assertion/no-type-assertion
       features: (options.features ?? ["*"]) as RulesyncFeatures,
       global: options.global,
       dryRun: options.dryRun,

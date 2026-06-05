@@ -58,9 +58,7 @@ export async function executeImport(options: ImportOptions): Promise<McpImportRe
     // ConfigResolver handles: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
     // In MCP context, options act as CLI options (highest priority)
     const config = await ConfigResolver.resolve({
-      // eslint-disable-next-line no-type-assertion/no-type-assertion
       targets: [options.target] as RulesyncTargets,
-      // eslint-disable-next-line no-type-assertion/no-type-assertion
       features: options.features as RulesyncFeatures | undefined,
       global: options.global,
       // Always use default outputRoots (process.cwd()) and configPath
@@ -69,7 +67,6 @@ export async function executeImport(options: ImportOptions): Promise<McpImportRe
       silent: true,
     });
 
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
     const tool = config.getTargets()[0] as ToolTarget;
 
     const logger = new ConsoleLogger({ verbose: false, silent: true });
