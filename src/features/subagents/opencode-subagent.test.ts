@@ -26,18 +26,18 @@ describe("OpenCodeSubagent", () => {
 
   it("should return settable paths for project and global scopes", () => {
     expect(OpenCodeSubagent.getSettablePaths()).toEqual({
-      relativeDirPath: ".opencode/agent",
+      relativeDirPath: ".opencode/agents",
     });
 
     expect(OpenCodeSubagent.getSettablePaths({ global: true })).toEqual({
-      relativeDirPath: join(".config", "opencode", "agent"),
+      relativeDirPath: join(".config", "opencode", "agents"),
     });
   });
 
   it("should create a RulesyncSubagent with opencode section and subagent mode", () => {
     const subagent = new OpenCodeSubagent({
       outputRoot: testDir,
-      relativeDirPath: ".opencode/agent",
+      relativeDirPath: ".opencode/agents",
       relativeFilePath: "review.md",
       frontmatter: {
         description: "Reviews code",
@@ -94,7 +94,7 @@ describe("OpenCodeSubagent", () => {
       model: "model-x",
       mode: "primary",
     });
-    expect(toolSubagent.getRelativeDirPath()).toBe(join(".config", "opencode", "agent"));
+    expect(toolSubagent.getRelativeDirPath()).toBe(join(".config", "opencode", "agents"));
   });
 
   it("should build OpenCode subagent with default mode when not specified", () => {
@@ -128,7 +128,7 @@ describe("OpenCodeSubagent", () => {
       model: "model-x",
       mode: "subagent",
     });
-    expect(toolSubagent.getRelativeDirPath()).toBe(join(".config", "opencode", "agent"));
+    expect(toolSubagent.getRelativeDirPath()).toBe(join(".config", "opencode", "agents"));
   });
 
   it("should preserve primary mode for OpenCode subagent", () => {
@@ -170,7 +170,7 @@ describe("OpenCodeSubagent", () => {
   });
 
   it("should load from file and validate frontmatter", async () => {
-    const dirPath = join(testDir, ".opencode", "agent");
+    const dirPath = join(testDir, ".opencode", "agents");
     const filePath = join(dirPath, "general.md");
 
     await writeFileContent(
@@ -205,7 +205,7 @@ Assist with any tasks`,
   });
 
   it("should apply default mode 'subagent' when mode is omitted", async () => {
-    const dirPath = join(testDir, ".opencode", "agent");
+    const dirPath = join(testDir, ".opencode", "agents");
     const filePath = join(dirPath, "no-mode.md");
 
     await writeFileContent(
@@ -225,7 +225,7 @@ Body content`,
   });
 
   it("should preserve custom mode value when explicitly set", async () => {
-    const dirPath = join(testDir, ".opencode", "agent");
+    const dirPath = join(testDir, ".opencode", "agents");
     const filePath = join(dirPath, "custom-mode.md");
 
     await writeFileContent(

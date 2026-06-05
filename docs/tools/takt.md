@@ -1,6 +1,6 @@
 # Takt
 
-[Takt](https://github.com/dyoshikawa/takt) is a faceted-prompting AI coding workflow tool. Rulesync generates plain-Markdown facet files into Takt's `.takt/facets/` layout (or `~/.takt/facets/` in global mode).
+[Takt](https://github.com/nrslib/takt) is a faceted-prompting AI coding workflow tool. Rulesync generates plain-Markdown facet files into Takt's `.takt/facets/` layout (or `~/.takt/facets/` in global mode).
 
 ## Output mapping
 

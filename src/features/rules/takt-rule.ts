@@ -29,7 +29,7 @@ export type TaktRuleParams = Omit<ToolRuleParams, "fileContent"> & {
 };
 
 /**
- * Rule generator for TAKT (https://github.com/dyoshikawa/takt).
+ * Rule generator for TAKT (https://github.com/nrslib/takt).
  *
  * TAKT organizes prompts into faceted directories under `.takt/facets/`.
  * Rulesync rules always map to TAKT's `policies/` facet; the source

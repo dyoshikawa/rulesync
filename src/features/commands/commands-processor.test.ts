@@ -160,8 +160,8 @@ vi.mocked(OpenCodeCommand).fromRulesyncCommand = vi.fn();
 vi.mocked(OpenCodeCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValue(true);
 vi.mocked(OpenCodeCommand).getSettablePaths = vi.fn().mockImplementation((options = {}) => ({
   relativeDirPath: options.global
-    ? join(".config", "opencode", "command")
-    : join(".opencode", "command"),
+    ? join(".config", "opencode", "commands")
+    : join(".opencode", "commands"),
 }));
 vi.mocked(OpenCodeCommand).forDeletion = vi.fn().mockImplementation((params) => ({
   ...params,

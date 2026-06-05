@@ -53,10 +53,14 @@ export class OpenCodeCommand extends ToolCommand {
   }
 
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolCommandSettablePaths {
+    // OpenCode's canonical directory is the plural `commands/`. The singular
+    // `command/` is deprecated upstream (kept only for backwards compatibility),
+    // so rulesync emits the plural form to match the documented convention and
+    // its own plural `.opencode/plugins` hooks output.
     return {
       relativeDirPath: global
-        ? join(".config", "opencode", "command")
-        : join(".opencode", "command"),
+        ? join(".config", "opencode", "commands")
+        : join(".opencode", "commands"),
     };
   }
 

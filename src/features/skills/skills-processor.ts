@@ -42,6 +42,7 @@ import {
   ToolSkillSettablePaths,
   toolSkillSearchRoots,
 } from "./tool-skill.js";
+import { WarpSkill } from "./warp-skill.js";
 import { WindsurfSkill } from "./windsurf-skill.js";
 import { ZedSkill } from "./zed-skill.js";
 
@@ -95,6 +96,7 @@ const skillsProcessorToolTargetTuple = [
   "roo",
   "rovodev",
   "takt",
+  "warp",
   "windsurf",
   "zed",
 ] as const;
@@ -267,6 +269,13 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     "takt",
     {
       class: TaktSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "warp",
+    {
+      class: WarpSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

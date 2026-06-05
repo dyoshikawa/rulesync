@@ -133,7 +133,7 @@ You are a primary agent. You appear in the Tab rotation.
 
     // Verify that the mode is preserved as primary, not defaulting to subagent
     const generatedContent = await readFileContent(
-      join(testDir, ".opencode", "agent", "primary-agent.md"),
+      join(testDir, ".opencode", "agents", "primary-agent.md"),
     );
     expect(generatedContent).toContain("mode: primary");
     expect(generatedContent).not.toContain("mode: subagent");
@@ -240,7 +240,7 @@ describe("E2E: subagents (import)", () => {
     { target: "cursor", sourcePath: join(".cursor", "agents", "planner.md") },
     { target: "geminicli", sourcePath: join(".gemini", "agents", "planner.md") },
     { target: "copilot", sourcePath: join(".github", "agents", "planner.md") },
-    { target: "opencode", sourcePath: join(".opencode", "agent", "planner.md") },
+    { target: "opencode", sourcePath: join(".opencode", "agents", "planner.md") },
     { target: "deepagents", sourcePath: join(".deepagents", "agents", "planner.md") },
     { target: "junie", sourcePath: join(".junie", "agents", "planner.md") },
   ])("should import $target subagents", async ({ target, sourcePath }) => {
@@ -293,7 +293,7 @@ describe("E2E: subagents (global mode)", () => {
     { target: "cursor", outputPath: join(".cursor", "agents", "planner.md") },
     { target: "geminicli", outputPath: join(".gemini", "agents", "planner.md") },
     { target: "junie", outputPath: join(".junie", "agents", "planner.md") },
-    { target: "opencode", outputPath: join(".config", "opencode", "agent", "planner.md") },
+    { target: "opencode", outputPath: join(".config", "opencode", "agents", "planner.md") },
     { target: "rovodev", outputPath: join(".rovodev", "subagents", "planner.md") },
     { target: "takt", outputPath: join(".takt", "facets", "personas", "planner.md") },
   ])("should generate $target subagents in home directory", async ({ target, outputPath }) => {
