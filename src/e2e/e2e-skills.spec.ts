@@ -60,6 +60,10 @@ describe("E2E: skills", () => {
       outputPath: join(".windsurf", "skills", "test-skill", "SKILL.md"),
     },
     {
+      target: "warp",
+      outputPath: join(".warp", "skills", "test-skill", "SKILL.md"),
+    },
+    {
       target: "kiro",
       outputPath: join(".kiro", "skills", "test-skill", "SKILL.md"),
     },
@@ -165,6 +169,7 @@ This is the test skill body content.
     { target: "roo", orphanPath: join(".roo", "skills", "orphan-skill", "SKILL.md") },
     { target: "rovodev", orphanPath: join(".rovodev", "skills", "orphan-skill", "SKILL.md") },
     { target: "windsurf", orphanPath: join(".windsurf", "skills", "orphan-skill", "SKILL.md") },
+    { target: "warp", orphanPath: join(".warp", "skills", "orphan-skill", "SKILL.md") },
     { target: "kiro", orphanPath: join(".kiro", "skills", "orphan-skill", "SKILL.md") },
     { target: "antigravity", orphanPath: join(".agent", "skills", "orphan-skill", "SKILL.md") },
     {
@@ -224,6 +229,7 @@ describe("E2E: skills (import)", () => {
     { target: "roo", sourcePath: join(".roo", "skills", "test-skill", "SKILL.md") },
     { target: "rovodev", sourcePath: join(".rovodev", "skills", "test-skill", "SKILL.md") },
     { target: "windsurf", sourcePath: join(".windsurf", "skills", "test-skill", "SKILL.md") },
+    { target: "warp", sourcePath: join(".warp", "skills", "test-skill", "SKILL.md") },
     { target: "kiro", sourcePath: join(".kiro", "skills", "test-skill", "SKILL.md") },
     { target: "antigravity", sourcePath: join(".agent", "skills", "test-skill", "SKILL.md") },
     { target: "antigravity-ide", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
@@ -265,7 +271,7 @@ describe("E2E: skills (global mode)", () => {
     },
     {
       target: "opencode",
-      outputPath: join(".config", "opencode", "skill", "test-skill", "SKILL.md"),
+      outputPath: join(".config", "opencode", "skills", "test-skill", "SKILL.md"),
     },
     {
       target: "codexcli",
@@ -298,6 +304,10 @@ describe("E2E: skills (global mode)", () => {
     {
       target: "windsurf",
       outputPath: join(".codeium", "windsurf", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "warp",
+      outputPath: join(".warp", "skills", "test-skill", "SKILL.md"),
     },
     {
       target: "antigravity",

@@ -248,9 +248,9 @@ rulesync.local.jsonc
 **/.github/hooks/
 **/.vscode/mcp.json
 !.rulesync/.aiignore
-**/.opencode/command/
-**/.opencode/agent/
-**/.opencode/skill/
+**/.opencode/commands/
+**/.opencode/agents/
+**/.opencode/skills/
 **/.opencode/plugins/
 **/.opencode/memories/
 **/.opencode/package-lock.json

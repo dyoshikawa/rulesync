@@ -29,7 +29,7 @@ describe("OpenCodeCommand", () => {
     it("should create a command with optional OpenCode fields", () => {
       const command = new OpenCodeCommand({
         outputRoot: testDir,
-        relativeDirPath: join(".opencode", "command"),
+        relativeDirPath: join(".opencode", "commands"),
         relativeFilePath: "test.md",
         frontmatter: {
           description: "Run tests",
@@ -53,7 +53,7 @@ describe("OpenCodeCommand", () => {
       expect(() => {
         new OpenCodeCommand({
           outputRoot: testDir,
-          relativeDirPath: join(".opencode", "command"),
+          relativeDirPath: join(".opencode", "commands"),
           relativeFilePath: "invalid.md",
           frontmatter: { description: 123 as unknown as string },
           body: "content",
@@ -66,10 +66,10 @@ describe("OpenCodeCommand", () => {
   describe("getSettablePaths", () => {
     it("should return project and global paths", () => {
       expect(OpenCodeCommand.getSettablePaths()).toEqual({
-        relativeDirPath: join(".opencode", "command"),
+        relativeDirPath: join(".opencode", "commands"),
       });
       expect(OpenCodeCommand.getSettablePaths({ global: true })).toEqual({
-        relativeDirPath: join(".config", "opencode", "command"),
+        relativeDirPath: join(".config", "opencode", "commands"),
       });
     });
   });
@@ -100,7 +100,7 @@ describe("OpenCodeCommand", () => {
       });
 
       expect(command.getFrontmatter()).toEqual({ description: "Analyze coverage", subtask: true });
-      expect(command.getRelativeDirPath()).toBe(join(".config", "opencode", "command"));
+      expect(command.getRelativeDirPath()).toBe(join(".config", "opencode", "commands"));
     });
   });
 
@@ -108,7 +108,7 @@ describe("OpenCodeCommand", () => {
     it("should convert to RulesyncCommand with opencode metadata", () => {
       const command = new OpenCodeCommand({
         outputRoot: testDir,
-        relativeDirPath: join(".opencode", "command"),
+        relativeDirPath: join(".opencode", "commands"),
         relativeFilePath: "custom.md",
         frontmatter: { description: "Create component", agent: "plan" },
         body: "Create a new component named $ARGUMENTS",
@@ -128,7 +128,7 @@ describe("OpenCodeCommand", () => {
 
   describe("fromFile", () => {
     it("should load a command file and parse frontmatter", async () => {
-      const commandDir = join(testDir, ".opencode", "command");
+      const commandDir = join(testDir, ".opencode", "commands");
       await ensureDir(commandDir);
       const filePath = join(commandDir, "task.md");
       await writeFileContent(

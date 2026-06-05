@@ -74,7 +74,7 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.clinerules/");
       expect(content).toContain("**/.clinerules/workflows/");
       expect(content).toContain("**/CLAUDE.md");
-      expect(content).toContain("**/.opencode/agent/");
+      expect(content).toContain("**/.opencode/agents/");
       expect(content).toContain("**/.gemini/memories/");
       expect(content).toContain("**/.roo/rules/");
       expect(content).toContain("**/.kilo/skills/");
@@ -257,7 +257,7 @@ dist/`;
 
       expect(mockLogger.info).toHaveBeenCalledWith("  **/.cursor/");
       expect(mockLogger.info).toHaveBeenCalledWith("  **/.kilo/rules/");
-      expect(mockLogger.info).toHaveBeenCalledWith("  **/.opencode/agent/");
+      expect(mockLogger.info).toHaveBeenCalledWith("  **/.opencode/agents/");
       expect(mockLogger.info).toHaveBeenCalledWith("  **/CLAUDE.md");
     });
 

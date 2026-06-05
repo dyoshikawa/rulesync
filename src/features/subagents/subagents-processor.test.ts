@@ -296,7 +296,7 @@ describe("SubagentsProcessor", () => {
 
       expect(toolFiles).toHaveLength(1);
       const [opencodeSubagent] = toolFiles;
-      expect(opencodeSubagent?.getRelativeDirPath()).toBe(".opencode/agent");
+      expect(opencodeSubagent?.getRelativeDirPath()).toBe(".opencode/agents");
     });
   });
 

@@ -236,9 +236,9 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "common", feature: "general", entry: "!.rulesync/.aiignore" },
 
   // OpenCode
-  { target: "opencode", feature: "commands", entry: "**/.opencode/command/" },
-  { target: "opencode", feature: "subagents", entry: "**/.opencode/agent/" },
-  { target: "opencode", feature: "skills", entry: "**/.opencode/skill/" },
+  { target: "opencode", feature: "commands", entry: "**/.opencode/commands/" },
+  { target: "opencode", feature: "subagents", entry: "**/.opencode/agents/" },
+  { target: "opencode", feature: "skills", entry: "**/.opencode/skills/" },
   { target: "opencode", feature: "mcp", entry: "**/.opencode/plugins/" },
   { target: "opencode", feature: "general", entry: "**/.opencode/memories/" },
   {
@@ -305,6 +305,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   // `/init` now writes `AGENTS.md` (handled by the shared AGENTS.md entry above).
   { target: "warp", feature: "rules", entry: "**/.warp/" },
   { target: "warp", feature: "mcp", entry: "**/.warp/.mcp.json" },
+  { target: "warp", feature: "skills", entry: "**/.warp/skills/" },
 
   // Zed
   // `.rules` is the project rules file. `.agents/skills/` is shared with the

@@ -100,7 +100,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | JetBrains Junie        |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |             |
 | AugmentCode            |  ✅   |   ✅   |     |    ✅    |           |        |       |     ✅      |
 | Windsurf               |  ✅   |   ✅   | ✅  |    ✅    |           |   ✅   |  ✅   |             |
-| Warp                   |  ✅   |        |     |          |           |        |       |             |
+| Warp                   |  ✅   |        | ✅  |          |           |   ✅   |       |             |
 | Replit                 |  ✅   |        |     |          |           |   ✅   |       |             |
 | Pi Coding Agent        |  ✅   |        |     |    ✅    |           |   ✅   |       |             |
 | Zed                    |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |     ✅      |

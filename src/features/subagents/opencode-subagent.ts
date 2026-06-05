@@ -33,8 +33,11 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
   }: {
     global?: boolean;
   } = {}): ToolSubagentSettablePaths {
+    // OpenCode's canonical directory is the plural `agents/`. The singular
+    // `agent/` is deprecated upstream (kept only for backwards compatibility),
+    // so rulesync emits the plural form to match the documented convention.
     return {
-      relativeDirPath: global ? join(".config", "opencode", "agent") : join(".opencode", "agent"),
+      relativeDirPath: global ? join(".config", "opencode", "agents") : join(".opencode", "agents"),
     };
   }
 
