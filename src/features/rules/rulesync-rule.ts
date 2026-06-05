@@ -54,7 +54,7 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       globs: z.optional(z.array(z.string())),
     }),
   ),
-  windsurf: z.optional(
+  devin: z.optional(
     z.looseObject({
       // Activation mode: always_on | glob | manual | model_decision
       trigger: z.optional(z.string()),

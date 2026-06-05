@@ -45,6 +45,7 @@ import { CopilotRule } from "./copilot-rule.js";
 import { CopilotcliRule } from "./copilotcli-rule.js";
 import { CursorRule } from "./cursor-rule.js";
 import { DeepagentsRule } from "./deepagents-rule.js";
+import { DevinRule } from "./devin-rule.js";
 import { FactorydroidRule } from "./factorydroid-rule.js";
 import { GeminiCliRule } from "./geminicli-rule.js";
 import { GooseRule } from "./goose-rule.js";
@@ -68,7 +69,6 @@ import {
   ToolRuleSettablePathsGlobal,
 } from "./tool-rule.js";
 import { WarpRule } from "./warp-rule.js";
-import { WindsurfRule } from "./windsurf-rule.js";
 import { ZedRule } from "./zed-rule.js";
 
 const rulesProcessorToolTargets: ToolTarget[] = [
@@ -100,7 +100,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "rovodev",
   "takt",
   "warp",
-  "windsurf",
+  "devin",
   "zed",
 ];
 export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargets);
@@ -582,17 +582,18 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
     },
   ],
   [
-    "windsurf",
+    "devin",
     {
-      class: WindsurfRule,
+      class: DevinRule,
       meta: {
         extension: "md",
-        // Project rules live under `.windsurf/rules/*.md`; global rules are a
-        // single plain `~/.codeium/windsurf/memories/global_rules.md` file.
+        // Project rules live under `.devin/rules/*.md` (preferred since the Devin
+        // Desktop rebrand; `.devin/rules/*.md` is the legacy fallback); global
+        // rules are a single plain `~/.codeium/windsurf/memories/global_rules.md` file.
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
-        // No additionalConventions.skills needed: Windsurf Cascade auto-discovers
-        // skills from .windsurf/skills/ and ~/.codeium/windsurf/skills/ directories.
+        // No additionalConventions.skills needed: Devin Cascade auto-discovers
+        // skills from .devin/skills/ and ~/.codeium/windsurf/skills/ directories.
       },
     },
   ],

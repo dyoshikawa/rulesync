@@ -20,6 +20,7 @@ import { CodexCliSkill } from "./codexcli-skill.js";
 import { CopilotSkill } from "./copilot-skill.js";
 import { CursorSkill } from "./cursor-skill.js";
 import { DeepagentsSkill } from "./deepagents-skill.js";
+import { DevinSkill } from "./devin-skill.js";
 import { FactorydroidSkill } from "./factorydroid-skill.js";
 import { GeminiCliSkill } from "./geminicli-skill.js";
 import { JunieSkill } from "./junie-skill.js";
@@ -43,7 +44,6 @@ import {
   toolSkillSearchRoots,
 } from "./tool-skill.js";
 import { WarpSkill } from "./warp-skill.js";
-import { WindsurfSkill } from "./windsurf-skill.js";
 import { ZedSkill } from "./zed-skill.js";
 
 /**
@@ -97,7 +97,7 @@ const skillsProcessorToolTargetTuple = [
   "rovodev",
   "takt",
   "warp",
-  "windsurf",
+  "devin",
   "zed",
 ] as const;
 
@@ -280,9 +280,9 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     },
   ],
   [
-    "windsurf",
+    "devin",
     {
-      class: WindsurfSkill,
+      class: DevinSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

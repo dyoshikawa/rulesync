@@ -14,9 +14,9 @@ import {
 } from "./tool-mcp.js";
 
 /**
- * MCP generator for Windsurf (Cascade).
+ * MCP generator for Devin (Cascade).
  *
- * Windsurf reads file-based MCP configuration from:
+ * Devin reads file-based MCP configuration from:
  * - Project scope: `.windsurf/mcp_config.json`
  * - Global scope: `~/.codeium/windsurf/mcp_config.json`
  *
@@ -27,20 +27,16 @@ import {
  * ({ serverUrl | url, headers }), and may carry an optional `disabledTools`
  * array.
  */
-export type WindsurfMcpParams = ToolMcpParams;
+export type DevinMcpParams = ToolMcpParams;
 
-export class WindsurfMcp extends ToolMcp {
+export class DevinMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
 
   constructor(params: ToolMcpParams) {
     super(params);
     this.json =
       this.fileContent !== undefined
-        ? WindsurfMcp.parseJsonOrThrow(
-            this.fileContent,
-            this.relativeDirPath,
-            this.relativeFilePath,
-          )
+        ? DevinMcp.parseJsonOrThrow(this.fileContent, this.relativeDirPath, this.relativeFilePath)
         : {};
   }
 
@@ -57,14 +53,14 @@ export class WindsurfMcp extends ToolMcp {
       return JSON.parse(content);
     } catch (error) {
       throw new Error(
-        `Failed to parse Windsurf MCP config at ${join(relativeDirPath, relativeFilePath)}: ${formatError(error)}`,
+        `Failed to parse Devin MCP config at ${join(relativeDirPath, relativeFilePath)}: ${formatError(error)}`,
         { cause: error },
       );
     }
   }
 
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolMcpSettablePaths {
-    // Windsurf MCP uses different directories for project and global modes:
+    // Devin MCP uses different directories for project and global modes:
     // - Project mode: .windsurf/mcp_config.json
     // - Global mode: .codeium/windsurf/mcp_config.json (under the home dir)
     if (global) {
@@ -83,14 +79,14 @@ export class WindsurfMcp extends ToolMcp {
     outputRoot = process.cwd(),
     validate = true,
     global = false,
-  }: ToolMcpFromFileParams): Promise<WindsurfMcp> {
+  }: ToolMcpFromFileParams): Promise<DevinMcp> {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? '{"mcpServers":{}}';
     const json = this.parseJsonOrThrow(fileContent, paths.relativeDirPath, paths.relativeFilePath);
     const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
 
-    return new WindsurfMcp({
+    return new DevinMcp({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -105,7 +101,7 @@ export class WindsurfMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
     global = false,
-  }: ToolMcpFromRulesyncMcpParams): Promise<WindsurfMcp> {
+  }: ToolMcpFromRulesyncMcpParams): Promise<DevinMcp> {
     const paths = this.getSettablePaths({ global });
 
     const fileContent = await readOrInitializeFileContent(
@@ -116,14 +112,14 @@ export class WindsurfMcp extends ToolMcp {
 
     // Use getMcpServers() (not getJson()) so rulesync-only fields and
     // codex-only fields (`envVars`) are stripped before writing the
-    // windsurf config.
-    const windsurfConfig = { ...json, mcpServers: rulesyncMcp.getMcpServers() };
+    // devin config.
+    const devinConfig = { ...json, mcpServers: rulesyncMcp.getMcpServers() };
 
-    return new WindsurfMcp({
+    return new DevinMcp({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: JSON.stringify(windsurfConfig, null, 2),
+      fileContent: JSON.stringify(devinConfig, null, 2),
       validate,
       global,
     });
@@ -144,8 +140,8 @@ export class WindsurfMcp extends ToolMcp {
     relativeDirPath,
     relativeFilePath,
     global = false,
-  }: ToolMcpForDeletionParams): WindsurfMcp {
-    return new WindsurfMcp({
+  }: ToolMcpForDeletionParams): DevinMcp {
+    return new DevinMcp({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

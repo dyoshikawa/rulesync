@@ -18,6 +18,7 @@ import { ClineCommand } from "./cline-command.js";
 import { CodexcliCommand } from "./codexcli-command.js";
 import { CopilotCommand } from "./copilot-command.js";
 import { CursorCommand } from "./cursor-command.js";
+import { DevinCommand } from "./devin-command.js";
 import { FactorydroidCommand } from "./factorydroid-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
 import { JunieCommand } from "./junie-command.js";
@@ -35,7 +36,6 @@ import {
   ToolCommandFromRulesyncCommandParams,
   ToolCommandSettablePaths,
 } from "./tool-command.js";
-import { WindsurfCommand } from "./windsurf-command.js";
 
 /**
  * Factory entry for each tool command class.
@@ -87,7 +87,7 @@ const commandsProcessorToolTargetTuple = [
   "pi",
   "roo",
   "takt",
-  "windsurf",
+  "devin",
 ] as const;
 
 export type CommandsProcessorToolTarget = (typeof commandsProcessorToolTargetTuple)[number];
@@ -348,11 +348,11 @@ const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFac
     },
   ],
   [
-    "windsurf",
+    "devin",
     {
-      class: WindsurfCommand,
+      class: DevinCommand,
       meta: {
-        // Windsurf workflows live under `.windsurf/workflows/*.md` (project) and
+        // Devin workflows live under `.devin/workflows/*.md` (project) and
         // `~/.codeium/windsurf/global_workflows/*.md` (global). Flat Markdown
         // files with optional frontmatter; no subdirectory nesting.
         extension: "md",

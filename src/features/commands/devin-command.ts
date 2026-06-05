@@ -16,32 +16,34 @@ import {
 } from "./tool-command.js";
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
-// Windsurf "workflows" are the command surface for Cascade. Files are Markdown with
+// Devin "workflows" are the command surface for Cascade. Files are Markdown with
 // optional YAML frontmatter; only `description` is documented (no other required fields).
-export const WindsurfCommandFrontmatterSchema = z.looseObject({
+export const DevinCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
 });
 
-export type WindsurfCommandFrontmatter = z.infer<typeof WindsurfCommandFrontmatterSchema>;
+export type DevinCommandFrontmatter = z.infer<typeof DevinCommandFrontmatterSchema>;
 
-export type WindsurfCommandParams = {
-  frontmatter: WindsurfCommandFrontmatter;
+export type DevinCommandParams = {
+  frontmatter: DevinCommandFrontmatter;
   body: string;
 } & Omit<AiFileParams, "fileContent">;
 
 /**
- * Represents a Windsurf (Cascade) workflow command.
- * Windsurf supports workflows in both project mode under .windsurf/workflows/
- * and global mode under ~/.codeium/windsurf/global_workflows/.
+ * Represents a Devin (Cascade, now Devin Desktop) workflow command.
+ * Devin supports workflows in both project mode under .devin/workflows/
+ * (preferred since the Devin Desktop rebrand; .devin/workflows/ is the
+ * legacy fallback the tool still reads) and global mode under
+ * ~/.codeium/windsurf/global_workflows/ (unchanged by the rebrand).
  */
-export class WindsurfCommand extends ToolCommand {
-  private readonly frontmatter: WindsurfCommandFrontmatter;
+export class DevinCommand extends ToolCommand {
+  private readonly frontmatter: DevinCommandFrontmatter;
   private readonly body: string;
 
-  constructor({ frontmatter, body, ...rest }: WindsurfCommandParams) {
+  constructor({ frontmatter, body, ...rest }: DevinCommandParams) {
     // Validate frontmatter before calling super to avoid validation order issues
     if (rest.validate) {
-      const result = WindsurfCommandFrontmatterSchema.safeParse(frontmatter);
+      const result = DevinCommandFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw new Error(
           `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
@@ -59,8 +61,9 @@ export class WindsurfCommand extends ToolCommand {
   }
 
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolCommandSettablePaths {
-    // Windsurf workflows use different paths for project and global modes:
-    // - Project mode: {process.cwd()}/.windsurf/workflows/
+    // Devin workflows use different paths for project and global modes:
+    // - Project mode: {process.cwd()}/.devin/workflows/ (preferred since the
+    //   Devin Desktop rebrand; .devin/workflows/ is the legacy fallback)
     // - Global mode: {getHomeDirectory()}/.codeium/windsurf/global_workflows/
     if (global) {
       return {
@@ -68,7 +71,7 @@ export class WindsurfCommand extends ToolCommand {
       };
     }
     return {
-      relativeDirPath: join(".windsurf", "workflows"),
+      relativeDirPath: join(".devin", "workflows"),
     };
   }
 
@@ -86,8 +89,8 @@ export class WindsurfCommand extends ToolCommand {
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["*"],
       description,
-      // Preserve extra fields in windsurf section
-      ...(Object.keys(restFields).length > 0 && { windsurf: restFields }),
+      // Preserve extra fields in devin section
+      ...(Object.keys(restFields).length > 0 && { devin: restFields }),
     };
 
     // Generate proper file content with Rulesync specific frontmatter
@@ -109,25 +112,25 @@ export class WindsurfCommand extends ToolCommand {
     rulesyncCommand,
     validate = true,
     global = false,
-  }: ToolCommandFromRulesyncCommandParams): WindsurfCommand {
+  }: ToolCommandFromRulesyncCommandParams): DevinCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
 
-    // Merge windsurf-specific fields from rulesync frontmatter
-    const windsurfFields = rulesyncFrontmatter.windsurf ?? {};
+    // Merge devin-specific fields from rulesync frontmatter
+    const devinFields = rulesyncFrontmatter.devin ?? {};
 
-    const windsurfFrontmatter: WindsurfCommandFrontmatter = {
+    const devinFrontmatter: DevinCommandFrontmatter = {
       description: rulesyncFrontmatter.description,
-      ...windsurfFields,
+      ...devinFields,
     };
 
-    // Generate proper file content with Windsurf specific frontmatter
+    // Generate proper file content with Devin specific frontmatter
     const body = rulesyncCommand.getBody();
 
     const paths = this.getSettablePaths({ global });
 
-    return new WindsurfCommand({
+    return new DevinCommand({
       outputRoot: outputRoot,
-      frontmatter: windsurfFrontmatter,
+      frontmatter: devinFrontmatter,
       body,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: rulesyncCommand.getRelativeFilePath(),
@@ -141,7 +144,7 @@ export class WindsurfCommand extends ToolCommand {
       return { success: true, error: null };
     }
 
-    const result = WindsurfCommandFrontmatterSchema.safeParse(this.frontmatter);
+    const result = DevinCommandFrontmatterSchema.safeParse(this.frontmatter);
     if (result.success) {
       return { success: true, error: null };
     } else {
@@ -157,7 +160,7 @@ export class WindsurfCommand extends ToolCommand {
   static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
     return this.isTargetedByRulesyncCommandDefault({
       rulesyncCommand,
-      toolTarget: "windsurf",
+      toolTarget: "devin",
     });
   }
 
@@ -166,20 +169,20 @@ export class WindsurfCommand extends ToolCommand {
     relativeFilePath,
     validate = true,
     global = false,
-  }: ToolCommandFromFileParams): Promise<WindsurfCommand> {
+  }: ToolCommandFromFileParams): Promise<DevinCommand> {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     // Read file content
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
-    // Validate required fields using WindsurfCommandFrontmatterSchema
-    const result = WindsurfCommandFrontmatterSchema.safeParse(frontmatter);
+    // Validate required fields using DevinCommandFrontmatterSchema
+    const result = DevinCommandFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
       throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
-    return new WindsurfCommand({
+    return new DevinCommand({
       outputRoot: outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
@@ -193,8 +196,8 @@ export class WindsurfCommand extends ToolCommand {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
-  }: ToolCommandForDeletionParams): WindsurfCommand {
-    return new WindsurfCommand({
+  }: ToolCommandForDeletionParams): DevinCommand {
+    return new DevinCommand({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

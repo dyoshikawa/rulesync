@@ -224,6 +224,21 @@ export const ANTIGRAVITY_HOOK_EVENTS: readonly HookEvent[] = [
   "stop",
 ];
 
+/**
+ * Hook events supported by AugmentCode (Auggie CLI).
+ * Auggie mirrors Claude Code's lifecycle hooks but exposes a smaller set:
+ * PreToolUse / PostToolUse (tool events, matcher-aware) plus the
+ * SessionStart / SessionEnd / Stop session events (no matcher).
+ * @see https://docs.augmentcode.com/cli/hooks
+ */
+export const AUGMENTCODE_HOOK_EVENTS: readonly HookEvent[] = [
+  "preToolUse",
+  "postToolUse",
+  "sessionStart",
+  "sessionEnd",
+  "stop",
+];
+
 const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
 
 /**
@@ -243,7 +258,8 @@ export const HooksConfigSchema = z.looseObject({
   codexcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   deepagents: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   kiro: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
-  windsurf: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  devin: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  augmentcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "antigravity-ide": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "antigravity-cli": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
 });
@@ -274,6 +290,25 @@ export const CANONICAL_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
  */
 export const CLAUDE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_CLAUDE_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to AugmentCode PascalCase.
+ * Auggie reuses the same PascalCase names as Claude for the events it supports.
+ */
+export const CANONICAL_TO_AUGMENTCODE_EVENT_NAMES: Record<string, string> = {
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  stop: "Stop",
+};
+
+/**
+ * Map AugmentCode PascalCase event names to canonical camelCase.
+ */
+export const AUGMENTCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_AUGMENTCODE_EVENT_NAMES).map(([k, v]) => [v, k]),
 );
 
 /**

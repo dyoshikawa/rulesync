@@ -40,6 +40,7 @@ describe("E2E: hooks", () => {
     { target: "kiro", outputPath: join(".kiro", "agents", "default.json") },
     { target: "antigravity-ide", outputPath: join(".agents", "hooks.json") },
     { target: "antigravity-cli", outputPath: join(".agents", "hooks.json") },
+    { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   ])("should generate $target hooks", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -99,6 +100,14 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks).toBeDefined();
         expect(parsed.hooks.sessionStart).toBeDefined();
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+      } else if (target === "augmentcode") {
+        // AugmentCode mirrors Claude's PascalCase event names but emits commands
+        // verbatim (AUGMENT_PROJECT_DIR is a runtime env var, not an inline prefix).
+        expect(parsed.hooks).toBeDefined();
+        expect(parsed.hooks.SessionStart).toBeDefined();
+        expect(parsed.hooks.Stop).toBeDefined();
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+        expect(JSON.stringify(parsed.hooks)).not.toContain("$CLAUDE_PROJECT_DIR");
       } else if (target === "antigravity-ide" || target === "antigravity-cli") {
         // Antigravity nests the event → matcher-entry map under a generated
         // `rulesync` hook name and supports preToolUse/postToolUse/
@@ -115,11 +124,11 @@ describe("E2E: hooks", () => {
     }
   });
 
-  it("should generate windsurf hooks", async () => {
+  it("should generate devin hooks", async () => {
     const testDir = getTestDir();
 
-    // Windsurf supports file/command/MCP lifecycle events but not sessionStart/stop,
-    // so this dedicated case uses windsurf-supported canonical events.
+    // Devin supports file/command/MCP lifecycle events but not sessionStart/stop,
+    // so this dedicated case uses devin-supported canonical events.
     const hooksContent = JSON.stringify(
       {
         version: 1,
@@ -133,11 +142,11 @@ describe("E2E: hooks", () => {
     );
     await writeFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
 
-    await runGenerate({ target: "windsurf", features: "hooks" });
+    await runGenerate({ target: "devin", features: "hooks" });
 
     const generatedContent = await readFileContent(join(testDir, ".windsurf", "hooks.json"));
     const parsed = JSON.parse(generatedContent);
-    // Windsurf maps beforeShellExecution → pre_run_command and afterFileEdit → post_write_code.
+    // Devin maps beforeShellExecution → pre_run_command and afterFileEdit → post_write_code.
     expect(parsed.hooks.pre_run_command).toBeDefined();
     expect(parsed.hooks.post_write_code).toBeDefined();
     expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/pre-run.sh");
@@ -310,10 +319,10 @@ describe("E2E: hooks (import)", () => {
       expectedEvent: "preToolUse",
     },
     {
-      // Windsurf hooks.json maps each Windsurf event name to a flat array of
+      // Devin hooks.json maps each Devin event name to a flat array of
       // command/powershell hook objects. `pre_run_command` round-trips to the
       // canonical `beforeShellExecution` event.
-      target: "windsurf",
+      target: "devin",
       sourcePath: join(".windsurf", "hooks.json"),
       sourceContent: {
         hooks: {
@@ -321,6 +330,18 @@ describe("E2E: hooks (import)", () => {
         },
       },
       expectedEvent: "beforeShellExecution",
+    },
+    {
+      // AugmentCode stores hooks under the `hooks` key of the shared settings
+      // file using Claude-style PascalCase event names; SessionStart round-trips
+      // to the canonical `sessionStart` event.
+      target: "augmentcode",
+      sourcePath: join(".augment", "settings.json"),
+      sourceContent: {
+        hooks: {
+          SessionStart: [{ hooks: [{ type: "command", command: "echo session started" }] }],
+        },
+      },
     },
   ])(
     "should import $target hooks",
@@ -353,6 +374,7 @@ describe("E2E: hooks (global mode)", () => {
     { target: "copilotcli", outputPath: join(".copilot", "hooks", "copilot-hooks.json") },
     { target: "antigravity-ide", outputPath: join(".gemini", "config", "hooks.json") },
     { target: "antigravity-cli", outputPath: join(".gemini", "config", "hooks.json") },
+    { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   ])("should generate $target hooks in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
@@ -402,12 +424,12 @@ describe("E2E: hooks (global mode)", () => {
     }
   });
 
-  it("should generate windsurf hooks in home directory", async () => {
+  it("should generate devin hooks in home directory", async () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
 
-    // Windsurf does not support sessionStart/stop, so this dedicated global case
-    // uses windsurf-supported canonical events.
+    // Devin does not support sessionStart/stop, so this dedicated global case
+    // uses devin-supported canonical events.
     const hooksContent = JSON.stringify(
       {
         version: 1,
@@ -423,7 +445,7 @@ describe("E2E: hooks (global mode)", () => {
     await writeFileContent(join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
 
     await runGenerate({
-      target: "windsurf",
+      target: "devin",
       features: "hooks",
       global: true,
       env: { HOME_DIR: homeDir },

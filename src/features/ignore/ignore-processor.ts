@@ -12,6 +12,7 @@ import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
 import { CursorIgnore } from "./cursor-ignore.js";
+import { DevinIgnore } from "./devin-ignore.js";
 import { GeminiCliIgnore } from "./geminicli-ignore.js";
 import { GooseIgnore } from "./goose-ignore.js";
 import { JunieIgnore } from "./junie-ignore.js";
@@ -28,7 +29,6 @@ import {
   ToolIgnoreSettablePaths,
   ToolIgnoreSettablePathsParams,
 } from "./tool-ignore.js";
-import { WindsurfIgnore } from "./windsurf-ignore.js";
 import { ZedIgnore } from "./zed-ignore.js";
 
 const ignoreProcessorToolTargets: ToolTarget[] = [
@@ -44,7 +44,7 @@ const ignoreProcessorToolTargets: ToolTarget[] = [
   "kiro",
   "qwencode",
   "roo",
-  "windsurf",
+  "devin",
   "zed",
 ];
 
@@ -76,7 +76,7 @@ const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnoreFactory
   ["kiro", { class: KiroIgnore }],
   ["qwencode", { class: QwencodeIgnore }],
   ["roo", { class: RooIgnore }],
-  ["windsurf", { class: WindsurfIgnore }],
+  ["devin", { class: DevinIgnore }],
   ["zed", { class: ZedIgnore }],
 ]);
 

@@ -38,7 +38,7 @@ describe("E2E: mcp", () => {
     { target: "antigravity-cli", outputPath: join(".agents", "mcp_config.json") },
     { target: "warp", outputPath: join(".warp", ".mcp.json") },
     { target: "zed", outputPath: join(".zed", "settings.json") },
-    { target: "windsurf", outputPath: join(".windsurf", "mcp_config.json") },
+    { target: "devin", outputPath: join(".windsurf", "mcp_config.json") },
   ])("should generate $target mcp", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -80,7 +80,7 @@ describe("E2E: mcp", () => {
     { target: "roo", orphanPath: join(".roo", "mcp.json") },
     { target: "kiro", orphanPath: join(".kiro", "settings", "mcp.json") },
     { target: "junie", orphanPath: join(".junie", "mcp", "mcp.json") },
-    { target: "windsurf", orphanPath: join(".windsurf", "mcp_config.json") },
+    { target: "devin", orphanPath: join(".windsurf", "mcp_config.json") },
   ])(
     "should fail in check mode when delete would remove an orphan $target mcp file",
     async ({ target, orphanPath }) => {
@@ -236,7 +236,7 @@ describe("E2E: mcp (import)", () => {
     { target: "antigravity-ide", sourcePath: join(".agents", "mcp_config.json") },
     { target: "antigravity-cli", sourcePath: join(".agents", "mcp_config.json") },
     { target: "warp", sourcePath: join(".warp", ".mcp.json") },
-    { target: "windsurf", sourcePath: join(".windsurf", "mcp_config.json") },
+    { target: "devin", sourcePath: join(".windsurf", "mcp_config.json") },
   ])("should import $target mcp", async ({ target, sourcePath, sourceContent }) => {
     const testDir = getTestDir();
 
@@ -313,7 +313,7 @@ describe("E2E: mcp (global mode)", () => {
     { target: "warp", outputPath: join(".warp", ".mcp.json") },
     { target: "zed", outputPath: join(".config", "zed", "settings.json") },
     {
-      target: "windsurf",
+      target: "devin",
       outputPath: join(".codeium", "windsurf", "mcp_config.json"),
     },
   ])("should generate $target mcp in home directory", async ({ target, outputPath }) => {
