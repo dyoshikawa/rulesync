@@ -141,9 +141,29 @@ describe("ZedPermissions", () => {
       const json = JSON.parse(permissions.getFileContent());
       expect(json.agent.tool_permissions.tools.terminal.default).toBe("allow");
     });
+
+    it("should throw on a malformed existing settings.json instead of overwriting it", async () => {
+      await writeFileContent(join(testDir, ".zed", "settings.json"), "{ not valid json");
+
+      const rulesyncPermissions = createRulesyncPermissions({ bash: { "*": "deny" } });
+
+      await expect(
+        ZedPermissions.fromRulesyncPermissions({ outputRoot: testDir, rulesyncPermissions }),
+      ).rejects.toThrow(/Failed to parse existing Zed settings/);
+    });
   });
 
   describe("toRulesyncPermissions", () => {
+    it("should throw on malformed settings content", async () => {
+      await writeFileContent(join(testDir, ".zed", "settings.json"), "{ not valid json");
+
+      const permissions = await ZedPermissions.fromFile({ outputRoot: testDir });
+
+      expect(() => permissions.toRulesyncPermissions()).toThrow(
+        /Failed to parse Zed permissions content/,
+      );
+    });
+
     it("should round-trip agent.tool_permissions back to canonical permissions", async () => {
       await writeFileContent(
         join(testDir, ".zed", "settings.json"),
@@ -204,6 +224,29 @@ describe("ZedPermissions", () => {
 
       expect(json.permission.bash).toEqual({ "*": "ask", "git *": "allow" });
       expect(json.permission.webfetch).toEqual({ "domain:github.com": "allow" });
+    });
+
+    it("should pass through non-canonical mcp tool keys across generate → import", async () => {
+      const rulesyncPermissions = createRulesyncPermissions({
+        "mcp:context7:get-docs": { "*": "allow", secret: "deny" },
+      });
+
+      const generated = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      // The unknown tool key is written verbatim under agent.tool_permissions.tools.
+      const generatedJson = JSON.parse(generated.getFileContent());
+      expect(generatedJson.agent.tool_permissions.tools["mcp:context7:get-docs"].default).toBe(
+        "allow",
+      );
+
+      await writeFileContent(join(testDir, ".zed", "settings.json"), generated.getFileContent());
+      const imported = await ZedPermissions.fromFile({ outputRoot: testDir });
+      const json = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+
+      expect(json.permission["mcp:context7:get-docs"]).toEqual({ "*": "allow", secret: "deny" });
     });
   });
 });

@@ -201,6 +201,31 @@ describe("AntigravityHooks", () => {
           command: "echo pre-model",
         });
       });
+
+      it("should ignore prototype-pollution event keys without crashing", () => {
+        // A crafted hooks file with a `__proto__` event key must not make the
+        // flatten step resolve `flat["__proto__"]` to `Object.prototype` (which
+        // would throw `existing is not iterable`). The key is skipped on both
+        // the legacy-flat and the named-hook-wrapper paths.
+        const hooks = new HooksClass(
+          createMockAiFileParams({
+            fileContent: JSON.stringify({
+              __proto__: [{ hooks: [{ type: "command", command: "echo flat-proto" }] }],
+              rulesync: {
+                __proto__: [{ hooks: [{ type: "command", command: "echo wrapped-proto" }] }],
+                Stop: [{ hooks: [{ type: "command", command: "echo stop" }] }],
+              },
+            }),
+          }),
+        );
+
+        const parsed = hooks.toRulesyncHooks().getJson();
+
+        // The valid event still imports; the `__proto__` keys are dropped and
+        // Object.prototype is untouched.
+        expect(parsed.hooks.stop?.[0]).toEqual({ type: "command", command: "echo stop" });
+        expect(({} as Record<string, unknown>).hooks).toBeUndefined();
+      });
     });
 
     describe("validate", () => {

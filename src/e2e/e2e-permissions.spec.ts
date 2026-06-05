@@ -973,6 +973,61 @@ describe("E2E: permissions (global mode)", () => {
     expect(generated.permissions.allow).toContain("command(git status *)");
     expect(generated.permissions.deny).toContain("command(rm -rf *)");
   });
+
+  it("should generate zed permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "*": "ask", "git status *": "allow", "rm -rf *": "deny" },
+            read: { ".env": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    // Pre-seed the shared global settings with unrelated user config to verify
+    // the non-destructive merge into `~/.config/zed/settings.json`.
+    await writeFileContent(
+      join(homeDir, ".config", "zed", "settings.json"),
+      JSON.stringify(
+        {
+          theme: "One Dark",
+          context_servers: { my_server: { command: "x" } },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "zed",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(
+      await readFileContent(join(homeDir, ".config", "zed", "settings.json")),
+    );
+    const tools = generated.agent.tool_permissions.tools;
+    // `bash` → `terminal`, `*` → per-tool default, `ask` → `confirm`.
+    expect(tools.terminal.default).toBe("confirm");
+    expect(tools.terminal.always_allow).toEqual([
+      { pattern: "git status *", case_sensitive: false },
+    ]);
+    expect(tools.terminal.always_deny).toEqual([{ pattern: "rm -rf *", case_sensitive: false }]);
+    expect(tools.read_file.always_deny).toEqual([{ pattern: ".env", case_sensitive: false }]);
+    // Unrelated user settings preserved by the non-destructive merge.
+    expect(generated.theme).toBe("One Dark");
+    expect(generated.context_servers.my_server.command).toBe("x");
+  });
 });
 
 type AugmentEntry = {

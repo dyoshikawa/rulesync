@@ -9,6 +9,7 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import { canonicalToToolHooks, toolHooksToCanonical } from "./tool-hooks-converter.js";
@@ -55,10 +56,14 @@ function flattenAntigravityHooks(parsed: unknown): Record<string, unknown> {
   }
   const flat: Record<string, unknown[]> = {};
   const addEvent = (event: string, entries: unknown): void => {
-    if (!Array.isArray(entries)) {
+    // Skip prototype-pollution keys (e.g. `__proto__`) so a crafted hooks file
+    // cannot resolve `flat[event]` to `Object.prototype` (truthy but not
+    // iterable), which would crash the spread below, or otherwise walk the
+    // prototype chain. `Object.hasOwn` adds defense-in-depth for the lookup.
+    if (isPrototypePollutionKey(event) || !Array.isArray(entries)) {
       return;
     }
-    const existing = flat[event];
+    const existing = Object.hasOwn(flat, event) ? flat[event] : undefined;
     flat[event] = existing ? [...existing, ...entries] : [...entries];
   };
   for (const [key, value] of Object.entries(parsed)) {
