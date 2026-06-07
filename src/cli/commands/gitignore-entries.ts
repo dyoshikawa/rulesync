@@ -110,7 +110,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
 
   // Codex CLI
   { target: "codexcli", feature: "ignore", entry: "**/.codexignore" },
-  { target: "codexcli", feature: "skills", entry: "**/.codex/skills/" },
+  { target: "codexcli", feature: "skills", entry: "**/.agents/skills/" },
   { target: "codexcli", feature: "subagents", entry: "**/.codex/agents/" },
   { target: "codexcli", feature: "general", entry: "**/.codex/memories/" },
   { target: "codexcli", feature: "general", entry: "**/.codex/config.toml" },

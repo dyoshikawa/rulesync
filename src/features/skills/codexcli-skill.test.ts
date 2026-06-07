@@ -26,14 +26,14 @@ describe("CodexCliSkill", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should return .codex/skills as relativeDirPath in project mode", () => {
+    it("should return .agents/skills as relativeDirPath in project mode", () => {
       const paths = CodexCliSkill.getSettablePaths();
-      expect(paths.relativeDirPath).toBe(join(".codex", "skills"));
+      expect(paths.relativeDirPath).toBe(join(".agents", "skills"));
     });
 
-    it("should return .codex/skills as relativeDirPath in global mode", () => {
+    it("should return .agents/skills as relativeDirPath in global mode", () => {
       const paths = CodexCliSkill.getSettablePaths({ global: true });
-      expect(paths.relativeDirPath).toBe(join(".codex", "skills"));
+      expect(paths.relativeDirPath).toBe(join(".agents", "skills"));
     });
   });
 
@@ -41,7 +41,7 @@ describe("CodexCliSkill", () => {
     it("should create instance with valid content in global mode", () => {
       const skill = new CodexCliSkill({
         outputRoot: testDir,
-        relativeDirPath: join(".codex", "skills"),
+        relativeDirPath: join(".agents", "skills"),
         dirName: "test-skill",
         frontmatter: {
           name: "Test Skill",
@@ -63,7 +63,7 @@ describe("CodexCliSkill", () => {
     it("should create instance with valid content in project mode", () => {
       const skill = new CodexCliSkill({
         outputRoot: testDir,
-        relativeDirPath: join(".codex", "skills"),
+        relativeDirPath: join(".agents", "skills"),
         dirName: "test-skill",
         frontmatter: {
           name: "Test Skill",
@@ -85,7 +85,7 @@ describe("CodexCliSkill", () => {
     it("should create instance with metadata.short-description", () => {
       const skill = new CodexCliSkill({
         outputRoot: testDir,
-        relativeDirPath: join(".codex", "skills"),
+        relativeDirPath: join(".agents", "skills"),
         dirName: "test-skill",
         frontmatter: {
           name: "Test Skill",
@@ -112,7 +112,7 @@ describe("CodexCliSkill", () => {
 
   describe("fromDir", () => {
     it("should create instance from valid skill directory in global mode", async () => {
-      const skillDir = join(testDir, ".codex", "skills", "test-skill");
+      const skillDir = join(testDir, ".agents", "skills", "test-skill");
       await ensureDir(skillDir);
       const skillContent = `---
 name: Test Skill
@@ -137,7 +137,7 @@ This is the body of the codex cli skill.`;
     });
 
     it("should create instance from valid skill directory in project mode", async () => {
-      const skillDir = join(testDir, ".codex", "skills", "test-skill");
+      const skillDir = join(testDir, ".agents", "skills", "test-skill");
       await ensureDir(skillDir);
       const skillContent = `---
 name: Test Skill
@@ -162,7 +162,7 @@ This is the body of the codex cli skill.`;
     });
 
     it("should create instance with metadata.short-description from directory", async () => {
-      const skillDir = join(testDir, ".codex", "skills", "test-skill");
+      const skillDir = join(testDir, ".agents", "skills", "test-skill");
       await ensureDir(skillDir);
       const skillContent = `---
 name: Test Skill
@@ -191,7 +191,7 @@ This is the body of the codex cli skill.`;
     });
 
     it("should throw error when SKILL.md not found", async () => {
-      const skillDir = join(testDir, ".codex", "skills", "empty-skill");
+      const skillDir = join(testDir, ".agents", "skills", "empty-skill");
       await ensureDir(skillDir);
 
       await expect(
@@ -349,7 +349,7 @@ This is the body of the codex cli skill.`;
     it("should convert to a RulesyncSkill", () => {
       const skill = new CodexCliSkill({
         outputRoot: testDir,
-        relativeDirPath: join(".codex", "skills"),
+        relativeDirPath: join(".agents", "skills"),
         dirName: "test-skill",
         frontmatter: {
           name: "Test Skill",
@@ -373,7 +373,7 @@ This is the body of the codex cli skill.`;
     it("should convert metadata.short-description to codexcli.short-description", () => {
       const skill = new CodexCliSkill({
         outputRoot: testDir,
-        relativeDirPath: join(".codex", "skills"),
+        relativeDirPath: join(".agents", "skills"),
         dirName: "test-skill",
         frontmatter: {
           name: "Test Skill",
