@@ -28,8 +28,8 @@ Follow the pattern in `src/features/skills/agentsmd-skill.ts` which already uses
 - The gitignore entry uses `**/` glob prefix per the existing convention.
 
 ## Verify
-- [ ] FR#1: `CodexCliSkill.getSettablePaths({ global: false })` returns `{ relativeDirPath: ".agents/skills" }` (or platform equivalent via `join`)
-- [ ] FR#2: `CodexCliSkill.getSettablePaths({ global: true })` returns `{ relativeDirPath: ".agents/skills" }` (or platform equivalent via `join`)
+- [ ] FR#1: `CodexCliSkill.getSettablePaths({ global: false }).relativeDirPath` equals `join(".agents", "skills")`
+- [ ] FR#2: `CodexCliSkill.getSettablePaths({ global: true }).relativeDirPath` equals `join(".agents", "skills")`
 - [ ] FR#6: The codexcli skills entry in `gitignore-entries.ts` reads `"**/.agents/skills/"`
-- [ ] AC#1: Both global and non-global `getSettablePaths()` return `.agents/skills`
-- [ ] AC#5: Gitignore entry updated
+- [ ] AC#1: Both `global: true` and `global: false` return the same `.agents/skills` path (same method, two flag values)
+- [ ] AC#5: Gitignore entry for codexcli skills reads `"**/.agents/skills/"`

@@ -26,4 +26,4 @@ If any tests fail, investigate and fix the root cause. Do not skip or mark tests
 - Check that the linter passes as well (the project uses oxlint).
 
 ## Verify
-- [ ] AC#6: All existing tests pass with updated assertions; new tests cover the 3 hook events
+- [ ] AC#6: All existing tests pass with updated assertions; new tests cover the 3 hook events; oxlint reports no errors
