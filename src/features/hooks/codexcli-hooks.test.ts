@@ -83,7 +83,35 @@ describe("CodexcliHooks", () => {
       const parsed = JSON.parse(codexHooks.getFileContent());
       expect(parsed.hooks.SessionStart).toBeDefined();
       expect(parsed.hooks.SessionEnd).toBeUndefined();
-      expect(parsed.hooks.SubagentStop).toBeUndefined();
+      expect(parsed.hooks.SubagentStop).toBeDefined();
+    });
+
+    it("should convert subagentStart, subagentStop, and preCompact to PascalCase", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              subagentStart: [{ command: "echo agent-start" }],
+              subagentStop: [{ command: "echo agent-stop" }],
+              preCompact: [{ command: "echo compact" }],
+            },
+          }),
+        }),
+      );
+
+      const codexHooks = await CodexcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const parsed = JSON.parse(codexHooks.getFileContent());
+      expect(parsed.hooks.SubagentStart).toBeDefined();
+      expect(parsed.hooks.SubagentStart[0].hooks[0].command).toBe("echo agent-start");
+      expect(parsed.hooks.SubagentStop).toBeDefined();
+      expect(parsed.hooks.SubagentStop[0].hooks[0].command).toBe("echo agent-stop");
+      expect(parsed.hooks.PreCompact).toBeDefined();
+      expect(parsed.hooks.PreCompact[0].hooks[0].command).toBe("echo compact");
     });
 
     it("should not prefix commands with a project dir variable", async () => {
@@ -340,6 +368,29 @@ describe("CodexcliHooks", () => {
         command: ".rulesync/hooks/perm.sh",
         matcher: "Bash",
       });
+    });
+
+    it("should convert SubagentStart, SubagentStop, and PreCompact to canonical names", () => {
+      const codexHooks = new CodexcliHooks(
+        createMockAiFileParams({
+          relativeDirPath: ".codex",
+          relativeFilePath: "hooks.json",
+          fileContent: JSON.stringify({
+            hooks: {
+              SubagentStart: [{ hooks: [{ command: "echo agent-start" }] }],
+              SubagentStop: [{ hooks: [{ command: "echo agent-stop" }] }],
+              PreCompact: [{ hooks: [{ command: "echo compact" }] }],
+            },
+          }),
+        }),
+      );
+
+      const rulesyncHooks = codexHooks.toRulesyncHooks();
+      const parsed = rulesyncHooks.getJson();
+
+      expect(parsed.hooks.subagentStart?.[0]?.command).toBe("echo agent-start");
+      expect(parsed.hooks.subagentStop?.[0]?.command).toBe("echo agent-stop");
+      expect(parsed.hooks.preCompact?.[0]?.command).toBe("echo compact");
     });
 
     it("should ignore invalid entries", () => {
