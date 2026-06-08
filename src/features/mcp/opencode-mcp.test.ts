@@ -1176,6 +1176,36 @@ describe("OpencodeMcp", () => {
       expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
     });
 
+    it("should preserve documented-but-unmodeled per-server fields (timeout/oauth) on import", () => {
+      const jsonData = {
+        mcp: {
+          "local-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+            timeout: 120000,
+          },
+          "remote-server": {
+            type: "remote",
+            url: "https://mcp.example.com/mcp",
+            enabled: true,
+            timeout: 60000,
+            oauth: { clientId: "abc" },
+          },
+        },
+      };
+      const opencodeMcp = new OpencodeMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const servers = JSON.parse(opencodeMcp.toRulesyncMcp().getFileContent()).mcpServers;
+      expect(servers["local-server"].timeout).toBe(120000);
+      expect(servers["remote-server"].timeout).toBe(60000);
+      expect(servers["remote-server"].oauth).toEqual({ clientId: "abc" });
+    });
+
     it("should convert environment to env and preserve outputRoot", () => {
       const jsonData = {
         mcp: {
