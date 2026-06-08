@@ -45,7 +45,10 @@ export const RulesyncRuleFrontmatterSchema = z.object({
   ),
   copilot: z.optional(
     z.looseObject({
-      excludeAgent: z.optional(z.union([z.literal("code-review"), z.literal("coding-agent")])),
+      // `cloud-agent` is the current documented value; `coding-agent` is a deprecated alias.
+      excludeAgent: z.optional(
+        z.union([z.literal("code-review"), z.literal("cloud-agent"), z.literal("coding-agent")]),
+      ),
     }),
   ),
   antigravity: z.optional(

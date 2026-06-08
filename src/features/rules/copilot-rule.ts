@@ -22,7 +22,12 @@ import {
 export const CopilotRuleFrontmatterSchema = z.object({
   description: z.optional(z.string()),
   applyTo: z.optional(z.string()),
-  excludeAgent: z.optional(z.union([z.literal("code-review"), z.literal("coding-agent")])),
+  // Documented values are `code-review` and `cloud-agent`; `coding-agent` is kept
+  // as a deprecated alias so existing configs still import.
+  // https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions
+  excludeAgent: z.optional(
+    z.union([z.literal("code-review"), z.literal("cloud-agent"), z.literal("coding-agent")]),
+  ),
 });
 
 export type CopilotRuleFrontmatter = z.infer<typeof CopilotRuleFrontmatterSchema>;

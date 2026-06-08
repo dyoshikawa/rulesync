@@ -274,6 +274,10 @@ describe("E2E: skills (global mode)", () => {
       outputPath: join(".config", "opencode", "skills", "test-skill", "SKILL.md"),
     },
     {
+      target: "agentsskills",
+      outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
+    },
+    {
       target: "codexcli",
       outputPath: join(".codex", "skills", "test-skill", "SKILL.md"),
     },
