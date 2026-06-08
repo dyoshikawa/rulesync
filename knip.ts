@@ -36,6 +36,14 @@ const config: KnipConfig = {
     "lint-staged",
     // Used in docs site
     "vitepress",
+    // Optional peer dependencies of `xsschema` (a transitive dependency via
+    // `fastmcp`). They are not imported from our source, so knip reports them as
+    // unused, but `xsschema` resolves them through dynamic `import()` and the
+    // `bun build --compile` step statically bundles those imports. Dropping them
+    // breaks the binary build, so they must stay installed and ignored here.
+    "effect",
+    "sury",
+    "@valibot/to-json-schema",
   ],
   typescript: {
     config: "tsconfig.json",
