@@ -62,4 +62,34 @@ describe("McpServerSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("should accept the WebSocket transport (type/transport: ws)", () => {
+    const result = McpServerSchema.safeParse({
+      type: "ws",
+      transport: "ws",
+      url: "wss://mcp.example.com/socket",
+      headers: { Authorization: "Bearer token" },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("should accept streamable-http as an alias of http (type/transport)", () => {
+    const result = McpServerSchema.safeParse({
+      type: "streamable-http",
+      transport: "streamable-http",
+      url: "https://mcp.example.com/mcp",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("should still accept the existing http/stdio/sse/local transports", () => {
+    for (const type of ["local", "stdio", "sse", "http"] as const) {
+      expect(McpServerSchema.safeParse({ type, transport: type }).success).toBe(true);
+    }
+  });
+
+  it("should reject an unknown transport value", () => {
+    const result = McpServerSchema.safeParse({ type: "grpc" });
+    expect(result.success).toBe(false);
+  });
 });

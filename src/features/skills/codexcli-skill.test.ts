@@ -1,13 +1,23 @@
 import { join } from "node:path";
 
+import { load } from "js-yaml";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { ensureDir, toPosixPath, writeFileContent } from "../../utils/file.js";
 import { CodexCliSkill } from "./codexcli-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
+
+const OPENAI_YAML_PATH = join("agents", "openai.yaml");
+
+function findOpenaiYaml(skill: CodexCliSkill): string | undefined {
+  const file = skill
+    .getOtherFiles()
+    .find((f) => toPosixPath(f.relativeFilePathToDirPath) === toPosixPath(OPENAI_YAML_PATH));
+  return file ? file.fileBuffer.toString("utf-8") : undefined;
+}
 
 describe("CodexCliSkill", () => {
   let testDir: string;
@@ -398,6 +408,169 @@ This is the body of the codex cli skill.`;
         },
       });
       expect(rulesyncSkill.getBody()).toBe("Test body");
+    });
+  });
+
+  describe("agents/openai.yaml sidecar", () => {
+    it("should emit agents/openai.yaml from codexcli interface/policy/dependencies", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "AI-facing description",
+          codexcli: {
+            interface: {
+              display_name: "Test Skill",
+              short_description: "User-facing description",
+              default_prompt: "Do the thing",
+            },
+            policy: {
+              allow_implicit_invocation: false,
+            },
+            dependencies: {
+              tools: [
+                {
+                  type: "mcp",
+                  value: "example",
+                  description: "Example MCP tool",
+                  transport: "http",
+                  url: "https://mcp.example.com/mcp",
+                },
+              ],
+            },
+          },
+        },
+        body: "Test body content",
+        validate: true,
+      });
+
+      const codexCliSkill = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+
+      // SKILL.md frontmatter stays name + description only
+      expect(codexCliSkill.getFrontmatter()).toEqual({
+        name: "Test Skill",
+        description: "AI-facing description",
+      });
+
+      const yamlContent = findOpenaiYaml(codexCliSkill);
+      expect(yamlContent).toBeDefined();
+      expect(load(yamlContent ?? "")).toEqual({
+        interface: {
+          display_name: "Test Skill",
+          short_description: "User-facing description",
+          default_prompt: "Do the thing",
+        },
+        policy: {
+          allow_implicit_invocation: false,
+        },
+        dependencies: {
+          tools: [
+            {
+              type: "mcp",
+              value: "example",
+              description: "Example MCP tool",
+              transport: "http",
+              url: "https://mcp.example.com/mcp",
+            },
+          ],
+        },
+      });
+    });
+
+    it("should route the legacy short-description to interface.short_description when the sidecar is emitted", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "AI-facing description",
+          codexcli: {
+            "short-description": "User-facing description",
+            policy: { allow_implicit_invocation: false },
+          },
+        },
+        body: "Test body content",
+        validate: true,
+      });
+
+      const codexCliSkill = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+
+      // Legacy short-description still lands in SKILL.md metadata for backward compatibility
+      expect(codexCliSkill.getFrontmatter()).toEqual({
+        name: "Test Skill",
+        description: "AI-facing description",
+        metadata: { "short-description": "User-facing description" },
+      });
+
+      expect(load(findOpenaiYaml(codexCliSkill) ?? "")).toEqual({
+        interface: { short_description: "User-facing description" },
+        policy: { allow_implicit_invocation: false },
+      });
+    });
+
+    it("should NOT emit agents/openai.yaml for a lone short-description", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "AI-facing description",
+          codexcli: { "short-description": "User-facing description" },
+        },
+        body: "Test body content",
+        validate: true,
+      });
+
+      const codexCliSkill = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+      expect(findOpenaiYaml(codexCliSkill)).toBeUndefined();
+    });
+
+    it("should read agents/openai.yaml back into the codexcli section on import", async () => {
+      const skillDir = join(testDir, ".codex", "skills", "test-skill");
+      await ensureDir(join(skillDir, "agents"));
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---\nname: Test Skill\ndescription: AI-facing description\n---\n\nBody.`,
+      );
+      await writeFileContent(
+        join(skillDir, "agents", "openai.yaml"),
+        [
+          "interface:",
+          "  display_name: Test Skill",
+          "  short_description: User-facing description",
+          "policy:",
+          "  allow_implicit_invocation: false",
+          "",
+        ].join("\n"),
+      );
+
+      const skill = await CodexCliSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "test-skill",
+        global: false,
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().codexcli).toEqual({
+        interface: {
+          display_name: "Test Skill",
+          short_description: "User-facing description",
+        },
+        policy: {
+          allow_implicit_invocation: false,
+        },
+      });
+
+      // The sidecar is consumed as structured data, not carried as a passthrough file.
+      expect(
+        rulesyncSkill
+          .getOtherFiles()
+          .some((f) => toPosixPath(f.relativeFilePathToDirPath) === toPosixPath(OPENAI_YAML_PATH)),
+      ).toBe(false);
     });
   });
 });

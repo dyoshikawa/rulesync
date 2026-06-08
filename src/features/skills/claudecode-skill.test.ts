@@ -264,6 +264,31 @@ describe("ClaudecodeSkill", () => {
       });
     });
 
+    it("should convert to RulesyncSkill with disallowed-tools", () => {
+      const frontmatter: ClaudecodeSkillFrontmatter = {
+        name: "restricted-skill",
+        description: "Restricted skill",
+        "disallowed-tools": ["Bash", "Edit"],
+      };
+
+      const skill = new ClaudecodeSkill({
+        dirName: "restricted-skill",
+        frontmatter,
+        body: "Restricted body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+
+      expect(rulesyncFrontmatter.claudecode).toEqual({
+        "disallowed-tools": ["Bash", "Edit"],
+      });
+
+      // round-trip back to a ClaudecodeSkill preserves disallowed-tools
+      const roundTripped = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(roundTripped.getFrontmatter()["disallowed-tools"]).toEqual(["Bash", "Edit"]);
+    });
+
     it("should convert to RulesyncSkill with model", () => {
       const frontmatter: ClaudecodeSkillFrontmatter = {
         name: "model-skill",

@@ -34,6 +34,10 @@ describe("E2E: hooks", () => {
     { target: "opencode", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
     { target: "codexcli", outputPath: join(".codex", "hooks.json") },
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
+    {
+      target: "goose",
+      outputPath: join(".agents", "plugins", "rulesync", "hooks", "hooks.json"),
+    },
     { target: "copilot", outputPath: join(".github", "hooks", "copilot-hooks.json") },
     { target: "copilotcli", outputPath: join(".github", "hooks", "copilotcli-hooks.json") },
     { target: "factorydroid", outputPath: join(".factory", "settings.json") },
@@ -117,8 +121,8 @@ describe("E2E: hooks", () => {
         expect(parsed.rulesync.Stop).toBeDefined();
         expect(JSON.stringify(parsed)).toContain(".rulesync/hooks/audit.sh");
       } else {
-        // codexcli, geminicli, factorydroid: event-name casing/mapping varies
-        // per tool, so verify the configured hook command paths are preserved.
+        // codexcli, geminicli, factorydroid, goose: event-name casing/mapping
+        // varies per tool, so verify the configured hook command paths are preserved.
         assertHookCommandsPreserved(parsed);
       }
     }
@@ -343,6 +347,19 @@ describe("E2E: hooks (import)", () => {
         },
       },
     },
+    {
+      // Goose reads `.agents/plugins/<name>/hooks/hooks.json` with Claude-style
+      // PascalCase event names; SessionStart round-trips to canonical `sessionStart`.
+      target: "goose",
+      sourcePath: join(".agents", "plugins", "rulesync", "hooks", "hooks.json"),
+      sourceContent: {
+        hooks: {
+          SessionStart: [
+            { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
+          ],
+        },
+      },
+    },
   ])(
     "should import $target hooks",
     async ({ target, sourcePath, sourceContent, expectedEvent }) => {
@@ -367,6 +384,10 @@ describe("E2E: hooks (global mode)", () => {
     { target: "claudecode", outputPath: join(".claude", "settings.json") },
     { target: "codexcli", outputPath: join(".codex", "hooks.json") },
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
+    {
+      target: "goose",
+      outputPath: join(".agents", "plugins", "rulesync", "hooks", "hooks.json"),
+    },
     { target: "opencode", outputPath: join(".config", "opencode", "plugins", "rulesync-hooks.js") },
     { target: "factorydroid", outputPath: join(".factory", "settings.json") },
     { target: "deepagents", outputPath: join(".deepagents", "hooks.json") },
