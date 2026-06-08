@@ -32,6 +32,9 @@ export const HookDefinitionSchema = z.looseObject({
   loop_limit: z.optional(z.nullable(z.number())),
   name: z.optional(safeString),
   description: z.optional(safeString),
+  // Cursor: when true, a hook failure (crash, timeout, invalid JSON) blocks the
+  // action instead of allowing it through. https://cursor.com/docs/hooks
+  failClosed: z.optional(z.boolean()),
 });
 
 export type HookDefinition = z.infer<typeof HookDefinitionSchema>;
@@ -73,7 +76,8 @@ export type HookEvent =
   | "afterError"
   | "beforeToolSelection"
   | "worktreeCreate"
-  | "worktreeRemove";
+  | "worktreeRemove"
+  | "workspaceOpen";
 
 /** Hook events supported by Cursor. */
 export const CURSOR_HOOK_EVENTS: readonly HookEvent[] = [
@@ -97,6 +101,7 @@ export const CURSOR_HOOK_EVENTS: readonly HookEvent[] = [
   "afterAgentThought",
   "beforeTabFileRead",
   "afterTabFileEdit",
+  "workspaceOpen",
 ];
 
 /** Hook events supported by Claude Code. */
@@ -147,7 +152,14 @@ export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
   "afterError",
 ];
 
-/** Hook events supported by Factory Droid. */
+/**
+ * Hook events supported by Factory Droid.
+ *
+ * Matches the documented 9-event set (PreToolUse, PostToolUse, UserPromptSubmit,
+ * Notification, Stop, SubagentStop, PreCompact, SessionStart, SessionEnd).
+ * `Setup` and `PermissionRequest` are NOT valid Droid events and were removed
+ * to avoid emitting dead keys. https://docs.factory.ai/reference/hooks-reference
+ */
 export const FACTORYDROID_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
   "sessionEnd",
@@ -157,12 +169,16 @@ export const FACTORYDROID_HOOK_EVENTS: readonly HookEvent[] = [
   "stop",
   "subagentStop",
   "preCompact",
-  "permissionRequest",
   "notification",
-  "setup",
 ];
 
-/** Hook events supported by deepagents-cli. */
+/**
+ * Hook events supported by deepagents-cli (`deepagents-code` / `dcode`).
+ *
+ * The canonical `notification` event maps to dcode's `input.required`
+ * (human-in-the-loop interrupt) — the closest documented equivalent.
+ * https://docs.langchain.com/oss/python/deepagents/cli/configuration
+ */
 export const DEEPAGENTS_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
   "sessionEnd",
@@ -171,6 +187,7 @@ export const DEEPAGENTS_HOOK_EVENTS: readonly HookEvent[] = [
   "postToolUseFailure",
   "stop",
   "preCompact",
+  "notification",
 ];
 
 /** Hook events supported by Gemini CLI. */
@@ -356,6 +373,7 @@ export const CANONICAL_TO_CURSOR_EVENT_NAMES: Record<string, string> = {
   afterAgentThought: "afterAgentThought",
   beforeTabFileRead: "beforeTabFileRead",
   afterTabFileEdit: "afterTabFileEdit",
+  workspaceOpen: "workspaceOpen",
 };
 
 /**
@@ -377,9 +395,7 @@ export const CANONICAL_TO_FACTORYDROID_EVENT_NAMES: Record<string, string> = {
   stop: "Stop",
   subagentStop: "SubagentStop",
   preCompact: "PreCompact",
-  permissionRequest: "PermissionRequest",
   notification: "Notification",
-  setup: "Setup",
 };
 
 /**
@@ -482,6 +498,8 @@ export const CANONICAL_TO_DEEPAGENTS_EVENT_NAMES: Record<string, string> = {
   postToolUseFailure: "tool.error",
   stop: "task.complete",
   preCompact: "context.compact",
+  // dcode's human-in-the-loop interrupt; canonical `notification` is the closest fit.
+  notification: "input.required",
 };
 
 /**

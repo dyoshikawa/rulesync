@@ -67,6 +67,34 @@ describe("CursorHooks", () => {
       expect(parsed.hooks.notification).toBeUndefined();
     });
 
+    it("should emit the workspaceOpen event and pass through failClosed", () => {
+      const config = {
+        version: 1,
+        hooks: {
+          workspaceOpen: [{ command: ".cursor/hooks/on-open.sh" }],
+          beforeShellExecution: [{ command: ".cursor/hooks/guard.sh", failClosed: true }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const parsed = JSON.parse(
+        CursorHooks.fromRulesyncHooks({
+          outputRoot: testDir,
+          rulesyncHooks,
+          validate: false,
+        }).getFileContent(),
+      );
+      expect(parsed.hooks.workspaceOpen).toHaveLength(1);
+      expect(parsed.hooks.workspaceOpen[0].command).toBe(".cursor/hooks/on-open.sh");
+      expect(parsed.hooks.beforeShellExecution[0].failClosed).toBe(true);
+    });
+
     it("should merge config.cursor.hooks on top of shared hooks", () => {
       const config = {
         version: 1,

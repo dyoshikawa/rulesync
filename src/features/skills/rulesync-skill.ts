@@ -72,6 +72,13 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   ),
   cline: z.optional(z.looseObject({})),
   roo: z.optional(z.looseObject({})),
+  cursor: z.optional(
+    z.looseObject({
+      paths: z.optional(z.union([z.string(), z.array(z.string())])),
+      "disable-model-invocation": z.optional(z.boolean()),
+      metadata: z.optional(z.looseObject({})),
+    }),
+  ),
   takt: z.optional(
     z.looseObject({
       // Rename the emitted file stem (e.g. "test-skill.md" → "{name}.md").
@@ -128,6 +135,11 @@ export type RulesyncSkillFrontmatterInput = {
   };
   roo?: Record<string, unknown>;
   cline?: Record<string, unknown>;
+  cursor?: {
+    paths?: string | string[];
+    "disable-model-invocation"?: boolean;
+    metadata?: Record<string, unknown>;
+  };
   takt?: {
     name?: string;
   };

@@ -103,8 +103,9 @@ Example:
 - `type` (optional): Either `"command"` (default) or `"prompt"`. Not all tools support `prompt`; see notes below.
 - `matcher` (optional): Regex used by tools that scope hooks to specific tool names (e.g. `preToolUse`, `postToolUse`, `notification`). Ignored by events that do not take a matcher (e.g. `sessionStart`, `worktreeCreate`, `worktreeRemove`).
 - `timeout` (optional): Per-hook timeout in seconds, forwarded to tools that support it.
+- `failClosed` (optional): Cursor-specific boolean. When `true`, a hook failure (crash, timeout, invalid JSON) blocks the action instead of allowing it through. Passed through to Cursor's `.cursor/hooks.json`.
 
-Events present in the shared `hooks` block but unsupported by a given tool are skipped for that tool (a warning is logged at generate time).
+Events present in the shared `hooks` block but unsupported by a given tool are skipped for that tool (a warning is logged at generate time). The canonical `notification` event maps to deepagents-cli's `input.required` (human-in-the-loop interrupt).
 
 ### Hook event × tool matrix
 
@@ -134,11 +135,12 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 | `beforeTabFileRead`    |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |
 | `afterTabFileEdit`     |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |
 | `beforeToolSelection`  |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     ✅     |     —     |     —      |  —   |        —        |        —        |   —   |      —      |
-| `permissionRequest`    |   —    |     ✅      |    ✅    |  ✅  |    —    |      —      |      ✅       |     —      |    ✅     |     ✅     |  —   |        —        |        —        |   —   |      —      |
-| `notification`         |   —    |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     ✅     |     —     |     —      |  —   |        —        |        —        |   —   |      —      |
-| `setup`                |   —    |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |
+| `permissionRequest`    |   —    |     ✅      |    ✅    |  ✅  |    —    |      —      |       —       |     —      |    ✅     |     ✅     |  —   |        —        |        —        |   —   |      —      |
+| `notification`         |   —    |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     ✅     |     —     |     ✅     |  —   |        —        |        —        |   —   |      —      |
+| `setup`                |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |
 | `worktreeCreate`       |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |
 | `worktreeRemove`       |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |
+| `workspaceOpen`        |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |
 | `afterError`           |   —    |      —      |    —     |  —   |   ✅    |     ✅      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |
 
 > **Note:** `worktreeCreate` and `worktreeRemove` are Claude Code-specific events and do not support the `matcher` field. Any matcher defined in the config is ignored for these events.
@@ -317,6 +319,12 @@ replit: # for Replit Agent-specific parameters (optional; Agent Skills standard)
     author: rulesync
 zed: # for Zed-specific parameters (optional)
   disable-model-invocation: true # (optional) prevent the model from auto-invoking this skill
+cursor: # for Cursor-specific parameters (optional)
+  paths: # (optional) glob patterns (string or list) scoping the skill to matching files
+    - "src/**/*.ts"
+  disable-model-invocation: true # (optional) only include the skill when invoked via /skill-name
+  metadata: # (optional) free-form metadata
+    author: rulesync
 takt: # takt specific parameters (optional; emitted under .takt/facets/knowledge/ — frontmatter is dropped on emit)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
 ---

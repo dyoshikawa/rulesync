@@ -102,6 +102,28 @@ describe("DeepagentsHooks", () => {
       expect(stopEntry.command).toEqual(["bash", "-c", "echo task done"]);
     });
 
+    it("should map the canonical notification event to dcode input.required", () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            notification: [{ type: "command", command: "echo needs input" }],
+          },
+        }),
+      });
+
+      const hooks = DeepagentsHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+      const parsed = JSON.parse(hooks.getFileContent());
+      const entry = parsed.hooks.find((h: { events?: string[] }) =>
+        h.events?.includes("input.required"),
+      );
+      expect(entry).toBeDefined();
+      expect(entry.command).toEqual(["bash", "-c", "echo needs input"]);
+    });
+
     it("should skip prompt-type hooks", () => {
       const rulesyncHooksContent = JSON.stringify({
         version: 1,

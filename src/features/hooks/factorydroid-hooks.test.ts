@@ -628,13 +628,14 @@ describe("FactorydroidHooks", () => {
         "stop",
         "subagentStop",
         "preCompact",
-        "permissionRequest",
         "notification",
-        "setup",
       ];
       for (const event of expectedEvents) {
         expect(json.hooks[event]).toHaveLength(1);
       }
+      // `setup` / `permissionRequest` are not valid Factory Droid events and must be dropped.
+      expect(json.hooks.setup).toBeUndefined();
+      expect(json.hooks.permissionRequest).toBeUndefined();
     });
   });
 });

@@ -203,6 +203,36 @@ This is the body of the cursor skill.`;
       });
       expect(rulesyncSkill.getBody()).toBe("Test body");
     });
+
+    it("should carry paths/disable-model-invocation/metadata through the cursor section and round-trip", () => {
+      const skill = new CursorSkill({
+        outputRoot: testDir,
+        relativeDirPath: join(".cursor", "skills"),
+        dirName: "scoped-skill",
+        frontmatter: {
+          name: "Scoped Skill",
+          description: "Scoped",
+          paths: ["src/**/*.ts"],
+          "disable-model-invocation": true,
+          metadata: { author: "rulesync" },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().cursor).toEqual({
+        paths: ["src/**/*.ts"],
+        "disable-model-invocation": true,
+        metadata: { author: "rulesync" },
+      });
+
+      const roundTripped = CursorSkill.fromRulesyncSkill({ rulesyncSkill });
+      const fm = roundTripped.getFrontmatter();
+      expect(fm.paths).toEqual(["src/**/*.ts"]);
+      expect(fm["disable-model-invocation"]).toBe(true);
+      expect(fm.metadata).toEqual({ author: "rulesync" });
+    });
   });
 
   describe("forDeletion", () => {
