@@ -20,21 +20,15 @@ importers:
       '@toon-format/toon':
         specifier: 2.1.0
         version: 2.1.0
-      '@valibot/to-json-schema':
-        specifier: 1.6.0
-        version: 1.6.0(valibot@1.2.0(typescript@5.9.3))
       commander:
         specifier: 14.0.3
         version: 14.0.3
-      effect:
-        specifier: 3.20.0
-        version: 3.20.0
       es-toolkit:
         specifier: 1.45.1
         version: 1.45.1
       fastmcp:
         specifier: 3.34.0
-        version: 3.34.0(@valibot/to-json-schema@1.6.0(valibot@1.2.0(typescript@5.9.3)))(effect@3.20.0)(sury@10.0.4)
+        version: 3.34.0
       globby:
         specifier: 16.1.1
         version: 16.1.1
@@ -50,9 +44,6 @@ importers:
       smol-toml:
         specifier: 1.6.1
         version: 1.6.1
-      sury:
-        specifier: 10.0.4
-        version: 10.0.4
       zod:
         specifier: 4.3.6
         version: 4.3.6
@@ -60,9 +51,6 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.2.79
         version: 0.2.79(zod@4.3.6)
-      '@opencode-ai/sdk':
-        specifier: 1.2.27
-        version: 1.2.27
       '@openrouter/sdk':
         specifier: 0.9.11
         version: 0.9.11
@@ -1187,9 +1175,6 @@ packages:
   '@octokit/types@16.0.0':
     resolution: {integrity: sha512-sKq+9r1Mm4efXW1FCk7hFSeJo4QKreL/tTbR0rz/qx/r1Oa2VV83LTA/H/MuCOX7uCIJmQVRKBcbmWoySjAnSg==}
 
-  '@opencode-ai/sdk@1.2.27':
-    resolution: {integrity: sha512-Wk0o/I+Fo+wE3zgvlJDs8Fb67KlKqX0PrV8dK5adSDkANq6r4Z25zXJg2iOir+a8ntg3rAcpel1OY4FV/TwRUA==}
-
   '@openrouter/sdk@0.9.11':
     resolution: {integrity: sha512-BgFu6NcIJO4a9aVjr04y3kZ8pyM71j15I+bzfVAGEvxnj+KQNIkBYQGgwrG3D+aT1QpDKLki8btcQmpaxUas6A==}
 
@@ -1892,11 +1877,6 @@ packages:
     resolution: {integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==}
     deprecated: Potential CWE-502 - Update to 1.3.1 or higher
 
-  '@valibot/to-json-schema@1.6.0':
-    resolution: {integrity: sha512-d6rYyK5KVa2XdqamWgZ4/Nr+cXhxjy7lmpe6Iajw15J/jmU+gyxl2IEd1Otg1d7Rl3gOQL5reulnSypzBtYy1A==}
-    peerDependencies:
-      valibot: ^1.3.0
-
   '@vitejs/plugin-vue@5.2.4':
     resolution: {integrity: sha512-7Yx/SXSOcQq5HiiV3orevHUFn+pmMB4cgbEkDYgnkUWb0WfeQ/wa2yFv6D5ICiCQOVpjA7vYDXrC7AGO8yjDHA==}
     engines: {node: ^18.0.0 || >=20.0.0}
@@ -2400,9 +2380,6 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  effect@3.20.0:
-    resolution: {integrity: sha512-qMLfDJscrNG8p/aw+IkT9W7fgj50Z4wG5bLBy0Txsxz8iUHjDIkOgO3SV0WZfnQbNG2VJYb0b+rDLMrhM4+Krw==}
-
   emoji-regex-xs@1.0.0:
     resolution: {integrity: sha512-LRlerrMYoIDrT6jgpeZ2YYl/L8EulRTt5hQcYjy5AInh7HWXKimpqx68aknBFpGL2+/IcogTcaydJEgaTmOpDg==}
 
@@ -2530,10 +2507,6 @@ packages:
   extend-shallow@2.0.1:
     resolution: {integrity: sha512-zCnTtlxNoAiDc3gqY2aYAWFx7XWWiasuF2K8Me5WbN8otHKTUKBwjPtNpRs/rbUZm7KxWAaNj7P1a/p52GbVug==}
     engines: {node: '>=0.10.0'}
-
-  fast-check@3.23.2:
-    resolution: {integrity: sha512-h5+1OzzfCC3Ef7VbtKdcv7zsstUQwUDlYpUTvjeUsJAssPgLn7QzbboPtL5ro04Mq0rPOsMzl7q5hIbRs2wD1A==}
-    engines: {node: '>=8.0.0'}
 
   fast-content-type-parse@3.0.0:
     resolution: {integrity: sha512-ZvLdcY8P+N8mGQJahJV5G4U88CSvT1rP8ApL6uETe88MBXrBHAkZlSEySdUlyztF7ccb+Znos3TFqaepHxdhBg==}
@@ -3382,9 +3355,6 @@ packages:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
 
-  pure-rand@6.1.0:
-    resolution: {integrity: sha512-bVWawvoZoBYpp6yIoQtQXHZjmz35RSVHnUOTefl8Vcjr8snTPY1wnpSPMWekcFwbxI6gtmT7rSYPFvz71ldiOA==}
-
   qs@6.15.0:
     resolution: {integrity: sha512-mAZTtNCeetKMH+pSjrb76NAM8V9a05I9aBZOHztWy/UqcJdQYNsf59vrRKWnojAT9Y+GbIvoTBC++CPHqpDBhQ==}
     engines: {node: '>=0.6'}
@@ -3719,14 +3689,6 @@ packages:
     resolution: {integrity: sha512-zFObLMyZeEwzAoKCyu1B91U79K2t7ApXuQfo8OuxwXLDgcKxuwM+YvcbIhm6QWqz7mHUH1TVytR1PwVVjEuMig==}
     engines: {node: '>=14.18'}
 
-  sury@10.0.4:
-    resolution: {integrity: sha512-dWKqOv+6D4AwGCjeKyaWr157RVBtvnPUp1I6RxReYD1dYuBl4k6oUd/t5INh1mBhUuAEC9SP+rZmIunCyNjXzQ==}
-    peerDependencies:
-      rescript: 11.x
-    peerDependenciesMeta:
-      rescript:
-        optional: true
-
   svix@1.86.0:
     resolution: {integrity: sha512-/HTvXwjLJe1l/MsLXAO1ddCYxElJk4eNR4DzOjDOEmGrPN/3BtBE8perGwMAaJ2sT5T172VkBYzmHcjUfM1JRQ==}
 
@@ -3934,14 +3896,6 @@ packages:
     resolution: {integrity: sha512-8XkAphELsDnEGrDxUOHB3RGvXz6TeuYSGEZBOjtTtPm2lwhGBjLgOzLHB63IUWfBpNucQjND6d3AOudO+H3RWQ==}
     deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
-
-  valibot@1.2.0:
-    resolution: {integrity: sha512-mm1rxUsmOxzrwnX5arGS+U4T25RdvpPjPN4yR0u9pUBov9+zGVtO84tif1eY4r6zWxVxu3KzIyknJy3rxfRZZg==}
-    peerDependencies:
-      typescript: '>=5'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
 
   validate-npm-package-license@3.0.4:
     resolution: {integrity: sha512-DpKm2Ui/xN7/HQKCtpZxoRWBhZ9Z0kqtygG8XCgNQ8ZlDnxuQmWhj566j8fN4Cu3/JmbhsDo7fcAJq4s9h27Ew==}
@@ -5043,8 +4997,6 @@ snapshots:
     dependencies:
       '@octokit/openapi-types': 27.0.0
 
-  '@opencode-ai/sdk@1.2.27': {}
-
   '@openrouter/sdk@0.9.11':
     dependencies:
       zod: 4.3.6
@@ -5547,10 +5499,6 @@ snapshots:
       '@typescript/native-preview-win32-x64': 7.0.0-dev.20260318.1
 
   '@ungap/structured-clone@1.3.0': {}
-
-  '@valibot/to-json-schema@1.6.0(valibot@1.2.0(typescript@5.9.3))':
-    dependencies:
-      valibot: 1.2.0(typescript@5.9.3)
 
   '@vitejs/plugin-vue@5.2.4(vite@5.4.21(@types/node@25.5.0))(vue@3.5.30(typescript@5.9.3))':
     dependencies:
@@ -6104,11 +6052,6 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  effect@3.20.0:
-    dependencies:
-      '@standard-schema/spec': 1.1.0
-      fast-check: 3.23.2
-
   emoji-regex-xs@1.0.0: {}
 
   emoji-regex@10.6.0: {}
@@ -6327,10 +6270,6 @@ snapshots:
     dependencies:
       is-extendable: 0.1.1
 
-  fast-check@3.23.2:
-    dependencies:
-      pure-rand: 6.1.0
-
   fast-content-type-parse@3.0.0: {}
 
   fast-deep-equal@3.1.3: {}
@@ -6361,7 +6300,7 @@ snapshots:
       path-expression-matcher: 1.1.3
       strnum: 2.2.0
 
-  fastmcp@3.34.0(@valibot/to-json-schema@1.6.0(valibot@1.2.0(typescript@5.9.3)))(effect@3.20.0)(sury@10.0.4):
+  fastmcp@3.34.0:
     dependencies:
       '@modelcontextprotocol/sdk': 1.27.1(zod@4.3.6)
       '@standard-schema/spec': 1.1.0
@@ -6373,7 +6312,7 @@ snapshots:
       strict-event-emitter-types: 2.0.0
       undici: 7.24.5
       uri-templates: 0.2.0
-      xsschema: 0.4.4(@valibot/to-json-schema@1.6.0(valibot@1.2.0(typescript@5.9.3)))(effect@3.20.0)(sury@10.0.4)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6)
+      xsschema: 0.4.4(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6)
       yargs: 18.0.0
       zod: 4.3.6
       zod-to-json-schema: 3.25.1(zod@4.3.6)
@@ -7222,8 +7161,6 @@ snapshots:
 
   punycode@2.3.1: {}
 
-  pure-rand@6.1.0: {}
-
   qs@6.15.0:
     dependencies:
       side-channel: 1.1.0
@@ -7647,8 +7584,6 @@ snapshots:
       has-flag: 4.0.0
       supports-color: 7.2.0
 
-  sury@10.0.4: {}
-
   svix@1.86.0:
     dependencies:
       standardwebhooks: 1.0.0
@@ -7840,10 +7775,6 @@ snapshots:
 
   uuid@10.0.0: {}
 
-  valibot@1.2.0(typescript@5.9.3):
-    optionalDependencies:
-      typescript: 5.9.3
-
   validate-npm-package-license@3.0.4:
     dependencies:
       spdx-correct: 3.2.0
@@ -8008,11 +7939,8 @@ snapshots:
 
   xdg-basedir@5.1.0: {}
 
-  xsschema@0.4.4(@valibot/to-json-schema@1.6.0(valibot@1.2.0(typescript@5.9.3)))(effect@3.20.0)(sury@10.0.4)(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6):
+  xsschema@0.4.4(zod-to-json-schema@3.25.1(zod@4.3.6))(zod@4.3.6):
     optionalDependencies:
-      '@valibot/to-json-schema': 1.6.0(valibot@1.2.0(typescript@5.9.3))
-      effect: 3.20.0
-      sury: 10.0.4
       zod: 4.3.6
       zod-to-json-schema: 3.25.1(zod@4.3.6)
 

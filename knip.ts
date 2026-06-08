@@ -1,8 +1,17 @@
 import { type KnipConfig } from "knip";
 
 const config: KnipConfig = {
-  entry: ["src/cli/index.ts", "src/index.ts", "src/**/*.test.ts", "src/**/*.test-d.ts"],
-  project: ["src/**/*.ts"],
+  entry: [
+    "src/cli/index.ts",
+    "src/index.ts",
+    "src/**/*.test.ts",
+    // Standalone task runners under scripts/ (executed via tsx) and their colocated
+    // tests. Treating them as entries means script-only dependencies (e.g. `resend`,
+    // used in scripts/security-scan-lib.ts) are seen as used instead of being reported
+    // as false-positive unused dependencies.
+    "scripts/**/*.ts",
+  ],
+  project: ["src/**/*.ts", "scripts/**/*.ts"],
   ignore: [
     // Build output and node_modules
     "dist/**",
@@ -19,13 +28,10 @@ const config: KnipConfig = {
   ignoreDependencies: [
     // Dependencies used only in configuration files
     "@secretlint/secretlint-rule-preset-recommend",
-    // For MCP development
-    "o3-search-mcp",
     // Used only in TypeScript configuration
     "typescript",
     "@types/node",
     "@types/js-yaml",
-    "@types/micromatch",
     // lint-staged is used in git hooks
     "lint-staged",
     // Used in docs site

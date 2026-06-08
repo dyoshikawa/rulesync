@@ -698,4 +698,81 @@ describe("JunieRule", () => {
       expect(junieRule.validate().success).toBe(true);
     });
   });
+
+  describe("global mode", () => {
+    it("should resolve the global root guideline path", () => {
+      const paths = JunieRule.getSettablePaths({ global: true });
+
+      expect("root" in paths && paths.root).toEqual({
+        relativeDirPath: ".junie",
+        relativeFilePath: "AGENTS.md",
+      });
+      // Memory files stay project-scoped, so global mode exposes no nonRoot path.
+      expect("nonRoot" in paths && paths.nonRoot).toBeFalsy();
+    });
+
+    it("should create a global root rule from a root RulesyncRule", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "overview.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          description: "Global root rule",
+          globs: [],
+        },
+        body: "# Global Junie Guidelines",
+      });
+
+      const junieRule = JunieRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule,
+        global: true,
+      });
+
+      expect(junieRule.getRelativeDirPath()).toBe(".junie");
+      expect(junieRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(junieRule.isRoot()).toBe(true);
+      expect(junieRule.getFilePath()).toBe(join(testDir, ".junie/AGENTS.md"));
+      expect(junieRule.getFileContent()).toContain("# Global Junie Guidelines");
+    });
+
+    it("should reject non-root rules in global mode", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "detail.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          description: "Non-root rule",
+          globs: [],
+        },
+        body: "# Detail",
+      });
+
+      expect(() =>
+        JunieRule.fromRulesyncRule({
+          outputRoot: testDir,
+          rulesyncRule,
+          global: true,
+        }),
+      ).toThrow(/non-root rules in global mode/);
+    });
+
+    it("should read the global root guideline file", async () => {
+      const testContent = "# Global Guidelines from file";
+      await writeFileContent(join(testDir, ".junie", "AGENTS.md"), testContent);
+
+      const junieRule = await JunieRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "AGENTS.md",
+        global: true,
+      });
+
+      expect(junieRule.getRelativeDirPath()).toBe(".junie");
+      expect(junieRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(junieRule.isRoot()).toBe(true);
+      expect(junieRule.getFileContent()).toBe(testContent);
+    });
+  });
 });

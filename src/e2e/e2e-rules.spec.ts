@@ -290,6 +290,7 @@ describe("E2E: rules (global mode)", () => {
       target: "devin",
       outputPath: join(".codeium", "windsurf", "memories", "global_rules.md"),
     },
+    { target: "junie", outputPath: join(".junie", "AGENTS.md") },
   ])("should generate $target rules in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

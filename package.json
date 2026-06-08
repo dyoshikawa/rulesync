@@ -84,9 +84,7 @@
     "@octokit/request-error": "7.1.0",
     "@octokit/rest": "22.0.1",
     "@toon-format/toon": "2.1.0",
-    "@valibot/to-json-schema": "1.6.0",
     "commander": "14.0.3",
-    "effect": "3.20.0",
     "es-toolkit": "1.45.1",
     "fastmcp": "3.34.0",
     "globby": "16.1.1",
@@ -94,12 +92,10 @@
     "js-yaml": "4.1.1",
     "jsonc-parser": "3.3.1",
     "smol-toml": "1.6.1",
-    "sury": "10.0.4",
     "zod": "4.3.6"
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.79",
-    "@opencode-ai/sdk": "1.2.27",
     "@openrouter/sdk": "0.9.11",
     "@secretlint/secretlint-rule-preset-recommend": "11.3.1",
     "@tsconfig/node24": "24.0.4",
