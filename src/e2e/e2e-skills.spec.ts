@@ -92,6 +92,10 @@ describe("E2E: skills", () => {
       outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
     },
     {
+      target: "amp",
+      outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
+    },
+    {
       target: "takt",
       outputPath: join(".takt", "facets", "knowledge", "test-skill.md"),
     },

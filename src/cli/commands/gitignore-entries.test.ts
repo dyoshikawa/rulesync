@@ -13,12 +13,11 @@ const logger = createMockLogger();
 // These targets intentionally have no gitignore entries because they either
 // don't generate files (e.g., agentsskills), share paths with their
 // non-legacy counterparts (e.g., augmentcode-legacy → augmentcode), or write
-// only into a user-owned shared settings file that rulesync must not gitignore
-// (e.g., amp writes the `amp.mcpServers` key into `.amp/settings.{json,jsonc}`
-// alongside the user's other Amp settings).
+// only into a user-owned shared settings file that rulesync must not gitignore.
+// Note: `amp` now has a `skills` entry (`.agents/skills/`); its MCP output still
+// lands in the user-owned `.amp/settings.{json,jsonc}`, which is not gitignored.
 const TARGETS_WITHOUT_GITIGNORE_ENTRIES = new Set([
   "agentsskills",
-  "amp",
   "antigravity",
   "augmentcode-legacy",
   "claudecode-legacy",

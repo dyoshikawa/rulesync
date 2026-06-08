@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
-import { assertSafeTaktName } from "../takt-shared.js";
+import { assertSafeTaktName, prependTaktExtends } from "../takt-shared.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -85,9 +85,16 @@ export class TaktCommand extends ToolCommand {
 
     const paths = this.getSettablePaths({ global });
 
+    const body = prependTaktExtends({
+      extendsName: typeof taktSection?.extends === "string" ? taktSection.extends : undefined,
+      body: rulesyncCommand.getBody(),
+      featureLabel: "command",
+      sourceLabel,
+    });
+
     return new TaktCommand({
       outputRoot,
-      body: rulesyncCommand.getBody(),
+      body,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
       validate,

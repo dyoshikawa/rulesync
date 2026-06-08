@@ -76,7 +76,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 
 | Tool                   | rules | ignore | mcp | commands | subagents | skills | hooks | permissions |
 | ---------------------- | :---: | :----: | :-: | :------: | :-------: | :----: | :---: | :---------: |
-| Amp                    |       |        | ✅  |          |           |        |       |             |
+| Amp                    |       |        | ✅  |          |           |   ✅   |       |             |
 | Claude Code            |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Codex CLI              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Gemini CLI ⚠️          |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |

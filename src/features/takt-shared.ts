@@ -44,3 +44,46 @@ export function assertSafeTaktName({
     );
   }
 }
+
+/**
+ * Prepend a TAKT facet-inheritance directive (`{extends:<parent>}`) to a facet
+ * body when `takt.extends` is set (Takt 0.39.0+).
+ *
+ * Inheritance is a standalone inline directive at the start of the facet file —
+ * not frontmatter — so it composes cleanly with TAKT's plain-Markdown output.
+ * Supported by the instructions, policies, knowledge, and output-contracts
+ * facets (personas are excluded). The parent must be a bare facet name (no path
+ * separators or `..`), matching the constraint on filename stems.
+ *
+ * @returns the body with the directive prepended, or the body unchanged when
+ *          `extendsName` is undefined/empty.
+ */
+export function prependTaktExtends({
+  extendsName,
+  body,
+  featureLabel,
+  sourceLabel,
+}: {
+  extendsName: string | undefined;
+  body: string;
+  featureLabel: string;
+  sourceLabel: string;
+}): string {
+  if (extendsName === undefined || extendsName === "") {
+    return body;
+  }
+  if (
+    !TAKT_NAME_PATTERN.test(extendsName) ||
+    extendsName === "." ||
+    extendsName === ".." ||
+    extendsName.split(/[.]/u).some((segment) => segment === "..")
+  ) {
+    throw new Error(
+      `Invalid takt.extends "${extendsName}" for ${featureLabel} "${sourceLabel}": ` +
+        `the parent must be a bare facet name without path separators or ".." segments.`,
+    );
+  }
+  const directive = `{extends:${extendsName}}`;
+  const trimmedBody = body.replace(/^\s+/u, "");
+  return trimmedBody.length > 0 ? `${directive}\n\n${trimmedBody}` : `${directive}\n`;
+}

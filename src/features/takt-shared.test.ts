@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { assertSafeTaktName } from "./takt-shared.js";
+import { assertSafeTaktName, prependTaktExtends } from "./takt-shared.js";
 
 describe("assertSafeTaktName", () => {
   it.each([["plain"], ["with-dash"], ["with_underscore"], ["with.dot"], ["mixed-1.2_3"]])(
@@ -35,4 +35,64 @@ describe("assertSafeTaktName", () => {
       assertSafeTaktName({ name: "../bad", featureLabel: "skill", sourceLabel: "src.md" }),
     ).toThrow(/skill "src\.md"/);
   });
+});
+
+describe("prependTaktExtends", () => {
+  it("returns the body unchanged when extendsName is undefined", () => {
+    expect(
+      prependTaktExtends({
+        extendsName: undefined,
+        body: "# Body",
+        featureLabel: "rule",
+        sourceLabel: "x.md",
+      }),
+    ).toBe("# Body");
+  });
+
+  it("returns the body unchanged when extendsName is empty", () => {
+    expect(
+      prependTaktExtends({
+        extendsName: "",
+        body: "# Body",
+        featureLabel: "rule",
+        sourceLabel: "x.md",
+      }),
+    ).toBe("# Body");
+  });
+
+  it("prepends the canonical {extends:<parent>} directive (no space)", () => {
+    expect(
+      prependTaktExtends({
+        extendsName: "fix",
+        body: "# Body",
+        featureLabel: "policies",
+        sourceLabel: "x.md",
+      }),
+    ).toBe("{extends:fix}\n\n# Body");
+  });
+
+  it("emits a standalone directive when the body is empty", () => {
+    expect(
+      prependTaktExtends({
+        extendsName: "fix",
+        body: "   ",
+        featureLabel: "policies",
+        sourceLabel: "x.md",
+      }),
+    ).toBe("{extends:fix}\n");
+  });
+
+  it.each([["a/b"], ["../escape"], [".."], ["with\\slash"], ["a b"]])(
+    "rejects an unsafe parent name %s",
+    (name) => {
+      expect(() =>
+        prependTaktExtends({
+          extendsName: name,
+          body: "x",
+          featureLabel: "rule",
+          sourceLabel: "src.md",
+        }),
+      ).toThrow(/Invalid takt\.extends/);
+    },
+  );
 });
