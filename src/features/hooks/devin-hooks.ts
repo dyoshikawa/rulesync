@@ -15,9 +15,9 @@ import {
 } from "./tool-hooks.js";
 
 /**
- * Hook events supported by Windsurf Cascade Hooks (GA).
+ * Hook events supported by Devin Cascade Hooks (GA).
  *
- * Windsurf exposes 12 lifecycle events. Unlike Claude/Antigravity, each event
+ * Devin exposes 12 lifecycle events. Unlike Claude/Antigravity, each event
  * maps directly to a flat array of hook objects (no `matcher`, no `type`, no
  * inner `hooks` wrapper, and no `timeout`). A hook object carries `command`
  * and/or `powershell`, plus optional `show_output` and `working_directory`.
@@ -26,7 +26,7 @@ import {
  * - Project file:  `.windsurf/hooks.json`
  * - Global file:   `~/.codeium/windsurf/hooks.json`
  */
-export const WINDSURF_HOOK_EVENT_NAMES = [
+export const DEVIN_HOOK_EVENT_NAMES = [
   "pre_read_code",
   "post_read_code",
   "pre_write_code",
@@ -41,13 +41,13 @@ export const WINDSURF_HOOK_EVENT_NAMES = [
   "post_setup_worktree",
 ] as const;
 
-export type WindsurfHookEventName = (typeof WINDSURF_HOOK_EVENT_NAMES)[number];
+export type DevinHookEventName = (typeof DEVIN_HOOK_EVENT_NAMES)[number];
 
 /**
- * Map canonical camelCase event names to Windsurf event names.
+ * Map canonical camelCase event names to Devin event names.
  *
- * The mapping is bijective for every event with a Windsurf equivalent, so the
- * conversion round-trips cleanly. Windsurf splits the generic tool lifecycle
+ * The mapping is bijective for every event with a Devin equivalent, so the
+ * conversion round-trips cleanly. Devin splits the generic tool lifecycle
  * into file/command/MCP specific events, so we line them up with the closest
  * file/command/MCP specific canonical events rather than the generic
  * preToolUse/postToolUse pair:
@@ -69,17 +69,17 @@ export type WindsurfHookEventName = (typeof WINDSURF_HOOK_EVENT_NAMES)[number];
  * no `afterReadFile` or `beforeWriteFile`/`beforeFileEdit` event — the only read
  * events are `beforeReadFile`/`beforeTabFileRead` (both read-side) and the only
  * edit events are `afterFileEdit`/`afterTabFileEdit` (both edit-side). To cover
- * all twelve Windsurf events bijectively we therefore pair the second read/write
+ * all twelve Devin events bijectively we therefore pair the second read/write
  * event by DOMAIN (read↔read, write↔write) rather than by timing, which inverts
  * the prefix on `post_read_code` (⇄ beforeTabFileRead) and `pre_write_code`
  * (⇄ afterTabFileEdit). The alternative — pairing by timing — would leave two
- * Windsurf events unmapped and drop user hooks. The round-trip stays lossless;
+ * Devin events unmapped and drop user hooks. The round-trip stays lossless;
  * only the human-readable prefix differs, so this is a deliberate trade-off.
  *
- * Canonical events that have no Windsurf equivalent (e.g. sessionStart, stop)
+ * Canonical events that have no Devin equivalent (e.g. sessionStart, stop)
  * are dropped with a logged warning during export.
  */
-export const CANONICAL_TO_WINDSURF_EVENT_NAMES: Record<string, WindsurfHookEventName> = {
+export const CANONICAL_TO_DEVIN_EVENT_NAMES: Record<string, DevinHookEventName> = {
   beforeReadFile: "pre_read_code",
   beforeTabFileRead: "post_read_code",
   afterTabFileEdit: "pre_write_code",
@@ -95,20 +95,20 @@ export const CANONICAL_TO_WINDSURF_EVENT_NAMES: Record<string, WindsurfHookEvent
 };
 
 /**
- * Map Windsurf event names back to canonical camelCase event names.
+ * Map Devin event names back to canonical camelCase event names.
  */
-export const WINDSURF_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_WINDSURF_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const DEVIN_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_DEVIN_EVENT_NAMES).map(([k, v]) => [v, k]),
 );
 
 /**
- * Canonical hook events supported by Windsurf (the keys of the bijective map).
+ * Canonical hook events supported by Devin (the keys of the bijective map).
  *
  * Listed explicitly (rather than derived via `Object.keys`) so each value is
  * type-checked against `HookEvent` and stays in sync with
- * `CANONICAL_TO_WINDSURF_EVENT_NAMES`.
+ * `CANONICAL_TO_DEVIN_EVENT_NAMES`.
  */
-export const WINDSURF_HOOK_EVENTS: readonly HookEvent[] = [
+export const DEVIN_HOOK_EVENTS: readonly HookEvent[] = [
   "beforeReadFile",
   "beforeTabFileRead",
   "afterTabFileEdit",
@@ -124,13 +124,13 @@ export const WINDSURF_HOOK_EVENTS: readonly HookEvent[] = [
 ];
 
 /**
- * A single Windsurf hook object.
+ * A single Devin hook object.
  *
- * At least one of `command` / `powershell` is required by Windsurf; the
+ * At least one of `command` / `powershell` is required by Devin; the
  * converter preserves whatever is present and never invents `type`, `matcher`,
  * or `timeout` fields.
  */
-type WindsurfHookObject = {
+type DevinHookObject = {
   command?: string;
   powershell?: string;
   show_output?: boolean;
@@ -142,23 +142,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Read the per-tool `windsurf` override hooks from the rulesync hooks config.
+ * Read the per-tool `devin` override hooks from the rulesync hooks config.
  *
- * `HooksConfigSchema` surfaces an optional `windsurf` block (mirroring every
+ * `HooksConfigSchema` surfaces an optional `devin` block (mirroring every
  * other hooks target), so the override hooks are read directly off the typed
  * config without any cast.
  */
-function getWindsurfOverrideHooks(config: HooksConfig): HooksConfig["hooks"] {
-  return config.windsurf?.hooks ?? {};
+function getDevinOverrideHooks(config: HooksConfig): HooksConfig["hooks"] {
+  return config.devin?.hooks ?? {};
 }
 
 /**
- * Convert a canonical hook definition into a Windsurf hook object, keeping only
- * the Windsurf-supported fields. Returns null when neither command nor
- * powershell is present (Windsurf requires at least one of them).
+ * Convert a canonical hook definition into a Devin hook object, keeping only
+ * the Devin-supported fields. Returns null when neither command nor
+ * powershell is present (Devin requires at least one of them).
  */
-function canonicalDefToWindsurfHook(def: Record<string, unknown>): WindsurfHookObject | null {
-  const hook: WindsurfHookObject = {};
+function canonicalDefToDevinHook(def: Record<string, unknown>): DevinHookObject | null {
+  const hook: DevinHookObject = {};
   if (typeof def.command === "string") {
     hook.command = def.command;
   }
@@ -178,9 +178,9 @@ function canonicalDefToWindsurfHook(def: Record<string, unknown>): WindsurfHookO
 }
 
 /**
- * Convert a Windsurf hook object into a canonical hook definition.
+ * Convert a Devin hook object into a canonical hook definition.
  */
-function windsurfHookToCanonicalDef(hook: Record<string, unknown>): Record<string, unknown> {
+function devinHookToCanonicalDef(hook: Record<string, unknown>): Record<string, unknown> {
   const def: Record<string, unknown> = { type: "command" };
   if (typeof hook.command === "string") {
     def.command = hook.command;
@@ -198,15 +198,15 @@ function windsurfHookToCanonicalDef(hook: Record<string, unknown>): Record<strin
 }
 
 /**
- * Hooks generator for Windsurf Cascade (GA).
+ * Hooks generator for Devin Cascade (GA).
  *
  * Writes a dedicated `hooks.json` whose top-level `hooks` key maps each
- * Windsurf event name to a flat array of hook objects. Project and global modes
+ * Devin event name to a flat array of hook objects. Project and global modes
  * share the same shape; only the location differs (`.windsurf/hooks.json` vs
  * `~/.codeium/windsurf/hooks.json`). The harness overrides `outputRoot` with the
  * home directory in global mode.
  */
-export class WindsurfHooks extends ToolHooks {
+export class DevinHooks extends ToolHooks {
   constructor(params: AiFileParams) {
     super({
       ...params,
@@ -231,11 +231,11 @@ export class WindsurfHooks extends ToolHooks {
     outputRoot = process.cwd(),
     validate = true,
     global = false,
-  }: ToolHooksFromFileParams): Promise<WindsurfHooks> {
-    const paths = WindsurfHooks.getSettablePaths({ global });
+  }: ToolHooksFromFileParams): Promise<DevinHooks> {
+    const paths = DevinHooks.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({ hooks: {} });
-    return new WindsurfHooks({
+    return new DevinHooks({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -253,53 +253,51 @@ export class WindsurfHooks extends ToolHooks {
   }: ToolHooksFromRulesyncHooksParams & {
     global?: boolean;
     logger?: Logger;
-  }): Promise<WindsurfHooks> {
-    const paths = WindsurfHooks.getSettablePaths({ global });
+  }): Promise<DevinHooks> {
+    const paths = DevinHooks.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     // hooks.json is dedicated to hooks, so any existing content is fully
     // replaced; reading it first keeps a stable round-trip when unchanged.
     await readOrInitializeFileContent(filePath, JSON.stringify({ hooks: {} }, null, 2));
 
     const config = rulesyncHooks.getJson();
-    const supported: Set<string> = new Set(WINDSURF_HOOK_EVENTS);
+    const supported: Set<string> = new Set(DEVIN_HOOK_EVENTS);
     const sharedHooks: HooksConfig["hooks"] = {};
     for (const [event, defs] of Object.entries(config.hooks)) {
       if (supported.has(event)) {
         sharedHooks[event] = defs;
       }
     }
-    // The per-tool override key (`windsurf`) is accessed through a guarded read
+    // The per-tool override key (`devin`) is accessed through a guarded read
     // because the rulesync hooks schema passes unknown keys through
     // (z.looseObject) but does not surface them on the inferred type.
-    const overrideHooks = getWindsurfOverrideHooks(config);
+    const overrideHooks = getDevinOverrideHooks(config);
     const effectiveHooks: HooksConfig["hooks"] = {
       ...sharedHooks,
       ...overrideHooks,
     };
 
-    const windsurfHooks: Record<string, WindsurfHookObject[]> = {};
+    const devinHooks: Record<string, DevinHookObject[]> = {};
     for (const [canonicalEvent, defs] of Object.entries(effectiveHooks)) {
-      const windsurfEvent = CANONICAL_TO_WINDSURF_EVENT_NAMES[canonicalEvent];
-      if (windsurfEvent === undefined) {
-        logger?.warn(
-          `Skipped hook event "${canonicalEvent}" for windsurf (no Windsurf equivalent)`,
-        );
+      const devinEvent = CANONICAL_TO_DEVIN_EVENT_NAMES[canonicalEvent];
+      if (devinEvent === undefined) {
+        logger?.warn(`Skipped hook event "${canonicalEvent}" for devin (no Devin equivalent)`);
         continue;
       }
-      const objects: WindsurfHookObject[] = [];
+      const objects: DevinHookObject[] = [];
       for (const def of defs) {
-        const hook = canonicalDefToWindsurfHook(def);
+        const hook = canonicalDefToDevinHook(def);
         if (hook !== null) {
           objects.push(hook);
         }
       }
       if (objects.length > 0) {
-        windsurfHooks[windsurfEvent] = objects;
+        devinHooks[devinEvent] = objects;
       }
     }
 
-    const fileContent = JSON.stringify({ hooks: windsurfHooks }, null, 2);
-    return new WindsurfHooks({
+    const fileContent = JSON.stringify({ hooks: devinHooks }, null, 2);
+    return new DevinHooks({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -314,7 +312,7 @@ export class WindsurfHooks extends ToolHooks {
       parsed = JSON.parse(this.getFileContent());
     } catch (error) {
       throw new Error(
-        `Failed to parse Windsurf hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
+        `Failed to parse Devin hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
         { cause: error },
       );
     }
@@ -323,17 +321,17 @@ export class WindsurfHooks extends ToolHooks {
     // only serialized to JSON for toRulesyncHooksDefault; this keeps the
     // canonical hook objects assignable without a type assertion.
     const canonicalHooks: Record<string, Record<string, unknown>[]> = {};
-    const windsurfHooks = parsed.hooks;
-    if (isRecord(windsurfHooks)) {
-      for (const [windsurfEvent, rawObjects] of Object.entries(windsurfHooks)) {
+    const devinHooks = parsed.hooks;
+    if (isRecord(devinHooks)) {
+      for (const [devinEvent, rawObjects] of Object.entries(devinHooks)) {
         if (!Array.isArray(rawObjects)) {
           continue;
         }
-        const canonicalEvent = WINDSURF_TO_CANONICAL_EVENT_NAMES[windsurfEvent];
+        const canonicalEvent = DEVIN_TO_CANONICAL_EVENT_NAMES[devinEvent];
         if (canonicalEvent === undefined) {
-          // Unknown Windsurf event (not one of the documented 12). Drop it on
+          // Unknown Devin event (not one of the documented 12). Drop it on
           // import for symmetry with the export side, which drops canonical
-          // events that have no Windsurf equivalent. Passing it through would
+          // events that have no Devin equivalent. Passing it through would
           // let it survive import only to be silently dropped on the next
           // generate, hiding the data loss from the user.
           continue;
@@ -343,7 +341,7 @@ export class WindsurfHooks extends ToolHooks {
           if (!isRecord(rawObject)) {
             continue;
           }
-          defs.push(windsurfHookToCanonicalDef(rawObject));
+          defs.push(devinHookToCanonicalDef(rawObject));
         }
         if (defs.length > 0) {
           canonicalHooks[canonicalEvent] = defs;
@@ -364,8 +362,8 @@ export class WindsurfHooks extends ToolHooks {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
-  }: ToolHooksForDeletionParams): WindsurfHooks {
-    return new WindsurfHooks({
+  }: ToolHooksForDeletionParams): DevinHooks {
+    return new DevinHooks({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

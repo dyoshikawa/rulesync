@@ -17,6 +17,7 @@ import { CopilotMcp } from "./copilot-mcp.js";
 import { CopilotcliMcp } from "./copilotcli-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { DeepagentsMcp } from "./deepagents-mcp.js";
+import { DevinMcp } from "./devin-mcp.js";
 import { FactorydroidMcp } from "./factorydroid-mcp.js";
 import { GeminiCliMcp } from "./geminicli-mcp.js";
 import { JunieMcp } from "./junie-mcp.js";
@@ -34,7 +35,6 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 import { WarpMcp } from "./warp-mcp.js";
-import { WindsurfMcp } from "./windsurf-mcp.js";
 import { ZedMcp } from "./zed-mcp.js";
 
 /**
@@ -62,7 +62,7 @@ const mcpProcessorToolTargetTuple = [
   "roo",
   "rovodev",
   "warp",
-  "windsurf",
+  "devin",
   "zed",
 ] as const;
 
@@ -348,13 +348,13 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
     },
   ],
   [
-    "windsurf",
+    "devin",
     {
-      class: WindsurfMcp,
+      class: DevinMcp,
       meta: {
-        // Windsurf reads `mcp_config.json` from `.windsurf/` (project) and
+        // Devin reads `mcp_config.json` from `.devin/` (project) and
         // `~/.codeium/windsurf/` (global). Each server may carry a
-        // `disabledTools` array, but Windsurf has no `enabledTools` concept.
+        // `disabledTools` array, but Devin has no `enabledTools` concept.
         supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,

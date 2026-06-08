@@ -5,14 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { DevinRule, DevinRuleFrontmatter, DevinRuleFrontmatterSchema } from "./devin-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
-import {
-  WindsurfRule,
-  WindsurfRuleFrontmatter,
-  WindsurfRuleFrontmatterSchema,
-} from "./windsurf-rule.js";
 
-describe("WindsurfRule", () => {
+describe("DevinRule", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
@@ -28,17 +24,17 @@ describe("WindsurfRule", () => {
 
   describe("constructor", () => {
     it("should create instance with frontmatter and body", () => {
-      const windsurfRule = new WindsurfRule({
+      const devinRule = new DevinRule({
         frontmatter: { trigger: "always_on" },
-        relativeDirPath: join(".windsurf", "rules"),
+        relativeDirPath: join(".devin", "rules"),
         relativeFilePath: "test-rule.md",
         body: "# Test Rule\n\nThis is a test rule.",
       });
 
-      expect(windsurfRule).toBeInstanceOf(WindsurfRule);
-      expect(windsurfRule.getRelativeDirPath()).toBe(join(".windsurf", "rules"));
-      expect(windsurfRule.getRelativeFilePath()).toBe("test-rule.md");
-      expect(windsurfRule.getFileContent().trim()).toBe(`---
+      expect(devinRule).toBeInstanceOf(DevinRule);
+      expect(devinRule.getRelativeDirPath()).toBe(join(".devin", "rules"));
+      expect(devinRule.getRelativeFilePath()).toBe("test-rule.md");
+      expect(devinRule.getFileContent().trim()).toBe(`---
 trigger: always_on
 ---
 # Test Rule
@@ -47,7 +43,7 @@ This is a test rule.`);
     });
 
     it("should emit a plain body without frontmatter for root (global) rules", () => {
-      const windsurfRule = new WindsurfRule({
+      const devinRule = new DevinRule({
         frontmatter: {},
         relativeDirPath: join(".codeium", "windsurf", "memories"),
         relativeFilePath: "global_rules.md",
@@ -55,17 +51,17 @@ This is a test rule.`);
         root: true,
       });
 
-      expect(windsurfRule.getFileContent().trim()).toBe("# Global\n\nPlain body.");
-      expect(windsurfRule.getFileContent()).not.toContain("trigger:");
+      expect(devinRule.getFileContent().trim()).toBe("# Global\n\nPlain body.");
+      expect(devinRule.getFileContent()).not.toContain("trigger:");
     });
 
     it("should throw for invalid frontmatter types", () => {
       expect(
         () =>
-          new WindsurfRule({
+          new DevinRule({
             // Invalid: globs should be a string, pass a number to force schema failure.
             frontmatter: { trigger: "glob", globs: 123 } as any,
-            relativeDirPath: join(".windsurf", "rules"),
+            relativeDirPath: join(".devin", "rules"),
             relativeFilePath: "test-rule.md",
             body: "# Test",
           }),
@@ -75,9 +71,9 @@ This is a test rule.`);
     it("should skip validation when requested", () => {
       expect(
         () =>
-          new WindsurfRule({
+          new DevinRule({
             frontmatter: { trigger: "glob", globs: 123 } as any,
-            relativeDirPath: join(".windsurf", "rules"),
+            relativeDirPath: join(".devin", "rules"),
             relativeFilePath: "test-rule.md",
             body: "# Test",
             validate: false,
@@ -87,16 +83,16 @@ This is a test rule.`);
   });
 
   describe("getSettablePaths", () => {
-    it("should return nonRoot path under .windsurf/rules for project scope", () => {
-      const paths = WindsurfRule.getSettablePaths();
+    it("should return nonRoot path under .devin/rules for project scope", () => {
+      const paths = DevinRule.getSettablePaths();
 
       expect("root" in paths).toBe(false);
       const nonRoot = (paths as { nonRoot: { relativeDirPath: string } }).nonRoot;
-      expect(nonRoot.relativeDirPath).toBe(join(".windsurf", "rules"));
+      expect(nonRoot.relativeDirPath).toBe(join(".devin", "rules"));
     });
 
     it("should return global root path under .codeium/windsurf/memories/global_rules.md", () => {
-      const paths = WindsurfRule.getSettablePaths({ global: true });
+      const paths = DevinRule.getSettablePaths({ global: true });
 
       expect("nonRoot" in paths).toBe(false);
       const root = (paths as { root: { relativeDirPath: string; relativeFilePath: string } }).root;
@@ -105,7 +101,7 @@ This is a test rule.`);
     });
 
     it("should exclude the tool dir for project scope when requested", () => {
-      const paths = WindsurfRule.getSettablePaths({ excludeToolDir: true });
+      const paths = DevinRule.getSettablePaths({ excludeToolDir: true });
 
       const nonRoot = (paths as { nonRoot: { relativeDirPath: string } }).nonRoot;
       expect(nonRoot.relativeDirPath).toBe("rules");
@@ -114,24 +110,24 @@ This is a test rule.`);
 
   describe("fromFile", () => {
     it("should parse a project rule file with frontmatter", async () => {
-      const rulesDir = join(testDir, ".windsurf", "rules");
+      const rulesDir = join(testDir, ".devin", "rules");
       await ensureDir(rulesDir);
       const content = "---\ntrigger: glob\nglobs: '*.ts'\n---\n\n# Glob Rule";
       await writeFileContent(join(rulesDir, "glob.md"), content);
 
-      const windsurfRule = await WindsurfRule.fromFile({
+      const devinRule = await DevinRule.fromFile({
         outputRoot: testDir,
         relativeFilePath: "glob.md",
       });
 
-      expect(windsurfRule.getRelativeDirPath()).toBe(join(".windsurf", "rules"));
-      expect(windsurfRule.getRelativeFilePath()).toBe("glob.md");
-      expect(windsurfRule.getFrontmatter()).toEqual({ trigger: "glob", globs: "*.ts" });
-      expect(windsurfRule.getBody().trim()).toBe("# Glob Rule");
+      expect(devinRule.getRelativeDirPath()).toBe(join(".devin", "rules"));
+      expect(devinRule.getRelativeFilePath()).toBe("glob.md");
+      expect(devinRule.getFrontmatter()).toEqual({ trigger: "glob", globs: "*.ts" });
+      expect(devinRule.getBody().trim()).toBe("# Glob Rule");
     });
 
     it("should parse all four supported triggers from files", async () => {
-      const rulesDir = join(testDir, ".windsurf", "rules");
+      const rulesDir = join(testDir, ".devin", "rules");
       await ensureDir(rulesDir);
 
       const testCases = [
@@ -159,7 +155,7 @@ This is a test rule.`);
 
       for (const testCase of testCases) {
         await writeFileContent(join(rulesDir, testCase.file), testCase.content);
-        const rule = await WindsurfRule.fromFile({
+        const rule = await DevinRule.fromFile({
           outputRoot: testDir,
           relativeFilePath: testCase.file,
         });
@@ -173,22 +169,22 @@ This is a test rule.`);
       const content = "# Global Rules\n\nNo frontmatter here.";
       await writeFileContent(join(memoriesDir, "global_rules.md"), content);
 
-      const windsurfRule = await WindsurfRule.fromFile({
+      const devinRule = await DevinRule.fromFile({
         outputRoot: testDir,
         relativeFilePath: "global_rules.md",
         global: true,
       });
 
-      expect(windsurfRule.isRoot()).toBe(true);
-      expect(windsurfRule.getRelativeDirPath()).toBe(join(".codeium", "windsurf", "memories"));
-      expect(windsurfRule.getRelativeFilePath()).toBe("global_rules.md");
-      expect(windsurfRule.getBody().trim()).toBe(content);
-      expect(windsurfRule.getFileContent()).not.toContain("trigger:");
+      expect(devinRule.isRoot()).toBe(true);
+      expect(devinRule.getRelativeDirPath()).toBe(join(".codeium", "windsurf", "memories"));
+      expect(devinRule.getRelativeFilePath()).toBe("global_rules.md");
+      expect(devinRule.getBody().trim()).toBe(content);
+      expect(devinRule.getFileContent()).not.toContain("trigger:");
     });
 
     it("should throw when the file does not exist", async () => {
       await expect(
-        WindsurfRule.fromFile({
+        DevinRule.fromFile({
           outputRoot: testDir,
           relativeFilePath: "nonexistent.md",
         }),
@@ -207,13 +203,13 @@ This is a test rule.`);
         body: "# Glob Rule",
       });
 
-      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule });
+      const devinRule = DevinRule.fromRulesyncRule({ rulesyncRule });
 
-      expect(windsurfRule.getFrontmatter()).toEqual({
+      expect(devinRule.getFrontmatter()).toEqual({
         trigger: "glob",
         globs: "src/**/*.ts",
       });
-      expect(windsurfRule.getRelativeDirPath()).toBe(join(".windsurf", "rules"));
+      expect(devinRule.getRelativeDirPath()).toBe(join(".devin", "rules"));
     });
 
     it("should infer always_on trigger for the **/* wildcard glob", () => {
@@ -226,9 +222,9 @@ This is a test rule.`);
         body: "# Always On Rule",
       });
 
-      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule });
+      const devinRule = DevinRule.fromRulesyncRule({ rulesyncRule });
 
-      expect(windsurfRule.getFrontmatter()).toEqual({ trigger: "always_on" });
+      expect(devinRule.getFrontmatter()).toEqual({ trigger: "always_on" });
     });
 
     it("should infer always_on trigger when no globs are present", () => {
@@ -239,9 +235,9 @@ This is a test rule.`);
         body: "# No Globs",
       });
 
-      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule });
+      const devinRule = DevinRule.fromRulesyncRule({ rulesyncRule });
 
-      expect(windsurfRule.getFrontmatter()).toEqual({ trigger: "always_on" });
+      expect(devinRule.getFrontmatter()).toEqual({ trigger: "always_on" });
     });
 
     it("should kebab-case the filename", () => {
@@ -252,9 +248,9 @@ This is a test rule.`);
         body: "# Coding Guidelines",
       });
 
-      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule });
+      const devinRule = DevinRule.fromRulesyncRule({ rulesyncRule });
 
-      expect(windsurfRule.getRelativeFilePath()).toBe("coding-guidelines.md");
+      expect(devinRule.getRelativeFilePath()).toBe("coding-guidelines.md");
     });
 
     it("should use a custom outputRoot for project scope", () => {
@@ -265,14 +261,12 @@ This is a test rule.`);
         body: "# Custom",
       });
 
-      const windsurfRule = WindsurfRule.fromRulesyncRule({
+      const devinRule = DevinRule.fromRulesyncRule({
         outputRoot: "/custom/base",
         rulesyncRule,
       });
 
-      expect(windsurfRule.getFilePath()).toBe(
-        join("/custom/base", ".windsurf", "rules", "custom.md"),
-      );
+      expect(devinRule.getFilePath()).toBe(join("/custom/base", ".devin", "rules", "custom.md"));
     });
   });
 
@@ -283,25 +277,25 @@ This is a test rule.`);
         relativeFilePath: "persisted.md",
         frontmatter: {
           globs: ["**/*"], // Would normally infer always_on.
-          windsurf: {
+          devin: {
             trigger: "manual",
           },
         },
         body: "# Persisted",
       });
 
-      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule });
+      const devinRule = DevinRule.fromRulesyncRule({ rulesyncRule });
 
-      expect(windsurfRule.getFrontmatter()).toEqual({ trigger: "manual" });
+      expect(devinRule.getFrontmatter()).toEqual({ trigger: "manual" });
     });
 
-    it("should respect explicit globs in the windsurf block", () => {
+    it("should respect explicit globs in the devin block", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "explicit-globs.md",
         frontmatter: {
           globs: ["**/*"], // Generic glob.
-          windsurf: {
+          devin: {
             trigger: "glob",
             globs: ["specific.ts"], // Specific glob overrides generic.
           },
@@ -309,9 +303,9 @@ This is a test rule.`);
         body: "# Explicit Globs",
       });
 
-      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule });
+      const devinRule = DevinRule.fromRulesyncRule({ rulesyncRule });
 
-      expect(windsurfRule.getFrontmatter()).toEqual({
+      expect(devinRule.getFrontmatter()).toEqual({
         trigger: "glob",
         globs: "specific.ts",
       });
@@ -323,16 +317,16 @@ This is a test rule.`);
         relativeFilePath: "model-decision.md",
         frontmatter: {
           description: "Apply when reasoning about X",
-          windsurf: {
+          devin: {
             trigger: "model_decision",
           },
         },
         body: "# Model Decision",
       });
 
-      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule });
+      const devinRule = DevinRule.fromRulesyncRule({ rulesyncRule });
 
-      expect(windsurfRule.getFrontmatter()).toEqual({
+      expect(devinRule.getFrontmatter()).toEqual({
         trigger: "model_decision",
         description: "Apply when reasoning about X",
       });
@@ -343,16 +337,16 @@ This is a test rule.`);
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "unknown-trigger.md",
         frontmatter: {
-          windsurf: {
+          devin: {
             trigger: "custom-trigger",
           },
         },
         body: "# Unknown Trigger",
       });
 
-      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule });
+      const devinRule = DevinRule.fromRulesyncRule({ rulesyncRule });
 
-      expect((windsurfRule.getFrontmatter() as any).trigger).toBe("custom-trigger");
+      expect((devinRule.getFrontmatter() as any).trigger).toBe("custom-trigger");
     });
   });
 
@@ -369,13 +363,13 @@ This is a test rule.`);
         body: "# Global Overview\n\nPlain body.",
       });
 
-      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule, global: true });
+      const devinRule = DevinRule.fromRulesyncRule({ rulesyncRule, global: true });
 
-      expect(windsurfRule.getRelativeDirPath()).toBe(join(".codeium", "windsurf", "memories"));
-      expect(windsurfRule.getRelativeFilePath()).toBe("global_rules.md");
-      expect(windsurfRule.isRoot()).toBe(true);
-      expect(windsurfRule.getFileContent().trim()).toBe("# Global Overview\n\nPlain body.");
-      expect(windsurfRule.getFileContent()).not.toContain("trigger:");
+      expect(devinRule.getRelativeDirPath()).toBe(join(".codeium", "windsurf", "memories"));
+      expect(devinRule.getRelativeFilePath()).toBe("global_rules.md");
+      expect(devinRule.isRoot()).toBe(true);
+      expect(devinRule.getFileContent().trim()).toBe("# Global Overview\n\nPlain body.");
+      expect(devinRule.getFileContent()).not.toContain("trigger:");
     });
 
     it("should emit the body without frontmatter even when globs are present", () => {
@@ -388,18 +382,18 @@ This is a test rule.`);
         body: "# Global Body",
       });
 
-      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule, global: true });
+      const devinRule = DevinRule.fromRulesyncRule({ rulesyncRule, global: true });
 
-      expect(windsurfRule.getFileContent().trim()).toBe("# Global Body");
-      expect(windsurfRule.getFileContent()).not.toContain("trigger:");
-      expect(windsurfRule.getFileContent()).not.toContain("globs:");
+      expect(devinRule.getFileContent().trim()).toBe("# Global Body");
+      expect(devinRule.getFileContent()).not.toContain("trigger:");
+      expect(devinRule.getFileContent()).not.toContain("globs:");
     });
   });
 
   describe("toRulesyncRule - round-trip of all four triggers", () => {
-    it("should write a windsurf block for each trigger", () => {
+    it("should write a devin block for each trigger", () => {
       const testCases: {
-        frontmatter: WindsurfRuleFrontmatter;
+        frontmatter: DevinRuleFrontmatter;
         expectedGlobs: string[];
         expectedTrigger: string;
       }[] = [
@@ -426,31 +420,31 @@ This is a test rule.`);
       ];
 
       for (const { frontmatter, expectedGlobs, expectedTrigger } of testCases) {
-        const windsurfRule = new WindsurfRule({
+        const devinRule = new DevinRule({
           frontmatter,
-          relativeDirPath: join(".windsurf", "rules"),
+          relativeDirPath: join(".devin", "rules"),
           relativeFilePath: "test.md",
           body: "# Test Rule",
         });
 
-        const rulesyncRule = windsurfRule.toRulesyncRule();
+        const rulesyncRule = devinRule.toRulesyncRule();
         expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
         expect(rulesyncRule.getFrontmatter().globs).toEqual(expectedGlobs);
-        expect(rulesyncRule.getFrontmatter().windsurf?.trigger).toBe(expectedTrigger);
+        expect(rulesyncRule.getFrontmatter().devin?.trigger).toBe(expectedTrigger);
         expect(rulesyncRule.getFrontmatter().root).toBe(false);
       }
     });
 
-    it("should round-trip glob globs into the windsurf block as an array", () => {
-      const windsurfRule = new WindsurfRule({
+    it("should round-trip glob globs into the devin block as an array", () => {
+      const devinRule = new DevinRule({
         frontmatter: { trigger: "glob", globs: "*.ts" },
-        relativeDirPath: join(".windsurf", "rules"),
+        relativeDirPath: join(".devin", "rules"),
         relativeFilePath: "test.md",
         body: "# Test",
       });
 
-      const rulesyncRule = windsurfRule.toRulesyncRule();
-      expect(rulesyncRule.getFrontmatter().windsurf?.globs).toEqual(["*.ts"]);
+      const rulesyncRule = devinRule.toRulesyncRule();
+      expect(rulesyncRule.getFrontmatter().devin?.globs).toEqual(["*.ts"]);
     });
 
     it("should round-trip a global root rule as a default root RulesyncRule", () => {
@@ -465,18 +459,18 @@ This is a test rule.`);
         body: "# Global Root",
       });
 
-      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule, global: true });
-      const result = windsurfRule.toRulesyncRule();
+      const devinRule = DevinRule.fromRulesyncRule({ rulesyncRule, global: true });
+      const result = devinRule.toRulesyncRule();
 
       expect(result).toBeInstanceOf(RulesyncRule);
       expect(result.getFrontmatter().root).toBe(true);
-      // Default conversion for a root rule does not carry the windsurf key.
-      expect(result.getFrontmatter().windsurf).toBeUndefined();
+      // Default conversion for a root rule does not carry the devin key.
+      expect(result.getFrontmatter().devin).toBeUndefined();
       expect(result.getBody().trim()).toBe("# Global Root");
     });
   });
 
-  describe("round trip (RulesyncRule -> WindsurfRule -> RulesyncRule)", () => {
+  describe("round trip (RulesyncRule -> DevinRule -> RulesyncRule)", () => {
     it("should preserve content and glob trigger through a full round-trip", () => {
       const initialRulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -490,14 +484,14 @@ This is a test rule.`);
         body: "# Round Trip\n\nContent",
       });
 
-      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule: initialRulesyncRule });
-      const finalRulesyncRule = windsurfRule.toRulesyncRule();
+      const devinRule = DevinRule.fromRulesyncRule({ rulesyncRule: initialRulesyncRule });
+      const finalRulesyncRule = devinRule.toRulesyncRule();
 
       expect(finalRulesyncRule.getRelativeFilePath()).toBe("round-trip.md");
       expect(finalRulesyncRule.getBody().trim()).toBe("# Round Trip\n\nContent");
       expect(finalRulesyncRule.getFrontmatter().globs).toEqual(["*.ts"]);
-      expect(finalRulesyncRule.getFrontmatter().windsurf?.trigger).toBe("glob");
-      expect(finalRulesyncRule.getFrontmatter().windsurf?.globs).toEqual(["*.ts"]);
+      expect(finalRulesyncRule.getFrontmatter().devin?.trigger).toBe("glob");
+      expect(finalRulesyncRule.getFrontmatter().devin?.globs).toEqual(["*.ts"]);
     });
 
     it("should preserve a persisted manual trigger through a full round-trip", () => {
@@ -505,43 +499,43 @@ This is a test rule.`);
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "manual.md",
         frontmatter: {
-          windsurf: { trigger: "manual" },
+          devin: { trigger: "manual" },
         },
         body: "# Manual",
       });
 
-      const windsurfRule = WindsurfRule.fromRulesyncRule({ rulesyncRule: initialRulesyncRule });
-      const finalRulesyncRule = windsurfRule.toRulesyncRule();
+      const devinRule = DevinRule.fromRulesyncRule({ rulesyncRule: initialRulesyncRule });
+      const finalRulesyncRule = devinRule.toRulesyncRule();
 
-      expect(finalRulesyncRule.getFrontmatter().windsurf?.trigger).toBe("manual");
+      expect(finalRulesyncRule.getFrontmatter().devin?.trigger).toBe("manual");
     });
   });
 
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
-      const windsurfRule = new WindsurfRule({
+      const devinRule = new DevinRule({
         frontmatter: { trigger: "always_on" },
-        relativeDirPath: join(".windsurf", "rules"),
+        relativeDirPath: join(".devin", "rules"),
         relativeFilePath: "test.md",
         body: "# Test",
       });
 
-      const result = windsurfRule.validate();
+      const result = devinRule.validate();
 
       expect(result.success).toBe(true);
       expect(result.error).toBeNull();
     });
 
     it("should return error for invalid frontmatter types", () => {
-      const windsurfRule = new WindsurfRule({
+      const devinRule = new DevinRule({
         frontmatter: { trigger: "glob", globs: 123 } as any,
-        relativeDirPath: join(".windsurf", "rules"),
+        relativeDirPath: join(".devin", "rules"),
         relativeFilePath: "test.md",
         body: "# Test",
         validate: false,
       });
 
-      const result = windsurfRule.validate();
+      const result = devinRule.validate();
 
       expect(result.success).toBe(false);
       expect(result.error).toBeInstanceOf(Error);
@@ -550,25 +544,25 @@ This is a test rule.`);
 
   describe("forDeletion", () => {
     it("should create a deletable project instance", () => {
-      const windsurfRule = WindsurfRule.forDeletion({
+      const devinRule = DevinRule.forDeletion({
         outputRoot: testDir,
-        relativeDirPath: join(".windsurf", "rules"),
+        relativeDirPath: join(".devin", "rules"),
         relativeFilePath: "old.md",
       });
 
-      expect(windsurfRule).toBeInstanceOf(WindsurfRule);
-      expect(windsurfRule.isRoot()).toBe(false);
+      expect(devinRule).toBeInstanceOf(DevinRule);
+      expect(devinRule.isRoot()).toBe(false);
     });
 
     it("should mark the instance as root for global deletion", () => {
-      const windsurfRule = WindsurfRule.forDeletion({
+      const devinRule = DevinRule.forDeletion({
         outputRoot: testDir,
         relativeDirPath: join(".codeium", "windsurf", "memories"),
         relativeFilePath: "global_rules.md",
         global: true,
       });
 
-      expect(windsurfRule.isRoot()).toBe(true);
+      expect(devinRule.isRoot()).toBe(true);
     });
   });
 
@@ -587,15 +581,15 @@ This is a test rule.`);
       });
 
     it("should return true for the wildcard target", () => {
-      expect(WindsurfRule.isTargetedByRulesyncRule(buildRule(["*"]))).toBe(true);
+      expect(DevinRule.isTargetedByRulesyncRule(buildRule(["*"]))).toBe(true);
     });
 
-    it("should return true for the windsurf target", () => {
-      expect(WindsurfRule.isTargetedByRulesyncRule(buildRule(["windsurf"]))).toBe(true);
+    it("should return true for the devin target", () => {
+      expect(DevinRule.isTargetedByRulesyncRule(buildRule(["devin"]))).toBe(true);
     });
 
     it("should return false for other specific targets", () => {
-      expect(WindsurfRule.isTargetedByRulesyncRule(buildRule(["cursor"]))).toBe(false);
+      expect(DevinRule.isTargetedByRulesyncRule(buildRule(["cursor"]))).toBe(false);
     });
   });
 
@@ -609,7 +603,7 @@ This is a test rule.`);
       ];
 
       for (const input of testCases) {
-        const result = WindsurfRuleFrontmatterSchema.safeParse(input);
+        const result = DevinRuleFrontmatterSchema.safeParse(input);
         expect(result.success).toBe(true);
         if (result.success) {
           expect(result.data).toEqual(input);
@@ -618,7 +612,7 @@ This is a test rule.`);
     });
 
     it("should allow arbitrary triggers and unknown fields (loose schema)", () => {
-      const result = WindsurfRuleFrontmatterSchema.safeParse({
+      const result = DevinRuleFrontmatterSchema.safeParse({
         trigger: "custom-trigger",
         extraField: "value",
       });

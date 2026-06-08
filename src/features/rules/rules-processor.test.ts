@@ -215,7 +215,7 @@ describe("RulesProcessor", () => {
             relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
             relativeFilePath: "non-targeted-rule.md",
             frontmatter: {
-              targets: ["windsurf"],
+              targets: ["devin"],
             },
             body: "Other tool rule",
           }),
@@ -716,7 +716,7 @@ describe("RulesProcessor", () => {
         "roo",
         "takt",
         "warp",
-        "windsurf",
+        "devin",
       ];
 
       for (const target of targets) {
@@ -907,7 +907,7 @@ Content that would fail parsing`;
         "pi",
         "rovodev",
         "takt",
-        "windsurf",
+        "devin",
         "zed",
       ]);
     });
@@ -946,7 +946,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("pi");
       expect(globalTargets).toContain("rovodev");
       expect(globalTargets).toContain("takt");
-      expect(globalTargets).toContain("windsurf");
+      expect(globalTargets).toContain("devin");
       expect(globalTargets).toContain("zed");
       expect(globalTargets.length).toBe(19);
 

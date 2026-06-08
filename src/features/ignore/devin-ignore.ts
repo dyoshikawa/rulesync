@@ -11,11 +11,11 @@ import type {
 import { ToolIgnore } from "./tool-ignore.js";
 
 /**
- * Windsurf AI code editor ignore file implementation
+ * Devin AI code editor ignore file implementation
  * Uses .codeiumignore file with gitignore-compatible syntax
  * Automatically respects .gitignore patterns and has built-in defaults for node_modules/ and hidden files
  */
-export class WindsurfIgnore extends ToolIgnore {
+export class DevinIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
@@ -30,8 +30,8 @@ export class WindsurfIgnore extends ToolIgnore {
   static fromRulesyncIgnore({
     outputRoot = process.cwd(),
     rulesyncIgnore,
-  }: ToolIgnoreFromRulesyncIgnoreParams): WindsurfIgnore {
-    return new WindsurfIgnore({
+  }: ToolIgnoreFromRulesyncIgnoreParams): DevinIgnore {
+    return new DevinIgnore({
       outputRoot,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
@@ -42,7 +42,7 @@ export class WindsurfIgnore extends ToolIgnore {
   static async fromFile({
     outputRoot = process.cwd(),
     validate = true,
-  }: ToolIgnoreFromFileParams): Promise<WindsurfIgnore> {
+  }: ToolIgnoreFromFileParams): Promise<DevinIgnore> {
     const fileContent = await readFileContent(
       join(
         outputRoot,
@@ -51,7 +51,7 @@ export class WindsurfIgnore extends ToolIgnore {
       ),
     );
 
-    return new WindsurfIgnore({
+    return new DevinIgnore({
       outputRoot,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
@@ -64,8 +64,8 @@ export class WindsurfIgnore extends ToolIgnore {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
-  }: ToolIgnoreForDeletionParams): WindsurfIgnore {
-    return new WindsurfIgnore({
+  }: ToolIgnoreForDeletionParams): DevinIgnore {
+    return new DevinIgnore({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

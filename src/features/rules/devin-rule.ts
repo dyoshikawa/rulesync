@@ -19,16 +19,20 @@ import {
 } from "./tool-rule.js";
 
 /**
- * Frontmatter schema for Windsurf project rules.
+ * Frontmatter schema for Devin project rules.
  *
- * Windsurf project rules live as one file per rule under `.windsurf/rules/*.md`
+ * Devin project rules live as one file per rule under `.devin/rules/*.md`
  * with YAML frontmatter. The `trigger` field accepts exactly the four documented
  * activation modes, but the schema stays loose (and accepts any string) for
  * forward compatibility.
  *
- * @see https://docs.windsurf.com/windsurf/cascade/memories#rules
+ * Since the Devin Desktop rebrand (Devin v3.0.12, 2026-06-02), `.devin/rules/`
+ * is the preferred project rules directory; `.devin/rules/` is a legacy
+ * fallback the tool still reads.
+ *
+ * @see https://docs.devin.ai/desktop/cascade/memories
  */
-export const WindsurfRuleFrontmatterSchema = z.looseObject({
+export const DevinRuleFrontmatterSchema = z.looseObject({
   trigger: z.optional(
     z.union([
       z.literal("always_on"),
@@ -42,18 +46,18 @@ export const WindsurfRuleFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
 });
 
-export type WindsurfRuleFrontmatter = z.infer<typeof WindsurfRuleFrontmatterSchema>;
+export type DevinRuleFrontmatter = z.infer<typeof DevinRuleFrontmatterSchema>;
 
 /**
- * Parameters for creating a WindsurfRule instance.
+ * Parameters for creating a DevinRule instance.
  * Requires frontmatter and body separately instead of combined fileContent.
  */
-export type WindsurfRuleParams = Omit<ToolRuleParams, "fileContent"> & {
-  frontmatter: WindsurfRuleFrontmatter;
+export type DevinRuleParams = Omit<ToolRuleParams, "fileContent"> & {
+  frontmatter: DevinRuleFrontmatter;
   body: string;
 };
 
-export type WindsurfRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+export type DevinRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
   nonRoot: {
     relativeDirPath: string;
   };
@@ -92,21 +96,19 @@ function stringifyGlobs(globs: string[] | undefined): string | undefined {
 }
 
 /**
- * Windsurf configuration as it may be stored in the RulesyncRule `windsurf`
+ * Devin configuration as it may be stored in the RulesyncRule `devin`
  * frontmatter block. `globs` may be stored as an array there but is normalized
- * to a comma-separated string for the Windsurf rule file.
+ * to a comma-separated string for the Devin rule file.
  */
-export type StoredWindsurf =
-  | (Omit<WindsurfRuleFrontmatter, "globs"> & { globs?: string | string[] })
+export type StoredDevin =
+  | (Omit<DevinRuleFrontmatter, "globs"> & { globs?: string | string[] })
   | undefined;
 
 /**
- * Normalizes a StoredWindsurf value to WindsurfRuleFrontmatter format by
+ * Normalizes a StoredDevin value to DevinRuleFrontmatter format by
  * converting globs from array to string if needed.
  */
-export function normalizeStoredWindsurf(
-  stored: StoredWindsurf,
-): WindsurfRuleFrontmatter | undefined {
+export function normalizeStoredDevin(stored: StoredDevin): DevinRuleFrontmatter | undefined {
   if (!stored) {
     return undefined;
   }
@@ -121,18 +123,18 @@ export function normalizeStoredWindsurf(
 
 /**
  * Strategy interface for handling different trigger types during conversion
- * between RulesyncRule and WindsurfRule.
+ * between RulesyncRule and DevinRule.
  */
 type TriggerStrategy = {
   canHandle(trigger: string | undefined): boolean;
   generateFrontmatter(
-    normalized: WindsurfRuleFrontmatter | undefined,
+    normalized: DevinRuleFrontmatter | undefined,
     rulesyncFrontmatter: { description?: string; globs?: string[] },
-  ): WindsurfRuleFrontmatter;
-  exportRulesyncData(frontmatter: WindsurfRuleFrontmatter): {
+  ): DevinRuleFrontmatter;
+  exportRulesyncData(frontmatter: DevinRuleFrontmatter): {
     globs: string[];
     description?: string;
-    windsurf: Record<string, unknown>;
+    devin: Record<string, unknown>;
   };
 };
 
@@ -151,7 +153,7 @@ const globStrategy: TriggerStrategy = {
   exportRulesyncData: ({ description, ...frontmatter }) => ({
     globs: parseGlobsString(frontmatter.globs),
     description,
-    windsurf: frontmatter,
+    devin: frontmatter,
   }),
 };
 
@@ -164,7 +166,7 @@ const manualStrategy: TriggerStrategy = {
   exportRulesyncData: ({ description, ...frontmatter }) => ({
     globs: [],
     description,
-    windsurf: frontmatter,
+    devin: frontmatter,
   }),
 };
 
@@ -177,7 +179,7 @@ const alwaysOnStrategy: TriggerStrategy = {
   exportRulesyncData: ({ description, ...frontmatter }) => ({
     globs: ["**/*"],
     description,
-    windsurf: frontmatter,
+    devin: frontmatter,
   }),
 };
 
@@ -191,7 +193,7 @@ const modelDecisionStrategy: TriggerStrategy = {
   exportRulesyncData: ({ description, ...frontmatter }) => ({
     globs: [],
     description,
-    windsurf: frontmatter,
+    devin: frontmatter,
   }),
 };
 
@@ -212,12 +214,12 @@ const unknownStrategy: TriggerStrategy = {
   exportRulesyncData: ({ description, ...frontmatter }) => ({
     globs: frontmatter.globs ? parseGlobsString(frontmatter.globs) : ["**/*"],
     description,
-    windsurf: frontmatter,
+    devin: frontmatter,
   }),
 };
 
 /**
- * Fallback strategy when no specific trigger is stored in Windsurf config.
+ * Fallback strategy when no specific trigger is stored in Devin config.
  * Infers the appropriate trigger based on glob patterns:
  * - Specific globs (not wildcards) → glob trigger
  * - No globs or wildcard globs → always_on trigger
@@ -248,7 +250,7 @@ const inferenceStrategy: TriggerStrategy = {
   exportRulesyncData: ({ description, ...frontmatter }) => ({
     globs: frontmatter.globs ? parseGlobsString(frontmatter.globs) : ["**/*"],
     description,
-    windsurf: frontmatter,
+    devin: frontmatter,
   }),
 };
 
@@ -273,29 +275,30 @@ export const STRATEGIES: TriggerStrategy[] = [
 // ---------------------------------------------
 
 /**
- * Rule generator for Windsurf (Cascade memories).
+ * Rule generator for Devin (Cascade memories, now Devin Desktop).
  *
- * - Project scope: one file per rule under `.windsurf/rules/*.md` with YAML
+ * - Project scope: one file per rule under `.devin/rules/*.md` with YAML
  *   frontmatter carrying a `trigger` (always_on | glob | manual | model_decision)
- *   plus companion `globs`/`description` fields.
+ *   plus companion `globs`/`description` fields. (`.devin/rules/` is the
+ *   pre-rebrand legacy location the tool still reads.)
  * - Global scope: a single plain-markdown, always-on file (no frontmatter) at
- *   `~/.codeium/windsurf/memories/global_rules.md`.
+ *   `~/.codeium/windsurf/memories/global_rules.md` (unchanged by the rebrand).
  *
- * Trigger inference (when no explicit windsurf trigger is persisted):
+ * Trigger inference (when no explicit devin trigger is persisted):
  * - Specific globs (non wildcard) → glob
  * - Wildcard/all or no globs → always_on
  *
- * A persisted `windsurf.trigger` always takes precedence and round-trips.
+ * A persisted `devin.trigger` always takes precedence and round-trips.
  *
- * @see https://docs.windsurf.com/windsurf/cascade/memories#rules
+ * @see https://docs.devin.ai/desktop/cascade/memories
  */
-export class WindsurfRule extends ToolRule {
-  private readonly frontmatter: WindsurfRuleFrontmatter;
+export class DevinRule extends ToolRule {
+  private readonly frontmatter: DevinRuleFrontmatter;
   private readonly body: string;
 
-  constructor({ frontmatter, body, ...rest }: WindsurfRuleParams) {
+  constructor({ frontmatter, body, ...rest }: DevinRuleParams) {
     if (rest.validate !== false) {
-      const result = WindsurfRuleFrontmatterSchema.safeParse(frontmatter);
+      const result = DevinRuleFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw new Error(
           `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
@@ -306,7 +309,7 @@ export class WindsurfRule extends ToolRule {
     super({
       ...rest,
       // Global rules are a single plain-markdown file (no frontmatter);
-      // project rules carry Windsurf trigger frontmatter.
+      // project rules carry Devin trigger frontmatter.
       fileContent: rest.root ? body : stringifyFrontmatter(body, frontmatter),
     });
     this.frontmatter = frontmatter;
@@ -329,15 +332,15 @@ export class WindsurfRule extends ToolRule {
   }: {
     global?: boolean;
     excludeToolDir?: boolean;
-  } = {}): WindsurfRuleSettablePaths | ToolRuleSettablePathsGlobal {
+  } = {}): DevinRuleSettablePaths | ToolRuleSettablePathsGlobal {
     if (global) {
       return {
-        root: WindsurfRule.getGlobalRootPath(excludeToolDir),
+        root: DevinRule.getGlobalRootPath(excludeToolDir),
       };
     }
     return {
       nonRoot: {
-        relativeDirPath: buildToolPath(".windsurf", "rules", excludeToolDir),
+        relativeDirPath: buildToolPath(".devin", "rules", excludeToolDir),
       },
     };
   }
@@ -347,14 +350,14 @@ export class WindsurfRule extends ToolRule {
     relativeFilePath,
     validate = true,
     global = false,
-  }: ToolRuleFromFileParams): Promise<WindsurfRule> {
+  }: ToolRuleFromFileParams): Promise<DevinRule> {
     if (global) {
-      const rootPath = WindsurfRule.getGlobalRootPath();
+      const rootPath = DevinRule.getGlobalRootPath();
       const fileContent = await readFileContent(
         join(outputRoot, rootPath.relativeDirPath, rootPath.relativeFilePath),
       );
-      // global_rules.md is plain markdown without Windsurf frontmatter.
-      return new WindsurfRule({
+      // global_rules.md is plain markdown without Devin frontmatter.
+      return new DevinRule({
         outputRoot,
         relativeDirPath: rootPath.relativeDirPath,
         relativeFilePath: rootPath.relativeFilePath,
@@ -365,24 +368,24 @@ export class WindsurfRule extends ToolRule {
       });
     }
 
-    const nonRootDirPath = buildToolPath(".windsurf", "rules");
+    const nonRootDirPath = buildToolPath(".devin", "rules");
     const filePath = join(outputRoot, nonRootDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body } = parseFrontmatter(fileContent, filePath);
 
-    let parsedFrontmatter: WindsurfRuleFrontmatter;
+    let parsedFrontmatter: DevinRuleFrontmatter;
     if (validate) {
-      const result = WindsurfRuleFrontmatterSchema.safeParse(frontmatter);
+      const result = DevinRuleFrontmatterSchema.safeParse(frontmatter);
       if (result.success) {
         parsedFrontmatter = result.data;
       } else {
         throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
       }
     } else {
-      parsedFrontmatter = frontmatter as WindsurfRuleFrontmatter;
+      parsedFrontmatter = frontmatter as DevinRuleFrontmatter;
     }
 
-    return new WindsurfRule({
+    return new DevinRule({
       outputRoot,
       relativeDirPath: nonRootDirPath,
       relativeFilePath,
@@ -398,11 +401,11 @@ export class WindsurfRule extends ToolRule {
     rulesyncRule,
     validate = true,
     global = false,
-  }: ToolRuleFromRulesyncRuleParams): WindsurfRule {
+  }: ToolRuleFromRulesyncRuleParams): DevinRule {
     if (global) {
       // Global scope is a single plain global_rules.md root file.
-      const rootPath = WindsurfRule.getGlobalRootPath();
-      return new WindsurfRule({
+      const rootPath = DevinRule.getGlobalRootPath();
+      return new DevinRule({
         outputRoot,
         relativeDirPath: rootPath.relativeDirPath,
         relativeFilePath: rootPath.relativeFilePath,
@@ -415,9 +418,9 @@ export class WindsurfRule extends ToolRule {
 
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
 
-    const storedWindsurf = rulesyncFrontmatter.windsurf;
-    const normalized = normalizeStoredWindsurf(storedWindsurf);
-    const storedTrigger = storedWindsurf?.trigger;
+    const storedDevin = rulesyncFrontmatter.devin;
+    const normalized = normalizeStoredDevin(storedDevin);
+    const storedTrigger = storedDevin?.trigger;
 
     const strategy = STRATEGIES.find((s) => s.canHandle(storedTrigger));
     if (!strategy) {
@@ -426,12 +429,12 @@ export class WindsurfRule extends ToolRule {
 
     const frontmatter = strategy.generateFrontmatter(normalized, rulesyncFrontmatter);
 
-    // Both root and non-root rules are placed in the .windsurf/rules directory.
+    // Both root and non-root rules are placed in the .devin/rules directory.
     const kebabCaseFilename = toKebabCaseFilename(rulesyncRule.getRelativeFilePath());
 
-    return new WindsurfRule({
+    return new DevinRule({
       outputRoot,
-      relativeDirPath: buildToolPath(".windsurf", "rules"),
+      relativeDirPath: buildToolPath(".devin", "rules"),
       relativeFilePath: kebabCaseFilename,
       frontmatter,
       body: rulesyncRule.getBody(),
@@ -451,19 +454,19 @@ export class WindsurfRule extends ToolRule {
     let rulesyncData: {
       globs: string[];
       description?: string;
-      windsurf: Record<string, unknown>;
+      devin: Record<string, unknown>;
     } = {
       globs: [],
-      windsurf: this.frontmatter,
+      devin: this.frontmatter,
     };
 
     if (strategy) {
       rulesyncData = strategy.exportRulesyncData(this.frontmatter);
     }
 
-    // Convert windsurf.globs from string to array for the RulesyncRule schema.
-    const windsurfForRulesync = {
-      ...rulesyncData.windsurf,
+    // Convert devin.globs from string to array for the RulesyncRule schema.
+    const devinForRulesync = {
+      ...rulesyncData.devin,
       globs: this.frontmatter.globs ? parseGlobsString(this.frontmatter.globs) : undefined,
     };
 
@@ -475,7 +478,7 @@ export class WindsurfRule extends ToolRule {
         root: false,
         targets: ["*"],
         ...rulesyncData,
-        windsurf: windsurfForRulesync,
+        devin: devinForRulesync,
       },
       body: this.body,
     });
@@ -485,12 +488,12 @@ export class WindsurfRule extends ToolRule {
     return this.body;
   }
 
-  getFrontmatter(): WindsurfRuleFrontmatter {
+  getFrontmatter(): DevinRuleFrontmatter {
     return this.frontmatter;
   }
 
   validate(): ValidationResult {
-    const result = WindsurfRuleFrontmatterSchema.safeParse(this.frontmatter);
+    const result = DevinRuleFrontmatterSchema.safeParse(this.frontmatter);
     if (!result.success) {
       return { success: false, error: new Error(formatError(result.error)) };
     }
@@ -502,8 +505,8 @@ export class WindsurfRule extends ToolRule {
     relativeDirPath,
     relativeFilePath,
     global = false,
-  }: ToolRuleForDeletionParams): WindsurfRule {
-    return new WindsurfRule({
+  }: ToolRuleForDeletionParams): DevinRule {
+    return new DevinRule({
       outputRoot,
       relativeDirPath,
       relativeFilePath,
@@ -517,7 +520,7 @@ export class WindsurfRule extends ToolRule {
   static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
     return this.isTargetedByRulesyncRuleDefault({
       rulesyncRule,
-      toolTarget: "windsurf",
+      toolTarget: "devin",
     });
   }
 }

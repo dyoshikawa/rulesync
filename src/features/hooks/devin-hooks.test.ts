@@ -5,10 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { DevinHooks } from "./devin-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
-import { WindsurfHooks } from "./windsurf-hooks.js";
 
-describe("WindsurfHooks", () => {
+describe("DevinHooks", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
@@ -23,13 +23,13 @@ describe("WindsurfHooks", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should return .windsurf and hooks.json for project mode", () => {
-      const paths = WindsurfHooks.getSettablePaths();
+    it("should return .devin and hooks.json for project mode", () => {
+      const paths = DevinHooks.getSettablePaths();
       expect(paths).toEqual({ relativeDirPath: ".windsurf", relativeFilePath: "hooks.json" });
     });
 
     it("should return .codeium/windsurf and hooks.json for global mode", () => {
-      const paths = WindsurfHooks.getSettablePaths({ global: true });
+      const paths = DevinHooks.getSettablePaths({ global: true });
       expect(paths).toEqual({
         relativeDirPath: join(".codeium", "windsurf"),
         relativeFilePath: "hooks.json",
@@ -38,7 +38,7 @@ describe("WindsurfHooks", () => {
   });
 
   describe("fromRulesyncHooks", () => {
-    it("should produce a top-level hooks-keyed object mapping canonical events to Windsurf events", async () => {
+    it("should produce a top-level hooks-keyed object mapping canonical events to Devin events", async () => {
       const config = {
         version: 1,
         hooks: {
@@ -59,13 +59,13 @@ describe("WindsurfHooks", () => {
         validate: false,
       });
 
-      const windsurfHooks = await WindsurfHooks.fromRulesyncHooks({
+      const devinHooks = await DevinHooks.fromRulesyncHooks({
         outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
 
-      const parsed = JSON.parse(windsurfHooks.getFileContent());
+      const parsed = JSON.parse(devinHooks.getFileContent());
       expect(Object.keys(parsed)).toEqual(["hooks"]);
       expect(parsed.hooks.pre_read_code).toEqual([
         { command: "python3 /p/read.py", show_output: true },
@@ -103,13 +103,13 @@ describe("WindsurfHooks", () => {
         validate: false,
       });
 
-      const windsurfHooks = await WindsurfHooks.fromRulesyncHooks({
+      const devinHooks = await DevinHooks.fromRulesyncHooks({
         outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
 
-      const parsed = JSON.parse(windsurfHooks.getFileContent());
+      const parsed = JSON.parse(devinHooks.getFileContent());
       const hook = parsed.hooks.pre_read_code[0];
       expect(hook).toEqual({ command: "read.sh", show_output: false });
       expect(hook).not.toHaveProperty("type");
@@ -134,19 +134,19 @@ describe("WindsurfHooks", () => {
         validate: false,
       });
 
-      const windsurfHooks = await WindsurfHooks.fromRulesyncHooks({
+      const devinHooks = await DevinHooks.fromRulesyncHooks({
         outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
 
-      const parsed = JSON.parse(windsurfHooks.getFileContent());
+      const parsed = JSON.parse(devinHooks.getFileContent());
       expect(parsed.hooks.post_run_command).toEqual([
         { command: "echo unix", powershell: "Write-Host win", show_output: true },
       ]);
     });
 
-    it("should drop canonical events without a Windsurf equivalent and warn", async () => {
+    it("should drop canonical events without a Devin equivalent and warn", async () => {
       const warn = vi.fn();
       const config = {
         version: 1,
@@ -164,14 +164,14 @@ describe("WindsurfHooks", () => {
         validate: false,
       });
 
-      const windsurfHooks = await WindsurfHooks.fromRulesyncHooks({
+      const devinHooks = await DevinHooks.fromRulesyncHooks({
         outputRoot: testDir,
         rulesyncHooks,
         validate: false,
         logger: { warn } as never,
       });
 
-      const parsed = JSON.parse(windsurfHooks.getFileContent());
+      const parsed = JSON.parse(devinHooks.getFileContent());
       expect(parsed.hooks.pre_read_code).toBeDefined();
       expect(Object.keys(parsed.hooks)).toEqual(["pre_read_code"]);
       // sessionStart and stop are filtered out before reaching the converter,
@@ -179,13 +179,13 @@ describe("WindsurfHooks", () => {
       expect(parsed.hooks).not.toHaveProperty("session_start");
     });
 
-    it("should merge config.windsurf.hooks on top of shared hooks", async () => {
+    it("should merge config.devin.hooks on top of shared hooks", async () => {
       const config = {
         version: 1,
         hooks: {
           beforeReadFile: [{ command: "shared-read.sh" }],
         },
-        windsurf: {
+        devin: {
           hooks: {
             beforeReadFile: [{ command: "override-read.sh" }],
             afterFileEdit: [{ command: "override-write.sh" }],
@@ -200,13 +200,13 @@ describe("WindsurfHooks", () => {
         validate: false,
       });
 
-      const windsurfHooks = await WindsurfHooks.fromRulesyncHooks({
+      const devinHooks = await DevinHooks.fromRulesyncHooks({
         outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
 
-      const parsed = JSON.parse(windsurfHooks.getFileContent());
+      const parsed = JSON.parse(devinHooks.getFileContent());
       expect(parsed.hooks.pre_read_code).toEqual([{ command: "override-read.sh" }]);
       expect(parsed.hooks.post_write_code).toEqual([{ command: "override-write.sh" }]);
     });
@@ -224,15 +224,15 @@ describe("WindsurfHooks", () => {
         validate: false,
       });
 
-      const windsurfHooks = await WindsurfHooks.fromRulesyncHooks({
+      const devinHooks = await DevinHooks.fromRulesyncHooks({
         outputRoot: testDir,
         rulesyncHooks,
         validate: false,
         global: true,
       });
 
-      expect(windsurfHooks.getRelativeDirPath()).toBe(join(".codeium", "windsurf"));
-      expect(windsurfHooks.getRelativeFilePath()).toBe("hooks.json");
+      expect(devinHooks.getRelativeDirPath()).toBe(join(".codeium", "windsurf"));
+      expect(devinHooks.getRelativeFilePath()).toBe("hooks.json");
     });
   });
 
@@ -247,17 +247,17 @@ describe("WindsurfHooks", () => {
       });
       await writeFileContent(join(dir, "hooks.json"), content);
 
-      const windsurfHooks = await WindsurfHooks.fromFile({ outputRoot: testDir });
+      const devinHooks = await DevinHooks.fromFile({ outputRoot: testDir });
 
-      const parsed = JSON.parse(windsurfHooks.getFileContent());
+      const parsed = JSON.parse(devinHooks.getFileContent());
       expect(parsed.hooks.pre_read_code).toEqual([
         { command: "python3 /p/s.py", show_output: true },
       ]);
     });
 
     it("should fall back to an empty hooks object when the file is missing", async () => {
-      const windsurfHooks = await WindsurfHooks.fromFile({ outputRoot: testDir });
-      const parsed = JSON.parse(windsurfHooks.getFileContent());
+      const devinHooks = await DevinHooks.fromFile({ outputRoot: testDir });
+      const parsed = JSON.parse(devinHooks.getFileContent());
       expect(parsed).toEqual({ hooks: {} });
     });
 
@@ -269,16 +269,16 @@ describe("WindsurfHooks", () => {
       });
       await writeFileContent(join(dir, "hooks.json"), content);
 
-      const windsurfHooks = await WindsurfHooks.fromFile({ outputRoot: testDir, global: true });
+      const devinHooks = await DevinHooks.fromFile({ outputRoot: testDir, global: true });
 
-      const parsed = JSON.parse(windsurfHooks.getFileContent());
+      const parsed = JSON.parse(devinHooks.getFileContent());
       expect(parsed.hooks.post_setup_worktree).toEqual([{ command: "setup.sh" }]);
-      expect(windsurfHooks.getRelativeDirPath()).toBe(join(".codeium", "windsurf"));
+      expect(devinHooks.getRelativeDirPath()).toBe(join(".codeium", "windsurf"));
     });
   });
 
   describe("toRulesyncHooks", () => {
-    it("should map Windsurf events back to canonical event names", () => {
+    it("should map Devin events back to canonical event names", () => {
       const fileContent = JSON.stringify({
         hooks: {
           pre_read_code: [{ command: "read.sh", show_output: true }],
@@ -290,7 +290,7 @@ describe("WindsurfHooks", () => {
           post_setup_worktree: [{ command: "setup.sh" }],
         },
       });
-      const windsurfHooks = new WindsurfHooks({
+      const devinHooks = new DevinHooks({
         outputRoot: testDir,
         relativeDirPath: ".windsurf",
         relativeFilePath: "hooks.json",
@@ -298,7 +298,7 @@ describe("WindsurfHooks", () => {
         validate: false,
       });
 
-      const rulesyncHooks = windsurfHooks.toRulesyncHooks();
+      const rulesyncHooks = devinHooks.toRulesyncHooks();
       const parsed = JSON.parse(rulesyncHooks.getFileContent());
 
       expect(parsed.version).toBe(1);
@@ -317,7 +317,7 @@ describe("WindsurfHooks", () => {
       expect(parsed.hooks.worktreeCreate).toEqual([{ type: "command", command: "setup.sh" }]);
     });
 
-    it("should drop unknown Windsurf events instead of passing them through", () => {
+    it("should drop unknown Devin events instead of passing them through", () => {
       const fileContent = JSON.stringify({
         hooks: {
           pre_read_code: [{ command: "read.sh" }],
@@ -326,7 +326,7 @@ describe("WindsurfHooks", () => {
           some_future_event: [{ command: "future.sh" }],
         },
       });
-      const windsurfHooks = new WindsurfHooks({
+      const devinHooks = new DevinHooks({
         outputRoot: testDir,
         relativeDirPath: ".windsurf",
         relativeFilePath: "hooks.json",
@@ -334,7 +334,7 @@ describe("WindsurfHooks", () => {
         validate: false,
       });
 
-      const parsed = JSON.parse(windsurfHooks.toRulesyncHooks().getFileContent());
+      const parsed = JSON.parse(devinHooks.toRulesyncHooks().getFileContent());
 
       expect(parsed.hooks.beforeReadFile).toBeDefined();
       expect(parsed.hooks.some_future_event).toBeUndefined();
@@ -366,20 +366,20 @@ describe("WindsurfHooks", () => {
         validate: false,
       });
 
-      const windsurfHooks = await WindsurfHooks.fromRulesyncHooks({
+      const devinHooks = await DevinHooks.fromRulesyncHooks({
         outputRoot: testDir,
         rulesyncHooks,
         validate: false,
       });
 
-      const back = windsurfHooks.toRulesyncHooks();
+      const back = devinHooks.toRulesyncHooks();
       const parsed = JSON.parse(back.getFileContent());
 
       expect(parsed.hooks).toEqual(config.hooks);
     });
 
     it("should throw on invalid JSON content", () => {
-      const windsurfHooks = new WindsurfHooks({
+      const devinHooks = new DevinHooks({
         outputRoot: testDir,
         relativeDirPath: ".windsurf",
         relativeFilePath: "hooks.json",
@@ -387,31 +387,31 @@ describe("WindsurfHooks", () => {
         validate: false,
       });
 
-      expect(() => windsurfHooks.toRulesyncHooks()).toThrow(/Failed to parse Windsurf hooks/);
+      expect(() => devinHooks.toRulesyncHooks()).toThrow(/Failed to parse Devin hooks/);
     });
   });
 
   describe("forDeletion", () => {
     it("should create a minimal instance with an empty hooks object", () => {
-      const windsurfHooks = WindsurfHooks.forDeletion({
+      const devinHooks = DevinHooks.forDeletion({
         outputRoot: testDir,
         relativeDirPath: ".windsurf",
         relativeFilePath: "hooks.json",
       });
 
-      expect(windsurfHooks).toBeInstanceOf(WindsurfHooks);
-      expect(windsurfHooks.getRelativeDirPath()).toBe(".windsurf");
-      expect(windsurfHooks.getRelativeFilePath()).toBe("hooks.json");
-      expect(JSON.parse(windsurfHooks.getFileContent())).toEqual({ hooks: {} });
+      expect(devinHooks).toBeInstanceOf(DevinHooks);
+      expect(devinHooks.getRelativeDirPath()).toBe(".windsurf");
+      expect(devinHooks.getRelativeFilePath()).toBe("hooks.json");
+      expect(JSON.parse(devinHooks.getFileContent())).toEqual({ hooks: {} });
     });
 
     it("should default outputRoot to process.cwd()", () => {
-      const windsurfHooks = WindsurfHooks.forDeletion({
+      const devinHooks = DevinHooks.forDeletion({
         relativeDirPath: ".windsurf",
         relativeFilePath: "hooks.json",
       });
 
-      expect(windsurfHooks.getOutputRoot()).toBe(testDir);
+      expect(devinHooks.getOutputRoot()).toBe(testDir);
     });
   });
 });

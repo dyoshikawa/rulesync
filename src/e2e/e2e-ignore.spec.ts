@@ -25,7 +25,7 @@ describe("E2E: ignore", () => {
     { target: "kiro", outputPath: ".aiignore", format: "plaintext" as const },
     { target: "junie", outputPath: ".aiignore", format: "plaintext" as const },
     { target: "augmentcode", outputPath: ".augmentignore", format: "plaintext" as const },
-    { target: "windsurf", outputPath: ".codeiumignore", format: "plaintext" as const },
+    { target: "devin", outputPath: ".codeiumignore", format: "plaintext" as const },
     {
       target: "zed",
       outputPath: join(".zed", "settings.json"),
@@ -78,7 +78,7 @@ credentials/
     { target: "kiro", orphanPath: ".aiignore" },
     { target: "junie", orphanPath: ".aiignore" },
     { target: "augmentcode", orphanPath: ".augmentignore" },
-    { target: "windsurf", orphanPath: ".codeiumignore" },
+    { target: "devin", orphanPath: ".codeiumignore" },
     // zed ignore uses .zed/settings.json which is not deletable by rulesync
   ])(
     "should fail in check mode when delete would remove an orphan $target ignore file",
@@ -142,7 +142,7 @@ describe("E2E: ignore (import)", () => {
     { target: "kiro", sourcePath: ".aiignore" },
     { target: "junie", sourcePath: ".aiignore" },
     { target: "augmentcode", sourcePath: ".augmentignore" },
-    { target: "windsurf", sourcePath: ".codeiumignore" },
+    { target: "devin", sourcePath: ".codeiumignore" },
   ])("should import $target ignore", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 

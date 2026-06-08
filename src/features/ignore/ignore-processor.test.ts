@@ -13,6 +13,7 @@ import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
 import { CursorIgnore } from "./cursor-ignore.js";
+import { DevinIgnore } from "./devin-ignore.js";
 import { GeminiCliIgnore } from "./geminicli-ignore.js";
 import { IgnoreProcessor } from "./ignore-processor.js";
 import { JunieIgnore } from "./junie-ignore.js";
@@ -21,7 +22,6 @@ import { QwencodeIgnore } from "./qwencode-ignore.js";
 import { RooIgnore } from "./roo-ignore.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
-import { WindsurfIgnore } from "./windsurf-ignore.js";
 
 const logger = createMockLogger();
 
@@ -88,7 +88,7 @@ describe("IgnoreProcessor", () => {
         "kiro",
         "qwencode",
         "roo",
-        "windsurf",
+        "devin",
       ] as const;
 
       for (const target of validTargets) {
@@ -278,18 +278,18 @@ describe("IgnoreProcessor", () => {
       expect(ignores[0]).toBeInstanceOf(RooIgnore);
     });
 
-    it("should load WindsurfIgnore for windsurf target", async () => {
+    it("should load DevinIgnore for devin target", async () => {
       await writeFileContent(join(testDir, ".codeiumignore"), "*.log\nnode_modules/");
 
       const processor = new IgnoreProcessor({
         logger,
         outputRoot: testDir,
-        toolTarget: "windsurf",
+        toolTarget: "devin",
       });
 
       const ignores = await processor.loadToolIgnores();
       expect(ignores).toHaveLength(1);
-      expect(ignores[0]).toBeInstanceOf(WindsurfIgnore);
+      expect(ignores[0]).toBeInstanceOf(DevinIgnore);
     });
 
     it("should throw error for unsupported tool target", async () => {
@@ -325,7 +325,7 @@ describe("IgnoreProcessor", () => {
         "kiro",
         "qwencode",
         "roo",
-        "windsurf",
+        "devin",
       ] as const;
 
       for (const target of targets) {
@@ -440,7 +440,7 @@ describe("IgnoreProcessor", () => {
         "kiro",
         "qwencode",
         "roo",
-        "windsurf",
+        "devin",
         "zed",
       ];
 
@@ -667,22 +667,22 @@ describe("IgnoreProcessor", () => {
       const processor = new IgnoreProcessor({
         logger,
         outputRoot: testDir,
-        toolTarget: "windsurf",
+        toolTarget: "devin",
       });
 
-      // Create a mock WindsurfIgnore file with multiple trailing newlines
-      const mockWindsurfIgnore = new WindsurfIgnore({
+      // Create a mock DevinIgnore file with multiple trailing newlines
+      const mockDevinIgnore = new DevinIgnore({
         outputRoot: testDir,
         relativeDirPath: ".",
-        relativeFilePath: ".windsurfignore",
+        relativeFilePath: ".codeiumignore",
         fileContent: "*.log\n\n\n",
       });
 
       // Write the file using writeAiFiles
-      await processor.writeAiFiles([mockWindsurfIgnore]);
+      await processor.writeAiFiles([mockDevinIgnore]);
 
-      const windsurfIgnorePath = join(testDir, ".windsurfignore");
-      const content = await readFileContent(windsurfIgnorePath);
+      const devinIgnorePath = join(testDir, ".codeiumignore");
+      const content = await readFileContent(devinIgnorePath);
 
       // Should have exactly one trailing newline
       expect(content).toBe("*.log\n");

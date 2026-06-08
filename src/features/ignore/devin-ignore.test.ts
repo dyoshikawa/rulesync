@@ -9,10 +9,10 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
+import { DevinIgnore } from "./devin-ignore.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import { WindsurfIgnore } from "./windsurf-ignore.js";
 
-describe("WindsurfIgnore", () => {
+describe("DevinIgnore", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
@@ -28,32 +28,32 @@ describe("WindsurfIgnore", () => {
 
   describe("constructor", () => {
     it("should create instance with default parameters", () => {
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent: "*.log\nnode_modules/",
       });
 
-      expect(windsurfIgnore).toBeInstanceOf(WindsurfIgnore);
-      expect(windsurfIgnore.getRelativeDirPath()).toBe(".");
-      expect(windsurfIgnore.getRelativeFilePath()).toBe(".codeiumignore");
-      expect(windsurfIgnore.getFileContent()).toBe("*.log\nnode_modules/");
+      expect(devinIgnore).toBeInstanceOf(DevinIgnore);
+      expect(devinIgnore.getRelativeDirPath()).toBe(".");
+      expect(devinIgnore.getRelativeFilePath()).toBe(".codeiumignore");
+      expect(devinIgnore.getFileContent()).toBe("*.log\nnode_modules/");
     });
 
     it("should create instance with custom outputRoot", () => {
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         outputRoot: "/custom/path",
         relativeDirPath: "subdir",
         relativeFilePath: ".codeiumignore",
         fileContent: "*.tmp",
       });
 
-      expect(windsurfIgnore.getFilePath()).toBe("/custom/path/subdir/.codeiumignore");
+      expect(devinIgnore.getFilePath()).toBe("/custom/path/subdir/.codeiumignore");
     });
 
     it("should validate content by default", () => {
       expect(() => {
-        const _instance = new WindsurfIgnore({
+        const _instance = new DevinIgnore({
           relativeDirPath: ".",
           relativeFilePath: ".codeiumignore",
           fileContent: "", // empty content should be valid
@@ -63,7 +63,7 @@ describe("WindsurfIgnore", () => {
 
     it("should skip validation when validate=false", () => {
       expect(() => {
-        const _instance = new WindsurfIgnore({
+        const _instance = new DevinIgnore({
           relativeDirPath: ".",
           relativeFilePath: ".codeiumignore",
           fileContent: "any content",
@@ -76,14 +76,14 @@ describe("WindsurfIgnore", () => {
   describe("toRulesyncIgnore", () => {
     it("should convert to RulesyncIgnore with same content", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent,
       });
 
-      const rulesyncIgnore = windsurfIgnore.toRulesyncIgnore();
+      const rulesyncIgnore = devinIgnore.toRulesyncIgnore();
 
       expect(rulesyncIgnore).toBeInstanceOf(RulesyncIgnore);
       expect(rulesyncIgnore.getFileContent()).toBe(fileContent);
@@ -128,45 +128,45 @@ logs/
 Thumbs.db
 desktop.ini`;
 
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent: complexContent,
       });
 
-      const rulesyncIgnore = windsurfIgnore.toRulesyncIgnore();
+      const rulesyncIgnore = devinIgnore.toRulesyncIgnore();
 
       expect(rulesyncIgnore.getFileContent()).toBe(complexContent);
     });
 
     it("should handle empty content", () => {
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent: "",
       });
 
-      const rulesyncIgnore = windsurfIgnore.toRulesyncIgnore();
+      const rulesyncIgnore = devinIgnore.toRulesyncIgnore();
 
       expect(rulesyncIgnore.getFileContent()).toBe("");
     });
 
     it("should handle content with special characters", () => {
       const specialContent = "*.log\n節点模块/\n環境.env\n🏗️build/\n**/*.cache";
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent: specialContent,
       });
 
-      const rulesyncIgnore = windsurfIgnore.toRulesyncIgnore();
+      const rulesyncIgnore = devinIgnore.toRulesyncIgnore();
 
       expect(rulesyncIgnore.getFileContent()).toBe(specialContent);
     });
   });
 
   describe("fromRulesyncIgnore", () => {
-    it("should create WindsurfIgnore from RulesyncIgnore", () => {
+    it("should create DevinIgnore from RulesyncIgnore", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const rulesyncIgnore = new RulesyncIgnore({
         outputRoot: "/test/project",
@@ -175,16 +175,16 @@ desktop.ini`;
         fileContent,
       });
 
-      const windsurfIgnore = WindsurfIgnore.fromRulesyncIgnore({
+      const devinIgnore = DevinIgnore.fromRulesyncIgnore({
         outputRoot: "/test/project",
         rulesyncIgnore,
       });
 
-      expect(windsurfIgnore).toBeInstanceOf(WindsurfIgnore);
-      expect(windsurfIgnore.getFileContent()).toBe(fileContent);
-      expect(windsurfIgnore.getOutputRoot()).toBe("/test/project");
-      expect(windsurfIgnore.getRelativeDirPath()).toBe(".");
-      expect(windsurfIgnore.getRelativeFilePath()).toBe(".codeiumignore");
+      expect(devinIgnore).toBeInstanceOf(DevinIgnore);
+      expect(devinIgnore.getFileContent()).toBe(fileContent);
+      expect(devinIgnore.getOutputRoot()).toBe("/test/project");
+      expect(devinIgnore.getRelativeDirPath()).toBe(".");
+      expect(devinIgnore.getRelativeFilePath()).toBe(".codeiumignore");
     });
 
     it("should use default outputRoot when not provided", () => {
@@ -194,15 +194,15 @@ desktop.ini`;
         fileContent: "*.log",
       });
 
-      const windsurfIgnore = WindsurfIgnore.fromRulesyncIgnore({
+      const devinIgnore = DevinIgnore.fromRulesyncIgnore({
         rulesyncIgnore,
       });
 
-      expect(windsurfIgnore.getOutputRoot()).toBe(testDir);
+      expect(devinIgnore.getOutputRoot()).toBe(testDir);
     });
 
     it("should preserve complex content from RulesyncIgnore", () => {
-      const complexContent = `# Windsurf AI code editor ignore patterns
+      const complexContent = `# Devin AI code editor ignore patterns
 # Generated from .rulesync/.aiignore
 
 # Build outputs
@@ -243,11 +243,11 @@ Thumbs.db`;
         fileContent: complexContent,
       });
 
-      const windsurfIgnore = WindsurfIgnore.fromRulesyncIgnore({
+      const devinIgnore = DevinIgnore.fromRulesyncIgnore({
         rulesyncIgnore,
       });
 
-      expect(windsurfIgnore.getFileContent()).toBe(complexContent);
+      expect(devinIgnore.getFileContent()).toBe(complexContent);
     });
 
     it("should handle empty RulesyncIgnore content", () => {
@@ -257,11 +257,11 @@ Thumbs.db`;
         fileContent: "",
       });
 
-      const windsurfIgnore = WindsurfIgnore.fromRulesyncIgnore({
+      const devinIgnore = DevinIgnore.fromRulesyncIgnore({
         rulesyncIgnore,
       });
 
-      expect(windsurfIgnore.getFileContent()).toBe("");
+      expect(devinIgnore.getFileContent()).toBe("");
     });
   });
 
@@ -271,15 +271,15 @@ Thumbs.db`;
       const codeiumIgnorePath = join(testDir, ".codeiumignore");
       await writeFileContent(codeiumIgnorePath, fileContent);
 
-      const windsurfIgnore = await WindsurfIgnore.fromFile({
+      const devinIgnore = await DevinIgnore.fromFile({
         outputRoot: testDir,
       });
 
-      expect(windsurfIgnore).toBeInstanceOf(WindsurfIgnore);
-      expect(windsurfIgnore.getOutputRoot()).toBe(testDir);
-      expect(windsurfIgnore.getRelativeDirPath()).toBe(".");
-      expect(windsurfIgnore.getRelativeFilePath()).toBe(".codeiumignore");
-      expect(windsurfIgnore.getFileContent()).toBe(fileContent);
+      expect(devinIgnore).toBeInstanceOf(DevinIgnore);
+      expect(devinIgnore.getOutputRoot()).toBe(testDir);
+      expect(devinIgnore.getRelativeDirPath()).toBe(".");
+      expect(devinIgnore.getRelativeFilePath()).toBe(".codeiumignore");
+      expect(devinIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should use default outputRoot when not provided", async () => {
@@ -288,25 +288,25 @@ Thumbs.db`;
       const codeiumIgnorePath = join(testDir, ".codeiumignore");
       await writeFileContent(codeiumIgnorePath, fileContent);
 
-      const windsurfIgnore = await WindsurfIgnore.fromFile({});
+      const devinIgnore = await DevinIgnore.fromFile({});
 
-      expect(windsurfIgnore.getOutputRoot()).toBe(testDir);
-      expect(windsurfIgnore.getFileContent()).toBe(fileContent);
+      expect(devinIgnore.getOutputRoot()).toBe(testDir);
+      expect(devinIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should handle empty .codeiumignore file", async () => {
       const codeiumIgnorePath = join(testDir, ".codeiumignore");
       await writeFileContent(codeiumIgnorePath, "");
 
-      const windsurfIgnore = await WindsurfIgnore.fromFile({
+      const devinIgnore = await DevinIgnore.fromFile({
         outputRoot: testDir,
       });
 
-      expect(windsurfIgnore.getFileContent()).toBe("");
+      expect(devinIgnore.getFileContent()).toBe("");
     });
 
     it("should handle .codeiumignore file with complex patterns", async () => {
-      const fileContent = `# Windsurf AI code editor ignore patterns
+      const fileContent = `# Devin AI code editor ignore patterns
 # These patterns follow gitignore syntax
 
 # Build outputs
@@ -400,15 +400,15 @@ jspm_packages/
       const codeiumIgnorePath = join(testDir, ".codeiumignore");
       await writeFileContent(codeiumIgnorePath, fileContent);
 
-      const windsurfIgnore = await WindsurfIgnore.fromFile({
+      const devinIgnore = await DevinIgnore.fromFile({
         outputRoot: testDir,
       });
 
-      expect(windsurfIgnore.getFileContent()).toBe(fileContent);
+      expect(devinIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should throw error when .codeiumignore file does not exist", async () => {
-      await expect(WindsurfIgnore.fromFile({ outputRoot: testDir })).rejects.toThrow();
+      await expect(DevinIgnore.fromFile({ outputRoot: testDir })).rejects.toThrow();
     });
 
     it("should handle file with Windows line endings", async () => {
@@ -416,11 +416,11 @@ jspm_packages/
       const codeiumIgnorePath = join(testDir, ".codeiumignore");
       await writeFileContent(codeiumIgnorePath, fileContent);
 
-      const windsurfIgnore = await WindsurfIgnore.fromFile({
+      const devinIgnore = await DevinIgnore.fromFile({
         outputRoot: testDir,
       });
 
-      expect(windsurfIgnore.getFileContent()).toBe(fileContent);
+      expect(devinIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should handle file with mixed line endings", async () => {
@@ -428,11 +428,11 @@ jspm_packages/
       const codeiumIgnorePath = join(testDir, ".codeiumignore");
       await writeFileContent(codeiumIgnorePath, fileContent);
 
-      const windsurfIgnore = await WindsurfIgnore.fromFile({
+      const devinIgnore = await DevinIgnore.fromFile({
         outputRoot: testDir,
       });
 
-      expect(windsurfIgnore.getFileContent()).toBe(fileContent);
+      expect(devinIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should respect validate parameter", async () => {
@@ -440,59 +440,59 @@ jspm_packages/
       const codeiumIgnorePath = join(testDir, ".codeiumignore");
       await writeFileContent(codeiumIgnorePath, fileContent);
 
-      const windsurfIgnoreValidated = await WindsurfIgnore.fromFile({
+      const devinIgnoreValidated = await DevinIgnore.fromFile({
         outputRoot: testDir,
         validate: true,
       });
 
-      const windsurfIgnoreNotValidated = await WindsurfIgnore.fromFile({
+      const devinIgnoreNotValidated = await DevinIgnore.fromFile({
         outputRoot: testDir,
         validate: false,
       });
 
-      expect(windsurfIgnoreValidated.getFileContent()).toBe(fileContent);
-      expect(windsurfIgnoreNotValidated.getFileContent()).toBe(fileContent);
+      expect(devinIgnoreValidated.getFileContent()).toBe(fileContent);
+      expect(devinIgnoreNotValidated.getFileContent()).toBe(fileContent);
     });
   });
 
   describe("inheritance from ToolIgnore", () => {
     it("should inherit file path methods from AiFile", () => {
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         outputRoot: "/test/base",
         relativeDirPath: "subdir",
         relativeFilePath: ".codeiumignore",
         fileContent: "*.log",
       });
 
-      expect(windsurfIgnore.getOutputRoot()).toBe("/test/base");
-      expect(windsurfIgnore.getRelativeDirPath()).toBe("subdir");
-      expect(windsurfIgnore.getRelativeFilePath()).toBe(".codeiumignore");
-      expect(windsurfIgnore.getFilePath()).toBe("/test/base/subdir/.codeiumignore");
-      expect(windsurfIgnore.getFileContent()).toBe("*.log");
-      expect(windsurfIgnore.getRelativePathFromCwd()).toBe("subdir/.codeiumignore");
+      expect(devinIgnore.getOutputRoot()).toBe("/test/base");
+      expect(devinIgnore.getRelativeDirPath()).toBe("subdir");
+      expect(devinIgnore.getRelativeFilePath()).toBe(".codeiumignore");
+      expect(devinIgnore.getFilePath()).toBe("/test/base/subdir/.codeiumignore");
+      expect(devinIgnore.getFileContent()).toBe("*.log");
+      expect(devinIgnore.getRelativePathFromCwd()).toBe("subdir/.codeiumignore");
     });
 
     it("should support setFileContent method", () => {
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent: "*.log",
       });
 
       const newContent = "*.tmp\nnode_modules/";
-      windsurfIgnore.setFileContent(newContent);
+      devinIgnore.setFileContent(newContent);
 
-      expect(windsurfIgnore.getFileContent()).toBe(newContent);
+      expect(devinIgnore.getFileContent()).toBe(newContent);
     });
 
     it("should inherit validate method from ToolIgnore", () => {
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent: "*.log\nnode_modules/",
       });
 
-      const result = windsurfIgnore.validate();
+      const result = devinIgnore.validate();
 
       expect(result.success).toBe(true);
       expect(result.error).toBe(null);
@@ -500,13 +500,13 @@ jspm_packages/
 
     it("should inherit getPatterns method from ToolIgnore", () => {
       const fileContent = "*.log\nnode_modules/\n.env";
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent,
       });
 
-      const patterns = windsurfIgnore.getPatterns();
+      const patterns = devinIgnore.getPatterns();
 
       expect(Array.isArray(patterns)).toBe(true);
       expect(patterns).toEqual(["*.log", "node_modules/", ".env"]);
@@ -515,54 +515,54 @@ jspm_packages/
 
   describe("edge cases", () => {
     it("should handle file content with only whitespace", () => {
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent: "   \n\t\n   ",
       });
 
-      expect(windsurfIgnore.getFileContent()).toBe("   \n\t\n   ");
+      expect(devinIgnore.getFileContent()).toBe("   \n\t\n   ");
     });
 
     it("should handle very long content", () => {
       const longPattern = "a".repeat(1000);
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent: longPattern,
       });
 
-      expect(windsurfIgnore.getFileContent()).toBe(longPattern);
+      expect(devinIgnore.getFileContent()).toBe(longPattern);
     });
 
     it("should handle unicode characters in content", () => {
       const unicodeContent = "*.log\n節点模块/\n環境.env\n🏗️build/";
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent: unicodeContent,
       });
 
-      expect(windsurfIgnore.getFileContent()).toBe(unicodeContent);
+      expect(devinIgnore.getFileContent()).toBe(unicodeContent);
     });
 
     it("should handle content with null bytes", () => {
       const contentWithNull = "*.log\0node_modules/";
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent: contentWithNull,
         validate: false, // Skip validation for edge case content
       });
 
-      expect(windsurfIgnore.getFileContent()).toBe(contentWithNull);
+      expect(devinIgnore.getFileContent()).toBe(contentWithNull);
     });
   });
 
   describe("file integration", () => {
     it("should write and read file correctly", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
@@ -570,18 +570,18 @@ jspm_packages/
       });
 
       // Write file using writeFileContent utility
-      await writeFileContent(windsurfIgnore.getFilePath(), windsurfIgnore.getFileContent());
+      await writeFileContent(devinIgnore.getFilePath(), devinIgnore.getFileContent());
 
       // Read file back
-      const readWindsurfIgnore = await WindsurfIgnore.fromFile({
+      const readDevinIgnore = await DevinIgnore.fromFile({
         outputRoot: testDir,
       });
 
-      expect(readWindsurfIgnore.getFileContent()).toBe(fileContent);
+      expect(readDevinIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should preserve exact file content", async () => {
-      const originalContent = `# Windsurf AI code editor ignore patterns
+      const originalContent = `# Devin AI code editor ignore patterns
 *.log
 node_modules/
 .env*
@@ -589,36 +589,36 @@ build/
 dist/
 *.tmp`;
 
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent: originalContent,
       });
 
-      await writeFileContent(windsurfIgnore.getFilePath(), windsurfIgnore.getFileContent());
+      await writeFileContent(devinIgnore.getFilePath(), devinIgnore.getFileContent());
 
-      const readWindsurfIgnore = await WindsurfIgnore.fromFile({
+      const readDevinIgnore = await DevinIgnore.fromFile({
         outputRoot: testDir,
       });
 
-      expect(readWindsurfIgnore.getFileContent()).toBe(originalContent);
+      expect(readDevinIgnore.getFileContent()).toBe(originalContent);
     });
   });
 
-  describe("WindsurfIgnore-specific behavior", () => {
+  describe("DevinIgnore-specific behavior", () => {
     it("should use .codeiumignore as the filename", () => {
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent: "*.log",
       });
 
-      expect(windsurfIgnore.getRelativeFilePath()).toBe(".codeiumignore");
+      expect(devinIgnore.getRelativeFilePath()).toBe(".codeiumignore");
     });
 
-    it("should work as a Windsurf AI ignore file", () => {
-      const fileContent = `# Windsurf AI code editor ignore patterns
+    it("should work as a Devin AI ignore file", () => {
+      const fileContent = `# Devin AI code editor ignore patterns
 # Uses gitignore-compatible syntax
 # Automatically respects .gitignore patterns
 # Has built-in defaults for node_modules/ and hidden files
@@ -635,27 +635,27 @@ coverage/
 *.cache
 .DS_Store`;
 
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent,
       });
 
-      expect(windsurfIgnore.getFileContent()).toBe(fileContent);
+      expect(devinIgnore.getFileContent()).toBe(fileContent);
     });
 
     it("should work in project root context", () => {
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         outputRoot: "/project/root",
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent: "*.log\nnode_modules/",
       });
 
-      // WindsurfIgnore typically lives in project root
-      expect(windsurfIgnore.getRelativeDirPath()).toBe(".");
-      expect(windsurfIgnore.getRelativeFilePath()).toBe(".codeiumignore");
-      expect(windsurfIgnore.getFilePath()).toBe("/project/root/.codeiumignore");
+      // DevinIgnore typically lives in project root
+      expect(devinIgnore.getRelativeDirPath()).toBe(".");
+      expect(devinIgnore.getRelativeFilePath()).toBe(".codeiumignore");
+      expect(devinIgnore.getFilePath()).toBe("/project/root/.codeiumignore");
     });
 
     it("should maintain content for gitignore-compatible patterns", () => {
@@ -773,13 +773,13 @@ dist
 .yarn/install-state.gz
 .pnp.*`;
 
-      const windsurfIgnore = new WindsurfIgnore({
+      const devinIgnore = new DevinIgnore({
         relativeDirPath: ".",
         relativeFilePath: ".codeiumignore",
         fileContent: gitignoreContent,
       });
 
-      expect(windsurfIgnore.getFileContent()).toBe(gitignoreContent);
+      expect(devinIgnore.getFileContent()).toBe(gitignoreContent);
     });
   });
 
@@ -789,13 +789,13 @@ dist
       const codeiumIgnorePath = join(testDir, ".codeiumignore");
       await writeFileContent(codeiumIgnorePath, fileContent);
 
-      const windsurfIgnore = await WindsurfIgnore.fromFile({
+      const devinIgnore = await DevinIgnore.fromFile({
         outputRoot: testDir,
       });
 
       // fromFile always uses these fixed parameters for relativeDirPath and relativeFilePath
-      expect(windsurfIgnore.getRelativeDirPath()).toBe(".");
-      expect(windsurfIgnore.getRelativeFilePath()).toBe(".codeiumignore");
+      expect(devinIgnore.getRelativeDirPath()).toBe(".");
+      expect(devinIgnore.getRelativeFilePath()).toBe(".codeiumignore");
     });
 
     it("should create instance with validation enabled by default", async () => {
@@ -803,12 +803,12 @@ dist
       const codeiumIgnorePath = join(testDir, ".codeiumignore");
       await writeFileContent(codeiumIgnorePath, fileContent);
 
-      const windsurfIgnore = await WindsurfIgnore.fromFile({
+      const devinIgnore = await DevinIgnore.fromFile({
         outputRoot: testDir,
       });
 
       // Should have been validated during construction
-      expect(windsurfIgnore.validate().success).toBe(true);
+      expect(devinIgnore.validate().success).toBe(true);
     });
 
     it("should handle fromRulesyncIgnore with different base directories", () => {
@@ -819,13 +819,13 @@ dist
         fileContent: "*.log\nnode_modules/",
       });
 
-      const windsurfIgnore = WindsurfIgnore.fromRulesyncIgnore({
+      const devinIgnore = DevinIgnore.fromRulesyncIgnore({
         outputRoot: "/target/path",
         rulesyncIgnore,
       });
 
-      expect(windsurfIgnore.getOutputRoot()).toBe("/target/path");
-      expect(windsurfIgnore.getFileContent()).toBe("*.log\nnode_modules/");
+      expect(devinIgnore.getOutputRoot()).toBe("/target/path");
+      expect(devinIgnore.getFileContent()).toBe("*.log\nnode_modules/");
     });
   });
 
@@ -838,11 +838,11 @@ dist
         fileContent: originalContent,
       });
 
-      const windsurfIgnore = WindsurfIgnore.fromRulesyncIgnore({
+      const devinIgnore = DevinIgnore.fromRulesyncIgnore({
         rulesyncIgnore,
       });
 
-      const backToRulesync = windsurfIgnore.toRulesyncIgnore();
+      const backToRulesync = devinIgnore.toRulesyncIgnore();
 
       expect(backToRulesync.getFileContent()).toBe(originalContent);
     });
@@ -879,11 +879,11 @@ file.with.dots.txt`;
         fileContent: complexContent,
       });
 
-      const windsurfIgnore = WindsurfIgnore.fromRulesyncIgnore({
+      const devinIgnore = DevinIgnore.fromRulesyncIgnore({
         rulesyncIgnore,
       });
 
-      const backToRulesync = windsurfIgnore.toRulesyncIgnore();
+      const backToRulesync = devinIgnore.toRulesyncIgnore();
 
       expect(backToRulesync.getFileContent()).toBe(complexContent);
     });

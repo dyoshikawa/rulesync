@@ -28,8 +28,8 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Google Antigravity CLI | antigravity-cli | ✅ 🌏 |        | ✅ 🌏 🔧 |          |           | ✅ 🌏  | ✅ 🌏 |     🌏      |
 | Google Antigravity ⚠️  | antigravity     |  ✅   |        |          |    ✅    |           | ✅ 🌏  |       |             |
 | JetBrains Junie        | junie           |  ✅   |   ✅   |    ✅    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |             |
-| AugmentCode            | augmentcode     | ✅ 🌏 |   ✅   |          |  ✅ 🌏   |           |        |       |    ✅ 🌏    |
-| Windsurf               | windsurf        | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |             |
+| AugmentCode            | augmentcode     | ✅ 🌏 |   ✅   |          |  ✅ 🌏   |           |        | ✅ 🌏 |    ✅ 🌏    |
+| Devin Desktop          | devin           | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |             |
 | Warp                   | warp            |  ✅   |        |  ✅ 🌏   |          |           | ✅ 🌏  |       |             |
 | Replit                 | replit          |  ✅   |        |          |          |           |   ✅   |       |             |
 | Pi Coding Agent        | pi              | ✅ 🌏 |        |          |  ✅ 🌏   |           | ✅ 🌏  |       |             |

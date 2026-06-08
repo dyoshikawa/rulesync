@@ -78,6 +78,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "augmentcode", feature: "commands", entry: "**/.augment/commands/" },
   { target: "augmentcode", feature: "ignore", entry: "**/.augmentignore" },
   { target: "augmentcode", feature: "permissions", entry: "**/.augment/settings.json" },
+  { target: "augmentcode", feature: "hooks", entry: "**/.augment/settings.json" },
 
   // Claude Code
   { target: "claudecode", feature: "rules", entry: "**/CLAUDE.md" },
@@ -293,13 +294,15 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "takt", feature: "general", entry: "**/.takt/.cache/" },
   { target: "takt", feature: "general", entry: "**/.takt/config.yaml" },
 
-  // Windsurf
-  { target: "windsurf", feature: "rules", entry: "**/.windsurf/rules/" },
-  { target: "windsurf", feature: "commands", entry: "**/.windsurf/workflows/" },
-  { target: "windsurf", feature: "mcp", entry: "**/.windsurf/mcp_config.json" },
-  { target: "windsurf", feature: "hooks", entry: "**/.windsurf/hooks.json" },
-  { target: "windsurf", feature: "skills", entry: "**/.windsurf/skills/" },
-  { target: "windsurf", feature: "skills", entry: "**/.codeium/windsurf/skills/" },
+  // Devin (Devin Desktop). Since the rebrand (v3.0.12, 2026-06-02), project
+  // rules/workflows/skills live under `.devin/`; MCP and hooks keep their
+  // `.devin/` paths and the global skills path is unchanged.
+  { target: "devin", feature: "rules", entry: "**/.devin/rules/" },
+  { target: "devin", feature: "commands", entry: "**/.devin/workflows/" },
+  { target: "devin", feature: "mcp", entry: "**/.windsurf/mcp_config.json" },
+  { target: "devin", feature: "hooks", entry: "**/.windsurf/hooks.json" },
+  { target: "devin", feature: "skills", entry: "**/.devin/skills/" },
+  { target: "devin", feature: "skills", entry: "**/.codeium/windsurf/skills/" },
 
   // Warp
   // `/init` now writes `AGENTS.md` (handled by the shared AGENTS.md entry above).

@@ -4,6 +4,7 @@ import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../../constants/rulesync-path
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import {
   ANTIGRAVITY_HOOK_EVENTS,
+  AUGMENTCODE_HOOK_EVENTS,
   CLAUDE_HOOK_EVENTS,
   CODEXCLI_HOOK_EVENTS,
   COPILOT_HOOK_EVENTS,
@@ -23,12 +24,14 @@ import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
 import { AntigravityCliHooks, AntigravityIdeHooks } from "./antigravity-hooks.js";
+import { AugmentcodeHooks } from "./augmentcode-hooks.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { CodexcliHooks } from "./codexcli-hooks.js";
 import { CopilotHooks } from "./copilot-hooks.js";
 import { CopilotcliHooks } from "./copilotcli-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { DeepagentsHooks } from "./deepagents-hooks.js";
+import { DEVIN_HOOK_EVENTS, DevinHooks } from "./devin-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
 import { GeminicliHooks } from "./geminicli-hooks.js";
 import { KiloHooks } from "./kilo-hooks.js";
@@ -41,7 +44,6 @@ import type {
   ToolHooksFromRulesyncHooksParams,
 } from "./tool-hooks.js";
 import { ToolHooks } from "./tool-hooks.js";
-import { WINDSURF_HOOK_EVENTS, WindsurfHooks } from "./windsurf-hooks.js";
 
 const hooksProcessorToolTargetTuple = [
   "antigravity-cli",
@@ -57,7 +59,8 @@ const hooksProcessorToolTargetTuple = [
   "geminicli",
   "deepagents",
   "kiro",
-  "windsurf",
+  "devin",
+  "augmentcode",
 ] as const;
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
@@ -273,20 +276,37 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
     },
   ],
   [
-    "windsurf",
+    "devin",
     {
-      class: WindsurfHooks,
+      class: DevinHooks,
       meta: {
-        // Windsurf Cascade Hooks (GA) live in `.windsurf/hooks.json` (project)
+        // Devin Cascade Hooks (GA) live in `.windsurf/hooks.json` (project)
         // and `~/.codeium/windsurf/hooks.json` (global). Each event maps to a
         // flat array of command/powershell hook objects with no matcher.
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: WINDSURF_HOOK_EVENTS,
+      supportedEvents: DEVIN_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: false,
+    },
+  ],
+  [
+    "augmentcode",
+    {
+      class: AugmentcodeHooks,
+      meta: {
+        // Auggie CLI hooks live under the `hooks` key of the shared settings file
+        // `.augment/settings.json` (project) / `~/.augment/settings.json` (global),
+        // mirroring Claude Code's per-event matcher arrays.
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: AUGMENTCODE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
     },
   ],
 ]);

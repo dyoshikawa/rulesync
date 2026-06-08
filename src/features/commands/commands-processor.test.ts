@@ -1150,7 +1150,7 @@ describe("CommandsProcessor", () => {
           "pi",
           "roo",
           "takt",
-          "windsurf",
+          "devin",
         ]),
       );
     });
@@ -1177,7 +1177,7 @@ describe("CommandsProcessor", () => {
           "pi",
           "roo",
           "takt",
-          "windsurf",
+          "devin",
         ]),
       );
     });
@@ -1201,7 +1201,7 @@ describe("CommandsProcessor", () => {
           "opencode",
           "pi",
           "takt",
-          "windsurf",
+          "devin",
         ]),
       );
     });

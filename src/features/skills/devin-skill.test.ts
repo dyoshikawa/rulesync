@@ -6,10 +6,10 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { DevinSkill } from "./devin-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
-import { WindsurfSkill } from "./windsurf-skill.js";
 
-describe("WindsurfSkill", () => {
+describe("DevinSkill", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
@@ -26,33 +26,33 @@ describe("WindsurfSkill", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should return .windsurf/skills as relativeDirPath", () => {
-      const paths = WindsurfSkill.getSettablePaths();
-      expect(paths.relativeDirPath).toBe(join(".windsurf", "skills"));
+    it("should return .devin/skills as relativeDirPath", () => {
+      const paths = DevinSkill.getSettablePaths();
+      expect(paths.relativeDirPath).toBe(join(".devin", "skills"));
     });
 
     it("should return .codeium/windsurf/skills as relativeDirPath for global mode", () => {
-      const paths = WindsurfSkill.getSettablePaths({ global: true });
+      const paths = DevinSkill.getSettablePaths({ global: true });
       expect(paths.relativeDirPath).toBe(join(".codeium", "windsurf", "skills"));
     });
   });
 
   describe("constructor", () => {
     it("should create instance with valid content", () => {
-      const skill = new WindsurfSkill({
+      const skill = new DevinSkill({
         outputRoot: testDir,
-        relativeDirPath: join(".windsurf", "skills"),
+        relativeDirPath: join(".devin", "skills"),
         dirName: "test-skill",
         frontmatter: {
           name: "Test Skill",
           description: "Test skill description",
         },
-        body: "This is the body of the windsurf skill.",
+        body: "This is the body of the devin skill.",
         validate: true,
       });
 
-      expect(skill).toBeInstanceOf(WindsurfSkill);
-      expect(skill.getBody()).toBe("This is the body of the windsurf skill.");
+      expect(skill).toBeInstanceOf(DevinSkill);
+      expect(skill.getBody()).toBe("This is the body of the devin skill.");
       expect(skill.getFrontmatter()).toEqual({
         name: "Test Skill",
         description: "Test skill description",
@@ -62,9 +62,9 @@ describe("WindsurfSkill", () => {
     it("should throw error when frontmatter is invalid", () => {
       expect(
         () =>
-          new WindsurfSkill({
+          new DevinSkill({
             outputRoot: testDir,
-            relativeDirPath: join(".windsurf", "skills"),
+            relativeDirPath: join(".devin", "skills"),
             dirName: "invalid-skill",
             frontmatter: {
               name: 123,
@@ -79,23 +79,23 @@ describe("WindsurfSkill", () => {
 
   describe("fromDir", () => {
     it("should create instance from valid skill directory", async () => {
-      const skillDir = join(testDir, ".windsurf", "skills", "test-skill");
+      const skillDir = join(testDir, ".devin", "skills", "test-skill");
       await ensureDir(skillDir);
       const skillContent = `---
 name: Test Skill
 description: Test skill description
 ---
 
-This is the body of the windsurf skill.`;
+This is the body of the devin skill.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
-      const skill = await WindsurfSkill.fromDir({
+      const skill = await DevinSkill.fromDir({
         outputRoot: testDir,
         dirName: "test-skill",
       });
 
-      expect(skill).toBeInstanceOf(WindsurfSkill);
-      expect(skill.getBody()).toBe("This is the body of the windsurf skill.");
+      expect(skill).toBeInstanceOf(DevinSkill);
+      expect(skill.getBody()).toBe("This is the body of the devin skill.");
       expect(skill.getFrontmatter()).toEqual({
         name: "Test Skill",
         description: "Test skill description",
@@ -103,11 +103,11 @@ This is the body of the windsurf skill.`;
     });
 
     it("should throw error when SKILL.md not found", async () => {
-      const skillDir = join(testDir, ".windsurf", "skills", "empty-skill");
+      const skillDir = join(testDir, ".devin", "skills", "empty-skill");
       await ensureDir(skillDir);
 
       await expect(
-        WindsurfSkill.fromDir({
+        DevinSkill.fromDir({
           outputRoot: testDir,
           dirName: "empty-skill",
         }),
@@ -115,7 +115,7 @@ This is the body of the windsurf skill.`;
     });
 
     it("should throw when frontmatter is invalid", async () => {
-      const skillDir = join(testDir, ".windsurf", "skills", "bad-fm");
+      const skillDir = join(testDir, ".devin", "skills", "bad-fm");
       await ensureDir(skillDir);
       const skillContent = `---
 name: Bad Skill
@@ -125,7 +125,7 @@ Missing description field.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
       await expect(
-        WindsurfSkill.fromDir({
+        DevinSkill.fromDir({
           outputRoot: testDir,
           dirName: "bad-fm",
         }),
@@ -137,23 +137,23 @@ Missing description field.`;
       await ensureDir(skillDir);
       const skillContent = `---
 name: Global Skill
-description: A global windsurf skill
+description: A global devin skill
 ---
 
 Global skill body content.`;
       await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
 
-      const skill = await WindsurfSkill.fromDir({
+      const skill = await DevinSkill.fromDir({
         outputRoot: testDir,
         dirName: "global-skill",
         global: true,
       });
 
-      expect(skill).toBeInstanceOf(WindsurfSkill);
+      expect(skill).toBeInstanceOf(DevinSkill);
       expect(skill.getBody()).toBe("Global skill body content.");
       expect(skill.getFrontmatter()).toEqual({
         name: "Global Skill",
-        description: "A global windsurf skill",
+        description: "A global devin skill",
       });
       expect(skill.getRelativeDirPath()).toBe(join(".codeium", "windsurf", "skills"));
     });
@@ -173,14 +173,14 @@ Global skill body content.`;
         validate: true,
       });
 
-      const windsurfSkill = WindsurfSkill.fromRulesyncSkill({
+      const devinSkill = DevinSkill.fromRulesyncSkill({
         rulesyncSkill,
         validate: true,
       });
 
-      expect(windsurfSkill).toBeInstanceOf(WindsurfSkill);
-      expect(windsurfSkill.getBody()).toBe("Test body content");
-      expect(windsurfSkill.getFrontmatter()).toEqual({
+      expect(devinSkill).toBeInstanceOf(DevinSkill);
+      expect(devinSkill.getBody()).toBe("Test body content");
+      expect(devinSkill.getFrontmatter()).toEqual({
         name: "Test Skill",
         description: "Test skill description",
       });
@@ -199,13 +199,13 @@ Global skill body content.`;
         validate: true,
       });
 
-      const windsurfSkill = WindsurfSkill.fromRulesyncSkill({
+      const devinSkill = DevinSkill.fromRulesyncSkill({
         rulesyncSkill,
         validate: true,
         global: true,
       });
 
-      expect(windsurfSkill.getRelativeDirPath()).toBe(join(".codeium", "windsurf", "skills"));
+      expect(devinSkill.getRelativeDirPath()).toBe(join(".codeium", "windsurf", "skills"));
     });
   });
 
@@ -224,27 +224,27 @@ Global skill body content.`;
         validate: true,
       });
 
-      expect(WindsurfSkill.isTargetedByRulesyncSkill(rulesyncSkill)).toBe(true);
+      expect(DevinSkill.isTargetedByRulesyncSkill(rulesyncSkill)).toBe(true);
     });
 
-    it("should return true when targets includes 'windsurf'", () => {
+    it("should return true when targets includes 'devin'", () => {
       const rulesyncSkill = new RulesyncSkill({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-        dirName: "windsurf-skill",
+        dirName: "devin-skill",
         frontmatter: {
-          name: "Windsurf Skill",
-          description: "Skill for windsurf",
-          targets: ["copilot", "windsurf"],
+          name: "Devin Skill",
+          description: "Skill for devin",
+          targets: ["copilot", "devin"],
         },
         body: "Test body",
         validate: true,
       });
 
-      expect(WindsurfSkill.isTargetedByRulesyncSkill(rulesyncSkill)).toBe(true);
+      expect(DevinSkill.isTargetedByRulesyncSkill(rulesyncSkill)).toBe(true);
     });
 
-    it("should return false when targets does not include 'windsurf'", () => {
+    it("should return false when targets does not include 'devin'", () => {
       const rulesyncSkill = new RulesyncSkill({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
@@ -258,15 +258,15 @@ Global skill body content.`;
         validate: true,
       });
 
-      expect(WindsurfSkill.isTargetedByRulesyncSkill(rulesyncSkill)).toBe(false);
+      expect(DevinSkill.isTargetedByRulesyncSkill(rulesyncSkill)).toBe(false);
     });
   });
 
   describe("toRulesyncSkill", () => {
     it("should convert to RulesyncSkill", () => {
-      const skill = new WindsurfSkill({
+      const skill = new DevinSkill({
         outputRoot: testDir,
-        relativeDirPath: join(".windsurf", "skills"),
+        relativeDirPath: join(".devin", "skills"),
         dirName: "test-skill",
         frontmatter: {
           name: "Test Skill",
@@ -290,30 +290,30 @@ Global skill body content.`;
 
   describe("forDeletion", () => {
     it("should create minimal instance for deletion", () => {
-      const skill = WindsurfSkill.forDeletion({
+      const skill = DevinSkill.forDeletion({
         dirName: "cleanup",
-        relativeDirPath: join(".windsurf", "skills"),
+        relativeDirPath: join(".devin", "skills"),
       });
 
       expect(skill.getDirName()).toBe("cleanup");
-      expect(skill.getRelativeDirPath()).toBe(join(".windsurf", "skills"));
+      expect(skill.getRelativeDirPath()).toBe(join(".devin", "skills"));
       expect(skill.getGlobal()).toBe(false);
     });
 
     it("should use process.cwd() as default outputRoot", () => {
-      const skill = WindsurfSkill.forDeletion({
+      const skill = DevinSkill.forDeletion({
         dirName: "cleanup",
-        relativeDirPath: join(".windsurf", "skills"),
+        relativeDirPath: join(".devin", "skills"),
       });
 
-      expect(skill).toBeInstanceOf(WindsurfSkill);
+      expect(skill).toBeInstanceOf(DevinSkill);
       expect(skill.getOutputRoot()).toBe(testDir);
     });
 
     it("should create instance with empty frontmatter for deletion", () => {
-      const skill = WindsurfSkill.forDeletion({
+      const skill = DevinSkill.forDeletion({
         dirName: "to-delete",
-        relativeDirPath: join(".windsurf", "skills"),
+        relativeDirPath: join(".devin", "skills"),
       });
 
       expect(skill.getFrontmatter()).toEqual({
@@ -324,7 +324,7 @@ Global skill body content.`;
     });
 
     it("should use global path when global is true", () => {
-      const skill = WindsurfSkill.forDeletion({
+      const skill = DevinSkill.forDeletion({
         dirName: "cleanup",
         relativeDirPath: join(".codeium", "windsurf", "skills"),
         global: true,

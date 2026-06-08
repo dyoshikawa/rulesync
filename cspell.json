@@ -36,6 +36,7 @@
     "argparse",
     "asctime",
     "asyncio",
+    "Auggie",
     "augmentcode",
     "augmentignore",
     "augmentinclude",

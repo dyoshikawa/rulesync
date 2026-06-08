@@ -340,12 +340,13 @@ rulesync.local.jsonc
 **/.takt/tasks/
 **/.takt/.cache/
 **/.takt/config.yaml
-**/.windsurf/rules/
-**/.windsurf/workflows/
+**/.devin/rules/
+**/.devin/workflows/
 **/.windsurf/mcp_config.json
 **/.windsurf/hooks.json
-**/.windsurf/skills/
+**/.devin/skills/
 **/.codeium/windsurf/skills/
 **/.warp/
 **/.warp/.mcp.json
+**/.warp/skills/
 **/.rules

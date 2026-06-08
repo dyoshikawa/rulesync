@@ -15,18 +15,18 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const WindsurfSkillFrontmatterSchema = z.looseObject({
+export const DevinSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
 });
 
-export type WindsurfSkillFrontmatter = z.infer<typeof WindsurfSkillFrontmatterSchema>;
+export type DevinSkillFrontmatter = z.infer<typeof DevinSkillFrontmatterSchema>;
 
-export type WindsurfSkillParams = {
+export type DevinSkillParams = {
   outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
-  frontmatter: WindsurfSkillFrontmatter;
+  frontmatter: DevinSkillFrontmatter;
   body: string;
   otherFiles?: SkillFile[];
   validate?: boolean;
@@ -34,21 +34,23 @@ export type WindsurfSkillParams = {
 };
 
 /**
- * Represents a Windsurf skill directory.
- * Windsurf supports skills in both project mode under .windsurf/skills/
- * and global mode under ~/.codeium/windsurf/skills/
+ * Represents a Devin (now Devin Desktop) skill directory.
+ * Devin supports skills in both project mode under .devin/skills/
+ * (preferred since the Devin Desktop rebrand; .devin/skills/ is the legacy
+ * fallback the tool still reads) and global mode under ~/.codeium/windsurf/skills/
+ * (unchanged by the rebrand).
  */
-export class WindsurfSkill extends ToolSkill {
+export class DevinSkill extends ToolSkill {
   constructor({
     outputRoot = process.cwd(),
-    relativeDirPath = WindsurfSkill.getSettablePaths().relativeDirPath,
+    relativeDirPath = DevinSkill.getSettablePaths().relativeDirPath,
     dirName,
     frontmatter,
     body,
     otherFiles = [],
     validate = true,
     global = false,
-  }: WindsurfSkillParams) {
+  }: DevinSkillParams) {
     super({
       outputRoot,
       relativeDirPath,
@@ -71,8 +73,9 @@ export class WindsurfSkill extends ToolSkill {
   }
 
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolSkillSettablePaths {
-    // Windsurf skills use different paths for project and global modes:
-    // - Project mode: {process.cwd()}/.windsurf/skills/
+    // Devin skills use different paths for project and global modes:
+    // - Project mode: {process.cwd()}/.devin/skills/ (preferred since the Devin
+    //   Desktop rebrand; .devin/skills/ is the legacy fallback)
     // - Global mode: {getHomeDirectory()}/.codeium/windsurf/skills/
     if (global) {
       return {
@@ -80,12 +83,12 @@ export class WindsurfSkill extends ToolSkill {
       };
     }
     return {
-      relativeDirPath: join(".windsurf", "skills"),
+      relativeDirPath: join(".devin", "skills"),
     };
   }
 
-  getFrontmatter(): WindsurfSkillFrontmatter {
-    const result = WindsurfSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
+  getFrontmatter(): DevinSkillFrontmatter {
+    const result = DevinSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
     return result;
   }
 
@@ -101,7 +104,7 @@ export class WindsurfSkill extends ToolSkill {
       };
     }
 
-    const result = WindsurfSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
+    const result = DevinSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
     if (!result.success) {
       return {
         success: false,
@@ -139,20 +142,20 @@ export class WindsurfSkill extends ToolSkill {
     rulesyncSkill,
     validate = true,
     global = false,
-  }: ToolSkillFromRulesyncSkillParams): WindsurfSkill {
-    const settablePaths = WindsurfSkill.getSettablePaths({ global });
+  }: ToolSkillFromRulesyncSkillParams): DevinSkill {
+    const settablePaths = DevinSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
-    const windsurfFrontmatter: WindsurfSkillFrontmatter = {
+    const devinFrontmatter: DevinSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
     };
 
-    return new WindsurfSkill({
+    return new DevinSkill({
       outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
-      frontmatter: windsurfFrontmatter,
+      frontmatter: devinFrontmatter,
       body: rulesyncSkill.getBody(),
       otherFiles: rulesyncSkill.getOtherFiles(),
       validate,
@@ -162,16 +165,16 @@ export class WindsurfSkill extends ToolSkill {
 
   static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
     const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("windsurf");
+    return targets.includes("*") || targets.includes("devin");
   }
 
-  static async fromDir(params: ToolSkillFromDirParams): Promise<WindsurfSkill> {
+  static async fromDir(params: ToolSkillFromDirParams): Promise<DevinSkill> {
     const loaded = await this.loadSkillDirContent({
       ...params,
-      getSettablePaths: WindsurfSkill.getSettablePaths,
+      getSettablePaths: DevinSkill.getSettablePaths,
     });
 
-    const result = WindsurfSkillFrontmatterSchema.safeParse(loaded.frontmatter);
+    const result = DevinSkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
       const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
@@ -179,7 +182,7 @@ export class WindsurfSkill extends ToolSkill {
       );
     }
 
-    return new WindsurfSkill({
+    return new DevinSkill({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
@@ -196,9 +199,9 @@ export class WindsurfSkill extends ToolSkill {
     relativeDirPath,
     dirName,
     global = false,
-  }: ToolSkillForDeletionParams): WindsurfSkill {
-    const settablePaths = WindsurfSkill.getSettablePaths({ global });
-    return new WindsurfSkill({
+  }: ToolSkillForDeletionParams): DevinSkill {
+    const settablePaths = DevinSkill.getSettablePaths({ global });
+    return new DevinSkill({
       outputRoot,
       relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
       dirName,

@@ -30,7 +30,7 @@ describe("E2E: commands", () => {
     { target: "junie", outputPath: join(".junie", "commands", "review-pr.md") },
     { target: "takt", outputPath: join(".takt", "facets", "instructions", "review-pr.md") },
     { target: "pi", outputPath: join(".pi", "prompts", "review-pr.md") },
-    { target: "windsurf", outputPath: join(".windsurf", "workflows", "review-pr.md") },
+    { target: "devin", outputPath: join(".devin", "workflows", "review-pr.md") },
   ])("should generate $target commands", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -97,7 +97,7 @@ Check the PR diff and provide feedback.
     { target: "antigravity-ide", orphanPath: join(".agents", "workflows", "orphan.md") },
     { target: "junie", orphanPath: join(".junie", "commands", "orphan.md") },
     { target: "pi", orphanPath: join(".pi", "prompts", "orphan.md") },
-    { target: "windsurf", orphanPath: join(".windsurf", "workflows", "orphan.md") },
+    { target: "devin", orphanPath: join(".devin", "workflows", "orphan.md") },
   ])(
     "should fail in check mode when delete would remove an orphan $target command file",
     async ({ target, orphanPath }) => {
@@ -143,7 +143,7 @@ describe("E2E: commands (import)", () => {
     { target: "antigravity-ide", sourcePath: join(".agents", "workflows", "review-pr.md") },
     { target: "junie", sourcePath: join(".junie", "commands", "review-pr.md") },
     { target: "pi", sourcePath: join(".pi", "prompts", "review-pr.md") },
-    { target: "windsurf", sourcePath: join(".windsurf", "workflows", "review-pr.md") },
+    { target: "devin", sourcePath: join(".devin", "workflows", "review-pr.md") },
   ])("should import $target commands", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
@@ -182,7 +182,7 @@ describe("E2E: commands (global mode)", () => {
     },
     { target: "pi", outputPath: join(".pi", "agent", "prompts", "review-pr.md") },
     {
-      target: "windsurf",
+      target: "devin",
       outputPath: join(".codeium", "windsurf", "global_workflows", "review-pr.md"),
     },
   ])("should generate $target commands in home directory", async ({ target, outputPath }) => {

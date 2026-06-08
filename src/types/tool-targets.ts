@@ -34,7 +34,7 @@ export const ALL_TOOL_TARGETS = [
   "rovodev",
   "takt",
   "warp",
-  "windsurf",
+  "devin",
   "zed",
 ] as const;
 

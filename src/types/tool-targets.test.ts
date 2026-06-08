@@ -42,7 +42,7 @@ describe("tool targets", () => {
         "rovodev",
         "takt",
         "warp",
-        "windsurf",
+        "devin",
         "zed",
       ];
 

@@ -25,7 +25,7 @@ antigravity: # antigravity specific parameters
   trigger: "always_on" # always_on, glob, manual, or model_decision
   globs: ["**/*"] # (optional) file patterns to match when trigger is "glob"
   description: "When to apply this rule" # (optional) used with "model_decision" trigger
-windsurf: # windsurf specific parameters
+devin: # devin (Devin Desktop, formerly Windsurf) specific parameters
   trigger: "always_on" # always_on, glob, manual, or model_decision
   globs: ["**/*"] # (optional) file patterns to match when trigger is "glob"
   description: "When to apply this rule" # (optional) used with "model_decision" trigger
@@ -108,38 +108,38 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 
 ### Hook event × tool matrix
 
-| Event                  | Cursor | Claude Code | OpenCode | Kilo | Copilot | Copilot CLI | Factory Droid | Gemini CLI | Codex CLI | deepagents | Kiro | Antigravity IDE | Antigravity CLI | Windsurf |
-| ---------------------- | :----: | :---------: | :------: | :--: | :-----: | :---------: | :-----------: | :--------: | :-------: | :--------: | :--: | :-------------: | :-------------: | :------: |
-| `sessionStart`         |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |        —        |        —        |    —     |
-| `sessionEnd`           |   ✅   |     ✅      |    —     |  —   |   ✅    |     ✅      |      ✅       |     ✅     |     —     |     ✅     |  ✅  |        —        |        —        |    —     |
-| `beforeSubmitPrompt`   |   ✅   |     ✅      |    —     |  —   |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |        —        |        —        |    ✅    |
-| `preToolUse`           |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     —      |  ✅  |       ✅        |       ✅        |    —     |
-| `postToolUse`          |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     —      |  ✅  |       ✅        |       ✅        |    —     |
-| `preModelInvocation`   |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |       ✅        |       ✅        |    —     |
-| `postModelInvocation`  |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |       ✅        |       ✅        |    —     |
-| `postToolUseFailure`   |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     ✅     |  —   |        —        |        —        |    —     |
-| `stop`                 |   ✅   |     ✅      |    ✅    |  ✅  |    —    |      —      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |       ✅        |       ✅        |    —     |
-| `subagentStart`        |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |    —     |
-| `subagentStop`         |   ✅   |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     —      |     —     |     —      |  —   |        —        |        —        |    —     |
-| `preCompact`           |   ✅   |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     ✅     |     —     |     ✅     |  —   |        —        |        —        |    —     |
-| `afterFileEdit`        |   ✅   |      —      |    ✅    |  ✅  |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |    ✅    |
-| `beforeShellExecution` |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |    ✅    |
-| `afterShellExecution`  |   ✅   |      —      |    ✅    |  ✅  |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |    ✅    |
-| `beforeMCPExecution`   |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |    ✅    |
-| `afterMCPExecution`    |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |    ✅    |
-| `beforeReadFile`       |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |    ✅    |
-| `beforeAgentResponse`  |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     ✅     |     —     |     —      |  —   |        —        |        —        |    ✅    |
-| `afterAgentResponse`   |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     ✅     |     —     |     —      |  —   |        —        |        —        |    ✅    |
-| `afterAgentThought`    |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |    —     |
-| `beforeTabFileRead`    |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |    ✅    |
-| `afterTabFileEdit`     |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |    ✅    |
-| `beforeToolSelection`  |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     ✅     |     —     |     —      |  —   |        —        |        —        |    —     |
-| `permissionRequest`    |   —    |     ✅      |    ✅    |  ✅  |    —    |      —      |      ✅       |     —      |    ✅     |     ✅     |  —   |        —        |        —        |    —     |
-| `notification`         |   —    |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     ✅     |     —     |     —      |  —   |        —        |        —        |    —     |
-| `setup`                |   —    |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     —      |     —     |     —      |  —   |        —        |        —        |    —     |
-| `worktreeCreate`       |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |    ✅    |
-| `worktreeRemove`       |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |    —     |
-| `afterError`           |   —    |      —      |    —     |  —   |   ✅    |     ✅      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |    —     |
+| Event                  | Cursor | Claude Code | OpenCode | Kilo | Copilot | Copilot CLI | Factory Droid | Gemini CLI | Codex CLI | deepagents | Kiro | Antigravity IDE | Antigravity CLI | Devin | AugmentCode |
+| ---------------------- | :----: | :---------: | :------: | :--: | :-----: | :---------: | :-----------: | :--------: | :-------: | :--------: | :--: | :-------------: | :-------------: | :---: | :---------: |
+| `sessionStart`         |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |        —        |        —        |   —   |     ✅      |
+| `sessionEnd`           |   ✅   |     ✅      |    —     |  —   |   ✅    |     ✅      |      ✅       |     ✅     |     —     |     ✅     |  ✅  |        —        |        —        |   —   |     ✅      |
+| `beforeSubmitPrompt`   |   ✅   |     ✅      |    —     |  —   |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |        —        |        —        |  ✅   |      —      |
+| `preToolUse`           |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     —      |  ✅  |       ✅        |       ✅        |   —   |     ✅      |
+| `postToolUse`          |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     —      |  ✅  |       ✅        |       ✅        |   —   |     ✅      |
+| `preModelInvocation`   |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |       ✅        |       ✅        |   —   |      —      |
+| `postModelInvocation`  |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |       ✅        |       ✅        |   —   |      —      |
+| `postToolUseFailure`   |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     ✅     |  —   |        —        |        —        |   —   |      —      |
+| `stop`                 |   ✅   |     ✅      |    ✅    |  ✅  |    —    |      —      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |       ✅        |       ✅        |   —   |     ✅      |
+| `subagentStart`        |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |
+| `subagentStop`         |   ✅   |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |
+| `preCompact`           |   ✅   |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     ✅     |     —     |     ✅     |  —   |        —        |        —        |   —   |      —      |
+| `afterFileEdit`        |   ✅   |      —      |    ✅    |  ✅  |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |
+| `beforeShellExecution` |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |
+| `afterShellExecution`  |   ✅   |      —      |    ✅    |  ✅  |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |
+| `beforeMCPExecution`   |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |
+| `afterMCPExecution`    |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |
+| `beforeReadFile`       |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |
+| `beforeAgentResponse`  |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     ✅     |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |
+| `afterAgentResponse`   |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     ✅     |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |
+| `afterAgentThought`    |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |
+| `beforeTabFileRead`    |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |
+| `afterTabFileEdit`     |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |
+| `beforeToolSelection`  |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     ✅     |     —     |     —      |  —   |        —        |        —        |   —   |      —      |
+| `permissionRequest`    |   —    |     ✅      |    ✅    |  ✅  |    —    |      —      |      ✅       |     —      |    ✅     |     ✅     |  —   |        —        |        —        |   —   |      —      |
+| `notification`         |   —    |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     ✅     |     —     |     —      |  —   |        —        |        —        |   —   |      —      |
+| `setup`                |   —    |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |
+| `worktreeCreate`       |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |
+| `worktreeRemove`       |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |
+| `afterError`           |   —    |      —      |    —     |  —   |   ✅    |     ✅      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |
 
 > **Note:** `worktreeCreate` and `worktreeRemove` are Claude Code-specific events and do not support the `matcher` field. Any matcher defined in the config is ignored for these events.
 
@@ -152,7 +152,8 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 > - **Copilot (cloud agent)** — `<project>/.github/hooks/copilot-hooks.json`.
 > - **Copilot CLI** — project: `<project>/.github/hooks/copilotcli-hooks.json`; global: `~/.copilot/hooks/copilot-hooks.json`. The Copilot CLI docs let you choose any filename inside `.github/hooks/`, so Rulesync uses the CLI-specific name to avoid colliding with the cloud-agent file when both targets are enabled. The global path is a Rulesync convention; the official Copilot CLI documentation does not currently enumerate a global hooks location, so this placement may change if the spec later mandates an alternate layout.
 > - **Antigravity IDE / Antigravity CLI** — project: `<project>/.agents/hooks.json`; global: `~/.gemini/config/hooks.json`. Both targets share the same dedicated `hooks.json` (a Claude-Code-style matcher map nested under a generated `rulesync` hook name), so enabling both writes the same file.
-> - **Windsurf** — project: `<project>/.windsurf/hooks.json`; global: `~/.codeium/windsurf/hooks.json`.
+> - **Devin Desktop (formerly Windsurf)** — project: `<project>/.windsurf/hooks.json`; global: `~/.codeium/windsurf/hooks.json`. The Cascade Hooks file location is unchanged by the Devin Desktop rebrand.
+> - **AugmentCode** — project: `<project>/.augment/settings.json`; global: `~/.augment/settings.json`. Hooks are merged under the top-level `hooks` key of the shared settings file (which also holds `toolPermissions`).
 
 > **Note:** Because each AI tool evolves its own hook surface at its own pace, the matrix above reflects the events Rulesync currently translates. When a tool ships a new event that Rulesync does not yet support, the most reliable path is to open an issue — the matrix is the intended baseline to compare against.
 
@@ -160,7 +161,9 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 
 > **Note:** Antigravity (IDE and CLI) writes a dedicated `hooks.json` keyed by a **named hook** whose value holds the event map, e.g. `{ "rulesync": { "PreToolUse": [ { "matcher": "...", "hooks": [...] } ], "Stop": [ { "hooks": [...] } ] } }`. Rulesync emits a single generated hook under the stable name `rulesync`. It supports five lifecycle events — `preToolUse` ⇄ `PreToolUse`, `postToolUse` ⇄ `PostToolUse`, `preModelInvocation` ⇄ `PreInvocation`, `postModelInvocation` ⇄ `PostInvocation`, and `stop` ⇄ `Stop` — where `PreInvocation`/`PostInvocation`/`Stop` are matcher-less handler lists. On import, both the named-hook wrapper and a legacy flat top-level event map are accepted, and the optional per-hook `enabled` flag is ignored.
 
-> **Note:** Windsurf Cascade Hooks (GA) are written to a dedicated `hooks.json` whose top-level `hooks` key maps each Windsurf event name to a **flat array** of hook objects (no `matcher`, no `type`, no inner `hooks` wrapper, and no `timeout`). Each object carries `command` and/or `powershell`, plus optional `show_output` and `working_directory`. Rulesync splits the generic tool lifecycle into Windsurf's file/command/MCP-specific events, so the canonical events map bijectively: `beforeReadFile` ⇄ `pre_read_code`, `beforeTabFileRead` ⇄ `post_read_code`, `afterTabFileEdit` ⇄ `pre_write_code`, `afterFileEdit` ⇄ `post_write_code`, `beforeShellExecution` ⇄ `pre_run_command`, `afterShellExecution` ⇄ `post_run_command`, `beforeMCPExecution` ⇄ `pre_mcp_tool_use`, `afterMCPExecution` ⇄ `post_mcp_tool_use`, `beforeSubmitPrompt` ⇄ `pre_user_prompt`, `afterAgentResponse` ⇄ `post_cascade_response`, `beforeAgentResponse` ⇄ `post_cascade_response_with_transcript`, and `worktreeCreate` ⇄ `post_setup_worktree`. Canonical events with no Windsurf equivalent (e.g. `sessionStart`, `stop`) are dropped with a logged warning.
+> **Note:** Devin Desktop (formerly Windsurf) Cascade Hooks (GA) are written to a dedicated `hooks.json` whose top-level `hooks` key maps each Cascade event name to a **flat array** of hook objects (no `matcher`, no `type`, no inner `hooks` wrapper, and no `timeout`). Each object carries `command` and/or `powershell`, plus optional `show_output` and `working_directory`. Rulesync splits the generic tool lifecycle into Devin's file/command/MCP-specific events, so the canonical events map bijectively: `beforeReadFile` ⇄ `pre_read_code`, `beforeTabFileRead` ⇄ `post_read_code`, `afterTabFileEdit` ⇄ `pre_write_code`, `afterFileEdit` ⇄ `post_write_code`, `beforeShellExecution` ⇄ `pre_run_command`, `afterShellExecution` ⇄ `post_run_command`, `beforeMCPExecution` ⇄ `pre_mcp_tool_use`, `afterMCPExecution` ⇄ `post_mcp_tool_use`, `beforeSubmitPrompt` ⇄ `pre_user_prompt`, `afterAgentResponse` ⇄ `post_cascade_response`, `beforeAgentResponse` ⇄ `post_cascade_response_with_transcript`, and `worktreeCreate` ⇄ `post_setup_worktree`. Canonical events with no Devin equivalent (e.g. `sessionStart`, `stop`) are dropped with a logged warning. The Cascade Hooks file location (`.windsurf/hooks.json` / `~/.codeium/windsurf/hooks.json`) is retained from the Windsurf era and is unaffected by the rebrand.
+
+> **Note:** AugmentCode (Auggie CLI) hooks are merged under the top-level `hooks` key of the shared `.augment/settings.json` (project) / `~/.augment/settings.json` (global), mirroring Claude Code's per-event matcher arrays (`{ "EventName": [ { "matcher": "...", "hooks": [ { "type": "command", "command": "...", "timeout": ... } ] } ] }`). The `hooks` block is merged in place so it coexists with the `toolPermissions` block from the permissions feature. Five lifecycle events are supported — `preToolUse` ⇄ `PreToolUse`, `postToolUse` ⇄ `PostToolUse`, `sessionStart` ⇄ `SessionStart`, `sessionEnd` ⇄ `SessionEnd`, and `stop` ⇄ `Stop`. The `matcher` field (a case-sensitive regex, default `.*`, with `mcp:*` support) applies only to the tool events `PreToolUse`/`PostToolUse`; any matcher on the session events is dropped with a logged warning. Commands are emitted verbatim — Auggie exposes `AUGMENT_PROJECT_DIR` as a runtime environment variable, not as an inline command substitution, so no directory prefix is added. Only `command`-type hooks are supported.
 
 ## `.copilot/mcp-config.json`
 

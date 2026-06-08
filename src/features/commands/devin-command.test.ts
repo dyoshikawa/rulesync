@@ -5,10 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { DevinCommand } from "./devin-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
-import { WindsurfCommand } from "./windsurf-command.js";
 
-describe("WindsurfCommand", () => {
+describe("DevinCommand", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
@@ -25,25 +25,25 @@ describe("WindsurfCommand", () => {
   });
 
   describe("constructor", () => {
-    it("should create a valid WindsurfCommand instance", () => {
-      const command = new WindsurfCommand({
+    it("should create a valid DevinCommand instance", () => {
+      const command = new DevinCommand({
         outputRoot: testDir,
-        relativeDirPath: join(".windsurf", "workflows"),
+        relativeDirPath: join(".devin", "workflows"),
         relativeFilePath: "test.md",
         frontmatter: { description: "Test command" },
         body: "This is a test command body",
       });
 
-      expect(command).toBeInstanceOf(WindsurfCommand);
+      expect(command).toBeInstanceOf(DevinCommand);
       expect(command.getBody()).toBe("This is a test command body");
       expect(command.getFrontmatter()).toEqual({ description: "Test command" });
     });
 
     it("should validate frontmatter during construction by default", () => {
       expect(() => {
-        new WindsurfCommand({
+        new DevinCommand({
           outputRoot: testDir,
-          relativeDirPath: join(".windsurf", "workflows"),
+          relativeDirPath: join(".devin", "workflows"),
           relativeFilePath: "test.md",
           frontmatter: { description: 123 as any },
           body: "This is a test command body",
@@ -53,23 +53,23 @@ describe("WindsurfCommand", () => {
     });
 
     it("should skip validation when validate is false", () => {
-      const command = new WindsurfCommand({
+      const command = new DevinCommand({
         outputRoot: testDir,
-        relativeDirPath: join(".windsurf", "workflows"),
+        relativeDirPath: join(".devin", "workflows"),
         relativeFilePath: "test.md",
         frontmatter: { description: 123 as any },
         body: "This is a test command body",
         validate: false,
       });
 
-      expect(command).toBeInstanceOf(WindsurfCommand);
+      expect(command).toBeInstanceOf(DevinCommand);
       expect(command.getBody()).toBe("This is a test command body");
     });
 
     it("should generate correct file content with frontmatter", () => {
-      const command = new WindsurfCommand({
+      const command = new DevinCommand({
         outputRoot: testDir,
-        relativeDirPath: join(".windsurf", "workflows"),
+        relativeDirPath: join(".devin", "workflows"),
         relativeFilePath: "test.md",
         frontmatter: { description: "Test command" },
         body: "This is a test command body",
@@ -84,9 +84,9 @@ describe("WindsurfCommand", () => {
 
   describe("getBody", () => {
     it("should return the command body", () => {
-      const command = new WindsurfCommand({
+      const command = new DevinCommand({
         outputRoot: testDir,
-        relativeDirPath: join(".windsurf", "workflows"),
+        relativeDirPath: join(".devin", "workflows"),
         relativeFilePath: "test.md",
         frontmatter: { description: "Test command" },
         body: "Command body content",
@@ -99,9 +99,9 @@ describe("WindsurfCommand", () => {
   describe("getFrontmatter", () => {
     it("should return the frontmatter", () => {
       const frontmatter = { description: "Test command description" };
-      const command = new WindsurfCommand({
+      const command = new DevinCommand({
         outputRoot: testDir,
-        relativeDirPath: join(".windsurf", "workflows"),
+        relativeDirPath: join(".devin", "workflows"),
         relativeFilePath: "test.md",
         frontmatter,
         body: "Command body",
@@ -113,9 +113,9 @@ describe("WindsurfCommand", () => {
 
   describe("validate", () => {
     it("should return success for valid frontmatter", () => {
-      const command = new WindsurfCommand({
+      const command = new DevinCommand({
         outputRoot: testDir,
-        relativeDirPath: join(".windsurf", "workflows"),
+        relativeDirPath: join(".devin", "workflows"),
         relativeFilePath: "test.md",
         frontmatter: { description: "Valid description" },
         body: "Body",
@@ -128,9 +128,9 @@ describe("WindsurfCommand", () => {
     });
 
     it("should return error for invalid frontmatter", () => {
-      const command = new WindsurfCommand({
+      const command = new DevinCommand({
         outputRoot: testDir,
-        relativeDirPath: join(".windsurf", "workflows"),
+        relativeDirPath: join(".devin", "workflows"),
         relativeFilePath: "test.md",
         frontmatter: { description: 123 as any },
         body: "Body",
@@ -143,9 +143,9 @@ describe("WindsurfCommand", () => {
     });
 
     it("should return success for frontmatter with extra fields", () => {
-      const command = new WindsurfCommand({
+      const command = new DevinCommand({
         outputRoot: testDir,
-        relativeDirPath: join(".windsurf", "workflows"),
+        relativeDirPath: join(".devin", "workflows"),
         relativeFilePath: "test.md",
         frontmatter: { description: "Test", extra: "field" } as any,
         body: "Body",
@@ -159,22 +159,22 @@ describe("WindsurfCommand", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should return .windsurf/workflows as relativeDirPath", () => {
-      const paths = WindsurfCommand.getSettablePaths();
-      expect(paths.relativeDirPath).toBe(join(".windsurf", "workflows"));
+    it("should return .devin/workflows as relativeDirPath", () => {
+      const paths = DevinCommand.getSettablePaths();
+      expect(paths.relativeDirPath).toBe(join(".devin", "workflows"));
     });
 
     it("should return .codeium/windsurf/global_workflows as relativeDirPath for global mode", () => {
-      const paths = WindsurfCommand.getSettablePaths({ global: true });
+      const paths = DevinCommand.getSettablePaths({ global: true });
       expect(paths.relativeDirPath).toBe(join(".codeium", "windsurf", "global_workflows"));
     });
   });
 
   describe("toRulesyncCommand", () => {
     it("should convert to RulesyncCommand correctly", () => {
-      const command = new WindsurfCommand({
+      const command = new DevinCommand({
         outputRoot: testDir,
-        relativeDirPath: join(".windsurf", "workflows"),
+        relativeDirPath: join(".devin", "workflows"),
         relativeFilePath: "test.md",
         frontmatter: { description: "Test description" },
         body: "Test body",
@@ -191,10 +191,10 @@ describe("WindsurfCommand", () => {
       expect(rulesyncCommand.getBody()).toBe("Test body");
     });
 
-    it("should preserve extra fields in windsurf section", () => {
-      const command = new WindsurfCommand({
+    it("should preserve extra fields in devin section", () => {
+      const command = new DevinCommand({
         outputRoot: testDir,
-        relativeDirPath: join(".windsurf", "workflows"),
+        relativeDirPath: join(".devin", "workflows"),
         relativeFilePath: "test.md",
         frontmatter: {
           description: "Test description",
@@ -208,31 +208,31 @@ describe("WindsurfCommand", () => {
       expect(rulesyncCommand.getFrontmatter()).toEqual({
         targets: ["*"],
         description: "Test description",
-        windsurf: { extra: "field" },
+        devin: { extra: "field" },
       });
     });
   });
 
   describe("fromRulesyncCommand", () => {
-    it("should create WindsurfCommand from RulesyncCommand", () => {
+    it("should create DevinCommand from RulesyncCommand", () => {
       const rulesyncCommand = new RulesyncCommand({
         outputRoot: testDir,
         relativeDirPath: ".rulesync/command",
         relativeFilePath: "test-command.md",
         fileContent: "",
         frontmatter: {
-          targets: ["windsurf"],
+          targets: ["devin"],
           description: "Test description",
         },
         body: "Test body",
       });
 
-      const command = WindsurfCommand.fromRulesyncCommand({
+      const command = DevinCommand.fromRulesyncCommand({
         rulesyncCommand,
       });
 
-      expect(command).toBeInstanceOf(WindsurfCommand);
-      expect(command.getRelativeDirPath()).toBe(join(".windsurf", "workflows"));
+      expect(command).toBeInstanceOf(DevinCommand);
+      expect(command.getRelativeDirPath()).toBe(join(".devin", "workflows"));
       expect(command.getRelativeFilePath()).toBe("test-command.md");
       expect(command.getFrontmatter()).toEqual({ description: "Test description" });
       expect(command.getBody()).toBe("Test body");
@@ -245,13 +245,13 @@ describe("WindsurfCommand", () => {
         relativeFilePath: "test-command.md",
         fileContent: "",
         frontmatter: {
-          targets: ["windsurf"],
+          targets: ["devin"],
           description: "Test description",
         },
         body: "Test body",
       });
 
-      const command = WindsurfCommand.fromRulesyncCommand({
+      const command = DevinCommand.fromRulesyncCommand({
         rulesyncCommand,
         global: true,
       });
@@ -259,21 +259,21 @@ describe("WindsurfCommand", () => {
       expect(command.getRelativeDirPath()).toBe(join(".codeium", "windsurf", "global_workflows"));
     });
 
-    it("should merge windsurf-specific fields from rulesync frontmatter", () => {
+    it("should merge devin-specific fields from rulesync frontmatter", () => {
       const rulesyncCommand = new RulesyncCommand({
         outputRoot: testDir,
         relativeDirPath: ".rulesync/command",
         relativeFilePath: "test-command.md",
         fileContent: "",
         frontmatter: {
-          targets: ["windsurf"],
+          targets: ["devin"],
           description: "Test description",
-          windsurf: { extra: "field" },
+          devin: { extra: "field" },
         },
         body: "Test body",
       });
 
-      const command = WindsurfCommand.fromRulesyncCommand({
+      const command = DevinCommand.fromRulesyncCommand({
         rulesyncCommand,
       });
 
@@ -285,8 +285,8 @@ describe("WindsurfCommand", () => {
   });
 
   describe("fromFile", () => {
-    it("should load WindsurfCommand from file", async () => {
-      const relativeDirPath = join(".windsurf", "workflows");
+    it("should load DevinCommand from file", async () => {
+      const relativeDirPath = join(".devin", "workflows");
       const relativeFilePath = "test-command.md";
       const body = "Test body";
       const frontmatter = { description: "Test description" };
@@ -295,17 +295,17 @@ describe("WindsurfCommand", () => {
       await ensureDir(join(testDir, relativeDirPath));
       await writeFileContent(join(testDir, relativeDirPath, relativeFilePath), fileContent);
 
-      const command = await WindsurfCommand.fromFile({
+      const command = await DevinCommand.fromFile({
         outputRoot: testDir,
         relativeFilePath,
       });
 
-      expect(command).toBeInstanceOf(WindsurfCommand);
+      expect(command).toBeInstanceOf(DevinCommand);
       expect(command.getBody()).toBe(body);
       expect(command.getFrontmatter()).toEqual(frontmatter);
     });
 
-    it("should load WindsurfCommand from global file", async () => {
+    it("should load DevinCommand from global file", async () => {
       const relativeDirPath = join(".codeium", "windsurf", "global_workflows");
       const relativeFilePath = "global-command.md";
       const body = "Global body";
@@ -315,20 +315,20 @@ describe("WindsurfCommand", () => {
       await ensureDir(join(testDir, relativeDirPath));
       await writeFileContent(join(testDir, relativeDirPath, relativeFilePath), fileContent);
 
-      const command = await WindsurfCommand.fromFile({
+      const command = await DevinCommand.fromFile({
         outputRoot: testDir,
         relativeFilePath,
         global: true,
       });
 
-      expect(command).toBeInstanceOf(WindsurfCommand);
+      expect(command).toBeInstanceOf(DevinCommand);
       expect(command.getRelativeDirPath()).toBe(join(".codeium", "windsurf", "global_workflows"));
       expect(command.getBody()).toBe(body);
       expect(command.getFrontmatter()).toEqual(frontmatter);
     });
 
     it("should throw error if frontmatter in file is invalid", async () => {
-      const relativeDirPath = join(".windsurf", "workflows");
+      const relativeDirPath = join(".devin", "workflows");
       const relativeFilePath = "invalid-command.md";
       const fileContent = stringifyFrontmatter("Body", { description: 123 as any });
 
@@ -336,7 +336,7 @@ describe("WindsurfCommand", () => {
       await writeFileContent(join(testDir, relativeDirPath, relativeFilePath), fileContent);
 
       await expect(
-        WindsurfCommand.fromFile({
+        DevinCommand.fromFile({
           outputRoot: testDir,
           relativeFilePath,
         }),
@@ -355,23 +355,23 @@ describe("WindsurfCommand", () => {
         body: "Body",
       });
 
-      expect(WindsurfCommand.isTargetedByRulesyncCommand(rulesyncCommand)).toBe(true);
+      expect(DevinCommand.isTargetedByRulesyncCommand(rulesyncCommand)).toBe(true);
     });
 
-    it("should return true if targets includes windsurf", () => {
+    it("should return true if targets includes devin", () => {
       const rulesyncCommand = new RulesyncCommand({
         outputRoot: testDir,
         relativeDirPath: ".rulesync/command",
         relativeFilePath: "test.md",
         fileContent: "",
-        frontmatter: { targets: ["windsurf"], description: "Test" },
+        frontmatter: { targets: ["devin"], description: "Test" },
         body: "Body",
       });
 
-      expect(WindsurfCommand.isTargetedByRulesyncCommand(rulesyncCommand)).toBe(true);
+      expect(DevinCommand.isTargetedByRulesyncCommand(rulesyncCommand)).toBe(true);
     });
 
-    it("should return false if targets does not include windsurf or *", () => {
+    it("should return false if targets does not include devin or *", () => {
       const rulesyncCommand = new RulesyncCommand({
         outputRoot: testDir,
         relativeDirPath: ".rulesync/command",
@@ -381,7 +381,7 @@ describe("WindsurfCommand", () => {
         body: "Body",
       });
 
-      expect(WindsurfCommand.isTargetedByRulesyncCommand(rulesyncCommand)).toBe(false);
+      expect(DevinCommand.isTargetedByRulesyncCommand(rulesyncCommand)).toBe(false);
     });
 
     it("should return true if targets is undefined", () => {
@@ -394,20 +394,20 @@ describe("WindsurfCommand", () => {
         body: "Body",
       });
 
-      expect(WindsurfCommand.isTargetedByRulesyncCommand(rulesyncCommand)).toBe(true);
+      expect(DevinCommand.isTargetedByRulesyncCommand(rulesyncCommand)).toBe(true);
     });
   });
 
   describe("forDeletion", () => {
-    it("should create a minimal WindsurfCommand for deletion", () => {
-      const command = WindsurfCommand.forDeletion({
+    it("should create a minimal DevinCommand for deletion", () => {
+      const command = DevinCommand.forDeletion({
         outputRoot: testDir,
-        relativeDirPath: join(".windsurf", "workflows"),
+        relativeDirPath: join(".devin", "workflows"),
         relativeFilePath: "test.md",
       });
 
-      expect(command).toBeInstanceOf(WindsurfCommand);
-      expect(command.getRelativeDirPath()).toBe(join(".windsurf", "workflows"));
+      expect(command).toBeInstanceOf(DevinCommand);
+      expect(command.getRelativeDirPath()).toBe(join(".devin", "workflows"));
       expect(command.getRelativeFilePath()).toBe("test.md");
       expect(command.getBody()).toBe("");
       expect(command.getFrontmatter()).toEqual({ description: "" });
