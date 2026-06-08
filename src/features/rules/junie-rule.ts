@@ -9,6 +9,7 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
+  ToolRuleSettablePathsGlobal,
   buildToolPath,
 } from "./tool-rule.js";
 
@@ -32,30 +33,47 @@ export type JunieRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
  * is still read by Junie and is accepted as an import fallback, but generation always
  * targets `.junie/AGENTS.md`. Junie uses plain markdown without frontmatter requirements.
  *
+ * Global (user) scope writes a single `~/.junie/AGENTS.md` file. Junie merges these
+ * user-scope guidelines with the project `.junie/AGENTS.md` (project takes priority on
+ * conflicts); memory files (`.junie/memories/`) remain project-scoped only.
+ *
  * @see https://junie.jetbrains.com/docs/junie-ide-plugin.html
+ * @see https://junie.jetbrains.com/docs/guidelines-and-memory.html
  */
 export class JunieRule extends ToolRule {
-  static getSettablePaths(
-    _options: {
-      global?: boolean;
-      excludeToolDir?: boolean;
-    } = {},
-  ): JunieRuleSettablePaths {
+  static getSettablePaths({
+    global = false,
+    excludeToolDir,
+  }: {
+    global?: boolean;
+    excludeToolDir?: boolean;
+  } = {}): JunieRuleSettablePaths | ToolRuleSettablePathsGlobal {
+    if (global) {
+      // Junie merges the user-scope `~/.junie/AGENTS.md` guideline file with the
+      // project `.junie/AGENTS.md`. Global guidelines are a single root file; memory
+      // files (`.junie/memories/`) stay project-scoped.
+      return {
+        root: {
+          relativeDirPath: buildToolPath(".junie", ".", excludeToolDir),
+          relativeFilePath: "AGENTS.md",
+        },
+      };
+    }
     return {
       root: {
-        relativeDirPath: buildToolPath(".junie", ".", _options.excludeToolDir),
+        relativeDirPath: buildToolPath(".junie", ".", excludeToolDir),
         relativeFilePath: "AGENTS.md",
       },
       // Junie still reads the legacy `.junie/guidelines.md`; accept it on import as a
       // fallback when `.junie/AGENTS.md` is absent so existing repos keep round-tripping.
       alternativeRoots: [
         {
-          relativeDirPath: buildToolPath(".junie", ".", _options.excludeToolDir),
+          relativeDirPath: buildToolPath(".junie", ".", excludeToolDir),
           relativeFilePath: "guidelines.md",
         },
       ],
       nonRoot: {
-        relativeDirPath: buildToolPath(".junie", "memories", _options.excludeToolDir),
+        relativeDirPath: buildToolPath(".junie", "memories", excludeToolDir),
       },
     };
   }
@@ -74,9 +92,32 @@ export class JunieRule extends ToolRule {
     outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
+    global = false,
   }: ToolRuleFromFileParams): Promise<JunieRule> {
+    if (global) {
+      const paths = this.getSettablePaths({ global: true });
+      if (!("root" in paths) || !paths.root) {
+        throw new Error("JunieRule global settable paths must include a root path");
+      }
+      const fileContent = await readFileContent(
+        join(outputRoot, paths.root.relativeDirPath, paths.root.relativeFilePath),
+      );
+
+      return new JunieRule({
+        outputRoot,
+        relativeDirPath: paths.root.relativeDirPath,
+        relativeFilePath: paths.root.relativeFilePath,
+        fileContent,
+        validate,
+        root: true,
+      });
+    }
+
     const isRoot = JunieRule.isRootRelativeFilePath(relativeFilePath);
     const settablePaths = this.getSettablePaths();
+    if (!settablePaths.nonRoot) {
+      throw new Error("JunieRule project settable paths must include a nonRoot path");
+    }
     const relativeDirPath = isRoot
       ? settablePaths.root.relativeDirPath
       : settablePaths.nonRoot.relativeDirPath;
@@ -99,7 +140,28 @@ export class JunieRule extends ToolRule {
     outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
+    global = false,
   }: ToolRuleFromRulesyncRuleParams): JunieRule {
+    if (global) {
+      const paths = this.getSettablePaths({ global: true });
+      if (!("root" in paths) || !paths.root) {
+        throw new Error("JunieRule global settable paths must include a root path");
+      }
+      if (!rulesyncRule.getFrontmatter().root) {
+        throw new Error(
+          `JunieRule does not support non-root rules in global mode; expected a root rule but got '${rulesyncRule.getRelativeFilePath()}'`,
+        );
+      }
+      return new JunieRule(
+        this.buildToolRuleParamsDefault({
+          outputRoot,
+          rulesyncRule,
+          validate,
+          rootPath: paths.root,
+        }),
+      );
+    }
+
     return new JunieRule(
       this.buildToolRuleParamsDefault({
         outputRoot,

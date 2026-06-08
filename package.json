@@ -99,7 +99,6 @@
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.79",
-    "@opencode-ai/sdk": "1.2.27",
     "@openrouter/sdk": "0.9.11",
     "@secretlint/secretlint-rule-preset-recommend": "11.3.1",
     "@tsconfig/node24": "24.0.4",
