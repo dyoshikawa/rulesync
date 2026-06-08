@@ -285,6 +285,40 @@ body`,
       expect(rulesync.getBody()).toBe("Export body");
       expect(rulesync.getRelativeDirPath()).toBe(RULESYNC_SKILLS_RELATIVE_DIR_PATH);
     });
+
+    it("should carry the standard optional frontmatter into the rovodev section", () => {
+      const skill = new RovodevSkill({
+        outputRoot: testDir,
+        dirName: "with-meta",
+        frontmatter: {
+          name: "with-meta",
+          description: "Desc",
+          "allowed-tools": "grep bash",
+          license: "MIT",
+          metadata: { author: "rulesync" },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const rulesync = skill.toRulesyncSkill();
+      expect(rulesync.getFrontmatter().rovodev).toEqual({
+        "allowed-tools": "grep bash",
+        license: "MIT",
+        metadata: { author: "rulesync" },
+      });
+
+      // round-trip back into a RovodevSkill preserves the fields
+      const roundTripped = RovodevSkill.fromRulesyncSkill({
+        outputRoot: testDir,
+        rulesyncSkill: rulesync,
+        validate: true,
+      });
+      const fm = roundTripped.getFrontmatter();
+      expect(fm["allowed-tools"]).toBe("grep bash");
+      expect(fm.license).toBe("MIT");
+      expect(fm.metadata).toEqual({ author: "rulesync" });
+    });
   });
 
   describe("round-trip", () => {

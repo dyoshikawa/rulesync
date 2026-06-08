@@ -302,7 +302,7 @@ rulesync.local.jsonc
 **/.kilo/skills/
 **/.kilo/workflows/
 **/.kilo/mcp.json
-**/.kiloignore
+**/.kilocodeignore
 **/.kiro/steering/
 **/.kiro/prompts/
 **/.kiro/skills/

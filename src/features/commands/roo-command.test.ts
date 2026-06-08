@@ -173,6 +173,36 @@ describe("RooCommand", () => {
       expect(rulesyncCommand.getRelativeFilePath()).toBe("convert-test.md");
       expect(rulesyncCommand.getOutputRoot()).toBe(".");
     });
+
+    it("should carry the mode field through the roo section and round-trip back", () => {
+      const frontmatter: RooCommandFrontmatter = {
+        description: "Switches to architect mode",
+        mode: "architect",
+      };
+      const body = "Plan the change";
+
+      const rooCommand = new RooCommand({
+        outputRoot: "/test/base",
+        relativeDirPath: ".roo/commands",
+        relativeFilePath: "plan.md",
+        frontmatter,
+        body,
+        fileContent: stringifyFrontmatter(body, frontmatter),
+      });
+
+      const rulesyncCommand = rooCommand.toRulesyncCommand();
+      expect(rulesyncCommand.getFrontmatter()).toEqual({
+        targets: ["roo"],
+        description: "Switches to architect mode",
+        roo: { mode: "architect" },
+      });
+
+      const roundTripped = RooCommand.fromRulesyncCommand({ rulesyncCommand });
+      expect(roundTripped.getFrontmatter()).toEqual({
+        description: "Switches to architect mode",
+        mode: "architect",
+      });
+    });
   });
 
   describe("fromRulesyncCommand", () => {
@@ -442,6 +472,20 @@ This file has invalid frontmatter`;
 
       const result = RooCommandFrontmatterSchema.safeParse(invalidFrontmatter);
       expect(result.success).toBe(false);
+    });
+
+    it("should accept a mode slug and reject a non-string mode", () => {
+      const valid = RooCommandFrontmatterSchema.safeParse({
+        description: "d",
+        mode: "code",
+      });
+      expect(valid.success).toBe(true);
+      if (valid.success) {
+        expect(valid.data.mode).toBe("code");
+      }
+
+      const invalid = RooCommandFrontmatterSchema.safeParse({ description: "d", mode: 1 });
+      expect(invalid.success).toBe(false);
     });
 
     it("should reject frontmatter with invalid argument-hint type", () => {

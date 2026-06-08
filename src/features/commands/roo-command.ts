@@ -18,6 +18,9 @@ import {
 export const RooCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   "argument-hint": optional(z.string()),
+  // Mode slug (e.g. "code", "architect") to switch to before running the command body.
+  // https://roocodeinc.github.io/Roo-Code/features/slash-commands
+  mode: z.optional(z.string()),
 });
 
 export type RooCommandFrontmatter = z.infer<typeof RooCommandFrontmatterSchema>;

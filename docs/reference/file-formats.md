@@ -214,6 +214,8 @@ takt: # takt specific parameters (optional; emitted under .takt/facets/instructi
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
 pi: # pi coding agent specific parameters (optional)
   argument-hint: "[message]" # Hint shown in Pi's command palette
+roo: # Roo Code specific parameters (optional)
+  mode: "architect" # (optional) mode slug to switch to before running the command body (e.g. "code", "architect")
 ---
 
 target_pr = $ARGUMENTS
@@ -313,6 +315,11 @@ replit: # for Replit Agent-specific parameters (optional; Agent Skills standard)
   license: MIT # (optional)
   compatibility: # (optional) free-form compatibility metadata
     agent-skills: ">=1.0.0"
+  metadata: # (optional) free-form metadata
+    author: rulesync
+rovodev: # for Rovo Dev CLI-specific parameters (optional; Agent Skills standard)
+  allowed-tools: "grep bash" # (optional) space-separated string (a YAML list is also accepted)
+  license: MIT # (optional)
   metadata: # (optional) free-form metadata
     author: rulesync
 zed: # for Zed-specific parameters (optional)
