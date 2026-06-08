@@ -382,7 +382,6 @@ export class DevinRule extends ToolRule {
         throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
       }
     } else {
-      // eslint-disable-next-line no-type-assertion/no-type-assertion
       parsedFrontmatter = frontmatter as DevinRuleFrontmatter;
     }
 

@@ -289,7 +289,6 @@ export class GitHubClient {
    */
   private extractErrorMessage(data: unknown, fallback: string): string {
     if (typeof data === "object" && data !== null && "message" in data) {
-      // eslint-disable-next-line no-type-assertion/no-type-assertion
       const record = data as Record<string, unknown>;
       const msg = record["message"];
       if (typeof msg === "string") {

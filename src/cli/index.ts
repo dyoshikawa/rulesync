@@ -19,7 +19,7 @@ import { resolveGitignoreTargets } from "./commands/resolve-gitignore-targets.js
 import { updateCommand, UpdateCommandOptions } from "./commands/update.js";
 import { wrapCommand as _wrapCommand } from "./wrap-command.js";
 
-const getVersion = () => "8.24.1";
+const getVersion = () => "8.25.0";
 
 function wrapCommand(
   name: string,
@@ -73,9 +73,7 @@ const main = async () => {
     .option("-s, --silent", "Suppress all output")
     .action(
       wrapCommand("gitignore", "GITIGNORE_FAILED", async (logger, options) => {
-        // eslint-disable-next-line no-type-assertion/no-type-assertion
         const cliTargets = (options as { targets?: string[] }).targets;
-        // eslint-disable-next-line no-type-assertion/no-type-assertion
         const cliFeatures = (options as { features?: RulesyncFeatures }).features;
 
         const resolvedTargets = await resolveGitignoreTargets({ cliTargets });
@@ -111,9 +109,7 @@ const main = async () => {
     .option("-s, --silent", "Suppress all output")
     .action(
       wrapCommand("fetch", "FETCH_FAILED", async (logger, options, _globalOpts, positionalArgs) => {
-        // eslint-disable-next-line no-type-assertion/no-type-assertion
         const source = positionalArgs[0] as string;
-        // eslint-disable-next-line no-type-assertion/no-type-assertion
         await fetchCommand(logger, { ...(options as FetchOptions), source });
       }),
     );
@@ -136,7 +132,6 @@ const main = async () => {
     .option("-g, --global", "Import for global(user scope) configuration files")
     .action(
       wrapCommand("import", "IMPORT_FAILED", async (logger, options) => {
-        // eslint-disable-next-line no-type-assertion/no-type-assertion
         await importCommand(logger, options as ImportOptions);
       }),
     );
@@ -163,7 +158,6 @@ const main = async () => {
     .option("--dry-run", "Dry run: show changes without writing files")
     .action(
       wrapCommand("convert", "CONVERT_FAILED", async (logger, options) => {
-        // eslint-disable-next-line no-type-assertion/no-type-assertion
         await convertCommand(logger, options as ConvertOptions);
       }),
     );
@@ -195,22 +189,15 @@ const main = async () => {
     .option("-s, --silent", "Suppress all output")
     .action(
       wrapCommand("install", "INSTALL_FAILED", async (logger, options) => {
-        // eslint-disable-next-line no-type-assertion/no-type-assertion
         const rawMode = (options as { mode?: string }).mode;
         const mode = parseInstallMode(rawMode);
         await installCommand(logger, {
           mode,
-          // eslint-disable-next-line no-type-assertion/no-type-assertion
           update: (options as { update?: boolean }).update,
-          // eslint-disable-next-line no-type-assertion/no-type-assertion
           frozen: (options as { frozen?: boolean }).frozen,
-          // eslint-disable-next-line no-type-assertion/no-type-assertion
           token: (options as { token?: string }).token,
-          // eslint-disable-next-line no-type-assertion/no-type-assertion
           configPath: (options as { config?: string }).config,
-          // eslint-disable-next-line no-type-assertion/no-type-assertion
           verbose: (options as { verbose?: boolean }).verbose,
-          // eslint-disable-next-line no-type-assertion/no-type-assertion
           silent: (options as { silent?: boolean }).silent,
         });
       }),
@@ -264,7 +251,6 @@ const main = async () => {
     .option("--check", "Check if files are up to date (exits with code 1 if changes needed)")
     .action(
       wrapCommand("generate", "GENERATION_FAILED", async (logger, options) => {
-        // eslint-disable-next-line no-type-assertion/no-type-assertion
         await generateCommand(logger, options as GenerateOptions);
       }),
     );
@@ -279,7 +265,6 @@ const main = async () => {
     .option("-s, --silent", "Suppress all output")
     .action(
       wrapCommand("update", "UPDATE_FAILED", async (logger, options) => {
-        // eslint-disable-next-line no-type-assertion/no-type-assertion
         await updateCommand(logger, version, options as UpdateCommandOptions);
       }),
     );

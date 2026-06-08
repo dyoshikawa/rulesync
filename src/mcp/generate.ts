@@ -71,9 +71,7 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
     // ConfigResolver handles: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
     // In MCP context, options act as CLI options (highest priority)
     const config = await ConfigResolver.resolve({
-      // eslint-disable-next-line no-type-assertion/no-type-assertion
       targets: options.targets as RulesyncTargets | undefined,
-      // eslint-disable-next-line no-type-assertion/no-type-assertion
       features: options.features as RulesyncFeatures | undefined,
       delete: options.delete,
       global: options.global,

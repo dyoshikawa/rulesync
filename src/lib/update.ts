@@ -243,14 +243,10 @@ async function downloadFile(url: string, destPath: string): Promise<void> {
   const fileStream = fs.createWriteStream(destPath);
   let downloadedBytes = 0;
 
-  const bodyReader = Readable.fromWeb(
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
-    response.body as import("node:stream/web").ReadableStream,
-  );
+  const bodyReader = Readable.fromWeb(response.body as import("node:stream/web").ReadableStream);
 
   const sizeChecker = new Transform({
     transform(chunk, _encoding, callback) {
-      // eslint-disable-next-line no-type-assertion/no-type-assertion
       downloadedBytes += (chunk as Buffer).length;
       if (downloadedBytes > MAX_DOWNLOAD_SIZE) {
         callback(
@@ -453,7 +449,6 @@ export async function performBinaryUpdate(
  */
 function isPermissionError(error: unknown): boolean {
   if (typeof error === "object" && error !== null && "code" in error) {
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
     const record = error as Record<string, unknown>;
     return record["code"] === "EACCES" || record["code"] === "EPERM";
   }

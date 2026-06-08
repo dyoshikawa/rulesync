@@ -209,7 +209,6 @@ export class CodexcliMcp extends ToolMcp {
       }
     }
 
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
     configToml["mcp_servers"] = filteredMcpServers as smolToml.TomlTable;
 
     return new CodexcliMcp({
@@ -222,7 +221,6 @@ export class CodexcliMcp extends ToolMcp {
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
     const mcpServers = (this.toml.mcp_servers ?? {}) as Record<string, unknown>;
     const converted = convertFromCodexFormat(mcpServers);
 

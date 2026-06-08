@@ -1,4 +1,3 @@
-// eslint-disable-next-line zod-import/zod-import
 import { ZodError } from "zod";
 
 /**

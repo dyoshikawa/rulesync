@@ -56,10 +56,8 @@ async function buildCodexConfigTomlContent({
   }
 
   if (typeof configToml.features !== "object" || configToml.features === null) {
-    // eslint-disable-next-line no-type-assertion/no-type-assertion
     configToml.features = {} as smolToml.TomlTable;
   }
-  // eslint-disable-next-line no-type-assertion/no-type-assertion
   const features = configToml.features as smolToml.TomlTable;
   delete features.codex_hooks;
   features.hooks = true;

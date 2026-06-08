@@ -86,7 +86,6 @@ export function injectSourceMetadata(params: {
   }
 
   // Shallow merge: existing keys preserved, provenance keys overwritten.
-  // eslint-disable-next-line no-type-assertion/no-type-assertion
   const existing = loaded as Record<string, unknown>;
   const merged: Record<string, unknown> = {
     ...existing,
