@@ -9,21 +9,29 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
-  buildToolPath,
 } from "./tool-rule.js";
 
 export type DeepagentsRuleParams = AiFileParams & {
   root?: boolean;
 };
 
-export type DeepagentsRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+/**
+ * deepagents (dcode) loads project context only from the fixed
+ * `.deepagents/AGENTS.md` (and root `AGENTS.md`) files via its MemoryMiddleware
+ * — it never scans a `.deepagents/memories/` directory and does not follow
+ * `@`-style references. Non-root rule content is therefore folded into the
+ * single root `.deepagents/AGENTS.md` by the RulesProcessor, so there is no
+ * separate non-root output location (`nonRoot` is `undefined`).
+ *
+ * @see https://github.com/langchain-ai/deepagents/blob/main/libs/code/deepagents_code/project_utils.py
+ * @see https://github.com/langchain-ai/deepagents/blob/main/libs/deepagents/deepagents/middleware/memory.py
+ */
+export type DeepagentsRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
   root: {
     relativeDirPath: string;
     relativeFilePath: string;
   };
-  nonRoot: {
-    relativeDirPath: string;
-  };
+  nonRoot?: undefined;
 };
 
 export class DeepagentsRule extends ToolRule {
@@ -46,33 +54,30 @@ export class DeepagentsRule extends ToolRule {
         relativeDirPath: ".deepagents",
         relativeFilePath: "AGENTS.md",
       },
-      nonRoot: {
-        relativeDirPath: buildToolPath(".deepagents", "memories", _options.excludeToolDir),
-      },
     };
   }
 
   static async fromFile({
     outputRoot = process.cwd(),
-    relativeFilePath,
+    // All deepagents rule content lives in the single `.deepagents/AGENTS.md`,
+    // so the incoming `relativeFilePath` is ignored and the root file is read.
+    relativeFilePath: _relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<DeepagentsRule> {
     const settablePaths = this.getSettablePaths();
-    const isRoot = relativeFilePath === "AGENTS.md";
-    const relativePath = isRoot
-      ? join(".deepagents", "AGENTS.md")
-      : join(".deepagents", "memories", relativeFilePath);
+    const relativePath = join(
+      settablePaths.root.relativeDirPath,
+      settablePaths.root.relativeFilePath,
+    );
     const fileContent = await readFileContent(join(outputRoot, relativePath));
 
     return new DeepagentsRule({
       outputRoot,
-      relativeDirPath: isRoot
-        ? settablePaths.root.relativeDirPath
-        : settablePaths.nonRoot.relativeDirPath,
-      relativeFilePath: isRoot ? "AGENTS.md" : relativeFilePath,
+      relativeDirPath: settablePaths.root.relativeDirPath,
+      relativeFilePath: settablePaths.root.relativeFilePath,
       fileContent,
       validate,
-      root: isRoot,
+      root: true,
     });
   }
 
@@ -98,15 +103,21 @@ export class DeepagentsRule extends ToolRule {
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): DeepagentsRule {
-    return new DeepagentsRule(
-      this.buildToolRuleParamsAgentsmd({
-        outputRoot,
-        rulesyncRule,
-        validate,
-        rootPath: this.getSettablePaths().root,
-        nonRootPath: this.getSettablePaths().nonRoot,
-      }),
-    );
+    const rootPath = this.getSettablePaths().root;
+    const isRoot = rulesyncRule.getFrontmatter().root ?? false;
+
+    // deepagents reads project context only from the fixed `.deepagents/AGENTS.md`
+    // file. Both root and non-root rules therefore target that single path; the
+    // RulesProcessor folds the non-root bodies (`root: false`) into the root rule
+    // and drops the redundant non-root instances before writing.
+    return new DeepagentsRule({
+      outputRoot,
+      relativeDirPath: rootPath.relativeDirPath,
+      relativeFilePath: rootPath.relativeFilePath,
+      fileContent: rulesyncRule.getBody(),
+      validate,
+      root: isRoot,
+    });
   }
 
   toRulesyncRule(): RulesyncRule {

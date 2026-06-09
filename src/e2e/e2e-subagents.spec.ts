@@ -41,7 +41,7 @@ describe("E2E: subagents", () => {
     },
     {
       target: "deepagents",
-      outputPath: join(".deepagents", "agents", "planner.md"),
+      outputPath: join(".deepagents", "agents", "planner", "AGENTS.md"),
     },
     {
       target: "kiro",
@@ -204,7 +204,7 @@ You are a subagent-only helper.
     { target: "geminicli", orphanPath: join(".gemini", "agents", "orphan.md") },
     { target: "codexcli", orphanPath: join(".codex", "agents", "orphan.toml") },
     { target: "copilot", orphanPath: join(".github", "agents", "orphan.md") },
-    { target: "deepagents", orphanPath: join(".deepagents", "agents", "orphan.md") },
+    { target: "deepagents", orphanPath: join(".deepagents", "agents", "orphan", "AGENTS.md") },
     { target: "kiro", orphanPath: join(".kiro", "agents", "orphan.json") },
     { target: "junie", orphanPath: join(".junie", "agents", "orphan.md") },
     { target: "factorydroid", orphanPath: join(".factory", "droids", "orphan.md") },
@@ -245,7 +245,7 @@ describe("E2E: subagents (import)", () => {
     { target: "geminicli", sourcePath: join(".gemini", "agents", "planner.md") },
     { target: "copilot", sourcePath: join(".github", "agents", "planner.md") },
     { target: "opencode", sourcePath: join(".opencode", "agents", "planner.md") },
-    { target: "deepagents", sourcePath: join(".deepagents", "agents", "planner.md") },
+    { target: "deepagents", sourcePath: join(".deepagents", "agents", "planner", "AGENTS.md") },
     { target: "junie", sourcePath: join(".junie", "agents", "planner.md") },
     { target: "factorydroid", sourcePath: join(".factory", "droids", "planner.md") },
   ])("should import $target subagents", async ({ target, sourcePath }) => {

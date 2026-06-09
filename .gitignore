@@ -265,7 +265,6 @@ rulesync.local.jsonc
 **/.cursor/
 **/.cursorignore
 **/.deepagents/AGENTS.md
-**/.deepagents/memories/
 **/.deepagents/.mcp.json
 **/.deepagents/skills/
 **/.deepagents/agents/

@@ -25,8 +25,8 @@ describe("DeepagentsRule", () => {
     it("should create a DeepagentsRule with valid parameters", () => {
       const rule = new DeepagentsRule({
         outputRoot: testDir,
-        relativeDirPath: ".deepagents/memories",
-        relativeFilePath: "test.md",
+        relativeDirPath: ".deepagents",
+        relativeFilePath: "AGENTS.md",
         fileContent: "# Test\n\nSome content.",
       });
 
@@ -48,8 +48,8 @@ describe("DeepagentsRule", () => {
     it("should default root to false when not specified", () => {
       const rule = new DeepagentsRule({
         outputRoot: testDir,
-        relativeDirPath: ".deepagents/memories",
-        relativeFilePath: "test.md",
+        relativeDirPath: ".deepagents",
+        relativeFilePath: "AGENTS.md",
         fileContent: "Content",
       });
 
@@ -64,9 +64,9 @@ describe("DeepagentsRule", () => {
       expect(paths.root.relativeFilePath).toBe("AGENTS.md");
     });
 
-    it("should return correct nonRoot path", () => {
+    it("should not expose a nonRoot path (memories/ is no longer emitted)", () => {
       const paths = DeepagentsRule.getSettablePaths();
-      expect(paths.nonRoot.relativeDirPath).toBe(".deepagents/memories");
+      expect(paths.nonRoot).toBeUndefined();
     });
   });
 
@@ -85,26 +85,12 @@ describe("DeepagentsRule", () => {
       expect(rule.getFileContent()).toBe(content);
       expect(rule.getRelativeDirPath()).toBe(".deepagents");
       expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
-    });
-
-    it("should create DeepagentsRule from memory file", async () => {
-      const memoriesDir = join(testDir, ".deepagents", "memories");
-      await ensureDir(memoriesDir);
-      const content = "# Memory Configuration";
-      await writeFileContent(join(memoriesDir, "memory.md"), content);
-
-      const rule = await DeepagentsRule.fromFile({
-        outputRoot: testDir,
-        relativeFilePath: "memory.md",
-      });
-
-      expect(rule.getFileContent()).toBe(content);
-      expect(rule.getRelativeDirPath()).toBe(".deepagents/memories");
+      expect(rule.isRoot()).toBe(true);
     });
   });
 
   describe("fromRulesyncRule", () => {
-    it("should create DeepagentsRule from RulesyncRule (non-root)", () => {
+    it("should route a non-root RulesyncRule to the single root AGENTS.md", () => {
       const rulesyncRule = new RulesyncRule({
         outputRoot: testDir,
         relativeDirPath: ".rulesync/rules",
@@ -116,8 +102,11 @@ describe("DeepagentsRule", () => {
       const rule = DeepagentsRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule });
 
       expect(rule.getFileContent()).toBe("# Agent Config\n\nContent.");
-      expect(rule.getRelativeDirPath()).toBe(".deepagents/memories");
-      expect(rule.getRelativeFilePath()).toBe("test.md");
+      // Non-root rules are folded into `.deepagents/AGENTS.md`; they are never
+      // written to a `memories/` directory.
+      expect(rule.getRelativeDirPath()).toBe(".deepagents");
+      expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(rule.isRoot()).toBe(false);
     });
 
     it("should create root DeepagentsRule from root RulesyncRule", () => {
@@ -195,8 +184,8 @@ describe("DeepagentsRule", () => {
     it("should always return success", () => {
       const rule = new DeepagentsRule({
         outputRoot: testDir,
-        relativeDirPath: ".deepagents/memories",
-        relativeFilePath: "test.md",
+        relativeDirPath: ".deepagents",
+        relativeFilePath: "AGENTS.md",
         fileContent: "Content",
       });
 

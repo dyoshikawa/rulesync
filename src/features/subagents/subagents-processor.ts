@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -147,7 +147,16 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     "deepagents",
     {
       class: DeepagentsSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
+      // deepagents (dcode) discovers each subagent as a directory containing an
+      // AGENTS.md file (`.deepagents/agents/<name>/AGENTS.md`). Flat `.md` files
+      // in the agents root are ignored by the loader, so the glob must descend
+      // one level and match the per-agent AGENTS.md file.
+      // https://github.com/langchain-ai/deepagents/blob/main/libs/code/deepagents_code/subagents.py
+      meta: {
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: join("*", "AGENTS.md"),
+      },
     },
   ],
   [
@@ -398,9 +407,14 @@ export class SubagentsProcessor extends FeatureProcessor {
     const factory = this.getFactory(this.toolTarget);
     const paths = factory.class.getSettablePaths({ global: this.global });
 
-    const subagentFilePaths = await findFilesByGlobs(
-      join(this.outputRoot, paths.relativeDirPath, factory.meta.filePattern),
-    );
+    const baseDir = join(this.outputRoot, paths.relativeDirPath);
+    const subagentFilePaths = await findFilesByGlobs(join(baseDir, factory.meta.filePattern));
+
+    // Compute the per-subagent file path relative to the tool's base directory.
+    // For flat layouts (e.g. `<name>.md`) this is identical to `basename(path)`,
+    // while for directory-per-agent layouts (e.g. deepagents' `<name>/AGENTS.md`)
+    // it preserves the subdirectory so the subagent name is not lost.
+    const toRelativeFilePath = (path: string): string => relative(baseDir, path);
 
     if (forDeletion) {
       const toolSubagents = subagentFilePaths
@@ -408,7 +422,7 @@ export class SubagentsProcessor extends FeatureProcessor {
           factory.class.forDeletion({
             outputRoot: this.outputRoot,
             relativeDirPath: paths.relativeDirPath,
-            relativeFilePath: basename(path),
+            relativeFilePath: toRelativeFilePath(path),
             global: this.global,
           }),
         )
@@ -424,7 +438,7 @@ export class SubagentsProcessor extends FeatureProcessor {
       subagentFilePaths.map((path) =>
         factory.class.fromFile({
           outputRoot: this.outputRoot,
-          relativeFilePath: basename(path),
+          relativeFilePath: toRelativeFilePath(path),
           global: this.global,
         }),
       ),

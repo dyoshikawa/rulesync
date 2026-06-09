@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, dirname, extname, join } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -28,6 +28,18 @@ export type DeepagentsSubagentParams = {
   frontmatter: DeepagentsSubagentFrontmatter;
   body: string;
 } & AiFileParams;
+
+/**
+ * Filename for each subagent definition.
+ *
+ * deepagents (dcode) discovers a subagent as a directory under the agents dir
+ * that contains an `AGENTS.md` file. Flat `.md` files placed directly in the
+ * agents root are explicitly skipped by the loader, so each subagent must live
+ * at `.deepagents/agents/<name>/AGENTS.md`.
+ *
+ * @see https://github.com/langchain-ai/deepagents/blob/main/libs/code/deepagents_code/subagents.py
+ */
+const DEEPAGENTS_SUBAGENT_FILE_NAME = "AGENTS.md";
 
 export class DeepagentsSubagent extends ToolSubagent {
   private readonly frontmatter: DeepagentsSubagentFrontmatter;
@@ -81,9 +93,27 @@ export class DeepagentsSubagent extends ToolSubagent {
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-      relativeFilePath: this.getRelativeFilePath(),
+      // The tool-side path is `<name>/AGENTS.md`; the rulesync file is a flat
+      // `<name>.md`, so the subagent name comes from the parent directory.
+      relativeFilePath: `${this.getSubagentName()}.md`,
       validate: true,
     });
+  }
+
+  /**
+   * Derive the subagent name from this instance's relative file path.
+   *
+   * The tool-side layout is `<name>/AGENTS.md`, so the name is the parent
+   * directory of the file. If the path is unexpectedly flat (e.g. a legacy
+   * `<name>.md`), fall back to the basename without extension.
+   */
+  private getSubagentName(): string {
+    const relativeFilePath = this.getRelativeFilePath();
+    const dir = dirname(relativeFilePath);
+    if (dir && dir !== ".") {
+      return basename(dir);
+    }
+    return basename(relativeFilePath, extname(relativeFilePath));
   }
 
   static fromRulesyncSubagent({
@@ -117,12 +147,19 @@ export class DeepagentsSubagent extends ToolSubagent {
 
     const paths = this.getSettablePaths({ global });
 
+    // The rulesync subagent is a flat `<name>.md`; deepagents requires a
+    // directory-per-agent layout, so emit `<name>/AGENTS.md`.
+    const subagentName = basename(
+      rulesyncSubagent.getRelativeFilePath(),
+      extname(rulesyncSubagent.getRelativeFilePath()),
+    );
+
     return new DeepagentsSubagent({
       outputRoot,
       frontmatter: deepagentsFrontmatter,
       body,
       relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
+      relativeFilePath: join(subagentName, DEEPAGENTS_SUBAGENT_FILE_NAME),
       fileContent,
       validate,
     });
