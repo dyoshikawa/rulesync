@@ -131,8 +131,8 @@ export class ClaudecodeSkill extends ToolSkill {
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
-      ...(frontmatter.paths !== undefined && { paths: frontmatter.paths }),
       ...(this.relativeDirPath === CLAUDE_SCHEDULED_TASKS_DIR_PATH && { "scheduled-task": true }),
+      ...(frontmatter.paths !== undefined && { paths: frontmatter.paths }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,

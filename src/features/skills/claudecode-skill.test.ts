@@ -415,6 +415,42 @@ describe("ClaudecodeSkill", () => {
       });
     });
 
+    it("should preserve an empty-string paths value through a round-trip", () => {
+      const skill = new ClaudecodeSkill({
+        dirName: "empty-paths-string-skill",
+        frontmatter: {
+          name: "empty-paths-string-skill",
+          description: "Skill with an empty paths string",
+          paths: "",
+        },
+        body: "Empty paths string body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().claudecode).toEqual({ paths: "" });
+
+      const roundTripped = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(roundTripped.getFrontmatter().paths).toBe("");
+    });
+
+    it("should preserve an empty-array paths value through a round-trip", () => {
+      const skill = new ClaudecodeSkill({
+        dirName: "empty-paths-array-skill",
+        frontmatter: {
+          name: "empty-paths-array-skill",
+          description: "Skill with an empty paths list",
+          paths: [],
+        },
+        body: "Empty paths array body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().claudecode).toEqual({ paths: [] });
+
+      const roundTripped = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(roundTripped.getFrontmatter().paths).toEqual([]);
+    });
+
     it("should preserve other files during conversion", () => {
       const frontmatter: ClaudecodeSkillFrontmatter = {
         name: "test-skill",
@@ -818,6 +854,52 @@ This skill uses a specific model.`;
       });
 
       expect(skill.getFrontmatter().model).toBe("sonnet");
+    });
+
+    it("should load skill with paths as a YAML list", async () => {
+      const skillDir = join(testDir, ".claude", "skills", "paths-list-skill");
+      await ensureDir(skillDir);
+
+      const content = `---
+name: paths-list-skill
+description: Skill scoped to paths
+paths:
+  - src/**/*.ts
+  - test/**/*.ts
+---
+
+This skill is scoped to matching files.`;
+
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), content);
+
+      const skill = await ClaudecodeSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "paths-list-skill",
+      });
+
+      expect(skill.getFrontmatter().paths).toEqual(["src/**/*.ts", "test/**/*.ts"]);
+    });
+
+    it("should load skill with paths as a comma-separated string", async () => {
+      const skillDir = join(testDir, ".claude", "skills", "paths-string-skill");
+      await ensureDir(skillDir);
+
+      const content = `---
+name: paths-string-skill
+description: Skill scoped to paths
+paths: "src/**/*.ts,test/**/*.ts"
+---
+
+This skill is scoped to matching files.`;
+
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), content);
+
+      const skill = await ClaudecodeSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "paths-string-skill",
+      });
+
+      expect(skill.getFrontmatter().paths).toBe("src/**/*.ts,test/**/*.ts");
     });
 
     it("should load skill with other files", async () => {
