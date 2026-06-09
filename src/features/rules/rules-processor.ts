@@ -835,42 +835,39 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   /**
-   * Fold deepagents non-root rule bodies into the single root `.deepagents/AGENTS.md`.
+   * Fold every deepagents rule body into a single `.deepagents/AGENTS.md`.
    *
    * The deepagents (dcode) MemoryMiddleware loads project context only from the
    * fixed `.deepagents/AGENTS.md` (and root `AGENTS.md`) files and never scans a
-   * `memories/` directory or follows references. To keep non-root rule content
-   * discoverable, every non-root body is appended to the root rule (separated by
-   * a blank line) and the non-root instances are removed from the output so they
-   * do not collide on the shared root path.
+   * `memories/` directory or follows references. `DeepagentsRule` therefore emits
+   * both root and non-root rules to the same `.deepagents/AGENTS.md` path, so all
+   * rule bodies must be merged into one instance to avoid colliding on that path
+   * (last-writer-wins would silently drop content).
    *
-   * Mutates `toolRules` in place. If no root rule is present, the non-root rules
-   * are left untouched (the processor surfaces the missing-root warning elsewhere).
+   * The root rule (if any) becomes the merge target and leads the merged content;
+   * otherwise the first rule is used so a rule set without a root overview still
+   * produces a single, complete file. Mutates `toolRules` in place.
    */
   private foldDeepagentsNonRootRules(toolRules: ToolRule[]): void {
-    const rootRule = toolRules.find((rule) => rule.isRoot());
-    if (!rootRule) {
+    if (toolRules.length <= 1) {
       return;
     }
 
-    const nonRootRules = toolRules.filter((rule) => !rule.isRoot());
-    if (nonRootRules.length === 0) {
+    const target = toolRules.find((rule) => rule.isRoot()) ?? toolRules[0];
+    if (!target) {
       return;
     }
 
-    const mergedContent = [
-      rootRule.getFileContent(),
-      ...nonRootRules.map((rule) => rule.getFileContent()),
-    ]
-      .map((content) => content.trim())
+    const ordered = [target, ...toolRules.filter((rule) => rule !== target)];
+    const mergedContent = ordered
+      .map((rule) => rule.getFileContent().trim())
       .filter((content) => content.length > 0)
       .join("\n\n");
-    rootRule.setFileContent(mergedContent);
+    target.setFileContent(mergedContent);
 
-    // Remove the folded non-root rules from the output array in place.
+    // Keep only the merge target; the others shared its path and are now folded in.
     for (let i = toolRules.length - 1; i >= 0; i--) {
-      const rule = toolRules[i];
-      if (rule && !rule.isRoot()) {
+      if (toolRules[i] !== target) {
         toolRules.splice(i, 1);
       }
     }
