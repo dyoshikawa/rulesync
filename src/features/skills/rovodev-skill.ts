@@ -18,6 +18,12 @@ import {
 export const RovodevSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
+  // Optional Agent Skills frontmatter that Rovo Dev documents besides name/description.
+  // `allowed-tools` is a space-separated string upstream; a YAML list is also accepted.
+  // https://support.atlassian.com/rovo/docs/extend-rovo-dev-cli-with-agent-skills/
+  "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+  license: z.optional(z.string()),
+  metadata: z.optional(z.looseObject({})),
 });
 
 export type RovodevSkillFrontmatter = z.infer<typeof RovodevSkillFrontmatterSchema>;
@@ -123,10 +129,18 @@ export class RovodevSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    const rovodevSection = {
+      ...(frontmatter["allowed-tools"] !== undefined && {
+        "allowed-tools": frontmatter["allowed-tools"],
+      }),
+      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
+      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+    };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
+      ...(Object.keys(rovodevSection).length > 0 && { rovodev: rovodevSection }),
     };
 
     return new RulesyncSkill({
@@ -149,10 +163,16 @@ export class RovodevSkill extends ToolSkill {
   }: ToolSkillFromRulesyncSkillParams): RovodevSkill {
     const settablePaths = RovodevSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+    const rovodevSection = rulesyncFrontmatter.rovodev;
 
     const rovodevFrontmatter: RovodevSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...(rovodevSection?.["allowed-tools"] !== undefined && {
+        "allowed-tools": rovodevSection["allowed-tools"],
+      }),
+      ...(rovodevSection?.license !== undefined && { license: rovodevSection.license }),
+      ...(rovodevSection?.metadata !== undefined && { metadata: rovodevSection.metadata }),
     };
 
     return new RovodevSkill({

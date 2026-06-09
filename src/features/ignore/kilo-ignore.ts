@@ -14,17 +14,20 @@ import {
  * KiloIgnore represents ignore patterns for the Kilo Code VSCode extension.
  *
  * Based on the Kilo Code specification:
- * - File location: Workspace root folder only (.kiloignore)
+ * - File location: Workspace root folder only (.kilocodeignore)
  * - Syntax: Same as .gitignore
  * - Immediate reflection when saved
  * - Complete blocking of file access for ignored patterns
  * - Shows lock icon for ignored files in listings
+ *
+ * Kilo reads `.kilocodeignore` (not `.kiloignore`), so emitting `.kiloignore`
+ * left the file inert. https://kilo.ai/docs/customize/context/kilocodeignore
  */
 export class KiloIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
-      relativeFilePath: ".kiloignore",
+      relativeFilePath: ".kilocodeignore",
     };
   }
 
@@ -53,7 +56,7 @@ export class KiloIgnore extends ToolIgnore {
   }
 
   /**
-   * Load KiloIgnore from .kiloignore file
+   * Load KiloIgnore from .kilocodeignore file
    */
   static async fromFile({
     outputRoot = process.cwd(),

@@ -221,6 +221,8 @@ takt: # takt specific parameters (optional; emitted under .takt/facets/instructi
   extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
 pi: # pi coding agent specific parameters (optional)
   argument-hint: "[message]" # Hint shown in Pi's command palette
+roo: # Roo Code specific parameters (optional)
+  mode: "architect" # (optional) mode slug to switch to before running the command body (e.g. "code", "architect")
 ---
 
 target_pr = $ARGUMENTS
@@ -366,6 +368,11 @@ agentsskills: # for the Agent Skills standard target (optional; supports project
 copilot: # for GitHub Copilot-specific parameters (optional)
   license: MIT # (optional)
   allowed-tools: "shell" # (optional) tools pre-approved without per-use confirmation
+rovodev: # for Rovo Dev CLI-specific parameters (optional; Agent Skills standard)
+  allowed-tools: "grep bash" # (optional) space-separated string (a YAML list is also accepted)
+  license: MIT # (optional)
+  metadata: # (optional) free-form metadata
+    author: rulesync
 zed: # for Zed-specific parameters (optional)
   disable-model-invocation: true # (optional) prevent the model from auto-invoking this skill
 cursor: # for Cursor-specific parameters (optional)
