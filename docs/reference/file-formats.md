@@ -321,7 +321,9 @@ claudecode: # for claudecode-specific parameters
     - "WebFetch"
   disable-model-invocation: true # (optional) disable model invocation for this skill
   scheduled-task: true # (optional) emit to .claude/scheduled-tasks/<name>/SKILL.md instead of .claude/skills/<name>/SKILL.md
-  paths: # (optional) glob patterns (string or list) limiting auto-activation
+  # paths (optional) limits auto-activation to matching globs. Accepts a
+  # comma-separated string, e.g. paths: "src/**/*.ts,test/**/*.ts", or a list:
+  paths:
     - "src/**/*.ts"
     - "test/**/*.ts"
 codexcli: # for codexcli-specific parameters
