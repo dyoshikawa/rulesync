@@ -67,6 +67,28 @@ describe("AgentsSkillsSkill", () => {
       expect(fm["allowed-tools"]).toBe("shell");
       expect(fm.metadata).toEqual({ version: "1.2.3" });
     });
+
+    it("should carry a string compatibility value through the agentsskills section", () => {
+      const skill = new AgentsSkillsSkill({
+        outputRoot: testDir,
+        dirName: "string-compat-skill",
+        frontmatter: {
+          name: "string-compat-skill",
+          description: "Standard",
+          compatibility: "Requires Python 3.14+ and uv",
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().agentsskills).toEqual({
+        compatibility: "Requires Python 3.14+ and uv",
+      });
+
+      const roundTripped = AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(roundTripped.getFrontmatter().compatibility).toBe("Requires Python 3.14+ and uv");
+    });
   });
 
   describe("constructor", () => {
@@ -115,6 +137,26 @@ This is the body of the agent skill.`;
         name: "Test Skill",
         description: "Test skill description",
       });
+    });
+
+    it("should import a SKILL.md with a string compatibility value (Agent Skills spec form)", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "string-compat-skill");
+      await ensureDir(skillDir);
+      const skillContent = `---
+name: string-compat-skill
+description: Spec-compliant skill
+compatibility: Requires Python 3.14+ and uv
+---
+
+Body.`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      const skill = await AgentsSkillsSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "string-compat-skill",
+      });
+
+      expect(skill.getFrontmatter().compatibility).toBe("Requires Python 3.14+ and uv");
     });
 
     it("should throw error when SKILL.md not found", async () => {
