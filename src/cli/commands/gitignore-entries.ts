@@ -38,11 +38,16 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "common", feature: "general", entry: "**/AGENTS.local.md" },
 
   // AGENTS.md
-  { target: ["agentsmd", "pi", "warp"], feature: "rules", entry: "**/AGENTS.md" },
+  { target: ["agentsmd", "amp", "pi", "warp"], feature: "rules", entry: "**/AGENTS.md" },
   { target: "agentsmd", feature: "rules", entry: "**/.agents/" },
 
   // Amp
-  // Amp reads Agent Skills from the shared `.agents/skills/` project tree.
+  // Amp reads project rules from a root `AGENTS.md` (handled by the shared
+  // AGENTS.md entry above) plus `.agents/memories/*.md` non-root rules. Agent
+  // Skills come from the shared `.agents/skills/` project tree. The
+  // `.amp/settings.json` permissions file is a user-managed file (like other
+  // tools' settings.json), so it is intentionally not gitignored.
+  { target: "amp", feature: "rules", entry: "**/.agents/memories/" },
   { target: "amp", feature: "skills", entry: "**/.agents/skills/" },
 
   // Antigravity (IDE + CLI, Antigravity 2.0)

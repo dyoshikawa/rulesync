@@ -79,6 +79,7 @@ describe("PermissionsProcessor", () => {
     it("should return all permissions tool targets for project mode", () => {
       const targets = PermissionsProcessor.getToolTargets();
       expect(targets).toEqual([
+        "amp",
         "augmentcode",
         "claudecode",
         "cline",
@@ -96,6 +97,7 @@ describe("PermissionsProcessor", () => {
     it("should return targets that support global mode", () => {
       const targets = PermissionsProcessor.getToolTargets({ global: true });
       expect(targets).toEqual([
+        "amp",
         "antigravity-cli",
         "augmentcode",
         "claudecode",
@@ -112,6 +114,7 @@ describe("PermissionsProcessor", () => {
     it("should return importable targets", () => {
       const targets = PermissionsProcessor.getToolTargets({ importOnly: true });
       expect(targets).toEqual([
+        "amp",
         "augmentcode",
         "claudecode",
         "cline",

@@ -68,6 +68,32 @@ describe("E2E: permissions", () => {
     expect(tools.read_file.always_deny).toEqual([{ pattern: ".env", case_sensitive: false }]);
   });
 
+  it("should generate amp permissions into .amp/settings.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            edit_file: { "*": "deny" },
+            "builtin:Bash": { "*": "deny" },
+            read_file: { "*": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "amp", features: "permissions" });
+
+    const content = JSON.parse(await readFileContent(join(testDir, ".amp", "settings.json")));
+    // deny rules map to disabled tool names verbatim (including `builtin:` prefix);
+    // allow rules are skipped because Amp can only disable tools.
+    expect(content["amp.tools.disable"]).toEqual(["builtin:Bash", "edit_file"]);
+  });
+
   it("should generate codexcli permissions into .codex/config.toml", async () => {
     const testDir = getTestDir();
 
@@ -424,6 +450,32 @@ describe("E2E: permissions (import)", () => {
     expect(content.permission.bash["*"]).toBe("ask");
     expect(content.permission.bash["npm *"]).toBe("allow");
     expect(content.permission.read[".env"]).toBe("deny");
+  });
+
+  it("should import amp permissions into .rulesync/permissions.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".amp", "settings.json"),
+      JSON.stringify(
+        {
+          "amp.tools.disable": ["edit_file", "builtin:Bash", "*"],
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runImport({ target: "amp", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    // Each disabled tool name becomes a category with `{ "*": "deny" }`,
+    // preserving `builtin:` prefixes and the `*` glob verbatim.
+    expect(content.permission.edit_file["*"]).toBe("deny");
+    expect(content.permission["builtin:Bash"]["*"]).toBe("deny");
+    expect(content.permission["*"]["*"]).toBe("deny");
   });
 
   it("should import codexcli permissions into .rulesync/permissions.json", async () => {
@@ -1027,6 +1079,52 @@ describe("E2E: permissions (global mode)", () => {
     // Unrelated user settings preserved by the non-destructive merge.
     expect(generated.theme).toBe("One Dark");
     expect(generated.context_servers.my_server.command).toBe("x");
+  });
+
+  it("should generate amp permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            edit_file: { "*": "deny" },
+            "builtin:Bash": { "*": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    // Pre-seed the shared global settings with unrelated config (e.g. MCP) to
+    // verify the non-destructive merge into `~/.config/amp/settings.json`.
+    await writeFileContent(
+      join(homeDir, ".config", "amp", "settings.json"),
+      JSON.stringify(
+        {
+          "amp.mcpServers": { my_server: { command: "x" } },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "amp",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(
+      await readFileContent(join(homeDir, ".config", "amp", "settings.json")),
+    );
+    expect(generated["amp.tools.disable"]).toEqual(["builtin:Bash", "edit_file"]);
+    // Unrelated user settings preserved by the non-destructive merge.
+    expect(generated["amp.mcpServers"].my_server.command).toBe("x");
   });
 });
 
