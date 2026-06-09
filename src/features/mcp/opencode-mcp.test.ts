@@ -2012,6 +2012,55 @@ describe("OpencodeMcp", () => {
       });
     });
 
+    it("should round-trip documented-but-unmodeled per-server fields (timeout/oauth) back to OpenCode", async () => {
+      // Start with OpenCode format carrying OpenCode-supported extras
+      const originalJsonData = {
+        mcp: {
+          "local-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+            timeout: 120000,
+          },
+          "remote-server": {
+            type: "remote",
+            url: "https://mcp.example.com/mcp",
+            enabled: true,
+            timeout: 60000,
+            oauth: { clientId: "abc" },
+          },
+        },
+      };
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify(originalJsonData, null, 2),
+      );
+
+      const originalOpencodeMcp = await OpencodeMcp.fromFile({ outputRoot: testDir });
+      const rulesyncMcp = originalOpencodeMcp.toRulesyncMcp();
+
+      // Convert back to OpenCode format and verify the extras survive the export leg
+      const newOpencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+      });
+
+      const { mcp } = newOpencodeMcp.getJson();
+      expect(mcp?.["local-server"]).toEqual({
+        type: "local",
+        command: ["node", "server.js"],
+        enabled: true,
+        timeout: 120000,
+      });
+      expect(mcp?.["remote-server"]).toEqual({
+        type: "remote",
+        url: "https://mcp.example.com/mcp",
+        enabled: true,
+        timeout: 60000,
+        oauth: { clientId: "abc" },
+      });
+    });
+
     it("should round-trip enabledTools/disabledTools from rulesync format", async () => {
       // Start with rulesync format
       const rulesyncData = {
