@@ -27,8 +27,11 @@ const OPENCODE_ENV_VAR_PATTERN = /(?<!\$)\{env:([^}:]+)\}/g;
 // OpenCode uses "local"/"remote" instead of "stdio"/"sse"/"http",
 // "environment" instead of "env", and "enabled" instead of "disabled"
 
-// OpenCode native format for local servers
-const OpencodeMcpLocalServerSchema = z.object({
+// OpenCode native format for local servers.
+// looseObject preserves documented-but-unmodeled per-server fields (e.g. `timeout`)
+// and future additions on round-trip, matching the project's frequently-changing
+// tool-config convention. https://opencode.ai/docs/mcp-servers
+const OpencodeMcpLocalServerSchema = z.looseObject({
   type: z.literal("local"),
   command: z.array(z.string()),
   environment: z.optional(z.record(z.string(), z.string())),
@@ -36,8 +39,10 @@ const OpencodeMcpLocalServerSchema = z.object({
   cwd: z.optional(z.string()),
 });
 
-// OpenCode native format for remote servers
-const OpencodeMcpRemoteServerSchema = z.object({
+// OpenCode native format for remote servers.
+// looseObject preserves documented-but-unmodeled per-server fields (e.g. `timeout`,
+// `oauth`) and future additions on round-trip. https://opencode.ai/docs/mcp-servers
+const OpencodeMcpRemoteServerSchema = z.looseObject({
   type: z.literal("remote"),
   url: z.string(),
   headers: z.optional(z.record(z.string(), z.string())),
@@ -69,12 +74,38 @@ type OpencodeMcpServer = z.infer<typeof OpencodeMcpServerSchema>;
  * - enabled -> disabled (inverted)
  * - top-level tools map -> per-server enabledTools/disabledTools (strip server prefix)
  */
+// OpenCode per-server keys that this converter transforms explicitly. Any other
+// key (e.g. `timeout`, `oauth`, future additions) is passed through verbatim so it
+// survives import — see https://opencode.ai/docs/mcp-servers
+//
+// `enabledTools`/`disabledTools` are also listed here: although OpenCode encodes
+// them in the top-level `tools` map (not on the server object), including them
+// guards against a stray same-named key on an OpenCode server object being passed
+// through as an "extra" field and colliding with the values this converter derives
+// from the `tools` map.
+const OPENCODE_KNOWN_SERVER_KEYS = new Set([
+  "type",
+  "command",
+  "environment",
+  "enabled",
+  "cwd",
+  "url",
+  "headers",
+  "enabledTools",
+  "disabledTools",
+]);
+
 function convertFromOpencodeFormat(
   opencodeMcp: Record<string, OpencodeMcpServer>,
   tools?: Record<string, boolean>,
 ): McpServers {
   return Object.fromEntries(
     Object.entries(opencodeMcp).map(([serverName, serverConfig]) => {
+      // Preserve documented-but-unmodeled fields (e.g. `timeout`, `oauth`) on import.
+      const extraFields = Object.fromEntries(
+        Object.entries(serverConfig).filter(([key]) => !OPENCODE_KNOWN_SERVER_KEYS.has(key)),
+      );
+
       // Extract enabledTools and disabledTools from top-level tools map
       const enabledTools: string[] = [];
       const disabledTools: string[] = [];
@@ -97,6 +128,9 @@ function convertFromOpencodeFormat(
         return [
           serverName,
           {
+            // Spread extras first so converter-derived fields below always win
+            // on any key collision.
+            ...extraFields,
             type: "sse" as const,
             url: serverConfig.url,
             ...(serverConfig.enabled === false && { disabled: true }),
@@ -115,6 +149,9 @@ function convertFromOpencodeFormat(
       return [
         serverName,
         {
+          // Spread extras first so converter-derived fields below always win
+          // on any key collision.
+          ...extraFields,
           type: "stdio" as const,
           command,
           ...(args.length > 0 && { args }),
@@ -129,6 +166,16 @@ function convertFromOpencodeFormat(
   );
 }
 
+// OpenCode-supported per-server fields that rulesync does not map explicitly.
+// On export these are copied verbatim so an OpenCode -> rulesync -> OpenCode
+// round-trip preserves them. Unlike the import side — whose source is OpenCode's
+// own format, where any unknown key is by definition an OpenCode field — the
+// rulesync `mcp.json` is a multi-tool superset, so export uses an explicit
+// allow-list to avoid leaking other tools' keys (e.g. `kiroAutoApprove`,
+// `alwaysAllow`, `trust`) into `opencode.json`.
+// https://opencode.ai/docs/mcp-servers
+const OPENCODE_PASSTHROUGH_SERVER_FIELDS = ["timeout", "oauth"] as const;
+
 /**
  * Convert standard MCP format to OpenCode native format
  * - type: "stdio" -> "local", "sse"/"http" -> "remote"
@@ -136,6 +183,7 @@ function convertFromOpencodeFormat(
  * - env -> environment
  * - disabled -> enabled (inverted)
  * - enabledTools/disabledTools -> top-level tools map (with server name prefix)
+ * - OpenCode-supported extras (timeout, oauth) -> passed through verbatim
  */
 function convertToOpencodeFormat(mcpServers: McpServers): {
   mcp: Record<string, OpencodeMcpServer>;
@@ -160,8 +208,19 @@ function convertToOpencodeFormat(mcpServers: McpServers): {
         }
       }
 
+      // Preserve OpenCode-supported extras (e.g. timeout, oauth) on export so a
+      // round-trip keeps them. Spread first so derived fields below always win.
+      const serverRecord = serverConfig as Record<string, unknown>;
+      const passthrough: Record<string, unknown> = {};
+      for (const key of OPENCODE_PASSTHROUGH_SERVER_FIELDS) {
+        if (serverRecord[key] !== undefined) {
+          passthrough[key] = serverRecord[key];
+        }
+      }
+
       if (isRemote) {
         const remoteServer: OpencodeMcpServer = {
+          ...passthrough,
           type: "remote",
           url: serverConfig.url ?? serverConfig.httpUrl ?? "",
           enabled: serverConfig.disabled !== undefined ? !serverConfig.disabled : true,
@@ -184,6 +243,7 @@ function convertToOpencodeFormat(mcpServers: McpServers): {
       }
 
       const localServer: OpencodeMcpServer = {
+        ...passthrough,
         type: "local",
         command: commandArray,
         enabled: serverConfig.disabled !== undefined ? !serverConfig.disabled : true,

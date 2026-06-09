@@ -113,6 +113,13 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       metadata: z.optional(z.looseObject({})),
     }),
   ),
+  cursor: z.optional(
+    z.looseObject({
+      paths: z.optional(z.union([z.string(), z.array(z.string())])),
+      "disable-model-invocation": z.optional(z.boolean()),
+      metadata: z.optional(z.looseObject({})),
+    }),
+  ),
   agentsskills: z.optional(
     z.looseObject({
       license: z.optional(z.string()),
@@ -202,6 +209,11 @@ export type RulesyncSkillFrontmatterInput = {
   rovodev?: {
     "allowed-tools"?: string | string[];
     license?: string;
+    metadata?: Record<string, unknown>;
+  };
+  cursor?: {
+    paths?: string | string[];
+    "disable-model-invocation"?: boolean;
     metadata?: Record<string, unknown>;
   };
   agentsskills?: {
