@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import * as smolToml from "smol-toml";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
@@ -419,6 +420,58 @@ enabled = true
     const rulesyncPermissions = codexPermissions.toRulesyncPermissions();
     const json = rulesyncPermissions.getJson();
     expect(json.permission.webfetch?.["github.com"]).toBe("allow");
+  });
+
+  it("should place preserved fields in the correct TOML table structure", async () => {
+    const codexDir = join(testDir, ".codex");
+    await ensureDir(codexDir);
+    await writeFileContent(
+      join(codexDir, "config.toml"),
+      `
+default_permissions = "rulesync"
+
+[permissions.rulesync]
+extends = ":workspace"
+description = "Test profile"
+
+[permissions.rulesync.network]
+enabled = true
+mode = "full"
+
+[permissions.rulesync.network.unix_sockets]
+"/var/run/docker.sock" = "allow"
+`,
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          webfetch: { "api.example.com": "allow" },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+    const permissions = parsed["permissions"] as Record<string, unknown>;
+    const profile = permissions["rulesync"] as Record<string, unknown>;
+    const network = profile["network"] as Record<string, unknown>;
+    const unixSockets = network["unix_sockets"] as Record<string, unknown>;
+
+    expect(profile["extends"]).toBe(":workspace");
+    expect(profile["description"]).toBe("Test profile");
+    expect(network["enabled"]).toBe(true);
+    expect(network["mode"]).toBe("full");
+    expect(unixSockets["/var/run/docker.sock"]).toBe("allow");
+    const domains = network["domains"] as Record<string, unknown>;
+    expect(domains["api.example.com"]).toBe("allow");
   });
 
   it("should convert rulesync bash permissions to Codex CLI .rules file", () => {
