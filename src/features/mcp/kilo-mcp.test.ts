@@ -1265,7 +1265,7 @@ describe("KiloMcp", () => {
       expect((exportedJson as any).version).toBeUndefined();
     });
 
-    it("should convert remote type to sse", () => {
+    it("should convert remote type to http (sse is deprecated)", () => {
       const jsonData = {
         mcp: {
           "remote-server": {
@@ -1290,7 +1290,7 @@ describe("KiloMcp", () => {
         $schema: RULESYNC_MCP_SCHEMA_URL,
         mcpServers: {
           "remote-server": {
-            type: "sse",
+            type: "http",
             url: "https://example.com/mcp",
             headers: {
               Authorization: "Bearer token",
@@ -1565,7 +1565,7 @@ describe("KiloMcp", () => {
         $schema: RULESYNC_MCP_SCHEMA_URL,
         mcpServers: {
           "remote-server": {
-            type: "sse",
+            type: "http",
             url: "https://example.com/mcp",
             enabledTools: ["fetch"],
             disabledTools: ["search"],
@@ -2010,6 +2010,309 @@ describe("KiloMcp", () => {
       expect(backJson.mcpServers["server-a"].enabledTools).toEqual(["search", "read"]);
       expect(backJson.mcpServers["server-a"].disabledTools).toEqual(["write"]);
       expect(backJson.mcpServers["server-b"].disabledTools).toEqual(["delete"]);
+    });
+  });
+
+  describe("timeout and oauth fields", () => {
+    it("should import timeout for local and remote servers (remote -> http)", () => {
+      const jsonData = {
+        mcp: {
+          "local-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+            timeout: 10000,
+          },
+          "remote-server": {
+            type: "remote",
+            url: "https://example.com/mcp",
+            enabled: true,
+            timeout: 15000,
+            oauth: {
+              clientId: "client-123",
+              scope: "read",
+              callbackPort: 19876,
+            },
+          },
+        },
+      };
+      const kiloMcp = new KiloMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "kilo.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const rulesyncMcp = kiloMcp.toRulesyncMcp();
+
+      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        mcpServers: {
+          "local-server": {
+            type: "stdio",
+            command: "node",
+            args: ["server.js"],
+            timeout: 10000,
+          },
+          "remote-server": {
+            type: "http",
+            url: "https://example.com/mcp",
+            timeout: 15000,
+            oauth: {
+              clientId: "client-123",
+              scope: "read",
+              callbackPort: 19876,
+            },
+          },
+        },
+      });
+    });
+
+    it("should import oauth: false on remote servers", () => {
+      const jsonData = {
+        mcp: {
+          "remote-server": {
+            type: "remote",
+            url: "https://example.com/mcp",
+            enabled: true,
+            oauth: false,
+          },
+        },
+      };
+      const kiloMcp = new KiloMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "kilo.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const rulesyncMcp = kiloMcp.toRulesyncMcp();
+
+      const json = JSON.parse(rulesyncMcp.getFileContent());
+      expect(json.mcpServers["remote-server"].oauth).toBe(false);
+    });
+
+    it("should round-trip timeout/oauth (import -> export)", async () => {
+      const originalJsonData = {
+        mcp: {
+          "local-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+            timeout: 8000,
+          },
+          "remote-server": {
+            type: "remote",
+            url: "https://example.com/mcp",
+            enabled: true,
+            timeout: 20000,
+            oauth: {
+              clientId: "abc",
+              callbackPort: 12345,
+            },
+          },
+        },
+      };
+      await writeFileContent(join(testDir, "kilo.json"), JSON.stringify(originalJsonData, null, 2));
+
+      const originalKiloMcp = await KiloMcp.fromFile({ outputRoot: testDir });
+      const rulesyncMcp = originalKiloMcp.toRulesyncMcp();
+      const newKiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(newKiloMcp.getJson().mcp).toEqual({
+        "local-server": {
+          type: "local",
+          command: ["node", "server.js"],
+          enabled: true,
+          timeout: 8000,
+        },
+        "remote-server": {
+          type: "remote",
+          url: "https://example.com/mcp",
+          enabled: true,
+          timeout: 20000,
+          oauth: {
+            clientId: "abc",
+            callbackPort: 12345,
+          },
+        },
+      });
+    });
+
+    it("should round-trip timeout/oauth (export -> import) from rulesync format", async () => {
+      const rulesyncData = {
+        mcpServers: {
+          "remote-server": {
+            type: "http",
+            url: "https://example.com/mcp",
+            timeout: 30000,
+            oauth: {
+              clientId: "xyz",
+              scope: "read write",
+            },
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(rulesyncData),
+      });
+
+      const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(kiloMcp.getJson().mcp).toEqual({
+        "remote-server": {
+          type: "remote",
+          url: "https://example.com/mcp",
+          enabled: true,
+          timeout: 30000,
+          oauth: {
+            clientId: "xyz",
+            scope: "read write",
+          },
+        },
+      });
+
+      // And back to rulesync (http preserved)
+      const backToRulesync = kiloMcp.toRulesyncMcp();
+      const backJson = JSON.parse(backToRulesync.getFileContent());
+      expect(backJson.mcpServers["remote-server"]).toEqual({
+        type: "http",
+        url: "https://example.com/mcp",
+        timeout: 30000,
+        oauth: {
+          clientId: "xyz",
+          scope: "read write",
+        },
+      });
+    });
+
+    it("should round-trip non-conforming timeout values (negative / float) without throwing", async () => {
+      // Kilo documents timeout as a positive integer, but rulesync must preserve
+      // whatever is already present. The constructor always parses the config
+      // (even on a rules-only run that reads the shared kilo.jsonc), so a stale
+      // timeout like -5 or 1.5 must not crash.
+      const originalJsonData = {
+        mcp: {
+          "negative-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+            timeout: -5,
+          },
+          "float-server": {
+            type: "remote",
+            url: "https://example.com/mcp",
+            enabled: true,
+            timeout: 1.5,
+          },
+        },
+      };
+      await writeFileContent(join(testDir, "kilo.json"), JSON.stringify(originalJsonData, null, 2));
+
+      // fromFile parses via the constructor; this must not throw.
+      const originalKiloMcp = await KiloMcp.fromFile({ outputRoot: testDir });
+      const originalMcp = (originalKiloMcp.getJson().mcp ?? {}) as Record<
+        string,
+        { timeout?: number }
+      >;
+      expect(originalMcp["negative-server"]?.timeout).toBe(-5);
+      expect(originalMcp["float-server"]?.timeout).toBe(1.5);
+
+      // And the values survive a full round-trip back to Kilo format.
+      const rulesyncMcp = originalKiloMcp.toRulesyncMcp();
+      const newKiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const newMcp = (newKiloMcp.getJson().mcp ?? {}) as Record<string, { timeout?: number }>;
+      expect(newMcp["negative-server"]?.timeout).toBe(-5);
+      expect(newMcp["float-server"]?.timeout).toBe(1.5);
+    });
+  });
+
+  describe("fromInstructions", () => {
+    it("should preserve an existing mcp/tools block when merging instructions", async () => {
+      const existingConfig = {
+        mcp: {
+          "my-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+          },
+        },
+        tools: {
+          "my-server_search": true,
+        },
+        $schema: "https://example.com/schema.json",
+      };
+      await writeFileContent(join(testDir, "kilo.jsonc"), JSON.stringify(existingConfig, null, 2));
+
+      const kiloMcp = await KiloMcp.fromInstructions({
+        outputRoot: testDir,
+        instructions: [".kilo/rules/overview.md"],
+      });
+
+      const json = kiloMcp.getJson();
+      expect(json.mcp).toEqual(existingConfig.mcp);
+      expect(json.tools).toEqual(existingConfig.tools);
+      expect((json as any).$schema).toBe("https://example.com/schema.json");
+      expect(json.instructions).toEqual([".kilo/rules/overview.md"]);
+    });
+
+    it("should dedupe and sort merged instructions", async () => {
+      const existingConfig = {
+        instructions: [".kilo/rules/b.md", ".kilo/rules/a.md"],
+      };
+      await writeFileContent(join(testDir, "kilo.jsonc"), JSON.stringify(existingConfig, null, 2));
+
+      const kiloMcp = await KiloMcp.fromInstructions({
+        outputRoot: testDir,
+        instructions: [".kilo/rules/b.md", ".kilo/rules/c.md"],
+      });
+
+      expect(kiloMcp.getJson().instructions).toEqual([
+        ".kilo/rules/a.md",
+        ".kilo/rules/b.md",
+        ".kilo/rules/c.md",
+      ]);
+    });
+
+    it("should create kilo.jsonc with instructions when no config exists", async () => {
+      const kiloMcp = await KiloMcp.fromInstructions({
+        outputRoot: testDir,
+        instructions: [".kilo/rules/overview.md"],
+      });
+
+      expect(kiloMcp.getRelativeFilePath()).toBe("kilo.jsonc");
+      expect(kiloMcp.getJson().instructions).toEqual([".kilo/rules/overview.md"]);
+    });
+  });
+
+  describe("instructions preservation on MCP write", () => {
+    it("should preserve an existing instructions key when writing mcp", async () => {
+      const existingConfig = {
+        instructions: [".kilo/rules/overview.md"],
+      };
+      await writeFileContent(join(testDir, "kilo.jsonc"), JSON.stringify(existingConfig, null, 2));
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "new-server": { command: "node", args: ["server.js"] },
+          },
+        }),
+      });
+
+      const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      const json = kiloMcp.getJson();
+      expect(json.instructions).toEqual([".kilo/rules/overview.md"]);
+      expect(json.mcp).toEqual({
+        "new-server": {
+          type: "local",
+          command: ["node", "server.js"],
+          enabled: true,
+        },
+      });
     });
   });
 

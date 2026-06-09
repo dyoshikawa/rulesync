@@ -185,6 +185,12 @@ export async function generate(params: {
   const { config, logger } = params;
 
   const ignoreResult = await generateIgnoreCore({ config, logger });
+  // NOTE: For Kilo, MCP MUST run before Rules. Both features merge into the
+  // shared `kilo.jsonc` (mcp writes the `mcp`/`tools` keys, rules writes the
+  // `instructions` key). Each reads the existing file from disk and preserves
+  // the other's keys, so running mcp first lets the rules write see the freshly
+  // written `mcp` block. Reordering or parallelizing these calls would drop one
+  // of the two keys.
   const mcpResult = await generateMcpCore({ config, logger });
 
   const commandsResult = await generateCommandsCore({ config, logger });
