@@ -21,6 +21,7 @@ describe("E2E: rules", () => {
   it.each([
     { target: "claudecode", outputPath: "CLAUDE.md" },
     { target: "cursor", outputPath: join(".cursor", "rules", "overview.mdc") },
+    { target: "amp", outputPath: "AGENTS.md" },
     { target: "codexcli", outputPath: "AGENTS.md" },
     { target: "copilot", outputPath: join(".github", "copilot-instructions.md") },
     { target: "opencode", outputPath: "AGENTS.md" },
@@ -171,6 +172,7 @@ describe("E2E: rules (import)", () => {
       sourcePath: join(".cursor", "rules", "overview.mdc"),
       importedFileName: "overview.md",
     },
+    { target: "amp", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "codexcli", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     {
       target: "copilot",
@@ -273,6 +275,7 @@ describe("E2E: rules (global mode)", () => {
     { target: "copilot", outputPath: join(".copilot", "copilot-instructions.md") },
     { target: "opencode", outputPath: join(".config", "opencode", "AGENTS.md") },
     { target: "codexcli", outputPath: join(".codex", "AGENTS.md") },
+    { target: "amp", outputPath: join(".config", "amp", "AGENTS.md") },
     { target: "cline", outputPath: join(".agents", "AGENTS.md") },
     { target: "geminicli", outputPath: join(".gemini", "GEMINI.md") },
     { target: "antigravity-ide", outputPath: join(".gemini", "GEMINI.md") },

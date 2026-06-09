@@ -228,6 +228,7 @@ rulesync.local.jsonc
 **/AGENTS.local.md
 **/AGENTS.md
 **/.agents/
+**/.agents/memories/
 **/.agents/skills/
 **/.agents/rules/
 **/GEMINI.md
@@ -316,7 +317,6 @@ rulesync.local.jsonc
 **/.opencode/plugins/
 **/.opencode/memories/
 **/.opencode/package-lock.json
-**/.agents/memories/
 **/.pi/prompts/
 **/.pi/skills/
 **/QWEN.md

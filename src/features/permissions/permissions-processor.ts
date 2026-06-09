@@ -7,6 +7,7 @@ import type { ToolFile } from "../../types/tool-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
+import { AmpPermissions } from "./amp-permissions.js";
 import { AntigravityCliPermissions } from "./antigravity-cli-permissions.js";
 import { AugmentcodePermissions } from "./augmentcode-permissions.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
@@ -29,6 +30,7 @@ import { ToolPermissions } from "./tool-permissions.js";
 import { ZedPermissions } from "./zed-permissions.js";
 
 const permissionsProcessorToolTargetTuple = [
+  "amp",
   "antigravity-cli",
   "augmentcode",
   "claudecode",
@@ -64,6 +66,20 @@ type ToolPermissionsFactory = {
 };
 
 const toolPermissionsFactories = new Map<PermissionsProcessorToolTarget, ToolPermissionsFactory>([
+  [
+    "amp",
+    {
+      class: AmpPermissions,
+      meta: {
+        // Amp maps `deny` rules onto `amp.tools.disable` in the shared settings
+        // file: `.amp/settings.json` (project) and
+        // `~/.config/amp/settings.json` (global).
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
   [
     "antigravity-cli",
     {
