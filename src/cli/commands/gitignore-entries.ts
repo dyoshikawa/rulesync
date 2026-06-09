@@ -120,7 +120,10 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "cline", feature: "rules", entry: "**/.clinerules/" },
   { target: "cline", feature: "commands", entry: "**/.clinerules/workflows/" },
   { target: "cline", feature: "ignore", entry: "**/.clineignore" },
-  { target: "cline", feature: "mcp", entry: "**/.cline/mcp.json" },
+  // Cline reads MCP only from a global settings file
+  // (`~/.cline/data/settings/cline_mcp_settings.json`), which lives under the
+  // home directory and is not gitignored at the project level.
+  { target: "cline", feature: "subagents", entry: "**/.cline/agents/" },
   { target: "cline", feature: "permissions", entry: "**/.cline/command-permissions.json" },
 
   // Codex CLI

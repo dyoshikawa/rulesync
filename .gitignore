@@ -257,7 +257,7 @@ rulesync.local.jsonc
 **/.clinerules/
 **/.clinerules/workflows/
 **/.clineignore
-**/.cline/mcp.json
+**/.cline/agents/
 **/.cline/command-permissions.json
 **/.codexignore
 **/.codex/skills/

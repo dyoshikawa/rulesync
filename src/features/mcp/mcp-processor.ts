@@ -182,10 +182,14 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
   [
     "cline",
     {
+      // Cline reads MCP servers only from a single GLOBAL settings file
+      // (`~/.cline/data/settings/cline_mcp_settings.json` via
+      // `resolveMcpSettingsPath()`); it has no project-scoped MCP location.
+      // https://github.com/cline/cline/blob/main/sdk/packages/shared/src/storage/paths.ts
       class: ClineMcp,
       meta: {
-        supportsProject: true,
-        supportsGlobal: false,
+        supportsProject: false,
+        supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
       },

@@ -684,7 +684,7 @@ describe("McpProcessor", () => {
         fileContent: JSON.stringify({ servers: {} }),
       });
 
-      vi.mocked(ClineMcp.fromRulesyncMcp).mockReturnValue(mockToolMcp);
+      vi.mocked(ClineMcp.fromRulesyncMcp).mockResolvedValue(mockToolMcp);
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
@@ -1101,7 +1101,9 @@ describe("McpProcessor", () => {
       const targets = McpProcessor.getToolTargets();
       expect(targets).toContain("claudecode");
       expect(targets).toContain("claudecode-legacy");
-      expect(targets).toContain("cline");
+      // cline MCP is global-only (no project-scoped MCP), so it is NOT a
+      // project-mode target.
+      expect(targets).not.toContain("cline");
       expect(targets).toContain("copilot");
       expect(targets).toContain("copilotcli");
       expect(targets).toContain("cursor");
@@ -1117,6 +1119,7 @@ describe("McpProcessor", () => {
       const globalTargets = McpProcessor.getToolTargets({ global: true });
       expect(globalTargets).toContain("kilo");
       expect(globalTargets).toContain("opencode"); // sanity: parity with opencode
+      expect(globalTargets).toContain("cline"); // cline MCP is global-only
     });
   });
 
