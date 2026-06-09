@@ -629,7 +629,7 @@ For Codex CLI, this generates a `rulesync` named profile in `.codex/config.toml`
 - `bash`: generates one `prefix_rule(...)` per command pattern in `.codex/rules/rulesync.rules` (`allow` → `allow`, `ask` → `prompt`, `deny` → `forbidden`)
 - `read`: `allow` → `read`, `ask`/`deny` → `deny` in `permissions.<profile>.filesystem`
 - `edit` / `write`: `allow` → `write`, `ask`/`deny` → `deny` in `permissions.<profile>.filesystem`
-- `webfetch`: `allow`/`deny` map to `permissions.<profile>.network.domains` (Codex does not support `ask` for domain rules); when any `webfetch` rule is present, `network.enabled = true` is also emitted so that domain rules take effect
+- `webfetch`: `allow`/`deny` map to `permissions.<profile>.network.domains` (Codex does not support `ask` for domain rules); when any `webfetch` rule is present, `network.enabled = true` is also emitted so that domain rules take effect. A Codex profile with `network.enabled = true` but no `domains` is imported as `webfetch: { "*": "allow" }`, which on the next generate produces an explicit `"*" = "allow"` domain entry — this is semantically equivalent and intentional.
 
 Relative filesystem globs such as `src/**` or `**/*.tf` are emitted under `permissions.<profile>.filesystem.":workspace_roots"` instead of the top-level filesystem table, because Codex expects top-level filesystem keys to be absolute paths, `~/...`, or named roots. Rulesync also sets `glob_scan_max_depth = 8` when generated workspace-root rules contain unbounded `**` patterns.
 
