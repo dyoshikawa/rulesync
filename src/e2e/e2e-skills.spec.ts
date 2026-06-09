@@ -16,6 +16,10 @@ describe("E2E: skills", () => {
 
   it.each([
     {
+      target: "augmentcode",
+      outputPath: join(".augment", "skills", "test-skill", "SKILL.md"),
+    },
+    {
       target: "claudecode",
       outputPath: join(".claude", "skills", "test-skill", "SKILL.md"),
     },
@@ -267,6 +271,10 @@ describe("E2E: skills (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
 
   it.each([
+    {
+      target: "augmentcode",
+      outputPath: join(".augment", "skills", "test-skill", "SKILL.md"),
+    },
     {
       target: "claudecode",
       outputPath: join(".claude", "skills", "test-skill", "SKILL.md"),

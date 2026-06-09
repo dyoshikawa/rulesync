@@ -956,6 +956,7 @@ Second global content`;
 
       expect(Array.isArray(toolTargets)).toBe(true);
       expect(toolTargets).toEqual([
+        "augmentcode",
         "claudecode",
         "claudecode-legacy",
         "codexcli",
@@ -998,6 +999,7 @@ Second global content`;
       expect(new Set(subagentsProcessorToolTargets)).toEqual(
         new Set([
           "agentsmd",
+          "augmentcode",
           "claudecode",
           "claudecode-legacy",
           "codexcli",

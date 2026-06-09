@@ -10,6 +10,7 @@ import type { Logger } from "../../utils/logger.js";
 import { AmpMcp } from "./amp-mcp.js";
 import { AntigravityCliMcp } from "./antigravity-cli-mcp.js";
 import { AntigravityIdeMcp } from "./antigravity-ide-mcp.js";
+import { AugmentcodeMcp } from "./augmentcode-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
@@ -45,6 +46,7 @@ const mcpProcessorToolTargetTuple = [
   "amp",
   "antigravity-cli",
   "antigravity-ide",
+  "augmentcode",
   "claudecode",
   "claudecode-legacy",
   "cline",
@@ -134,6 +136,22 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
+    "augmentcode",
+    {
+      // AugmentCode (Auggie CLI) persists MCP servers in the shared user
+      // settings file `~/.augment/settings.json`. The docs only document a
+      // global location, so MCP is global-only here.
+      // https://docs.augmentcode.com/cli/integrations
+      class: AugmentcodeMcp,
+      meta: {
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
       },
     },
   ],

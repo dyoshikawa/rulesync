@@ -291,6 +291,7 @@ describe("E2E: mcp (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
 
   it.each([
+    { target: "augmentcode", outputPath: join(".augment", "settings.json") },
     { target: "claudecode", outputPath: ".claude.json" },
     { target: "cursor", outputPath: join(".cursor", "mcp.json") },
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
