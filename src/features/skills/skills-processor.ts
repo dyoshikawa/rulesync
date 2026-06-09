@@ -211,8 +211,11 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
   [
     "factorydroid",
     {
+      // Factory Droid skills are native SKILL.md files under .factory/skills/
+      // (project) and ~/.factory/skills/ (global).
+      // https://docs.factory.ai/cli/configuration/skills
       class: FactorydroidSkill,
-      meta: { supportsProject: true, supportsSimulated: true, supportsGlobal: false },
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
   [

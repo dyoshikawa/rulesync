@@ -55,6 +55,10 @@ describe("E2E: subagents", () => {
       target: "takt",
       outputPath: join(".takt", "facets", "personas", "planner.md"),
     },
+    {
+      target: "factorydroid",
+      outputPath: join(".factory", "droids", "planner.md"),
+    },
   ])("should generate $target subagents", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -82,7 +86,6 @@ You are the planner. Analyze files and create a plan.
 
   it.each([
     { target: "agentsmd", outputPath: join(".agents", "subagents", "planner.md") },
-    { target: "factorydroid", outputPath: join(".factory", "droids", "planner.md") },
     { target: "roo", outputPath: join(".roo", "subagents", "planner.md") },
   ])("should generate $target simulated subagents", async ({ target, outputPath }) => {
     const testDir = getTestDir();
@@ -204,6 +207,7 @@ You are a subagent-only helper.
     { target: "deepagents", orphanPath: join(".deepagents", "agents", "orphan.md") },
     { target: "kiro", orphanPath: join(".kiro", "agents", "orphan.json") },
     { target: "junie", orphanPath: join(".junie", "agents", "orphan.md") },
+    { target: "factorydroid", orphanPath: join(".factory", "droids", "orphan.md") },
   ])(
     "should fail in check mode when delete would remove an orphan $target subagent file",
     async ({ target, orphanPath }) => {
@@ -243,6 +247,7 @@ describe("E2E: subagents (import)", () => {
     { target: "opencode", sourcePath: join(".opencode", "agents", "planner.md") },
     { target: "deepagents", sourcePath: join(".deepagents", "agents", "planner.md") },
     { target: "junie", sourcePath: join(".junie", "agents", "planner.md") },
+    { target: "factorydroid", sourcePath: join(".factory", "droids", "planner.md") },
   ])("should import $target subagents", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
@@ -296,6 +301,7 @@ describe("E2E: subagents (global mode)", () => {
     { target: "opencode", outputPath: join(".config", "opencode", "agents", "planner.md") },
     { target: "rovodev", outputPath: join(".rovodev", "subagents", "planner.md") },
     { target: "takt", outputPath: join(".takt", "facets", "personas", "planner.md") },
+    { target: "factorydroid", outputPath: join(".factory", "droids", "planner.md") },
   ])("should generate $target subagents in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

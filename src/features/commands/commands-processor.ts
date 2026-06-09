@@ -235,10 +235,13 @@ const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFac
     {
       class: FactorydroidCommand,
       meta: {
+        // Factory Droid custom slash commands are native Markdown files under
+        // .factory/commands/ (project) and ~/.factory/commands/ (personal/global).
+        // https://docs.factory.ai/cli/configuration/custom-slash-commands
         extension: "md",
         supportsProject: true,
-        supportsGlobal: false,
-        isSimulated: true,
+        supportsGlobal: true,
+        isSimulated: false,
         supportsSubdirectory: false,
       },
     },

@@ -107,6 +107,10 @@ describe("E2E: skills", () => {
       target: "zed",
       outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
     },
+    {
+      target: "factorydroid",
+      outputPath: join(".factory", "skills", "test-skill", "SKILL.md"),
+    },
   ])("should generate $target skills", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -135,10 +139,6 @@ This is the test skill body content.
     {
       target: "agentsmd",
       outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
-    },
-    {
-      target: "factorydroid",
-      outputPath: join(".factory", "skills", "test-skill", "SKILL.md"),
     },
   ])("should generate $target simulated skills", async ({ target, outputPath }) => {
     const testDir = getTestDir();
@@ -189,6 +189,7 @@ This is the test skill body content.
     { target: "agentsskills", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
     { target: "pi", orphanPath: join(".pi", "skills", "orphan-skill", "SKILL.md") },
     { target: "zed", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
+    { target: "factorydroid", orphanPath: join(".factory", "skills", "orphan-skill", "SKILL.md") },
   ])(
     "should fail in check mode when delete would remove an orphan $target skill file",
     async ({ target, orphanPath }) => {
@@ -242,6 +243,7 @@ describe("E2E: skills (import)", () => {
     { target: "replit", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "pi", sourcePath: join(".pi", "skills", "test-skill", "SKILL.md") },
     { target: "zed", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
+    { target: "factorydroid", sourcePath: join(".factory", "skills", "test-skill", "SKILL.md") },
   ])("should import $target skills", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
@@ -344,6 +346,10 @@ describe("E2E: skills (global mode)", () => {
     {
       target: "zed",
       outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "factorydroid",
+      outputPath: join(".factory", "skills", "test-skill", "SKILL.md"),
     },
   ])("should generate $target skills in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();

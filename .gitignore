@@ -275,7 +275,7 @@ rulesync.local.jsonc
 **/.factory/droids/
 **/.factory/skills/
 **/.factory/mcp.json
-**/.factory/settings.json
+**/.factory/hooks.json
 **/.gemini/commands/
 **/.gemini/agents/
 **/.gemini/skills/

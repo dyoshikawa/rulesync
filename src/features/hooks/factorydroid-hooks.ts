@@ -36,12 +36,13 @@ export class FactorydroidHooks extends ToolHooks {
     });
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
-    return { relativeDirPath: ".factory", relativeFilePath: "settings.json" };
+    // Factory Droid's primary hooks file is `.factory/hooks.json` (project) and
+    // `~/.factory/hooks.json` (global). The home directory is resolved by the
+    // harness via outputRoot in global mode. The legacy `.factory/settings.json`
+    // `hooks` key is only a read-time fallback (see fromFile).
+    // https://docs.factory.ai/reference/hooks-reference
+    return { relativeDirPath: ".factory", relativeFilePath: "hooks.json" };
   }
 
   static async fromFile({
@@ -51,12 +52,19 @@ export class FactorydroidHooks extends ToolHooks {
   }: ToolHooksFromFileParams): Promise<FactorydroidHooks> {
     const paths = FactorydroidHooks.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? '{"hooks":{}}';
+    // Prefer the dedicated `.factory/hooks.json`. When it is absent, fall back to
+    // the legacy `.factory/settings.json` `hooks` key for back-compat, since
+    // Droid itself falls back that way.
+    let fileContent = await readFileContentOrNull(filePath);
+    if (fileContent === null) {
+      const legacyFilePath = join(outputRoot, paths.relativeDirPath, "settings.json");
+      fileContent = await readFileContentOrNull(legacyFilePath);
+    }
     return new FactorydroidHooks({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent,
+      fileContent: fileContent ?? '{"hooks":{}}',
       validate,
     });
   }
@@ -82,7 +90,7 @@ export class FactorydroidHooks extends ToolHooks {
       settings = JSON.parse(existingContent);
     } catch (error) {
       throw new Error(
-        `Failed to parse existing Factory Droid settings at ${filePath}: ${formatError(error)}`,
+        `Failed to parse existing Factory Droid hooks file at ${filePath}: ${formatError(error)}`,
         { cause: error },
       );
     }
