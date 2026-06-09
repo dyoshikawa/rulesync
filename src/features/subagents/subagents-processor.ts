@@ -153,8 +153,11 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
   [
     "factorydroid",
     {
+      // Factory Droid custom droids are native Markdown files under
+      // .factory/droids/ (project) and ~/.factory/droids/ (global).
+      // https://docs.factory.ai/cli/configuration/custom-droids
       class: FactorydroidSubagent,
-      meta: { supportsSimulated: true, supportsGlobal: false, filePattern: "*.md" },
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
     },
   ],
   [

@@ -23,14 +23,14 @@ describe("FactorydroidHooks", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should return .factory and settings.json for project mode", () => {
+    it("should return .factory and hooks.json for project mode", () => {
       const paths = FactorydroidHooks.getSettablePaths({ global: false });
-      expect(paths).toEqual({ relativeDirPath: ".factory", relativeFilePath: "settings.json" });
+      expect(paths).toEqual({ relativeDirPath: ".factory", relativeFilePath: "hooks.json" });
     });
 
-    it("should return .factory and settings.json for global mode", () => {
+    it("should return .factory and hooks.json for global mode", () => {
       const paths = FactorydroidHooks.getSettablePaths({ global: true });
-      expect(paths).toEqual({ relativeDirPath: ".factory", relativeFilePath: "settings.json" });
+      expect(paths).toEqual({ relativeDirPath: ".factory", relativeFilePath: "hooks.json" });
     });
   });
 
@@ -222,9 +222,9 @@ describe("FactorydroidHooks", () => {
       expect(JSON.stringify(parsed)).not.toContain("claude-notify.sh");
     });
 
-    it("should throw error with descriptive message when existing settings.json contains invalid JSON", async () => {
+    it("should throw error with descriptive message when existing hooks.json contains invalid JSON", async () => {
       await ensureDir(join(testDir, ".factory"));
-      await writeFileContent(join(testDir, ".factory", "settings.json"), "invalid json {");
+      await writeFileContent(join(testDir, ".factory", "hooks.json"), "invalid json {");
 
       const config = { version: 1, hooks: {} };
       const rulesyncHooks = new RulesyncHooks({
@@ -241,13 +241,13 @@ describe("FactorydroidHooks", () => {
           rulesyncHooks,
           validate: false,
         }),
-      ).rejects.toThrow(/Failed to parse existing Factory Droid settings/);
+      ).rejects.toThrow(/Failed to parse existing Factory Droid hooks file/);
     });
 
-    it("should merge rulesync hooks into existing .factory/settings.json content", async () => {
+    it("should merge rulesync hooks into existing .factory/hooks.json content", async () => {
       await ensureDir(join(testDir, ".factory"));
       await writeFileContent(
-        join(testDir, ".factory", "settings.json"),
+        join(testDir, ".factory", "hooks.json"),
         JSON.stringify({ otherKey: "preserved" }),
       );
 
@@ -359,7 +359,7 @@ describe("FactorydroidHooks", () => {
       const factorydroidHooks = new FactorydroidHooks({
         outputRoot: testDir,
         relativeDirPath: ".factory",
-        relativeFilePath: "settings.json",
+        relativeFilePath: "hooks.json",
         fileContent: "invalid json {",
         validate: false,
       });
@@ -373,7 +373,7 @@ describe("FactorydroidHooks", () => {
       const factorydroidHooks = new FactorydroidHooks({
         outputRoot: testDir,
         relativeDirPath: ".factory",
-        relativeFilePath: "settings.json",
+        relativeFilePath: "hooks.json",
         fileContent: JSON.stringify({
           hooks: {
             SessionStart: [
@@ -396,7 +396,7 @@ describe("FactorydroidHooks", () => {
       const factorydroidHooks = new FactorydroidHooks({
         outputRoot: testDir,
         relativeDirPath: ".factory",
-        relativeFilePath: "settings.json",
+        relativeFilePath: "hooks.json",
         fileContent: JSON.stringify({
           hooks: {
             SessionStart: [
@@ -420,7 +420,7 @@ describe("FactorydroidHooks", () => {
       const factorydroidHooks = new FactorydroidHooks({
         outputRoot: testDir,
         relativeDirPath: ".factory",
-        relativeFilePath: "settings.json",
+        relativeFilePath: "hooks.json",
         fileContent: JSON.stringify({
           hooks: {
             PreToolUse: [
@@ -444,7 +444,7 @@ describe("FactorydroidHooks", () => {
       const factorydroidHooks = new FactorydroidHooks({
         outputRoot: testDir,
         relativeDirPath: ".factory",
-        relativeFilePath: "settings.json",
+        relativeFilePath: "hooks.json",
         fileContent: JSON.stringify({ hooks: {} }),
         validate: false,
       });
@@ -458,7 +458,7 @@ describe("FactorydroidHooks", () => {
       const factorydroidHooks = new FactorydroidHooks({
         outputRoot: testDir,
         relativeDirPath: ".factory",
-        relativeFilePath: "settings.json",
+        relativeFilePath: "hooks.json",
         fileContent: JSON.stringify({}),
         validate: false,
       });
@@ -472,7 +472,7 @@ describe("FactorydroidHooks", () => {
       const factorydroidHooks = new FactorydroidHooks({
         outputRoot: testDir,
         relativeDirPath: ".factory",
-        relativeFilePath: "settings.json",
+        relativeFilePath: "hooks.json",
         fileContent: JSON.stringify({
           hooks: {
             SessionStart: [
@@ -493,10 +493,10 @@ describe("FactorydroidHooks", () => {
   });
 
   describe("fromFile", () => {
-    it("should load from .factory/settings.json when it exists", async () => {
+    it("should load from .factory/hooks.json when it exists", async () => {
       await ensureDir(join(testDir, ".factory"));
       await writeFileContent(
-        join(testDir, ".factory", "settings.json"),
+        join(testDir, ".factory", "hooks.json"),
         JSON.stringify({ hooks: { SessionStart: [] } }),
       );
 
@@ -510,7 +510,44 @@ describe("FactorydroidHooks", () => {
       expect(parsed.hooks.SessionStart).toEqual([]);
     });
 
-    it("should initialize empty hooks when .factory/settings.json does not exist", async () => {
+    it("should fall back to .factory/settings.json hooks key when hooks.json is absent", async () => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(
+        join(testDir, ".factory", "settings.json"),
+        JSON.stringify({ hooks: { Stop: [] }, theme: "dark" }),
+      );
+
+      const factorydroidHooks = await FactorydroidHooks.fromFile({
+        outputRoot: testDir,
+        validate: false,
+      });
+      expect(factorydroidHooks).toBeInstanceOf(FactorydroidHooks);
+      const parsed = JSON.parse(factorydroidHooks.getFileContent());
+      // The legacy settings.json `hooks` key is read back via the fallback.
+      expect(parsed.hooks.Stop).toEqual([]);
+    });
+
+    it("should prefer .factory/hooks.json over the legacy settings.json fallback", async () => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(
+        join(testDir, ".factory", "hooks.json"),
+        JSON.stringify({ hooks: { SessionStart: [] } }),
+      );
+      await writeFileContent(
+        join(testDir, ".factory", "settings.json"),
+        JSON.stringify({ hooks: { Stop: [] } }),
+      );
+
+      const factorydroidHooks = await FactorydroidHooks.fromFile({
+        outputRoot: testDir,
+        validate: false,
+      });
+      const parsed = JSON.parse(factorydroidHooks.getFileContent());
+      expect(parsed.hooks.SessionStart).toEqual([]);
+      expect(parsed.hooks.Stop).toBeUndefined();
+    });
+
+    it("should initialize empty hooks when neither hooks.json nor settings.json exists", async () => {
       const factorydroidHooks = await FactorydroidHooks.fromFile({
         outputRoot: testDir,
         validate: false,
@@ -523,15 +560,15 @@ describe("FactorydroidHooks", () => {
   });
 
   describe("isDeletable", () => {
-    it("should return false", () => {
+    it("should return true since hooks.json is a dedicated hooks file", () => {
       const hooks = new FactorydroidHooks({
         outputRoot: testDir,
         relativeDirPath: ".factory",
-        relativeFilePath: "settings.json",
+        relativeFilePath: "hooks.json",
         fileContent: "{}",
         validate: false,
       });
-      expect(hooks.isDeletable()).toBe(false);
+      expect(hooks.isDeletable()).toBe(true);
     });
   });
 
@@ -540,7 +577,7 @@ describe("FactorydroidHooks", () => {
       const hooks = FactorydroidHooks.forDeletion({
         outputRoot: testDir,
         relativeDirPath: ".factory",
-        relativeFilePath: "settings.json",
+        relativeFilePath: "hooks.json",
       });
       expect(hooks).toBeInstanceOf(FactorydroidHooks);
       const parsed = JSON.parse(hooks.getFileContent());

@@ -961,6 +961,7 @@ Second global content`;
         "codexcli",
         "copilotcli",
         "cursor",
+        "factorydroid",
         "geminicli",
         "junie",
         "kilo",
@@ -975,8 +976,9 @@ Second global content`;
 
       expect(toolTargets).not.toContain("copilot");
       expect(toolTargets).not.toContain("agentsmd");
-      expect(toolTargets).not.toContain("factorydroid");
       expect(toolTargets).not.toContain("roo");
+      // factorydroid is now native and global-capable.
+      expect(toolTargets).toContain("factorydroid");
     });
 
     it("should be callable without instance", () => {
@@ -1018,9 +1020,7 @@ Second global content`;
     });
 
     it("should export subagentsProcessorToolTargetsSimulated constant", () => {
-      expect(new Set(subagentsProcessorToolTargetsSimulated)).toEqual(
-        new Set(["agentsmd", "factorydroid", "roo"]),
-      );
+      expect(new Set(subagentsProcessorToolTargetsSimulated)).toEqual(new Set(["agentsmd", "roo"]));
       expect(Array.isArray(subagentsProcessorToolTargetsSimulated)).toBe(true);
     });
 

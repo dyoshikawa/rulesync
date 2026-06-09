@@ -163,8 +163,8 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "factorydroid", feature: "mcp", entry: "**/.factory/mcp.json" },
   {
     target: "factorydroid",
-    feature: "general",
-    entry: "**/.factory/settings.json",
+    feature: "hooks",
+    entry: "**/.factory/hooks.json",
   },
 
   // Gemini CLI

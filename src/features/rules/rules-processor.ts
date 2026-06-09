@@ -19,14 +19,11 @@ import { checkPathTraversal, findFilesByGlobs } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
-import { FactorydroidCommand } from "../commands/factorydroid-command.js";
 import { AgentsmdSkill } from "../skills/agentsmd-skill.js";
-import { FactorydroidSkill } from "../skills/factorydroid-skill.js";
 import { RovodevSkill } from "../skills/rovodev-skill.js";
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { SkillsProcessor } from "../skills/skills-processor.js";
 import { AgentsmdSubagent } from "../subagents/agentsmd-subagent.js";
-import { FactorydroidSubagent } from "../subagents/factorydroid-subagent.js";
 import { GeminiCliSubagent } from "../subagents/geminicli-subagent.js";
 import { RooSubagent } from "../subagents/roo-subagent.js";
 import { RovodevSubagent } from "../subagents/rovodev-subagent.js";
@@ -413,14 +410,13 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
     {
       class: FactorydroidRule,
       meta: {
+        // Factory Droid commands, subagents (custom droids), and skills are all
+        // native now, so no simulated additionalConventions are needed (mirrors
+        // how native tools like geminicli are wired). Non-root rules are still
+        // referenced via TOON.
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
-        additionalConventions: {
-          commands: { commandClass: FactorydroidCommand },
-          subagents: { subagentClass: FactorydroidSubagent },
-          skills: { skillClass: FactorydroidSkill },
-        },
       },
     },
   ],

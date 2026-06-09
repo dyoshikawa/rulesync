@@ -40,7 +40,7 @@ describe("E2E: hooks", () => {
     },
     { target: "copilot", outputPath: join(".github", "hooks", "copilot-hooks.json") },
     { target: "copilotcli", outputPath: join(".github", "hooks", "copilotcli-hooks.json") },
-    { target: "factorydroid", outputPath: join(".factory", "settings.json") },
+    { target: "factorydroid", outputPath: join(".factory", "hooks.json") },
     { target: "kiro", outputPath: join(".kiro", "agents", "default.json") },
     { target: "antigravity-ide", outputPath: join(".agents", "hooks.json") },
     { target: "antigravity-cli", outputPath: join(".agents", "hooks.json") },
@@ -158,11 +158,13 @@ describe("E2E: hooks", () => {
   });
 
   it.each([
-    // claudecode, geminicli, factorydroid, kiro use shared config files (isDeletable=false) — excluded
+    // claudecode, geminicli, kiro use shared config files (isDeletable=false) — excluded.
+    // factorydroid now writes a dedicated .factory/hooks.json (isDeletable=true).
     { target: "cursor", orphanPath: join(".cursor", "hooks.json") },
     { target: "opencode", orphanPath: join(".opencode", "plugins", "rulesync-hooks.js") },
     { target: "codexcli", orphanPath: join(".codex", "hooks.json") },
     { target: "copilot", orphanPath: join(".github", "hooks", "copilot-hooks.json") },
+    { target: "factorydroid", orphanPath: join(".factory", "hooks.json") },
   ])(
     "should fail in check mode when delete would remove an orphan $target hooks file",
     async ({ target, orphanPath }) => {
@@ -282,7 +284,7 @@ describe("E2E: hooks (import)", () => {
     },
     {
       target: "factorydroid",
-      sourcePath: join(".factory", "settings.json"),
+      sourcePath: join(".factory", "hooks.json"),
       sourceContent: {
         hooks: {
           sessionStart: [
@@ -389,7 +391,7 @@ describe("E2E: hooks (global mode)", () => {
       outputPath: join(".agents", "plugins", "rulesync", "hooks", "hooks.json"),
     },
     { target: "opencode", outputPath: join(".config", "opencode", "plugins", "rulesync-hooks.js") },
-    { target: "factorydroid", outputPath: join(".factory", "settings.json") },
+    { target: "factorydroid", outputPath: join(".factory", "hooks.json") },
     { target: "deepagents", outputPath: join(".deepagents", "hooks.json") },
     { target: "junie", outputPath: join(".junie", "config.json") },
     { target: "cursor", outputPath: join(".cursor", "hooks.json") },
