@@ -58,8 +58,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs: build
     strategy:
+      # Keep every platform leg running even if one fails, so a single
+      # platform-specific breakage does not mask the others' results.
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, macos-15-intel, windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
       - name: Checkout code
@@ -86,9 +89,8 @@ jobs:
             chmod +x dist-bun/rulesync-darwin-arm64
             BINARY_PATH=dist-bun/rulesync-darwin-arm64
           else
-            # macos-15-intel is Intel (x64)
-            chmod +x dist-bun/rulesync-darwin-x64
-            BINARY_PATH=dist-bun/rulesync-darwin-x64
+            echo "Unexpected matrix OS for Unix binary selection: $MATRIX_OS" >&2
+            exit 1
           fi
           echo "BINARY_PATH=$BINARY_PATH" >> "$GITHUB_ENV"
 
