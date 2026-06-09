@@ -65,10 +65,7 @@ function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
   return result;
 }
 
-function convertToCodexFormat(
-  mcpServers: McpServers,
-  logger?: import("../../utils/logger.js").Logger,
-): Record<string, unknown> {
+function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
   const result: Record<string, Record<string, unknown>> = {};
 
   for (const [name, config] of Object.entries(mcpServers)) {
@@ -88,7 +85,7 @@ function convertToCodexFormat(
             converted[mappedKey] = value;
           } else {
             warnWithFallback(
-              logger,
+              undefined,
               `[CodexCliMcp] Skipping invalid value type for mapped key '${key}': expected string array, got ${typeof value}`,
             );
           }
@@ -197,7 +194,7 @@ export class CodexcliMcp extends ToolMcp {
         ];
       }),
     );
-    const converted = convertToCodexFormat(mcpServersWithCodexFields, undefined);
+    const converted = convertToCodexFormat(mcpServersWithCodexFields);
     const filteredMcpServers = this.removeEmptyEntries(converted);
 
     for (const name of Object.keys(converted)) {
