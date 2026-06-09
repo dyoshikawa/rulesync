@@ -12,6 +12,7 @@ import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
 import { AugmentcodeSubagent } from "./augmentcode-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
+import { ClineSubagent } from "./cline-subagent.js";
 import { CodexCliSubagent } from "./codexcli-subagent.js";
 import { CopilotSubagent } from "./copilot-subagent.js";
 import { CopilotcliSubagent } from "./copilotcli-subagent.js";
@@ -68,6 +69,7 @@ const subagentsProcessorToolTargetTuple = [
   "augmentcode",
   "claudecode",
   "claudecode-legacy",
+  "cline",
   "codexcli",
   "copilot",
   "copilotcli",
@@ -122,6 +124,17 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     {
       class: ClaudecodeSubagent,
       meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+    },
+  ],
+  [
+    "cline",
+    {
+      // Cline file-based agents are YAML files (`<name>.yaml`) with a YAML
+      // frontmatter block (`name`/`description`) and a system prompt body,
+      // stored under `.cline/agents/` (project) and `~/.cline/agents/` (global).
+      // https://github.com/cline/cline/blob/main/apps/vscode/src/core/task/tools/subagent/AgentConfigLoader.ts
+      class: ClineSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.yaml" },
     },
   ],
   [

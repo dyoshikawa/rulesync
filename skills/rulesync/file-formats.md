@@ -281,6 +281,8 @@ Attention, again, you are just the planner, so though you can read any files and
 
 > **Gemini CLI note (as of 2026-04-01):** Subagents are generated to `.gemini/agents/`. To enable the agents feature, set `"experimental": { "enableAgents": true }` in your `.gemini/settings.json`.
 
+> **Cline note:** Cline file-based agents are emitted as YAML files (`<name>.yaml`) into `.cline/agents/` (project) and `~/.cline/agents/` (global, via `--global`). The file is a YAML frontmatter block (`name` required, `description`) followed by the system prompt body, matching Cline's agent config loader.
+
 > **Kilo note (as of 2026-05-13):** Kilo's documented default for user-defined agents is `mode: all`, which makes the agent available both as a top-level pick and as a subagent. Set `kilo.mode: subagent` to opt into hidden/subagent-only behavior.
 
 Besides `mode`, the `kilo` subagent block accepts these optional fields (all preserved on round-trip):

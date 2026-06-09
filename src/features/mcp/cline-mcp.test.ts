@@ -2,21 +2,21 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  RULESYNC_MCP_SCHEMA_URL,
-  RULESYNC_RELATIVE_DIR_PATH,
-} from "../../constants/rulesync-paths.js";
+import { RULESYNC_MCP_SCHEMA_URL } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { readFileContent, writeFileContent } from "../../utils/file.js";
 import { ClineMcp } from "./cline-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
+import { ToolMcp } from "./tool-mcp.js";
 
 describe("ClineMcp", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
   beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
+    const testSetup = await setupTestDirectory();
+    testDir = testSetup.testDir;
+    cleanup = testSetup.cleanup;
     vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
@@ -25,584 +25,172 @@ describe("ClineMcp", () => {
     vi.restoreAllMocks();
   });
 
-  describe("constructor", () => {
-    it("should create instance with default parameters", () => {
-      const validJsonContent = JSON.stringify({
-        mcpServers: {
-          "@anthropic-ai/mcp-server-git": {
-            command: "node",
-            args: ["path/to/git-server.js"],
-          },
-        },
+  const settingsPath = () => join(testDir, ".cline", "data", "settings", "cline_mcp_settings.json");
+
+  describe("getSettablePaths", () => {
+    it("should point to .cline/data/settings/cline_mcp_settings.json", () => {
+      expect(ClineMcp.getSettablePaths({ global: true })).toEqual({
+        relativeDirPath: join(".cline", "data", "settings"),
+        relativeFilePath: "cline_mcp_settings.json",
       });
-
-      const clineMcp = new ClineMcp({
-        relativeDirPath: ".cline",
-        relativeFilePath: "mcp.json",
-        fileContent: validJsonContent,
-      });
-
-      expect(clineMcp).toBeInstanceOf(ClineMcp);
-      expect(clineMcp.getRelativeDirPath()).toBe(".cline");
-      expect(clineMcp.getRelativeFilePath()).toBe("mcp.json");
-      expect(clineMcp.getFileContent()).toBe(validJsonContent);
-    });
-
-    it("should create instance with custom outputRoot", () => {
-      const validJsonContent = JSON.stringify({
-        mcpServers: {},
-      });
-
-      const clineMcp = new ClineMcp({
-        outputRoot: "/custom/path",
-        relativeDirPath: ".cline",
-        relativeFilePath: "mcp.json",
-        fileContent: validJsonContent,
-      });
-
-      expect(clineMcp.getFilePath()).toBe("/custom/path/.cline/mcp.json");
-    });
-
-    it("should parse JSON content correctly", () => {
-      const jsonData = {
-        mcpServers: {
-          "test-server": {
-            command: "node",
-            args: ["server.js"],
-            env: {
-              NODE_ENV: "development",
-            },
-          },
-        },
-      };
-      const validJsonContent = JSON.stringify(jsonData);
-
-      const clineMcp = new ClineMcp({
-        relativeDirPath: ".cline",
-        relativeFilePath: "mcp.json",
-        fileContent: validJsonContent,
-      });
-
-      expect(clineMcp.getJson()).toEqual(jsonData);
-    });
-
-    it("should handle empty JSON object", () => {
-      const emptyJsonContent = JSON.stringify({});
-
-      const clineMcp = new ClineMcp({
-        relativeDirPath: ".cline",
-        relativeFilePath: "mcp.json",
-        fileContent: emptyJsonContent,
-      });
-
-      expect(clineMcp.getJson()).toEqual({});
-    });
-
-    it("should validate content by default", () => {
-      const validJsonContent = JSON.stringify({
-        mcpServers: {},
-      });
-
-      expect(() => {
-        const _instance = new ClineMcp({
-          relativeDirPath: ".cline",
-          relativeFilePath: "mcp.json",
-          fileContent: validJsonContent,
-        });
-      }).not.toThrow();
-    });
-
-    it("should skip validation when validate is false", () => {
-      const validJsonContent = JSON.stringify({
-        mcpServers: {},
-      });
-
-      expect(() => {
-        const _instance = new ClineMcp({
-          relativeDirPath: ".cline",
-          relativeFilePath: "mcp.json",
-          fileContent: validJsonContent,
-          validate: false,
-        });
-      }).not.toThrow();
-    });
-
-    it("should throw error for invalid JSON content", () => {
-      const invalidJsonContent = "{ invalid json }";
-
-      expect(() => {
-        const _instance = new ClineMcp({
-          relativeDirPath: ".cline",
-          relativeFilePath: "mcp.json",
-          fileContent: invalidJsonContent,
-        });
-      }).toThrow();
     });
   });
 
-  describe("fromFile", () => {
-    it("should create instance from file with default parameters", async () => {
-      const clineDir = join(testDir, ".cline");
-      await ensureDir(clineDir);
-
-      const jsonData = {
-        mcpServers: {
-          filesystem: {
-            command: "npx",
-            args: ["-y", "@modelcontextprotocol/server-filesystem", clineDir],
-          },
-        },
-      };
-      await writeFileContent(join(clineDir, "mcp.json"), JSON.stringify(jsonData, null, 2));
-
-      const clineMcp = await ClineMcp.fromFile({
+  describe("isDeletable", () => {
+    it("should never be deletable (shared global settings file)", () => {
+      const mcp = new ClineMcp({
         outputRoot: testDir,
+        relativeDirPath: join(".cline", "data", "settings"),
+        relativeFilePath: "cline_mcp_settings.json",
+        fileContent: "{}",
+        global: true,
       });
-
-      expect(clineMcp).toBeInstanceOf(ClineMcp);
-      expect(clineMcp.getJson()).toEqual(jsonData);
-      expect(clineMcp.getFilePath()).toBe(join(testDir, ".cline", "mcp.json"));
-    });
-
-    it("should create instance from file with custom outputRoot", async () => {
-      const customDir = join(testDir, "custom");
-      const clineDir = join(customDir, ".cline");
-      await ensureDir(clineDir);
-
-      const jsonData = {
-        mcpServers: {
-          git: {
-            command: "node",
-            args: ["git-server.js"],
-          },
-        },
-      };
-      await writeFileContent(join(clineDir, "mcp.json"), JSON.stringify(jsonData));
-
-      const clineMcp = await ClineMcp.fromFile({
-        outputRoot: customDir,
-      });
-
-      expect(clineMcp.getFilePath()).toBe(join(customDir, ".cline", "mcp.json"));
-      expect(clineMcp.getJson()).toEqual(jsonData);
-    });
-
-    it("should handle validation when validate is true", async () => {
-      const clineDir = join(testDir, ".cline");
-      await ensureDir(clineDir);
-
-      const jsonData = {
-        mcpServers: {
-          "valid-server": {
-            command: "node",
-            args: ["server.js"],
-          },
-        },
-      };
-      await writeFileContent(join(clineDir, "mcp.json"), JSON.stringify(jsonData));
-
-      const clineMcp = await ClineMcp.fromFile({
-        outputRoot: testDir,
-        validate: true,
-      });
-
-      expect(clineMcp.getJson()).toEqual(jsonData);
-    });
-
-    it("should skip validation when validate is false", async () => {
-      const clineDir = join(testDir, ".cline");
-      await ensureDir(clineDir);
-
-      const jsonData = {
-        mcpServers: {},
-      };
-      await writeFileContent(join(clineDir, "mcp.json"), JSON.stringify(jsonData));
-
-      const clineMcp = await ClineMcp.fromFile({
-        outputRoot: testDir,
-        validate: false,
-      });
-
-      expect(clineMcp.getJson()).toEqual(jsonData);
-    });
-
-    it("should throw error if file does not exist", async () => {
-      await expect(
-        ClineMcp.fromFile({
-          outputRoot: testDir,
-        }),
-      ).rejects.toThrow();
+      expect(mcp.isDeletable()).toBe(false);
     });
   });
 
   describe("fromRulesyncMcp", () => {
-    it("should create instance from RulesyncMcp with default parameters", () => {
-      const jsonData = {
-        mcpServers: {
-          "test-server": {
-            command: "node",
-            args: ["test-server.js"],
-          },
-        },
-      };
+    it("should throw in non-global mode", async () => {
       const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify(jsonData),
-      });
-
-      const clineMcp = ClineMcp.fromRulesyncMcp({
-        rulesyncMcp,
-      });
-
-      expect(clineMcp).toBeInstanceOf(ClineMcp);
-      expect(clineMcp.getJson()).toEqual(jsonData);
-      expect(clineMcp.getRelativeDirPath()).toBe(".cline");
-      expect(clineMcp.getRelativeFilePath()).toBe("mcp.json");
-    });
-
-    it("should create instance from RulesyncMcp with custom outputRoot", () => {
-      const jsonData = {
-        mcpServers: {
-          "custom-server": {
-            command: "python",
-            args: ["server.py"],
-            env: {
-              PYTHONPATH: "/custom/path",
-            },
-          },
-        },
-      };
-      const rulesyncMcp = new RulesyncMcp({
-        outputRoot: "/custom/base",
+        outputRoot: testDir,
         relativeDirPath: ".rulesync",
         relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify(jsonData),
+        fileContent: JSON.stringify({ mcpServers: {} }),
       });
-
-      const clineMcp = ClineMcp.fromRulesyncMcp({
-        outputRoot: "/target/dir",
-        rulesyncMcp,
-      });
-
-      expect(clineMcp.getFilePath()).toBe("/target/dir/.cline/mcp.json");
-      expect(clineMcp.getJson()).toEqual(jsonData);
+      await expect(
+        ClineMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, global: false }),
+      ).rejects.toThrow(/global-only/);
     });
 
-    it("should handle validation when validate is true", () => {
-      const jsonData = {
-        mcpServers: {
-          "validated-server": {
-            command: "node",
-            args: ["validated-server.js"],
-          },
-        },
-      };
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify(jsonData),
-      });
-
-      const clineMcp = ClineMcp.fromRulesyncMcp({
-        rulesyncMcp,
-        validate: true,
-      });
-
-      expect(clineMcp.getJson()).toEqual(jsonData);
-    });
-
-    it("should skip validation when validate is false", () => {
-      const jsonData = {
-        mcpServers: {},
-      };
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify(jsonData),
-      });
-
-      const clineMcp = ClineMcp.fromRulesyncMcp({
-        rulesyncMcp,
-        validate: false,
-      });
-
-      expect(clineMcp.getJson()).toEqual(jsonData);
-    });
-
-    it("should handle empty mcpServers object", () => {
-      const jsonData = {
-        mcpServers: {},
-      };
-      const rulesyncMcp = new RulesyncMcp({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify(jsonData),
-      });
-
-      const clineMcp = ClineMcp.fromRulesyncMcp({
-        rulesyncMcp,
-      });
-
-      expect(clineMcp.getJson()).toEqual(jsonData);
-    });
-  });
-
-  describe("toRulesyncMcp", () => {
-    it("should convert to RulesyncMcp with default configuration", () => {
-      const jsonData = {
-        mcpServers: {
-          filesystem: {
-            command: "npx",
-            args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
-          },
-        },
-      };
-      const clineMcp = new ClineMcp({
-        relativeDirPath: ".cline",
-        relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify(jsonData),
-      });
-
-      const rulesyncMcp = clineMcp.toRulesyncMcp();
-
-      expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
-      expect(rulesyncMcp.getFileContent()).toBe(
+    it("should merge mcpServers preserving other keys", async () => {
+      await writeFileContent(
+        settingsPath(),
         JSON.stringify(
           {
-            $schema: RULESYNC_MCP_SCHEMA_URL,
-            ...jsonData,
+            someOtherKey: { foo: "bar" },
+            mcpServers: { old: { command: "old" } },
           },
           null,
           2,
         ),
       );
-      expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
-      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
-    });
 
-    it("should preserve file content when converting to RulesyncMcp", () => {
-      const jsonData = {
-        mcpServers: {
-          "complex-server": {
-            command: "node",
-            args: ["complex-server.js", "--port", "3000"],
-            env: {
-              NODE_ENV: "production",
-              DEBUG: "mcp:*",
-            },
-          },
-          "another-server": {
-            command: "python",
-            args: ["another-server.py"],
-          },
-        },
-      };
-      const clineMcp = new ClineMcp({
-        outputRoot: "/test/dir",
-        relativeDirPath: ".cline",
-        relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify(jsonData),
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { fs: { command: "fs-server", args: ["--root", "."] } },
+        }),
       });
 
-      const rulesyncMcp = clineMcp.toRulesyncMcp();
+      const mcp = await ClineMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
 
-      expect(rulesyncMcp.getOutputRoot()).toBe("/test/dir");
-      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
-        $schema: RULESYNC_MCP_SCHEMA_URL,
-        ...jsonData,
+      const json = mcp.getJson();
+      // Other keys are preserved.
+      expect(json.someOtherKey).toEqual({ foo: "bar" });
+      // mcpServers is replaced with the rulesync servers (old one removed).
+      expect(json.mcpServers).toEqual({
+        fs: { command: "fs-server", args: ["--root", "."] },
       });
     });
 
-    it("should handle empty mcpServers object when converting", () => {
-      const jsonData = {
-        mcpServers: {},
-      };
-      const clineMcp = new ClineMcp({
-        relativeDirPath: ".cline",
-        relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify(jsonData),
+    it("should initialize settings when the file does not exist", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { fs: { command: "fs" } } }),
       });
 
-      const rulesyncMcp = clineMcp.toRulesyncMcp();
-
-      expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
-        $schema: RULESYNC_MCP_SCHEMA_URL,
-        ...jsonData,
+      const mcp = await ClineMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
       });
+
+      expect(mcp.getJson()).toEqual({ mcpServers: { fs: { command: "fs" } } });
     });
   });
 
-  describe("validate", () => {
-    it("should return successful validation result", () => {
-      const jsonData = {
-        mcpServers: {
-          "test-server": {
-            command: "node",
-            args: ["server.js"],
-          },
-        },
-      };
-      const clineMcp = new ClineMcp({
-        relativeDirPath: ".cline",
-        relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify(jsonData),
-        validate: false, // Skip validation in constructor to test method directly
-      });
-
-      const result = clineMcp.validate();
-
-      expect(result.success).toBe(true);
-      expect(result.error).toBeNull();
+  describe("fromFile", () => {
+    it("should throw in non-global mode", async () => {
+      await expect(ClineMcp.fromFile({ outputRoot: testDir, global: false })).rejects.toThrow(
+        /global-only/,
+      );
     });
 
-    it("should always return success (no validation logic implemented)", () => {
-      const jsonData = {
-        mcpServers: {},
-      };
-      const clineMcp = new ClineMcp({
-        relativeDirPath: ".cline",
-        relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify(jsonData),
-        validate: false,
-      });
+    it("should read existing settings and surface mcpServers", async () => {
+      await writeFileContent(
+        settingsPath(),
+        JSON.stringify({ someOtherKey: 1, mcpServers: { fs: { command: "fs" } } }),
+      );
 
-      const result = clineMcp.validate();
-
-      expect(result.success).toBe(true);
-      expect(result.error).toBeNull();
+      const mcp = await ClineMcp.fromFile({ outputRoot: testDir, global: true });
+      expect(mcp.getJson().mcpServers).toEqual({ fs: { command: "fs" } });
     });
 
-    it("should return success for complex MCP configuration", () => {
-      const jsonData = {
-        mcpServers: {
-          filesystem: {
-            command: "npx",
-            args: ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"],
-            env: {
-              NODE_ENV: "development",
-            },
-          },
-          git: {
-            command: "node",
-            args: ["git-server.js"],
-          },
-          sqlite: {
-            command: "python",
-            args: ["sqlite-server.py", "--database", "/path/to/db.sqlite"],
-            env: {
-              PYTHONPATH: "/custom/path",
-              DEBUG: "true",
-            },
-          },
-        },
-        globalSettings: {
-          timeout: 30000,
-          retries: 3,
-        },
-      };
-      const clineMcp = new ClineMcp({
-        relativeDirPath: ".cline",
-        relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify(jsonData),
-        validate: false,
-      });
-
-      const result = clineMcp.validate();
-
-      expect(result.success).toBe(true);
-      expect(result.error).toBeNull();
+    it("should default to empty mcpServers when file is missing", async () => {
+      const mcp = await ClineMcp.fromFile({ outputRoot: testDir, global: true });
+      expect(mcp.getJson()).toEqual({ mcpServers: {} });
     });
   });
 
-  describe("integration", () => {
-    it("should handle complete workflow: fromFile -> toRulesyncMcp -> fromRulesyncMcp", async () => {
-      const clineDir = join(testDir, ".cline");
-      await ensureDir(clineDir);
-
-      const originalJsonData = {
-        mcpServers: {
-          "workflow-server": {
-            command: "node",
-            args: ["workflow-server.js", "--config", "config.json"],
-            env: {
-              NODE_ENV: "test",
-            },
-          },
-        },
-      };
-      await writeFileContent(join(clineDir, "mcp.json"), JSON.stringify(originalJsonData, null, 2));
-
-      // Step 1: Load from file
-      const originalClineMcp = await ClineMcp.fromFile({
+  describe("toRulesyncMcp", () => {
+    it("should only surface mcpServers, not other settings keys", () => {
+      const mcp = new ClineMcp({
         outputRoot: testDir,
+        relativeDirPath: join(".cline", "data", "settings"),
+        relativeFilePath: "cline_mcp_settings.json",
+        fileContent: JSON.stringify({
+          someOtherKey: { x: 1 },
+          mcpServers: { fs: { command: "fs" } },
+        }),
+        global: true,
       });
 
-      // Step 2: Convert to RulesyncMcp
-      const rulesyncMcp = originalClineMcp.toRulesyncMcp();
+      const rulesyncMcp = mcp.toRulesyncMcp();
+      const json = JSON.parse(rulesyncMcp.getFileContent());
+      expect(json.$schema).toBe(RULESYNC_MCP_SCHEMA_URL);
+      expect(json.mcpServers).toEqual({ fs: { command: "fs" } });
+      expect(json.someOtherKey).toBeUndefined();
+    });
+  });
 
-      // Step 3: Create new ClineMcp from RulesyncMcp
-      const newClineMcp = ClineMcp.fromRulesyncMcp({
+  describe("generation writes a merged file", () => {
+    it("should not clobber other keys when written to disk", async () => {
+      await writeFileContent(settingsPath(), JSON.stringify({ someOtherKey: 42 }, null, 2));
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { fs: { command: "fs" } } }),
+      });
+      const mcp = await ClineMcp.fromRulesyncMcp({
         outputRoot: testDir,
         rulesyncMcp,
+        global: true,
       });
 
-      // Verify data integrity ($schema is injected by toRulesyncMcpDefault)
-      expect(newClineMcp.getJson()).toEqual({
-        $schema: RULESYNC_MCP_SCHEMA_URL,
-        ...originalJsonData,
-      });
-      expect(newClineMcp.getFilePath()).toBe(join(testDir, ".cline", "mcp.json"));
+      await writeFileContent(settingsPath(), mcp.getFileContent());
+      const written = JSON.parse(await readFileContent(settingsPath()));
+      expect(written.someOtherKey).toBe(42);
+      expect(written.mcpServers).toEqual({ fs: { command: "fs" } });
     });
 
-    it("should maintain data consistency across transformations", () => {
-      const complexJsonData = {
-        mcpServers: {
-          "primary-server": {
-            command: "node",
-            args: ["primary.js", "--mode", "production"],
-            env: {
-              NODE_ENV: "production",
-              LOG_LEVEL: "info",
-              API_KEY: "secret",
-            },
-          },
-          "secondary-server": {
-            command: "python",
-            args: ["secondary.py", "--workers", "4"],
-            env: {
-              PYTHONPATH: "/app/lib",
-            },
-          },
-        },
-        config: {
-          timeout: 60000,
-          maxRetries: 5,
-          logLevel: "debug",
-        },
-      };
-
-      // Create ClineMcp
-      const clineMcp = new ClineMcp({
-        outputRoot: "/project",
-        relativeDirPath: ".cline",
-        relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify(complexJsonData),
+    it("should be an instance of ToolMcp", () => {
+      const mcp = new ClineMcp({
+        outputRoot: testDir,
+        relativeDirPath: join(".cline", "data", "settings"),
+        relativeFilePath: "cline_mcp_settings.json",
+        fileContent: "{}",
+        global: true,
       });
-
-      // Convert to RulesyncMcp and back
-      const rulesyncMcp = clineMcp.toRulesyncMcp();
-      const newClineMcp = ClineMcp.fromRulesyncMcp({
-        outputRoot: "/project",
-        rulesyncMcp,
-      });
-
-      // Verify all data is preserved ($schema is injected by toRulesyncMcpDefault)
-      expect(newClineMcp.getJson()).toEqual({
-        $schema: RULESYNC_MCP_SCHEMA_URL,
-        ...complexJsonData,
-      });
-      expect(newClineMcp.getFilePath()).toBe("/project/.cline/mcp.json");
+      expect(mcp).toBeInstanceOf(ToolMcp);
     });
   });
 });
