@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
-import { assertSafeTaktName } from "../takt-shared.js";
+import { assertSafeTaktName, prependTaktExtends } from "../takt-shared.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -132,11 +132,18 @@ export class TaktRule extends ToolRule {
 
     const relativeDirPath = join(".takt", "facets", DEFAULT_TAKT_RULE_DIR);
 
+    const body = prependTaktExtends({
+      extendsName: typeof taktSection?.extends === "string" ? taktSection.extends : undefined,
+      body: rulesyncRule.getBody(),
+      featureLabel: "rule",
+      sourceLabel,
+    });
+
     return new TaktRule({
       outputRoot,
       relativeDirPath,
       relativeFilePath,
-      body: rulesyncRule.getBody(),
+      body,
       validate,
       root: false,
     });

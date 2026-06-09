@@ -11,6 +11,7 @@ import { directoryExists, findFilesByGlobs } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSkill } from "./agentsmd-skill.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
+import { AmpSkill } from "./amp-skill.js";
 import { AntigravityCliSkill } from "./antigravity-cli-skill.js";
 import { AntigravityIdeSkill } from "./antigravity-ide-skill.js";
 import { AntigravitySkill } from "./antigravity-skill.js";
@@ -75,6 +76,7 @@ type ToolSkillFactory = {
 const skillsProcessorToolTargetTuple = [
   "agentsmd",
   "agentsskills",
+  "amp",
   "antigravity",
   "antigravity-cli",
   "antigravity-ide",
@@ -124,6 +126,15 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
       // The Agent Skills standard defines `~/.agents/skills/` as the personal/global
       // location in addition to project `.agents/skills/`. https://agentskills.io/specification
       class: AgentsSkillsSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "amp",
+    {
+      // Amp reads Agent Skills from `.agents/skills/` (project) and
+      // `~/.config/agents/skills/` (global). https://ampcode.com/manual
+      class: AmpSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

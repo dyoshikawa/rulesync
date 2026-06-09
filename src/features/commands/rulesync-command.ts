@@ -22,6 +22,9 @@ export const RulesyncCommandFrontmatterSchema = z.looseObject({
   takt: z.optional(
     z.looseObject({
       name: z.optional(z.string()),
+      // Facet inheritance: emit a leading `{extends:<parent>}` directive (Takt 0.39.0+).
+      // Commands map to the `instructions` facet, which supports inheritance.
+      extends: z.optional(z.string()),
     }),
   ),
 });

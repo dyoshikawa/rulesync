@@ -228,10 +228,10 @@ rulesync.local.jsonc
 **/AGENTS.local.md
 **/AGENTS.md
 **/.agents/
+**/.agents/skills/
 **/.agents/rules/
 **/GEMINI.md
 **/.agents/workflows/
-**/.agents/skills/
 **/.agents/mcp_config.json
 **/.agents/hooks.json
 **/.augment/rules/
@@ -321,6 +321,7 @@ rulesync.local.jsonc
 **/.pi/prompts/
 **/.pi/skills/
 **/QWEN.md
+**/.qwenignore
 **/.qwen/memories/
 **/.qwen/settings.json
 **/replit.md

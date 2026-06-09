@@ -34,6 +34,7 @@ augmentcode: # augmentcode specific parameters
   description: "When to apply this rule" # (optional) used with "agent_requested" type
 takt: # takt specific parameters (optional; emitted under .takt/facets/policies/ — frontmatter is dropped on emit)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
+  extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
 ---
 
 # Rulesync Project Overview
@@ -217,6 +218,7 @@ antigravity: # antigravity specific parameters
   turbo: true # (Optional, default: true) Append // turbo for auto-execution
 takt: # takt specific parameters (optional; emitted under .takt/facets/instructions/)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
+  extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
 pi: # pi coding agent specific parameters (optional)
   argument-hint: "[message]" # Hint shown in Pi's command palette
 ---
@@ -374,6 +376,7 @@ cursor: # for Cursor-specific parameters (optional)
     author: rulesync
 takt: # takt specific parameters (optional; emitted under .takt/facets/knowledge/ — frontmatter is dropped on emit)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
+  extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
 ---
 
 This is the skill body content.

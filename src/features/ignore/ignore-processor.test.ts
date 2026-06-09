@@ -255,7 +255,7 @@ describe("IgnoreProcessor", () => {
     });
 
     it("should load QwencodeIgnore for qwencode target", async () => {
-      await writeFileContent(join(testDir, ".geminiignore"), "*.log\nnode_modules/");
+      await writeFileContent(join(testDir, ".qwenignore"), "*.log\nnode_modules/");
 
       const processor = new IgnoreProcessor({
         logger,

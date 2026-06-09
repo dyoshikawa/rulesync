@@ -125,6 +125,9 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
     z.looseObject({
       // Rename the emitted file stem (e.g. "test-skill.md" → "{name}.md").
       name: z.optional(z.string()),
+      // Facet inheritance: emit a leading `{extends:<parent>}` directive (Takt 0.39.0+).
+      // Skills map to the `knowledge` facet, which supports inheritance.
+      extends: z.optional(z.string()),
     }),
   ),
 });
@@ -212,6 +215,7 @@ export type RulesyncSkillFrontmatterInput = {
   };
   takt?: {
     name?: string;
+    extends?: string;
   };
 };
 

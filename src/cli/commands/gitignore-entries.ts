@@ -41,6 +41,10 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: ["agentsmd", "pi", "warp"], feature: "rules", entry: "**/AGENTS.md" },
   { target: "agentsmd", feature: "rules", entry: "**/.agents/" },
 
+  // Amp
+  // Amp reads Agent Skills from the shared `.agents/skills/` project tree.
+  { target: "amp", feature: "skills", entry: "**/.agents/skills/" },
+
   // Antigravity (IDE + CLI, Antigravity 2.0)
   // Both targets share the `.agents/` project tree; the CLI additionally
   // writes a root `GEMINI.md`. Global-scope paths (under the home directory)
@@ -257,6 +261,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
 
   // Qwen Code
   { target: "qwencode", feature: "rules", entry: "**/QWEN.md" },
+  { target: "qwencode", feature: "ignore", entry: "**/.qwenignore" },
   { target: "qwencode", feature: "general", entry: "**/.qwen/memories/" },
   { target: "qwencode", feature: "permissions", entry: "**/.qwen/settings.json" },
 

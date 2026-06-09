@@ -91,6 +91,38 @@ describe("TaktRule", () => {
         /Invalid takt\.name/,
       );
     });
+
+    it("prepends an {extends:<parent>} directive when takt.extends is set", () => {
+      const rulesyncRule = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "style.md",
+        frontmatter: {
+          targets: ["*"],
+          ...({ takt: { extends: "base" } } as Record<string, unknown>),
+        },
+        body: "# Style policy",
+      });
+
+      const rule = TaktRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule });
+      expect(rule.getFileContent()).toBe("{extends:base}\n\n# Style policy");
+    });
+
+    it("throws on an unsafe takt.extends value", () => {
+      const rulesyncRule = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "style.md",
+        frontmatter: {
+          targets: ["*"],
+          ...({ takt: { extends: "../escape" } } as Record<string, unknown>),
+        },
+        body: "x",
+      });
+      expect(() => TaktRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule })).toThrow(
+        /Invalid takt\.extends/,
+      );
+    });
   });
 
   describe("fromFile", () => {

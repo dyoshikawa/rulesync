@@ -12,9 +12,12 @@ import { ToolIgnore } from "./tool-ignore.js";
 
 export class QwencodeIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
+    // Qwen Code reads `.qwenignore` from the project root (not `.geminiignore`,
+    // despite being a Gemini CLI fork). Emitting `.geminiignore` left the file inert.
+    // https://qwenlm.github.io/qwen-code-docs/en/users/configuration/qwen-ignore
     return {
       relativeDirPath: ".",
-      relativeFilePath: ".geminiignore",
+      relativeFilePath: ".qwenignore",
     };
   }
 

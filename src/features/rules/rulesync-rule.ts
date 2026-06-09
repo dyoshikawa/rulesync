@@ -75,6 +75,9 @@ export const RulesyncRuleFrontmatterSchema = z.object({
     z.looseObject({
       // Rename the emitted file stem (e.g. "coder.md" → "{name}.md").
       name: z.optional(z.string()),
+      // Facet inheritance: emit a leading `{extends:<parent>}` directive (Takt 0.39.0+).
+      // Rules map to the `policies` facet, which supports inheritance.
+      extends: z.optional(z.string()),
     }),
   ),
 });

@@ -2,7 +2,7 @@ import path, { join, relative, resolve } from "node:path";
 
 import { ValidationResult } from "../../types/ai-dir.js";
 import { toPosixPath } from "../../utils/file.js";
-import { assertSafeTaktName } from "../takt-shared.js";
+import { assertSafeTaktName, prependTaktExtends } from "../takt-shared.js";
 import { RulesyncSkill, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -158,12 +158,19 @@ export class TaktSkill extends ToolSkill {
 
     const relativeDirPath = join(".takt", "facets", DEFAULT_TAKT_SKILL_DIR);
 
+    const body = prependTaktExtends({
+      extendsName: typeof taktSection?.extends === "string" ? taktSection.extends : undefined,
+      body: rulesyncSkill.getBody(),
+      featureLabel: "skill",
+      sourceLabel,
+    });
+
     return new TaktSkill({
       outputRoot,
       relativeDirPath,
       dirName: stem,
       fileName,
-      body: rulesyncSkill.getBody(),
+      body,
       otherFiles: rulesyncSkill.getOtherFiles(),
       validate,
       global,

@@ -821,6 +821,7 @@ Content that would fail parsing`;
       expect(new Set(targets)).toEqual(
         new Set([
           "agentsskills",
+          "amp",
           "antigravity",
           "antigravity-cli",
           "antigravity-ide",
@@ -854,6 +855,7 @@ Content that would fail parsing`;
         new Set([
           "agentsmd",
           "agentsskills",
+          "amp",
           "antigravity",
           "antigravity-cli",
           "antigravity-ide",
@@ -887,6 +889,7 @@ Content that would fail parsing`;
       expect(new Set(targets)).toEqual(
         new Set([
           "agentsskills",
+          "amp",
           "antigravity",
           "antigravity-cli",
           "antigravity-ide",
@@ -931,6 +934,7 @@ Content that would fail parsing`;
       const targets = SkillsProcessor.getToolTargetsGlobal();
       expect(targets).toEqual([
         "agentsskills",
+        "amp",
         "antigravity",
         "antigravity-cli",
         "antigravity-ide",
@@ -960,6 +964,7 @@ Content that would fail parsing`;
       const targets = SkillsProcessor.getToolTargets({ global: true });
       expect(targets).toEqual([
         "agentsskills",
+        "amp",
         "antigravity",
         "antigravity-cli",
         "antigravity-ide",
