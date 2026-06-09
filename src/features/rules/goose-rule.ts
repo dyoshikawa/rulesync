@@ -39,7 +39,7 @@ export class GooseRule extends ToolRule {
     if (global) {
       return {
         root: {
-          relativeDirPath: ".",
+          relativeDirPath: join(".config", "goose"),
           relativeFilePath: ".goosehints",
         },
       };

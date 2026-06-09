@@ -185,7 +185,7 @@ describe("GooseRule", () => {
 
     it("should create GooseRule from global .goosehints file", async () => {
       const gooseContent = "# Global Goose Hints";
-      await writeFileContent(join(testDir, ".goosehints"), gooseContent);
+      await writeFileContent(join(testDir, ".config", "goose", ".goosehints"), gooseContent);
 
       const gooseRule = await GooseRule.fromFile({
         outputRoot: testDir,
@@ -194,6 +194,7 @@ describe("GooseRule", () => {
       });
 
       expect(gooseRule.isRoot()).toBe(true);
+      expect(gooseRule.getRelativeDirPath()).toBe(join(".config", "goose"));
       expect(gooseRule.getRelativeFilePath()).toBe(".goosehints");
     });
   });
@@ -310,6 +311,7 @@ describe("GooseRule", () => {
 
       expect(gooseRule).toBeInstanceOf(GooseRule);
       expect(gooseRule.isRoot()).toBe(true);
+      expect(gooseRule.getRelativeDirPath()).toBe(join(".config", "goose"));
     });
   });
 
@@ -436,7 +438,7 @@ describe("GooseRule", () => {
       const paths = GooseRule.getSettablePaths({ global: true });
 
       expect(paths.root).toEqual({
-        relativeDirPath: ".",
+        relativeDirPath: join(".config", "goose"),
         relativeFilePath: ".goosehints",
       });
 
