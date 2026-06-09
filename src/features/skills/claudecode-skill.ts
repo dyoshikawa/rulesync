@@ -22,6 +22,9 @@ export const ClaudecodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
   "allowed-tools": z.optional(z.array(z.string())),
+  // Removes the listed tools from the model while the skill is active.
+  // Accepts the space/comma-separated string form or a YAML list, mirroring `allowed-tools`.
+  "disallowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
   model: z.optional(z.string()),
   "disable-model-invocation": z.optional(z.boolean()),
   paths: z.optional(z.union([z.string(), z.array(z.string())])),
@@ -121,6 +124,9 @@ export class ClaudecodeSkill extends ToolSkill {
     const frontmatter = this.getFrontmatter();
     const claudecodeSection = {
       ...(frontmatter["allowed-tools"] && { "allowed-tools": frontmatter["allowed-tools"] }),
+      ...(frontmatter["disallowed-tools"] && {
+        "disallowed-tools": frontmatter["disallowed-tools"],
+      }),
       ...(frontmatter.model && { model: frontmatter.model }),
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
@@ -160,6 +166,9 @@ export class ClaudecodeSkill extends ToolSkill {
       description: rulesyncFrontmatter.description,
       ...(rulesyncFrontmatter.claudecode?.["allowed-tools"] && {
         "allowed-tools": rulesyncFrontmatter.claudecode["allowed-tools"],
+      }),
+      ...(rulesyncFrontmatter.claudecode?.["disallowed-tools"] && {
+        "disallowed-tools": rulesyncFrontmatter.claudecode["disallowed-tools"],
       }),
       ...(rulesyncFrontmatter.claudecode?.model && {
         model: rulesyncFrontmatter.claudecode.model,

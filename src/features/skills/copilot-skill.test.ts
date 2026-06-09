@@ -197,6 +197,24 @@ Skill content goes here.`,
       });
       expect(copilotSkill.getBody()).toBe("Follow the testing plan");
     });
+
+    it("should round-trip the allowed-tools skill frontmatter", () => {
+      const skill = new CopilotSkill({
+        dirName: "shell-skill",
+        frontmatter: {
+          name: "shell-skill",
+          description: "Runs shell",
+          "allowed-tools": "shell",
+        },
+        body: "body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().copilot).toEqual({ "allowed-tools": "shell" });
+
+      const roundTripped = CopilotSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(roundTripped.getFrontmatter()["allowed-tools"]).toBe("shell");
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {

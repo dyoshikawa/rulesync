@@ -19,6 +19,9 @@ export const CopilotSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
   license: z.optional(z.string()),
+  // Pre-approved tools the agent may run without per-use confirmation.
+  // https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills
+  "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
 });
 
 export type CopilotSkillFrontmatter = z.infer<typeof CopilotSkillFrontmatterSchema>;
@@ -111,15 +114,17 @@ export class CopilotSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    const copilotSection = {
+      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
+      ...(frontmatter["allowed-tools"] !== undefined && {
+        "allowed-tools": frontmatter["allowed-tools"],
+      }),
+    };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
-      ...(frontmatter.license && {
-        copilot: {
-          license: frontmatter.license,
-        },
-      }),
+      ...(Object.keys(copilotSection).length > 0 && { copilot: copilotSection }),
     };
 
     return new RulesyncSkill({
@@ -146,7 +151,12 @@ export class CopilotSkill extends ToolSkill {
     const copilotFrontmatter: CopilotSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      license: rulesyncFrontmatter.copilot?.license,
+      ...(rulesyncFrontmatter.copilot?.license !== undefined && {
+        license: rulesyncFrontmatter.copilot.license,
+      }),
+      ...(rulesyncFrontmatter.copilot?.["allowed-tools"] !== undefined && {
+        "allowed-tools": rulesyncFrontmatter.copilot["allowed-tools"],
+      }),
     };
 
     return new CopilotSkill({

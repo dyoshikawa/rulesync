@@ -243,4 +243,26 @@ Body content`,
 
     expect(subagent.getFrontmatter().mode).toBe("all");
   });
+
+  describe("forDeletion", () => {
+    it("should create a deletable placeholder", () => {
+      const subagent = OpenCodeSubagent.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: ".opencode/agents",
+        relativeFilePath: "obsolete.md",
+      });
+      expect(subagent.isDeletable()).toBe(true);
+      expect(subagent.getBody()).toBe("");
+    });
+
+    it("should preserve the global flag passthrough (regression for #1639)", () => {
+      const subagent = OpenCodeSubagent.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: join(".config", "opencode", "agents"),
+        relativeFilePath: "obsolete.md",
+        global: true,
+      });
+      expect((subagent as unknown as { global: boolean }).global).toBe(true);
+    });
+  });
 });

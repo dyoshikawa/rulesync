@@ -624,6 +624,33 @@ Roundtrip body`;
       expect(result.success).toBe(false);
     });
 
+    it("should accept disallowed-tools in both string and list forms", () => {
+      const listForm = ClaudecodeCommandFrontmatterSchema.safeParse({
+        description: "Valid description",
+        "disallowed-tools": ["Bash", "Edit"],
+      });
+      expect(listForm.success).toBe(true);
+      if (listForm.success) {
+        expect(listForm.data["disallowed-tools"]).toEqual(["Bash", "Edit"]);
+      }
+
+      const stringForm = ClaudecodeCommandFrontmatterSchema.safeParse({
+        description: "Valid description",
+        "disallowed-tools": "Bash, Edit",
+      });
+      expect(stringForm.success).toBe(true);
+      if (stringForm.success) {
+        expect(stringForm.data["disallowed-tools"]).toBe("Bash, Edit");
+      }
+    });
+
+    it("should reject invalid disallowed-tools definitions", () => {
+      const invalidFrontmatter = { description: "Valid description", "disallowed-tools": 123 };
+      const result = ClaudecodeCommandFrontmatterSchema.safeParse(invalidFrontmatter);
+
+      expect(result.success).toBe(false);
+    });
+
     it("should reject invalid disable-model-invocation definitions", () => {
       const invalidFrontmatter = {
         description: "Valid description",

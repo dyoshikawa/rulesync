@@ -21,7 +21,11 @@ import {
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
-const CLAUDE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(["worktreeCreate", "worktreeRemove"]);
+const CLAUDE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
+  "worktreeCreate",
+  "worktreeRemove",
+  "messageDisplay",
+]);
 
 const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: CLAUDE_HOOK_EVENTS,
