@@ -301,6 +301,7 @@ describe("E2E: mcp (global mode)", () => {
     { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
     { target: "rovodev", outputPath: join(".rovodev", "mcp.json") },
     { target: "kilo", outputPath: join(".config", "kilo", "kilo.jsonc") },
+    { target: "junie", outputPath: join(".junie", "mcp", "mcp.json") },
     { target: "amp", outputPath: join(".config", "amp", "settings.jsonc") },
     {
       target: "antigravity-ide",

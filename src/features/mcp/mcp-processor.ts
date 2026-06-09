@@ -293,7 +293,7 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
       class: JunieMcp,
       meta: {
         supportsProject: true,
-        supportsGlobal: false,
+        supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
       },

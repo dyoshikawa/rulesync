@@ -391,6 +391,7 @@ describe("E2E: hooks (global mode)", () => {
     { target: "opencode", outputPath: join(".config", "opencode", "plugins", "rulesync-hooks.js") },
     { target: "factorydroid", outputPath: join(".factory", "settings.json") },
     { target: "deepagents", outputPath: join(".deepagents", "hooks.json") },
+    { target: "junie", outputPath: join(".junie", "config.json") },
     { target: "cursor", outputPath: join(".cursor", "hooks.json") },
     { target: "copilotcli", outputPath: join(".copilot", "hooks", "copilot-hooks.json") },
     { target: "antigravity-ide", outputPath: join(".gemini", "config", "hooks.json") },
@@ -431,6 +432,12 @@ describe("E2E: hooks (global mode)", () => {
       // intentionally dropped during generation.
       const parsed = JSON.parse(generatedContent);
       expect(parsed.hooks.sessionStart).toBeDefined();
+      expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+    } else if (target === "junie") {
+      // Junie CLI only supports the `sessionStart` event (PascalCase
+      // SessionStart), so `stop` (audit.sh) is dropped during generation.
+      const parsed = JSON.parse(generatedContent);
+      expect(parsed.hooks.SessionStart).toBeDefined();
       expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
     } else if (target === "antigravity-ide" || target === "antigravity-cli") {
       // Antigravity nests the event map under a generated `rulesync` hook name
