@@ -19,6 +19,9 @@ import {
 export const ClaudecodeCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+  // Removes the listed tools from the model while the command is active.
+  // Accepts the space/comma-separated string form or a YAML list, mirroring `allowed-tools`.
+  "disallowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
   "argument-hint": z.optional(z.string()),
   model: z.optional(z.string()),
   "disable-model-invocation": z.optional(z.boolean()),

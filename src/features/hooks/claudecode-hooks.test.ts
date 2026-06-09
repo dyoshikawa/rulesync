@@ -355,6 +355,36 @@ describe("ClaudecodeHooks", () => {
       expect(parsed.hooks.WorktreeRemove[0].matcher).toBeUndefined();
     });
 
+    it("should NOT emit matcher for messageDisplay even if defined in config", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          messageDisplay: [{ type: "command", command: "display.sh", matcher: "*.md" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = claudecodeHooks.getFileContent();
+      const parsed = JSON.parse(content);
+      expect(parsed.hooks.MessageDisplay).toBeDefined();
+      expect(parsed.hooks.MessageDisplay[0].matcher).toBeUndefined();
+    });
+
     it("should warn when matcher is defined on worktree events", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));

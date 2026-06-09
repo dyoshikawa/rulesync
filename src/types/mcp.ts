@@ -10,7 +10,10 @@ const EnvVarNameSchema = z
   );
 
 export const McpServerSchema = z.looseObject({
-  type: z.optional(z.enum(["local", "stdio", "sse", "http"])),
+  // `streamable-http` is the MCP spec's transport name and an accepted alias for
+  // `http` (Claude Code), so configs copied from server docs work unchanged.
+  // `ws` is Claude Code's WebSocket transport (same url/headers/timeout fields as http).
+  type: z.optional(z.enum(["local", "stdio", "sse", "http", "ws", "streamable-http"])),
   command: z.optional(z.union([z.string(), z.array(z.string())])),
   args: z.optional(z.array(z.string())),
   url: z.optional(z.string()),
@@ -31,7 +34,7 @@ export const McpServerSchema = z.looseObject({
   timeout: z.optional(z.number()),
   trust: z.optional(z.boolean()),
   cwd: z.optional(z.string()),
-  transport: z.optional(z.enum(["local", "stdio", "sse", "http"])),
+  transport: z.optional(z.enum(["local", "stdio", "sse", "http", "ws", "streamable-http"])),
   alwaysAllow: z.optional(z.array(z.string())),
   tools: z.optional(z.array(z.string())),
   kiroAutoApprove: z.optional(z.array(z.string())),

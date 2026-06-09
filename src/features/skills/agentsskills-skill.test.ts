@@ -31,10 +31,41 @@ describe("AgentsSkillsSkill", () => {
       expect(paths.relativeDirPath).toBe(join(".agents", "skills"));
     });
 
-    it("should throw error when global is true", () => {
-      expect(() => AgentsSkillsSkill.getSettablePaths({ global: true })).toThrow(
-        "AgentsSkillsSkill does not support global mode.",
-      );
+    it("should return the same .agents/skills path in global mode (resolved under home)", () => {
+      // The Agent Skills standard defines `~/.agents/skills/` as the personal location.
+      const paths = AgentsSkillsSkill.getSettablePaths({ global: true });
+      expect(paths.relativeDirPath).toBe(join(".agents", "skills"));
+    });
+
+    it("should carry standard optional frontmatter through the agentsskills section", () => {
+      const skill = new AgentsSkillsSkill({
+        outputRoot: testDir,
+        dirName: "std-skill",
+        frontmatter: {
+          name: "std-skill",
+          description: "Standard",
+          license: "MIT",
+          compatibility: { "agent-skills": ">=1.0.0" },
+          metadata: { version: "1.2.3" },
+          "allowed-tools": "shell",
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().agentsskills).toEqual({
+        license: "MIT",
+        compatibility: { "agent-skills": ">=1.0.0" },
+        metadata: { version: "1.2.3" },
+        "allowed-tools": "shell",
+      });
+
+      const roundTripped = AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill });
+      const fm = roundTripped.getFrontmatter();
+      expect(fm.license).toBe("MIT");
+      expect(fm["allowed-tools"]).toBe("shell");
+      expect(fm.metadata).toEqual({ version: "1.2.3" });
     });
   });
 

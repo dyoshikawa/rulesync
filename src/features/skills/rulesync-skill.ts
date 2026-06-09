@@ -17,6 +17,7 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   claudecode: z.optional(
     z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
+      "disallowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
       model: z.optional(z.string()),
       "disable-model-invocation": z.optional(z.boolean()),
       "scheduled-task": z.optional(z.boolean()),
@@ -26,6 +27,38 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   codexcli: z.optional(
     z.looseObject({
       "short-description": z.optional(z.string()),
+      // Fields emitted to the `agents/openai.yaml` sidecar next to SKILL.md.
+      // See https://developers.openai.com/codex/skills.md
+      interface: z.optional(
+        z.looseObject({
+          display_name: z.optional(z.string()),
+          short_description: z.optional(z.string()),
+          icon_small: z.optional(z.string()),
+          icon_large: z.optional(z.string()),
+          brand_color: z.optional(z.string()),
+          default_prompt: z.optional(z.string()),
+        }),
+      ),
+      policy: z.optional(
+        z.looseObject({
+          allow_implicit_invocation: z.optional(z.boolean()),
+        }),
+      ),
+      dependencies: z.optional(
+        z.looseObject({
+          tools: z.optional(
+            z.array(
+              z.looseObject({
+                type: z.optional(z.string()),
+                value: z.optional(z.string()),
+                description: z.optional(z.string()),
+                transport: z.optional(z.string()),
+                url: z.optional(z.string()),
+              }),
+            ),
+          ),
+        }),
+      ),
     }),
   ),
   opencode: z.optional(
@@ -46,6 +79,7 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   copilot: z.optional(
     z.looseObject({
       license: z.optional(z.string()),
+      "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
     }),
   ),
   pi: z.optional(
@@ -79,6 +113,14 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       metadata: z.optional(z.looseObject({})),
     }),
   ),
+  agentsskills: z.optional(
+    z.looseObject({
+      license: z.optional(z.string()),
+      compatibility: z.optional(z.looseObject({})),
+      metadata: z.optional(z.looseObject({})),
+      "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+    }),
+  ),
   takt: z.optional(
     z.looseObject({
       // Rename the emitted file stem (e.g. "test-skill.md" → "{name}.md").
@@ -97,6 +139,7 @@ export type RulesyncSkillFrontmatterInput = {
   targets?: ("*" | string)[];
   claudecode?: {
     "allowed-tools"?: string[];
+    "disallowed-tools"?: string | string[];
     model?: string;
     "disable-model-invocation"?: boolean;
     "scheduled-task"?: boolean;
@@ -104,6 +147,26 @@ export type RulesyncSkillFrontmatterInput = {
   };
   codexcli?: {
     "short-description"?: string;
+    interface?: {
+      display_name?: string;
+      short_description?: string;
+      icon_small?: string;
+      icon_large?: string;
+      brand_color?: string;
+      default_prompt?: string;
+    };
+    policy?: {
+      allow_implicit_invocation?: boolean;
+    };
+    dependencies?: {
+      tools?: Array<{
+        type?: string;
+        value?: string;
+        description?: string;
+        transport?: string;
+        url?: string;
+      }>;
+    };
   };
   opencode?: {
     "allowed-tools"?: string[];
@@ -116,6 +179,7 @@ export type RulesyncSkillFrontmatterInput = {
   };
   copilot?: {
     license?: string;
+    "allowed-tools"?: string | string[];
   };
   pi?: {
     "allowed-tools"?: string[];
@@ -139,6 +203,12 @@ export type RulesyncSkillFrontmatterInput = {
     paths?: string | string[];
     "disable-model-invocation"?: boolean;
     metadata?: Record<string, unknown>;
+  };
+  agentsskills?: {
+    license?: string;
+    compatibility?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+    "allowed-tools"?: string | string[];
   };
   takt?: {
     name?: string;

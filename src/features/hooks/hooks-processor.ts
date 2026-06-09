@@ -12,6 +12,7 @@ import {
   DEEPAGENTS_HOOK_EVENTS,
   FACTORYDROID_HOOK_EVENTS,
   GEMINICLI_HOOK_EVENTS,
+  GOOSE_HOOK_EVENTS,
   KILO_HOOK_EVENTS,
   KIRO_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
@@ -34,6 +35,7 @@ import { DeepagentsHooks } from "./deepagents-hooks.js";
 import { DEVIN_HOOK_EVENTS, DevinHooks } from "./devin-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
 import { GeminicliHooks } from "./geminicli-hooks.js";
+import { GooseHooks } from "./goose-hooks.js";
 import { KiloHooks } from "./kilo-hooks.js";
 import { KiroHooks } from "./kiro-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
@@ -57,6 +59,7 @@ const hooksProcessorToolTargetTuple = [
   "opencode",
   "factorydroid",
   "geminicli",
+  "goose",
   "deepagents",
   "kiro",
   "devin",
@@ -245,6 +248,23 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
       class: GeminicliHooks,
       meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
       supportedEvents: GEMINICLI_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "goose",
+    {
+      class: GooseHooks,
+      meta: {
+        // Goose auto-discovers plugins from both `.agents/plugins/` (project)
+        // and `~/.agents/plugins/` (global). rulesync writes
+        // `.agents/plugins/rulesync/hooks/hooks.json` in both modes.
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: GOOSE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
     },

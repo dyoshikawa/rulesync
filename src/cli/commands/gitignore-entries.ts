@@ -175,6 +175,8 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "goose", feature: "rules", entry: "**/.goosehints" },
   { target: "goose", feature: "rules", entry: "**/.goose/" },
   { target: "goose", feature: "ignore", entry: "**/.gooseignore" },
+  // Goose lifecycle hooks plugin (.agents/plugins/<name>/hooks/hooks.json)
+  { target: "goose", feature: "hooks", entry: "**/.agents/plugins/" },
 
   // GitHub Copilot
   {

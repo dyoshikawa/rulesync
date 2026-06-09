@@ -70,6 +70,17 @@ describe("DeepAgents event naming", () => {
   });
 });
 
+describe("Claude Code event naming", () => {
+  it("should map the messageDisplay event to Claude's MessageDisplay name", () => {
+    // Verified against https://code.claude.com/docs/en/changelog (v2.1.152)
+    expect(CANONICAL_TO_CLAUDE_EVENT_NAMES.messageDisplay).toBe("MessageDisplay");
+  });
+
+  it("should list messageDisplay as a supported Claude hook event", () => {
+    expect(CLAUDE_HOOK_EVENTS).toContain("messageDisplay");
+  });
+});
+
 describe("Factory Droid event naming", () => {
   it("should map canonical event names to documented Factory Droid PascalCase names", () => {
     // Verified against https://docs.factory.ai/reference/hooks-reference

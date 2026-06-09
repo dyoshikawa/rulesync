@@ -1122,6 +1122,14 @@ description: "Test trimming"
       }
     });
 
+    it("should accept the documented cloud-agent excludeAgent value", () => {
+      const result = CopilotRuleFrontmatterSchema.safeParse({ excludeAgent: "cloud-agent" });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.excludeAgent).toBe("cloud-agent");
+      }
+    });
+
     it("should reject invalid excludeAgent", () => {
       const invalidFrontmatter = {
         excludeAgent: "invalid-agent",
