@@ -221,7 +221,7 @@ export async function findFilesByGlobs(
     : globs.replaceAll("\\", "/");
   const results = globbySync(normalizedGlobs, {
     absolute: true,
-    followSymbolicLinks: false,
+    followSymbolicLinks: true,
     ...globbyOptions,
   });
   // Sort for consistent ordering across different glob implementations

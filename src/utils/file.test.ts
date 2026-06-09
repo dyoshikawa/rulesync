@@ -1,3 +1,4 @@
+import { symlink } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -547,6 +548,40 @@ describe("file utilities", () => {
           for (const result of results) {
             expect(result.startsWith("/") || /^[A-Za-z]:/.test(result)).toBe(true);
           }
+        });
+      });
+
+      describe("symlink support", () => {
+        it("should follow a symlinked file and return its resolved path", async () => {
+          // real file lives outside testDir; symlink points into testDir
+          const realFile = join(testDir, "real.md");
+          const linkedFile = join(testDir, "linked.md");
+          await writeFileContent(realFile, "content");
+          await symlink(realFile, linkedFile);
+
+          const results = await findFilesByGlobs(join(testDir, "*.md"), { type: "file" });
+
+          expect(results).toContain(linkedFile);
+        });
+
+        it("should follow a symlinked directory and find files inside it", async () => {
+          // real dir with a skill file exists outside skills dir
+          const realDir = join(testDir, "real-skill");
+          await ensureDir(realDir);
+          await writeFileContent(join(realDir, "SKILL.md"), "skill content");
+
+          const skillsDir = join(testDir, "skills");
+          await ensureDir(skillsDir);
+          const linkedDir = join(skillsDir, "linked-skill");
+          await symlink(realDir, linkedDir);
+
+          const dirResults = await findFilesByGlobs(join(skillsDir, "*"), { type: "dir" });
+          expect(dirResults).toContain(linkedDir);
+
+          const fileResults = await findFilesByGlobs(join(skillsDir, "**", "*.md"), {
+            type: "file",
+          });
+          expect(fileResults).toContain(join(linkedDir, "SKILL.md"));
         });
       });
     });
