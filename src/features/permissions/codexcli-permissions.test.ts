@@ -264,6 +264,163 @@ default_permissions = "rulesync"
     expect(loaded.getFileContent()).toContain('default_permissions = "rulesync"');
   });
 
+  it("should preserve network.enabled on round-trip through rulesync", async () => {
+    const codexDir = join(testDir, ".codex");
+    await ensureDir(codexDir);
+    await writeFileContent(
+      join(codexDir, "config.toml"),
+      `
+default_permissions = "rulesync"
+
+[permissions.rulesync]
+extends = ":workspace"
+
+[permissions.rulesync.network]
+enabled = true
+
+[permissions.rulesync.network.domains]
+"github.com" = "allow"
+`,
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          webfetch: { "api.example.com": "allow" },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain("enabled = true");
+    expect(fileContent).toContain('extends = ":workspace"');
+    expect(fileContent).toContain('"api.example.com" = "allow"');
+  });
+
+  it("should preserve extends on round-trip through rulesync", async () => {
+    const codexDir = join(testDir, ".codex");
+    await ensureDir(codexDir);
+    await writeFileContent(
+      join(codexDir, "config.toml"),
+      `
+default_permissions = "rulesync"
+
+[permissions.rulesync]
+extends = ":workspace"
+description = "My project profile"
+`,
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({ permission: {} }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain('extends = ":workspace"');
+    expect(fileContent).toContain('description = "My project profile"');
+  });
+
+  it("should preserve network.mode and unix_sockets on round-trip through rulesync", async () => {
+    const codexDir = join(testDir, ".codex");
+    await ensureDir(codexDir);
+    await writeFileContent(
+      join(codexDir, "config.toml"),
+      `
+default_permissions = "rulesync"
+
+[permissions.rulesync.network]
+enabled = true
+mode = "full"
+
+[permissions.rulesync.network.unix_sockets]
+"/var/run/docker.sock" = "allow"
+`,
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({ permission: {} }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain("enabled = true");
+    expect(fileContent).toContain('mode = "full"');
+    expect(fileContent).toContain('"/var/run/docker.sock" = "allow"');
+  });
+
+  it("should not copy network.enabled from existing profile when rulesync overrides it", async () => {
+    const codexDir = join(testDir, ".codex");
+    await ensureDir(codexDir);
+    await writeFileContent(
+      join(codexDir, "config.toml"),
+      `
+default_permissions = "rulesync"
+
+[permissions.rulesync.network]
+enabled = false
+`,
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({ permission: {} }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain("enabled = false");
+  });
+
+  it("should import network.enabled from Codex config to rulesync (no conversion, not dropped)", () => {
+    const codexPermissions = new CodexcliPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".codex",
+      relativeFilePath: "config.toml",
+      fileContent: `
+default_permissions = "rulesync"
+
+[permissions.rulesync.network]
+enabled = true
+
+[permissions.rulesync.network.domains]
+"github.com" = "allow"
+`,
+    });
+
+    const rulesyncPermissions = codexPermissions.toRulesyncPermissions();
+    const json = rulesyncPermissions.getJson();
+    expect(json.permission.webfetch?.["github.com"]).toBe("allow");
+  });
+
   it("should convert rulesync bash permissions to Codex CLI .rules file", () => {
     const rulesFile = createCodexcliBashRulesFile({
       outputRoot: testDir,

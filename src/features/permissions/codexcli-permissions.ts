@@ -26,11 +26,18 @@ type CodexFilesystemAccess = "read" | "write" | "deny" | "none";
 type CodexFilesystemRuleTable = Record<string, CodexFilesystemAccess>;
 type CodexFilesystem = Record<string, CodexFilesystemAccess | CodexFilesystemRuleTable | number>;
 
+type CodexNetwork = {
+  enabled?: boolean;
+  mode?: string;
+  domains?: Record<string, "allow" | "deny">;
+  unix_sockets?: Record<string, "allow" | "deny">;
+};
+
 type CodexPermissionProfile = {
+  description?: string;
+  extends?: string;
   filesystem?: CodexFilesystem;
-  network?: {
-    domains?: Record<string, "allow" | "deny">;
-  };
+  network?: CodexNetwork;
 };
 type UnknownTable = Record<string, unknown>;
 
@@ -76,12 +83,14 @@ export class CodexcliPermissions extends ToolPermissions {
     const existingContent = (await readFileContentOrNull(filePath)) ?? smolToml.stringify({});
     const parsed = toMutableTable(smolToml.parse(existingContent));
 
-    const profile = convertRulesyncToCodexProfile({
+    const newProfile = convertRulesyncToCodexProfile({
       config: rulesyncPermissions.getJson(),
       logger,
     });
 
     const permissionsTable = toMutableTable(parsed.permissions);
+    const existingProfile = toCodexProfile(permissionsTable[RULESYNC_PROFILE_NAME]);
+    const profile = mergeWithExistingProfile(newProfile, existingProfile);
     permissionsTable[RULESYNC_PROFILE_NAME] = profile;
     parsed.permissions = permissionsTable;
     parsed.default_permissions = RULESYNC_PROFILE_NAME;
@@ -272,9 +281,58 @@ function toCodexProfile(value: unknown): CodexPermissionProfile | undefined {
   const filesystem = toFilesystemRecord(table.filesystem);
   const networkRaw = toMutableTable(table.network);
   const domains = toDomainRecord(networkRaw.domains);
+  const unixSockets = toDomainRecord(networkRaw.unix_sockets);
+
+  const network: CodexNetwork = {
+    ...(typeof networkRaw.enabled === "boolean" ? { enabled: networkRaw.enabled } : {}),
+    ...(typeof networkRaw.mode === "string" ? { mode: networkRaw.mode } : {}),
+    ...(domains ? { domains } : {}),
+    ...(unixSockets ? { unix_sockets: unixSockets } : {}),
+  };
+  const hasNetwork = Object.keys(network).length > 0;
+
   return {
+    ...(typeof table.description === "string" ? { description: table.description } : {}),
+    ...(typeof table.extends === "string" ? { extends: table.extends } : {}),
     ...(filesystem ? { filesystem } : {}),
-    ...(domains ? { network: { domains } } : {}),
+    ...(hasNetwork ? { network } : {}),
+  };
+}
+
+function mergeWithExistingProfile(
+  newProfile: CodexPermissionProfile,
+  existingProfile: CodexPermissionProfile | undefined,
+): CodexPermissionProfile {
+  if (!existingProfile) return newProfile;
+
+  const mergedNetwork: CodexNetwork = { ...newProfile.network };
+  if (existingProfile.network?.enabled !== undefined && mergedNetwork.enabled === undefined) {
+    mergedNetwork.enabled = existingProfile.network.enabled;
+  }
+  if (existingProfile.network?.mode !== undefined && mergedNetwork.mode === undefined) {
+    mergedNetwork.mode = existingProfile.network.mode;
+  }
+  if (
+    existingProfile.network?.unix_sockets !== undefined &&
+    mergedNetwork.unix_sockets === undefined
+  ) {
+    mergedNetwork.unix_sockets = existingProfile.network.unix_sockets;
+  }
+  const hasNetwork = Object.keys(mergedNetwork).length > 0;
+
+  return {
+    ...(existingProfile.description !== undefined && newProfile.description === undefined
+      ? { description: existingProfile.description }
+      : newProfile.description !== undefined
+        ? { description: newProfile.description }
+        : {}),
+    ...(existingProfile.extends !== undefined && newProfile.extends === undefined
+      ? { extends: existingProfile.extends }
+      : newProfile.extends !== undefined
+        ? { extends: newProfile.extends }
+        : {}),
+    ...(newProfile.filesystem ? { filesystem: newProfile.filesystem } : {}),
+    ...(hasNetwork ? { network: mergedNetwork } : {}),
   };
 }
 
