@@ -930,6 +930,7 @@ Content that would fail parsing`;
     it("should return global targets in global mode", () => {
       const targets = SkillsProcessor.getToolTargetsGlobal();
       expect(targets).toEqual([
+        "agentsskills",
         "antigravity",
         "antigravity-cli",
         "antigravity-ide",
@@ -958,6 +959,7 @@ Content that would fail parsing`;
     it("should return global targets when global option is true", () => {
       const targets = SkillsProcessor.getToolTargets({ global: true });
       expect(targets).toEqual([
+        "agentsskills",
         "antigravity",
         "antigravity-cli",
         "antigravity-ide",

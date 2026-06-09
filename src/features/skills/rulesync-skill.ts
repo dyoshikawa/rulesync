@@ -79,6 +79,7 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   copilot: z.optional(
     z.looseObject({
       license: z.optional(z.string()),
+      "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
     }),
   ),
   pi: z.optional(
@@ -105,6 +106,14 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   ),
   cline: z.optional(z.looseObject({})),
   roo: z.optional(z.looseObject({})),
+  agentsskills: z.optional(
+    z.looseObject({
+      license: z.optional(z.string()),
+      compatibility: z.optional(z.looseObject({})),
+      metadata: z.optional(z.looseObject({})),
+      "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+    }),
+  ),
   takt: z.optional(
     z.looseObject({
       // Rename the emitted file stem (e.g. "test-skill.md" → "{name}.md").
@@ -163,6 +172,7 @@ export type RulesyncSkillFrontmatterInput = {
   };
   copilot?: {
     license?: string;
+    "allowed-tools"?: string | string[];
   };
   pi?: {
     "allowed-tools"?: string[];
@@ -182,6 +192,12 @@ export type RulesyncSkillFrontmatterInput = {
   };
   roo?: Record<string, unknown>;
   cline?: Record<string, unknown>;
+  agentsskills?: {
+    license?: string;
+    compatibility?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+    "allowed-tools"?: string | string[];
+  };
   takt?: {
     name?: string;
   };

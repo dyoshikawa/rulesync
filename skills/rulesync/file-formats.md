@@ -352,6 +352,16 @@ replit: # for Replit Agent-specific parameters (optional; Agent Skills standard)
     agent-skills: ">=1.0.0"
   metadata: # (optional) free-form metadata
     author: rulesync
+agentsskills: # for the Agent Skills standard target (optional; supports project + global ~/.agents/skills/)
+  license: MIT # (optional)
+  compatibility: # (optional) free-form compatibility metadata (max 500 chars)
+    agent-skills: ">=1.0.0"
+  metadata: # (optional) free-form metadata (spec-recommended place for skill versioning)
+    version: "1.0.0"
+  allowed-tools: "shell" # (optional, experimental) space-separated string or list
+copilot: # for GitHub Copilot-specific parameters (optional)
+  license: MIT # (optional)
+  allowed-tools: "shell" # (optional) tools pre-approved without per-use confirmation
 zed: # for Zed-specific parameters (optional)
   disable-model-invocation: true # (optional) prevent the model from auto-invoking this skill
 takt: # takt specific parameters (optional; emitted under .takt/facets/knowledge/ — frontmatter is dropped on emit)
