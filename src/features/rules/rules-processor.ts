@@ -29,6 +29,7 @@ import { RooSubagent } from "../subagents/roo-subagent.js";
 import { RovodevSubagent } from "../subagents/rovodev-subagent.js";
 import { SubagentsProcessor } from "../subagents/subagents-processor.js";
 import { AgentsMdRule } from "./agentsmd-rule.js";
+import { AmpRule } from "./amp-rule.js";
 import { AntigravityCliRule } from "./antigravity-cli-rule.js";
 import { AntigravityIdeRule } from "./antigravity-ide-rule.js";
 import { AntigravityRule } from "./antigravity-rule.js";
@@ -70,6 +71,7 @@ import { ZedRule } from "./zed-rule.js";
 
 const rulesProcessorToolTargets: ToolTarget[] = [
   "agentsmd",
+  "amp",
   "antigravity",
   "antigravity-cli",
   "antigravity-ide",
@@ -253,6 +255,20 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
           subagents: { subagentClass: AgentsmdSubagent },
           skills: { skillClass: AgentsmdSkill },
         },
+      },
+    },
+  ],
+  [
+    "amp",
+    {
+      class: AmpRule,
+      meta: {
+        // Amp reads a root `AGENTS.md` (project root or `~/.config/amp/AGENTS.md`
+        // global) and `.agents/memories/*.md` non-root files referenced via TOON.
+        // Subtree AGENTS.md files support `globs:` frontmatter and `@`-imports.
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "toon",
       },
     },
   ],
