@@ -18,6 +18,11 @@ import {
 export const AgentsSkillsSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
+  // Optional Agent Skills standard frontmatter. https://agentskills.io/specification
+  license: z.optional(z.string()),
+  compatibility: z.optional(z.looseObject({})),
+  metadata: z.optional(z.looseObject({})),
+  "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
 });
 
 export type AgentsSkillsSkillFrontmatter = z.infer<typeof AgentsSkillsSkillFrontmatterSchema>;
@@ -70,10 +75,11 @@ export class AgentsSkillsSkill extends ToolSkill {
     }
   }
 
-  static getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths {
-    if (options?.global) {
-      throw new Error("AgentsSkillsSkill does not support global mode.");
-    }
+  static getSettablePaths(_options?: { global?: boolean }): ToolSkillSettablePaths {
+    // The Agent Skills standard defines `.agents/skills/` (project) and
+    // `~/.agents/skills/` (personal/global). The relative path is the same; the
+    // resolution root (cwd vs. home) is supplied via outputRoot by the processor.
+    // https://agentskills.io/specification
     return {
       relativeDirPath: join(".agents", "skills"),
     };
@@ -111,10 +117,19 @@ export class AgentsSkillsSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    const agentsskillsSection = {
+      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
+      ...(frontmatter.compatibility !== undefined && { compatibility: frontmatter.compatibility }),
+      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+      ...(frontmatter["allowed-tools"] !== undefined && {
+        "allowed-tools": frontmatter["allowed-tools"],
+      }),
+    };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
+      ...(Object.keys(agentsskillsSection).length > 0 && { agentsskills: agentsskillsSection }),
     };
 
     return new RulesyncSkill({
@@ -137,10 +152,21 @@ export class AgentsSkillsSkill extends ToolSkill {
   }: ToolSkillFromRulesyncSkillParams): AgentsSkillsSkill {
     const settablePaths = AgentsSkillsSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+    const agentsskillsSection = rulesyncFrontmatter.agentsskills;
 
     const agentsSkillsFrontmatter: AgentsSkillsSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...(agentsskillsSection?.license !== undefined && { license: agentsskillsSection.license }),
+      ...(agentsskillsSection?.compatibility !== undefined && {
+        compatibility: agentsskillsSection.compatibility,
+      }),
+      ...(agentsskillsSection?.metadata !== undefined && {
+        metadata: agentsskillsSection.metadata,
+      }),
+      ...(agentsskillsSection?.["allowed-tools"] !== undefined && {
+        "allowed-tools": agentsskillsSection["allowed-tools"],
+      }),
     };
 
     return new AgentsSkillsSkill({

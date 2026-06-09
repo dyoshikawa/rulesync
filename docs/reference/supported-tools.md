@@ -5,14 +5,14 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Tool                   | --targets       | rules | ignore |   mcp    | commands | subagents | skills | hooks | permissions |
 | ---------------------- | --------------- | :---: | :----: | :------: | :------: | :-------: | :----: | :---: | :---------: |
 | AGENTS.md              | agentsmd        |  ✅   |        |          |    🎮    |    🎮     |   🎮   |       |             |
-| AgentsSkills           | agentsskills    |       |        |          |          |           |   ✅   |       |             |
+| AgentsSkills           | agentsskills    |       |        |          |          |           | ✅ 🌏  |       |             |
 | Amp                    | amp             |       |        |  ✅ 🌏   |          |           | ✅ 🌏  |       |             |
 | Claude Code            | claudecode      | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
 | Codex CLI              | codexcli        | ✅ 🌏 |        | ✅ 🌏 🔧 |    🌏    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
 | Gemini CLI ⚠️          | geminicli       | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |    ✅     | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
 | GitHub Copilot         | copilot         | ✅ 🌏 |        |    ✅    |    ✅    |    ✅     |   ✅   |  ✅   |             |
 | GitHub Copilot CLI     | copilotcli      | ✅ 🌏 |        |  ✅ 🌏   |          |   ✅ 🌏   |        | ✅ 🌏 |             |
-| Goose                  | goose           | ✅ 🌏 |   ✅   |          |          |           |        |       |             |
+| Goose                  | goose           | ✅ 🌏 |   ✅   |          |          |           |        | ✅ 🌏 |             |
 | Cursor                 | cursor          |  ✅   |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
 | deepagents-cli         | deepagents      |  ✅   |        |  ✅ 🌏   |          |    ✅     |   ✅   |  🌏   |             |
 | Factory Droid          | factorydroid    | ✅ 🌏 |        |  ✅ 🌏   |    🎮    |    🎮     |   🎮   | ✅ 🌏 |             |

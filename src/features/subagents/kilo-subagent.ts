@@ -17,9 +17,12 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
+/** Default `mode` applied to Kilo subagents (single source of truth). */
+export const KILO_DEFAULT_MODE = "all";
+
 export const KiloSubagentFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
-  mode: z._default(z.string(), "all"),
+  mode: z._default(z.string(), KILO_DEFAULT_MODE),
   name: z.optional(z.string()),
   displayName: z.optional(z.string()),
   deprecated: z.optional(z.boolean()),
@@ -32,8 +35,8 @@ export const KiloSubagentFrontmatterSchema = z.looseObject({
   model: z.optional(z.string()),
   variant: z.optional(z.string()),
   prompt: z.optional(z.string()),
-  options: z.optional(z.looseObject({})),
-  steps: z.optional(z.array(z.looseObject({}))),
+  options: z.optional(z.record(z.string(), z.unknown())),
+  steps: z.optional(z.array(z.record(z.string(), z.unknown()))),
   disable: z.optional(z.boolean()),
 });
 export type KiloSubagentFrontmatter = z.infer<typeof KiloSubagentFrontmatterSchema>;
@@ -45,13 +48,23 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
   declare protected readonly frontmatter: KiloSubagentFrontmatter;
 
   constructor(params: KiloSubagentParams) {
-    super(params);
+    // Apply the Kilo schema (which also fills the `mode` default) up front so the
+    // stored frontmatter is normalized and `validate()` can stay side-effect-free.
+    // Kilo's schema is a strict superset of the parent's, so the parent's own
+    // validation is redundant — pass `validate: false` to skip it (the check has
+    // already happened here).
+    let frontmatter = params.frontmatter;
     if (params.validate !== false) {
-      const result = this.validate();
+      const result = KiloSubagentFrontmatterSchema.safeParse(params.frontmatter);
       if (!result.success) {
-        throw result.error;
+        throw new Error(
+          `Invalid frontmatter in ${join(params.relativeDirPath, params.relativeFilePath)}: ${formatError(result.error)}`,
+        );
       }
+      frontmatter = result.data;
     }
+
+    super({ ...params, frontmatter, validate: false });
   }
 
   protected getToolTarget(): Extract<ToolTarget, "opencode" | "kilo"> {
@@ -62,11 +75,14 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
     return this.frontmatter;
   }
 
+  /**
+   * Pure validation (matches every sibling subagent): checks the stored
+   * frontmatter against the Kilo schema without mutating it. Default application
+   * happens in the constructor, not here.
+   */
   validate(): ValidationResult {
     const result = KiloSubagentFrontmatterSchema.safeParse(this.frontmatter);
     if (result.success) {
-      // @ts-expect-error - readonly
-      this.frontmatter = result.data;
       return { success: true, error: null };
     }
 
@@ -171,7 +187,7 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
       outputRoot,
       relativeDirPath,
       relativeFilePath,
-      frontmatter: { description: "", mode: "all" },
+      frontmatter: { description: "", mode: KILO_DEFAULT_MODE },
       body: "",
       fileContent: "",
       validate: false,

@@ -123,8 +123,10 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
   [
     "agentsskills",
     {
+      // The Agent Skills standard defines `~/.agents/skills/` as the personal/global
+      // location in addition to project `.agents/skills/`. https://agentskills.io/specification
       class: AgentsSkillsSkill,
-      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
   [

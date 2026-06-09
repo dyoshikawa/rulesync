@@ -16,6 +16,22 @@
 const TAKT_NAME_PATTERN = /^[A-Za-z0-9_.-]+$/u;
 
 /**
+ * Whether a TAKT name (a filename stem or an `extends` parent) is unsafe to use
+ * as a bare filename component: it must match {@link TAKT_NAME_PATTERN} and must
+ * not be `.`/`..` or contain a `..` path segment. Shared by
+ * {@link assertSafeTaktName} and {@link prependTaktExtends} so the rule lives in
+ * one place.
+ */
+function isUnsafeTaktName(name: string): boolean {
+  return (
+    !TAKT_NAME_PATTERN.test(name) ||
+    name === "." ||
+    name === ".." ||
+    name.split(/[.]/u).some((segment) => segment === "..")
+  );
+}
+
+/**
  * Validate that a TAKT filename stem (`takt.name` or the source stem) is
  * safe to use as a filename component. Throws a clear error otherwise.
  *
@@ -32,12 +48,7 @@ export function assertSafeTaktName({
   featureLabel: string;
   sourceLabel: string;
 }): void {
-  if (
-    !TAKT_NAME_PATTERN.test(name) ||
-    name === "." ||
-    name === ".." ||
-    name.split(/[.]/u).some((segment) => segment === "..")
-  ) {
+  if (isUnsafeTaktName(name)) {
     throw new Error(
       `Invalid takt.name "${name}" for ${featureLabel} "${sourceLabel}": ` +
         `filename stems may not contain path separators or ".." segments.`,
@@ -72,12 +83,7 @@ export function prependTaktExtends({
   if (extendsName === undefined || extendsName === "") {
     return body;
   }
-  if (
-    !TAKT_NAME_PATTERN.test(extendsName) ||
-    extendsName === "." ||
-    extendsName === ".." ||
-    extendsName.split(/[.]/u).some((segment) => segment === "..")
-  ) {
+  if (isUnsafeTaktName(extendsName)) {
     throw new Error(
       `Invalid takt.extends "${extendsName}" for ${featureLabel} "${sourceLabel}": ` +
         `the parent must be a bare facet name without path separators or ".." segments.`,

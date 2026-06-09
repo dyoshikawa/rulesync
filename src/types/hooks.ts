@@ -73,7 +73,8 @@ export type HookEvent =
   | "afterError"
   | "beforeToolSelection"
   | "worktreeCreate"
-  | "worktreeRemove";
+  | "worktreeRemove"
+  | "messageDisplay";
 
 /** Hook events supported by Cursor. */
 export const CURSOR_HOOK_EVENTS: readonly HookEvent[] = [
@@ -114,6 +115,7 @@ export const CLAUDE_HOOK_EVENTS: readonly HookEvent[] = [
   "setup",
   "worktreeCreate",
   "worktreeRemove",
+  "messageDisplay",
 ];
 
 /** Hook events supported by OpenCode. */
@@ -198,6 +200,28 @@ export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = [
   "permissionRequest",
 ];
 
+/**
+ * Hook events supported by Goose.
+ *
+ * Goose adopts the Open Plugins hooks spec: each plugin's `hooks/hooks.json`
+ * maps PascalCase event names to matcher/handler arrays. Every Goose event has a
+ * 1:1 canonical equivalent, so no new canonical events are required.
+ * @see https://goose-docs.ai/blog/2026/05/14/goose-hooks/
+ */
+export const GOOSE_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "stop",
+  "beforeSubmitPrompt",
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+  "beforeReadFile",
+  "afterFileEdit",
+  "beforeShellExecution",
+  "afterShellExecution",
+];
+
 /** Hook events supported by Kiro CLI. */
 export const KIRO_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -256,6 +280,7 @@ export const HooksConfigSchema = z.looseObject({
   factorydroid: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   geminicli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   codexcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  goose: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   deepagents: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   kiro: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   devin: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -283,6 +308,7 @@ export const CANONICAL_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
   setup: "Setup",
   worktreeCreate: "WorktreeCreate",
   worktreeRemove: "WorktreeRemove",
+  messageDisplay: "MessageDisplay",
 };
 
 /**
@@ -469,6 +495,30 @@ export const CANONICAL_TO_CODEXCLI_EVENT_NAMES: Record<string, string> = {
  */
 export const CODEXCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_CODEXCLI_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to Goose PascalCase.
+ */
+export const CANONICAL_TO_GOOSE_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  stop: "Stop",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  postToolUseFailure: "PostToolUseFailure",
+  beforeReadFile: "BeforeReadFile",
+  afterFileEdit: "AfterFileEdit",
+  beforeShellExecution: "BeforeShellExecution",
+  afterShellExecution: "AfterShellExecution",
+};
+
+/**
+ * Map Goose PascalCase event names to canonical camelCase.
+ */
+export const GOOSE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_GOOSE_EVENT_NAMES).map(([k, v]) => [v, k]),
 );
 
 /**
