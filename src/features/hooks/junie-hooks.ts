@@ -26,6 +26,9 @@ const JUNIE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   canonicalToToolEventNames: CANONICAL_TO_JUNIE_EVENT_NAMES,
   toolToCanonicalEventNames: JUNIE_TO_CANONICAL_EVENT_NAMES,
   projectDirVar: "",
+  // Junie CLI hooks only support `type: "command"`; drop any `prompt`-type
+  // hooks so generation matches the declared capability.
+  supportedHookTypes: new Set(["command"]),
 };
 
 export class JunieHooks extends ToolHooks {

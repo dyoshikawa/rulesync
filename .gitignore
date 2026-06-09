@@ -296,7 +296,7 @@ rulesync.local.jsonc
 **/.copilot/agents/
 **/.copilot/hooks/
 **/.junie/guidelines.md
-**/.junie/mcp.json
+**/.junie/mcp/mcp.json
 **/.junie/skills/
 **/.junie/agents/
 **/.kilo/rules/
