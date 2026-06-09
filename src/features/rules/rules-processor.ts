@@ -807,7 +807,7 @@ export class RulesProcessor extends FeatureProcessor {
     // For tools that don't create a separate conventions rule, prepend to the root rule
     const rootRule = toolRules[rootRuleIndex];
     if (!rootRule) {
-      return toolRules;
+      return [...toolRules, ...extraFiles];
     }
 
     // Generate reference section based on meta configuration

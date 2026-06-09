@@ -34,7 +34,10 @@ const KiloMcpLocalServerSchema = z.object({
   environment: z.optional(z.record(z.string(), z.string())),
   enabled: z._default(z.boolean(), true),
   cwd: z.optional(z.string()),
-  timeout: z.optional(z.number().check(z.int(), z.positive())),
+  // Kilo documents `timeout` as a positive integer (milliseconds), but rulesync
+  // preserves whatever value is already present so existing kilo.jsonc files
+  // round-trip losslessly without the constructor's mandatory parse throwing.
+  timeout: z.optional(z.number()),
 });
 
 // Kilo native format for remote servers
@@ -43,7 +46,9 @@ const KiloMcpRemoteServerSchema = z.object({
   url: z.string(),
   headers: z.optional(z.record(z.string(), z.string())),
   enabled: z._default(z.boolean(), true),
-  timeout: z.optional(z.number().check(z.int(), z.positive())),
+  // See the local schema: documented as a positive integer (milliseconds), but
+  // preserved as-is for lossless round-trip.
+  timeout: z.optional(z.number()),
   oauth: z.optional(KiloMcpOAuthSchema),
 });
 
@@ -66,7 +71,7 @@ type KiloMcpServer = z.infer<typeof KiloMcpServerSchema>;
 
 /**
  * Convert Kilo native format back to standard MCP format
- * - type: "local" -> "stdio", "remote" -> "sse"
+ * - type: "local" -> "stdio", "remote" -> "http"
  * - command (array) -> command (first element) + args (rest)
  * - environment -> env
  * - enabled -> disabled (inverted)

@@ -2185,6 +2185,46 @@ describe("KiloMcp", () => {
         },
       });
     });
+
+    it("should round-trip non-conforming timeout values (negative / float) without throwing", async () => {
+      // Kilo documents timeout as a positive integer, but rulesync must preserve
+      // whatever is already present. The constructor always parses the config
+      // (even on a rules-only run that reads the shared kilo.jsonc), so a stale
+      // timeout like -5 or 1.5 must not crash.
+      const originalJsonData = {
+        mcp: {
+          "negative-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+            timeout: -5,
+          },
+          "float-server": {
+            type: "remote",
+            url: "https://example.com/mcp",
+            enabled: true,
+            timeout: 1.5,
+          },
+        },
+      };
+      await writeFileContent(join(testDir, "kilo.json"), JSON.stringify(originalJsonData, null, 2));
+
+      // fromFile parses via the constructor; this must not throw.
+      const originalKiloMcp = await KiloMcp.fromFile({ outputRoot: testDir });
+      const originalMcp = (originalKiloMcp.getJson().mcp ?? {}) as Record<
+        string,
+        { timeout?: number }
+      >;
+      expect(originalMcp["negative-server"]?.timeout).toBe(-5);
+      expect(originalMcp["float-server"]?.timeout).toBe(1.5);
+
+      // And the values survive a full round-trip back to Kilo format.
+      const rulesyncMcp = originalKiloMcp.toRulesyncMcp();
+      const newKiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const newMcp = (newKiloMcp.getJson().mcp ?? {}) as Record<string, { timeout?: number }>;
+      expect(newMcp["negative-server"]?.timeout).toBe(-5);
+      expect(newMcp["float-server"]?.timeout).toBe(1.5);
+    });
   });
 
   describe("fromInstructions", () => {
