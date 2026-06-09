@@ -33,7 +33,7 @@ describe("DeepagentsSubagent", () => {
       const subagent = new DeepagentsSubagent({
         outputRoot: testDir,
         relativeDirPath: join(".deepagents", "agents"),
-        relativeFilePath: "my-agent.md",
+        relativeFilePath: join("my-agent", "AGENTS.md"),
         frontmatter: { name: "My Agent", description: "Does useful things." },
         body: "You are a helpful agent.",
         fileContent: "",
@@ -47,7 +47,7 @@ describe("DeepagentsSubagent", () => {
       const subagent = new DeepagentsSubagent({
         outputRoot: testDir,
         relativeDirPath: join(".deepagents", "agents"),
-        relativeFilePath: "my-agent.md",
+        relativeFilePath: join("my-agent", "AGENTS.md"),
         frontmatter: { name: "Agent", description: "Desc.", model: "claude-sonnet-4-6" },
         body: "System prompt.",
         fileContent: "",
@@ -58,9 +58,9 @@ describe("DeepagentsSubagent", () => {
   });
 
   describe("fromFile", () => {
-    it("should read subagent from .deepagents/agents/<name>.md", async () => {
-      const agentsDir = join(testDir, ".deepagents", "agents");
-      await ensureDir(agentsDir);
+    it("should read subagent from .deepagents/agents/<name>/AGENTS.md", async () => {
+      const agentDir = join(testDir, ".deepagents", "agents", "test-agent");
+      await ensureDir(agentDir);
       const content = `---
 name: Test Agent
 description: A test agent.
@@ -68,11 +68,11 @@ model: claude-haiku-4-5-20251001
 ---
 
 You are a test agent.`;
-      await writeFileContent(join(agentsDir, "test-agent.md"), content);
+      await writeFileContent(join(agentDir, "AGENTS.md"), content);
 
       const subagent = await DeepagentsSubagent.fromFile({
         outputRoot: testDir,
-        relativeFilePath: "test-agent.md",
+        relativeFilePath: join("test-agent", "AGENTS.md"),
       });
 
       expect(subagent.getFrontmatter().name).toBe("Test Agent");
@@ -82,7 +82,7 @@ You are a test agent.`;
   });
 
   describe("fromRulesyncSubagent", () => {
-    it("should map name and description", () => {
+    it("should map name and description and emit <name>/AGENTS.md", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         outputRoot: testDir,
         relativeDirPath: ".rulesync/subagents",
@@ -99,6 +99,8 @@ You are a test agent.`;
 
       expect(subagent.getFrontmatter().name).toBe("My Agent");
       expect(subagent.getFrontmatter().description).toBe("Does things.");
+      expect(subagent.getRelativeDirPath()).toBe(join(".deepagents", "agents"));
+      expect(subagent.getRelativeFilePath()).toBe(join("my-agent", "AGENTS.md"));
     });
 
     it("should pull model from deepagents tool-specific section", () => {
@@ -130,7 +132,7 @@ You are a test agent.`;
       const subagent = new DeepagentsSubagent({
         outputRoot: testDir,
         relativeDirPath: join(".deepagents", "agents"),
-        relativeFilePath: "my-agent.md",
+        relativeFilePath: join("my-agent", "AGENTS.md"),
         frontmatter: { name: "My Agent", description: "Does things.", model: "claude-sonnet-4-6" },
         body: "You are an agent.",
         fileContent: "",
@@ -142,13 +144,15 @@ You are a test agent.`;
       expect(frontmatter.name).toBe("My Agent");
       expect(frontmatter.description).toBe("Does things.");
       expect(rulesyncSubagent.getBody()).toBe("You are an agent.");
+      // The directory name (not the AGENTS.md filename) becomes the flat rulesync file.
+      expect(rulesyncSubagent.getRelativeFilePath()).toBe("my-agent.md");
     });
 
     it("should store model in deepagents tool-specific section", () => {
       const subagent = new DeepagentsSubagent({
         outputRoot: testDir,
         relativeDirPath: join(".deepagents", "agents"),
-        relativeFilePath: "my-agent.md",
+        relativeFilePath: join("my-agent", "AGENTS.md"),
         frontmatter: { name: "Agent", description: "Desc.", model: "claude-haiku-4-5-20251001" },
         body: "System prompt.",
         fileContent: "",
@@ -160,6 +164,20 @@ You are a test agent.`;
       expect((frontmatter.deepagents as Record<string, unknown>)?.model).toBe(
         "claude-haiku-4-5-20251001",
       );
+    });
+  });
+
+  describe("forDeletion", () => {
+    it("should create a deletable placeholder for <name>/AGENTS.md", () => {
+      const subagent = DeepagentsSubagent.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: join(".deepagents", "agents"),
+        relativeFilePath: join("orphan", "AGENTS.md"),
+      });
+
+      expect(subagent.getRelativeDirPath()).toBe(join(".deepagents", "agents"));
+      expect(subagent.getRelativeFilePath()).toBe(join("orphan", "AGENTS.md"));
+      expect(subagent.getBody()).toBe("");
     });
   });
 

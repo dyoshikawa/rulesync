@@ -132,8 +132,9 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "cursor", feature: "hooks", entry: "**/.cursor/" },
 
   // deepagents-cli
+  // All rule content is folded into the single `.deepagents/AGENTS.md`; there is
+  // no `.deepagents/memories/` directory.
   { target: "deepagents", feature: "rules", entry: "**/.deepagents/AGENTS.md" },
-  { target: "deepagents", feature: "rules", entry: "**/.deepagents/memories/" },
   { target: "deepagents", feature: "mcp", entry: "**/.deepagents/.mcp.json" },
   { target: "deepagents", feature: "skills", entry: "**/.deepagents/skills/" },
   {
