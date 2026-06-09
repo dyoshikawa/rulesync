@@ -36,14 +36,16 @@ user how to proceed and stop.
 
 ## 1. Exit Condition
 
-The loop exits when a single review round reports:
+The loop exits when a single review round satisfies **both** of:
 
-- **0** findings of severity `mid`, `high`, or `critical`.
+- **0** findings of severity `mid`, `high`, or `critical` (only `low` findings,
+  or none at all, may remain).
+- The PR's GitHub Actions checks are **green** — no check is `fail` or
+  `pending`.
 
-In other words, only `low` findings (or no findings at all) may remain. Set a
-hard safety cap of **10 iterations**. If the exit condition is still not met at
-the cap, stop the loop and report the remaining findings to the user for a
-manual decision instead of merging.
+Set a hard safety cap of **10 iterations**. If the exit condition is still not
+met at the cap, stop the loop and report the remaining findings (and any failing
+CI) to the user for a manual decision instead of merging.
 
 ## 2. Iteration Loop
 
@@ -60,10 +62,15 @@ Keep that constraint intact during the review phase.
 
 ### 2-2. Evaluate the Exit Condition
 
-Count the findings by severity from the review result.
+Use both the findings and the GitHub Actions status from the review result.
 
-- If `mid + high + critical == 0`: exit the loop and go to **Section 3**.
-- Otherwise: proceed to the fix phase.
+- If `mid + high + critical == 0` **and** CI is green (no `fail` / `pending`
+  check): exit the loop and go to **Section 3**.
+- If there are `mid`-or-above findings, or any CI check is failing: proceed to
+  the fix phase to address them.
+- If the findings are clean but CI is still `pending`: wait for the checks to
+  finish (re-check with `gh pr checks <pr>`), then re-evaluate. Do not proceed to
+  merge while checks are pending.
 
 ### 2-3. Fix Phase
 
@@ -75,11 +82,15 @@ on the local branch directly:
    intentionally reject a finding, record the reason and treat it as resolved.
 2. Run `pnpm cicheck` (or the narrower `pnpm cicheck:code` / `cicheck:content`
    when appropriate) and fix any failures before continuing.
-3. Commit the fixes with a descriptive message and push them to the PR's head
-   branch:
+3. Stage only the files you changed for the fix (review `git status` first so
+   unrelated or generated files are not swept in), commit with a descriptive
+   message, and push to the PR's head branch:
 
    ```bash
-   git add . && git commit -m "<message>" && git push
+   git status
+   git add <changed files>
+   git commit -m "<message>"
+   git push origin HEAD
    ```
 
 Emit a short status line such as
@@ -88,13 +99,21 @@ Emit a short status line such as
 
 ## 3. Merge
 
-Once the exit condition is met, merge the PR by running the `/merge-pr` command
-with `target_pr`. That command verifies the PR is open, checks GitHub Actions
-status, merges with `gh pr merge --admin --merge`, posts a thank-you comment,
-and cleans up the local branch.
+Only reach this step once the exit condition in Section 1 holds — clean findings
+**and** green CI. Merge the PR by running the `/merge-pr` command with
+`target_pr`. That command verifies the PR is open, checks GitHub Actions status,
+merges with `gh pr merge --admin --merge`, posts a thank-you comment, and cleans
+up the local branch.
 
-If CI is still failing or pending at this point, follow `/merge-pr`'s guidance
-(wait, investigate, or confirm with the user) rather than blindly merging.
+Safety rules for the merge:
+
+- **Never merge while any check is `fail` or `pending`.** `gh pr merge --admin`
+  bypasses required checks, so it must not be used to force past red or
+  in-progress CI. If CI is failing, return to the fix phase; if it is pending,
+  wait.
+- If the PR touches GitHub Actions workflows, build/release configuration, or
+  dependency manifests (e.g. `package.json`, lockfiles), do **not** auto-merge.
+  Stop and ask the user to confirm, since these changes carry higher risk.
 
 ## 4. Final Report
 
