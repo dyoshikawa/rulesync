@@ -7,9 +7,11 @@ import {
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { KiloRule } from "./kilo-rule.js";
+import { RulesProcessor } from "./rules-processor.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
 describe("KiloRule", () => {
@@ -946,6 +948,54 @@ describe("KiloRule", () => {
       });
 
       expect(KiloRule.isTargetedByRulesyncRule(rulesyncRule)).toBe(true);
+    });
+  });
+
+  describe("kilo.jsonc instructions registration (via RulesProcessor)", () => {
+    it("should emit the non-root rule file and register it in kilo.jsonc instructions, preserving an existing mcp block; root rule is not registered", async () => {
+      const existingConfig = {
+        mcp: {
+          "my-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+          },
+        },
+      };
+      await writeFileContent(join(testDir, "kilo.jsonc"), JSON.stringify(existingConfig, null, 2));
+
+      const processor = new RulesProcessor({ logger: createMockLogger(), toolTarget: "kilo" });
+
+      const result = await processor.convertRulesyncFilesToToolFiles([
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_OVERVIEW_FILE_NAME,
+          frontmatter: { root: true, targets: ["*"] },
+          body: "Root rule",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "detail.md",
+          frontmatter: { root: false, targets: ["*"] },
+          body: "Detail rule",
+        }),
+      ]);
+
+      // Non-root rule emitted under .kilo/rules/*.md
+      const ruleFile = result.find((f) => f.getRelativeFilePath() === "detail.md");
+      expect(ruleFile).toBeDefined();
+      expect(ruleFile?.getRelativeDirPath()).toBe(join(".kilo", "rules"));
+
+      // kilo.jsonc registers the non-root rule, preserves existing mcp, and
+      // does NOT register the auto-loaded root AGENTS.md.
+      const kiloConfig = result.find((f) => f.getRelativeFilePath() === "kilo.jsonc");
+      expect(kiloConfig).toBeDefined();
+      const json = JSON.parse(kiloConfig!.getFileContent());
+      expect(json.instructions).toEqual([".kilo/rules/detail.md"]);
+      expect(json.instructions).not.toContain("AGENTS.md");
+      expect(json.mcp).toEqual(existingConfig.mcp);
     });
   });
 });

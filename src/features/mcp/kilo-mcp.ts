@@ -20,6 +20,13 @@ import {
 // Kilo uses "local"/"remote" instead of "stdio"/"sse"/"http",
 // "environment" instead of "env", and "enabled" instead of "disabled"
 
+// Kilo OAuth config for remote servers.
+// Per https://app.kilo.ai/config.json the `oauth` field is either an
+// `McpOAuthConfig` object (clientId/clientSecret/scope/callbackPort/redirectUri)
+// or the literal `false` to disable auto-detection. Modeled permissively with a
+// looseObject so future fields round-trip unchanged.
+const KiloMcpOAuthSchema = z.union([z.looseObject({}), z.literal(false)]);
+
 // Kilo native format for local servers
 const KiloMcpLocalServerSchema = z.object({
   type: z.literal("local"),
@@ -27,6 +34,7 @@ const KiloMcpLocalServerSchema = z.object({
   environment: z.optional(z.record(z.string(), z.string())),
   enabled: z._default(z.boolean(), true),
   cwd: z.optional(z.string()),
+  timeout: z.optional(z.number().check(z.int(), z.positive())),
 });
 
 // Kilo native format for remote servers
@@ -35,6 +43,8 @@ const KiloMcpRemoteServerSchema = z.object({
   url: z.string(),
   headers: z.optional(z.record(z.string(), z.string())),
   enabled: z._default(z.boolean(), true),
+  timeout: z.optional(z.number().check(z.int(), z.positive())),
+  oauth: z.optional(KiloMcpOAuthSchema),
 });
 
 // Kilo MCP server schema (local or remote)
@@ -46,6 +56,9 @@ const KiloConfigSchema = z.looseObject({
   $schema: z.optional(z.string()),
   mcp: z.optional(z.record(z.string(), KiloMcpServerSchema)),
   tools: z.optional(z.record(z.string(), z.boolean())),
+  // Project rule files/globs that Kilo auto-loads. Shared with the rules
+  // feature (see kilo-rule.ts); preserved here so writing MCP never drops it.
+  instructions: z.optional(z.array(z.string())),
 });
 
 type KiloConfig = z.infer<typeof KiloConfigSchema>;
@@ -87,10 +100,15 @@ function convertFromKiloFormat(
         return [
           serverName,
           {
-            type: "sse" as const,
+            // Kilo's `remote` transport is transport-agnostic; SSE is deprecated
+            // by the MCP spec (2025-03-26) in favor of Streamable HTTP, so import
+            // as `http` rather than the legacy `sse`.
+            type: "http" as const,
             url: serverConfig.url,
             ...(serverConfig.enabled === false && { disabled: true }),
             ...(serverConfig.headers && { headers: serverConfig.headers }),
+            ...(serverConfig.timeout !== undefined && { timeout: serverConfig.timeout }),
+            ...(serverConfig.oauth !== undefined && { oauth: serverConfig.oauth }),
             ...(enabledTools.length > 0 && { enabledTools }),
             ...(disabledTools.length > 0 && { disabledTools }),
           },
@@ -111,6 +129,7 @@ function convertFromKiloFormat(
           ...(serverConfig.enabled === false && { disabled: true }),
           ...(serverConfig.environment && { env: serverConfig.environment }),
           ...(serverConfig.cwd && { cwd: serverConfig.cwd }),
+          ...(serverConfig.timeout !== undefined && { timeout: serverConfig.timeout }),
           ...(enabledTools.length > 0 && { enabledTools }),
           ...(disabledTools.length > 0 && { disabledTools }),
         },
@@ -151,11 +170,17 @@ function convertToKiloFormat(mcpServers: McpServers): {
       }
 
       if (isRemote) {
+        // `oauth` is Kilo-specific (object | false) and carried through via the
+        // rulesync MCP server's looseObject passthrough; it is not a declared
+        // field on McpServerSchema.
+        const oauth = (serverConfig as { oauth?: unknown }).oauth;
         const remoteServer: KiloMcpServer = {
           type: "remote",
           url: serverConfig.url ?? serverConfig.httpUrl ?? "",
           enabled: serverConfig.disabled !== undefined ? !serverConfig.disabled : true,
           ...(serverConfig.headers && { headers: serverConfig.headers }),
+          ...(serverConfig.timeout !== undefined && { timeout: serverConfig.timeout }),
+          ...(oauth !== undefined && { oauth: oauth as z.infer<typeof KiloMcpOAuthSchema> }),
         };
         return [serverName, remoteServer];
       }
@@ -179,6 +204,7 @@ function convertToKiloFormat(mcpServers: McpServers): {
         enabled: serverConfig.disabled !== undefined ? !serverConfig.disabled : true,
         ...(serverConfig.env && { environment: serverConfig.env }),
         ...(serverConfig.cwd && { cwd: serverConfig.cwd }),
+        ...(serverConfig.timeout !== undefined && { timeout: serverConfig.timeout }),
       };
       return [serverName, localServer];
     }),
@@ -292,6 +318,70 @@ export class KiloMcp extends ToolMcp {
       ...jsonWithoutTools,
       mcp: convertedMcp,
       ...(Object.keys(mcpTools).length > 0 && { tools: mcpTools }),
+    };
+
+    return new KiloMcp({
+      outputRoot,
+      relativeDirPath: basePaths.relativeDirPath,
+      relativeFilePath,
+      fileContent: JSON.stringify(newJson, null, 2),
+      validate,
+    });
+  }
+
+  /**
+   * Merge a list of project rule file globs into the `instructions` array of the
+   * shared `kilo.jsonc` (or `kilo.json`) config, preserving every existing key
+   * (notably `mcp`/`tools` written by the MCP feature). In Kilo v7, files under
+   * `.kilo/rules/` are NOT auto-loaded; they are only picked up when listed in
+   * the `instructions` key. The resulting `instructions` list is deduped and
+   * sorted for a stable output.
+   *
+   * @see https://kilo.ai/docs/automate/mcp/using-in-kilo-code
+   */
+  static async fromInstructions({
+    outputRoot = process.cwd(),
+    instructions,
+    validate = true,
+    global = false,
+  }: {
+    outputRoot?: string;
+    instructions: string[];
+    validate?: boolean;
+    global?: boolean;
+  }): Promise<KiloMcp> {
+    const basePaths = this.getSettablePaths({ global });
+    const jsonDir = join(outputRoot, basePaths.relativeDirPath);
+
+    let fileContent: string | null = null;
+    let relativeFilePath = "kilo.jsonc";
+
+    const jsoncPath = join(jsonDir, "kilo.jsonc");
+    const jsonPath = join(jsonDir, "kilo.json");
+
+    // Prefer kilo.jsonc, fall back to kilo.json, mirroring fromRulesyncMcp.
+    fileContent = await readFileContentOrNull(jsoncPath);
+    if (!fileContent) {
+      fileContent = await readFileContentOrNull(jsonPath);
+      if (fileContent) {
+        relativeFilePath = "kilo.json";
+      }
+    }
+
+    const json = fileContent ? parseJsonc(fileContent) : {};
+    const existingInstructions: string[] = Array.isArray(json.instructions)
+      ? json.instructions.filter((entry: unknown): entry is string => typeof entry === "string")
+      : [];
+
+    const mergedInstructions = Array.from(
+      new Set([...existingInstructions, ...instructions]),
+    ).toSorted();
+
+    // Spread the existing config first so mcp/tools/$schema and any other keys
+    // are preserved; only the instructions key is added/replaced.
+    const newJson = {
+      ...json,
+      instructions: mergedInstructions,
     };
 
     return new KiloMcp({

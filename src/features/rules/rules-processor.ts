@@ -15,10 +15,11 @@ import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { checkPathTraversal, findFilesByGlobs } from "../../utils/file.js";
+import { checkPathTraversal, findFilesByGlobs, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
+import { KiloMcp } from "../mcp/kilo-mcp.js";
 import { AgentsmdSkill } from "../skills/agentsmd-skill.js";
 import { RovodevSkill } from "../skills/rovodev-skill.js";
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
@@ -775,9 +776,32 @@ export class RulesProcessor extends FeatureProcessor {
       }
     }
 
+    // Kilo v7 does not auto-load files under `.kilo/rules/`; they are only read
+    // when registered in the `instructions` key of the shared `kilo.jsonc`. The
+    // root rule (`AGENTS.md`) IS auto-loaded, so it must NOT be registered. This
+    // merge is non-destructive: KiloMcp.fromInstructions preserves mcp/tools and
+    // any other existing keys. Only applies in project scope (no nonRoot rules
+    // exist in global scope).
+    const extraFiles: ToolFile[] = [];
+    if (this.toolTarget === "kilo" && !this.global) {
+      const instructionPaths = toolRules
+        .filter((rule) => !rule.isRoot())
+        .map((rule) => toPosixPath(join(rule.getRelativeDirPath(), rule.getRelativeFilePath())));
+      if (instructionPaths.length > 0) {
+        extraFiles.push(
+          await KiloMcp.fromInstructions({
+            outputRoot: this.outputRoot,
+            instructions: instructionPaths,
+            validate: true,
+            global: this.global,
+          }),
+        );
+      }
+    }
+
     const rootRuleIndex = toolRules.findIndex((rule) => rule.isRoot());
     if (rootRuleIndex === -1) {
-      return toolRules;
+      return [...toolRules, ...extraFiles];
     }
 
     // For tools that don't create a separate conventions rule, prepend to the root rule
@@ -818,7 +842,7 @@ export class RulesProcessor extends FeatureProcessor {
       }
     }
 
-    return toolRules;
+    return [...toolRules, ...extraFiles];
   }
 
   private buildSkillList(skillClass: {
