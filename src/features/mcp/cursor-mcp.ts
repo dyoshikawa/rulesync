@@ -18,7 +18,9 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
-const CURSOR_ENV_VAR_PATTERN = /\$\{env:([^}]+)\}/g;
+// Variable names exclude `:` (matching the canonical and OpenCode patterns);
+// environment variable names cannot contain `:` on any supported OS.
+const CURSOR_ENV_VAR_PATTERN = /\$\{env:([^}:]+)\}/g;
 
 export type CursorMcpParams = ToolMcpParams;
 
