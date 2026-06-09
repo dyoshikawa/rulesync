@@ -24,7 +24,9 @@ export class JunieMcp extends ToolMcp {
     return this.json;
   }
 
-  static getSettablePaths(): ToolMcpSettablePaths {
+  static getSettablePaths(_options: { global?: boolean } = {}): ToolMcpSettablePaths {
+    // The relative path is identical for both project and user scope. In global
+    // mode the same path is resolved under the user home (`~/.junie/mcp/mcp.json`).
     return {
       relativeDirPath: join(".junie", "mcp"),
       relativeFilePath: "mcp.json",
@@ -34,21 +36,20 @@ export class JunieMcp extends ToolMcp {
   static async fromFile({
     outputRoot = process.cwd(),
     validate = true,
+    global = false,
   }: ToolMcpFromFileParams): Promise<JunieMcp> {
+    const paths = this.getSettablePaths({ global });
     const fileContent = await readFileContent(
-      join(
-        outputRoot,
-        this.getSettablePaths().relativeDirPath,
-        this.getSettablePaths().relativeFilePath,
-      ),
+      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
     );
 
     return new JunieMcp({
       outputRoot,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
+      global,
     });
   }
 
@@ -56,7 +57,10 @@ export class JunieMcp extends ToolMcp {
     outputRoot = process.cwd(),
     rulesyncMcp,
     validate = true,
+    global = false,
   }: ToolMcpFromRulesyncMcpParams): JunieMcp {
+    const paths = this.getSettablePaths({ global });
+
     // Preserve top-level fields ($schema, etc.) from the source JSON, but
     // use getMcpServers() (not getJson().mcpServers) so rulesync-only
     // fields and codex-only fields (`envVars`) are stripped before
@@ -70,10 +74,11 @@ export class JunieMcp extends ToolMcp {
 
     return new JunieMcp({
       outputRoot,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
+      global,
     });
   }
 
@@ -89,6 +94,7 @@ export class JunieMcp extends ToolMcp {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolMcpForDeletionParams): JunieMcp {
     return new JunieMcp({
       outputRoot,
@@ -96,6 +102,7 @@ export class JunieMcp extends ToolMcp {
       relativeFilePath,
       fileContent: "{}",
       validate: false,
+      global,
     });
   }
 }

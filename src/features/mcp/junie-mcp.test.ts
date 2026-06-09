@@ -62,6 +62,16 @@ describe("JunieMcp", () => {
     });
   });
 
+  describe("getSettablePaths", () => {
+    it("returns the same .junie/mcp/mcp.json path for project and global mode", () => {
+      const projectPaths = JunieMcp.getSettablePaths({ global: false });
+      const globalPaths = JunieMcp.getSettablePaths({ global: true });
+      const expected = { relativeDirPath: join(".junie", "mcp"), relativeFilePath: "mcp.json" };
+      expect(projectPaths).toEqual(expected);
+      expect(globalPaths).toEqual(expected);
+    });
+  });
+
   describe("fromRulesyncMcp", () => {
     it("copies content from .rulesync/.mcp.json", async () => {
       const rulesyncContent = JSON.stringify(

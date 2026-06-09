@@ -280,6 +280,15 @@ export const AUGMENTCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "stop",
 ];
 
+/**
+ * Hook events supported by JetBrains Junie CLI.
+ * Junie CLI currently exposes only the SessionStart lifecycle event
+ * (matchers `startup` / `resume`), defined under the `"hooks"` key of
+ * `~/.junie/config.json`. Project-local hooks are ignored for safety.
+ * @see https://junie.jetbrains.com/docs/junie-cli-hooks.html
+ */
+export const JUNIE_HOOK_EVENTS: readonly HookEvent[] = ["sessionStart"];
+
 const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
 
 /**
@@ -304,6 +313,7 @@ export const HooksConfigSchema = z.looseObject({
   augmentcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "antigravity-ide": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "antigravity-cli": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  junie: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
 });
 
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;
@@ -579,4 +589,19 @@ export const CANONICAL_TO_KIRO_EVENT_NAMES: Record<string, string> = {
  */
 export const KIRO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_KIRO_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to Junie PascalCase.
+ * Junie reuses the same PascalCase names as Claude for the events it supports.
+ */
+export const CANONICAL_TO_JUNIE_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+};
+
+/**
+ * Map Junie PascalCase event names to canonical camelCase.
+ */
+export const JUNIE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_JUNIE_EVENT_NAMES).map(([k, v]) => [v, k]),
 );

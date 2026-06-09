@@ -519,6 +519,7 @@ describe("HooksProcessor", () => {
         "deepagents",
         "devin",
         "augmentcode",
+        "junie",
       ]);
     });
 
@@ -556,6 +557,7 @@ describe("HooksProcessor", () => {
         "deepagents",
         "devin",
         "augmentcode",
+        "junie",
       ]);
     });
   });

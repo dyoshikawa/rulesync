@@ -217,7 +217,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
 
   // Junie
   { target: "junie", feature: "rules", entry: "**/.junie/guidelines.md" },
-  { target: "junie", feature: "mcp", entry: "**/.junie/mcp.json" },
+  { target: "junie", feature: "mcp", entry: "**/.junie/mcp/mcp.json" },
   { target: "junie", feature: "skills", entry: "**/.junie/skills/" },
   { target: "junie", feature: "subagents", entry: "**/.junie/agents/" },
 

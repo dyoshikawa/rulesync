@@ -13,6 +13,7 @@ import {
   FACTORYDROID_HOOK_EVENTS,
   GEMINICLI_HOOK_EVENTS,
   GOOSE_HOOK_EVENTS,
+  JUNIE_HOOK_EVENTS,
   KILO_HOOK_EVENTS,
   KIRO_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
@@ -36,6 +37,7 @@ import { DEVIN_HOOK_EVENTS, DevinHooks } from "./devin-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
 import { GeminicliHooks } from "./geminicli-hooks.js";
 import { GooseHooks } from "./goose-hooks.js";
+import { JunieHooks } from "./junie-hooks.js";
 import { KiloHooks } from "./kilo-hooks.js";
 import { KiroHooks } from "./kiro-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
@@ -64,6 +66,7 @@ const hooksProcessorToolTargetTuple = [
   "kiro",
   "devin",
   "augmentcode",
+  "junie",
 ] as const;
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
@@ -325,6 +328,23 @@ const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
         supportsImport: true,
       },
       supportedEvents: AUGMENTCODE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "junie",
+    {
+      class: JunieHooks,
+      meta: {
+        // Junie CLI only runs user-scope hooks (~/.junie/config.json); project
+        // hooks in .junie/config.json are ignored by default for safety, so
+        // rulesync treats Junie hooks as global-only.
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: JUNIE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
     },
