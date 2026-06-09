@@ -239,9 +239,16 @@ function convertRulesyncToCodexProfile({
     filesystem[CODEX_WORKSPACE_ROOTS_KEY] = workspaceRootFilesystem;
   }
 
+  const hasWriteRules =
+    "edit" in config.permission ||
+    "write" in config.permission ||
+    Object.keys(workspaceRootFilesystem).length > 0 ||
+    Object.values(filesystem).some((v) => v === "write");
+
   return {
+    ...(hasWriteRules ? { extends: ":workspace" } : {}),
     ...(Object.keys(filesystem).length > 0 ? { filesystem } : {}),
-    ...(Object.keys(domains).length > 0 ? { network: { domains } } : {}),
+    ...(Object.keys(domains).length > 0 ? { network: { enabled: true, domains } } : {}),
   };
 }
 
@@ -265,10 +272,15 @@ function convertCodexProfileToRulesync(profile?: CodexPermissionProfile): Permis
     }
   }
 
-  if (profile?.network?.domains) {
-    permission.webfetch = {};
-    for (const [domain, value] of Object.entries(profile.network.domains)) {
-      permission.webfetch[domain] = value;
+  if (profile?.network) {
+    const hasDomains = profile.network.domains && Object.keys(profile.network.domains).length > 0;
+    if (hasDomains) {
+      permission.webfetch = {};
+      for (const [domain, value] of Object.entries(profile.network.domains!)) {
+        permission.webfetch[domain] = value;
+      }
+    } else if (profile.network.enabled === true) {
+      permission.webfetch = { "*": "allow" };
     }
   }
 
@@ -306,9 +318,6 @@ function mergeWithExistingProfile(
   if (!existingProfile) return newProfile;
 
   const mergedNetwork: CodexNetwork = { ...newProfile.network };
-  if (existingProfile.network?.enabled !== undefined && mergedNetwork.enabled === undefined) {
-    mergedNetwork.enabled = existingProfile.network.enabled;
-  }
   if (existingProfile.network?.mode !== undefined && mergedNetwork.mode === undefined) {
     mergedNetwork.mode = existingProfile.network.mode;
   }
@@ -326,11 +335,7 @@ function mergeWithExistingProfile(
       : newProfile.description !== undefined
         ? { description: newProfile.description }
         : {}),
-    ...(existingProfile.extends !== undefined && newProfile.extends === undefined
-      ? { extends: existingProfile.extends }
-      : newProfile.extends !== undefined
-        ? { extends: newProfile.extends }
-        : {}),
+    ...(newProfile.extends !== undefined ? { extends: newProfile.extends } : {}),
     ...(newProfile.filesystem ? { filesystem: newProfile.filesystem } : {}),
     ...(hasNetwork ? { network: mergedNetwork } : {}),
   };
