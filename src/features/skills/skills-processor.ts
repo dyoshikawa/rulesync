@@ -15,6 +15,7 @@ import { AmpSkill } from "./amp-skill.js";
 import { AntigravityCliSkill } from "./antigravity-cli-skill.js";
 import { AntigravityIdeSkill } from "./antigravity-ide-skill.js";
 import { AntigravitySkill } from "./antigravity-skill.js";
+import { AugmentcodeSkill } from "./augmentcode-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
 import { ClineSkill } from "./cline-skill.js";
 import { CodexCliSkill } from "./codexcli-skill.js";
@@ -80,6 +81,7 @@ const skillsProcessorToolTargetTuple = [
   "antigravity",
   "antigravity-cli",
   "antigravity-ide",
+  "augmentcode",
   "claudecode",
   "claudecode-legacy",
   "cline",
@@ -156,6 +158,16 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
     "antigravity-ide",
     {
       class: AntigravityIdeSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "augmentcode",
+    {
+      // AugmentCode (Auggie CLI) skills are native Agent Skills directories
+      // (<name>/SKILL.md) under .augment/skills/ (project) and
+      // ~/.augment/skills/ (global). https://docs.augmentcode.com/cli/skills
+      class: AugmentcodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

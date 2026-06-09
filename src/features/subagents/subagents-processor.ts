@@ -10,6 +10,7 @@ import { formatError } from "../../utils/error.js";
 import { directoryExists, findFilesByGlobs, listDirectoryFiles } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
+import { AugmentcodeSubagent } from "./augmentcode-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { CodexCliSubagent } from "./codexcli-subagent.js";
 import { CopilotSubagent } from "./copilot-subagent.js";
@@ -64,6 +65,7 @@ type ToolSubagentFactory = {
 const subagentsProcessorToolTargetTuple = [
   "kilo",
   "agentsmd",
+  "augmentcode",
   "claudecode",
   "claudecode-legacy",
   "codexcli",
@@ -96,6 +98,16 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     {
       class: AgentsmdSubagent,
       meta: { supportsSimulated: true, supportsGlobal: false, filePattern: "*.md" },
+    },
+  ],
+  [
+    "augmentcode",
+    {
+      // AugmentCode (Auggie CLI) subagents are native Markdown files under
+      // .augment/agents/ (project) and ~/.augment/agents/ (global).
+      // https://docs.augmentcode.com/cli/subagents
+      class: AugmentcodeSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
     },
   ],
   [

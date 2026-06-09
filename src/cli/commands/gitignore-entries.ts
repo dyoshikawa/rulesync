@@ -85,9 +85,14 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "augmentcode", feature: "rules", entry: "**/.augment/rules/" },
   { target: "augmentcode", feature: "rules", entry: "**/.augment-guidelines" },
   { target: "augmentcode", feature: "commands", entry: "**/.augment/commands/" },
+  { target: "augmentcode", feature: "subagents", entry: "**/.augment/agents/" },
+  { target: "augmentcode", feature: "skills", entry: "**/.augment/skills/" },
   { target: "augmentcode", feature: "ignore", entry: "**/.augmentignore" },
   { target: "augmentcode", feature: "permissions", entry: "**/.augment/settings.json" },
   { target: "augmentcode", feature: "hooks", entry: "**/.augment/settings.json" },
+  // settings.json is shared with permissions/hooks; re-tag it under `mcp` so
+  // target+feature filtering still resolves the file for MCP runs.
+  { target: "augmentcode", feature: "mcp", entry: "**/.augment/settings.json" },
 
   // Claude Code
   { target: "claudecode", feature: "rules", entry: "**/CLAUDE.md" },

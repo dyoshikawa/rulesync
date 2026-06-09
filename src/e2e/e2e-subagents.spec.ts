@@ -16,6 +16,10 @@ describe("E2E: subagents", () => {
 
   it.each([
     {
+      target: "augmentcode",
+      outputPath: join(".augment", "agents", "planner.md"),
+    },
+    {
       target: "claudecode",
       outputPath: join(".claude", "agents", "planner.md"),
     },
@@ -292,6 +296,7 @@ describe("E2E: subagents (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
 
   it.each([
+    { target: "augmentcode", outputPath: join(".augment", "agents", "planner.md") },
     { target: "claudecode", outputPath: join(".claude", "agents", "planner.md") },
     { target: "codexcli", outputPath: join(".codex", "agents", "planner.toml") },
     { target: "copilotcli", outputPath: join(".copilot", "agents", "planner.agent.md") },
