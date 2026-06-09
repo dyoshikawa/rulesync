@@ -18,6 +18,10 @@ import {
 export const CursorSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
+  // Optional Cursor SKILL.md frontmatter. https://cursor.com/docs/skills
+  paths: z.optional(z.union([z.string(), z.array(z.string())])),
+  "disable-model-invocation": z.optional(z.boolean()),
+  metadata: z.optional(z.looseObject({})),
 });
 
 export type CursorSkillFrontmatter = z.infer<typeof CursorSkillFrontmatterSchema>;
@@ -111,10 +115,18 @@ export class CursorSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    const cursorSection = {
+      ...(frontmatter.paths !== undefined && { paths: frontmatter.paths }),
+      ...(frontmatter["disable-model-invocation"] !== undefined && {
+        "disable-model-invocation": frontmatter["disable-model-invocation"],
+      }),
+      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+    };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
+      ...(Object.keys(cursorSection).length > 0 && { cursor: cursorSection }),
     };
 
     return new RulesyncSkill({
@@ -137,10 +149,16 @@ export class CursorSkill extends ToolSkill {
   }: ToolSkillFromRulesyncSkillParams): CursorSkill {
     const settablePaths = CursorSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+    const cursorSection = rulesyncFrontmatter.cursor;
 
     const cursorFrontmatter: CursorSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...(cursorSection?.paths !== undefined && { paths: cursorSection.paths }),
+      ...(cursorSection?.["disable-model-invocation"] !== undefined && {
+        "disable-model-invocation": cursorSection["disable-model-invocation"],
+      }),
+      ...(cursorSection?.metadata !== undefined && { metadata: cursorSection.metadata }),
     };
 
     return new CursorSkill({

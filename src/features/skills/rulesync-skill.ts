@@ -106,6 +106,13 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   ),
   cline: z.optional(z.looseObject({})),
   roo: z.optional(z.looseObject({})),
+  cursor: z.optional(
+    z.looseObject({
+      paths: z.optional(z.union([z.string(), z.array(z.string())])),
+      "disable-model-invocation": z.optional(z.boolean()),
+      metadata: z.optional(z.looseObject({})),
+    }),
+  ),
   agentsskills: z.optional(
     z.looseObject({
       license: z.optional(z.string()),
@@ -192,6 +199,11 @@ export type RulesyncSkillFrontmatterInput = {
   };
   roo?: Record<string, unknown>;
   cline?: Record<string, unknown>;
+  cursor?: {
+    paths?: string | string[];
+    "disable-model-invocation"?: boolean;
+    metadata?: Record<string, unknown>;
+  };
   agentsskills?: {
     license?: string;
     compatibility?: Record<string, unknown>;
