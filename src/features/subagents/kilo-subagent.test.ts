@@ -460,4 +460,56 @@ Agent body`,
       expect(result.data.options).toEqual({ key: "value" });
     }
   });
+
+  it("should round-trip the options and steps fields via fromRulesyncSubagent", () => {
+    const rulesyncSubagent = new RulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      relativeFilePath: "with-steps.md",
+      frontmatter: {
+        targets: ["kilo"],
+        name: "with-steps",
+        description: "Agent with options/steps",
+        kilo: {
+          options: { temperature: 0.2 },
+          steps: [{ name: "step1" }, { name: "step2" }],
+        },
+      },
+      body: "Body",
+      validate: false,
+    });
+
+    const fm = (
+      KiloSubagent.fromRulesyncSubagent({
+        rulesyncSubagent,
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      }) as KiloSubagent
+    ).getFrontmatter();
+    expect(fm.options).toEqual({ temperature: 0.2 });
+    expect(fm.steps).toEqual([{ name: "step1" }, { name: "step2" }]);
+  });
+
+  describe("forDeletion", () => {
+    it("should create a deletable placeholder with the default mode", () => {
+      const subagent = KiloSubagent.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: ".kilo/agents",
+        relativeFilePath: "obsolete.md",
+      });
+      expect(subagent.isDeletable()).toBe(true);
+      expect(subagent.getBody()).toBe("");
+      expect(subagent.getFrontmatter().mode).toBe("all");
+    });
+
+    it("should preserve the global flag passthrough (regression for #1639)", () => {
+      const subagent = KiloSubagent.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: join(".config", "kilo", "agents"),
+        relativeFilePath: "obsolete.md",
+        global: true,
+      });
+      expect((subagent as unknown as { global: boolean }).global).toBe(true);
+    });
+  });
 });
