@@ -360,8 +360,7 @@ replit: # for Replit Agent-specific parameters (optional; Agent Skills standard)
     author: rulesync
 agentsskills: # for the Agent Skills standard target (optional; supports project + global ~/.agents/skills/)
   license: MIT # (optional)
-  compatibility: # (optional) free-form compatibility metadata (max 500 chars)
-    agent-skills: ">=1.0.0"
+  compatibility: "Requires Python 3.14+ and uv" # (optional) free-form string, 1–500 chars (an object is also accepted for back-compat)
   metadata: # (optional) free-form metadata (spec-recommended place for skill versioning)
     version: "1.0.0"
   allowed-tools: "shell" # (optional, experimental) space-separated string or list

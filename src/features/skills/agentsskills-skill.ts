@@ -20,7 +20,9 @@ export const AgentsSkillsSkillFrontmatterSchema = z.looseObject({
   description: z.string(),
   // Optional Agent Skills standard frontmatter. https://agentskills.io/specification
   license: z.optional(z.string()),
-  compatibility: z.optional(z.looseObject({})),
+  // The spec defines `compatibility` as a free-form string (1–500 chars). The
+  // object form is also accepted to stay permissive for existing inputs.
+  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
   metadata: z.optional(z.looseObject({})),
   "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
 });
