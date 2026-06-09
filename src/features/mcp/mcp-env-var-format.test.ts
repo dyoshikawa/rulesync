@@ -81,6 +81,32 @@ describe("mcp-env-var-format", () => {
       expect(result["a"]?.env?.K).toBe("${A}");
       expect(result["b"]?.env?.K).toBe("${B}");
     });
+
+    it("should convert both env and headers on the same server entry", () => {
+      const mcpServers: McpServers = {
+        server: {
+          type: "http",
+          url: "https://example.com",
+          env: { KEY: "{tool:API_KEY}" },
+          headers: { Authorization: "Bearer {tool:TOKEN}" },
+        },
+      };
+
+      const result = convertEnvVarRefsFromToolFormat({ mcpServers, pattern: TOOL_PATTERN });
+
+      expect(result["server"]?.env?.KEY).toBe("${API_KEY}");
+      expect(result["server"]?.headers?.Authorization).toBe("Bearer ${TOKEN}");
+    });
+
+    it("should throw when the pattern lacks the global flag", () => {
+      const mcpServers: McpServers = {
+        server: { command: "node", env: { K: "{tool:A}" } },
+      };
+
+      expect(() =>
+        convertEnvVarRefsFromToolFormat({ mcpServers, pattern: /\{tool:([^}:]+)\}/ }),
+      ).toThrow(/global/);
+    });
   });
 
   describe("convertEnvVarRefsToToolFormat", () => {
@@ -112,6 +138,22 @@ describe("mcp-env-var-format", () => {
 
       const result = convertEnvVarRefsToToolFormat({ mcpServers, replacement: "{tool:$1}" });
 
+      expect(result["server"]?.headers?.Authorization).toBe("Bearer {tool:TOKEN}");
+    });
+
+    it("should convert both env and headers on the same server entry", () => {
+      const mcpServers: McpServers = {
+        server: {
+          type: "http",
+          url: "https://example.com",
+          env: { KEY: "${API_KEY}" },
+          headers: { Authorization: "Bearer ${TOKEN}" },
+        },
+      };
+
+      const result = convertEnvVarRefsToToolFormat({ mcpServers, replacement: "{tool:$1}" });
+
+      expect(result["server"]?.env?.KEY).toBe("{tool:API_KEY}");
       expect(result["server"]?.headers?.Authorization).toBe("Bearer {tool:TOKEN}");
     });
 

@@ -54,6 +54,30 @@ describe("CursorMcp", () => {
       expect(exported.mcpServers["test-server"].env.DEBUG).toBe("true");
     });
 
+    it("should convert multiple Cursor env vars embedded in a single string (toRulesyncMcp)", () => {
+      const cursorConfig = {
+        mcpServers: {
+          "test-server": {
+            command: "node",
+            env: {
+              URL: "https://${env:HOST}:${env:PORT}/api",
+            },
+          },
+        },
+      };
+
+      const cursorMcp = new CursorMcp({
+        relativeDirPath: ".cursor",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify(cursorConfig),
+      });
+
+      const rulesyncMcp = cursorMcp.toRulesyncMcp();
+      const exported = JSON.parse(rulesyncMcp.getFileContent());
+
+      expect(exported.mcpServers["test-server"].env.URL).toBe("https://${HOST}:${PORT}/api");
+    });
+
     it("should convert canonical env format ${VAR} to Cursor ${env:VAR} when exporting (fromRulesyncMcp)", async () => {
       const rulesyncConfig = {
         mcpServers: {
