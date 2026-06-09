@@ -360,6 +360,15 @@ replit: # for Replit Agent-specific parameters (optional; Agent Skills standard)
     agent-skills: ">=1.0.0"
   metadata: # (optional) free-form metadata
     author: rulesync
+opencode: # for OpenCode-specific parameters (optional)
+  license: MIT # (optional)
+  compatibility: # (optional) free-form compatibility metadata
+    opencode-version: ">=1.16.0"
+  metadata: # (optional) free-form metadata
+    author: rulesync
+  allowed-tools: # (optional) Anthropic-spec passthrough; OpenCode ignores unknown fields
+    - "Bash"
+    - "Read"
 agentsskills: # for the Agent Skills standard target (optional; supports project + global ~/.agents/skills/)
   license: MIT # (optional)
   compatibility: "Requires Python 3.14+ and uv" # (optional) free-form string, 1–500 chars (an object is also accepted for back-compat)

@@ -11,7 +11,7 @@ import {
   OpenCodeSkillFrontmatter,
   OpenCodeSkillFrontmatterSchema,
 } from "./opencode-skill.js";
-import { RulesyncSkill } from "./rulesync-skill.js";
+import { RulesyncSkill, RulesyncSkillFrontmatterInput } from "./rulesync-skill.js";
 
 describe("OpenCodeSkill", () => {
   let testDir: string;
@@ -120,6 +120,47 @@ describe("OpenCodeSkill", () => {
         "allowed-tools": ["Bash", "Read"],
       });
     });
+
+    it("should carry license/compatibility/metadata into the opencode section", () => {
+      const skill = new OpenCodeSkill({
+        outputRoot: testDir,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "Test description",
+          license: "MIT",
+          compatibility: { opencode: ">=1.0.0" },
+          metadata: { author: "rulesync" },
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+
+      expect(rulesyncSkill.getFrontmatter().opencode).toEqual({
+        license: "MIT",
+        compatibility: { opencode: ">=1.0.0" },
+        metadata: { author: "rulesync" },
+      });
+    });
+
+    it("should not attach an opencode section when no optional fields exist", () => {
+      const skill = new OpenCodeSkill({
+        outputRoot: testDir,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "Test description",
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+
+      expect(rulesyncSkill.getFrontmatter().opencode).toBeUndefined();
+    });
   });
 
   describe("fromRulesyncSkill", () => {
@@ -174,6 +215,81 @@ describe("OpenCodeSkill", () => {
       expect(skill.getRelativeDirPath()).toBe(join(".config", "opencode", "skills"));
       expect(skill.getFrontmatter()["allowed-tools"]).toEqual(["Bash", "Read"]);
     });
+
+    it("should emit license/compatibility/metadata from the opencode section", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "Test skill description",
+          opencode: {
+            license: "Apache-2.0",
+            compatibility: { opencode: ">=1.0.0" },
+            metadata: { author: "rulesync" },
+          },
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      const skill = OpenCodeSkill.fromRulesyncSkill({ rulesyncSkill, global: false });
+
+      const frontmatter = skill.getFrontmatter();
+      expect(frontmatter.license).toBe("Apache-2.0");
+      expect(frontmatter.compatibility).toEqual({ opencode: ">=1.0.0" });
+      expect(frontmatter.metadata).toEqual({ author: "rulesync" });
+    });
+
+    it("should fall back to top-level license/compatibility/metadata (issue #1787)", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        // Top-level license/compatibility/metadata are accepted by the loose
+        // schema even though they are not part of the typed input.
+        frontmatter: {
+          name: "Test Skill",
+          description: "Test skill description",
+          license: "MIT",
+          compatibility: { opencode: ">=2.0.0" },
+          metadata: { author: "top-level" },
+        } as unknown as RulesyncSkillFrontmatterInput,
+        body: "Test body",
+        validate: true,
+      });
+
+      const skill = OpenCodeSkill.fromRulesyncSkill({ rulesyncSkill, global: false });
+
+      const frontmatter = skill.getFrontmatter();
+      expect(frontmatter.license).toBe("MIT");
+      expect(frontmatter.compatibility).toEqual({ opencode: ">=2.0.0" });
+      expect(frontmatter.metadata).toEqual({ author: "top-level" });
+    });
+
+    it("should prefer the opencode section over top-level values", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        // `license` at the top level is accepted by the loose schema.
+        frontmatter: {
+          name: "Test Skill",
+          description: "Test skill description",
+          license: "MIT",
+          opencode: {
+            license: "Apache-2.0",
+          },
+        } as unknown as RulesyncSkillFrontmatterInput,
+        body: "Test body",
+        validate: true,
+      });
+
+      const skill = OpenCodeSkill.fromRulesyncSkill({ rulesyncSkill, global: false });
+
+      expect(skill.getFrontmatter().license).toBe("Apache-2.0");
+    });
   });
 
   describe("fromDir", () => {
@@ -204,6 +320,39 @@ It can be multiline.`;
         "allowed-tools": ["Bash", "Read"],
       });
       expect(skill.getBody()).toBe("This is the body of the opencode skill.\nIt can be multiline.");
+    });
+
+    it("should round-trip license/compatibility/metadata through fromDir and toRulesyncSkill", async () => {
+      const skillDir = join(testDir, ".opencode", "skills", "test-skill");
+      await ensureDir(skillDir);
+      const skillContent = `---
+name: Test Skill
+description: Test skill description
+license: MIT
+compatibility:
+  opencode: ">=1.0.0"
+metadata:
+  author: rulesync
+---
+
+Body content.`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      const skill = await OpenCodeSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "test-skill",
+      });
+
+      const frontmatter = skill.getFrontmatter();
+      expect(frontmatter.license).toBe("MIT");
+      expect(frontmatter.compatibility).toEqual({ opencode: ">=1.0.0" });
+      expect(frontmatter.metadata).toEqual({ author: "rulesync" });
+
+      expect(skill.toRulesyncSkill().getFrontmatter().opencode).toEqual({
+        license: "MIT",
+        compatibility: { opencode: ">=1.0.0" },
+        metadata: { author: "rulesync" },
+      });
     });
   });
 

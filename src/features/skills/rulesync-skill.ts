@@ -64,6 +64,9 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   opencode: z.optional(
     z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
+      license: z.optional(z.string()),
+      compatibility: z.optional(z.looseObject({})),
+      metadata: z.optional(z.looseObject({})),
     }),
   ),
   kilo: z.optional(
@@ -182,6 +185,9 @@ export type RulesyncSkillFrontmatterInput = {
   };
   opencode?: {
     "allowed-tools"?: string[];
+    license?: string;
+    compatibility?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
   };
   kilo?: {
     "allowed-tools"?: string[];
