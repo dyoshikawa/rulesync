@@ -237,6 +237,8 @@ export const GOOSE_HOOK_EVENTS: readonly HookEvent[] = [
   "afterFileEdit",
   "beforeShellExecution",
   "afterShellExecution",
+  "subagentStart",
+  "subagentStop",
 ];
 
 /** Hook events supported by Kiro CLI. */
@@ -538,6 +540,8 @@ export const CANONICAL_TO_GOOSE_EVENT_NAMES: Record<string, string> = {
   afterFileEdit: "AfterFileEdit",
   beforeShellExecution: "BeforeShellExecution",
   afterShellExecution: "AfterShellExecution",
+  subagentStart: "SubagentStart",
+  subagentStop: "SubagentStop",
 };
 
 /**

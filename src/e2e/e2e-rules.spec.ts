@@ -326,7 +326,7 @@ describe("E2E: rules (global mode)", () => {
     { target: "geminicli", outputPath: join(".gemini", "GEMINI.md") },
     { target: "antigravity-ide", outputPath: join(".gemini", "GEMINI.md") },
     { target: "antigravity-cli", outputPath: join(".gemini", "GEMINI.md") },
-    { target: "goose", outputPath: ".goosehints" },
+    { target: "goose", outputPath: join(".config", "goose", ".goosehints") },
     { target: "copilotcli", outputPath: join(".copilot", "copilot-instructions.md") },
     { target: "factorydroid", outputPath: join(".factory", "AGENTS.md") },
     { target: "kilo", outputPath: join(".config", "kilo", "AGENTS.md") },
