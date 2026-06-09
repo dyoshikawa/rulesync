@@ -18,6 +18,15 @@ import {
 export const OpenCodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
+  // OpenCode's SKILL.md parser recognizes exactly five frontmatter fields:
+  // `name`, `description`, `license`, `compatibility`, and `metadata`.
+  // See https://opencode.ai/docs/skills.md
+  license: z.optional(z.string()),
+  compatibility: z.optional(z.looseObject({})),
+  metadata: z.optional(z.looseObject({})),
+  // `allowed-tools` is NOT recognized by OpenCode (it is an Anthropic-spec
+  // field that OpenCode silently ignores). It is kept as an optional
+  // passthrough purely for lossless round-trip with the rulesync frontmatter.
   "allowed-tools": z.optional(z.array(z.string())),
 });
 
@@ -111,15 +120,21 @@ export class OpenCodeSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    const opencodeBlock = {
+      ...(frontmatter["allowed-tools"] !== undefined && {
+        "allowed-tools": frontmatter["allowed-tools"],
+      }),
+      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
+      ...(frontmatter.compatibility !== undefined && {
+        compatibility: frontmatter.compatibility,
+      }),
+      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+    };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
-      ...(frontmatter["allowed-tools"] && {
-        opencode: {
-          "allowed-tools": frontmatter["allowed-tools"],
-        },
-      }),
+      ...(Object.keys(opencodeBlock).length > 0 && { opencode: opencodeBlock }),
     };
 
     return new RulesyncSkill({
@@ -141,11 +156,38 @@ export class OpenCodeSkill extends ToolSkill {
     global = false,
   }: ToolSkillFromRulesyncSkillParams): OpenCodeSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+    const opencodeSection = rulesyncFrontmatter.opencode;
+
+    // `RulesyncSkillFrontmatterSchema` is a `looseObject`, so top-level
+    // `license`/`compatibility`/`metadata` may exist as runtime keys even
+    // though they are not part of the typed input. Read them safely here.
+    const looseTopLevel = rulesyncFrontmatter as Record<string, unknown>;
+    const topLevelLicense =
+      typeof looseTopLevel.license === "string" ? looseTopLevel.license : undefined;
+    const topLevelCompatibility =
+      typeof looseTopLevel.compatibility === "object" && looseTopLevel.compatibility !== null
+        ? (looseTopLevel.compatibility as Record<string, unknown>)
+        : undefined;
+    const topLevelMetadata =
+      typeof looseTopLevel.metadata === "object" && looseTopLevel.metadata !== null
+        ? (looseTopLevel.metadata as Record<string, unknown>)
+        : undefined;
+
+    // Source precedence: the `opencode` section value takes priority, falling
+    // back to the top-level rulesync frontmatter value when present.
+    const license = opencodeSection?.license ?? topLevelLicense;
+    const compatibility = opencodeSection?.compatibility ?? topLevelCompatibility;
+    const metadata = opencodeSection?.metadata ?? topLevelMetadata;
 
     const opencodeFrontmatter: OpenCodeSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      "allowed-tools": rulesyncFrontmatter.opencode?.["allowed-tools"],
+      ...(license !== undefined && { license }),
+      ...(compatibility !== undefined && { compatibility }),
+      ...(metadata !== undefined && { metadata }),
+      ...(opencodeSection?.["allowed-tools"] !== undefined && {
+        "allowed-tools": opencodeSection["allowed-tools"],
+      }),
     };
 
     const settablePaths = OpenCodeSkill.getSettablePaths({ global });
