@@ -215,6 +215,9 @@ export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = [
   "beforeSubmitPrompt",
   "stop",
   "permissionRequest",
+  "subagentStart",
+  "subagentStop",
+  "preCompact",
 ];
 
 /**
@@ -516,6 +519,9 @@ export const CANONICAL_TO_CODEXCLI_EVENT_NAMES: Record<string, string> = {
   beforeSubmitPrompt: "UserPromptSubmit",
   stop: "Stop",
   permissionRequest: "PermissionRequest",
+  subagentStart: "SubagentStart",
+  subagentStop: "SubagentStop",
+  preCompact: "PreCompact",
 };
 
 /**

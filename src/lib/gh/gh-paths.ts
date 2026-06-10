@@ -66,7 +66,7 @@ export function relativeInstallDirFor(params: { agent: GhAgent; scope: GhScope }
     case "cursor":
       return join(".cursor", "skills");
     case "codex":
-      return join(".codex", "skills");
+      return join(".agents", "skills");
     case "gemini":
       return join(".gemini", "skills");
     case "antigravity":

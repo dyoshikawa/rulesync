@@ -31,7 +31,7 @@ describe("relativeInstallDirFor", () => {
     ["github-copilot", join(".copilot", "skills")],
     ["claude-code", join(".claude", "skills")],
     ["cursor", join(".cursor", "skills")],
-    ["codex", join(".codex", "skills")],
+    ["codex", join(".agents", "skills")],
     ["gemini", join(".gemini", "skills")],
     ["antigravity", join(".gemini", "antigravity", "skills")],
   ];

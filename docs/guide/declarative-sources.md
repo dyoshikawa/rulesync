@@ -94,7 +94,7 @@ Agent → install directory mapping:
 | `github-copilot` | `.agents/skills`                         | `.copilot/skills`             |
 | `claude-code`    | `.claude/skills`                         | `.claude/skills`              |
 | `cursor`         | `.agents/skills`                         | `.cursor/skills`              |
-| `codex`          | `.agents/skills`                         | `.codex/skills`               |
+| `codex`          | `.agents/skills`                         | `.agents/skills`              |
 | `gemini`         | `.agents/skills`                         | `.gemini/skills`              |
 | `antigravity`    | `.agents/skills`                         | `.gemini/antigravity/skills`  |
 

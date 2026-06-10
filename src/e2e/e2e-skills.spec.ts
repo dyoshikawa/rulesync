@@ -29,7 +29,7 @@ describe("E2E: skills", () => {
     },
     {
       target: "codexcli",
-      outputPath: join(".codex", "skills", "test-skill", "SKILL.md"),
+      outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
     },
     {
       target: "geminicli",
@@ -168,7 +168,7 @@ This is the test skill body content.
   it.each([
     { target: "claudecode", orphanPath: join(".claude", "skills", "orphan-skill", "SKILL.md") },
     { target: "cursor", orphanPath: join(".cursor", "skills", "orphan-skill", "SKILL.md") },
-    { target: "codexcli", orphanPath: join(".codex", "skills", "orphan-skill", "SKILL.md") },
+    { target: "codexcli", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
     { target: "geminicli", orphanPath: join(".gemini", "skills", "orphan-skill", "SKILL.md") },
     { target: "copilot", orphanPath: join(".github", "skills", "orphan-skill", "SKILL.md") },
     { target: "deepagents", orphanPath: join(".deepagents", "skills", "orphan-skill", "SKILL.md") },
@@ -228,7 +228,7 @@ describe("E2E: skills (import)", () => {
   it.each([
     { target: "claudecode", sourcePath: join(".claude", "skills", "test-skill", "SKILL.md") },
     { target: "cursor", sourcePath: join(".cursor", "skills", "test-skill", "SKILL.md") },
-    { target: "codexcli", sourcePath: join(".codex", "skills", "test-skill", "SKILL.md") },
+    { target: "codexcli", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "geminicli", sourcePath: join(".gemini", "skills", "test-skill", "SKILL.md") },
     { target: "copilot", sourcePath: join(".github", "skills", "test-skill", "SKILL.md") },
     { target: "opencode", sourcePath: join(".opencode", "skill", "test-skill", "SKILL.md") },
@@ -297,7 +297,7 @@ describe("E2E: skills (global mode)", () => {
     },
     {
       target: "codexcli",
-      outputPath: join(".codex", "skills", "test-skill", "SKILL.md"),
+      outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
     },
     {
       target: "geminicli",
