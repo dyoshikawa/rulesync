@@ -320,6 +320,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   // `.devin/` paths and the global skills path is unchanged.
   { target: "devin", feature: "rules", entry: "**/.devin/rules/" },
   { target: "devin", feature: "commands", entry: "**/.devin/workflows/" },
+  { target: "devin", feature: "ignore", entry: "**/.devinignore" },
   { target: "devin", feature: "mcp", entry: "**/.windsurf/mcp_config.json" },
   { target: "devin", feature: "hooks", entry: "**/.windsurf/hooks.json" },
   { target: "devin", feature: "skills", entry: "**/.devin/skills/" },

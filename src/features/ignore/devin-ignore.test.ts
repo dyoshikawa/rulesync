@@ -184,7 +184,7 @@ desktop.ini`;
       expect(devinIgnore.getFileContent()).toBe(fileContent);
       expect(devinIgnore.getOutputRoot()).toBe("/test/project");
       expect(devinIgnore.getRelativeDirPath()).toBe(".");
-      expect(devinIgnore.getRelativeFilePath()).toBe(".codeiumignore");
+      expect(devinIgnore.getRelativeFilePath()).toBe(".devinignore");
     });
 
     it("should use default outputRoot when not provided", () => {
@@ -266,7 +266,32 @@ Thumbs.db`;
   });
 
   describe("fromFile", () => {
-    it("should read .codeiumignore file from current directory", async () => {
+    it("should read .devinignore file from current directory", async () => {
+      const fileContent = "*.log\nnode_modules/\n.env";
+      await writeFileContent(join(testDir, ".devinignore"), fileContent);
+
+      const devinIgnore = await DevinIgnore.fromFile({
+        outputRoot: testDir,
+      });
+
+      expect(devinIgnore).toBeInstanceOf(DevinIgnore);
+      expect(devinIgnore.getRelativeFilePath()).toBe(".devinignore");
+      expect(devinIgnore.getFileContent()).toBe(fileContent);
+    });
+
+    it("should prefer .devinignore over legacy .codeiumignore when both exist", async () => {
+      await writeFileContent(join(testDir, ".devinignore"), "from-devinignore");
+      await writeFileContent(join(testDir, ".codeiumignore"), "from-codeiumignore");
+
+      const devinIgnore = await DevinIgnore.fromFile({
+        outputRoot: testDir,
+      });
+
+      expect(devinIgnore.getRelativeFilePath()).toBe(".devinignore");
+      expect(devinIgnore.getFileContent()).toBe("from-devinignore");
+    });
+
+    it("should fall back to legacy .codeiumignore file from current directory", async () => {
       const fileContent = "*.log\nnode_modules/\n.env";
       const codeiumIgnorePath = join(testDir, ".codeiumignore");
       await writeFileContent(codeiumIgnorePath, fileContent);
@@ -407,7 +432,7 @@ jspm_packages/
       expect(devinIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should throw error when .codeiumignore file does not exist", async () => {
+    it("should throw error when neither .devinignore nor .codeiumignore exists", async () => {
       await expect(DevinIgnore.fromFile({ outputRoot: testDir })).rejects.toThrow();
     });
 
@@ -607,14 +632,8 @@ dist/
   });
 
   describe("DevinIgnore-specific behavior", () => {
-    it("should use .codeiumignore as the filename", () => {
-      const devinIgnore = new DevinIgnore({
-        relativeDirPath: ".",
-        relativeFilePath: ".codeiumignore",
-        fileContent: "*.log",
-      });
-
-      expect(devinIgnore.getRelativeFilePath()).toBe(".codeiumignore");
+    it("should use .devinignore as the default generated filename", () => {
+      expect(DevinIgnore.getSettablePaths().relativeFilePath).toBe(".devinignore");
     });
 
     it("should work as a Devin AI ignore file", () => {

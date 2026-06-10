@@ -345,6 +345,7 @@ rulesync.local.jsonc
 **/.takt/config.yaml
 **/.devin/rules/
 **/.devin/workflows/
+**/.devinignore
 **/.windsurf/mcp_config.json
 **/.windsurf/hooks.json
 **/.devin/skills/
