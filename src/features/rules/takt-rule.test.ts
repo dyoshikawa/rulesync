@@ -131,7 +131,7 @@ describe("TaktRule", () => {
         relativeFilePath: "review-format.md",
         frontmatter: {
           targets: ["*"],
-          ...({ takt: { facet: "output-contracts" } } as Record<string, unknown>),
+          takt: { facet: "output-contracts" },
         },
         body: "# Review format",
       });
@@ -149,7 +149,7 @@ describe("TaktRule", () => {
         relativeFilePath: "style.md",
         frontmatter: {
           targets: ["*"],
-          ...({ takt: { facet: "policies" } } as Record<string, unknown>),
+          takt: { facet: "policies" },
         },
         body: "x",
       });
@@ -168,9 +168,7 @@ describe("TaktRule", () => {
         relativeFilePath: "source.md",
         frontmatter: {
           targets: ["*"],
-          ...({
-            takt: { facet: "output-contracts", name: "report", extends: "base" },
-          } as Record<string, unknown>),
+          takt: { facet: "output-contracts", name: "report", extends: "base" },
         },
         body: "# Report contract",
       });

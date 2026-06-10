@@ -61,7 +61,8 @@ export type TaktRuleParams = Omit<ToolRuleParams, "fileContent"> & {
  * the body is written verbatim. Like `takt.name` and `takt.extends`, the
  * `takt.facet` selection is a generate-side authoring control and is not
  * reconstructed on import (Takt facet files carry no frontmatter to recover it
- * from); importing `.takt/facets/policies/` yields plain rules.
+ * from). Import only scans the default `.takt/facets/policies/` facet and yields
+ * plain rules; files under `.takt/facets/output-contracts/` are not imported.
  */
 export class TaktRule extends ToolRule {
   static getSettablePaths({
