@@ -33,11 +33,13 @@ const GEMINICLI_TO_RULESYNC_TOOL_NAME: Record<string, string> = Object.fromEntri
 );
 
 // Priority values chosen so `deny` beats `ask` beats `allow` in first-match order, which
-// the Gemini CLI Policy Engine does not otherwise enforce. The spread is wide enough that
-// a hand-authored rule in a sibling `.toml` under `.gemini/policies/` is unlikely to outrank
-// a rulesync-managed deny by accident.
-const PRIORITY_DENY = 1_000_000;
-const PRIORITY_ASK = 1_000;
+// the Gemini CLI Policy Engine does not otherwise enforce. The Policy Engine documents a
+// valid per-rule priority range of 0-999 (combined as `tier_base + toml_priority / 1000`),
+// so the values must stay within that range. `deny` is placed at the top of the band and
+// `allow` at the bottom, leaving headroom for hand-authored rules in sibling `.toml` files.
+// https://github.com/google-gemini/gemini-cli/blob/main/docs/reference/policy-engine.md
+const PRIORITY_DENY = 999;
+const PRIORITY_ASK = 500;
 const PRIORITY_ALLOW = 1;
 
 // Regex fragments emitted for glob wildcards. Both exclude `"` so the pattern cannot leak
@@ -98,6 +100,17 @@ export class GeminicliPermissions extends ToolPermissions {
     logger = moduleLogger,
   }: ToolPermissionsFromRulesyncPermissionsParams): GeminicliPermissions {
     const paths = this.getSettablePaths({ global });
+    if (!global) {
+      // Gemini CLI's Policy Engine documents the Workspace tier (project-level
+      // `.gemini/policies/`) as non-functional: policies placed there have no
+      // effect. Only the User tier (`~/.gemini/policies/`, written with
+      // `--global`) is honored. Warn so the inert project-scope output is not
+      // mistaken for an active permission set.
+      // https://github.com/google-gemini/gemini-cli/blob/main/docs/reference/policy-engine.md
+      logger.warn(
+        `Gemini CLI permissions written to the project-scope ${join(GEMINICLI_POLICY_RELATIVE_DIR_PATH, GEMINICLI_POLICY_FILE_NAME)} are inert: Gemini CLI's Workspace policy tier is non-functional. Generate with --global to write the effective User-tier policy at ~/.gemini/policies/.`,
+      );
+    }
     const fileContent = buildGeminicliPolicyContent(rulesyncPermissions.getJson(), logger);
 
     return new GeminicliPermissions({
