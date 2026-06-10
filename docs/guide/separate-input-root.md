@@ -53,4 +53,6 @@ rulesync generate --input-root ~/.aiglobal --global --targets claudecode --featu
 
 ## Symlinks and trust
 
-`--input-root` is `resolve()`-ed to an absolute path before being used, but symbolic links inside the resolved directory are **not** dereferenced via `realpath`. If a symlink inside the input root points outside it, Rulesync will follow it transparently. Because `--input-root` is a deliberate user-supplied flag, treat it like any other source directory: only point Rulesync at trees you control.
+Rulesync follows symbolic links during file discovery. A symlink inside `.rulesync/` that points outside the directory will be followed transparently, and the resolved file content will be copied into the generated output. This is intentional: it lets you centralize shared skills or rules in one place and reference them via symlinks from multiple project directories without duplication.
+
+The trust boundary is the directory you point Rulesync at. `--input-root` is `resolve()`-ed to an absolute path before use, but there is no `realpath`-based boundary check on individual symlinks inside it. Only run Rulesync against trees you control.

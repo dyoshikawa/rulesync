@@ -219,9 +219,15 @@ export async function findFilesByGlobs(
   const normalizedGlobs = Array.isArray(globs)
     ? globs.map((g) => g.replaceAll("\\", "/"))
     : globs.replaceAll("\\", "/");
+  // followSymbolicLinks: true lets callers use symlinks to share skills/rules across
+  // directories without duplication. Callers are responsible for passing globs rooted
+  // inside a trusted directory (inputRoot/outputRoot); this function has no path-boundary
+  // enforcement. Note: git-client.ts intentionally skips symlinks during remote fetch
+  // because unresolved symlinks in a bare clone are meaningless — that is a distinct code
+  // path with different trust assumptions.
   const results = globbySync(normalizedGlobs, {
     absolute: true,
-    followSymbolicLinks: false,
+    followSymbolicLinks: true,
     ...globbyOptions,
   });
   // Sort for consistent ordering across different glob implementations
