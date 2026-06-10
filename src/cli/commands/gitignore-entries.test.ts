@@ -121,6 +121,17 @@ describe("filterGitignoreEntries", () => {
       expect(result).not.toContain("**/.github/prompts/");
     });
 
+    it("should include the root AGENTS.md and .agents/rules entries for antigravity-ide", () => {
+      const result = filterGitignoreEntries({ logger, targets: ["antigravity-ide"] });
+
+      // antigravity-ide emits the root rule as a project-root AGENTS.md plus
+      // non-root rules under .agents/rules/.
+      expect(result).toContain("**/AGENTS.md");
+      expect(result).toContain("**/.agents/rules/");
+      // The CLI-only GEMINI.md must NOT be included for the IDE target.
+      expect(result).not.toContain("**/GEMINI.md");
+    });
+
     it("should return all entries when target is wildcard", () => {
       const result = filterGitignoreEntries({ logger, targets: ["*"] });
       expect(result).toEqual([...ALL_GITIGNORE_ENTRIES]);
