@@ -138,6 +138,36 @@ describe("AugmentcodeCommand", () => {
         augmentcode: { "argument-hint": "<file>", model: "gpt-5" },
       });
     });
+
+    it("should accept and validate the argument-hint and model frontmatter fields", () => {
+      expect(
+        () =>
+          new AugmentcodeCommand({
+            outputRoot: testDir,
+            relativeDirPath: join(".augment", "commands"),
+            relativeFilePath: "test.md",
+            frontmatter: {
+              description: "Test description",
+              "argument-hint": "<file>",
+              model: "gpt-5",
+            },
+            body: "Test body",
+            validate: true,
+          }),
+      ).not.toThrow();
+
+      expect(
+        () =>
+          new AugmentcodeCommand({
+            outputRoot: testDir,
+            relativeDirPath: join(".augment", "commands"),
+            relativeFilePath: "test.md",
+            frontmatter: { model: 123 as any },
+            body: "Test body",
+            validate: true,
+          }),
+      ).toThrow(/Invalid frontmatter/);
+    });
   });
 
   describe("fromRulesyncCommand", () => {

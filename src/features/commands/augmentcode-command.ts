@@ -18,6 +18,10 @@ import {
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
 export const AugmentcodeCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
+  // Augment Code custom commands also support `argument-hint` and `model`
+  // frontmatter fields. https://docs.augmentcode.com/cli/custom-commands
+  "argument-hint": z.optional(z.string()),
+  model: z.optional(z.string()),
 });
 
 export type AugmentcodeCommandFrontmatter = z.infer<typeof AugmentcodeCommandFrontmatterSchema>;
