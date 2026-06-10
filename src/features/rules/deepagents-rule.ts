@@ -116,10 +116,11 @@ export class DeepagentsRule extends ToolRule {
     const rootPath = this.getSettablePaths({ global }).root;
     const isRoot = rulesyncRule.getFrontmatter().root ?? false;
 
-    // deepagents reads project context only from the fixed `.deepagents/AGENTS.md`
-    // file. Both root and non-root rules therefore target that single path; the
-    // RulesProcessor folds the non-root bodies (`root: false`) into the root rule
-    // and drops the redundant non-root instances before writing.
+    // deepagents reads context only from the fixed root AGENTS.md file
+    // (`.deepagents/AGENTS.md` for project, `.deepagents/deepagents/AGENTS.md`
+    // for global). Both root and non-root rules therefore target that single
+    // path; the RulesProcessor folds the non-root bodies (`root: false`) into
+    // the root rule and drops the redundant non-root instances before writing.
     return new DeepagentsRule({
       outputRoot,
       relativeDirPath: rootPath.relativeDirPath,
