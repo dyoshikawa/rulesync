@@ -20,6 +20,7 @@ import type { Logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
 import { KiloMcp } from "../mcp/kilo-mcp.js";
+import { OpencodeMcp } from "../mcp/opencode-mcp.js";
 import { AgentsmdSkill } from "../skills/agentsmd-skill.js";
 import { RovodevSkill } from "../skills/rovodev-skill.js";
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
@@ -790,6 +791,29 @@ export class RulesProcessor extends FeatureProcessor {
       if (instructionPaths.length > 0) {
         extraFiles.push(
           await KiloMcp.fromInstructions({
+            outputRoot: this.outputRoot,
+            instructions: instructionPaths,
+            validate: true,
+            global: this.global,
+          }),
+        );
+      }
+    }
+
+    // OpenCode auto-loads only the root `AGENTS.md` plus files explicitly listed
+    // in the `instructions` key of `opencode.json`; it does NOT auto-discover a
+    // rules directory. Non-root rules written to `.opencode/memories/` are
+    // therefore silently ignored unless registered here. The root `AGENTS.md` is
+    // auto-loaded, so it must NOT be registered. This merge is non-destructive:
+    // OpencodeMcp.fromInstructions preserves mcp/tools and any other existing
+    // keys. Only applies in project scope (no nonRoot rules exist in global scope).
+    if (this.toolTarget === "opencode" && !this.global) {
+      const instructionPaths = toolRules
+        .filter((rule) => !rule.isRoot())
+        .map((rule) => toPosixPath(join(rule.getRelativeDirPath(), rule.getRelativeFilePath())));
+      if (instructionPaths.length > 0) {
+        extraFiles.push(
+          await OpencodeMcp.fromInstructions({
             outputRoot: this.outputRoot,
             instructions: instructionPaths,
             validate: true,

@@ -2353,4 +2353,66 @@ targets: ["*"]
       expect(result.find((f) => f.getRelativeFilePath() === "kilo.jsonc")).toBeUndefined();
     });
   });
+
+  describe("opencode instructions registration", () => {
+    it("should register non-root rules in opencode.jsonc instructions and not the root rule", async () => {
+      const processor = new RulesProcessor({ logger, toolTarget: "opencode" });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "overview.md",
+          frontmatter: { root: true, targets: ["*"] },
+          body: "Root rule",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "detail.md",
+          frontmatter: { root: false, targets: ["*"] },
+          body: "Detail rule",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      // The non-root rule is emitted under .opencode/memories/
+      const ruleFile = result.find((f) => f.getRelativeFilePath() === "detail.md");
+      expect(ruleFile).toBeDefined();
+      expect(ruleFile?.getRelativeDirPath()).toBe(join(".opencode", "memories"));
+
+      // An opencode.jsonc file is also produced with the non-root rule registered.
+      const opencodeConfig = result.find((f) => f.getRelativeFilePath() === "opencode.jsonc");
+      expect(opencodeConfig).toBeDefined();
+      const json = JSON.parse(opencodeConfig!.getFileContent());
+      expect(json.instructions).toEqual([".opencode/memories/detail.md"]);
+      // Root AGENTS.md must NOT be registered (it is auto-loaded).
+      expect(json.instructions).not.toContain("AGENTS.md");
+    });
+
+    it("should not produce an opencode.jsonc when only a root rule exists", async () => {
+      const processor = new RulesProcessor({ logger, toolTarget: "opencode" });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "overview.md",
+          frontmatter: { root: true, targets: ["*"] },
+          body: "Root rule",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      expect(
+        result.find(
+          (f) =>
+            f.getRelativeFilePath() === "opencode.jsonc" ||
+            f.getRelativeFilePath() === "opencode.json",
+        ),
+      ).toBeUndefined();
+    });
+  });
 });
