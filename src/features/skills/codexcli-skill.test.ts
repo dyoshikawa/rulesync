@@ -530,7 +530,9 @@ This is the body of the codex cli skill.`;
     });
 
     it("should read agents/openai.yaml back into the codexcli section on import", async () => {
-      const skillDir = join(testDir, ".codex", "skills", "test-skill");
+      // Codex CLI skills live under `.agents/skills/` (see getSettablePaths), which is
+      // where `fromDir` reads from; the skill fixture must be written to that path.
+      const skillDir = join(testDir, ".agents", "skills", "test-skill");
       await ensureDir(join(skillDir, "agents"));
       await writeFileContent(
         join(skillDir, SKILL_FILE_NAME),
