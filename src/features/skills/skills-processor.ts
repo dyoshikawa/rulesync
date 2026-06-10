@@ -275,8 +275,13 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
   [
     "replit",
     {
+      // Replit Agent Skills document a user-level (personal) scope and follow the
+      // open Agent Skills standard, which defines `.agents/skills/` (project) and
+      // `~/.agents/skills/` (personal/global).
+      // https://docs.replit.com/core-concepts/agent/skills (user-level scope)
+      // https://agentskills.io/specification (`~/.agents/skills/` personal path)
       class: ReplitSkill,
-      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
   [
