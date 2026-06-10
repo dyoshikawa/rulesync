@@ -38,7 +38,11 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "common", feature: "general", entry: "**/AGENTS.local.md" },
 
   // AGENTS.md
-  { target: ["agentsmd", "amp", "pi", "warp"], feature: "rules", entry: "**/AGENTS.md" },
+  {
+    target: ["agentsmd", "amp", "antigravity-ide", "pi", "warp"],
+    feature: "rules",
+    entry: "**/AGENTS.md",
+  },
   { target: "agentsmd", feature: "rules", entry: "**/.agents/" },
 
   // Amp
@@ -51,9 +55,10 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "amp", feature: "skills", entry: "**/.agents/skills/" },
 
   // Antigravity (IDE + CLI, Antigravity 2.0)
-  // Both targets share the `.agents/` project tree; the CLI additionally
-  // writes a root `GEMINI.md`. Global-scope paths (under the home directory)
-  // are intentionally not gitignored.
+  // Both targets share the `.agents/` project tree; the IDE additionally writes
+  // a root `AGENTS.md` (handled by the shared AGENTS.md entry above) and the CLI
+  // a root `GEMINI.md`. Global-scope paths (under the home directory) are
+  // intentionally not gitignored.
   {
     target: ["antigravity-ide", "antigravity-cli"],
     feature: "rules",
