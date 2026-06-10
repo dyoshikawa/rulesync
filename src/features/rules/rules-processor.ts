@@ -418,7 +418,8 @@ const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
       class: DeepagentsRule,
       meta: {
         extension: "md",
-        supportsGlobal: false,
+        // dcode reads user-level context from `~/.deepagents/<agent_name>/AGENTS.md`.
+        supportsGlobal: true,
         ruleDiscoveryMode: "auto",
       },
     },

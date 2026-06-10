@@ -216,8 +216,9 @@ const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>(
   [
     "deepagents",
     {
+      // dcode discovers user-level skills in `~/.deepagents/<agent_name>/skills/`.
       class: DeepagentsSkill,
-      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
   [

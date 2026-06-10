@@ -900,6 +900,7 @@ Content that would fail parsing`;
         "codexcli",
         "copilot",
         "copilotcli",
+        "deepagents",
         "factorydroid",
         "geminicli",
         "goose",
@@ -941,6 +942,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("codexcli");
       expect(globalTargets).toContain("copilot");
       expect(globalTargets).toContain("copilotcli");
+      expect(globalTargets).toContain("deepagents");
       expect(globalTargets).toContain("factorydroid");
       expect(globalTargets).toContain("geminicli");
       expect(globalTargets).toContain("junie");
@@ -952,7 +954,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("takt");
       expect(globalTargets).toContain("devin");
       expect(globalTargets).toContain("zed");
-      expect(globalTargets.length).toBe(21);
+      expect(globalTargets.length).toBe(22);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

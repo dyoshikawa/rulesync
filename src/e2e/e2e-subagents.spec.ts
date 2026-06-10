@@ -314,6 +314,10 @@ describe("E2E: subagents (global mode)", () => {
     { target: "takt", outputPath: join(".takt", "facets", "personas", "planner.md") },
     { target: "factorydroid", outputPath: join(".factory", "droids", "planner.md") },
     { target: "cline", outputPath: join(".cline", "agents", "planner.yaml") },
+    {
+      target: "deepagents",
+      outputPath: join(".deepagents", "deepagents", "agents", "planner", "AGENTS.md"),
+    },
   ])("should generate $target subagents in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

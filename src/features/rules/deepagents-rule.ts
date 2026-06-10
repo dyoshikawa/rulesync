@@ -43,15 +43,19 @@ export class DeepagentsRule extends ToolRule {
     });
   }
 
-  static getSettablePaths(
-    _options: {
-      global?: boolean;
-      excludeToolDir?: boolean;
-    } = {},
-  ): DeepagentsRuleSettablePaths {
+  static getSettablePaths({
+    global = false,
+  }: {
+    global?: boolean;
+    excludeToolDir?: boolean;
+  } = {}): DeepagentsRuleSettablePaths {
+    // dcode reads user-level context from `~/.deepagents/<agent_name>/AGENTS.md`
+    // (default agent_name `deepagents`); the home directory is resolved by the
+    // processor through outputRoot in global mode. Project context lives in
+    // `<project>/.deepagents/AGENTS.md`.
     return {
       root: {
-        relativeDirPath: ".deepagents",
+        relativeDirPath: global ? join(".deepagents", "deepagents") : ".deepagents",
         relativeFilePath: "AGENTS.md",
       },
     };
@@ -63,8 +67,9 @@ export class DeepagentsRule extends ToolRule {
     // so the incoming `relativeFilePath` is ignored and the root file is read.
     relativeFilePath: _relativeFilePath,
     validate = true,
+    global = false,
   }: ToolRuleFromFileParams): Promise<DeepagentsRule> {
-    const settablePaths = this.getSettablePaths();
+    const settablePaths = this.getSettablePaths({ global });
     const relativePath = join(
       settablePaths.root.relativeDirPath,
       settablePaths.root.relativeFilePath,
@@ -86,7 +91,11 @@ export class DeepagentsRule extends ToolRule {
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): DeepagentsRule {
-    const isRoot = relativeFilePath === "AGENTS.md" && relativeDirPath === ".deepagents";
+    // The deepagents root file is always `AGENTS.md`, under `.deepagents`
+    // (project) or `.deepagents/deepagents` (global).
+    const isRoot =
+      relativeFilePath === "AGENTS.md" &&
+      (relativeDirPath === ".deepagents" || relativeDirPath === join(".deepagents", "deepagents"));
 
     return new DeepagentsRule({
       outputRoot,
@@ -102,14 +111,16 @@ export class DeepagentsRule extends ToolRule {
     outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
+    global = false,
   }: ToolRuleFromRulesyncRuleParams): DeepagentsRule {
-    const rootPath = this.getSettablePaths().root;
+    const rootPath = this.getSettablePaths({ global }).root;
     const isRoot = rulesyncRule.getFrontmatter().root ?? false;
 
-    // deepagents reads project context only from the fixed `.deepagents/AGENTS.md`
-    // file. Both root and non-root rules therefore target that single path; the
-    // RulesProcessor folds the non-root bodies (`root: false`) into the root rule
-    // and drops the redundant non-root instances before writing.
+    // deepagents reads context only from the fixed root AGENTS.md file
+    // (`.deepagents/AGENTS.md` for project, `.deepagents/deepagents/AGENTS.md`
+    // for global). Both root and non-root rules therefore target that single
+    // path; the RulesProcessor folds the non-root bodies (`root: false`) into
+    // the root rule and drops the redundant non-root instances before writing.
     return new DeepagentsRule({
       outputRoot,
       relativeDirPath: rootPath.relativeDirPath,

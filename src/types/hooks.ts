@@ -57,6 +57,7 @@ export type HookEvent =
   | "stop"
   | "subagentStop"
   | "preCompact"
+  | "contextOffload"
   | "postToolUseFailure"
   | "subagentStart"
   | "beforeShellExecution"
@@ -189,6 +190,7 @@ export const DEEPAGENTS_HOOK_EVENTS: readonly HookEvent[] = [
   "postToolUseFailure",
   "stop",
   "preCompact",
+  "contextOffload",
   "notification",
 ];
 
@@ -568,6 +570,7 @@ export const CANONICAL_TO_DEEPAGENTS_EVENT_NAMES: Record<string, string> = {
   postToolUseFailure: "tool.error",
   stop: "task.complete",
   preCompact: "context.compact",
+  contextOffload: "context.offload",
   // dcode's human-in-the-loop interrupt; canonical `notification` is the closest fit.
   notification: "input.required",
 };

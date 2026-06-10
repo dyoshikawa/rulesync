@@ -28,9 +28,9 @@ describe("DeepagentsSkill", () => {
       expect(paths.relativeDirPath).toBe(join(".deepagents", "skills"));
     });
 
-    it("should return project path for global mode", () => {
+    it("should return the user-level path for global mode", () => {
       const paths = DeepagentsSkill.getSettablePaths({ global: true });
-      expect(paths.relativeDirPath).toBe(join(".deepagents", "skills"));
+      expect(paths.relativeDirPath).toBe(join(".deepagents", "deepagents", "skills"));
     });
   });
 
