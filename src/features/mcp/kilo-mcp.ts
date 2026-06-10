@@ -64,6 +64,15 @@ const KiloConfigSchema = z.looseObject({
   // Project rule files/globs that Kilo auto-loads. Shared with the rules
   // feature (see kilo-rule.ts); preserved here so writing MCP never drops it.
   instructions: z.optional(z.array(z.string())),
+  // Extra skill locations and remote skill manifest URLs configurable in
+  // `kilo.jsonc`. Preserved here so writing MCP never drops them.
+  // https://kilo.ai/docs/customize/skills
+  skills: z.optional(
+    z.looseObject({
+      paths: z.optional(z.array(z.string())),
+      urls: z.optional(z.array(z.string())),
+    }),
+  ),
 });
 
 type KiloConfig = z.infer<typeof KiloConfigSchema>;

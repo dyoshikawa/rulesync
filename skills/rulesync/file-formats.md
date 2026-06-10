@@ -296,22 +296,22 @@ Attention, again, you are just the planner, so though you can read any files and
 
 Besides `mode`, the `kilo` subagent block accepts these optional fields (all preserved on round-trip):
 
-| Field         | Type            | Notes                                |
-| ------------- | --------------- | ------------------------------------ |
-| `displayName` | string          | Human-friendly name shown in pickers |
-| `model`       | string          | Model id                             |
-| `variant`     | string          | Model variant                        |
-| `temperature` | number          | Sampling temperature                 |
-| `top_p`       | number          | Nucleus-sampling parameter           |
-| `permission`  | string          | Permission profile                   |
-| `prompt`      | string          | Inline system prompt                 |
-| `color`       | string          | UI color                             |
-| `native`      | boolean         | Native (built-in) agent flag         |
-| `hidden`      | boolean         | Hide from top-level picker           |
-| `disable`     | boolean         | Disable the agent                    |
-| `deprecated`  | boolean         | Mark as deprecated                   |
-| `steps`       | array of object | Ordered step definitions             |
-| `options`     | object          | Free-form key/value options          |
+| Field         | Type             | Notes                                                                            |
+| ------------- | ---------------- | -------------------------------------------------------------------------------- |
+| `displayName` | string           | Human-friendly name shown in pickers                                             |
+| `model`       | string           | Model id                                                                         |
+| `variant`     | string           | Model variant                                                                    |
+| `temperature` | number           | Sampling temperature                                                             |
+| `top_p`       | number           | Nucleus-sampling parameter                                                       |
+| `permission`  | string \| object | Permission profile name, or a per-tool `{ <tool>: { allow, deny, ask } }` object |
+| `prompt`      | string           | Inline system prompt                                                             |
+| `color`       | string           | UI color                                                                         |
+| `native`      | boolean          | Native (built-in) agent flag                                                     |
+| `hidden`      | boolean          | Hide from top-level picker                                                       |
+| `disable`     | boolean          | Disable the agent                                                                |
+| `deprecated`  | boolean          | Mark as deprecated                                                               |
+| `steps`       | array of object  | Ordered step definitions                                                         |
+| `options`     | object           | Free-form key/value options                                                      |
 
 ## `.rulesync/skills/*/SKILL.md`
 
@@ -380,6 +380,15 @@ opencode: # for OpenCode-specific parameters (optional)
   metadata: # (optional) free-form metadata
     author: rulesync
   allowed-tools: # (optional) Anthropic-spec passthrough; OpenCode ignores unknown fields
+    - "Bash"
+    - "Read"
+kilo: # for Kilo Code-specific parameters (optional)
+  license: MIT # (optional)
+  compatibility: # (optional) free-form compatibility metadata
+    kilo-version: ">=7.0.0"
+  metadata: # (optional) free-form metadata
+    author: rulesync
+  allowed-tools: # (optional) backward-compat passthrough; not part of Kilo's official SKILL.md frontmatter
     - "Bash"
     - "Read"
 agentsskills: # for the Agent Skills standard target (optional; supports project + global ~/.agents/skills/)
@@ -481,7 +490,7 @@ Rulesync provides a JSON Schema for editor validation and autocompletion. Add th
 
 The `type` (and the equivalent `transport`) field accepts `local`, `stdio`, `sse`, `http`, `ws`, and `streamable-http`. `streamable-http` is the MCP specification's name for the HTTP transport and is accepted as an alias of `http`, so configurations copied from a server's documentation work unchanged. `ws` is the WebSocket transport (a persistent bidirectional connection) and accepts the same `url`/`headers`/`headersHelper`/`timeout` fields as `http`. Tools that do not recognize a given transport keep it on round-trip but may ignore it at runtime.
 
-> **Kilo Code note:** Kilo's MCP config uses its own native shape in `kilo.jsonc` (`type: "local" | "remote"`, `environment`, `enabled`, `command` as an array). Rulesync maps `stdio`/`local` ⇄ Kilo `local` and `http`/`sse` ⇄ Kilo `remote`; on import, Kilo `remote` is normalized to the canonical `http` transport (the deprecated `sse` is no longer emitted). The Kilo-specific `timeout` (local + remote, a positive integer in milliseconds) and `oauth` (remote only — either an OAuth-config object or `false` to disable auto-detection) fields are preserved on round-trip.
+> **Kilo Code note:** Kilo's MCP config uses its own native shape in `kilo.jsonc` (`type: "local" | "remote"`, `environment`, `enabled`, `command` as an array). Rulesync maps `stdio`/`local` ⇄ Kilo `local` and `http`/`sse` ⇄ Kilo `remote`; on import, Kilo `remote` is normalized to the canonical `http` transport (the deprecated `sse` is no longer emitted). The Kilo-specific `timeout` (local + remote, a positive integer in milliseconds) and `oauth` (remote only — either an OAuth-config object or `false` to disable auto-detection) fields are preserved on round-trip. The `kilo.jsonc` `skills` config key (`skills.paths` for extra skill locations and `skills.urls` for remote skill manifests) is likewise preserved when Rulesync writes the file.
 
 ### MCP Tool Config (`enabledTools` / `disabledTools`)
 

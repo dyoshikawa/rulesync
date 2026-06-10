@@ -2314,6 +2314,33 @@ describe("KiloMcp", () => {
         },
       });
     });
+
+    it("should preserve an existing skills config key when writing mcp", async () => {
+      const existingConfig = {
+        skills: {
+          paths: ["~/my-skills", "relative/skills"],
+          urls: ["https://example.com/.well-known/skills/"],
+        },
+      };
+      await writeFileContent(join(testDir, "kilo.jsonc"), JSON.stringify(existingConfig, null, 2));
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "new-server": { command: "node", args: ["server.js"] },
+          },
+        }),
+      });
+
+      const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect((kiloMcp.getJson() as { skills?: unknown }).skills).toEqual({
+        paths: ["~/my-skills", "relative/skills"],
+        urls: ["https://example.com/.well-known/skills/"],
+      });
+    });
   });
 
   describe("error handling", () => {

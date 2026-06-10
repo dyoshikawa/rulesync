@@ -461,6 +461,29 @@ Agent body`,
     }
   });
 
+  it("should accept a per-tool permission object as well as a string", () => {
+    const stringResult = KiloSubagentFrontmatterSchema.safeParse({
+      name: "agent",
+      permission: "read-only",
+    });
+    expect(stringResult.success).toBe(true);
+
+    const objectResult = KiloSubagentFrontmatterSchema.safeParse({
+      name: "agent",
+      permission: {
+        bash: { allow: ["git *"], deny: ["rm -rf *"] },
+        edit: { ask: ["src/**"] },
+      },
+    });
+    expect(objectResult.success).toBe(true);
+    if (objectResult.success) {
+      expect(objectResult.data.permission).toEqual({
+        bash: { allow: ["git *"], deny: ["rm -rf *"] },
+        edit: { ask: ["src/**"] },
+      });
+    }
+  });
+
   it("should round-trip the options and steps fields via fromRulesyncSubagent", () => {
     const rulesyncSubagent = new RulesyncSubagent({
       outputRoot: testDir,

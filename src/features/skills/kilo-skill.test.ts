@@ -114,6 +114,35 @@ describe("KiloSkill", () => {
         "allowed-tools": ["Bash", "Read"],
       });
     });
+
+    it("should round-trip license, compatibility, and metadata via the kilo section", () => {
+      const skill = new KiloSkill({
+        outputRoot: testDir,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "Test description",
+          license: "MIT",
+          compatibility: { network: "required" },
+          metadata: { author: "rulesync" },
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().kilo).toEqual({
+        license: "MIT",
+        compatibility: { network: "required" },
+        metadata: { author: "rulesync" },
+      });
+
+      const roundTripped = KiloSkill.fromRulesyncSkill({ rulesyncSkill });
+      const fm = roundTripped.getFrontmatter();
+      expect(fm.license).toBe("MIT");
+      expect(fm.compatibility).toEqual({ network: "required" });
+      expect(fm.metadata).toEqual({ author: "rulesync" });
+    });
   });
 
   describe("fromRulesyncSkill", () => {

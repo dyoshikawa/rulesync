@@ -31,7 +31,10 @@ export const KiloSubagentFrontmatterSchema = z.looseObject({
   top_p: z.optional(z.number()),
   temperature: z.optional(z.number()),
   color: z.optional(z.string()),
-  permission: z.optional(z.string()),
+  // Kilo custom modes accept a per-tool permission object (`{ <tool>: { allow,
+  // deny, ask } }`, glob-aware), in addition to a bare string. Accept both so an
+  // object value is no longer rejected. https://kilo.ai/docs/customize/custom-modes
+  permission: z.optional(z.union([z.string(), z.record(z.string(), z.unknown())])),
   model: z.optional(z.string()),
   variant: z.optional(z.string()),
   prompt: z.optional(z.string()),
