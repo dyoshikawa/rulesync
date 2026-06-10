@@ -179,7 +179,8 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
       // https://github.com/langchain-ai/deepagents/blob/main/libs/code/deepagents_code/subagents.py
       meta: {
         supportsSimulated: false,
-        supportsGlobal: false,
+        // dcode discovers user-level subagents in `~/.deepagents/<agent_name>/agents/`.
+        supportsGlobal: true,
         filePattern: join("*", "AGENTS.md"),
       },
     },

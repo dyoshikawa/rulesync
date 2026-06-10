@@ -102,6 +102,33 @@ describe("DeepagentsHooks", () => {
       expect(stopEntry.command).toEqual(["bash", "-c", "echo task done"]);
     });
 
+    it("should map the canonical contextOffload event to dcode's context.offload", () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            contextOffload: [{ type: "command", command: "echo offloaded" }],
+          },
+        }),
+      });
+
+      const hooks = DeepagentsHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+      const parsed = JSON.parse(hooks.getFileContent());
+
+      const offloadEntry = parsed.hooks.find((h: { events?: string[] }) =>
+        h.events?.includes("context.offload"),
+      );
+      expect(offloadEntry).toBeDefined();
+      expect(offloadEntry.command).toEqual(["bash", "-c", "echo offloaded"]);
+
+      // And it should round-trip back to the canonical name.
+      const roundTripped = JSON.parse(hooks.toRulesyncHooks().getFileContent());
+      expect(roundTripped.hooks.contextOffload).toBeDefined();
+    });
+
     it("should map the canonical notification event to dcode input.required", () => {
       const rulesyncHooks = new RulesyncHooks({
         outputRoot: testDir,

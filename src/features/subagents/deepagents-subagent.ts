@@ -61,9 +61,16 @@ export class DeepagentsSubagent extends ToolSubagent {
     this.body = body;
   }
 
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolSubagentSettablePaths {
+  static getSettablePaths({
+    global = false,
+  }: { global?: boolean } = {}): ToolSubagentSettablePaths {
+    // dcode discovers user-level subagents in `~/.deepagents/<agent_name>/agents/`
+    // (default agent_name `deepagents`); the home directory is resolved by the
+    // processor through outputRoot in global mode.
     return {
-      relativeDirPath: join(".deepagents", "agents"),
+      relativeDirPath: global
+        ? join(".deepagents", "deepagents", "agents")
+        : join(".deepagents", "agents"),
     };
   }
 

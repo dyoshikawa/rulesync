@@ -66,9 +66,14 @@ export class DeepagentsSkill extends ToolSkill {
     }
   }
 
-  static getSettablePaths(_options?: { global?: boolean }): ToolSkillSettablePaths {
+  static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolSkillSettablePaths {
+    // dcode discovers user-level skills in `~/.deepagents/<agent_name>/skills/`
+    // (default agent_name `deepagents`); the home directory is resolved by the
+    // processor through outputRoot in global mode.
     return {
-      relativeDirPath: join(".deepagents", "skills"),
+      relativeDirPath: global
+        ? join(".deepagents", "deepagents", "skills")
+        : join(".deepagents", "skills"),
     };
   }
 
