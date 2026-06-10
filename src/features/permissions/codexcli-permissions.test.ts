@@ -106,6 +106,9 @@ default_permissions = "rulesync"
 "/workspace/project/src/**" = "write"
 "/workspace/project/.env" = "deny"
 
+[permissions.rulesync.network]
+enabled = true
+
 [permissions.rulesync.network.domains]
 "github.com" = "allow"
 "example.com" = "deny"
@@ -511,7 +514,7 @@ mode = "full"
     expect(fileContent).not.toContain('extends = ":workspace"');
   });
 
-  it("should emit network.enabled only via wildcard allow without a domains entry", async () => {
+  it("should emit wildcard allow as a regular domain entry with enabled = true", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
       relativeDirPath: ".rulesync",
@@ -530,8 +533,61 @@ mode = "full"
 
     const fileContent = codexPermissions.getFileContent();
     expect(fileContent).toContain("enabled = true");
-    expect(fileContent).not.toContain('"*"');
-    expect(fileContent).not.toContain("[permissions.rulesync.network.domains]");
+    expect(fileContent).toContain("[permissions.rulesync.network.domains]");
+    expect(fileContent).toContain('"*" = "allow"');
+  });
+
+  it("should round-trip a wildcard allow mixed with deny domains", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          webfetch: { "*": "allow", "internal.example.com": "deny" },
+        },
+      }),
+    });
+
+    const generated = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const fileContent = generated.getFileContent();
+    expect(fileContent).toContain("enabled = true");
+    expect(fileContent).toContain('"*" = "allow"');
+    expect(fileContent).toContain('"internal.example.com" = "deny"');
+
+    const reimported = new CodexcliPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".codex",
+      relativeFilePath: "config.toml",
+      fileContent,
+    });
+    const json = reimported.toRulesyncPermissions().getJson();
+    expect(json.permission.webfetch?.["*"]).toBe("allow");
+    expect(json.permission.webfetch?.["internal.example.com"]).toBe("deny");
+  });
+
+  it("should not import allow domains when network.enabled is absent", () => {
+    const codexPermissions = new CodexcliPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".codex",
+      relativeFilePath: "config.toml",
+      fileContent: `
+default_permissions = "rulesync"
+
+[permissions.rulesync.network.domains]
+"github.com" = "allow"
+"example.com" = "deny"
+`,
+    });
+
+    const rulesyncPermissions = codexPermissions.toRulesyncPermissions();
+    const json = rulesyncPermissions.getJson();
+    expect(json.permission.webfetch?.["github.com"]).toBeUndefined();
+    expect(json.permission.webfetch?.["example.com"]).toBe("deny");
   });
 
   it("should skip wildcard deny webfetch rules with a warning", async () => {

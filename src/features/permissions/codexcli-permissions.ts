@@ -24,10 +24,9 @@ const CODEX_GLOB_SCAN_MAX_DEPTH = 8; // Matches Codex CLI default glob_scan_max_
 // Codex's `:workspace` baseline grants write to the entire workspace root plus /tmp and
 // $TMPDIR, so it must only be emitted when the user asked for a workspace-wide write.
 const WORKSPACE_WIDE_WRITE_PATTERNS = new Set([".", "./", "**", "./**"]);
-// Codex rejects the global `*` wildcard in network.domains at config load time
-// (both allow and deny positions); only exact hosts and scoped wildcards like
-// `*.example.com` are accepted.
-const GLOBAL_WILDCARD_DOMAINS = new Set(["*", "**"]);
+// Codex rejects the global `*` wildcard in denied network domains at config load time,
+// while allowed domains accept it for denylist-only setups (openai/codex#15549).
+const GLOBAL_WILDCARD_DOMAIN = "*";
 
 // `none` is accepted on import for configs generated before Codex CLI v0.131.0.
 type CodexFilesystemAccess = "read" | "write" | "deny" | "none";
@@ -219,7 +218,6 @@ function convertRulesyncToCodexProfile({
   const filesystem: CodexFilesystem = {};
   const workspaceRootFilesystem: CodexFilesystemRuleTable = {};
   const domains: Record<string, "allow" | "deny"> = {};
-  let wildcardNetworkAllow = false;
 
   for (const [toolName, rules] of Object.entries(config.permission)) {
     if (toolName === "read") {
@@ -256,14 +254,10 @@ function convertRulesyncToCodexProfile({
           );
           continue;
         }
-        if (GLOBAL_WILDCARD_DOMAINS.has(pattern)) {
-          if (action === "allow") {
-            wildcardNetworkAllow = true;
-          } else {
-            logger?.warn(
-              `Codex CLI rejects the global wildcard "${pattern}" in network domains at config load time. Skipping webfetch rule; unlisted domains are denied by default.`,
-            );
-          }
+        if (pattern === GLOBAL_WILDCARD_DOMAIN && action === "deny") {
+          logger?.warn(
+            `Codex CLI rejects the global wildcard "${pattern}" in denied network domains at config load time. Skipping webfetch rule; unlisted domains are denied by default.`,
+          );
           continue;
         }
         domains[pattern] = action;
@@ -298,12 +292,11 @@ function convertRulesyncToCodexProfile({
   // sets are emitted without `enabled` so Codex keeps the network restricted (its default)
   // while the deny entries still round-trip back into rulesync rules.
   const hasAllowDomain = Object.values(domains).some((action) => action === "allow");
-  const hasDomains = Object.keys(domains).length > 0;
   const network: CodexNetwork | undefined =
-    wildcardNetworkAllow || hasDomains
+    Object.keys(domains).length > 0
       ? {
-          ...(wildcardNetworkAllow || hasAllowDomain ? { enabled: true } : {}),
-          ...(hasDomains ? { domains } : {}),
+          ...(hasAllowDomain ? { enabled: true } : {}),
+          domains,
         }
       : undefined;
 
@@ -348,17 +341,20 @@ function convertCodexProfileToRulesync({
     permission.edit["."] ??= "allow";
   }
 
-  // Codex treats a missing `enabled` as restricted (same as false), but Rulesync emits
-  // deny-only domain sets without `enabled`, so domains are imported unless the network is
-  // explicitly disabled.
+  // Codex treats a missing `enabled` as restricted (same as false). Rulesync itself emits
+  // deny-only domain sets without `enabled`, so deny entries are imported even when `enabled`
+  // is absent, but allow entries are imported only when the network is explicitly enabled —
+  // otherwise regeneration would add `enabled = true` and activate a grant Codex never had.
   if (profile?.network && profile.network.enabled !== false) {
+    const networkEnabled = profile.network.enabled === true;
     const domainEntries = profile.network.domains ? Object.entries(profile.network.domains) : [];
-    if (domainEntries.length > 0) {
+    const importedEntries = domainEntries.filter(([, value]) => value === "deny" || networkEnabled);
+    if (importedEntries.length > 0) {
       permission.webfetch = {};
-      for (const [domain, value] of domainEntries) {
+      for (const [domain, value] of importedEntries) {
         permission.webfetch[domain] = value;
       }
-    } else if (profile.network.enabled === true && !domainsHadUnknown) {
+    } else if (networkEnabled && !domainsHadUnknown) {
       permission.webfetch = { "*": "allow" };
     }
   }

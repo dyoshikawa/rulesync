@@ -491,6 +491,9 @@ default_permissions = "rulesync"
 "/workspace/project/src/**" = "write"
 "/workspace/project/.env" = "deny"
 
+[permissions.rulesync.network]
+enabled = true
+
 [permissions.rulesync.network.domains]
 "github.com" = "allow"
 "example.com" = "deny"
