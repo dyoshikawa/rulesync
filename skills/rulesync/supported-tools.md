@@ -31,7 +31,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | AugmentCode            | augmentcode     | ✅ 🌏 |   ✅   |    🌏    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
 | Devin Desktop          | devin           | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |             |
 | Warp                   | warp            |  ✅   |        |  ✅ 🌏   |          |           | ✅ 🌏  |       |             |
-| Replit                 | replit          |  ✅   |        |          |          |           |   ✅   |       |             |
+| Replit                 | replit          |  ✅   |        |          |          |           | ✅ 🌏  |       |             |
 | Pi Coding Agent        | pi              | ✅ 🌏 |        |          |  ✅ 🌏   |           | ✅ 🌏  |       |             |
 | Zed                    | zed             | ✅ 🌏 |   ✅   |  ✅ 🌏   |          |           | ✅ 🌏  |       |    ✅ 🌏    |
 

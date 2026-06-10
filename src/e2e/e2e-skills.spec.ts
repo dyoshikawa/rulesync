@@ -352,6 +352,10 @@ describe("E2E: skills (global mode)", () => {
       outputPath: join(".pi", "agent", "skills", "test-skill", "SKILL.md"),
     },
     {
+      target: "replit",
+      outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
+    },
+    {
       target: "zed",
       outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
     },

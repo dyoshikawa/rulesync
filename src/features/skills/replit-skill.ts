@@ -74,10 +74,12 @@ export class ReplitSkill extends ToolSkill {
     }
   }
 
-  static getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths {
-    if (options?.global) {
-      throw new Error("ReplitSkill does not support global mode.");
-    }
+  static getSettablePaths(_options?: { global?: boolean }): ToolSkillSettablePaths {
+    // Replit Agent Skills follow the open Agent Skills standard, which defines
+    // `.agents/skills/` (project) and `~/.agents/skills/` (personal/global). The
+    // relative path is the same; the resolution root (cwd vs. home) is supplied
+    // via outputRoot by the processor.
+    // https://docs.replit.com/core-concepts/agent/skills
     return {
       relativeDirPath: join(".agents", "skills"),
     };

@@ -31,10 +31,9 @@ describe("ReplitSkill", () => {
       expect(paths.relativeDirPath).toBe(join(".agents", "skills"));
     });
 
-    it("should throw error when global is true", () => {
-      expect(() => ReplitSkill.getSettablePaths({ global: true })).toThrow(
-        "ReplitSkill does not support global mode.",
-      );
+    it("should return .agents/skills as relativeDirPath when global is true", () => {
+      const paths = ReplitSkill.getSettablePaths({ global: true });
+      expect(paths.relativeDirPath).toBe(join(".agents", "skills"));
     });
   });
 
