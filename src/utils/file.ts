@@ -1,4 +1,14 @@
-import { lstat, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
@@ -220,18 +230,40 @@ export async function findFilesByGlobs(
     ? globs.map((g) => g.replaceAll("\\", "/"))
     : globs.replaceAll("\\", "/");
   // followSymbolicLinks: true lets callers use symlinks to share skills/rules across
-  // directories without duplication. Callers are responsible for passing globs rooted
-  // inside a trusted directory (inputRoot/outputRoot); this function has no path-boundary
-  // enforcement. Note: git-client.ts intentionally skips symlinks during remote fetch
-  // because unresolved symlinks in a bare clone are meaningless — that is a distinct code
-  // path with different trust assumptions.
+  // directories without duplication (see issue #1707). Callers operate on user-specified
+  // local trees that are inside the trust boundary, so symlinks are honored — including
+  // ones whose targets resolve outside the glob root. This is an intentional trade-off:
+  // enforcing realpath containment against a single root would break the #1707 use case of
+  // sharing files that live elsewhere in the same repository. Untrusted remote content is a
+  // separate code path: git-client.ts (`walkDirectory`) skips symlinks entirely as a
+  // security hardening for fetched repositories (commit 51bf0443), so this relaxed handling
+  // never applies to remote input.
   const results = globbySync(normalizedGlobs, {
     absolute: true,
     followSymbolicLinks: true,
     ...globbyOptions,
   });
-  // Sort for consistent ordering across different glob implementations
-  return results.toSorted();
+  // Deduplicate by real path so that directory symlink cycles (which globby follows up to
+  // the kernel ELOOP limit, ~40 levels) do not yield ~40x duplicated entries that would be
+  // read and re-emitted. Keep the first path per real file in sorted order for determinism.
+  const seenRealPaths = new Set<string>();
+  const deduped: string[] = [];
+  for (const result of results.toSorted()) {
+    let realResult: string;
+    try {
+      realResult = await realpath(result);
+    } catch {
+      // realpath can fail on a broken link or race; fall back to the literal path so the
+      // entry is still considered (and still deduplicated against identical literals).
+      realResult = result;
+    }
+    if (seenRealPaths.has(realResult)) {
+      continue;
+    }
+    seenRealPaths.add(realResult);
+    deduped.push(result);
+  }
+  return deduped;
 }
 
 export async function findRuleFiles(aiRulesDir: string): Promise<string[]> {

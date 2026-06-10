@@ -1,3 +1,4 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -423,6 +424,38 @@ Invalid content`;
 
       await expect(processor.loadRulesyncDirs()).rejects.toThrow();
     });
+
+    // End-to-end coverage for issue #1707: a skill directory under .rulesync/skills/ that is
+    // a symlink to a real directory elsewhere must be loaded like a regular skill. fs.symlink
+    // needs admin/Developer Mode on Windows, so this is skipped there (issue #1808 #5).
+    it.skipIf(process.platform === "win32")(
+      "should load a skill directory that is a symbolic link",
+      async () => {
+        const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+        await ensureDir(skillsDir);
+
+        // The real skill lives outside .rulesync/skills/, shared via a symlink.
+        const sharedSkillDir = join(testDir, "shared", "linked-skill");
+        await ensureDir(sharedSkillDir);
+        await writeFileContent(
+          join(sharedSkillDir, "SKILL.md"),
+          `---
+name: linked-skill
+description: Skill shared via a symbolic link
+---
+Linked skill content`,
+        );
+
+        await symlink(sharedSkillDir, join(skillsDir, "linked-skill"));
+
+        const rulesyncDirs = await processor.loadRulesyncDirs();
+
+        expect(rulesyncDirs).toHaveLength(1);
+        const rulesyncSkill = rulesyncDirs[0] as RulesyncSkill;
+        expect(rulesyncSkill.getFrontmatter().name).toBe("linked-skill");
+        expect(rulesyncSkill.getFrontmatter().description).toBe("Skill shared via a symbolic link");
+      },
+    );
 
     it("should throw error when directory without SKILL.md file is found", async () => {
       const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
