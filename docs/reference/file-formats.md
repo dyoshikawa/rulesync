@@ -644,9 +644,13 @@ For Codex CLI, this generates a `rulesync` named profile in `.codex/config.toml`
 - `bash`: generates one `prefix_rule(...)` per command pattern in `.codex/rules/rulesync.rules` (`allow` → `allow`, `ask` → `prompt`, `deny` → `forbidden`)
 - `read`: `allow` → `read`, `ask`/`deny` → `deny` in `permissions.<profile>.filesystem`
 - `edit` / `write`: `allow` → `write`, `ask`/`deny` → `deny` in `permissions.<profile>.filesystem`
-- `webfetch`: `allow`/`deny` map to `permissions.<profile>.network.domains` (Codex does not support `ask` for domain rules)
+- `webfetch`: `allow`/`deny` map to `permissions.<profile>.network.domains` (Codex does not support `ask` for domain rules); when any `webfetch` rule is present, `network.enabled = true` is also emitted so that domain rules take effect. A Codex profile with `network.enabled = true` but no `domains` is imported as `webfetch: { "*": "allow" }`, which on the next generate produces an explicit `"*" = "allow"` domain entry — this is semantically equivalent and intentional.
 
 Relative filesystem globs such as `src/**` or `**/*.tf` are emitted under `permissions.<profile>.filesystem.":workspace_roots"` instead of the top-level filesystem table, because Codex expects top-level filesystem keys to be absolute paths, `~/...`, or named roots. Rulesync also sets `glob_scan_max_depth = 8` when generated workspace-root rules contain unbounded `**` patterns.
+
+When any `edit` or `write` rule is present, Rulesync emits `extends = ":workspace"` on the profile so that Codex's workspace-write baseline protections are inherited. This ensures that a round-trip through any source tool (Claude Code, Cursor, Codex CLI, etc.) always produces a consistent, functional profile.
+
+`network.mode`, `network.unix_sockets`, and `description` have no equivalent in Rulesync's canonical permissions model and are not generated. If an existing `.codex/config.toml` already contains these fields on the `rulesync` profile, Rulesync preserves them on regeneration. Note that `filesystem`, `network.enabled`, `network.domains`, and `extends` are always managed by Rulesync (derived from `edit`/`write`/`webfetch` rules), so hand-authored values in those fields will be replaced on regeneration.
 
 For Gemini CLI, this generates a Policy Engine file at `.gemini/policies/rulesync.toml` (project mode) or `~/.gemini/policies/rulesync.toml` (global mode). Gemini CLI auto-discovers any `*.toml` file under the `policies/` directory, so no `settings.json` modification is required:
 
