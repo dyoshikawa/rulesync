@@ -577,7 +577,9 @@ credentials/
 ### Where ignore patterns are written per tool
 
 Most tools get a dedicated ignore file (for example `.cursorignore`,
-`.geminiignore`, `.clineignore`). Claude Code is the exception: it does not
+`.geminiignore`, `.clineignore`). Antigravity CLI is built on the same engine
+as Gemini CLI, so it shares the `.geminiignore` file (enabling either target
+writes it). Claude Code is the exception: it does not
 read a separate ignore file, so Rulesync writes the deny list into Claude
 Code's settings file as `permissions.deny` entries (`Read(<pattern>)`).
 

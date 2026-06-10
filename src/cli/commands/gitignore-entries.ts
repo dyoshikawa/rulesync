@@ -65,6 +65,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
     entry: "**/.agents/rules/",
   },
   { target: "antigravity-cli", feature: "rules", entry: "**/GEMINI.md" },
+  { target: "antigravity-cli", feature: "ignore", entry: "**/.geminiignore" },
   {
     target: "antigravity-ide",
     feature: "commands",

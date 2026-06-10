@@ -25,7 +25,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Qwen Code              | qwencode        |  ✅   |   ✅   |          |          |           |        |       |    ✅ 🌏    |
 | Kiro                   | kiro            |  ✅   |   ✅   |    ✅    |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Google Antigravity IDE | antigravity-ide | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |             |
-| Google Antigravity CLI | antigravity-cli | ✅ 🌏 |        | ✅ 🌏 🔧 |          |           | ✅ 🌏  | ✅ 🌏 |     🌏      |
+| Google Antigravity CLI | antigravity-cli | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |          |           | ✅ 🌏  | ✅ 🌏 |     🌏      |
 | Google Antigravity ⚠️  | antigravity     |  ✅   |        |          |    ✅    |           | ✅ 🌏  |       |             |
 | JetBrains Junie        | junie           | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  🌏   |             |
 | AugmentCode            | augmentcode     | ✅ 🌏 |   ✅   |    🌏    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
