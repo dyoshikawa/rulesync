@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { AntigravityIdeRule } from "./antigravity-ide-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
@@ -22,10 +23,12 @@ describe("AntigravityIdeRule", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should return nonRoot path under .agents/rules for project scope", () => {
+    it("should return root AGENTS.md and nonRoot .agents/rules paths for project scope", () => {
       const paths = AntigravityIdeRule.getSettablePaths();
 
-      expect("root" in paths).toBe(false);
+      const root = (paths as { root: { relativeDirPath: string; relativeFilePath: string } }).root;
+      expect(root.relativeDirPath).toBe(".");
+      expect(root.relativeFilePath).toBe("AGENTS.md");
       const nonRoot = (paths as { nonRoot: { relativeDirPath: string } }).nonRoot;
       expect(nonRoot.relativeDirPath).toBe(join(".agents", "rules"));
     });
@@ -92,6 +95,30 @@ describe("AntigravityIdeRule", () => {
       expect(ideRule.getFileContent()).not.toContain("trigger:");
     });
 
+    it("should produce a plain root AGENTS.md for a project-scope root rule", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "overview.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          globs: ["**/*"],
+        },
+        body: "# Project Overview\n\nPlain body.",
+      });
+
+      const ideRule = AntigravityIdeRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(ideRule.getRelativeDirPath()).toBe(".");
+      expect(ideRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(ideRule.isRoot()).toBe(true);
+      // Root rules are plain markdown without antigravity trigger frontmatter.
+      expect(ideRule.getFileContent().trim()).toBe("# Project Overview\n\nPlain body.");
+      expect(ideRule.getFileContent()).not.toContain("trigger:");
+    });
+
     it("should use custom outputRoot for project scope", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -155,6 +182,46 @@ describe("AntigravityIdeRule", () => {
       expect(result.getFrontmatter().root).toBe(true);
       expect(result.getFrontmatter().antigravity).toBeUndefined();
       expect(result.getBody().trim()).toBe("# Global Root");
+    });
+
+    it("should round-trip a project-scope root AGENTS.md as a default root RulesyncRule", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "overview.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          globs: ["**/*"],
+        },
+        body: "# Project Root",
+      });
+
+      const ideRule = AntigravityIdeRule.fromRulesyncRule({ rulesyncRule });
+      expect(ideRule.getRelativeFilePath()).toBe("AGENTS.md");
+
+      const result = ideRule.toRulesyncRule();
+      expect(result).toBeInstanceOf(RulesyncRule);
+      expect(result.getFrontmatter().root).toBe(true);
+      expect(result.getFrontmatter().antigravity).toBeUndefined();
+      expect(result.getBody().trim()).toBe("# Project Root");
+    });
+  });
+
+  describe("fromFile", () => {
+    it("should read a project-root AGENTS.md as a plain root rule", async () => {
+      await ensureDir(testDir);
+      await writeFileContent(join(testDir, "AGENTS.md"), "# Root\n\nPlain project rule.");
+
+      const ideRule = await AntigravityIdeRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "AGENTS.md",
+      });
+
+      expect(ideRule.isRoot()).toBe(true);
+      expect(ideRule.getRelativeDirPath()).toBe(".");
+      expect(ideRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(ideRule.getFileContent().trim()).toBe("# Root\n\nPlain project rule.");
+      expect(ideRule.getFileContent()).not.toContain("trigger:");
     });
   });
 
