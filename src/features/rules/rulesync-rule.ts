@@ -78,6 +78,11 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       // Facet inheritance: emit a leading `{extends:<parent>}` directive (Takt 0.39.0+).
       // Rules map to the `policies` facet, which supports inheritance.
       extends: z.optional(z.string()),
+      // Redirect the rule to a different writable Takt facet. Rules default to the
+      // `policies` facet; set `facet: "output-contracts"` to author an output-contract
+      // facet (output structure / report templates) instead. Both facets support
+      // `{extends:...}` inheritance. See docs/reference/file-formats.md.
+      facet: z.optional(z.enum(["policies", "output-contracts"])),
     }),
   ),
 });

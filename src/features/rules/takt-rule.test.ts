@@ -123,6 +123,63 @@ describe("TaktRule", () => {
         /Invalid takt\.extends/,
       );
     });
+
+    it("redirects the rule to the output-contracts facet when takt.facet is set", () => {
+      const rulesyncRule = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "review-format.md",
+        frontmatter: {
+          targets: ["*"],
+          ...({ takt: { facet: "output-contracts" } } as Record<string, unknown>),
+        },
+        body: "# Review format",
+      });
+
+      const rule = TaktRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule });
+      expect(rule.getRelativeDirPath()).toBe(join(".takt", "facets", "output-contracts"));
+      expect(rule.getRelativeFilePath()).toBe("review-format.md");
+      expect(rule.getFileContent()).toBe("# Review format");
+    });
+
+    it("defaults to the policies facet when takt.facet is policies or absent", () => {
+      const explicit = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "style.md",
+        frontmatter: {
+          targets: ["*"],
+          ...({ takt: { facet: "policies" } } as Record<string, unknown>),
+        },
+        body: "x",
+      });
+      expect(
+        TaktRule.fromRulesyncRule({
+          outputRoot: testDir,
+          rulesyncRule: explicit,
+        }).getRelativeDirPath(),
+      ).toBe(join(".takt", "facets", "policies"));
+    });
+
+    it("composes takt.facet with takt.name and takt.extends", () => {
+      const rulesyncRule = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "source.md",
+        frontmatter: {
+          targets: ["*"],
+          ...({
+            takt: { facet: "output-contracts", name: "report", extends: "base" },
+          } as Record<string, unknown>),
+        },
+        body: "# Report contract",
+      });
+
+      const rule = TaktRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule });
+      expect(rule.getRelativeDirPath()).toBe(join(".takt", "facets", "output-contracts"));
+      expect(rule.getRelativeFilePath()).toBe("report.md");
+      expect(rule.getFileContent()).toBe("{extends:base}\n\n# Report contract");
+    });
   });
 
   describe("fromFile", () => {

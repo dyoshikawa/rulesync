@@ -17,12 +17,31 @@ import {
 } from "./tool-rule.js";
 
 /**
- * Fixed facet directory for TAKT rule files.
+ * Default facet directory for TAKT rule files.
  *
- * Rulesync rules map one-to-one to TAKT's `policies/` facet. No override
- * is supported; the directory is always `.takt/facets/policies/`.
+ * Rulesync rules map to TAKT's `policies/` facet by default. The source
+ * frontmatter may redirect a rule to another writable facet via `takt.facet`
+ * (currently `policies` or `output-contracts`); see {@link TAKT_RULE_FACETS}.
  */
 export const DEFAULT_TAKT_RULE_DIR = "policies";
+
+/**
+ * Writable Takt facets a rulesync rule may target via `takt.facet`.
+ *
+ * `policies` is the default. `output-contracts` lets users author Takt's
+ * output-structure / report-template facet (which has no dedicated rulesync
+ * feature) through the rules feature. Both are plain-Markdown facets that
+ * support `{extends:...}` inheritance. Other facets (`personas`,
+ * `instructions`, `knowledge`) are owned by the subagents, commands, and skills
+ * features respectively and are intentionally not selectable here.
+ */
+export const TAKT_RULE_FACETS = ["policies", "output-contracts"] as const;
+
+export type TaktRuleFacet = (typeof TAKT_RULE_FACETS)[number];
+
+function resolveTaktRuleFacet(facet: unknown): TaktRuleFacet {
+  return facet === "output-contracts" ? "output-contracts" : DEFAULT_TAKT_RULE_DIR;
+}
 
 export type TaktRuleParams = Omit<ToolRuleParams, "fileContent"> & {
   body: string;
@@ -32,12 +51,17 @@ export type TaktRuleParams = Omit<ToolRuleParams, "fileContent"> & {
  * Rule generator for TAKT (https://github.com/nrslib/takt).
  *
  * TAKT organizes prompts into faceted directories under `.takt/facets/`.
- * Rulesync rules always map to TAKT's `policies/` facet; the source
- * frontmatter may rename the emitted stem via `takt.name`, but the facet
- * directory is fixed.
+ * Rulesync rules map to TAKT's `policies/` facet by default; the source
+ * frontmatter may rename the emitted stem via `takt.name` and redirect the rule
+ * to another writable facet via `takt.facet` (`policies` or `output-contracts`).
+ * `output-contracts` lets users author Takt's output-structure / report-template
+ * facet — which has no dedicated rulesync feature — through the rules feature.
  *
  * The emitted files are plain Markdown — frontmatter is always dropped, and
- * the body is written verbatim.
+ * the body is written verbatim. Like `takt.name` and `takt.extends`, the
+ * `takt.facet` selection is a generate-side authoring control and is not
+ * reconstructed on import (Takt facet files carry no frontmatter to recover it
+ * from); importing `.takt/facets/policies/` yields plain rules.
  */
 export class TaktRule extends ToolRule {
   static getSettablePaths({
@@ -130,7 +154,8 @@ export class TaktRule extends ToolRule {
     assertSafeTaktName({ name: stem, featureLabel: "rule", sourceLabel });
     const relativeFilePath = `${stem}.md`;
 
-    const relativeDirPath = join(".takt", "facets", DEFAULT_TAKT_RULE_DIR);
+    const facet = resolveTaktRuleFacet(taktSection?.facet);
+    const relativeDirPath = join(".takt", "facets", facet);
 
     const body = prependTaktExtends({
       extendsName: typeof taktSection?.extends === "string" ? taktSection.extends : undefined,
