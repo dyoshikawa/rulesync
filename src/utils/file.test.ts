@@ -1,4 +1,4 @@
-import { symlink } from "node:fs/promises";
+import { realpath, symlink } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -551,7 +551,9 @@ describe("file utilities", () => {
         });
       });
 
-      describe("symlink support", () => {
+      // fs.symlink with the default/file type needs admin or Developer Mode on Windows, so
+      // these tests are skipped there (CI unit tests run on ubuntu). See issue #1808 #5.
+      describe.skipIf(process.platform === "win32")("symlink support", () => {
         it("should include a symlinked file in results", async () => {
           const realFile = join(testDir, "real.md");
           const linkedFile = join(testDir, "linked.md");
@@ -580,6 +582,40 @@ describe("file utilities", () => {
             type: "file",
           });
           expect(fileResults).toContain(join(linkedDir, "SKILL.md"));
+        });
+
+        it("should not produce duplicated entries when a directory symlink cycle exists", async () => {
+          // skills/a contains a real file and a link back to skills/, forming a cycle that
+          // globby follows up to the kernel ELOOP limit. Deduplication by real path collapses it.
+          const skillsDir = join(testDir, "skills");
+          const skillA = join(skillsDir, "a");
+          await ensureDir(skillA);
+          await writeFileContent(join(skillA, "SKILL.md"), "skill content");
+          await symlink(skillsDir, join(skillA, "loop"));
+
+          const fileResults = await findFilesByGlobs(join(skillsDir, "**", "*.md"), {
+            type: "file",
+          });
+
+          // Exactly one entry survives per real file despite the cycle (no ~40x blowup).
+          const uniqueRealPaths = new Set(await Promise.all(fileResults.map((p) => realpath(p))));
+          expect(uniqueRealPaths.size).toBe(fileResults.length);
+          expect(fileResults.length).toBeLessThan(5);
+        });
+
+        it("should keep only one path per real file when a link and its target both match", async () => {
+          const realFile = join(testDir, "real.md");
+          const linkedFile = join(testDir, "linked.md");
+          await writeFileContent(realFile, "content");
+          await symlink(realFile, linkedFile);
+
+          const results = await findFilesByGlobs(join(testDir, "*.md"), { type: "file" });
+
+          const realPaths = await Promise.all(results.map((p) => realpath(p)));
+          expect(new Set(realPaths).size).toBe(results.length);
+          // The sorted-first path (linked.md < real.md) survives; its target is dropped.
+          expect(results).toContain(linkedFile);
+          expect(results).not.toContain(realFile);
         });
       });
     });
