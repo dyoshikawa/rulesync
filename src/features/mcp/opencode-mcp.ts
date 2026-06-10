@@ -378,6 +378,76 @@ export class OpencodeMcp extends ToolMcp {
     });
   }
 
+  /**
+   * Register additional instruction file paths into the shared opencode config
+   * (`opencode.json` / `opencode.jsonc`) under the `instructions` key.
+   *
+   * OpenCode auto-loads only the root `AGENTS.md` plus any files explicitly
+   * listed in the `instructions` array of `opencode.json`; it does NOT
+   * auto-discover a rules directory. rulesync writes non-root OpenCode rules to
+   * `.opencode/memories/`, so those files must be registered here or they are
+   * silently ignored. The root `AGENTS.md` is auto-loaded and must NOT be
+   * registered. This merge is non-destructive: existing keys (notably
+   * `mcp`/`tools`/`permission`/`$schema`) are preserved, and the resulting
+   * `instructions` list is deduped and sorted for stable output.
+   *
+   * @see https://opencode.ai/docs/rules/
+   * @see https://opencode.ai/docs/config/
+   */
+  static async fromInstructions({
+    outputRoot = process.cwd(),
+    instructions,
+    validate = true,
+    global = false,
+  }: {
+    outputRoot?: string;
+    instructions: string[];
+    validate?: boolean;
+    global?: boolean;
+  }): Promise<OpencodeMcp> {
+    const basePaths = this.getSettablePaths({ global });
+    const jsonDir = join(outputRoot, basePaths.relativeDirPath);
+
+    let fileContent: string | null = null;
+    let relativeFilePath = "opencode.jsonc";
+
+    const jsoncPath = join(jsonDir, "opencode.jsonc");
+    const jsonPath = join(jsonDir, "opencode.json");
+
+    // Prefer opencode.jsonc, fall back to opencode.json, mirroring fromRulesyncMcp.
+    fileContent = await readFileContentOrNull(jsoncPath);
+    if (!fileContent) {
+      fileContent = await readFileContentOrNull(jsonPath);
+      if (fileContent) {
+        relativeFilePath = "opencode.json";
+      }
+    }
+
+    const json = fileContent ? parseJsonc(fileContent) : {};
+    const existingInstructions: string[] = Array.isArray(json.instructions)
+      ? json.instructions.filter((entry: unknown): entry is string => typeof entry === "string")
+      : [];
+
+    const mergedInstructions = Array.from(
+      new Set([...existingInstructions, ...instructions]),
+    ).toSorted();
+
+    // Spread the existing config first so mcp/tools/$schema and any other keys
+    // are preserved; only the instructions key is added/replaced.
+    const newJson = {
+      ...json,
+      instructions: mergedInstructions,
+    };
+
+    return new OpencodeMcp({
+      outputRoot,
+      relativeDirPath: basePaths.relativeDirPath,
+      relativeFilePath,
+      fileContent: JSON.stringify(newJson, null, 2),
+      validate,
+    });
+  }
+
   toRulesyncMcp(): RulesyncMcp {
     const convertedMcpServers = convertFromOpencodeFormat(this.json.mcp ?? {}, this.json.tools);
     const transformedServers = convertEnvVarRefsFromToolFormat({

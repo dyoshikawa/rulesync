@@ -2537,4 +2537,85 @@ describe("OpencodeMcp", () => {
       );
     });
   });
+
+  describe("fromInstructions", () => {
+    it("should preserve an existing mcp/tools/$schema block when merging instructions", async () => {
+      const existingConfig = {
+        $schema: "https://opencode.ai/config.json",
+        mcp: {
+          "my-server": {
+            type: "local",
+            command: ["node", "server.js"],
+            enabled: true,
+          },
+        },
+        tools: {
+          "my-server*": true,
+        },
+      };
+      await writeFileContent(
+        join(testDir, "opencode.jsonc"),
+        JSON.stringify(existingConfig, null, 2),
+      );
+
+      const opencodeMcp = await OpencodeMcp.fromInstructions({
+        outputRoot: testDir,
+        instructions: [".opencode/memories/overview.md"],
+      });
+
+      const json = opencodeMcp.getJson();
+      expect(json.mcp).toEqual(existingConfig.mcp);
+      expect((json as any).tools).toEqual(existingConfig.tools);
+      expect((json as any).$schema).toBe("https://opencode.ai/config.json");
+      expect((json as any).instructions).toEqual([".opencode/memories/overview.md"]);
+      expect(opencodeMcp.getRelativeFilePath()).toBe("opencode.jsonc");
+    });
+
+    it("should dedupe and sort merged instructions", async () => {
+      const existingConfig = {
+        instructions: [".opencode/memories/b.md", ".opencode/memories/a.md"],
+      };
+      await writeFileContent(
+        join(testDir, "opencode.jsonc"),
+        JSON.stringify(existingConfig, null, 2),
+      );
+
+      const opencodeMcp = await OpencodeMcp.fromInstructions({
+        outputRoot: testDir,
+        instructions: [".opencode/memories/b.md", ".opencode/memories/c.md"],
+      });
+
+      expect((opencodeMcp.getJson() as any).instructions).toEqual([
+        ".opencode/memories/a.md",
+        ".opencode/memories/b.md",
+        ".opencode/memories/c.md",
+      ]);
+    });
+
+    it("should fall back to opencode.json when only that file exists", async () => {
+      await writeFileContent(join(testDir, "opencode.json"), JSON.stringify({ mcp: {} }, null, 2));
+
+      const opencodeMcp = await OpencodeMcp.fromInstructions({
+        outputRoot: testDir,
+        instructions: [".opencode/memories/overview.md"],
+      });
+
+      expect(opencodeMcp.getRelativeFilePath()).toBe("opencode.json");
+      expect((opencodeMcp.getJson() as any).instructions).toEqual([
+        ".opencode/memories/overview.md",
+      ]);
+    });
+
+    it("should create opencode.jsonc with instructions when no config exists", async () => {
+      const opencodeMcp = await OpencodeMcp.fromInstructions({
+        outputRoot: testDir,
+        instructions: [".opencode/memories/overview.md"],
+      });
+
+      expect(opencodeMcp.getRelativeFilePath()).toBe("opencode.jsonc");
+      expect((opencodeMcp.getJson() as any).instructions).toEqual([
+        ".opencode/memories/overview.md",
+      ]);
+    });
+  });
 });
