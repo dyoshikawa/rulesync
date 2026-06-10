@@ -15,10 +15,10 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
-const CLINE_GLOBAL_ONLY_MESSAGE =
-  "Cline MCP is global-only; use --global to sync ~/.cline/data/settings/cline_mcp_settings.json";
+const AUGMENTCODE_GLOBAL_ONLY_MESSAGE =
+  "AugmentCode MCP is global-only; use --global to sync ~/.augment/settings.json";
 
-function parseClineSettings(
+function parseAugmentcodeSettings(
   fileContent: string,
   relativeDirPath: string,
   relativeFilePath: string,
@@ -28,40 +28,41 @@ function parseClineSettings(
   try {
     parsed = JSON.parse(fileContent);
   } catch (error) {
-    throw new Error(`Failed to parse Cline MCP settings at ${configPath}: ${formatError(error)}`, {
-      cause: error,
-    });
+    throw new Error(
+      `Failed to parse AugmentCode settings at ${configPath}: ${formatError(error)}`,
+      { cause: error },
+    );
   }
   if (!isRecord(parsed)) {
-    throw new Error(`Failed to parse Cline MCP settings at ${configPath}: expected a JSON object`);
+    throw new Error(
+      `Failed to parse AugmentCode settings at ${configPath}: expected a JSON object`,
+    );
   }
   return parsed;
 }
 
 /**
- * Cline MCP servers.
+ * AugmentCode (Auggie CLI) MCP servers.
  *
- * Cline does NOT read a project-scoped MCP file; it reads MCP servers only from
- * a single GLOBAL settings file. The path is resolved by Cline's
- * `resolveMcpSettingsPath()` as
- * `join(resolveClineDataDir(), "settings", "cline_mcp_settings.json")`, where
- * `resolveClineDataDir()` defaults to `~/.cline/data` (overridable via the
- * `CLINE_DATA_DIR` / `CLINE_MCP_SETTINGS_PATH` env vars). The default path is
- * therefore `~/.cline/data/settings/cline_mcp_settings.json`.
+ * MCP servers are persisted in the shared user settings file
+ * `~/.augment/settings.json` (global only — the docs do not document a
+ * project-level MCP location). That same file also holds `hooks` and
+ * `toolPermissions`, so generation merges the `mcpServers` block into the
+ * existing settings instead of overwriting it, and the file is never deleted.
  *
- * The settings file may hold other keys, so generation merges the `mcpServers`
- * block into the existing settings instead of overwriting it, and the file is
- * never deleted.
- *
- * @see https://github.com/cline/cline/blob/main/sdk/packages/shared/src/storage/paths.ts
+ * @see https://docs.augmentcode.com/cli/integrations
  */
-export class ClineMcp extends ToolMcp {
+export class AugmentcodeMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
 
   constructor(params: ToolMcpParams) {
     super(params);
     if (this.fileContent !== undefined) {
-      this.json = parseClineSettings(this.fileContent, this.relativeDirPath, this.relativeFilePath);
+      this.json = parseAugmentcodeSettings(
+        this.fileContent,
+        this.relativeDirPath,
+        this.relativeFilePath,
+      );
     } else {
       this.json = {};
     }
@@ -72,15 +73,16 @@ export class ClineMcp extends ToolMcp {
   }
 
   override isDeletable(): boolean {
-    // The global settings file may hold keys other than `mcpServers`, so it is
-    // never removed wholesale; clearing MCP happens via an in-place merge.
+    // settings.json is shared with the hooks and permissions features, so it
+    // must never be removed wholesale; clearing MCP happens via an in-place
+    // merge instead.
     return false;
   }
 
   static getSettablePaths(_options?: { global?: boolean }): ToolMcpSettablePaths {
     return {
-      relativeDirPath: join(".cline", "data", "settings"),
-      relativeFilePath: "cline_mcp_settings.json",
+      relativeDirPath: ".augment",
+      relativeFilePath: "settings.json",
     };
   }
 
@@ -88,17 +90,21 @@ export class ClineMcp extends ToolMcp {
     outputRoot = process.cwd(),
     validate = true,
     global = false,
-  }: ToolMcpFromFileParams): Promise<ClineMcp> {
+  }: ToolMcpFromFileParams): Promise<AugmentcodeMcp> {
     if (!global) {
-      throw new Error(CLINE_GLOBAL_ONLY_MESSAGE);
+      throw new Error(AUGMENTCODE_GLOBAL_ONLY_MESSAGE);
     }
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? "{}";
-    const json = parseClineSettings(fileContent, paths.relativeDirPath, paths.relativeFilePath);
+    const json = parseAugmentcodeSettings(
+      fileContent,
+      paths.relativeDirPath,
+      paths.relativeFilePath,
+    );
     const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
 
-    return new ClineMcp({
+    return new AugmentcodeMcp({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -113,9 +119,9 @@ export class ClineMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
     global = false,
-  }: ToolMcpFromRulesyncMcpParams): Promise<ClineMcp> {
+  }: ToolMcpFromRulesyncMcpParams): Promise<AugmentcodeMcp> {
     if (!global) {
-      throw new Error(CLINE_GLOBAL_ONLY_MESSAGE);
+      throw new Error(AUGMENTCODE_GLOBAL_ONLY_MESSAGE);
     }
     const paths = this.getSettablePaths({ global });
 
@@ -123,12 +129,17 @@ export class ClineMcp extends ToolMcp {
       join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       JSON.stringify({}, null, 2),
     );
-    const json = parseClineSettings(fileContent, paths.relativeDirPath, paths.relativeFilePath);
+    const json = parseAugmentcodeSettings(
+      fileContent,
+      paths.relativeDirPath,
+      paths.relativeFilePath,
+    );
 
-    // Merge `mcpServers` into the existing settings, preserving other keys.
+    // Merge `mcpServers` into the shared settings, preserving other keys
+    // (e.g. `hooks`, `toolPermissions`).
     const merged = { ...json, mcpServers: rulesyncMcp.getMcpServers() };
 
-    return new ClineMcp({
+    return new AugmentcodeMcp({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -140,8 +151,8 @@ export class ClineMcp extends ToolMcp {
 
   toRulesyncMcp(): RulesyncMcp {
     const mcpServers = isMcpServers(this.json.mcpServers) ? this.json.mcpServers : {};
-    // Do not spread the full settings JSON: any tool-specific keys must not leak
-    // into rulesync mcp.json.
+    // Do not spread the full settings JSON: tool-specific keys (hooks,
+    // toolPermissions, etc.) must not leak into rulesync mcp.json.
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers }, null, 2),
     });
@@ -156,10 +167,10 @@ export class ClineMcp extends ToolMcp {
     relativeDirPath,
     relativeFilePath,
     global = false,
-  }: ToolMcpForDeletionParams): ClineMcp {
+  }: ToolMcpForDeletionParams): AugmentcodeMcp {
     // The shared settings file is never deleted (isDeletable() === false), but
     // forDeletion must still return a well-formed instance.
-    return new ClineMcp({
+    return new AugmentcodeMcp({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

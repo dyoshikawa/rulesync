@@ -10,6 +10,7 @@ import type { Logger } from "../../utils/logger.js";
 import { AmpMcp } from "./amp-mcp.js";
 import { AntigravityCliMcp } from "./antigravity-cli-mcp.js";
 import { AntigravityIdeMcp } from "./antigravity-ide-mcp.js";
+import { AugmentcodeMcp } from "./augmentcode-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
@@ -45,6 +46,7 @@ const mcpProcessorToolTargetTuple = [
   "amp",
   "antigravity-cli",
   "antigravity-ide",
+  "augmentcode",
   "claudecode",
   "claudecode-legacy",
   "cline",
@@ -138,6 +140,22 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
     },
   ],
   [
+    "augmentcode",
+    {
+      // AugmentCode (Auggie CLI) persists MCP servers in the shared user
+      // settings file `~/.augment/settings.json`. The docs only document a
+      // global location, so MCP is global-only here.
+      // https://docs.augmentcode.com/cli/integrations
+      class: AugmentcodeMcp,
+      meta: {
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
     "claudecode",
     {
       class: ClaudecodeMcp,
@@ -164,10 +182,14 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
   [
     "cline",
     {
+      // Cline reads MCP servers only from a single GLOBAL settings file
+      // (`~/.cline/data/settings/cline_mcp_settings.json` via
+      // `resolveMcpSettingsPath()`); it has no project-scoped MCP location.
+      // https://github.com/cline/cline/blob/main/sdk/packages/shared/src/storage/paths.ts
       class: ClineMcp,
       meta: {
-        supportsProject: true,
-        supportsGlobal: false,
+        supportsProject: false,
+        supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
       },

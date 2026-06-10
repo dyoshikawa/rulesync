@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
@@ -160,6 +161,51 @@ This is a test rule for E2E testing.
     expect(stdout.match(/All files are up to date\./g)).toHaveLength(1);
     expect(stdout).not.toContain("All files are up to date (rules)");
   });
+
+  it("should write BOTH instructions (rules) and mcp into a single kilo.jsonc when generating rules+mcp together", async () => {
+    const testDir = getTestDir();
+
+    // Non-root rule -> .kilo/rules/*.md, registered in kilo.jsonc `instructions`.
+    const nonRootRuleContent = `---
+targets: ["*"]
+description: "Detail rule"
+globs: ["src/**/*"]
+---
+
+# Detail Rule
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "detail.md"),
+      nonRootRuleContent,
+    );
+
+    // MCP server -> kilo.jsonc `mcp` block.
+    const mcpContent = JSON.stringify(
+      {
+        mcpServers: {
+          "test-server": {
+            type: "stdio",
+            command: "echo",
+            args: ["hello"],
+          },
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH), mcpContent);
+
+    // Drive the real generate flow for both features at once. The shared
+    // kilo.jsonc must end up with BOTH keys: neither feature clobbers the other.
+    await runGenerate({ target: "kilo", features: "rules,mcp" });
+
+    const generatedContent = await readFileContent(join(testDir, "kilo.jsonc"));
+    const json = JSON.parse(generatedContent);
+
+    expect(json.instructions).toEqual([".kilo/rules/detail.md"]);
+    expect(json.mcp?.["test-server"]).toBeDefined();
+    expect(json.mcp["test-server"].type).toBe("local");
+  });
 });
 
 describe("E2E: rules (import)", () => {
@@ -280,7 +326,7 @@ describe("E2E: rules (global mode)", () => {
     { target: "geminicli", outputPath: join(".gemini", "GEMINI.md") },
     { target: "antigravity-ide", outputPath: join(".gemini", "GEMINI.md") },
     { target: "antigravity-cli", outputPath: join(".gemini", "GEMINI.md") },
-    { target: "goose", outputPath: ".goosehints" },
+    { target: "goose", outputPath: join(".config", "goose", ".goosehints") },
     { target: "copilotcli", outputPath: join(".copilot", "copilot-instructions.md") },
     { target: "factorydroid", outputPath: join(".factory", "AGENTS.md") },
     { target: "kilo", outputPath: join(".config", "kilo", "AGENTS.md") },

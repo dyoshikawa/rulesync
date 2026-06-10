@@ -238,6 +238,8 @@ rulesync.local.jsonc
 **/.augment/rules/
 **/.augment-guidelines
 **/.augment/commands/
+**/.augment/agents/
+**/.augment/skills/
 **/.augmentignore
 **/.augment/settings.json
 **/CLAUDE.md
@@ -255,7 +257,7 @@ rulesync.local.jsonc
 **/.clinerules/
 **/.clinerules/workflows/
 **/.clineignore
-**/.cline/mcp.json
+**/.cline/agents/
 **/.cline/command-permissions.json
 **/.codexignore
 **/.codex/skills/

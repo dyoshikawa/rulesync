@@ -107,13 +107,36 @@ describe("GooseHooks", () => {
       expect(parsed.hooks.AfterShellExecution).toBeDefined();
     });
 
+    it("should map subagent lifecycle events", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              subagentStart: [{ command: "echo sub-start" }],
+              subagentStop: [{ command: "echo sub-stop" }],
+            },
+          }),
+        }),
+      );
+
+      const gooseHooks = await GooseHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const parsed = JSON.parse(gooseHooks.getFileContent());
+      expect(parsed.hooks.SubagentStart).toBeDefined();
+      expect(parsed.hooks.SubagentStop).toBeDefined();
+    });
+
     it("should filter unsupported events", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({
           fileContent: JSON.stringify({
             hooks: {
               sessionStart: [{ command: "echo start" }],
-              subagentStop: [{ command: "echo sub" }],
+              preCompact: [{ command: "echo compact" }],
               notification: [{ command: "echo notify" }],
             },
           }),
@@ -128,7 +151,7 @@ describe("GooseHooks", () => {
 
       const parsed = JSON.parse(gooseHooks.getFileContent());
       expect(parsed.hooks.SessionStart).toBeDefined();
-      expect(parsed.hooks.SubagentStop).toBeUndefined();
+      expect(parsed.hooks.PreCompact).toBeUndefined();
       expect(parsed.hooks.Notification).toBeUndefined();
     });
 
@@ -191,6 +214,31 @@ describe("GooseHooks", () => {
       expect(parsed.hooks.afterShellExecution?.[0]).toEqual({
         type: "command",
         command: "echo done",
+      });
+    });
+
+    it("should convert SubagentStart/SubagentStop back to canonical events", () => {
+      const gooseHooks = new GooseHooks(
+        createMockAiFileParams({
+          relativeDirPath: GOOSE_HOOKS_DIR,
+          relativeFilePath: "hooks.json",
+          fileContent: JSON.stringify({
+            hooks: {
+              SubagentStart: [{ hooks: [{ command: "echo sub-start" }] }],
+              SubagentStop: [{ hooks: [{ command: "echo sub-stop" }] }],
+            },
+          }),
+        }),
+      );
+
+      const parsed = gooseHooks.toRulesyncHooks().getJson();
+      expect(parsed.hooks.subagentStart?.[0]).toEqual({
+        type: "command",
+        command: "echo sub-start",
+      });
+      expect(parsed.hooks.subagentStop?.[0]).toEqual({
+        type: "command",
+        command: "echo sub-stop",
       });
     });
   });
