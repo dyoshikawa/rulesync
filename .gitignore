@@ -232,6 +232,7 @@ rulesync.local.jsonc
 **/.agents/skills/
 **/.agents/rules/
 **/GEMINI.md
+**/.geminiignore
 **/.agents/workflows/
 **/.agents/mcp_config.json
 **/.agents/hooks.json
@@ -280,7 +281,6 @@ rulesync.local.jsonc
 **/.gemini/commands/
 **/.gemini/agents/
 **/.gemini/skills/
-**/.geminiignore
 **/.gemini/memories/
 **/.goosehints
 **/.goose/

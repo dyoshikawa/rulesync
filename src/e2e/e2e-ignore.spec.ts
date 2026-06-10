@@ -17,6 +17,7 @@ describe("E2E: ignore", () => {
       format: "json" as const,
     },
     { target: "geminicli", outputPath: ".geminiignore", format: "plaintext" as const },
+    { target: "antigravity-cli", outputPath: ".geminiignore", format: "plaintext" as const },
     { target: "goose", outputPath: ".gooseignore", format: "plaintext" as const },
     { target: "cline", outputPath: ".clineignore", format: "plaintext" as const },
     { target: "kilo", outputPath: ".kilocodeignore", format: "plaintext" as const },
@@ -70,6 +71,7 @@ credentials/
     { target: "cursor", orphanPath: ".cursorignore" },
     // claudecode uses settings.json (isDeletable=false) — excluded
     { target: "geminicli", orphanPath: ".geminiignore" },
+    { target: "antigravity-cli", orphanPath: ".geminiignore" },
     { target: "goose", orphanPath: ".gooseignore" },
     { target: "cline", orphanPath: ".clineignore" },
     { target: "kilo", orphanPath: ".kilocodeignore" },
@@ -134,6 +136,7 @@ describe("E2E: ignore (import)", () => {
   it.each([
     { target: "cursor", sourcePath: ".cursorignore" },
     { target: "geminicli", sourcePath: ".geminiignore" },
+    { target: "antigravity-cli", sourcePath: ".geminiignore" },
     { target: "goose", sourcePath: ".gooseignore" },
     { target: "cline", sourcePath: ".clineignore" },
     { target: "kilo", sourcePath: ".kilocodeignore" },
