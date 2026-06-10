@@ -323,6 +323,29 @@ describe("E2E: permissions", () => {
     expect(content.allowRedirects).toBe(false);
   });
 
+  it("should generate factorydroid permissions into .factory/settings.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow", "rm *": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "factorydroid", features: "permissions" });
+
+    const content = JSON.parse(await readFileContent(join(testDir, ".factory", "settings.json")));
+    expect(content.commandAllowlist).toContain("git *");
+    expect(content.commandDenylist).toContain("rm *");
+  });
+
   it("should generate qwencode permissions into .qwen/settings.json", async () => {
     const testDir = getTestDir();
 

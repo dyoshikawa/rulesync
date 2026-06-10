@@ -15,7 +15,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Goose                  | goose           | ✅ 🌏 |   ✅   |          |          |           |        | ✅ 🌏 |             |
 | Cursor                 | cursor          |  ✅   |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
 | deepagents-cli         | deepagents      |  ✅   |        |  ✅ 🌏   |          |    ✅     |   ✅   |  🌏   |             |
-| Factory Droid          | factorydroid    | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |
+| Factory Droid          | factorydroid    | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
 | OpenCode               | opencode        | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
 | Cline                  | cline           | ✅ 🌏 |   ✅   |    🌏    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |     ✅      |
 | Kilo Code              | kilo            | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |

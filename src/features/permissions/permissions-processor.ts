@@ -14,6 +14,7 @@ import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { ClinePermissions } from "./cline-permissions.js";
 import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
 import { CursorPermissions } from "./cursor-permissions.js";
+import { FactorydroidPermissions } from "./factorydroid-permissions.js";
 import { GeminicliPermissions } from "./geminicli-permissions.js";
 import { KiloPermissions } from "./kilo-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
@@ -37,6 +38,7 @@ const permissionsProcessorToolTargetTuple = [
   "cline",
   "codexcli",
   "cursor",
+  "factorydroid",
   "geminicli",
   "kilo",
   "kiro",
@@ -143,6 +145,21 @@ const toolPermissionsFactories = new Map<PermissionsProcessorToolTarget, ToolPer
     {
       class: CursorPermissions,
       meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "factorydroid",
+    {
+      class: FactorydroidPermissions,
+      meta: {
+        // Factory Droid maps `bash` allow/deny rules onto
+        // `commandAllowlist`/`commandDenylist` in the shared settings file:
+        // `.factory/settings.json` (project) and `~/.factory/settings.json`
+        // (global).
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,
