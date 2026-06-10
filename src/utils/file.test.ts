@@ -552,8 +552,7 @@ describe("file utilities", () => {
       });
 
       describe("symlink support", () => {
-        it("should follow a symlinked file and return its resolved path", async () => {
-          // real file lives outside testDir; symlink points into testDir
+        it("should include a symlinked file in results", async () => {
           const realFile = join(testDir, "real.md");
           const linkedFile = join(testDir, "linked.md");
           await writeFileContent(realFile, "content");
@@ -564,8 +563,7 @@ describe("file utilities", () => {
           expect(results).toContain(linkedFile);
         });
 
-        it("should follow a symlinked directory and find files inside it", async () => {
-          // real dir with a skill file exists outside skills dir
+        it("should include a symlinked directory and files inside it in results", async () => {
           const realDir = join(testDir, "real-skill");
           await ensureDir(realDir);
           await writeFileContent(join(realDir, "SKILL.md"), "skill content");
