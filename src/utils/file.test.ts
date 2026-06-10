@@ -613,6 +613,9 @@ describe("file utilities", () => {
 
           const realPaths = await Promise.all(results.map((p) => realpath(p)));
           expect(new Set(realPaths).size).toBe(results.length);
+          // The sorted-first path (linked.md < real.md) survives; its target is dropped.
+          expect(results).toContain(linkedFile);
+          expect(results).not.toContain(realFile);
         });
       });
     });
