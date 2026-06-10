@@ -267,7 +267,7 @@ default_permissions = "rulesync"
     expect(loaded.getFileContent()).toContain('default_permissions = "rulesync"');
   });
 
-  it("should preserve network.enabled on round-trip through rulesync", async () => {
+  it("should regenerate network.enabled from webfetch rules (not passthrough)", async () => {
     const codexDir = join(testDir, ".codex");
     await ensureDir(codexDir);
     await writeFileContent(
@@ -394,6 +394,69 @@ mode = "full"
     expect(fileContent).toContain("enabled = true");
     expect(fileContent).toContain('mode = "full"');
     expect(fileContent).toContain('"/var/run/docker.sock" = "allow"');
+  });
+
+  it("should not emit extends when only deny edit rules are present", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          edit: { "**/*.tf": "deny" },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).not.toContain('extends = ":workspace"');
+  });
+
+  it("should not import domains when network.enabled is false", () => {
+    const codexPermissions = new CodexcliPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".codex",
+      relativeFilePath: "config.toml",
+      fileContent: `
+default_permissions = "rulesync"
+
+[permissions.rulesync.network]
+enabled = false
+
+[permissions.rulesync.network.domains]
+"github.com" = "allow"
+`,
+    });
+
+    const rulesyncPermissions = codexPermissions.toRulesyncPermissions();
+    const json = rulesyncPermissions.getJson();
+    expect(json.permission.webfetch).toBeUndefined();
+  });
+
+  it("should not fall back to wildcard when domains table has only unrecognized values", () => {
+    const codexPermissions = new CodexcliPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".codex",
+      relativeFilePath: "config.toml",
+      fileContent: `
+default_permissions = "rulesync"
+
+[permissions.rulesync.network]
+enabled = true
+
+[permissions.rulesync.network.domains]
+"github.com" = "ask"
+`,
+    });
+
+    const rulesyncPermissions = codexPermissions.toRulesyncPermissions();
+    const json = rulesyncPermissions.getJson();
+    expect(json.permission.webfetch?.["*"]).toBeUndefined();
   });
 
   it("should not emit network block when no webfetch rules are configured", async () => {
