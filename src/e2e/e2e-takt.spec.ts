@@ -111,4 +111,30 @@ Skill body for review.
       await readFileContent(join(testDir, ".takt", "facets", "knowledge", "review.md")),
     ).toContain("Skill body for review.");
   });
+
+  it("redirects a rule to the output-contracts facet via takt.facet", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "review-format.md"),
+      `---
+targets: ["*"]
+takt:
+  facet: output-contracts
+---
+Review output contract body.
+`,
+    );
+
+    await runGenerate({
+      target: "takt",
+      features: "rules",
+    });
+
+    expect(
+      await readFileContent(
+        join(testDir, ".takt", "facets", "output-contracts", "review-format.md"),
+      ),
+    ).toContain("Review output contract body.");
+  });
 });

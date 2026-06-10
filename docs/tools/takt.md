@@ -4,34 +4,38 @@
 
 ## Output mapping
 
-Each rulesync feature maps one-to-one onto a dedicated Takt facet directory. There is **no `takt.facet` override** — the target directory is fixed per feature.
+Each rulesync feature maps onto a dedicated Takt facet directory. The target directory is fixed per feature, except that **rules** may opt into Takt's fifth facet — `output-contracts` — via the `takt.facet` override (see below).
 
-| Rulesync feature | Takt facet directory         |
-| ---------------- | ---------------------------- |
-| `rules`          | `.takt/facets/policies/`     |
-| `commands`       | `.takt/facets/instructions/` |
-| `subagents`      | `.takt/facets/personas/`     |
-| `skills`         | `.takt/facets/knowledge/`    |
+| Rulesync feature | Takt facet directory                                                                    |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| `rules`          | `.takt/facets/policies/` (default) or `.takt/facets/output-contracts/` via `takt.facet` |
+| `commands`       | `.takt/facets/instructions/`                                                            |
+| `subagents`      | `.takt/facets/personas/`                                                                |
+| `skills`         | `.takt/facets/knowledge/`                                                               |
 
-The only Takt-specific frontmatter knob is `takt.name`, which renames the emitted filename stem:
+Takt-specific frontmatter knobs:
 
 ```yaml
 ---
 takt:
-  name: my-renamed-stem
+  name: my-renamed-stem # rename the emitted filename stem
+  extends: base # emit a leading {extends:base} facet-inheritance directive
+  facet: output-contracts # "policies" (default) or "output-contracts"
 ---
 ```
 
-- `takt.name` is **optional**; the source filename stem is used by default.
-- Unsafe values (path separators, `..` segments, etc.) raise a hard validation error at `generate` time.
+- `takt.name` is **optional**; the source filename stem is used by default. Unsafe values (path separators, `..` segments, etc.) raise a hard validation error at `generate` time.
+- `takt.facet` is **optional** and defaults to `policies`. Setting it to `output-contracts` redirects the rule to Takt's output-structure / report-template facet, which has no dedicated rulesync feature. Both `policies` and `output-contracts` support `{extends:...}` inheritance. The other facets (`instructions`, `personas`, `knowledge`) are owned by the commands, subagents, and skills features and are not selectable via `takt.facet`.
+- Like `takt.name` and `takt.extends`, `takt.facet` is a generate-side authoring control. Because Takt facet files are plain Markdown with no frontmatter, the facet selection cannot be recovered on import (see [Importing](#importing-existing-takt-files-into-rulesync) below).
 
 Output files are **plain Markdown** — the source frontmatter is dropped entirely and the body is written verbatim:
 
 ```
-.rulesync/rules/style.md        →  .takt/facets/policies/style.md
-.rulesync/commands/review.md    →  .takt/facets/instructions/review.md
-.rulesync/subagents/coder.md    →  .takt/facets/personas/coder.md
-.rulesync/skills/oncall/SKILL.md → .takt/facets/knowledge/oncall.md
+.rulesync/rules/style.md         →  .takt/facets/policies/style.md
+.rulesync/rules/review-format.md →  .takt/facets/output-contracts/review-format.md  (with takt.facet: output-contracts)
+.rulesync/commands/review.md     →  .takt/facets/instructions/review.md
+.rulesync/subagents/coder.md     →  .takt/facets/personas/coder.md
+.rulesync/skills/oncall/SKILL.md →  .takt/facets/knowledge/oncall.md
 ```
 
 ## Scope

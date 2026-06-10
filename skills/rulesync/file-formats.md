@@ -41,6 +41,7 @@ augmentcode: # augmentcode specific parameters
 takt: # takt specific parameters (optional; emitted under .takt/facets/policies/ — frontmatter is dropped on emit)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
   extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
+  facet: "output-contracts" # (optional) "policies" (default) or "output-contracts": redirect this rule to Takt's output-structure/report-template facet
 ---
 
 # Rulesync Project Overview
