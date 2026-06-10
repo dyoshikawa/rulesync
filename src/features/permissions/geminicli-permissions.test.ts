@@ -3,6 +3,7 @@ import { join } from "node:path";
 import * as smolToml from "smol-toml";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { GeminicliPermissions } from "./geminicli-permissions.js";
@@ -107,11 +108,49 @@ describe("GeminicliPermissions", () => {
     // Deny must appear before allow so that first-match wins goes to deny.
     expect(denyIndex).toBeLessThan(allowIndex);
     expect(askIndex).toBeLessThan(allowIndex);
-    // Wide priority spread so a hand-authored sibling rule won't accidentally outrank deny.
-    const priorities = parseRules(content).map((rule) => rule.priority);
-    expect(priorities).toContain(1_000_000);
-    expect(priorities).toContain(1_000);
+    // Priorities stay within the Policy Engine's documented 0-999 range, with deny
+    // at the top of the band so deny > ask > allow in first-match order.
+    const priorities = parseRules(content)
+      .map((rule) => rule.priority)
+      .filter((priority): priority is number => typeof priority === "number");
+    expect(priorities).toContain(999);
+    expect(priorities).toContain(500);
     expect(priorities).toContain(1);
+    expect(Math.max(...priorities)).toBeLessThanOrEqual(999);
+  });
+
+  it("should warn that project-scope output is inert, but not in global mode", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: { bash: { "git *": "allow" } },
+      }),
+    });
+
+    const projectLogger = createMockLogger();
+    await GeminicliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger: projectLogger,
+      global: false,
+    });
+    expect(projectLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Workspace policy tier is non-functional"),
+    );
+
+    const globalLogger = createMockLogger();
+    await GeminicliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger: globalLogger,
+      global: true,
+    });
+    const globalWarnings = globalLogger.warn.mock.calls.filter((call) =>
+      String(call[0]).includes("Workspace policy tier"),
+    );
+    expect(globalWarnings).toHaveLength(0);
   });
 
   it("should emit argsPattern for bash patterns with interior glob metacharacters", async () => {
