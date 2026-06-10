@@ -132,9 +132,9 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 | `postModelInvocation`  |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |       ✅        |       ✅        |   —   |      —      |   —   |
 | `postToolUseFailure`   |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     ✅     |  —   |        —        |        —        |   —   |      —      |  ✅   |
 | `stop`                 |   ✅   |     ✅      |    ✅    |  ✅  |    —    |      —      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |       ✅        |       ✅        |   —   |     ✅      |  ✅   |
-| `subagentStart`        |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |  ✅   |
-| `subagentStop`         |   ✅   |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |  ✅   |
-| `preCompact`           |   ✅   |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     ✅     |     —     |     ✅     |  —   |        —        |        —        |   —   |      —      |   —   |
+| `subagentStart`        |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |    ✅     |     —      |  —   |        —        |        —        |   —   |      —      |  ✅   |
+| `subagentStop`         |   ✅   |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     —      |    ✅     |     —      |  —   |        —        |        —        |   —   |      —      |  ✅   |
+| `preCompact`           |   ✅   |     ✅      |    —     |  —   |    —    |      —      |      ✅       |     ✅     |    ✅     |     ✅     |  —   |        —        |        —        |   —   |      —      |   —   |
 | `afterFileEdit`        |   ✅   |      —      |    ✅    |  ✅  |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |  ✅   |
 | `beforeShellExecution` |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |  ✅   |
 | `afterShellExecution`  |   ✅   |      —      |    ✅    |  ✅  |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |  ✅   |
@@ -436,7 +436,7 @@ When `claudecode.scheduled-task: true` is set, that skill is emitted only as a C
 
 > **Note:** `claudecode.disallowed-tools` (a space/comma-separated string or a YAML list) removes the listed tools from the model while the skill is active. The same field is available on Claude Code slash commands. Both round-trip through the `claudecode` frontmatter section.
 
-> **Note:** Codex CLI reads UI metadata, invocation policy, and tool dependencies from an `agents/openai.yaml` sidecar next to `SKILL.md` (Codex's `SKILL.md` frontmatter only carries `name` and `description`). When `codexcli.interface`, `codexcli.policy`, or `codexcli.dependencies` is present, Rulesync emits `.codex/skills/<name>/agents/openai.yaml` and reads it back on import. If the sidecar is emitted and `interface.short_description` is absent, the legacy `codexcli.short-description` is routed there. See the [Codex skills docs](https://developers.openai.com/codex/skills.md).
+> **Note:** Codex CLI reads UI metadata, invocation policy, and tool dependencies from an `agents/openai.yaml` sidecar next to `SKILL.md` (Codex's `SKILL.md` frontmatter only carries `name` and `description`). When `codexcli.interface`, `codexcli.policy`, or `codexcli.dependencies` is present, Rulesync emits `.agents/skills/<name>/agents/openai.yaml` and reads it back on import. If the sidecar is emitted and `interface.short_description` is absent, the legacy `codexcli.short-description` is routed there. See the [Codex skills docs](https://developers.openai.com/codex/skills.md).
 
 ## `.rulesync/mcp.json`
 

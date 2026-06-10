@@ -260,7 +260,6 @@ rulesync.local.jsonc
 **/.cline/agents/
 **/.cline/command-permissions.json
 **/.codexignore
-**/.codex/skills/
 **/.codex/agents/
 **/.codex/memories/
 **/.codex/config.toml
