@@ -106,6 +106,9 @@ default_permissions = "rulesync"
 "/workspace/project/src/**" = "write"
 "/workspace/project/.env" = "deny"
 
+[permissions.rulesync.network]
+enabled = true
+
 [permissions.rulesync.network.domains]
 "github.com" = "allow"
 "example.com" = "deny"
@@ -308,7 +311,29 @@ enabled = true
     expect(fileContent).toContain('"api.example.com" = "allow"');
   });
 
-  it("should emit extends = ':workspace' when edit rules are present", async () => {
+  it("should emit extends = ':workspace' when a workspace-wide edit rule is present", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          edit: { ".": "allow" },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain('extends = ":workspace"');
+    expect(fileContent).toContain('"." = "write"');
+  });
+
+  it("should not emit extends for narrowly scoped edit rules", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
       relativeDirPath: ".rulesync",
@@ -326,7 +351,79 @@ enabled = true
     });
 
     const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).not.toContain('extends = ":workspace"');
+    expect(fileContent).toContain('"src/**" = "write"');
+  });
+
+  it("should not emit extends for workspace-external write rules", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          edit: { "~/notes/**": "allow" },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).not.toContain('extends = ":workspace"');
+    expect(fileContent).toContain('"~/notes/**" = "write"');
+  });
+
+  it("should import extends = ':workspace' as a workspace-wide edit rule", () => {
+    const codexPermissions = new CodexcliPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".codex",
+      relativeFilePath: "config.toml",
+      fileContent: `
+default_permissions = "rulesync"
+
+[permissions.rulesync]
+extends = ":workspace"
+`,
+    });
+
+    const rulesyncPermissions = codexPermissions.toRulesyncPermissions();
+    const json = rulesyncPermissions.getJson();
+    expect(json.permission.edit?.["."]).toBe("allow");
+  });
+
+  it("should round-trip an extends-only profile back to the same extends shape", async () => {
+    const codexDir = join(testDir, ".codex");
+    await ensureDir(codexDir);
+    await writeFileContent(
+      join(codexDir, "config.toml"),
+      `
+default_permissions = "rulesync"
+
+[permissions.rulesync]
+extends = ":workspace"
+`,
+    );
+
+    const imported = await CodexcliPermissions.fromFile({ outputRoot: testDir });
+    const rulesyncPermissions = imported.toRulesyncPermissions();
+
+    const regenerated = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: rulesyncPermissions.getFileContent(),
+      }),
+    });
+
+    const fileContent = regenerated.getFileContent();
     expect(fileContent).toContain('extends = ":workspace"');
+    expect(fileContent).toContain('"." = "write"');
   });
 
   it("should preserve description on round-trip through rulesync", async () => {
@@ -415,6 +512,207 @@ mode = "full"
 
     const fileContent = codexPermissions.getFileContent();
     expect(fileContent).not.toContain('extends = ":workspace"');
+  });
+
+  it("should emit wildcard allow as a regular domain entry with enabled = true", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          webfetch: { "*": "allow" },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain("enabled = true");
+    expect(fileContent).toContain("[permissions.rulesync.network.domains]");
+    expect(fileContent).toContain('"*" = "allow"');
+  });
+
+  it("should round-trip a wildcard allow mixed with deny domains", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          webfetch: { "*": "allow", "internal.example.com": "deny" },
+        },
+      }),
+    });
+
+    const generated = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const fileContent = generated.getFileContent();
+    expect(fileContent).toContain("enabled = true");
+    expect(fileContent).toContain('"*" = "allow"');
+    expect(fileContent).toContain('"internal.example.com" = "deny"');
+
+    const reimported = new CodexcliPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".codex",
+      relativeFilePath: "config.toml",
+      fileContent,
+    });
+    const json = reimported.toRulesyncPermissions().getJson();
+    expect(json.permission.webfetch?.["*"]).toBe("allow");
+    expect(json.permission.webfetch?.["internal.example.com"]).toBe("deny");
+  });
+
+  it("should not import allow domains when network.enabled is absent", () => {
+    const codexPermissions = new CodexcliPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".codex",
+      relativeFilePath: "config.toml",
+      fileContent: `
+default_permissions = "rulesync"
+
+[permissions.rulesync.network.domains]
+"github.com" = "allow"
+"example.com" = "deny"
+`,
+    });
+
+    const rulesyncPermissions = codexPermissions.toRulesyncPermissions();
+    const json = rulesyncPermissions.getJson();
+    expect(json.permission.webfetch?.["github.com"]).toBeUndefined();
+    expect(json.permission.webfetch?.["example.com"]).toBe("deny");
+  });
+
+  it("should skip wildcard deny webfetch rules with a warning", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          webfetch: { "*": "deny" },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('rejects the global wildcard "*"'),
+    );
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).not.toContain("[permissions.rulesync.network]");
+    expect(fileContent).not.toContain('"*"');
+  });
+
+  it("should emit deny-only domains without enabling the network", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          webfetch: { "example.com": "deny" },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).not.toContain("enabled = true");
+    expect(fileContent).toContain("[permissions.rulesync.network.domains]");
+    expect(fileContent).toContain('"example.com" = "deny"');
+  });
+
+  it("should re-import deny-only domains emitted without enabled", () => {
+    const codexPermissions = new CodexcliPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".codex",
+      relativeFilePath: "config.toml",
+      fileContent: `
+default_permissions = "rulesync"
+
+[permissions.rulesync.network.domains]
+"example.com" = "deny"
+`,
+    });
+
+    const rulesyncPermissions = codexPermissions.toRulesyncPermissions();
+    const json = rulesyncPermissions.getJson();
+    expect(json.permission.webfetch?.["example.com"]).toBe("deny");
+  });
+
+  it("should warn when preserving existing network.mode", async () => {
+    const logger = createMockLogger();
+    const codexDir = join(testDir, ".codex");
+    await ensureDir(codexDir);
+    await writeFileContent(
+      join(codexDir, "config.toml"),
+      `
+default_permissions = "rulesync"
+
+[permissions.rulesync.network]
+mode = "full"
+`,
+    );
+
+    await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: {} }),
+      }),
+      logger,
+    });
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Preserving existing "network.mode"'),
+    );
+  });
+
+  it("should preserve unrecognized unix_sockets values verbatim", async () => {
+    const codexDir = join(testDir, ".codex");
+    await ensureDir(codexDir);
+    await writeFileContent(
+      join(codexDir, "config.toml"),
+      `
+default_permissions = "rulesync"
+
+[permissions.rulesync.network.unix_sockets]
+"/var/run/docker.sock" = "readwrite"
+`,
+    );
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: {} }),
+      }),
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain('"/var/run/docker.sock" = "readwrite"');
   });
 
   it("should not import domains when network.enabled is false", () => {
@@ -543,7 +841,7 @@ mode = "full"
       relativeFilePath: "permissions.json",
       fileContent: JSON.stringify({
         permission: {
-          edit: { "src/**": "allow" },
+          edit: { ".": "allow" },
           webfetch: { "api.example.com": "allow" },
         },
       }),

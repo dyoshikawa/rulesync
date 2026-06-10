@@ -19,7 +19,14 @@ import {
 const RULESYNC_PROFILE_NAME = "rulesync";
 const RULESYNC_BASH_RULES_FILE_NAME = "rulesync.rules";
 const CODEX_WORKSPACE_ROOTS_KEY = ":workspace_roots";
+const CODEX_WORKSPACE_BASELINE = ":workspace";
 const CODEX_GLOB_SCAN_MAX_DEPTH = 8; // Matches Codex CLI default glob_scan_max_depth
+// Codex's `:workspace` baseline grants write to the entire workspace root plus /tmp and
+// $TMPDIR, so it must only be emitted when the user asked for a workspace-wide write.
+const WORKSPACE_WIDE_WRITE_PATTERNS = new Set([".", "./", "**", "./**"]);
+// Codex rejects the global `*` wildcard in denied network domains at config load time,
+// while allowed domains accept it for denylist-only setups (openai/codex#15549).
+const GLOBAL_WILDCARD_DOMAIN = "*";
 
 // `none` is accepted on import for configs generated before Codex CLI v0.131.0.
 type CodexFilesystemAccess = "read" | "write" | "deny" | "none";
@@ -30,9 +37,8 @@ type CodexNetwork = {
   enabled?: boolean;
   mode?: string;
   domains?: Record<string, "allow" | "deny">;
-  unix_sockets?: Record<string, "allow" | "deny">;
-  /** Internal flag: domains table existed but all entries had unrecognized values. Not serialized. */
-  domainsHadUnknown?: boolean;
+  // Pass-through only: values are preserved verbatim because Rulesync does not manage them.
+  unix_sockets?: Record<string, string>;
 };
 
 type CodexPermissionProfile = {
@@ -41,6 +47,13 @@ type CodexPermissionProfile = {
   filesystem?: CodexFilesystem;
   network?: CodexNetwork;
 };
+
+type CodexProfileParseResult = {
+  profile: CodexPermissionProfile | undefined;
+  /** The domains table existed but contained entries with unrecognized values. */
+  domainsHadUnknown: boolean;
+};
+
 type UnknownTable = Record<string, unknown>;
 
 export class CodexcliPermissions extends ToolPermissions {
@@ -91,7 +104,8 @@ export class CodexcliPermissions extends ToolPermissions {
     });
 
     const permissionsTable = toMutableTable(parsed.permissions);
-    const existingProfile = toCodexProfile(permissionsTable[RULESYNC_PROFILE_NAME]);
+    const { profile: existingProfile, domainsHadUnknown: existingDomainsHadUnknown } =
+      toCodexProfile(permissionsTable[RULESYNC_PROFILE_NAME]);
     if (existingProfile?.extends !== undefined && existingProfile.extends !== newProfile.extends) {
       logger?.warn(
         `Existing "extends" value "${existingProfile.extends}" will be replaced by Rulesync-managed "${newProfile.extends ?? "(none)"}".`,
@@ -102,12 +116,17 @@ export class CodexcliPermissions extends ToolPermissions {
         `Preserving existing "network.unix_sockets" from config. Review these entries manually as they may grant broad system access.`,
       );
     }
-    if (existingProfile?.network?.domainsHadUnknown) {
+    if (existingProfile?.network?.mode !== undefined) {
+      logger?.warn(
+        `Preserving existing "network.mode" from config. Review this value manually as it may grant broader network access than the Rulesync-managed domain rules.`,
+      );
+    }
+    if (existingDomainsHadUnknown) {
       logger?.warn(
         `Existing "network.domains" contained unrecognized values. These entries were skipped and will not be imported.`,
       );
     }
-    const profile = mergeWithExistingProfile(newProfile, existingProfile);
+    const profile = mergeWithExistingProfile({ newProfile, existingProfile });
     permissionsTable[RULESYNC_PROFILE_NAME] = profile;
     parsed.permissions = permissionsTable;
     parsed.default_permissions = RULESYNC_PROFILE_NAME;
@@ -137,11 +156,12 @@ export class CodexcliPermissions extends ToolPermissions {
       typeof table.default_permissions === "string" ? table.default_permissions : undefined;
     const permissionsTable = toMutableTable(table.permissions);
 
-    const profile =
-      toCodexProfile(permissionsTable[defaultProfile ?? RULESYNC_PROFILE_NAME]) ??
-      toCodexProfile(permissionsTable[RULESYNC_PROFILE_NAME]);
+    const defaultResult = toCodexProfile(permissionsTable[defaultProfile ?? RULESYNC_PROFILE_NAME]);
+    const { profile, domainsHadUnknown } = defaultResult.profile
+      ? defaultResult
+      : toCodexProfile(permissionsTable[RULESYNC_PROFILE_NAME]);
 
-    const config = convertCodexProfileToRulesync(profile);
+    const config = convertCodexProfileToRulesync({ profile, domainsHadUnknown });
 
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(config, null, 2),
@@ -234,6 +254,12 @@ function convertRulesyncToCodexProfile({
           );
           continue;
         }
+        if (pattern === GLOBAL_WILDCARD_DOMAIN && action === "deny") {
+          logger?.warn(
+            `Codex CLI rejects the global wildcard "${pattern}" in denied network domains at config load time. Skipping webfetch rule; unlisted domains are denied by default.`,
+          );
+          continue;
+        }
         domains[pattern] = action;
       }
       continue;
@@ -256,18 +282,38 @@ function convertRulesyncToCodexProfile({
     filesystem[CODEX_WORKSPACE_ROOTS_KEY] = workspaceRootFilesystem;
   }
 
-  const hasWriteRules =
-    Object.values(workspaceRootFilesystem).some((v) => v === "write") ||
-    Object.values(filesystem).some((v) => v === "write");
+  // Filesystem entries grant access on their own in Codex, so `extends = ":workspace"`
+  // (workspace-wide + /tmp write) is emitted only for explicit workspace-wide write rules.
+  const hasWorkspaceWideWrite = Object.entries(workspaceRootFilesystem).some(
+    ([pattern, access]) => access === "write" && WORKSPACE_WIDE_WRITE_PATTERNS.has(pattern),
+  );
+
+  // `enabled = true` is emitted only when at least one allow rule exists. Deny-only domain
+  // sets are emitted without `enabled` so Codex keeps the network restricted (its default)
+  // while the deny entries still round-trip back into rulesync rules.
+  const hasAllowDomain = Object.values(domains).some((action) => action === "allow");
+  const network: CodexNetwork | undefined =
+    Object.keys(domains).length > 0
+      ? {
+          ...(hasAllowDomain ? { enabled: true } : {}),
+          domains,
+        }
+      : undefined;
 
   return {
-    ...(hasWriteRules ? { extends: ":workspace" } : {}),
+    ...(hasWorkspaceWideWrite ? { extends: CODEX_WORKSPACE_BASELINE } : {}),
     ...(Object.keys(filesystem).length > 0 ? { filesystem } : {}),
-    ...(Object.keys(domains).length > 0 ? { network: { enabled: true, domains } } : {}),
+    ...(network ? { network } : {}),
   };
 }
 
-function convertCodexProfileToRulesync(profile?: CodexPermissionProfile): PermissionsConfig {
+function convertCodexProfileToRulesync({
+  profile,
+  domainsHadUnknown,
+}: {
+  profile: CodexPermissionProfile | undefined;
+  domainsHadUnknown: boolean;
+}): PermissionsConfig {
   const permission: PermissionsConfig["permission"] = {};
 
   if (profile?.filesystem) {
@@ -287,15 +333,28 @@ function convertCodexProfileToRulesync(profile?: CodexPermissionProfile): Permis
     }
   }
 
+  // A profile may grant workspace write solely via the `:workspace` baseline. Import it as
+  // a workspace-wide edit rule so regeneration converges back to the same `extends` shape
+  // instead of silently dropping the grant.
+  if (profile?.extends === CODEX_WORKSPACE_BASELINE) {
+    permission.edit ??= {};
+    permission.edit["."] ??= "allow";
+  }
+
+  // Codex treats a missing `enabled` as restricted (same as false). Rulesync itself emits
+  // deny-only domain sets without `enabled`, so deny entries are imported even when `enabled`
+  // is absent, but allow entries are imported only when the network is explicitly enabled —
+  // otherwise regeneration would add `enabled = true` and activate a grant Codex never had.
   if (profile?.network && profile.network.enabled !== false) {
+    const networkEnabled = profile.network.enabled === true;
     const domainEntries = profile.network.domains ? Object.entries(profile.network.domains) : [];
-    const hadUnknownDomains = profile.network.domainsHadUnknown === true;
-    if (domainEntries.length > 0) {
+    const importedEntries = domainEntries.filter(([, value]) => value === "deny" || networkEnabled);
+    if (importedEntries.length > 0) {
       permission.webfetch = {};
-      for (const [domain, value] of domainEntries) {
+      for (const [domain, value] of importedEntries) {
         permission.webfetch[domain] = value;
       }
-    } else if (profile.network.enabled === true && !hadUnknownDomains) {
+    } else if (networkEnabled && !domainsHadUnknown) {
       permission.webfetch = { "*": "allow" };
     }
   }
@@ -303,42 +362,46 @@ function convertCodexProfileToRulesync(profile?: CodexPermissionProfile): Permis
   return { permission };
 }
 
-function toCodexProfile(value: unknown): CodexPermissionProfile | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+function toCodexProfile(value: unknown): CodexProfileParseResult {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { profile: undefined, domainsHadUnknown: false };
+  }
   const table = toMutableTable(value);
   const filesystem = toFilesystemRecord(table.filesystem);
   const networkRaw = toMutableTable(table.network);
   const { record: domains, hadUnknownEntries: domainsHadUnknown } = toDomainRecordResult(
     networkRaw.domains,
   );
-  const { record: unixSockets } = toDomainRecordResult(networkRaw.unix_sockets);
+  const unixSockets = toStringRecord(networkRaw.unix_sockets);
 
   const network: CodexNetwork = {
     ...(typeof networkRaw.enabled === "boolean" ? { enabled: networkRaw.enabled } : {}),
     ...(typeof networkRaw.mode === "string" ? { mode: networkRaw.mode } : {}),
     ...(domains ? { domains } : {}),
     ...(unixSockets ? { unix_sockets: unixSockets } : {}),
-    ...(domainsHadUnknown ? { domainsHadUnknown: true } : {}),
   };
   const hasNetwork = Object.keys(network).length > 0;
 
-  return {
+  const profile: CodexPermissionProfile = {
     ...(typeof table.description === "string" ? { description: table.description } : {}),
     ...(typeof table.extends === "string" ? { extends: table.extends } : {}),
     ...(filesystem ? { filesystem } : {}),
     ...(hasNetwork ? { network } : {}),
   };
+
+  return { profile, domainsHadUnknown };
 }
 
-function mergeWithExistingProfile(
-  newProfile: CodexPermissionProfile,
-  existingProfile: CodexPermissionProfile | undefined,
-): CodexPermissionProfile {
+function mergeWithExistingProfile({
+  newProfile,
+  existingProfile,
+}: {
+  newProfile: CodexPermissionProfile;
+  existingProfile: CodexPermissionProfile | undefined;
+}): CodexPermissionProfile {
   if (!existingProfile) return newProfile;
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { domainsHadUnknown: _drop, ...newNetworkForMerge } = newProfile.network ?? {};
-  const mergedNetwork: CodexNetwork = { ...newNetworkForMerge };
+  const mergedNetwork: CodexNetwork = { ...newProfile.network };
   if (existingProfile.network?.mode !== undefined && mergedNetwork.mode === undefined) {
     mergedNetwork.mode = existingProfile.network.mode;
   }
@@ -350,12 +413,11 @@ function mergeWithExistingProfile(
   }
   const hasNetwork = Object.keys(mergedNetwork).length > 0;
 
+  // convertRulesyncToCodexProfile never sets description, so the existing value wins.
+  const description = newProfile.description ?? existingProfile.description;
+
   return {
-    ...(existingProfile.description !== undefined && newProfile.description === undefined
-      ? { description: existingProfile.description }
-      : newProfile.description !== undefined
-        ? { description: newProfile.description }
-        : {}),
+    ...(description !== undefined ? { description } : {}),
     ...(newProfile.extends !== undefined ? { extends: newProfile.extends } : {}),
     ...(newProfile.filesystem ? { filesystem: newProfile.filesystem } : {}),
     ...(hasNetwork ? { network: mergedNetwork } : {}),
@@ -460,6 +522,17 @@ function toCodexFilesystemRuleTable(value: unknown): CodexFilesystemRuleTable | 
   const result: CodexFilesystemRuleTable = {};
   for (const [key, raw] of Object.entries(value)) {
     if (isCodexFilesystemAccess(raw)) {
+      result[key] = raw;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function toStringRecord(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const result: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (typeof raw === "string") {
       result[key] = raw;
     }
   }
