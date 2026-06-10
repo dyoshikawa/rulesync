@@ -279,7 +279,7 @@ describe("IgnoreProcessor", () => {
     });
 
     it("should load DevinIgnore for devin target", async () => {
-      await writeFileContent(join(testDir, ".codeiumignore"), "*.log\nnode_modules/");
+      await writeFileContent(join(testDir, ".devinignore"), "*.log\nnode_modules/");
 
       const processor = new IgnoreProcessor({
         logger,
@@ -674,14 +674,14 @@ describe("IgnoreProcessor", () => {
       const mockDevinIgnore = new DevinIgnore({
         outputRoot: testDir,
         relativeDirPath: ".",
-        relativeFilePath: ".codeiumignore",
+        relativeFilePath: ".devinignore",
         fileContent: "*.log\n\n\n",
       });
 
       // Write the file using writeAiFiles
       await processor.writeAiFiles([mockDevinIgnore]);
 
-      const devinIgnorePath = join(testDir, ".codeiumignore");
+      const devinIgnorePath = join(testDir, ".devinignore");
       const content = await readFileContent(devinIgnorePath);
 
       // Should have exactly one trailing newline
