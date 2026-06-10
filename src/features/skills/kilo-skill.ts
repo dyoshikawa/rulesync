@@ -18,6 +18,13 @@ import {
 export const KiloSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
+  // Kilo's official SKILL.md frontmatter: `name`, `description`, `license`,
+  // `compatibility`, and `metadata`. https://kilo.ai/docs/customize/skills
+  license: z.optional(z.string()),
+  compatibility: z.optional(z.looseObject({})),
+  metadata: z.optional(z.looseObject({})),
+  // `allowed-tools` is NOT recognized by Kilo; it is retained for backward
+  // compatibility with existing rulesync skill files.
   "allowed-tools": z.optional(z.array(z.string())),
 });
 
@@ -105,15 +112,21 @@ export class KiloSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    const kiloBlock = {
+      ...(frontmatter["allowed-tools"] !== undefined && {
+        "allowed-tools": frontmatter["allowed-tools"],
+      }),
+      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
+      ...(frontmatter.compatibility !== undefined && {
+        compatibility: frontmatter.compatibility,
+      }),
+      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+    };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
-      ...(frontmatter["allowed-tools"] && {
-        kilo: {
-          "allowed-tools": frontmatter["allowed-tools"],
-        },
-      }),
+      ...(Object.keys(kiloBlock).length > 0 && { kilo: kiloBlock }),
     };
 
     return new RulesyncSkill({
@@ -135,11 +148,19 @@ export class KiloSkill extends ToolSkill {
     global = false,
   }: ToolSkillFromRulesyncSkillParams): KiloSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+    const kiloSection = rulesyncFrontmatter.kilo;
 
     const kiloFrontmatter: KiloSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      "allowed-tools": rulesyncFrontmatter.kilo?.["allowed-tools"],
+      ...(kiloSection?.["allowed-tools"] !== undefined && {
+        "allowed-tools": kiloSection["allowed-tools"],
+      }),
+      ...(kiloSection?.license !== undefined && { license: kiloSection.license }),
+      ...(kiloSection?.compatibility !== undefined && {
+        compatibility: kiloSection.compatibility,
+      }),
+      ...(kiloSection?.metadata !== undefined && { metadata: kiloSection.metadata }),
     };
 
     const settablePaths = KiloSkill.getSettablePaths({ global });

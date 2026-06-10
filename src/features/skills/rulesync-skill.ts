@@ -71,7 +71,12 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   ),
   kilo: z.optional(
     z.looseObject({
+      // `allowed-tools` is not part of Kilo's official SKILL.md frontmatter; it is
+      // retained for backward compatibility with existing rulesync skill files.
       "allowed-tools": z.optional(z.array(z.string())),
+      license: z.optional(z.string()),
+      compatibility: z.optional(z.looseObject({})),
+      metadata: z.optional(z.looseObject({})),
     }),
   ),
   deepagents: z.optional(
