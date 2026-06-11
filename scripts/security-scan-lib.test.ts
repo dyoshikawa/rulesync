@@ -7,8 +7,10 @@ import { setupTestDirectory } from "../src/test-utils/test-directories.js";
 import type { OpenRouterClient, SecurityScanResult } from "./security-scan-lib.js";
 import {
   SecurityScanResultSchema,
+  buildSummaryInput,
   countHighSeverityVulnerabilities,
   formatEmailBody,
+  generateOverallSummary,
   getToonFiles,
   runSecurityScan,
   sendEmail,
@@ -269,6 +271,108 @@ describe("formatEmailBody", () => {
     const body = formatEmailBody({ results });
     expect(body).toContain("# Security Scan Report");
     expect(body).not.toContain("## ");
+  });
+
+  it("should prepend the AI summary when provided", () => {
+    const results = new Map<string, SecurityScanResult>();
+    results.set("app.toon", {
+      vulnerabilities: [
+        { severity: "high", reason: "SQL injection", filePath: "src/db.ts", line: "L42" },
+      ],
+      summary: "Issues found",
+    });
+
+    const body = formatEmailBody({ results, overallSummary: "Overall the codebase is risky." });
+    expect(body).toContain("## AI Summary");
+    expect(body).toContain("Overall the codebase is risky.");
+    // Summary must appear before the per-file sections.
+    expect(body.indexOf("## AI Summary")).toBeLessThan(body.indexOf("## app.toon"));
+  });
+
+  it("should not render an AI Summary section for empty or whitespace summary", () => {
+    const results = new Map<string, SecurityScanResult>();
+    results.set("app.toon", {
+      vulnerabilities: [
+        { severity: "high", reason: "SQL injection", filePath: "src/db.ts", line: "L42" },
+      ],
+      summary: "Issues found",
+    });
+
+    expect(formatEmailBody({ results, overallSummary: "" })).not.toContain("## AI Summary");
+    expect(formatEmailBody({ results, overallSummary: "   " })).not.toContain("## AI Summary");
+  });
+});
+
+describe("buildSummaryInput", () => {
+  it("should serialize files with their vulnerabilities", () => {
+    const results = new Map<string, SecurityScanResult>();
+    results.set("app.toon", {
+      vulnerabilities: [
+        { severity: "high", reason: "SQL injection", filePath: "src/db.ts", line: "L42" },
+      ],
+      summary: "Issues found",
+    });
+
+    const input = buildSummaryInput({ results });
+    expect(input).toContain("File: app.toon");
+    expect(input).toContain("Summary: Issues found");
+    expect(input).toContain("- [high] src/db.ts L42: SQL injection");
+  });
+
+  it("should mark files with no vulnerabilities", () => {
+    const results = new Map<string, SecurityScanResult>();
+    results.set("clean.toon", {
+      vulnerabilities: [],
+      summary: "Clean",
+    });
+
+    const input = buildSummaryInput({ results });
+    expect(input).toContain("File: clean.toon");
+    expect(input).toContain("- No vulnerabilities found");
+  });
+});
+
+describe("generateOverallSummary", () => {
+  it("should return the trimmed summary text from OpenRouter", async () => {
+    const results = new Map<string, SecurityScanResult>();
+    results.set("app.toon", {
+      vulnerabilities: [
+        { severity: "critical", reason: "RCE", filePath: "src/exec.ts", line: "L10" },
+      ],
+      summary: "Critical issue",
+    });
+
+    const mockClient: OpenRouterClient = {
+      chat: {
+        send: vi.fn().mockResolvedValue({
+          choices: [{ message: { content: "  重大な脆弱性が見つかりました。  " } }],
+        }),
+      },
+    };
+
+    const summary = await generateOverallSummary({
+      client: mockClient,
+      model: "test-model",
+      results,
+    });
+
+    expect(summary).toBe("重大な脆弱性が見つかりました。");
+    expect(mockClient.chat.send).toHaveBeenCalledOnce();
+  });
+
+  it("should throw when no content returned", async () => {
+    const results = new Map<string, SecurityScanResult>();
+    results.set("app.toon", { vulnerabilities: [], summary: "Clean" });
+
+    const mockClient: OpenRouterClient = {
+      chat: {
+        send: vi.fn().mockResolvedValue({ choices: [{ message: { content: null } }] }),
+      },
+    };
+
+    await expect(
+      generateOverallSummary({ client: mockClient, model: "test-model", results }),
+    ).rejects.toThrow("No content returned from OpenRouter");
   });
 });
 

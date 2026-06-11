@@ -120,14 +120,81 @@ export const runSecurityScan = async ({
   return SecurityScanResultSchema.parse(JSON.parse(content));
 };
 
-const HIGH_SEVERITIES = new Set(["high", "critical"]);
+const OVERALL_SUMMARY_PROMPT = `\
+You are a security analyst. Below are the complete results of an automated security scan across \
+multiple files of a codebase. Write a concise executive summary in Japanese (3-5 sentences) that \
+describes the overall security posture, highlights the most critical findings, and recommends \
+priorities for remediation. Output only the summary text as plain prose, without any headings, \
+bullet points, or markdown formatting.`;
 
-export const formatEmailBody = ({
+export const buildSummaryInput = ({
   results,
 }: {
   results: Map<string, SecurityScanResult>;
 }): string => {
+  const sections: string[] = [];
+
+  for (const [filename, result] of results.entries()) {
+    const lines = [`File: ${filename}`, `Summary: ${result.summary}`];
+
+    if (result.vulnerabilities.length === 0) {
+      lines.push("- No vulnerabilities found");
+    } else {
+      for (const vuln of result.vulnerabilities) {
+        lines.push(`- [${vuln.severity}] ${vuln.filePath} ${vuln.line}: ${vuln.reason}`);
+      }
+    }
+
+    sections.push(lines.join("\n"));
+  }
+
+  return sections.join("\n\n");
+};
+
+export const generateOverallSummary = async ({
+  client,
+  model,
+  results,
+}: {
+  client: OpenRouterClient;
+  model: string;
+  results: Map<string, SecurityScanResult>;
+}): Promise<string> => {
+  const input = buildSummaryInput({ results });
+
+  const response = await client.chat.send({
+    chatGenerationParams: {
+      model,
+      messages: [{ role: "user", content: `${OVERALL_SUMMARY_PROMPT}\n\n${input}` }],
+      stream: false as const,
+    },
+    httpReferer: "https://github.com/dyoshikawa/rulesync",
+    xTitle: "rulesync security-scan",
+  });
+
+  const content = response.choices?.[0]?.message?.content;
+
+  if (!content || typeof content !== "string") {
+    throw new Error("No content returned from OpenRouter");
+  }
+
+  return content.trim();
+};
+
+const HIGH_SEVERITIES = new Set(["high", "critical"]);
+
+export const formatEmailBody = ({
+  results,
+  overallSummary,
+}: {
+  results: Map<string, SecurityScanResult>;
+  overallSummary?: string;
+}): string => {
   let body = "# Security Scan Report\n\n";
+
+  if (overallSummary && overallSummary.trim().length > 0) {
+    body += `## AI Summary\n\n${overallSummary.trim()}\n\n---\n\n`;
+  }
 
   for (const [filename, result] of results.entries()) {
     const filtered = result.vulnerabilities.filter((v) => HIGH_SEVERITIES.has(v.severity));
