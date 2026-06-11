@@ -9,8 +9,55 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
-import { KiroRule } from "./kiro-rule.js";
+import { deriveKiroInclusion, KiroRule } from "./kiro-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
+
+describe("deriveKiroInclusion", () => {
+  it("returns undefined when there are no globs (always-on, plain file)", () => {
+    expect(deriveKiroInclusion({ globs: [] })).toBeUndefined();
+    expect(deriveKiroInclusion({})).toBeUndefined();
+  });
+
+  it("treats wildcard globs as always-on (undefined)", () => {
+    expect(deriveKiroInclusion({ globs: ["**/*"] })).toBeUndefined();
+    expect(deriveKiroInclusion({ globs: ["*", "**"] })).toBeUndefined();
+  });
+
+  it("maps a single specific glob to fileMatch with a string pattern", () => {
+    expect(deriveKiroInclusion({ globs: ["src/components/**/*.tsx"] })).toEqual({
+      inclusion: "fileMatch",
+      fileMatchPattern: "src/components/**/*.tsx",
+    });
+  });
+
+  it("maps multiple specific globs to fileMatch with an array pattern (dropping wildcards)", () => {
+    expect(deriveKiroInclusion({ globs: ["a/**", "b/**", "**/*"] })).toEqual({
+      inclusion: "fileMatch",
+      fileMatchPattern: ["a/**", "b/**"],
+    });
+  });
+
+  it("honors an explicit kiro.inclusion block", () => {
+    expect(deriveKiroInclusion({ kiro: { inclusion: "manual" }, globs: ["x/**"] })).toEqual({
+      inclusion: "manual",
+    });
+    expect(deriveKiroInclusion({ kiro: { inclusion: "always" } })).toEqual({
+      inclusion: "always",
+    });
+  });
+
+  it("derives fileMatchPattern from globs when kiro.inclusion is fileMatch without a pattern", () => {
+    expect(
+      deriveKiroInclusion({ kiro: { inclusion: "fileMatch" }, globs: ["lib/**/*.ts"] }),
+    ).toEqual({ inclusion: "fileMatch", fileMatchPattern: "lib/**/*.ts" });
+    expect(
+      deriveKiroInclusion({
+        kiro: { inclusion: "fileMatch", fileMatchPattern: "explicit/**" },
+        globs: ["ignored/**"],
+      }),
+    ).toEqual({ inclusion: "fileMatch", fileMatchPattern: "explicit/**" });
+  });
+});
 
 describe("KiroRule", () => {
   let testDir: string;
@@ -283,6 +330,116 @@ describe("KiroRule", () => {
         "# Detail RulesyncRule\n\nContent from detail rulesync.",
       );
       expect(kiroRule.isRoot()).toBe(false);
+    });
+
+    it("emits fileMatch inclusion frontmatter for a non-root rule with specific globs", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "frontend.md",
+        frontmatter: {
+          root: false,
+          targets: ["kiro"],
+          description: "Frontend rule",
+          globs: ["src/components/**/*.tsx"],
+        },
+        body: "# Frontend\n\nUse functional components.",
+      });
+
+      const kiroRule = KiroRule.fromRulesyncRule({ rulesyncRule });
+      const content = kiroRule.getFileContent();
+
+      expect(content).toContain("inclusion: fileMatch");
+      expect(content).toContain("fileMatchPattern: src/components/**/*.tsx");
+      expect(content).toContain("# Frontend\n\nUse functional components.");
+    });
+
+    it("emits no frontmatter for a non-root rule without globs (always-on)", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "general.md",
+        frontmatter: {
+          root: false,
+          targets: ["kiro"],
+          description: "General rule",
+          globs: [],
+        },
+        body: "# General\n\nBe consistent.",
+      });
+
+      const kiroRule = KiroRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(kiroRule.getFileContent()).toBe("# General\n\nBe consistent.");
+    });
+
+    it("round-trips a fileMatch rule through toRulesyncRule", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "frontend.md",
+        frontmatter: {
+          root: false,
+          targets: ["kiro"],
+          globs: ["src/**/*.ts"],
+        },
+        body: "# Frontend body",
+      });
+
+      const generated = KiroRule.fromRulesyncRule({ rulesyncRule });
+      const roundTrip = generated.toRulesyncRule();
+
+      expect(roundTrip.getFrontmatter().globs).toEqual(["src/**/*.ts"]);
+      expect(roundTrip.getFrontmatter().kiro).toEqual({
+        inclusion: "fileMatch",
+        fileMatchPattern: "src/**/*.ts",
+      });
+      expect(roundTrip.getBody()).toContain("# Frontend body");
+    });
+
+    it("emits and round-trips an array fileMatchPattern for multiple globs", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "ts.md",
+        frontmatter: {
+          root: false,
+          targets: ["kiro"],
+          globs: ["**/*.ts", "**/*.tsx"],
+        },
+        body: "# TS body",
+      });
+
+      const generated = KiroRule.fromRulesyncRule({ rulesyncRule });
+      const content = generated.getFileContent();
+      expect(content).toContain("inclusion: fileMatch");
+      // YAML array form, not a comma-joined string.
+      expect(content).not.toContain("**/*.ts,**/*.tsx");
+
+      const roundTrip = generated.toRulesyncRule();
+      expect(roundTrip.getFrontmatter().globs).toEqual(["**/*.ts", "**/*.tsx"]);
+      expect(roundTrip.getFrontmatter().kiro).toEqual({
+        inclusion: "fileMatch",
+        fileMatchPattern: ["**/*.ts", "**/*.tsx"],
+      });
+    });
+
+    it("imports a hand-authored array fileMatchPattern steering file", async () => {
+      const steeringDir = join(testDir, ".kiro/steering");
+      await ensureDir(steeringDir);
+      await writeFileContent(
+        join(steeringDir, "authored.md"),
+        '---\ninclusion: fileMatch\nfileMatchPattern: ["**/*.ts", "**/*.tsx"]\n---\n# Authored\n',
+      );
+
+      const kiroRule = await KiroRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "authored.md",
+      });
+      const roundTrip = kiroRule.toRulesyncRule();
+
+      expect(roundTrip.getFrontmatter().globs).toEqual(["**/*.ts", "**/*.tsx"]);
+      expect(roundTrip.getFrontmatter().kiro).toEqual({
+        inclusion: "fileMatch",
+        fileMatchPattern: ["**/*.ts", "**/*.tsx"],
+      });
+      expect(roundTrip.getBody()).toContain("# Authored");
     });
 
     it("should use custom outputRoot", () => {

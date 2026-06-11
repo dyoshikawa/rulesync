@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
+import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -18,11 +19,85 @@ export type KiroRuleParams = ToolRuleParams;
 export type KiroRuleSettablePaths = Pick<ToolRuleSettablePaths, "nonRoot">;
 
 /**
+ * Steering `inclusion` frontmatter that Kiro reads at the top of each
+ * `.kiro/steering/*.md` file:
+ * - `always` — loaded into every interaction (Kiro's default when no frontmatter
+ *   is present, so rulesync omits the block in this case).
+ * - `fileMatch` — loaded only when the open file matches `fileMatchPattern`.
+ * - `manual` — loaded on demand via `#steering-file-name`.
+ *
+ * @see https://kiro.dev/docs/steering/
+ */
+export type KiroSteeringInclusion = {
+  inclusion: string;
+  // A single glob is emitted as a string; multiple globs as a YAML array, both of
+  // which Kiro accepts for `fileMatchPattern`.
+  fileMatchPattern?: string | string[];
+};
+
+const WILDCARD_GLOBS = new Set(["**/*", "**", "*"]);
+
+/**
+ * Emits one glob as a string and several as an array, matching the two
+ * `fileMatchPattern` forms Kiro accepts.
+ */
+function toFileMatchPattern(globs: string[]): string | string[] | undefined {
+  if (globs.length === 0) {
+    return undefined;
+  }
+  return globs.length === 1 ? globs[0] : globs;
+}
+
+/**
+ * Derives the Kiro steering `inclusion` frontmatter for a non-root rule from the
+ * rulesync rule frontmatter.
+ *
+ * Precedence:
+ * 1. An explicit `kiro.inclusion` block round-trips as-is (with `fileMatchPattern`
+ *    taken from the block, or derived from `globs` when omitted for `fileMatch`).
+ * 2. Otherwise specific (non-wildcard) globs map to `fileMatch`, scoping the rule
+ *    to matching files instead of leaving it implicitly always-on.
+ * 3. Otherwise the rule stays `always` — represented by omitting the block so the
+ *    emitted file matches Kiro's no-frontmatter default.
+ *
+ * Returns `undefined` when no frontmatter should be written (the `always` case).
+ */
+export function deriveKiroInclusion({
+  kiro,
+  globs,
+}: {
+  kiro?: { inclusion?: string; fileMatchPattern?: string | string[] };
+  globs?: string[];
+}): KiroSteeringInclusion | undefined {
+  const specificGlobs = (globs ?? []).filter((g) => !WILDCARD_GLOBS.has(g));
+
+  if (kiro?.inclusion) {
+    if (kiro.inclusion === "fileMatch") {
+      const fileMatchPattern = kiro.fileMatchPattern ?? toFileMatchPattern(specificGlobs);
+      return fileMatchPattern
+        ? { inclusion: "fileMatch", fileMatchPattern }
+        : { inclusion: "fileMatch" };
+    }
+    return { inclusion: kiro.inclusion };
+  }
+
+  const fileMatchPattern = toFileMatchPattern(specificGlobs);
+  if (fileMatchPattern) {
+    return { inclusion: "fileMatch", fileMatchPattern };
+  }
+
+  return undefined;
+}
+
+/**
  * Rule generator for Kiro AI-powered IDE
  *
- * Generates steering documents for Kiro's spec-driven development approach.
- * Supports both root file (.kiro/guidelines.md) and steering documents
- * in the .kiro/steering/ directory (product.md, structure.md, tech.md).
+ * Generates steering documents for Kiro's spec-driven development approach in the
+ * `.kiro/steering/` directory (product.md, structure.md, tech.md, ...).
+ *
+ * Non-root steering files carry an `inclusion` frontmatter block derived from the
+ * rulesync rule's globs / `kiro` override (see {@link deriveKiroInclusion}); the
+ * root overview index stays plain so Kiro always loads it.
  */
 export class KiroRule extends ToolRule {
   static getSettablePaths(
@@ -43,13 +118,12 @@ export class KiroRule extends ToolRule {
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<KiroRule> {
-    const fileContent = await readFileContent(
-      join(outputRoot, this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath),
-    );
+    const relativeDirPath = this.getSettablePaths().nonRoot.relativeDirPath;
+    const fileContent = await readFileContent(join(outputRoot, relativeDirPath, relativeFilePath));
 
     return new KiroRule({
       outputRoot,
-      relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
+      relativeDirPath,
       relativeFilePath: relativeFilePath,
       fileContent,
       validate,
@@ -62,18 +136,74 @@ export class KiroRule extends ToolRule {
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): KiroRule {
-    return new KiroRule(
-      this.buildToolRuleParamsDefault({
-        outputRoot,
-        rulesyncRule,
-        validate,
-        nonRootPath: this.getSettablePaths().nonRoot,
-      }),
-    );
+    const params = this.buildToolRuleParamsDefault({
+      outputRoot,
+      rulesyncRule,
+      validate,
+      nonRootPath: this.getSettablePaths().nonRoot,
+    });
+
+    // The root overview index stays plain (Kiro always-loads a frontmatter-less
+    // steering file). Only non-root steering files carry inclusion frontmatter.
+    if (params.root) {
+      return new KiroRule(params);
+    }
+
+    const frontmatter = rulesyncRule.getFrontmatter();
+    const inclusion = deriveKiroInclusion({
+      kiro: frontmatter.kiro,
+      globs: frontmatter.globs,
+    });
+
+    if (!inclusion) {
+      return new KiroRule(params);
+    }
+
+    return new KiroRule({
+      ...params,
+      fileContent: stringifyFrontmatter(rulesyncRule.getBody(), inclusion),
+    });
   }
 
   toRulesyncRule(): RulesyncRule {
-    return this.toRulesyncRuleDefault();
+    // Round-trip steering inclusion frontmatter back into the rulesync `kiro`
+    // block (plus `globs` for fileMatch), so re-generating reproduces the file.
+    const { frontmatter, body } = parseFrontmatter(
+      this.getFileContent(),
+      this.getRelativeFilePath(),
+    );
+    const inclusion = typeof frontmatter.inclusion === "string" ? frontmatter.inclusion : undefined;
+
+    if (!inclusion) {
+      return this.toRulesyncRuleDefault();
+    }
+
+    const rawPattern = frontmatter.fileMatchPattern;
+    const fileMatchPattern: string | string[] | undefined = Array.isArray(rawPattern)
+      ? rawPattern.filter((p): p is string => typeof p === "string")
+      : typeof rawPattern === "string"
+        ? rawPattern
+        : undefined;
+    const patternGlobs =
+      fileMatchPattern === undefined
+        ? []
+        : Array.isArray(fileMatchPattern)
+          ? fileMatchPattern
+          : [fileMatchPattern];
+    const globs = inclusion === "fileMatch" ? patternGlobs : [];
+
+    return new RulesyncRule({
+      outputRoot: process.cwd(),
+      relativeDirPath: RulesyncRule.getSettablePaths().recommended.relativeDirPath,
+      relativeFilePath: this.getRelativeFilePath(),
+      frontmatter: {
+        root: false,
+        targets: ["*"],
+        globs,
+        kiro: { inclusion, ...(fileMatchPattern !== undefined ? { fileMatchPattern } : {}) },
+      },
+      body,
+    });
   }
 
   validate(): ValidationResult {

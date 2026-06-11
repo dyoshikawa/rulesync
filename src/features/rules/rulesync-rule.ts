@@ -71,6 +71,15 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       description: z.optional(z.string()),
     }),
   ),
+  kiro: z.optional(
+    z.looseObject({
+      // Steering inclusion mode: always | fileMatch | manual (string for forward compat).
+      inclusion: z.optional(z.string()),
+      // Glob(s) used when `inclusion: fileMatch`. Kiro accepts a single string or
+      // a YAML array of globs.
+      fileMatchPattern: z.optional(z.union([z.string(), z.array(z.string())])),
+    }),
+  ),
   takt: z.optional(
     z.looseObject({
       // Rename the emitted file stem (e.g. "coder.md" → "{name}.md").
