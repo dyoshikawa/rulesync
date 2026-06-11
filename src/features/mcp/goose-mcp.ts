@@ -120,6 +120,12 @@ function convertToGooseFormat(mcpServers: McpServers): Record<string, Record<str
 
 /**
  * Converts Goose `extensions:` entries back into rulesync canonical MCP servers.
+ *
+ * Goose's schema is a lossy projection of the canonical model, so import
+ * normalizes rather than perfectly round-trips: Goose has a single `uri` field,
+ * so both `url` and the Claude-specific `httpUrl` alias come back as `url`; and
+ * the `streamable_http` type maps back to canonical `http`. These are the
+ * canonical/preferred forms, so re-generating produces an equivalent config.
  */
 function convertFromGooseFormat(extensions: Record<string, unknown>): McpServers {
   const result: McpServers = {};
