@@ -9,6 +9,7 @@ import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
 import { AmpPermissions } from "./amp-permissions.js";
 import { AntigravityCliPermissions } from "./antigravity-cli-permissions.js";
+import { AntigravityIdePermissions } from "./antigravity-ide-permissions.js";
 import { AugmentcodePermissions } from "./augmentcode-permissions.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { ClinePermissions } from "./cline-permissions.js";
@@ -33,6 +34,7 @@ import { ZedPermissions } from "./zed-permissions.js";
 const permissionsProcessorToolTargetTuple = [
   "amp",
   "antigravity-cli",
+  "antigravity-ide",
   "augmentcode",
   "claudecode",
   "cline",
@@ -92,6 +94,21 @@ const toolPermissionsFactories = new Map<PermissionsProcessorToolTarget, ToolPer
         // workspace-scoped permissions file.
         supportsProject: false,
         supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "antigravity-ide",
+    {
+      class: AntigravityIdePermissions,
+      meta: {
+        // The Antigravity IDE reads agent permissions from the committable
+        // workspace `.antigravity/settings.json`. The User-scope settings file
+        // is a platform-dependent path outside rulesync's home-relative global
+        // model, so only project scope is generated.
+        supportsProject: true,
+        supportsGlobal: false,
         supportsImport: true,
       },
     },

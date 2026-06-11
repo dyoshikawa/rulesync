@@ -80,6 +80,7 @@ describe("PermissionsProcessor", () => {
       const targets = PermissionsProcessor.getToolTargets();
       expect(targets).toEqual([
         "amp",
+        "antigravity-ide",
         "augmentcode",
         "claudecode",
         "cline",
@@ -117,6 +118,7 @@ describe("PermissionsProcessor", () => {
       const targets = PermissionsProcessor.getToolTargets({ importOnly: true });
       expect(targets).toEqual([
         "amp",
+        "antigravity-ide",
         "augmentcode",
         "claudecode",
         "cline",

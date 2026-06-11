@@ -94,7 +94,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Takt                   |  ✅   |        |     |    ✅    |    ✅     |   ✅   |       |             |
 | Qwen Code              |  ✅   |   ✅   |     |          |           |        |       |     ✅      |
 | Kiro                   |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
-| Google Antigravity IDE |  ✅   |        | ✅  |    ✅    |           |   ✅   |  ✅   |             |
+| Google Antigravity IDE |  ✅   |        | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |
 | Google Antigravity CLI |  ✅   |   ✅   | ✅  |          |           |   ✅   |  ✅   |     ✅      |
 | Google Antigravity ⚠️  |  ✅   |        |     |    ✅    |           |   ✅   |       |             |
 | JetBrains Junie        |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |
