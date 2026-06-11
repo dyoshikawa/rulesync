@@ -67,5 +67,11 @@
       "environment": {}
     }
   },
-  "share": "disabled"
+  "share": "disabled",
+  "instructions": [
+    ".github/workflows/AGENTS.md",
+    ".opencode/memories/coding-guidelines.md",
+    ".opencode/memories/feature-change-guidelines.md",
+    ".opencode/memories/testing-guidelines.md"
+  ]
 }
