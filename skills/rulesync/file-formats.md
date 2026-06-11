@@ -282,6 +282,15 @@ opencode: # for OpenCode-specific parameters
       "git diff": allow
 kilo: # for Kilo-specific parameters
   mode: all # (optional, defaults to "all") use "subagent" for hidden/subagent-only agents
+junie: # for JetBrains Junie CLI specific parameters (.junie/agents/*.md)
+  tools: ["Read", "Grep", "Edit"] # allowed tools
+  disallowedTools: ["Bash", "WebSearch"] # disallowed tools
+  mcpServers: ["github"] # MCP servers the subagent may use
+  model: sonnet # model id
+  reasoningLevel: high # low | medium | high
+  maxTurns: 20 # max agentic turns
+  skills: ["kotlin", "writerside"] # Agent Skills to utilize
+  allowPromptArgument: true # whether the subagent accepts a prompt argument
 takt: # takt specific parameters (optional; emitted under .takt/facets/personas/)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
 ---
