@@ -25,7 +25,7 @@ export const safeString = z.pipe(
  */
 export const HookDefinitionSchema = z.looseObject({
   command: z.optional(safeString),
-  type: z.optional(z.enum(["command", "prompt"])),
+  type: z.optional(z.enum(["command", "prompt", "http"])),
   timeout: z.optional(z.number()),
   matcher: z.optional(safeString),
   prompt: z.optional(safeString),
@@ -40,7 +40,7 @@ export const HookDefinitionSchema = z.looseObject({
 export type HookDefinition = z.infer<typeof HookDefinitionSchema>;
 
 /** All canonical hook types. */
-export type HookType = "command" | "prompt";
+export type HookType = "command" | "prompt" | "http";
 
 /**
  * All canonical hook event names.
@@ -153,6 +153,34 @@ export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
   "preToolUse",
   "postToolUse",
   "afterError",
+];
+
+/**
+ * Hook events supported by the GitHub Copilot CLI (`copilotcli-hooks.ts`).
+ *
+ * The CLI documents a wider event surface than the shared cloud-agent set, so
+ * `copilotcli` diverges from {@link COPILOT_HOOK_EVENTS}. Full documented set:
+ * `sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`,
+ * `postToolUse`, `postToolUseFailure`, `agentStop`, `subagentStart`,
+ * `subagentStop`, `errorOccurred`, `preCompact`, `permissionRequest`,
+ * `notification`.
+ *
+ * @see https://docs.github.com/en/copilot/reference/hooks-configuration
+ */
+export const COPILOTCLI_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "beforeSubmitPrompt",
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+  "stop",
+  "subagentStart",
+  "subagentStop",
+  "afterError",
+  "preCompact",
+  "permissionRequest",
+  "notification",
 ];
 
 /**
@@ -485,6 +513,31 @@ export const CANONICAL_TO_COPILOT_EVENT_NAMES: Record<string, string> = {
  */
 export const COPILOT_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_COPILOT_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to the GitHub Copilot CLI's wider event
+ * surface. https://docs.github.com/en/copilot/reference/hooks-configuration
+ */
+export const CANONICAL_TO_COPILOTCLI_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "sessionStart",
+  sessionEnd: "sessionEnd",
+  beforeSubmitPrompt: "userPromptSubmitted",
+  preToolUse: "preToolUse",
+  postToolUse: "postToolUse",
+  postToolUseFailure: "postToolUseFailure",
+  stop: "agentStop",
+  subagentStart: "subagentStart",
+  subagentStop: "subagentStop",
+  afterError: "errorOccurred",
+  preCompact: "preCompact",
+  permissionRequest: "permissionRequest",
+  notification: "notification",
+};
+
+/** Map GitHub Copilot CLI event names back to canonical camelCase. */
+export const COPILOTCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_COPILOTCLI_EVENT_NAMES).map(([k, v]) => [v, k]),
 );
 
 /**
