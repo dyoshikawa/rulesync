@@ -10,6 +10,7 @@ import type { SecurityScanResult } from "./security-scan-lib.js";
 import {
   countHighSeverityVulnerabilities,
   formatEmailBody,
+  generateOverallSummary,
   getToonFiles,
   runSecurityScan,
   sendEmail,
@@ -124,7 +125,17 @@ const main = async (): Promise<void> => {
   const date = new Date().toISOString().split("T")[0];
   const subject = `Security Scan Report - ${date} (${totalHighVulnerabilities} high+ vulnerabilities found)`;
 
-  const emailBody = formatEmailBody({ results: highSeverityResults });
+  // Generate an AI summary from the full scan results to prepend to the email.
+  // Failure here must not block the notification, so fall back to no summary.
+  let overallSummary: string | undefined;
+  try {
+    overallSummary = await generateOverallSummary({ client, model, results });
+    console.log("Generated AI summary");
+  } catch (error: unknown) {
+    console.warn(`Failed to generate AI summary: ${formatError(error)}`);
+  }
+
+  const emailBody = formatEmailBody({ results: highSeverityResults, overallSummary });
   await sendEmail({
     apiKey: resendApiKey,
     from: resendFromEmail,
