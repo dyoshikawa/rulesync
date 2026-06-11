@@ -1108,6 +1108,45 @@ describe("E2E: permissions (global mode)", () => {
     expect(generated.permissions.deny).toContain("command(rm -rf *)");
   });
 
+  it("should generate warp permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git status .*": "allow", "rm -rf .*": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "warp",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // Warp's settings.toml lives in a platform-specific directory and exposes
+    // command permissions as regex allow/deny lists under [agents.profiles].
+    // Permissions are global-scope only, so there is no project-mode equivalent.
+    const warpDir =
+      process.platform === "darwin"
+        ? ".warp"
+        : process.platform === "win32"
+          ? join("AppData", "Roaming", "warp", "Warp", "data")
+          : join(".config", "warp-terminal");
+    const generated = await readFileContent(join(homeDir, warpDir, "settings.toml"));
+    expect(generated).toContain("agent_mode_command_execution_allowlist");
+    expect(generated).toContain("git status .*");
+    expect(generated).toContain("rm -rf .*");
+  });
+
   it("should generate zed permissions in home directory with --global", async () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
