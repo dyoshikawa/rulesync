@@ -6,7 +6,7 @@ import * as smolToml from "smol-toml";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -122,7 +122,9 @@ export class WarpPermissions extends ToolPermissions {
     }
     const paths = WarpPermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const existingContent = await readOrInitializeFileContent(filePath, "");
+    // Read without initializing so a dry-run/check does not create the user's
+    // global settings.toml as a side effect (mirrors the Zed adapter).
+    const existingContent = (await readFileContentOrNull(filePath)) ?? "";
 
     let settings: Record<string, unknown>;
     try {
@@ -144,10 +146,16 @@ export class WarpPermissions extends ToolPermissions {
 
     const mergedAllow = uniq(allow.toSorted());
     const mergedDeny = uniq(deny.toSorted());
-    if (mergedAllow.length > 0) profiles[ALLOWLIST_KEY] = mergedAllow;
-    else delete profiles[ALLOWLIST_KEY];
-    if (mergedDeny.length > 0) profiles[DENYLIST_KEY] = mergedDeny;
-    else delete profiles[DENYLIST_KEY];
+    if (mergedAllow.length > 0) {
+      profiles[ALLOWLIST_KEY] = mergedAllow;
+    } else {
+      delete profiles[ALLOWLIST_KEY];
+    }
+    if (mergedDeny.length > 0) {
+      profiles[DENYLIST_KEY] = mergedDeny;
+    } else {
+      delete profiles[DENYLIST_KEY];
+    }
 
     agents.profiles = profiles;
     settings.agents = agents;
