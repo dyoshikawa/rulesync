@@ -21,6 +21,7 @@ import { DeepagentsMcp } from "./deepagents-mcp.js";
 import { DevinMcp } from "./devin-mcp.js";
 import { FactorydroidMcp } from "./factorydroid-mcp.js";
 import { GeminiCliMcp } from "./geminicli-mcp.js";
+import { GooseMcp } from "./goose-mcp.js";
 import { JunieMcp } from "./junie-mcp.js";
 import { KiloMcp } from "./kilo-mcp.js";
 import { KiroMcp } from "./kiro-mcp.js";
@@ -57,6 +58,7 @@ const mcpProcessorToolTargetTuple = [
   "deepagents",
   "factorydroid",
   "geminicli",
+  "goose",
   "kilo",
   "kiro",
   "junie",
@@ -273,6 +275,21 @@ const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
       class: GeminiCliMcp,
       meta: {
         supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "goose",
+    {
+      // Goose reads MCP servers as "extensions" only from the global user config
+      // `~/.config/goose/config.yaml`; it has no project-scoped MCP location.
+      // https://block.github.io/goose/docs/getting-started/using-extensions/
+      class: GooseMcp,
+      meta: {
+        supportsProject: false,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,

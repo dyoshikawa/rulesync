@@ -201,6 +201,9 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "goose", feature: "ignore", entry: "**/.gooseignore" },
   // Goose lifecycle hooks plugin (.agents/plugins/<name>/hooks/hooks.json)
   { target: "goose", feature: "hooks", entry: "**/.agents/plugins/" },
+  // Goose reads MCP "extensions" only from the global user config
+  // (`~/.config/goose/config.yaml`), which lives under the home directory and is
+  // not gitignored at the project level (mirrors Cline's global-only MCP).
 
   // GitHub Copilot
   {
