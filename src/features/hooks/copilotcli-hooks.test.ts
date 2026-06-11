@@ -49,8 +49,8 @@ describe("CopilotcliHooks", () => {
           beforeSubmitPrompt: [{ command: "echo prompt" }],
           // matchers are unsupported and dropped
           preToolUse: [{ matcher: "Edit|Write", command: "echo skipped" }],
-          // unsupported event for copilot — also dropped
-          notification: [{ command: "echo skipped" }],
+          // event not in the Copilot CLI surface — dropped
+          worktreeCreate: [{ command: "echo skipped" }],
         },
       };
       const rulesyncHooks = new RulesyncHooks({
@@ -73,8 +73,139 @@ describe("CopilotcliHooks", () => {
       expect(parsed.hooks.userPromptSubmitted).toBeDefined();
       // matcher entry was dropped, so preToolUse must not exist
       expect(parsed.hooks.preToolUse).toBeUndefined();
-      // unsupported event must not leak through
-      expect(parsed.hooks.notification).toBeUndefined();
+      // event outside the Copilot CLI surface must not leak through
+      expect(parsed.hooks.worktreeCreate).toBeUndefined();
+    });
+
+    it("maps the wider Copilot CLI event surface", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          stop: [{ command: "echo stop" }],
+          subagentStart: [{ command: "echo subagent-start" }],
+          subagentStop: [{ command: "echo subagent-stop" }],
+          postToolUseFailure: [{ command: "echo fail" }],
+          preCompact: [{ command: "echo compact" }],
+          permissionRequest: [{ command: "echo perm" }],
+          notification: [{ command: "echo notify" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const hooks = await CopilotcliHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+      const parsed = JSON.parse(hooks.getFileContent());
+
+      // `stop` maps to Copilot CLI's `agentStop`; the rest keep their names.
+      expect(parsed.hooks.agentStop).toBeDefined();
+      expect(parsed.hooks.subagentStart).toBeDefined();
+      expect(parsed.hooks.subagentStop).toBeDefined();
+      expect(parsed.hooks.postToolUseFailure).toBeDefined();
+      expect(parsed.hooks.preCompact).toBeDefined();
+      expect(parsed.hooks.permissionRequest).toBeDefined();
+      expect(parsed.hooks.notification).toBeDefined();
+    });
+
+    it("emits prompt and http hook types and preserves cwd/env", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          sessionStart: [
+            { type: "prompt", prompt: "Remember the project conventions." },
+            { type: "command", command: "echo hi", cwd: "/work", env: { A: "b" } },
+          ],
+          preToolUse: [
+            {
+              type: "http",
+              url: "https://example.com/hook",
+              headers: { Authorization: "Bearer x" },
+              allowedEnvVars: ["TOKEN"],
+            },
+          ],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const hooks = await CopilotcliHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+      const parsed = JSON.parse(hooks.getFileContent());
+
+      const sessionStart = parsed.hooks.sessionStart;
+      expect(sessionStart).toEqual(
+        expect.arrayContaining([
+          { type: "prompt", prompt: "Remember the project conventions." },
+          expect.objectContaining({ type: "command", cwd: "/work", env: { A: "b" } }),
+        ]),
+      );
+      expect(parsed.hooks.preToolUse[0]).toMatchObject({
+        type: "http",
+        url: "https://example.com/hook",
+        headers: { Authorization: "Bearer x" },
+        allowedEnvVars: ["TOKEN"],
+      });
+    });
+
+    it("skips prompt hooks on events other than sessionStart", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [{ type: "prompt", prompt: "nope" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const hooks = await CopilotcliHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+      const parsed = JSON.parse(hooks.getFileContent());
+      expect(parsed.hooks.preToolUse).toBeUndefined();
+    });
+
+    it("round-trips prompt/http/cwd/env on import", async () => {
+      const fileContent = JSON.stringify({
+        version: 1,
+        hooks: {
+          sessionStart: [{ type: "prompt", prompt: "remember" }],
+          agentStop: [{ type: "command", bash: "echo stop", cwd: "/w", env: { K: "v" } }],
+          preToolUse: [{ type: "http", url: "https://x.test", allowedEnvVars: ["T"] }],
+        },
+      });
+      const hooks = new CopilotcliHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilotcli-hooks.json",
+        fileContent,
+        validate: false,
+      });
+
+      const canonical = JSON.parse(hooks.toRulesyncHooks().getFileContent());
+      expect(canonical.hooks.sessionStart[0]).toMatchObject({ type: "prompt", prompt: "remember" });
+      // agentStop maps back to canonical `stop`.
+      expect(canonical.hooks.stop[0]).toMatchObject({
+        type: "command",
+        command: "echo stop",
+        cwd: "/w",
+        env: { K: "v" },
+      });
+      expect(canonical.hooks.preToolUse[0]).toMatchObject({
+        type: "http",
+        url: "https://x.test",
+        allowedEnvVars: ["T"],
+      });
     });
 
     it("should let copilotcli.hooks override copilot.hooks override shared hooks", async () => {

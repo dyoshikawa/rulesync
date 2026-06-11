@@ -5,9 +5,9 @@ import { z } from "zod/mini";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import {
-  CANONICAL_TO_COPILOT_EVENT_NAMES,
-  COPILOT_HOOK_EVENTS,
-  COPILOT_TO_CANONICAL_EVENT_NAMES,
+  CANONICAL_TO_COPILOTCLI_EVENT_NAMES,
+  COPILOTCLI_HOOK_EVENTS,
+  COPILOTCLI_TO_CANONICAL_EVENT_NAMES,
   HookDefinitionSchema,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
@@ -27,10 +27,18 @@ import {
  *
  * Reference: https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/use-hooks
  *
- * The Copilot CLI hook event surface is identical to the cloud-agent format
- * (six events: `sessionStart`, `sessionEnd`, `userPromptSubmitted`,
- * `preToolUse`, `postToolUse`, `errorOccurred`). Each entry uses the
- * `bash` / `powershell` command-field shape with optional `timeoutSec`.
+ * The Copilot CLI documents a wider event surface than the shared cloud-agent
+ * format, so `copilotcli` uses its own {@link COPILOTCLI_HOOK_EVENTS} set
+ * (`sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`,
+ * `postToolUse`, `postToolUseFailure`, `agentStop`, `subagentStart`,
+ * `subagentStop`, `errorOccurred`, `preCompact`, `permissionRequest`,
+ * `notification`). Each entry supports three hook types:
+ *
+ * - `command` — the `bash` / `powershell` command-field shape with optional
+ *   `timeoutSec`, plus optional `cwd` / `env`.
+ * - `prompt` — a `prompt` string (Copilot CLI only honors prompt hooks on
+ *   `sessionStart`, so prompt hooks on other events are skipped).
+ * - `http` — `url` / `headers` / `allowedEnvVars` with optional `timeoutSec`.
  *
  * Path conventions used by rulesync:
  *
@@ -53,9 +61,9 @@ import {
  *   all rulesync-managed Copilot CLI files under the single `~/.copilot/`
  *   root and will revisit if the spec later mandates an alternate layout.
  *
- * The output JSON schema, event-name mapping, and platform-specific
- * `bash` / `powershell` command field selection are deliberately shared with
- * `copilot-hooks.ts` so both targets agree on the wire format.
+ * The output JSON schema and platform-specific `bash` / `powershell` command
+ * field selection match `copilot-hooks.ts`, but the event surface diverges (the
+ * cloud agent uses the narrower `COPILOT_HOOK_EVENTS` set).
  */
 const CopilotCliHookEntrySchema = z.looseObject({
   // `type` defaults to "command" so hand-edited entries omitting the field
@@ -64,26 +72,34 @@ const CopilotCliHookEntrySchema = z.looseObject({
   type: z._default(z.string(), "command"),
   bash: z.optional(z.string()),
   powershell: z.optional(z.string()),
+  prompt: z.optional(z.string()),
+  url: z.optional(z.string()),
+  headers: z.optional(z.record(z.string(), z.string())),
+  allowedEnvVars: z.optional(z.array(z.string())),
+  cwd: z.optional(z.string()),
+  env: z.optional(z.record(z.string(), z.string())),
   timeoutSec: z.optional(z.number()),
 });
 
 type CopilotCliHookEntry = z.infer<typeof CopilotCliHookEntrySchema>;
 
-function canonicalToCopilotCliHooks(config: HooksConfig): Record<string, CopilotCliHookEntry[]> {
+function canonicalToCopilotCliHooks(
+  config: HooksConfig,
+  logger?: Logger,
+): Record<string, CopilotCliHookEntry[]> {
   const canonicalSchemaKeys = Object.keys(HookDefinitionSchema.shape);
   const isWindows = process.platform === "win32";
   const commandField = isWindows ? "powershell" : "bash";
-  const supported: Set<string> = new Set(COPILOT_HOOK_EVENTS);
+  const supported: Set<string> = new Set(COPILOTCLI_HOOK_EVENTS);
   const sharedConfigHooks: HooksConfig["hooks"] = {};
   for (const [event, defs] of Object.entries(config.hooks)) {
     if (supported.has(event)) {
       sharedConfigHooks[event] = defs;
     }
   }
-  // `copilotcli` reuses the canonical Copilot event surface — use the
-  // shared `copilot.hooks` override key as a fallback when no
-  // `copilotcli.hooks` block is present, then let `copilotcli.hooks`
-  // win on conflicts.
+  // `copilotcli` falls back to the shared `copilot.hooks` override key when no
+  // `copilotcli.hooks` block is present, then lets `copilotcli.hooks` win on
+  // conflicts.
   const effectiveHooks: HooksConfig["hooks"] = {
     ...sharedConfigHooks,
     ...config.copilot?.hooks,
@@ -91,33 +107,58 @@ function canonicalToCopilotCliHooks(config: HooksConfig): Record<string, Copilot
   };
   const out: Record<string, CopilotCliHookEntry[]> = {};
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
-    const copilotEventName = CANONICAL_TO_COPILOT_EVENT_NAMES[eventName] ?? eventName;
+    const copilotEventName = CANONICAL_TO_COPILOTCLI_EVENT_NAMES[eventName] ?? eventName;
     const entries: CopilotCliHookEntry[] = [];
     for (const def of definitions) {
-      const hookType = def.type ?? "command";
-      // Copilot CLI does not accept matchers and only supports command-type
-      // hooks (mirrors the existing `copilot-hooks.ts` filter).
+      // Copilot CLI does not accept matchers.
       if (def.matcher) continue;
-      if (hookType !== "command") continue;
-
-      const command = def.command;
+      const hookType = def.type ?? "command";
       const timeout = def.timeout;
+      const timeoutPart = timeout !== undefined && timeout !== null ? { timeoutSec: timeout } : {};
+      // Non-canonical fields (cwd, env, url, headers, allowedEnvVars, ...) pass
+      // through verbatim.
       const rest = Object.fromEntries(
         Object.entries(def).filter(([k]) => !canonicalSchemaKeys.includes(k)),
       );
 
-      entries.push({
-        type: hookType,
-        ...(command !== undefined && command !== null && { [commandField]: command }),
-        ...(timeout !== undefined && timeout !== null && { timeoutSec: timeout }),
-        ...rest,
-      });
+      if (hookType === "prompt") {
+        // Copilot CLI only honors prompt hooks on sessionStart.
+        if (eventName !== "sessionStart") {
+          logger?.warn(
+            `Copilot CLI prompt hooks are only supported on sessionStart; skipping a prompt hook on '${eventName}'.`,
+          );
+          continue;
+        }
+        if (def.prompt === undefined || def.prompt === null) continue;
+        entries.push({ type: "prompt", prompt: def.prompt, ...rest });
+      } else if (hookType === "http") {
+        entries.push({ type: "http", ...timeoutPart, ...rest });
+      } else {
+        const command = def.command;
+        entries.push({
+          type: "command",
+          ...(command !== undefined && command !== null && { [commandField]: command }),
+          ...timeoutPart,
+          ...rest,
+        });
+      }
     }
     if (entries.length > 0) {
       out[copilotEventName] = entries;
     }
   }
   return out;
+}
+
+/** Extract the non-command passthrough fields preserved across import. */
+function importPassthrough(entry: CopilotCliHookEntry): Record<string, unknown> {
+  const passthrough: Record<string, unknown> = {};
+  if (entry.url !== undefined) passthrough.url = entry.url;
+  if (entry.headers !== undefined) passthrough.headers = entry.headers;
+  if (entry.allowedEnvVars !== undefined) passthrough.allowedEnvVars = entry.allowedEnvVars;
+  if (entry.cwd !== undefined) passthrough.cwd = entry.cwd;
+  if (entry.env !== undefined) passthrough.env = entry.env;
+  return passthrough;
 }
 
 function resolveImportCommand(entry: CopilotCliHookEntry, logger?: Logger): string | undefined {
@@ -146,21 +187,31 @@ function copilotCliHooksToCanonical(rawHooks: unknown, logger?: Logger): HooksCo
 
   const canonical: HooksConfig["hooks"] = {};
   for (const [copilotEventName, hookEntries] of Object.entries(rawHooks)) {
-    const eventName = COPILOT_TO_CANONICAL_EVENT_NAMES[copilotEventName] ?? copilotEventName;
+    const eventName = COPILOTCLI_TO_CANONICAL_EVENT_NAMES[copilotEventName] ?? copilotEventName;
     if (!Array.isArray(hookEntries)) continue;
     const defs: HooksConfig["hooks"][string] = [];
     for (const rawEntry of hookEntries) {
       const parseResult = CopilotCliHookEntrySchema.safeParse(rawEntry);
       if (!parseResult.success) continue;
       const entry = parseResult.data;
-      const command = resolveImportCommand(entry, logger);
       const timeout = entry.timeoutSec;
+      const timeoutPart = timeout !== undefined ? { timeout } : {};
+      const passthrough = importPassthrough(entry);
 
-      defs.push({
-        type: "command",
-        ...(command !== undefined && { command }),
-        ...(timeout !== undefined && { timeout }),
-      });
+      if (entry.type === "prompt") {
+        if (entry.prompt === undefined) continue;
+        defs.push({ type: "prompt", prompt: entry.prompt, ...passthrough });
+      } else if (entry.type === "http") {
+        defs.push({ type: "http", ...timeoutPart, ...passthrough });
+      } else {
+        const command = resolveImportCommand(entry, logger);
+        defs.push({
+          type: "command",
+          ...(command !== undefined && { command }),
+          ...timeoutPart,
+          ...passthrough,
+        });
+      }
     }
     if (defs.length > 0) {
       canonical[eventName] = defs;
@@ -212,12 +263,14 @@ export class CopilotcliHooks extends ToolHooks {
     rulesyncHooks,
     validate = true,
     global = false,
+    logger,
   }: ToolHooksFromRulesyncHooksParams & {
     global?: boolean;
+    logger?: Logger;
   }): Promise<CopilotcliHooks> {
     const paths = CopilotcliHooks.getSettablePaths({ global });
     const config = rulesyncHooks.getJson();
-    const copilotHooks = canonicalToCopilotCliHooks(config);
+    const copilotHooks = canonicalToCopilotCliHooks(config, logger);
     const fileContent = JSON.stringify({ version: 1, hooks: copilotHooks }, null, 2);
     return new CopilotcliHooks({
       outputRoot,

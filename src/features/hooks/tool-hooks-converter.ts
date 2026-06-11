@@ -24,7 +24,7 @@ export type ToolHooksConverterConfig = {
   canonicalToToolEventNames: Record<string, string>;
   toolToCanonicalEventNames: Record<string, string>;
   projectDirVar: string;
-  supportedHookTypes?: ReadonlySet<"command" | "prompt">;
+  supportedHookTypes?: ReadonlySet<"command" | "prompt" | "http">;
   passthroughFields?: ReadonlyArray<"name" | "description">;
   /**
    * When true, only dot-relative commands (e.g. ./script.sh, ../script.sh, .rulesync/hooks/x.sh)
