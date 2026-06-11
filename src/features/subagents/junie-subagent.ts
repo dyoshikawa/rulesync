@@ -16,9 +16,29 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
+/**
+ * Frontmatter for Junie CLI custom subagents (`.junie/agents/*.md`). Junie
+ * documents these fields; the schema stays loose (and the list fields accept a
+ * single string or an array) for forward compatibility.
+ *
+ * @see https://junie.jetbrains.com/docs/junie-cli-subagents.html
+ */
 export const JunieSubagentFrontmatterSchema = z.looseObject({
   name: z.optional(z.string()),
   description: z.string(),
+  // Tool access controls.
+  tools: z.optional(z.union([z.string(), z.array(z.string())])),
+  disallowedTools: z.optional(z.union([z.string(), z.array(z.string())])),
+  // MCP servers the subagent may use.
+  mcpServers: z.optional(z.union([z.string(), z.array(z.string())])),
+  // Model and reasoning controls (`reasoningLevel`: low | medium | high).
+  model: z.optional(z.string()),
+  reasoningLevel: z.optional(z.string()),
+  maxTurns: z.optional(z.number()),
+  // Agent Skills the subagent should utilize.
+  skills: z.optional(z.union([z.string(), z.array(z.string())])),
+  // Whether the subagent accepts a prompt argument.
+  allowPromptArgument: z.optional(z.boolean()),
 });
 
 export type JunieSubagentFrontmatter = z.infer<typeof JunieSubagentFrontmatterSchema>;
