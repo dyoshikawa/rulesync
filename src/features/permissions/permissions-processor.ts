@@ -29,6 +29,7 @@ import type {
   ToolPermissionsSettablePaths,
 } from "./tool-permissions.js";
 import { ToolPermissions } from "./tool-permissions.js";
+import { WarpPermissions } from "./warp-permissions.js";
 import { ZedPermissions } from "./zed-permissions.js";
 
 const permissionsProcessorToolTargetTuple = [
@@ -46,6 +47,7 @@ const permissionsProcessorToolTargetTuple = [
   "kiro",
   "opencode",
   "qwencode",
+  "warp",
   "zed",
 ] as const;
 
@@ -233,6 +235,21 @@ const toolPermissionsFactories = new Map<PermissionsProcessorToolTarget, ToolPer
       class: QwencodePermissions,
       meta: {
         supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "warp",
+    {
+      class: WarpPermissions,
+      meta: {
+        // Warp reads command permissions only from the global user
+        // `settings.toml` (`[agents.profiles]` allowlist/denylist); there is no
+        // project-scoped Warp permissions file. The settings.toml path differs
+        // per platform, resolved in WarpPermissions.getSettablePaths.
+        supportsProject: false,
         supportsGlobal: true,
         supportsImport: true,
       },

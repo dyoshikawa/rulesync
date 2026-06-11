@@ -110,6 +110,7 @@ describe("PermissionsProcessor", () => {
         "kilo",
         "opencode",
         "qwencode",
+        "warp",
         "zed",
       ]);
     });
