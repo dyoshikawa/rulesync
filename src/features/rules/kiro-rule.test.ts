@@ -23,14 +23,17 @@ describe("deriveKiroInclusion", () => {
     expect(deriveKiroInclusion({ globs: ["*", "**"] })).toBeUndefined();
   });
 
-  it("maps specific globs to fileMatch with a comma-joined pattern", () => {
+  it("maps a single specific glob to fileMatch with a string pattern", () => {
     expect(deriveKiroInclusion({ globs: ["src/components/**/*.tsx"] })).toEqual({
       inclusion: "fileMatch",
       fileMatchPattern: "src/components/**/*.tsx",
     });
+  });
+
+  it("maps multiple specific globs to fileMatch with an array pattern (dropping wildcards)", () => {
     expect(deriveKiroInclusion({ globs: ["a/**", "b/**", "**/*"] })).toEqual({
       inclusion: "fileMatch",
-      fileMatchPattern: "a/**,b/**",
+      fileMatchPattern: ["a/**", "b/**"],
     });
   });
 
@@ -389,6 +392,54 @@ describe("KiroRule", () => {
         fileMatchPattern: "src/**/*.ts",
       });
       expect(roundTrip.getBody()).toContain("# Frontend body");
+    });
+
+    it("emits and round-trips an array fileMatchPattern for multiple globs", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "ts.md",
+        frontmatter: {
+          root: false,
+          targets: ["kiro"],
+          globs: ["**/*.ts", "**/*.tsx"],
+        },
+        body: "# TS body",
+      });
+
+      const generated = KiroRule.fromRulesyncRule({ rulesyncRule });
+      const content = generated.getFileContent();
+      expect(content).toContain("inclusion: fileMatch");
+      // YAML array form, not a comma-joined string.
+      expect(content).not.toContain("**/*.ts,**/*.tsx");
+
+      const roundTrip = generated.toRulesyncRule();
+      expect(roundTrip.getFrontmatter().globs).toEqual(["**/*.ts", "**/*.tsx"]);
+      expect(roundTrip.getFrontmatter().kiro).toEqual({
+        inclusion: "fileMatch",
+        fileMatchPattern: ["**/*.ts", "**/*.tsx"],
+      });
+    });
+
+    it("imports a hand-authored array fileMatchPattern steering file", async () => {
+      const steeringDir = join(testDir, ".kiro/steering");
+      await ensureDir(steeringDir);
+      await writeFileContent(
+        join(steeringDir, "authored.md"),
+        '---\ninclusion: fileMatch\nfileMatchPattern: ["**/*.ts", "**/*.tsx"]\n---\n# Authored\n',
+      );
+
+      const kiroRule = await KiroRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "authored.md",
+      });
+      const roundTrip = kiroRule.toRulesyncRule();
+
+      expect(roundTrip.getFrontmatter().globs).toEqual(["**/*.ts", "**/*.tsx"]);
+      expect(roundTrip.getFrontmatter().kiro).toEqual({
+        inclusion: "fileMatch",
+        fileMatchPattern: ["**/*.ts", "**/*.tsx"],
+      });
+      expect(roundTrip.getBody()).toContain("# Authored");
     });
 
     it("should use custom outputRoot", () => {

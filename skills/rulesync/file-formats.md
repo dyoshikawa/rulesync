@@ -40,7 +40,7 @@ augmentcode: # augmentcode specific parameters
   description: "When to apply this rule" # (optional) used with "agent_requested" type
 kiro: # kiro specific parameters (steering inclusion)
   inclusion: "fileMatch" # always, fileMatch, or manual
-  fileMatchPattern: "src/components/**/*.tsx" # (optional) single glob used when inclusion is "fileMatch"
+  fileMatchPattern: ["src/components/**/*.tsx"] # (optional) glob string or array of globs, used when inclusion is "fileMatch"
 takt: # takt specific parameters (optional; emitted under .takt/facets/policies/ — frontmatter is dropped on emit)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
   extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
@@ -54,7 +54,7 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
 ...
 ```
 
-> **Kiro note:** Kiro reads steering files from `.kiro/steering/*.md` and uses an `inclusion` frontmatter block to decide when each is loaded (`always`, `fileMatch` with a `fileMatchPattern`, or `manual`). Rulesync derives this for non-root steering files: an explicit `kiro.inclusion` block round-trips as-is; otherwise specific (non-wildcard) `globs` map to `inclusion: fileMatch` (so the rule applies only to matching files instead of always); otherwise the file stays always-on and is written without a frontmatter block (Kiro's no-frontmatter default). The root overview index is always written plain so Kiro always loads it.
+> **Kiro note:** Kiro reads steering files from `.kiro/steering/*.md` and uses an `inclusion` frontmatter block to decide when each is loaded (`always`, `fileMatch` with a `fileMatchPattern`, or `manual`). Rulesync derives this for non-root steering files: an explicit `kiro.inclusion` block round-trips as-is; otherwise specific (non-wildcard) `globs` map to `inclusion: fileMatch` (a single glob is written as a string and multiple as a YAML array, both of which Kiro accepts), so the rule applies only to matching files instead of always; otherwise the file stays always-on and is written without a frontmatter block (Kiro's no-frontmatter default). The root overview index is always written plain so Kiro always loads it.
 
 > **Kilo Code note:** Kilo writes the root rule to the auto-loaded `AGENTS.md` and non-root rules to `.kilo/rules/*.md`. Because Kilo v7 does not auto-load files under `.kilo/rules/`, Rulesync also registers each generated non-root rule file in the `instructions` array of the shared `kilo.jsonc` (the root `AGENTS.md` is auto-loaded and is therefore not registered). This merge is non-destructive: existing keys such as `mcp`, `tools`, and `permission` are preserved, and the `instructions` list is deduped and sorted.
 

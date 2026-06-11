@@ -30,10 +30,23 @@ export type KiroRuleSettablePaths = Pick<ToolRuleSettablePaths, "nonRoot">;
  */
 export type KiroSteeringInclusion = {
   inclusion: string;
-  fileMatchPattern?: string;
+  // A single glob is emitted as a string; multiple globs as a YAML array, both of
+  // which Kiro accepts for `fileMatchPattern`.
+  fileMatchPattern?: string | string[];
 };
 
 const WILDCARD_GLOBS = new Set(["**/*", "**", "*"]);
+
+/**
+ * Emits one glob as a string and several as an array, matching the two
+ * `fileMatchPattern` forms Kiro accepts.
+ */
+function toFileMatchPattern(globs: string[]): string | string[] | undefined {
+  if (globs.length === 0) {
+    return undefined;
+  }
+  return globs.length === 1 ? globs[0] : globs;
+}
 
 /**
  * Derives the Kiro steering `inclusion` frontmatter for a non-root rule from the
@@ -53,14 +66,14 @@ export function deriveKiroInclusion({
   kiro,
   globs,
 }: {
-  kiro?: { inclusion?: string; fileMatchPattern?: string };
+  kiro?: { inclusion?: string; fileMatchPattern?: string | string[] };
   globs?: string[];
 }): KiroSteeringInclusion | undefined {
   const specificGlobs = (globs ?? []).filter((g) => !WILDCARD_GLOBS.has(g));
 
   if (kiro?.inclusion) {
     if (kiro.inclusion === "fileMatch") {
-      const fileMatchPattern = kiro.fileMatchPattern ?? (specificGlobs.join(",") || undefined);
+      const fileMatchPattern = kiro.fileMatchPattern ?? toFileMatchPattern(specificGlobs);
       return fileMatchPattern
         ? { inclusion: "fileMatch", fileMatchPattern }
         : { inclusion: "fileMatch" };
@@ -68,8 +81,9 @@ export function deriveKiroInclusion({
     return { inclusion: kiro.inclusion };
   }
 
-  if (specificGlobs.length > 0) {
-    return { inclusion: "fileMatch", fileMatchPattern: specificGlobs.join(",") };
+  const fileMatchPattern = toFileMatchPattern(specificGlobs);
+  if (fileMatchPattern) {
+    return { inclusion: "fileMatch", fileMatchPattern };
   }
 
   return undefined;
@@ -164,12 +178,19 @@ export class KiroRule extends ToolRule {
       return this.toRulesyncRuleDefault();
     }
 
-    const fileMatchPattern =
-      typeof frontmatter.fileMatchPattern === "string" ? frontmatter.fileMatchPattern : undefined;
-    const globs =
-      inclusion === "fileMatch" && fileMatchPattern
-        ? fileMatchPattern.split(",").map((g) => g.trim())
-        : [];
+    const rawPattern = frontmatter.fileMatchPattern;
+    const fileMatchPattern: string | string[] | undefined = Array.isArray(rawPattern)
+      ? rawPattern.filter((p): p is string => typeof p === "string")
+      : typeof rawPattern === "string"
+        ? rawPattern
+        : undefined;
+    const patternGlobs =
+      fileMatchPattern === undefined
+        ? []
+        : Array.isArray(fileMatchPattern)
+          ? fileMatchPattern
+          : [fileMatchPattern];
+    const globs = inclusion === "fileMatch" ? patternGlobs : [];
 
     return new RulesyncRule({
       outputRoot: process.cwd(),
@@ -179,7 +200,7 @@ export class KiroRule extends ToolRule {
         root: false,
         targets: ["*"],
         globs,
-        kiro: { inclusion, ...(fileMatchPattern ? { fileMatchPattern } : {}) },
+        kiro: { inclusion, ...(fileMatchPattern !== undefined ? { fileMatchPattern } : {}) },
       },
       body,
     });
