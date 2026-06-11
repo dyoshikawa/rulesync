@@ -555,6 +555,10 @@ env_vars = ["OPENAI_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY"]
 - Use this for secrets and API keys you do not want literal-encoded into a committed `mcp.json`.
 - Precedence: codex CLI resolves these names from the user's runtime shell environment. If a name is also set in `env` (literal value), the codex CLI behavior is upstream-defined; see the [Codex configuration reference](https://developers.openai.com/codex/config-reference#mcp_serversid-env_vars) (last checked 2026-05-13) for the exact resolution rule.
 
+### Goose-specific: MCP servers as `extensions` (global only)
+
+Goose configures MCP servers as **extensions** in the shared user config `~/.config/goose/config.yaml`, which is **global only** (Goose has no project-scoped MCP location), so they are generated with `--global`. The schema is non-standard, so Rulesync maps canonical MCP fields to Goose's: `command` → `cmd` (an array `command` folds its tail into `args`), `env` → `envs`, `url`/`httpUrl` → `uri`, and `disabled: true` → `enabled: false`. The `type` is derived — `command` ⇒ `stdio`, a remote `url` ⇒ `streamable_http` (or `sse` when the canonical `type` is `sse`). Each extension also carries its own `name`. Generation merges the `extensions:` block into the existing `config.yaml`, preserving other Goose settings (model, provider, ...), and the file is never deleted. See the [Goose extensions docs](https://block.github.io/goose/docs/getting-started/using-extensions/).
+
 ## `.rulesync/.aiignore` or `.rulesyncignore`
 
 Rulesync supports a single ignore list that can live in either location below:

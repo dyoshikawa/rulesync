@@ -292,6 +292,7 @@ describe("E2E: mcp (global mode)", () => {
     { target: "claudecode", outputPath: ".claude.json" },
     { target: "cursor", outputPath: join(".cursor", "mcp.json") },
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
+    { target: "goose", outputPath: join(".config", "goose", "config.yaml") },
     { target: "opencode", outputPath: join(".config", "opencode", "opencode.jsonc") },
     { target: "codexcli", outputPath: join(".codex", "config.toml") },
     { target: "copilotcli", outputPath: join(".copilot", "mcp-config.json") },
