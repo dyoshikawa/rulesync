@@ -257,6 +257,62 @@ describe("E2E: permissions", () => {
     expect(content.permission.read[".env"]).toBe("deny");
   });
 
+  it("should generate antigravity-ide permissions into .antigravity/settings.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow", "rm *": "deny" },
+            read: { "src/**": "allow" },
+            write: { "src/**": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "antigravity-ide", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, ".antigravity", "settings.json")),
+    );
+    expect(content.permissions.allow).toEqual(
+      expect.arrayContaining(["command(git *)", "read_file(src/**)", "write_file(src/**)"]),
+    );
+    expect(content.permissions.deny).toContain("command(rm *)");
+  });
+
+  it("should import antigravity-ide permissions into .rulesync/permissions.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".antigravity", "settings.json"),
+      JSON.stringify(
+        {
+          permissions: {
+            allow: ["command(git *)", "read_file(src/**)"],
+            deny: ["command(rm *)"],
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runImport({ target: "antigravity-ide", features: "permissions" });
+
+    const config = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(config.permission.bash["git *"]).toBe("allow");
+    expect(config.permission.bash["rm *"]).toBe("deny");
+    expect(config.permission.read["src/**"]).toBe("allow");
+  });
+
   it("should generate augmentcode permissions into .augment/settings.json", async () => {
     const testDir = getTestDir();
 
