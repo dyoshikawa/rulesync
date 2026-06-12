@@ -53,7 +53,7 @@ const CANONICAL_TO_ZED_TOOL_NAMES: Record<string, string> = {
   read: "read_file",
   edit: "edit_file",
   webfetch: "fetch",
-  websearch: "web_search",
+  websearch: "search_web",
 };
 
 const ZED_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntries(
