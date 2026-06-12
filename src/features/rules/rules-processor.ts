@@ -650,6 +650,21 @@ const defaultGetFactory: GetFactory = (target) => {
   return factory;
 };
 
+const findFilesWithFallback = async (
+  primaryGlob: string,
+  alternativeRoots: Array<{ relativeDirPath: string; relativeFilePath: string }> | undefined,
+  buildAltGlob: (alt: { relativeDirPath: string; relativeFilePath: string }) => string,
+): Promise<string[]> => {
+  const primaryFilePaths = await findFilesByGlobs(primaryGlob);
+  if (primaryFilePaths.length > 0) {
+    return primaryFilePaths;
+  }
+  if (alternativeRoots) {
+    return findFilesByGlobs(alternativeRoots.map(buildAltGlob));
+  }
+  return [];
+};
+
 export class RulesProcessor extends FeatureProcessor {
   private readonly toolTarget: RulesProcessorToolTarget;
   private readonly simulateCommands: boolean;
@@ -1222,21 +1237,6 @@ export class RulesProcessor extends FeatureProcessor {
             });
           })
           .filter((rule) => rule.isDeletable());
-      };
-
-      const findFilesWithFallback = async (
-        primaryGlob: string,
-        alternativeRoots: typeof settablePaths.alternativeRoots,
-        buildAltGlob: (alt: { relativeDirPath: string; relativeFilePath: string }) => string,
-      ): Promise<string[]> => {
-        const primaryFilePaths = await findFilesByGlobs(primaryGlob);
-        if (primaryFilePaths.length > 0) {
-          return primaryFilePaths;
-        }
-        if (alternativeRoots) {
-          return findFilesByGlobs(alternativeRoots.map(buildAltGlob));
-        }
-        return [];
       };
 
       const rootToolRules = await (async () => {

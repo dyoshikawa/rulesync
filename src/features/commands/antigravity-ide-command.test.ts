@@ -8,6 +8,18 @@ import { AntigravityCommandFrontmatter } from "./antigravity-command.js";
 import { AntigravityIdeCommand } from "./antigravity-ide-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 
+const buildCommand = (targets: string[]) =>
+  new RulesyncCommand({
+    relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+    relativeFilePath: "test.md",
+    frontmatter: {
+      targets: targets as never,
+      description: "Test",
+    },
+    body: "Body",
+    fileContent: "",
+  });
+
 describe("AntigravityIdeCommand", () => {
   describe("getSettablePaths", () => {
     it("should return the project workflows path by default", () => {
@@ -285,18 +297,6 @@ describe("AntigravityIdeCommand", () => {
   });
 
   describe("isTargetedByRulesyncCommand", () => {
-    const buildCommand = (targets: string[]) =>
-      new RulesyncCommand({
-        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
-        relativeFilePath: "test.md",
-        frontmatter: {
-          targets: targets as never,
-          description: "Test",
-        },
-        body: "Body",
-        fileContent: "",
-      });
-
     it("should return true for the wildcard target", () => {
       expect(AntigravityIdeCommand.isTargetedByRulesyncCommand(buildCommand(["*"]))).toBe(true);
     });

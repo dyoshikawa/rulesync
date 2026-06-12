@@ -7,6 +7,19 @@ import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { AntigravityCliRule } from "./antigravity-cli-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
+const buildRule = (targets: string[]): RulesyncRule =>
+  new RulesyncRule({
+    relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+    relativeFilePath: "test.md",
+    frontmatter: {
+      root: false,
+      targets: targets as any,
+      globs: [],
+    },
+    body: "# Test",
+    validate: false,
+  });
+
 describe("AntigravityCliRule", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -145,19 +158,6 @@ describe("AntigravityCliRule", () => {
   });
 
   describe("isTargetedByRulesyncRule", () => {
-    const buildRule = (targets: string[]): RulesyncRule =>
-      new RulesyncRule({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "test.md",
-        frontmatter: {
-          root: false,
-          targets: targets as any,
-          globs: [],
-        },
-        body: "# Test",
-        validate: false,
-      });
-
     it("should return true for wildcard target", () => {
       expect(AntigravityCliRule.isTargetedByRulesyncRule(buildRule(["*"]))).toBe(true);
     });

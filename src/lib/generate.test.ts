@@ -16,6 +16,14 @@ import { checkRulesyncDirExists, generate } from "./generate.js";
 
 const logger = createMockLogger();
 
+const createMockSkillsProcessor = () => ({
+  loadToolDirsToDelete: vi.fn().mockResolvedValue([]),
+  removeAiDirs: vi.fn().mockResolvedValue(undefined),
+  loadRulesyncDirs: vi.fn().mockResolvedValue([]),
+  convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),
+  writeAiDirs: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
+});
+
 vi.mock("../features/rules/rules-processor.js");
 vi.mock("../features/ignore/ignore-processor.js");
 vi.mock("../features/mcp/mcp-processor.js");
@@ -125,14 +133,6 @@ describe("generate", () => {
         .fn()
         .mockResolvedValue([createMockAiFile("/path/to/file", "content")]),
       writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
-    });
-
-    const createMockSkillsProcessor = () => ({
-      loadToolDirsToDelete: vi.fn().mockResolvedValue([]),
-      removeAiDirs: vi.fn().mockResolvedValue(undefined),
-      loadRulesyncDirs: vi.fn().mockResolvedValue([]),
-      convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),
-      writeAiDirs: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
     });
 
     vi.mocked(RulesProcessor).mockImplementation(function () {

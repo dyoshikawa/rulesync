@@ -13,6 +13,20 @@ import { convertFromTool } from "./convert.js";
 
 const logger = createMockLogger();
 
+const createMockProcessor = () => ({
+  loadToolFiles: vi.fn().mockResolvedValue([{ file: "tool" }]),
+  convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ file: "rulesync" }]),
+  convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ file: "dest-tool" }]),
+  writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
+});
+
+const createMockSkillsProcessor = () => ({
+  loadToolDirs: vi.fn().mockResolvedValue([{ dir: "tool" }]),
+  convertToolDirsToRulesyncDirs: vi.fn().mockResolvedValue([{ dir: "rulesync" }]),
+  convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([{ dir: "dest-tool" }]),
+  writeAiDirs: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
+});
+
 vi.mock("../features/rules/rules-processor.js");
 vi.mock("../features/ignore/ignore-processor.js");
 vi.mock("../features/mcp/mcp-processor.js");
@@ -54,20 +68,6 @@ describe("convertFromTool", () => {
     vi.mocked(SkillsProcessor.getToolTargets).mockReturnValue(["claudecode", "cursor"]);
     vi.mocked(HooksProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(PermissionsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
-
-    const createMockProcessor = () => ({
-      loadToolFiles: vi.fn().mockResolvedValue([{ file: "tool" }]),
-      convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ file: "rulesync" }]),
-      convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ file: "dest-tool" }]),
-      writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
-    });
-
-    const createMockSkillsProcessor = () => ({
-      loadToolDirs: vi.fn().mockResolvedValue([{ dir: "tool" }]),
-      convertToolDirsToRulesyncDirs: vi.fn().mockResolvedValue([{ dir: "rulesync" }]),
-      convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([{ dir: "dest-tool" }]),
-      writeAiDirs: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
-    });
 
     vi.mocked(RulesProcessor).mockImplementation(function () {
       return createMockProcessor() as unknown as RulesProcessor;

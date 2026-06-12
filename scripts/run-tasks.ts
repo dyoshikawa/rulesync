@@ -16,7 +16,10 @@ const runClaudeCode = async (task: string) => {
     },
   })) {
     if (message.type === "assistant") {
-      console.log(message.message.content[0].text);
+      const block = message.message.content[0];
+      if (block?.type === "text") {
+        console.log(block.text);
+      }
     }
   }
 };

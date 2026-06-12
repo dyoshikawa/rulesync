@@ -16,12 +16,12 @@ description: ${description}
 
 Skill body content.`;
 
+const rovodevSkillsRel = () => join(".rovodev", "skills");
+const agentsSkillsRel = () => join(".agents", "skills");
+
 describe("RovodevSkill", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
-
-  const rovodevSkillsRel = () => join(".rovodev", "skills");
-  const agentsSkillsRel = () => join(".agents", "skills");
 
   beforeEach(async () => {
     const testSetup = await setupTestDirectory();
