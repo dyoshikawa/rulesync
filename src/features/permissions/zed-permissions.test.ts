@@ -226,6 +226,28 @@ describe("ZedPermissions", () => {
       expect(json.permission.webfetch).toEqual({ "domain:github.com": "allow" });
     });
 
+    it("should round-trip websearch via Zed's search_web tool name", async () => {
+      const rulesyncPermissions = createRulesyncPermissions({
+        websearch: { "*": "allow" },
+      });
+
+      const generated = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      // `websearch` must map to Zed's built-in `search_web` tool, not `web_search`.
+      const generatedJson = JSON.parse(generated.getFileContent());
+      expect(generatedJson.agent.tool_permissions.tools.search_web.default).toBe("allow");
+      expect(generatedJson.agent.tool_permissions.tools.web_search).toBeUndefined();
+
+      await writeFileContent(join(testDir, ".zed", "settings.json"), generated.getFileContent());
+      const imported = await ZedPermissions.fromFile({ outputRoot: testDir });
+      const json = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+
+      expect(json.permission.websearch).toEqual({ "*": "allow" });
+    });
+
     it("should pass through non-canonical mcp tool keys across generate → import", async () => {
       const rulesyncPermissions = createRulesyncPermissions({
         "mcp:context7:get-docs": { "*": "allow", secret: "deny" },
