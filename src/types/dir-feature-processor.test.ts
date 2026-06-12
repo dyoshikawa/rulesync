@@ -31,6 +31,26 @@ function createMockDir(dirPath: string): AiDir {
   } as unknown as AiDir;
 }
 
+function createMockDirWithFiles({
+  dirPath,
+  mainFileBody,
+  otherFiles = [],
+}: {
+  dirPath: string;
+  mainFileBody?: string;
+  otherFiles?: AiDirFile[];
+}): AiDir {
+  return {
+    getDirPath: () => dirPath,
+    getMainFile: () =>
+      mainFileBody !== undefined
+        ? { name: "SKILL.md", body: mainFileBody, frontmatter: {} }
+        : undefined,
+    getOtherFiles: () => otherFiles,
+    getRelativePathFromCwd: () => dirPath,
+  } as unknown as AiDir;
+}
+
 class TestDirProcessor extends DirFeatureProcessor {
   loadRulesyncDirs(): Promise<AiDir[]> {
     return Promise.resolve([]);
@@ -149,26 +169,6 @@ describe("DirFeatureProcessor", () => {
   });
 
   describe("writeAiDirs", () => {
-    function createMockDirWithFiles({
-      dirPath,
-      mainFileBody,
-      otherFiles = [],
-    }: {
-      dirPath: string;
-      mainFileBody?: string;
-      otherFiles?: AiDirFile[];
-    }): AiDir {
-      return {
-        getDirPath: () => dirPath,
-        getMainFile: () =>
-          mainFileBody !== undefined
-            ? { name: "SKILL.md", body: mainFileBody, frontmatter: {} }
-            : undefined,
-        getOtherFiles: () => otherFiles,
-        getRelativePathFromCwd: () => dirPath,
-      } as unknown as AiDir;
-    }
-
     it("should write all dirs and return count when dirs are new", async () => {
       vi.mocked(readFileContentOrNull).mockResolvedValue(null);
       const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });

@@ -15,6 +15,7 @@
     "import/no-cycle": "error",
     "no-console": "error",
     "no-new": "off",
+    "no-underscore-dangle": "off",
     "typescript/no-explicit-any": "warn",
     "unicorn/prefer-node-protocol": "error",
     "unicorn/no-array-reduce": "off"

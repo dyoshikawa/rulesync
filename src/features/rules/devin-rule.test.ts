@@ -8,6 +8,19 @@ import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { DevinRule, DevinRuleFrontmatter, DevinRuleFrontmatterSchema } from "./devin-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
+const buildRule = (targets: string[]): RulesyncRule =>
+  new RulesyncRule({
+    relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+    relativeFilePath: "test.md",
+    frontmatter: {
+      root: false,
+      targets: targets as any,
+      globs: [],
+    },
+    body: "# Test",
+    validate: false,
+  });
+
 describe("DevinRule", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -567,19 +580,6 @@ This is a test rule.`);
   });
 
   describe("isTargetedByRulesyncRule", () => {
-    const buildRule = (targets: string[]): RulesyncRule =>
-      new RulesyncRule({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "test.md",
-        frontmatter: {
-          root: false,
-          targets: targets as any,
-          globs: [],
-        },
-        body: "# Test",
-        validate: false,
-      });
-
     it("should return true for the wildcard target", () => {
       expect(DevinRule.isTargetedByRulesyncRule(buildRule(["*"]))).toBe(true);
     });

@@ -13,6 +13,18 @@ import { importFromTool } from "./import.js";
 
 const logger = createMockLogger();
 
+const createMockProcessor = () => ({
+  loadToolFiles: vi.fn().mockResolvedValue([{ file: "tool" }]),
+  convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ file: "rulesync" }]),
+  writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
+});
+
+const createMockSkillsProcessor = () => ({
+  loadToolDirs: vi.fn().mockResolvedValue([{ dir: "tool" }]),
+  convertToolDirsToRulesyncDirs: vi.fn().mockResolvedValue([{ dir: "rulesync" }]),
+  writeAiDirs: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
+});
+
 vi.mock("../features/rules/rules-processor.js");
 vi.mock("../features/ignore/ignore-processor.js");
 vi.mock("../features/mcp/mcp-processor.js");
@@ -52,18 +64,6 @@ describe("importFromTool", () => {
     vi.mocked(SkillsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(HooksProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(PermissionsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
-
-    const createMockProcessor = () => ({
-      loadToolFiles: vi.fn().mockResolvedValue([{ file: "tool" }]),
-      convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ file: "rulesync" }]),
-      writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
-    });
-
-    const createMockSkillsProcessor = () => ({
-      loadToolDirs: vi.fn().mockResolvedValue([{ dir: "tool" }]),
-      convertToolDirsToRulesyncDirs: vi.fn().mockResolvedValue([{ dir: "rulesync" }]),
-      writeAiDirs: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
-    });
 
     vi.mocked(RulesProcessor).mockImplementation(function () {
       return createMockProcessor() as unknown as RulesProcessor;

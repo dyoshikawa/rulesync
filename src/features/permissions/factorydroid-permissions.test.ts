@@ -12,6 +12,13 @@ import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { FactorydroidPermissions } from "./factorydroid-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
+const buildRulesyncPermissions = (config: unknown): RulesyncPermissions =>
+  new RulesyncPermissions({
+    relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+    relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+    fileContent: JSON.stringify(config),
+  });
+
 describe("FactorydroidPermissions", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -25,13 +32,6 @@ describe("FactorydroidPermissions", () => {
     await cleanup();
     vi.restoreAllMocks();
   });
-
-  const buildRulesyncPermissions = (config: unknown): RulesyncPermissions =>
-    new RulesyncPermissions({
-      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent: JSON.stringify(config),
-    });
 
   describe("getSettablePaths", () => {
     it("should return .factory/settings.json", () => {

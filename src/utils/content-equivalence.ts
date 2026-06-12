@@ -40,16 +40,16 @@ function tryTomlEquivalent(a: string, b: string): boolean | undefined {
   }
 }
 
-function tryMarkdownEquivalent(expected: string, existing: string): boolean | undefined {
-  /**
-   * gray-matter often includes extra newlines right after the closing ---; strip those so the
-   * body matches across generators vs on-disk formatters. Trailing whitespace is normalized via
-   * addTrailingNewline (trimEnd + single newline), same as writes.
-   */
-  function normalizeMarkdownBody(body: string): string {
-    return addTrailingNewline(body.replace(/^\n+/, ""));
-  }
+/**
+ * gray-matter often includes extra newlines right after the closing ---; strip those so the
+ * body matches across generators vs on-disk formatters. Trailing whitespace is normalized via
+ * addTrailingNewline (trimEnd + single newline), same as writes.
+ */
+function normalizeMarkdownBody(body: string): string {
+  return addTrailingNewline(body.replace(/^\n+/, ""));
+}
 
+function tryMarkdownEquivalent(expected: string, existing: string): boolean | undefined {
   try {
     const parsedExpected = parseFrontmatter(expected);
     const parsedExisting = parseFrontmatter(existing);
