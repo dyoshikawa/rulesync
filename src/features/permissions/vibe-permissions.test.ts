@@ -138,4 +138,87 @@ describe("VibePermissions", () => {
 
     expect(parsed.tools.write_file.allow).toEqual(["*.md", "*.txt"]);
   });
+
+  it("should clear a stale disabled_tools entry when rulesync now allows the tool", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      'disabled_tools = ["write_file"]',
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          edit: { "*": "allow" },
+        },
+      }),
+    });
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    // The stale deny filter must not survive the new "allow" source of truth.
+    expect(parsed.disabled_tools).toBeUndefined();
+    expect(parsed.enabled_tools).toEqual(["write_file"]);
+    expect(parsed.tools.write_file.permission).toBe("always");
+  });
+
+  it("should clear a stale enabled_tools entry when rulesync now denies the tool", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(join(testDir, ".vibe", "config.toml"), 'enabled_tools = ["read_file"]');
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          read: { "*": "deny" },
+        },
+      }),
+    });
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.enabled_tools).toBeUndefined();
+    expect(parsed.disabled_tools).toEqual(["read_file"]);
+  });
+
+  it("should preserve enabled/disabled filters for tools rulesync does not configure", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ['enabled_tools = ["custom_tool"]', 'disabled_tools = ["other_tool"]'].join("\n"),
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          edit: { "*": "deny" },
+        },
+      }),
+    });
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.enabled_tools).toEqual(["custom_tool"]);
+    expect(parsed.disabled_tools).toEqual(["other_tool", "write_file"]);
+  });
 });

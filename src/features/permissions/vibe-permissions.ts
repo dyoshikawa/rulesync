@@ -103,10 +103,23 @@ export class VibePermissions extends ToolPermissions {
     const existingContent = (await readFileContentOrNull(filePath)) ?? smolToml.stringify({});
     const config = parseVibeConfig(existingContent);
 
+    const permission = rulesyncPermissions.getJson().permission;
+
     const tools = toVibeToolsRecord(config.tools);
+    const enabledTools = new Set(toStringArray(config.enabled_tools));
     const disabledTools = new Set(toStringArray(config.disabled_tools));
 
-    for (const [category, rules] of Object.entries(rulesyncPermissions.getJson().permission)) {
+    // rulesync is the source of truth for every tool it configures, so drop any
+    // stale enabled/disabled filters for those tools before reapplying the
+    // current state. Filters for tools rulesync does not configure are kept as-is
+    // (e.g. a user-defined `enabled_tools` entry for a Vibe-only tool).
+    for (const category of Object.keys(permission)) {
+      const vibeToolName = toVibeToolName(category);
+      enabledTools.delete(vibeToolName);
+      disabledTools.delete(vibeToolName);
+    }
+
+    for (const [category, rules] of Object.entries(permission)) {
       const vibeToolName = toVibeToolName(category);
       const existingTool = toVibeToolConfig(tools[vibeToolName]);
       const nextTool: VibeToolConfig = { ...existingTool };
@@ -118,6 +131,10 @@ export class VibePermissions extends ToolPermissions {
           applyWildcardPermission({ action, toolConfig: nextTool });
           if (action === "deny") {
             disabledTools.add(vibeToolName);
+            enabledTools.delete(vibeToolName);
+          } else if (action === "allow") {
+            enabledTools.add(vibeToolName);
+            disabledTools.delete(vibeToolName);
           }
           continue;
         }
@@ -146,8 +163,15 @@ export class VibePermissions extends ToolPermissions {
     }
 
     config.tools = tools;
+    if (enabledTools.size > 0) {
+      config.enabled_tools = [...enabledTools].toSorted();
+    } else {
+      delete config.enabled_tools;
+    }
     if (disabledTools.size > 0) {
       config.disabled_tools = [...disabledTools].toSorted();
+    } else {
+      delete config.disabled_tools;
     }
 
     return new VibePermissions({
