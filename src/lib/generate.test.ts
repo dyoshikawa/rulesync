@@ -636,9 +636,11 @@ describe("generate", () => {
 
       await generate({ logger, config: mockConfig as never });
 
-      const ignoreCall = ignoreWriteAiFiles.mock.invocationCallOrder[0] ?? 0;
-      const permissionsCall = permissionsWriteAiFiles.mock.invocationCallOrder[0] ?? 0;
-      expect(ignoreCall).toBeLessThan(permissionsCall);
+      expect(ignoreWriteAiFiles).toHaveBeenCalled();
+      expect(permissionsWriteAiFiles).toHaveBeenCalled();
+      const ignoreCall = ignoreWriteAiFiles.mock.invocationCallOrder[0];
+      const permissionsCall = permissionsWriteAiFiles.mock.invocationCallOrder[0];
+      expect(ignoreCall).toBeLessThan(permissionsCall!);
     });
 
     it("should run mcp before rules to prevent shared kilo.jsonc data loss", async () => {
@@ -668,9 +670,11 @@ describe("generate", () => {
 
       await generate({ logger, config: mockConfig as never });
 
-      const mcpCall = mcpWriteAiFiles.mock.invocationCallOrder[0] ?? 0;
-      const rulesCall = rulesWriteAiFiles.mock.invocationCallOrder[0] ?? 0;
-      expect(mcpCall).toBeLessThan(rulesCall);
+      expect(mcpWriteAiFiles).toHaveBeenCalled();
+      expect(rulesWriteAiFiles).toHaveBeenCalled();
+      const mcpCall = mcpWriteAiFiles.mock.invocationCallOrder[0];
+      const rulesCall = rulesWriteAiFiles.mock.invocationCallOrder[0];
+      expect(mcpCall).toBeLessThan(rulesCall!);
     });
   });
 
