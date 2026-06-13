@@ -5,7 +5,10 @@ import { HooksProcessorToolTargetSchema } from "../features/hooks/hooks-processo
 import { IgnoreProcessorToolTargetSchema } from "../features/ignore/ignore-processor.js";
 import { McpProcessorToolTargetSchema } from "../features/mcp/mcp-processor.js";
 import { PermissionsProcessorToolTargetSchema } from "../features/permissions/permissions-processor.js";
-import { RulesProcessorToolTargetSchema } from "../features/rules/rules-processor.js";
+import {
+  RulesProcessorToolTargetSchema,
+  toolRuleFactories,
+} from "../features/rules/rules-processor.js";
 import { SkillsProcessorToolTargetSchema } from "../features/skills/skills-processor.js";
 import { SubagentsProcessorToolTargetSchema } from "../features/subagents/subagents-processor.js";
 import {
@@ -255,11 +258,15 @@ describe("tool targets", () => {
 
     for (const { name, schema } of processors) {
       it(`${name}: all tool targets must be a subset of ALL_TOOL_TARGETS`, () => {
-        const unknownTargets = schema.options.filter(
-          (target: string) => !allTargetSet.has(target),
-        );
+        const unknownTargets = schema.options.filter((target: string) => !allTargetSet.has(target));
         expect(unknownTargets).toEqual([]);
       });
     }
+
+    it("RulesProcessor: schema options must match toolRuleFactories keys", () => {
+      const schemaTargets = [...RulesProcessorToolTargetSchema.options].toSorted();
+      const factoryTargets = [...toolRuleFactories.keys()].toSorted();
+      expect(schemaTargets).toEqual(factoryTargets);
+    });
   });
 });

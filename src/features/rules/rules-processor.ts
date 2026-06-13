@@ -243,7 +243,7 @@ type ToolRuleFactory = {
  * Factory Map mapping tool targets to their rule factories.
  * Using Map to preserve insertion order for consistent iteration.
  */
-const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
+export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFactory>([
   [
     "agentsmd",
     {
