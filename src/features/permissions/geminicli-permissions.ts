@@ -1,12 +1,12 @@
 import { join } from "node:path";
 
+import * as smolToml from "smol-toml";
+import { z } from "zod/mini";
+
 import {
   GEMINICLI_POLICIES_DIR_PATH,
   GEMINICLI_PERMISSIONS_FILE_NAME,
 } from "../../constants/geminicli-paths.js";
-import * as smolToml from "smol-toml";
-import { z } from "zod/mini";
-
 import type { ValidationResult } from "../../types/ai-file.js";
 import type { PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";

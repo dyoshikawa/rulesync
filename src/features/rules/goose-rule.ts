@@ -1,10 +1,6 @@
 import { join } from "node:path";
 
-import {
-  GOOSE_DIR,
-  GOOSE_GLOBAL_DIR,
-  GOOSE_RULE_FILE_NAME,
-} from "../../constants/goose-paths.js";
+import { GOOSE_DIR, GOOSE_GLOBAL_DIR, GOOSE_RULE_FILE_NAME } from "../../constants/goose-paths.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {

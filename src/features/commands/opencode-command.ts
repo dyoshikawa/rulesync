@@ -6,7 +6,6 @@ import {
   OPENCODE_COMMANDS_DIR_PATH,
   OPENCODE_GLOBAL_COMMANDS_DIR_PATH,
 } from "../../constants/opencode-paths.js";
-
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";

@@ -6,7 +6,6 @@ import {
   ANTIGRAVITY_LEGACY_DIR,
   ANTIGRAVITY_LEGACY_RULES_DIR_PATH,
 } from "../../constants/antigravity-paths.js";
-
 import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent, toKebabCaseFilename } from "../../utils/file.js";

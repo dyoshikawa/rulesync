@@ -9,7 +9,6 @@ import {
   WARP_PERMISSIONS_FILE_NAME,
   WARP_WIN32_DIR,
 } from "../../constants/warp-paths.js";
-
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";

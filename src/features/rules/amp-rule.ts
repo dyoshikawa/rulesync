@@ -1,10 +1,6 @@
 import { join } from "node:path";
 
-import {
-  AMP_AGENTS_DIR,
-  AMP_GLOBAL_DIR,
-  AMP_RULE_FILE_NAME,
-} from "../../constants/amp-paths.js";
+import { AMP_AGENTS_DIR, AMP_GLOBAL_DIR, AMP_RULE_FILE_NAME } from "../../constants/amp-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";

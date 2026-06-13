@@ -62,7 +62,11 @@ export class FactorydroidHooks extends ToolHooks {
     // Droid itself falls back that way.
     let fileContent = await readFileContentOrNull(filePath);
     if (fileContent === null) {
-      const legacyFilePath = join(outputRoot, paths.relativeDirPath, FACTORYDROID_SETTINGS_FILE_NAME);
+      const legacyFilePath = join(
+        outputRoot,
+        paths.relativeDirPath,
+        FACTORYDROID_SETTINGS_FILE_NAME,
+      );
       fileContent = await readFileContentOrNull(legacyFilePath);
     }
     return new FactorydroidHooks({

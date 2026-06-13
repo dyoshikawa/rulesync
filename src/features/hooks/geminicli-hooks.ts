@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { GEMINICLI_DIR, GEMINICLI_HOOKS_FILE_NAME } from "../../constants/geminicli-paths.js";
-
 import type { AiFileParams } from "../../types/ai-file.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";

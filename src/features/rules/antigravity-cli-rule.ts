@@ -4,7 +4,6 @@ import {
   ANTIGRAVITY_AGENTS_DIR,
   ANTIGRAVITY_GEMINI_DIR,
   ANTIGRAVITY_RULE_FILE_NAME,
-  ANTIGRAVITY_RULES_DIR_PATH,
 } from "../../constants/antigravity-cli-paths.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";

@@ -1,9 +1,6 @@
 import { join } from "node:path";
 
-import {
-  DEEPAGENTS_DIR,
-  DEEPAGENTS_HOOKS_FILE_NAME,
-} from "../../constants/deepagents-paths.js";
+import { DEEPAGENTS_DIR, DEEPAGENTS_HOOKS_FILE_NAME } from "../../constants/deepagents-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import {

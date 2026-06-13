@@ -64,7 +64,9 @@ export class AgentsMdRule extends ToolRule {
   }: ToolRuleFromFileParams): Promise<AgentsMdRule> {
     // Determine if it's a root file based on path
     const isRoot = relativeFilePath === AGENTSMD_RULE_FILE_NAME;
-    const relativePath = isRoot ? AGENTSMD_RULE_FILE_NAME : join(AGENTSMD_MEMORIES_DIR_PATH, relativeFilePath);
+    const relativePath = isRoot
+      ? AGENTSMD_RULE_FILE_NAME
+      : join(AGENTSMD_MEMORIES_DIR_PATH, relativeFilePath);
     const fileContent = await readFileContent(join(outputRoot, relativePath));
 
     return new AgentsMdRule({

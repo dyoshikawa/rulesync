@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { WARP_DIR, WARP_MEMORIES_DIR_PATH, WARP_RULE_FILE_NAME } from "../../constants/warp-paths.js";
+import { WARP_DIR, WARP_RULE_FILE_NAME } from "../../constants/warp-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";

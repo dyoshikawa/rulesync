@@ -1317,7 +1317,9 @@ export class RulesProcessor extends FeatureProcessor {
         if (!forDeletion || this.toolTarget !== "rovodev" || this.global) {
           return [];
         }
-        const primaryPaths = await findFilesByGlobs(join(this.outputRoot, ROVODEV_DIR, ROVODEV_RULE_FILE_NAME));
+        const primaryPaths = await findFilesByGlobs(
+          join(this.outputRoot, ROVODEV_DIR, ROVODEV_RULE_FILE_NAME),
+        );
         if (primaryPaths.length === 0) {
           return [];
         }

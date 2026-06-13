@@ -14,8 +14,6 @@ import {
   ToolCommandSettablePaths,
 } from "./tool-command.js";
 
-const DEFAULT_TAKT_COMMAND_DIR = "instructions";
-
 export type TaktCommandParams = {
   body: string;
 } & Omit<AiFileParams, "fileContent">;

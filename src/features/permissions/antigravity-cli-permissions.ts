@@ -6,7 +6,6 @@ import {
   ANTIGRAVITY_CLI_PERMISSIONS_DIR_PATH,
   ANTIGRAVITY_CLI_PERMISSIONS_FILE_NAME,
 } from "../../constants/antigravity-cli-paths.js";
-
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";

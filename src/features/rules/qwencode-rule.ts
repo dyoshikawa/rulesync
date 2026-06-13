@@ -60,7 +60,9 @@ export class QwencodeRule extends ToolRule {
     validate = true,
   }: ToolRuleFromFileParams): Promise<QwencodeRule> {
     const isRoot = relativeFilePath === QWENCODE_RULE_FILE_NAME;
-    const relativePath = isRoot ? QWENCODE_RULE_FILE_NAME : join(QWENCODE_MEMORIES_DIR_PATH, relativeFilePath);
+    const relativePath = isRoot
+      ? QWENCODE_RULE_FILE_NAME
+      : join(QWENCODE_MEMORIES_DIR_PATH, relativeFilePath);
     const fileContent = await readFileContent(join(outputRoot, relativePath));
 
     return new QwencodeRule({

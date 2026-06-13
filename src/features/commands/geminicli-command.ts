@@ -1,9 +1,9 @@
 import { join } from "node:path";
 
-import { GEMINICLI_COMMANDS_DIR_PATH } from "../../constants/geminicli-paths.js";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import { z } from "zod/mini";
 
+import { GEMINICLI_COMMANDS_DIR_PATH } from "../../constants/geminicli-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";

@@ -72,9 +72,7 @@ export class DeepagentsSubagent extends ToolSubagent {
     // (default agent_name `deepagents`); the home directory is resolved by the
     // processor through outputRoot in global mode.
     return {
-      relativeDirPath: global
-        ? DEEPAGENTS_GLOBAL_AGENTS_DIR_PATH
-        : DEEPAGENTS_AGENTS_DIR_PATH,
+      relativeDirPath: global ? DEEPAGENTS_GLOBAL_AGENTS_DIR_PATH : DEEPAGENTS_AGENTS_DIR_PATH,
     };
   }
 

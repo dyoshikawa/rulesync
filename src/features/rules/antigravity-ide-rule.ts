@@ -326,7 +326,8 @@ export class AntigravityIdeRule extends ToolRule {
   }: ToolRuleForDeletionParams): AntigravityIdeRule {
     // The global GEMINI.md and the project-root AGENTS.md are both plain root
     // files; non-root rules live under `.agents/rules/`.
-    const isRoot = global || (relativeFilePath === ANTIGRAVITY_IDE_RULE_FILE_NAME && relativeDirPath === ".");
+    const isRoot =
+      global || (relativeFilePath === ANTIGRAVITY_IDE_RULE_FILE_NAME && relativeDirPath === ".");
     return new AntigravityIdeRule({
       outputRoot,
       relativeDirPath,

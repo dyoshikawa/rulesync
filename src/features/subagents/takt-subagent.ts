@@ -15,8 +15,6 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
-const DEFAULT_TAKT_SUBAGENT_DIR = "personas";
-
 export type TaktSubagentParams = {
   body: string;
 } & AiFileParams;

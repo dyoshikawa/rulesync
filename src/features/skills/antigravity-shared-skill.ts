@@ -1,8 +1,6 @@
 import { join } from "node:path";
 
 import {
-  ANTIGRAVITY_AGENTS_DIR,
-  ANTIGRAVITY_CLI_GLOBAL_SUBDIR,
   ANTIGRAVITY_GEMINI_DIR,
   ANTIGRAVITY_SKILLS_DIR_PATH,
 } from "../../constants/antigravity-cli-paths.js";

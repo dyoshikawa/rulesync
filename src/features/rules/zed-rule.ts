@@ -1,6 +1,10 @@
 import { join } from "node:path";
 
-import { ZED_GLOBAL_DIR, ZED_GLOBAL_RULE_FILE_NAME, ZED_RULE_FILE_NAME } from "../../constants/zed-paths.js";
+import {
+  ZED_GLOBAL_DIR,
+  ZED_GLOBAL_RULE_FILE_NAME,
+  ZED_RULE_FILE_NAME,
+} from "../../constants/zed-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";

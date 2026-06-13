@@ -90,7 +90,9 @@ export class JunieRule extends ToolRule {
    * (e.g. `memo.md`), so a top-level `AGENTS.md`/`guidelines.md` is the root entry.
    */
   private static isRootRelativeFilePath(relativeFilePath: string): boolean {
-    return relativeFilePath === JUNIE_RULE_FILE_NAME || relativeFilePath === JUNIE_LEGACY_RULE_FILE_NAME;
+    return (
+      relativeFilePath === JUNIE_RULE_FILE_NAME || relativeFilePath === JUNIE_LEGACY_RULE_FILE_NAME
+    );
   }
 
   static async fromFile({
