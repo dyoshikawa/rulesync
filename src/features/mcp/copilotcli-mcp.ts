@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { COPILOT_DIR, COPILOTCLI_MCP_FILE_NAME } from "../../constants/copilot-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServerSchema, type McpServer, type McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
@@ -140,8 +141,8 @@ export class CopilotcliMcp extends ToolMcp {
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolMcpSettablePaths {
     return {
-      relativeDirPath: ".copilot",
-      relativeFilePath: "mcp-config.json",
+      relativeDirPath: COPILOT_DIR,
+      relativeFilePath: COPILOTCLI_MCP_FILE_NAME,
     };
   }
 

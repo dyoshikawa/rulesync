@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { type ParseError, parse as parseJsonc, printParseErrorCode } from "jsonc-parser";
 import { z } from "zod/mini";
 
+import { KILO_GLOBAL_DIR, KILO_JSONC_FILE_NAME } from "../../constants/kilo-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import { type ValidationResult } from "../../types/ai-file.js";
 import type { PermissionsConfig } from "../../types/permissions.js";
@@ -27,8 +28,6 @@ const KiloPermissionsConfigSchema = z.looseObject({
 });
 
 type KiloPermissionsConfig = z.infer<typeof KiloPermissionsConfigSchema>;
-
-const KILO_FILE_NAME = "kilo.jsonc";
 
 /**
  * Parse a JSONC string and throw on syntax errors. The `jsonc-parser` `parse()` function is
@@ -111,8 +110,8 @@ export class KiloPermissions extends ToolPermissions {
     global = false,
   }: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return global
-      ? { relativeDirPath: join(".config", "kilo"), relativeFilePath: KILO_FILE_NAME }
-      : { relativeDirPath: ".", relativeFilePath: KILO_FILE_NAME };
+      ? { relativeDirPath: KILO_GLOBAL_DIR, relativeFilePath: KILO_JSONC_FILE_NAME }
+      : { relativeDirPath: ".", relativeFilePath: KILO_JSONC_FILE_NAME };
   }
 
   static async fromFile({

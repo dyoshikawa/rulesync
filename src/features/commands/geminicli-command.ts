@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { GEMINICLI_COMMANDS_DIR_PATH } from "../../constants/geminicli-paths.js";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import { z } from "zod/mini";
 
@@ -83,7 +84,7 @@ export class GeminiCliCommand extends ToolCommand {
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
     return {
-      relativeDirPath: join(".gemini", "commands"),
+      relativeDirPath: GEMINICLI_COMMANDS_DIR_PATH,
     };
   }
 

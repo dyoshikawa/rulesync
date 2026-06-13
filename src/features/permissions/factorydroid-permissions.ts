@@ -2,6 +2,10 @@ import { join } from "node:path";
 
 import { uniq } from "es-toolkit";
 
+import {
+  FACTORYDROID_DIR,
+  FACTORYDROID_SETTINGS_FILE_NAME,
+} from "../../constants/factorydroid-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
@@ -64,8 +68,8 @@ export class FactorydroidPermissions extends ToolPermissions {
     // Project: `.factory/settings.json`; global: `~/.factory/settings.json`
     // (the home directory is resolved by the processor through outputRoot).
     return {
-      relativeDirPath: ".factory",
-      relativeFilePath: "settings.json",
+      relativeDirPath: FACTORYDROID_DIR,
+      relativeFilePath: FACTORYDROID_SETTINGS_FILE_NAME,
     };
   }
 

@@ -3,6 +3,10 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
+import {
+  DEEPAGENTS_GLOBAL_SKILLS_DIR_PATH,
+  DEEPAGENTS_SKILLS_DIR_PATH,
+} from "../../constants/deepagents-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
@@ -37,7 +41,7 @@ export type DeepagentsSkillParams = {
 export class DeepagentsSkill extends ToolSkill {
   constructor({
     outputRoot = process.cwd(),
-    relativeDirPath = join(".deepagents", "skills"),
+    relativeDirPath = DEEPAGENTS_SKILLS_DIR_PATH,
     dirName,
     frontmatter,
     body,
@@ -71,9 +75,7 @@ export class DeepagentsSkill extends ToolSkill {
     // (default agent_name `deepagents`); the home directory is resolved by the
     // processor through outputRoot in global mode.
     return {
-      relativeDirPath: global
-        ? join(".deepagents", "deepagents", "skills")
-        : join(".deepagents", "skills"),
+      relativeDirPath: global ? DEEPAGENTS_GLOBAL_SKILLS_DIR_PATH : DEEPAGENTS_SKILLS_DIR_PATH,
     };
   }
 

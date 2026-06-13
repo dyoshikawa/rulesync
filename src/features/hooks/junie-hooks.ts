@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { JUNIE_DIR, JUNIE_HOOKS_FILE_NAME } from "../../constants/junie-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import {
@@ -49,7 +50,7 @@ export class JunieHooks extends ToolHooks {
     // Junie CLI only runs user-scope hooks, so generation always targets
     // `~/.junie/config.json`. In global mode the same relative path is
     // resolved under the user home; project hooks are ignored by Junie.
-    return { relativeDirPath: ".junie", relativeFilePath: "config.json" };
+    return { relativeDirPath: JUNIE_DIR, relativeFilePath: JUNIE_HOOKS_FILE_NAME };
   }
 
   static async fromFile({

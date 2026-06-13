@@ -1,5 +1,10 @@
 import { join } from "node:path";
 
+import {
+  OPENCODE_DIR,
+  OPENCODE_GLOBAL_DIR,
+  OPENCODE_RULE_FILE_NAME,
+} from "../../constants/opencode-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -36,18 +41,18 @@ export class OpenCodeRule extends ToolRule {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(".config/opencode", ".", excludeToolDir),
-          relativeFilePath: "AGENTS.md",
+          relativeDirPath: buildToolPath(OPENCODE_GLOBAL_DIR, ".", excludeToolDir),
+          relativeFilePath: OPENCODE_RULE_FILE_NAME,
         },
       };
     }
     return {
       root: {
         relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
+        relativeFilePath: OPENCODE_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(".opencode", "memories", excludeToolDir),
+        relativeDirPath: buildToolPath(OPENCODE_DIR, "memories", excludeToolDir),
       },
     };
   }

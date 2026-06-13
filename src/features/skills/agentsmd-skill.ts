@@ -1,5 +1,4 @@
-import { join } from "node:path";
-
+import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 import { SimulatedSkill, SimulatedSkillParams } from "./simulated-skill.js";
 import {
@@ -20,7 +19,7 @@ export class AgentsmdSkill extends SimulatedSkill {
       throw new Error("AgentsmdSkill does not support global mode.");
     }
     return {
-      relativeDirPath: join(".agents", "skills"),
+      relativeDirPath: AGENTSMD_SKILLS_DIR_PATH,
     };
   }
 

@@ -1,5 +1,9 @@
 import { join } from "node:path";
 
+import {
+  GEMINICLI_POLICIES_DIR_PATH,
+  GEMINICLI_PERMISSIONS_FILE_NAME,
+} from "../../constants/geminicli-paths.js";
 import * as smolToml from "smol-toml";
 import { z } from "zod/mini";
 
@@ -17,8 +21,8 @@ import {
   type ToolPermissionsSettablePaths,
 } from "./tool-permissions.js";
 
-const GEMINICLI_POLICY_RELATIVE_DIR_PATH = join(".gemini", "policies");
-const GEMINICLI_POLICY_FILE_NAME = "rulesync.toml";
+const GEMINICLI_POLICY_RELATIVE_DIR_PATH = GEMINICLI_POLICIES_DIR_PATH;
+const GEMINICLI_POLICY_FILE_NAME = GEMINICLI_PERMISSIONS_FILE_NAME;
 
 const RULESYNC_TO_GEMINICLI_TOOL_NAME: Record<string, string> = {
   bash: "run_shell_command",

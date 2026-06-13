@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { GOOSE_HOOKS_DIR_PATH, GOOSE_HOOKS_FILE_NAME } from "../../constants/goose-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_GOOSE_EVENT_NAMES,
@@ -18,13 +19,6 @@ import {
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
-
-/**
- * Plugin directory (under `.agents/plugins/`) that rulesync writes Goose hooks into.
- * Goose auto-discovers any plugin directory containing `hooks/hooks.json`, so the
- * exact name is arbitrary; rulesync uses a fixed, recognizable name.
- */
-const GOOSE_PLUGIN_NAME = "rulesync";
 
 const GOOSE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: GOOSE_HOOK_EVENTS,
@@ -56,8 +50,8 @@ export class GooseHooks extends ToolHooks {
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
     return {
-      relativeDirPath: join(".agents", "plugins", GOOSE_PLUGIN_NAME, "hooks"),
-      relativeFilePath: "hooks.json",
+      relativeDirPath: GOOSE_HOOKS_DIR_PATH,
+      relativeFilePath: GOOSE_HOOKS_FILE_NAME,
     };
   }
 

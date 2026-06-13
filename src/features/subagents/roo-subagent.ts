@@ -1,5 +1,4 @@
-import { join } from "node:path";
-
+import { ROO_SUBAGENTS_DIR_PATH } from "../../constants/roo-paths.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SimulatedSubagent } from "./simulated-subagent.js";
 import {
@@ -13,7 +12,7 @@ import {
 export class RooSubagent extends SimulatedSubagent {
   static getSettablePaths(): ToolSubagentSettablePaths {
     return {
-      relativeDirPath: join(".roo", "subagents"),
+      relativeDirPath: ROO_SUBAGENTS_DIR_PATH,
     };
   }
 

@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { JUNIE_COMMANDS_DIR_PATH } from "../../constants/junie-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
@@ -56,7 +57,7 @@ export class JunieCommand extends ToolCommand {
     // and user scope. The relative path is identical in either mode; in global
     // mode the same path is resolved under the user home (`~/.junie/commands`).
     return {
-      relativeDirPath: join(".junie", "commands"),
+      relativeDirPath: JUNIE_COMMANDS_DIR_PATH,
     };
   }
 

@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { AMP_SKILLS_GLOBAL_DIR, AMP_SKILLS_PROJECT_DIR } from "../../constants/amp-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
@@ -32,11 +33,6 @@ export type AmpSkillParams = {
   validate?: boolean;
   global?: boolean;
 };
-
-/** Project-scope skills directory. */
-const AMP_SKILLS_PROJECT_DIR = join(".agents", "skills");
-/** User/global-scope skills directory (under the home directory: `~/.config/agents/skills`). */
-const AMP_SKILLS_GLOBAL_DIR = join(".config", "agents", "skills");
 
 /**
  * Represents an Amp Agent Skill directory.

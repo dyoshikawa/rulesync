@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { ZED_DIR, ZED_GLOBAL_DIR, ZED_SETTINGS_FILE_NAME } from "../../constants/zed-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -35,13 +36,13 @@ export class ZedMcp extends ToolMcp {
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
     if (global) {
       return {
-        relativeDirPath: join(".config", "zed"),
-        relativeFilePath: "settings.json",
+        relativeDirPath: ZED_GLOBAL_DIR,
+        relativeFilePath: ZED_SETTINGS_FILE_NAME,
       };
     }
     return {
-      relativeDirPath: ".zed",
-      relativeFilePath: "settings.json",
+      relativeDirPath: ZED_DIR,
+      relativeFilePath: ZED_SETTINGS_FILE_NAME,
     };
   }
 

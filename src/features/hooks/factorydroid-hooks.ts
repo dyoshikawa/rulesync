@@ -1,5 +1,10 @@
 import { join } from "node:path";
 
+import {
+  FACTORYDROID_DIR,
+  FACTORYDROID_HOOKS_FILE_NAME,
+  FACTORYDROID_SETTINGS_FILE_NAME,
+} from "../../constants/factorydroid-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import {
@@ -42,7 +47,7 @@ export class FactorydroidHooks extends ToolHooks {
     // harness via outputRoot in global mode. The legacy `.factory/settings.json`
     // `hooks` key is only a read-time fallback (see fromFile).
     // https://docs.factory.ai/reference/hooks-reference
-    return { relativeDirPath: ".factory", relativeFilePath: "hooks.json" };
+    return { relativeDirPath: FACTORYDROID_DIR, relativeFilePath: FACTORYDROID_HOOKS_FILE_NAME };
   }
 
   static async fromFile({
@@ -57,7 +62,7 @@ export class FactorydroidHooks extends ToolHooks {
     // Droid itself falls back that way.
     let fileContent = await readFileContentOrNull(filePath);
     if (fileContent === null) {
-      const legacyFilePath = join(outputRoot, paths.relativeDirPath, "settings.json");
+      const legacyFilePath = join(outputRoot, paths.relativeDirPath, FACTORYDROID_SETTINGS_FILE_NAME);
       fileContent = await readFileContentOrNull(legacyFilePath);
     }
     return new FactorydroidHooks({

@@ -1,5 +1,10 @@
 import { join } from "node:path";
 
+import {
+  KILO_GLOBAL_PLUGINS_DIR_PATH,
+  KILO_HOOKS_FILE_NAME,
+  KILO_PLUGINS_DIR_PATH,
+} from "../../constants/kilo-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { CANONICAL_TO_KILO_EVENT_NAMES, KILO_HOOK_EVENTS } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
@@ -23,10 +28,8 @@ export class KiloHooks extends ToolHooks {
 
   static getSettablePaths(options?: { global?: boolean }): ToolHooksSettablePaths {
     return {
-      relativeDirPath: options?.global
-        ? join(".config", "kilo", "plugins")
-        : join(".kilo", "plugins"),
-      relativeFilePath: "rulesync-hooks.js",
+      relativeDirPath: options?.global ? KILO_GLOBAL_PLUGINS_DIR_PATH : KILO_PLUGINS_DIR_PATH,
+      relativeFilePath: KILO_HOOKS_FILE_NAME,
     };
   }
 

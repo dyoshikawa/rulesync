@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
+import { KILO_SKILLS_DIR_PATH } from "../../constants/kilo-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
@@ -44,7 +45,7 @@ export type KiloSkillParams = {
 export class KiloSkill extends ToolSkill {
   constructor({
     outputRoot = process.cwd(),
-    relativeDirPath = join(".kilo", "skills"),
+    relativeDirPath = KILO_SKILLS_DIR_PATH,
     dirName,
     frontmatter,
     body,
@@ -77,7 +78,7 @@ export class KiloSkill extends ToolSkill {
     return {
       // Kilo reads skills from `.kilo/skills` for project scope and `~/.kilo/skills`
       // for global scope (same relative path, different base directory).
-      relativeDirPath: join(".kilo", "skills"),
+      relativeDirPath: KILO_SKILLS_DIR_PATH,
     };
   }
 

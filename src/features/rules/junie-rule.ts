@@ -1,5 +1,10 @@
 import { join } from "node:path";
 
+import {
+  JUNIE_DIR,
+  JUNIE_LEGACY_RULE_FILE_NAME,
+  JUNIE_RULE_FILE_NAME,
+} from "../../constants/junie-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -54,26 +59,26 @@ export class JunieRule extends ToolRule {
       // files (`.junie/memories/`) stay project-scoped.
       return {
         root: {
-          relativeDirPath: buildToolPath(".junie", ".", excludeToolDir),
-          relativeFilePath: "AGENTS.md",
+          relativeDirPath: buildToolPath(JUNIE_DIR, ".", excludeToolDir),
+          relativeFilePath: JUNIE_RULE_FILE_NAME,
         },
       };
     }
     return {
       root: {
-        relativeDirPath: buildToolPath(".junie", ".", excludeToolDir),
-        relativeFilePath: "AGENTS.md",
+        relativeDirPath: buildToolPath(JUNIE_DIR, ".", excludeToolDir),
+        relativeFilePath: JUNIE_RULE_FILE_NAME,
       },
       // Junie still reads the legacy `.junie/guidelines.md`; accept it on import as a
       // fallback when `.junie/AGENTS.md` is absent so existing repos keep round-tripping.
       alternativeRoots: [
         {
-          relativeDirPath: buildToolPath(".junie", ".", excludeToolDir),
-          relativeFilePath: "guidelines.md",
+          relativeDirPath: buildToolPath(JUNIE_DIR, ".", excludeToolDir),
+          relativeFilePath: JUNIE_LEGACY_RULE_FILE_NAME,
         },
       ],
       nonRoot: {
-        relativeDirPath: buildToolPath(".junie", "memories", excludeToolDir),
+        relativeDirPath: buildToolPath(JUNIE_DIR, "memories", excludeToolDir),
       },
     };
   }
@@ -85,7 +90,7 @@ export class JunieRule extends ToolRule {
    * (e.g. `memo.md`), so a top-level `AGENTS.md`/`guidelines.md` is the root entry.
    */
   private static isRootRelativeFilePath(relativeFilePath: string): boolean {
-    return relativeFilePath === "AGENTS.md" || relativeFilePath === "guidelines.md";
+    return relativeFilePath === JUNIE_RULE_FILE_NAME || relativeFilePath === JUNIE_LEGACY_RULE_FILE_NAME;
   }
 
   static async fromFile({

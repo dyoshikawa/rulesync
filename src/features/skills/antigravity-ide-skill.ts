@@ -1,3 +1,4 @@
+import { ANTIGRAVITY_IDE_GLOBAL_CONFIG_SUBDIR } from "../../constants/antigravity-ide-paths.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { AntigravitySharedSkill } from "./antigravity-shared-skill.js";
 
@@ -12,7 +13,7 @@ import { AntigravitySharedSkill } from "./antigravity-shared-skill.js";
  */
 export class AntigravityIdeSkill extends AntigravitySharedSkill {
   protected static override getGlobalSubdir(): string {
-    return "config";
+    return ANTIGRAVITY_IDE_GLOBAL_CONFIG_SUBDIR;
   }
 
   protected static override getToolTarget(): ToolTarget {

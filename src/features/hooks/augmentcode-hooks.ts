@@ -1,5 +1,9 @@
 import { join } from "node:path";
 
+import {
+  AUGMENTCODE_DIR,
+  AUGMENTCODE_SETTINGS_FILE_NAME,
+} from "../../constants/augmentcode-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import {
@@ -68,7 +72,7 @@ export class AugmentcodeHooks extends ToolHooks {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
     // Both project and global scope use the same relative path; the global
     // variant is resolved against the home directory by the caller.
-    return { relativeDirPath: ".augment", relativeFilePath: "settings.json" };
+    return { relativeDirPath: AUGMENTCODE_DIR, relativeFilePath: AUGMENTCODE_SETTINGS_FILE_NAME };
   }
 
   static async fromFile({

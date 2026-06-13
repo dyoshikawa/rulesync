@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { CURSOR_IGNORE_FILE_NAME } from "../../constants/cursor-paths.js";
 import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
@@ -15,7 +16,7 @@ export class CursorIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
-      relativeFilePath: ".cursorignore",
+      relativeFilePath: CURSOR_IGNORE_FILE_NAME,
     };
   }
 

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { ZED_GLOBAL_DIR, ZED_GLOBAL_RULE_FILE_NAME, ZED_RULE_FILE_NAME } from "../../constants/zed-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -42,15 +43,15 @@ export class ZedRule extends ToolRule {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(join(".config", "zed"), ".", excludeToolDir),
-          relativeFilePath: "AGENTS.md",
+          relativeDirPath: buildToolPath(ZED_GLOBAL_DIR, ".", excludeToolDir),
+          relativeFilePath: ZED_GLOBAL_RULE_FILE_NAME,
         },
       };
     }
     return {
       root: {
         relativeDirPath: ".",
-        relativeFilePath: ".rules",
+        relativeFilePath: ZED_RULE_FILE_NAME,
       },
     };
   }

@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { JUNIE_AGENTS_DIR_PATH } from "../../constants/junie-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
@@ -76,7 +77,7 @@ export class JunieSubagent extends ToolSubagent {
     // - Project mode: {process.cwd()}/.junie/agents/
     // - Global mode: {getHomeDirectory()}/.junie/agents/
     return {
-      relativeDirPath: join(".junie", "agents"),
+      relativeDirPath: JUNIE_AGENTS_DIR_PATH,
     };
   }
 

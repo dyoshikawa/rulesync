@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { KIRO_PROMPTS_DIR_PATH } from "../../constants/kiro-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
@@ -15,7 +16,7 @@ import {
 export class KiroCommand extends ToolCommand {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
     return {
-      relativeDirPath: join(".kiro", "prompts"),
+      relativeDirPath: KIRO_PROMPTS_DIR_PATH,
     };
   }
 

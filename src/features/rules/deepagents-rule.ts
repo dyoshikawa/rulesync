@@ -1,5 +1,10 @@
 import { join } from "node:path";
 
+import {
+  DEEPAGENTS_DIR,
+  DEEPAGENTS_GLOBAL_DIR,
+  DEEPAGENTS_RULE_FILE_NAME,
+} from "../../constants/deepagents-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -55,8 +60,8 @@ export class DeepagentsRule extends ToolRule {
     // `<project>/.deepagents/AGENTS.md`.
     return {
       root: {
-        relativeDirPath: global ? join(".deepagents", "deepagents") : ".deepagents",
-        relativeFilePath: "AGENTS.md",
+        relativeDirPath: global ? DEEPAGENTS_GLOBAL_DIR : DEEPAGENTS_DIR,
+        relativeFilePath: DEEPAGENTS_RULE_FILE_NAME,
       },
     };
   }
@@ -94,8 +99,8 @@ export class DeepagentsRule extends ToolRule {
     // The deepagents root file is always `AGENTS.md`, under `.deepagents`
     // (project) or `.deepagents/deepagents` (global).
     const isRoot =
-      relativeFilePath === "AGENTS.md" &&
-      (relativeDirPath === ".deepagents" || relativeDirPath === join(".deepagents", "deepagents"));
+      relativeFilePath === DEEPAGENTS_RULE_FILE_NAME &&
+      (relativeDirPath === DEEPAGENTS_DIR || relativeDirPath === DEEPAGENTS_GLOBAL_DIR);
 
     return new DeepagentsRule({
       outputRoot,

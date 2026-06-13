@@ -3,6 +3,12 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
+import {
+  OPENCODE_GLOBAL_SKILL_DIR_PATH,
+  OPENCODE_GLOBAL_SKILLS_DIR_PATH,
+  OPENCODE_SKILL_DIR_PATH,
+  OPENCODE_SKILLS_DIR_PATH,
+} from "../../constants/opencode-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
@@ -46,7 +52,7 @@ export type OpenCodeSkillParams = {
 export class OpenCodeSkill extends ToolSkill {
   constructor({
     outputRoot = process.cwd(),
-    relativeDirPath = join(".opencode", "skills"),
+    relativeDirPath = OPENCODE_SKILLS_DIR_PATH,
     dirName,
     frontmatter,
     body,
@@ -82,10 +88,8 @@ export class OpenCodeSkill extends ToolSkill {
     // legacy singular name, which OpenCode still loads for backwards
     // compatibility) continue to import correctly.
     return {
-      relativeDirPath: global ? join(".config", "opencode", "skills") : join(".opencode", "skills"),
-      alternativeSkillRoots: [
-        global ? join(".config", "opencode", "skill") : join(".opencode", "skill"),
-      ],
+      relativeDirPath: global ? OPENCODE_GLOBAL_SKILLS_DIR_PATH : OPENCODE_SKILLS_DIR_PATH,
+      alternativeSkillRoots: [global ? OPENCODE_GLOBAL_SKILL_DIR_PATH : OPENCODE_SKILL_DIR_PATH],
     };
   }
 

@@ -1,5 +1,10 @@
 import { join } from "node:path";
 
+import {
+  QWENCODE_DIR,
+  QWENCODE_MEMORIES_DIR_PATH,
+  QWENCODE_RULE_FILE_NAME,
+} from "../../constants/qwencode-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -41,10 +46,10 @@ export class QwencodeRule extends ToolRule {
     return {
       root: {
         relativeDirPath: ".",
-        relativeFilePath: "QWEN.md",
+        relativeFilePath: QWENCODE_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(".qwen", "memories", _options.excludeToolDir),
+        relativeDirPath: buildToolPath(QWENCODE_DIR, "memories", _options.excludeToolDir),
       },
     };
   }
@@ -54,8 +59,8 @@ export class QwencodeRule extends ToolRule {
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<QwencodeRule> {
-    const isRoot = relativeFilePath === "QWEN.md";
-    const relativePath = isRoot ? "QWEN.md" : join(".qwen", "memories", relativeFilePath);
+    const isRoot = relativeFilePath === QWENCODE_RULE_FILE_NAME;
+    const relativePath = isRoot ? QWENCODE_RULE_FILE_NAME : join(QWENCODE_MEMORIES_DIR_PATH, relativeFilePath);
     const fileContent = await readFileContent(join(outputRoot, relativePath));
 
     return new QwencodeRule({
@@ -63,7 +68,7 @@ export class QwencodeRule extends ToolRule {
       relativeDirPath: isRoot
         ? this.getSettablePaths().root.relativeDirPath
         : this.getSettablePaths().nonRoot.relativeDirPath,
-      relativeFilePath: isRoot ? "QWEN.md" : relativeFilePath,
+      relativeFilePath: isRoot ? QWENCODE_RULE_FILE_NAME : relativeFilePath,
       fileContent,
       validate,
       root: isRoot,
@@ -96,7 +101,7 @@ export class QwencodeRule extends ToolRule {
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): QwencodeRule {
-    const isRoot = relativeFilePath === "QWEN.md" && relativeDirPath === ".";
+    const isRoot = relativeFilePath === QWENCODE_RULE_FILE_NAME && relativeDirPath === ".";
 
     return new QwencodeRule({
       outputRoot,

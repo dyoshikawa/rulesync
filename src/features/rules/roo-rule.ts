@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { ROO_DIR } from "../../constants/roo-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -37,7 +38,7 @@ export class RooRule extends ToolRule {
   ): RooRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: buildToolPath(".roo", "rules", _options.excludeToolDir),
+        relativeDirPath: buildToolPath(ROO_DIR, "rules", _options.excludeToolDir),
       },
     };
   }

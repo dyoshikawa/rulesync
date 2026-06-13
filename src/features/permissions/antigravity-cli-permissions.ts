@@ -2,6 +2,11 @@ import { join } from "node:path";
 
 import { uniq } from "es-toolkit";
 
+import {
+  ANTIGRAVITY_CLI_PERMISSIONS_DIR_PATH,
+  ANTIGRAVITY_CLI_PERMISSIONS_FILE_NAME,
+} from "../../constants/antigravity-cli-paths.js";
+
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
@@ -107,8 +112,8 @@ export class AntigravityCliPermissions extends ToolPermissions {
 
   static getSettablePaths(): ToolPermissionsSettablePaths {
     return {
-      relativeDirPath: join(".gemini", "antigravity-cli"),
-      relativeFilePath: "settings.json",
+      relativeDirPath: ANTIGRAVITY_CLI_PERMISSIONS_DIR_PATH,
+      relativeFilePath: ANTIGRAVITY_CLI_PERMISSIONS_FILE_NAME,
     };
   }
 

@@ -1,5 +1,11 @@
 import { join } from "node:path";
 
+import {
+  ANTIGRAVITY_AGENTS_DIR,
+  ANTIGRAVITY_GEMINI_DIR,
+  ANTIGRAVITY_RULE_FILE_NAME,
+  ANTIGRAVITY_RULES_DIR_PATH,
+} from "../../constants/antigravity-cli-paths.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -46,18 +52,18 @@ export class AntigravityCliRule extends ToolRule {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(".gemini", ".", excludeToolDir),
-          relativeFilePath: "GEMINI.md",
+          relativeDirPath: buildToolPath(ANTIGRAVITY_GEMINI_DIR, ".", excludeToolDir),
+          relativeFilePath: ANTIGRAVITY_RULE_FILE_NAME,
         },
       };
     }
     return {
       root: {
         relativeDirPath: ".",
-        relativeFilePath: "GEMINI.md",
+        relativeFilePath: ANTIGRAVITY_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(".agents", "rules", excludeToolDir),
+        relativeDirPath: buildToolPath(ANTIGRAVITY_AGENTS_DIR, "rules", excludeToolDir),
       },
     };
   }

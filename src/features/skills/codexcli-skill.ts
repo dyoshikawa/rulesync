@@ -3,6 +3,10 @@ import { join } from "node:path";
 import { dump, load } from "js-yaml";
 import { z } from "zod/mini";
 
+import {
+  CODEXCLI_OPENAI_YAML_RELATIVE_PATH,
+  CODEXCLI_SKILLS_DIR_PATH,
+} from "../../constants/codexcli-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
@@ -40,7 +44,7 @@ export type CodexCliSkillFrontmatter = z.infer<typeof CodexCliSkillFrontmatterSc
  * `SKILL.md` frontmatter only carries `name` and `description`.
  * @see https://developers.openai.com/codex/skills.md
  */
-const CODEX_OPENAI_YAML_RELATIVE_PATH = join("agents", "openai.yaml");
+const CODEX_OPENAI_YAML_RELATIVE_PATH = CODEXCLI_OPENAI_YAML_RELATIVE_PATH;
 
 type CodexcliRulesyncSection = NonNullable<RulesyncSkillFrontmatter["codexcli"]>;
 
@@ -150,7 +154,7 @@ export type CodexCliSkillParams = {
 export class CodexCliSkill extends ToolSkill {
   constructor({
     outputRoot = process.cwd(),
-    relativeDirPath = join(".agents", "skills"),
+    relativeDirPath = CODEXCLI_SKILLS_DIR_PATH,
     dirName,
     frontmatter,
     body,
@@ -187,7 +191,7 @@ export class CodexCliSkill extends ToolSkill {
     // - Project mode: {process.cwd()}/.agents/skills/
     // - Global mode: {$CODEX_HOME}/skills/ (typically ~/.agents/skills/)
     return {
-      relativeDirPath: join(".agents", "skills"),
+      relativeDirPath: CODEXCLI_SKILLS_DIR_PATH,
     };
   }
 

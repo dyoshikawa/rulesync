@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { KILO_IGNORE_FILE_NAME } from "../../constants/kilo-paths.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
@@ -27,7 +28,7 @@ export class KiloIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
-      relativeFilePath: ".kilocodeignore",
+      relativeFilePath: KILO_IGNORE_FILE_NAME,
     };
   }
 

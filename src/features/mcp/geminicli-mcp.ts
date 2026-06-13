@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { GEMINICLI_DIR, GEMINICLI_MCP_FILE_NAME } from "../../constants/geminicli-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -27,13 +28,13 @@ export class GeminiCliMcp extends ToolMcp {
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
     if (global) {
       return {
-        relativeDirPath: ".gemini",
-        relativeFilePath: "settings.json",
+        relativeDirPath: GEMINICLI_DIR,
+        relativeFilePath: GEMINICLI_MCP_FILE_NAME,
       };
     }
     return {
-      relativeDirPath: ".gemini",
-      relativeFilePath: "settings.json",
+      relativeDirPath: GEMINICLI_DIR,
+      relativeFilePath: GEMINICLI_MCP_FILE_NAME,
     };
   }
 

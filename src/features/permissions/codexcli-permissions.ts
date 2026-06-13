@@ -2,6 +2,12 @@ import { isAbsolute, join } from "node:path";
 
 import * as smolToml from "smol-toml";
 
+import {
+  CODEXCLI_BASH_RULES_FILE_NAME,
+  CODEXCLI_DIR,
+  CODEXCLI_MCP_FILE_NAME,
+  CODEXCLI_RULES_DIR_PATH,
+} from "../../constants/codexcli-paths.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { ToolFile } from "../../types/tool-file.js";
@@ -17,7 +23,6 @@ import {
 } from "./tool-permissions.js";
 
 const RULESYNC_PROFILE_NAME = "rulesync";
-const RULESYNC_BASH_RULES_FILE_NAME = "rulesync.rules";
 const CODEX_WORKSPACE_ROOTS_KEY = ":workspace_roots";
 const CODEX_WORKSPACE_BASELINE = ":workspace";
 const CODEX_GLOB_SCAN_MAX_DEPTH = 8; // Matches Codex CLI default glob_scan_max_depth
@@ -59,8 +64,8 @@ type UnknownTable = Record<string, unknown>;
 export class CodexcliPermissions extends ToolPermissions {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return {
-      relativeDirPath: ".codex",
-      relativeFilePath: "config.toml",
+      relativeDirPath: CODEXCLI_DIR,
+      relativeFilePath: CODEXCLI_MCP_FILE_NAME,
     };
   }
 
@@ -202,8 +207,8 @@ export function createCodexcliBashRulesFile({
 }): CodexcliRulesFile {
   return new CodexcliRulesFile({
     outputRoot,
-    relativeDirPath: join(".codex", "rules"),
-    relativeFilePath: RULESYNC_BASH_RULES_FILE_NAME,
+    relativeDirPath: CODEXCLI_RULES_DIR_PATH,
+    relativeFilePath: CODEXCLI_BASH_RULES_FILE_NAME,
     fileContent: buildCodexBashRulesContent(config),
   });
 }

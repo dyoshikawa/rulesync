@@ -1,5 +1,10 @@
 import { join } from "node:path";
 
+import {
+  ANTIGRAVITY_DIR,
+  ANTIGRAVITY_GLOBAL_CONFIG_DIR_PATH,
+  ANTIGRAVITY_HOOKS_FILE_NAME,
+} from "../../constants/antigravity-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import {
   ANTIGRAVITY_HOOK_EVENTS,
@@ -115,9 +120,12 @@ export class AntigravityHooks extends ToolHooks {
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolHooksSettablePaths {
     if (global) {
       // Shared global hooks location for both the IDE and the CLI.
-      return { relativeDirPath: join(".gemini", "config"), relativeFilePath: "hooks.json" };
+      return {
+        relativeDirPath: ANTIGRAVITY_GLOBAL_CONFIG_DIR_PATH,
+        relativeFilePath: ANTIGRAVITY_HOOKS_FILE_NAME,
+      };
     }
-    return { relativeDirPath: ".agents", relativeFilePath: "hooks.json" };
+    return { relativeDirPath: ANTIGRAVITY_DIR, relativeFilePath: ANTIGRAVITY_HOOKS_FILE_NAME };
   }
 
   static async fromFile({

@@ -2,6 +2,10 @@ import { basename, dirname, extname, join } from "node:path";
 
 import { z } from "zod/mini";
 
+import {
+  DEEPAGENTS_AGENTS_DIR_PATH,
+  DEEPAGENTS_GLOBAL_AGENTS_DIR_PATH,
+} from "../../constants/deepagents-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
@@ -69,8 +73,8 @@ export class DeepagentsSubagent extends ToolSubagent {
     // processor through outputRoot in global mode.
     return {
       relativeDirPath: global
-        ? join(".deepagents", "deepagents", "agents")
-        : join(".deepagents", "agents"),
+        ? DEEPAGENTS_GLOBAL_AGENTS_DIR_PATH
+        : DEEPAGENTS_AGENTS_DIR_PATH,
     };
   }
 

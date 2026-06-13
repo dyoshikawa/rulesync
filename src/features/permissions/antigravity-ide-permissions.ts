@@ -2,6 +2,11 @@ import { join } from "node:path";
 
 import { uniq } from "es-toolkit";
 
+import {
+  ANTIGRAVITY_IDE_PERMISSIONS_DIR,
+  ANTIGRAVITY_IDE_PERMISSIONS_FILE_NAME,
+} from "../../constants/antigravity-ide-paths.js";
+
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
@@ -121,8 +126,8 @@ export class AntigravityIdePermissions extends ToolPermissions {
 
   static getSettablePaths(): ToolPermissionsSettablePaths {
     return {
-      relativeDirPath: ".antigravity",
-      relativeFilePath: "settings.json",
+      relativeDirPath: ANTIGRAVITY_IDE_PERMISSIONS_DIR,
+      relativeFilePath: ANTIGRAVITY_IDE_PERMISSIONS_FILE_NAME,
     };
   }
 

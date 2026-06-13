@@ -1,5 +1,10 @@
 import { join } from "node:path";
 
+import {
+  CODEIUM_WINDSURF_DIR,
+  DEVIN_HOOKS_FILE_NAME,
+  WINDSURF_DIR,
+} from "../../constants/devin-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { HookEvent, HooksConfig } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
@@ -217,13 +222,13 @@ export class DevinHooks extends ToolHooks {
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolHooksSettablePaths {
     if (global) {
       return {
-        relativeDirPath: join(".codeium", "windsurf"),
-        relativeFilePath: "hooks.json",
+        relativeDirPath: CODEIUM_WINDSURF_DIR,
+        relativeFilePath: DEVIN_HOOKS_FILE_NAME,
       };
     }
     return {
-      relativeDirPath: ".windsurf",
-      relativeFilePath: "hooks.json",
+      relativeDirPath: WINDSURF_DIR,
+      relativeFilePath: DEVIN_HOOKS_FILE_NAME,
     };
   }
 

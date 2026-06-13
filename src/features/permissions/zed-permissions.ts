@@ -2,6 +2,8 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { ZED_DIR, ZED_GLOBAL_DIR, ZED_SETTINGS_FILE_NAME } from "../../constants/zed-paths.js";
+
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
@@ -162,8 +164,8 @@ export class ZedPermissions extends ToolPermissions {
     global = false,
   }: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return global
-      ? { relativeDirPath: join(".config", "zed"), relativeFilePath: "settings.json" }
-      : { relativeDirPath: ".zed", relativeFilePath: "settings.json" };
+      ? { relativeDirPath: ZED_GLOBAL_DIR, relativeFilePath: ZED_SETTINGS_FILE_NAME }
+      : { relativeDirPath: ZED_DIR, relativeFilePath: ZED_SETTINGS_FILE_NAME };
   }
 
   static async fromFile({

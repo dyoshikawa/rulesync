@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
@@ -48,7 +49,7 @@ export type AgentsSkillsSkillParams = {
 export class AgentsSkillsSkill extends ToolSkill {
   constructor({
     outputRoot = process.cwd(),
-    relativeDirPath = join(".agents", "skills"),
+    relativeDirPath = AGENTSMD_SKILLS_DIR_PATH,
     dirName,
     frontmatter,
     body,
@@ -83,7 +84,7 @@ export class AgentsSkillsSkill extends ToolSkill {
     // resolution root (cwd vs. home) is supplied via outputRoot by the processor.
     // https://agentskills.io/specification
     return {
-      relativeDirPath: join(".agents", "skills"),
+      relativeDirPath: AGENTSMD_SKILLS_DIR_PATH,
     };
   }
 

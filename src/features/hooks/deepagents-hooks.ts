@@ -1,5 +1,9 @@
 import { join } from "node:path";
 
+import {
+  DEEPAGENTS_DIR,
+  DEEPAGENTS_HOOKS_FILE_NAME,
+} from "../../constants/deepagents-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import {
@@ -125,8 +129,8 @@ export class DeepagentsHooks extends ToolHooks {
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
     return {
-      relativeDirPath: ".deepagents",
-      relativeFilePath: "hooks.json",
+      relativeDirPath: DEEPAGENTS_DIR,
+      relativeFilePath: DEEPAGENTS_HOOKS_FILE_NAME,
     };
   }
 

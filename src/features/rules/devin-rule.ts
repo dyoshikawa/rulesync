@@ -2,6 +2,12 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import {
+  CODEIUM_DIR,
+  DEVIN_DIR,
+  DEVIN_GLOBAL_RULES_FILE_NAME,
+  WINDSURF_MEMORIES_SUBDIR,
+} from "../../constants/devin-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent, toKebabCaseFilename } from "../../utils/file.js";
@@ -321,8 +327,8 @@ export class DevinRule extends ToolRule {
     relativeFilePath: string;
   } {
     return {
-      relativeDirPath: buildToolPath(".codeium", join("windsurf", "memories"), excludeToolDir),
-      relativeFilePath: "global_rules.md",
+      relativeDirPath: buildToolPath(CODEIUM_DIR, WINDSURF_MEMORIES_SUBDIR, excludeToolDir),
+      relativeFilePath: DEVIN_GLOBAL_RULES_FILE_NAME,
     };
   }
 
@@ -340,7 +346,7 @@ export class DevinRule extends ToolRule {
     }
     return {
       nonRoot: {
-        relativeDirPath: buildToolPath(".devin", "rules", excludeToolDir),
+        relativeDirPath: buildToolPath(DEVIN_DIR, "rules", excludeToolDir),
       },
     };
   }
@@ -368,7 +374,7 @@ export class DevinRule extends ToolRule {
       });
     }
 
-    const nonRootDirPath = buildToolPath(".devin", "rules");
+    const nonRootDirPath = buildToolPath(DEVIN_DIR, "rules");
     const filePath = join(outputRoot, nonRootDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body } = parseFrontmatter(fileContent, filePath);
@@ -434,7 +440,7 @@ export class DevinRule extends ToolRule {
 
     return new DevinRule({
       outputRoot,
-      relativeDirPath: buildToolPath(".devin", "rules"),
+      relativeDirPath: buildToolPath(DEVIN_DIR, "rules"),
       relativeFilePath: kebabCaseFilename,
       frontmatter,
       body: rulesyncRule.getBody(),

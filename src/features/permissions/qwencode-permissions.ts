@@ -3,6 +3,10 @@ import { join } from "node:path";
 import { uniq } from "es-toolkit";
 import { z } from "zod/mini";
 
+import {
+  QWENCODE_DIR,
+  QWENCODE_SETTINGS_FILE_NAME,
+} from "../../constants/qwencode-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
@@ -133,8 +137,8 @@ export class QwencodePermissions extends ToolPermissions {
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return {
-      relativeDirPath: ".qwen",
-      relativeFilePath: "settings.json",
+      relativeDirPath: QWENCODE_DIR,
+      relativeFilePath: QWENCODE_SETTINGS_FILE_NAME,
     };
   }
 

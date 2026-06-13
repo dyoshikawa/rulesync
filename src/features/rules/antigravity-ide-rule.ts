@@ -1,5 +1,11 @@
 import { join } from "node:path";
 
+import {
+  ANTIGRAVITY_IDE_AGENTS_DIR,
+  ANTIGRAVITY_IDE_GEMINI_DIR,
+  ANTIGRAVITY_IDE_GLOBAL_RULE_FILE_NAME,
+  ANTIGRAVITY_IDE_RULE_FILE_NAME,
+} from "../../constants/antigravity-ide-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent, toKebabCaseFilename } from "../../utils/file.js";
@@ -85,8 +91,8 @@ export class AntigravityIdeRule extends ToolRule {
     relativeFilePath: string;
   } {
     return {
-      relativeDirPath: buildToolPath(".gemini", ".", excludeToolDir),
-      relativeFilePath: "GEMINI.md",
+      relativeDirPath: buildToolPath(ANTIGRAVITY_IDE_GEMINI_DIR, ".", excludeToolDir),
+      relativeFilePath: ANTIGRAVITY_IDE_GLOBAL_RULE_FILE_NAME,
     };
   }
 
@@ -96,7 +102,7 @@ export class AntigravityIdeRule extends ToolRule {
   } {
     return {
       relativeDirPath: ".",
-      relativeFilePath: "AGENTS.md",
+      relativeFilePath: ANTIGRAVITY_IDE_RULE_FILE_NAME,
     };
   }
 
@@ -119,7 +125,7 @@ export class AntigravityIdeRule extends ToolRule {
     return {
       root: AntigravityIdeRule.getProjectRootPath(),
       nonRoot: {
-        relativeDirPath: buildToolPath(".agents", "rules", excludeToolDir),
+        relativeDirPath: buildToolPath(ANTIGRAVITY_IDE_AGENTS_DIR, "rules", excludeToolDir),
       },
     };
   }
@@ -149,7 +155,7 @@ export class AntigravityIdeRule extends ToolRule {
 
     // Project root rule: a plain cross-tool `AGENTS.md` without Antigravity
     // trigger frontmatter.
-    if (relativeFilePath === "AGENTS.md") {
+    if (relativeFilePath === ANTIGRAVITY_IDE_RULE_FILE_NAME) {
       const rootPath = AntigravityIdeRule.getProjectRootPath();
       const rootContent = await readFileContent(
         join(outputRoot, rootPath.relativeDirPath, rootPath.relativeFilePath),
@@ -165,7 +171,7 @@ export class AntigravityIdeRule extends ToolRule {
       });
     }
 
-    const nonRootDirPath = buildToolPath(".agents", "rules");
+    const nonRootDirPath = buildToolPath(ANTIGRAVITY_IDE_AGENTS_DIR, "rules");
     const filePath = join(outputRoot, nonRootDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body } = parseFrontmatter(fileContent, filePath);
@@ -247,7 +253,7 @@ export class AntigravityIdeRule extends ToolRule {
 
     return new AntigravityIdeRule({
       outputRoot,
-      relativeDirPath: buildToolPath(".agents", "rules"),
+      relativeDirPath: buildToolPath(ANTIGRAVITY_IDE_AGENTS_DIR, "rules"),
       relativeFilePath: kebabCaseFilename,
       frontmatter,
       body: rulesyncRule.getBody(),
@@ -320,7 +326,7 @@ export class AntigravityIdeRule extends ToolRule {
   }: ToolRuleForDeletionParams): AntigravityIdeRule {
     // The global GEMINI.md and the project-root AGENTS.md are both plain root
     // files; non-root rules live under `.agents/rules/`.
-    const isRoot = global || (relativeFilePath === "AGENTS.md" && relativeDirPath === ".");
+    const isRoot = global || (relativeFilePath === ANTIGRAVITY_IDE_RULE_FILE_NAME && relativeDirPath === ".");
     return new AntigravityIdeRule({
       outputRoot,
       relativeDirPath,

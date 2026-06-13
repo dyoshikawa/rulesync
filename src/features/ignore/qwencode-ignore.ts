@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { QWENCODE_IGNORE_FILE_NAME } from "../../constants/qwencode-paths.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import type {
@@ -17,7 +18,7 @@ export class QwencodeIgnore extends ToolIgnore {
     // https://qwenlm.github.io/qwen-code-docs/en/users/configuration/qwen-ignore
     return {
       relativeDirPath: ".",
-      relativeFilePath: ".qwenignore",
+      relativeFilePath: QWENCODE_IGNORE_FILE_NAME,
     };
   }
 

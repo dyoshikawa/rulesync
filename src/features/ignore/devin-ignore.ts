@@ -1,5 +1,9 @@
 import { join } from "node:path";
 
+import {
+  DEVIN_IGNORE_FILE_NAME,
+  DEVIN_LEGACY_IGNORE_FILE_NAME,
+} from "../../constants/devin-paths.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import type {
@@ -9,20 +13,6 @@ import type {
   ToolIgnoreSettablePaths,
 } from "./tool-ignore.js";
 import { ToolIgnore } from "./tool-ignore.js";
-
-/**
- * Brand-aligned Devin Desktop ignore filename, added in Devin Desktop v3.1.7
- * (2026-06-10). This matches how rules/commands/skills already prefer `.devin/`
- * since the Windsurf/Cascade rebrand.
- */
-const DEVIN_IGNORE_FILE_NAME = ".devinignore";
-
-/**
- * Legacy Codeium-era ignore filename. Devin Desktop still honors it (alongside
- * `.windsurfignore`), so it is read on import for round-trip compatibility with
- * projects generated before the rebrand.
- */
-const DEVIN_LEGACY_IGNORE_FILE_NAME = ".codeiumignore";
 
 /**
  * Devin Desktop (the Windsurf/Cascade rebrand) ignore file implementation.

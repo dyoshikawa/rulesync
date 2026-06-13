@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { CLINE_MCP_DIR_PATH, CLINE_MCP_FILE_NAME } from "../../constants/cline-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
@@ -79,8 +80,8 @@ export class ClineMcp extends ToolMcp {
 
   static getSettablePaths(_options?: { global?: boolean }): ToolMcpSettablePaths {
     return {
-      relativeDirPath: join(".cline", "data", "settings"),
-      relativeFilePath: "cline_mcp_settings.json",
+      relativeDirPath: CLINE_MCP_DIR_PATH,
+      relativeFilePath: CLINE_MCP_FILE_NAME,
     };
   }
 

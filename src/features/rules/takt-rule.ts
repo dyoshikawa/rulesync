@@ -1,5 +1,12 @@
 import { join } from "node:path";
 
+import {
+  TAKT_DIR,
+  TAKT_FACETS_SUBDIR,
+  TAKT_OUTPUT_CONTRACTS_DIR_PATH,
+  TAKT_RULE_OVERVIEW_FILE_NAME,
+  TAKT_RULES_DIR_PATH,
+} from "../../constants/takt-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
@@ -76,19 +83,19 @@ export class TaktRule extends ToolRule {
       return {
         root: {
           relativeDirPath: buildToolPath(
-            ".takt",
-            join("facets", DEFAULT_TAKT_RULE_DIR),
+            TAKT_DIR,
+            join(TAKT_FACETS_SUBDIR, DEFAULT_TAKT_RULE_DIR),
             excludeToolDir,
           ),
-          relativeFilePath: "overview.md",
+          relativeFilePath: TAKT_RULE_OVERVIEW_FILE_NAME,
         },
       };
     }
     return {
       nonRoot: {
         relativeDirPath: buildToolPath(
-          ".takt",
-          join("facets", DEFAULT_TAKT_RULE_DIR),
+          TAKT_DIR,
+          join(TAKT_FACETS_SUBDIR, DEFAULT_TAKT_RULE_DIR),
           excludeToolDir,
         ),
       },
@@ -108,7 +115,7 @@ export class TaktRule extends ToolRule {
     validate = true,
     relativeDirPath: overrideDirPath,
   }: ToolRuleFromFileParams): Promise<TaktRule> {
-    const dirPath = overrideDirPath ?? join(".takt", "facets", DEFAULT_TAKT_RULE_DIR);
+    const dirPath = overrideDirPath ?? TAKT_RULES_DIR_PATH;
     const filePath = join(outputRoot, dirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     // Strip frontmatter when present (TAKT files are plain Markdown by spec, but
@@ -156,7 +163,8 @@ export class TaktRule extends ToolRule {
     const relativeFilePath = `${stem}.md`;
 
     const facet = resolveTaktRuleFacet(taktSection?.facet);
-    const relativeDirPath = join(".takt", "facets", facet);
+    const relativeDirPath =
+      facet === "output-contracts" ? TAKT_OUTPUT_CONTRACTS_DIR_PATH : TAKT_RULES_DIR_PATH;
 
     const body = prependTaktExtends({
       extendsName: typeof taktSection?.extends === "string" ? taktSection.extends : undefined,

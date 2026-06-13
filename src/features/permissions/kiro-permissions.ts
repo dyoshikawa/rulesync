@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { KIRO_AGENTS_DIR_PATH, KIRO_HOOKS_FILE_NAME } from "../../constants/kiro-paths.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import type { PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
@@ -26,8 +27,8 @@ const UnknownRecordSchema = z.record(z.string(), z.unknown());
 export class KiroPermissions extends ToolPermissions {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return {
-      relativeDirPath: join(".kiro", "agents"),
-      relativeFilePath: "default.json",
+      relativeDirPath: KIRO_AGENTS_DIR_PATH,
+      relativeFilePath: KIRO_HOOKS_FILE_NAME,
     };
   }
 

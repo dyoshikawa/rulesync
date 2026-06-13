@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import * as smolToml from "smol-toml";
 
+import { CODEXCLI_DIR, CODEXCLI_MCP_FILE_NAME } from "../../constants/codexcli-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
@@ -128,8 +129,8 @@ export class CodexcliMcp extends ToolMcp {
     // Both global (~/.codex/config.toml) and local (.codex/config.toml) use the same
     // relative path. The difference is resolved by the outputRoot passed to the processor.
     return {
-      relativeDirPath: ".codex",
-      relativeFilePath: "config.toml",
+      relativeDirPath: CODEXCLI_DIR,
+      relativeFilePath: CODEXCLI_MCP_FILE_NAME,
     };
   }
 

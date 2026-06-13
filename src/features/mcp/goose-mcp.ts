@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { dump, load } from "js-yaml";
 
+import { GOOSE_GLOBAL_DIR, GOOSE_MCP_FILE_NAME } from "../../constants/goose-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
@@ -193,8 +194,8 @@ export class GooseMcp extends ToolMcp {
 
   static getSettablePaths(_options?: { global?: boolean }): ToolMcpSettablePaths {
     return {
-      relativeDirPath: join(".config", "goose"),
-      relativeFilePath: "config.yaml",
+      relativeDirPath: GOOSE_GLOBAL_DIR,
+      relativeFilePath: GOOSE_MCP_FILE_NAME,
     };
   }
 

@@ -1,5 +1,10 @@
 import { join } from "node:path";
 
+import {
+  GEMINICLI_DIR,
+  GEMINICLI_MEMORIES_DIR_NAME,
+  GEMINICLI_RULE_FILE_NAME,
+} from "../../constants/geminicli-paths.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -39,18 +44,18 @@ export class GeminiCliRule extends ToolRule {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(".gemini", ".", excludeToolDir),
-          relativeFilePath: "GEMINI.md",
+          relativeDirPath: buildToolPath(GEMINICLI_DIR, ".", excludeToolDir),
+          relativeFilePath: GEMINICLI_RULE_FILE_NAME,
         },
       };
     }
     return {
       root: {
         relativeDirPath: ".",
-        relativeFilePath: "GEMINI.md",
+        relativeFilePath: GEMINICLI_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(".gemini", "memories", excludeToolDir),
+        relativeDirPath: buildToolPath(GEMINICLI_DIR, GEMINICLI_MEMORIES_DIR_NAME, excludeToolDir),
       },
     };
   }

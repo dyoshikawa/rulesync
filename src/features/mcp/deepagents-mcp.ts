@@ -1,5 +1,9 @@
 import { join } from "node:path";
 
+import {
+  DEEPAGENTS_DIR,
+  DEEPAGENTS_MCP_FILE_NAME,
+} from "../../constants/deepagents-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -30,8 +34,8 @@ export class DeepagentsMcp extends ToolMcp {
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolMcpSettablePaths {
     return {
-      relativeDirPath: ".deepagents",
-      relativeFilePath: ".mcp.json",
+      relativeDirPath: DEEPAGENTS_DIR,
+      relativeFilePath: DEEPAGENTS_MCP_FILE_NAME,
     };
   }
 

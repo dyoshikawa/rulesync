@@ -1,5 +1,10 @@
 import { join } from "node:path";
 
+import {
+  GOOSE_DIR,
+  GOOSE_GLOBAL_DIR,
+  GOOSE_RULE_FILE_NAME,
+} from "../../constants/goose-paths.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -39,18 +44,18 @@ export class GooseRule extends ToolRule {
     if (global) {
       return {
         root: {
-          relativeDirPath: join(".config", "goose"),
-          relativeFilePath: ".goosehints",
+          relativeDirPath: GOOSE_GLOBAL_DIR,
+          relativeFilePath: GOOSE_RULE_FILE_NAME,
         },
       };
     }
     return {
       root: {
         relativeDirPath: ".",
-        relativeFilePath: ".goosehints",
+        relativeFilePath: GOOSE_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(".goose", "memories", excludeToolDir),
+        relativeDirPath: buildToolPath(GOOSE_DIR, "memories", excludeToolDir),
       },
     };
   }

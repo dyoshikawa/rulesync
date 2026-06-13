@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { uniq } from "es-toolkit";
 import { z } from "zod/mini";
 
+import { CLINE_DIR, CLINE_PERMISSIONS_FILE_NAME } from "../../constants/cline-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
@@ -61,8 +62,8 @@ export class ClinePermissions extends ToolPermissions {
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return {
-      relativeDirPath: ".cline",
-      relativeFilePath: "command-permissions.json",
+      relativeDirPath: CLINE_DIR,
+      relativeFilePath: CLINE_PERMISSIONS_FILE_NAME,
     };
   }
 

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { AGENTSMD_COMMANDS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
@@ -15,7 +16,7 @@ import {
 export class AgentsmdCommand extends SimulatedCommand {
   static getSettablePaths(): ToolCommandSettablePaths {
     return {
-      relativeDirPath: join(".agents", "commands"),
+      relativeDirPath: AGENTSMD_COMMANDS_DIR_PATH,
     };
   }
 

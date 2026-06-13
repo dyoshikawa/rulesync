@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { CLINE_COMMANDS_DIR_PATH, CLINE_COMMANDS_GLOBAL_DIR_PATH } from "../../constants/cline-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
@@ -18,12 +19,12 @@ export class ClineCommand extends ToolCommand {
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolCommandSettablePaths {
     if (global) {
       return {
-        relativeDirPath: join("Documents", "Cline", "Workflows"),
+        relativeDirPath: CLINE_COMMANDS_GLOBAL_DIR_PATH,
       };
     }
 
     return {
-      relativeDirPath: join(".clinerules", "workflows"),
+      relativeDirPath: CLINE_COMMANDS_DIR_PATH,
     };
   }
 

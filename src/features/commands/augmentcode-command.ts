@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { AUGMENTCODE_COMMANDS_DIR_PATH } from "../../constants/augmentcode-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
@@ -61,7 +62,7 @@ export class AugmentcodeCommand extends ToolCommand {
     // scope. The relative directory is the same in both cases; the global scope is
     // home-rooted by the processor through the outputRoot.
     return {
-      relativeDirPath: join(".augment", "commands"),
+      relativeDirPath: AUGMENTCODE_COMMANDS_DIR_PATH,
     };
   }
 
