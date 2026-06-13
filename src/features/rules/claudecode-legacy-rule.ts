@@ -1,5 +1,10 @@
 import { join } from "node:path";
 
+import {
+  CLAUDECODE_DIR,
+  CLAUDECODE_MEMORIES_DIR_NAME,
+  CLAUDECODE_RULE_FILE_NAME,
+} from "../../constants/claudecode-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -51,24 +56,28 @@ export class ClaudecodeLegacyRule extends ToolRule {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(".claude", ".", excludeToolDir),
-          relativeFilePath: "CLAUDE.md",
+          relativeDirPath: buildToolPath(CLAUDECODE_DIR, ".", excludeToolDir),
+          relativeFilePath: CLAUDECODE_RULE_FILE_NAME,
         },
       };
     }
     return {
       root: {
         relativeDirPath: ".",
-        relativeFilePath: "CLAUDE.md",
+        relativeFilePath: CLAUDECODE_RULE_FILE_NAME,
       },
       alternativeRoots: [
         {
-          relativeDirPath: ".claude",
-          relativeFilePath: "CLAUDE.md",
+          relativeDirPath: CLAUDECODE_DIR,
+          relativeFilePath: CLAUDECODE_RULE_FILE_NAME,
         },
       ],
       nonRoot: {
-        relativeDirPath: buildToolPath(".claude", "memories", excludeToolDir),
+        relativeDirPath: buildToolPath(
+          CLAUDECODE_DIR,
+          CLAUDECODE_MEMORIES_DIR_NAME,
+          excludeToolDir,
+        ),
       },
     };
   }

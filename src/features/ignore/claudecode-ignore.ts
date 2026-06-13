@@ -3,6 +3,11 @@ import { join } from "node:path";
 import { uniq } from "es-toolkit";
 import { z } from "zod/mini";
 
+import {
+  CLAUDECODE_DIR,
+  CLAUDECODE_SETTINGS_FILE_NAME,
+  CLAUDECODE_SETTINGS_LOCAL_FILE_NAME,
+} from "../../constants/claudecode-paths.js";
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import { FeatureOptions } from "../../types/features.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
@@ -33,8 +38,6 @@ export type ClaudecodeIgnoreParams = ToolIgnoreParams;
  */
 export type ClaudecodeIgnoreFileMode = "shared" | "local";
 
-const SHARED_SETTINGS_FILE = "settings.json";
-const LOCAL_SETTINGS_FILE = "settings.local.json";
 const DEFAULT_FILE_MODE: ClaudecodeIgnoreFileMode = "shared";
 
 /**
@@ -62,7 +65,7 @@ const resolveFileMode = (options?: FeatureOptions | undefined): ClaudecodeIgnore
 };
 
 const fileNameForMode = (fileMode: ClaudecodeIgnoreFileMode): string => {
-  return fileMode === "local" ? LOCAL_SETTINGS_FILE : SHARED_SETTINGS_FILE;
+  return fileMode === "local" ? CLAUDECODE_SETTINGS_LOCAL_FILE_NAME : CLAUDECODE_SETTINGS_FILE_NAME;
 };
 
 export class ClaudecodeIgnore extends ToolIgnore {
@@ -76,7 +79,7 @@ export class ClaudecodeIgnore extends ToolIgnore {
   static getSettablePaths(params?: ToolIgnoreSettablePathsParams): ToolIgnoreSettablePaths {
     const fileMode = resolveFileMode(params?.options);
     return {
-      relativeDirPath: ".claude",
+      relativeDirPath: CLAUDECODE_DIR,
       relativeFilePath: fileNameForMode(fileMode),
     };
   }

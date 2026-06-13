@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { uniq } from "es-toolkit";
 
+import { CLAUDECODE_DIR, CLAUDECODE_SETTINGS_FILE_NAME } from "../../constants/claudecode-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
@@ -91,8 +92,8 @@ export class ClaudecodePermissions extends ToolPermissions {
 
   static getSettablePaths(): ToolPermissionsSettablePaths {
     return {
-      relativeDirPath: ".claude",
-      relativeFilePath: "settings.json",
+      relativeDirPath: CLAUDECODE_DIR,
+      relativeFilePath: CLAUDECODE_SETTINGS_FILE_NAME,
     };
   }
 

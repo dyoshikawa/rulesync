@@ -2,6 +2,10 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import {
+  CLAUDECODE_SCHEDULED_TASKS_DIR_PATH,
+  CLAUDECODE_SKILLS_DIR_PATH,
+} from "../../constants/claudecode-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
@@ -14,9 +18,6 @@ import {
   ToolSkillFromRulesyncSkillParams,
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
-
-const CLAUDE_SKILLS_DIR_PATH = join(".claude", "skills");
-const CLAUDE_SCHEDULED_TASKS_DIR_PATH = join(".claude", "scheduled-tasks");
 
 export const ClaudecodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
@@ -51,7 +52,7 @@ export type ClaudecodeSkillParams = {
 export class ClaudecodeSkill extends ToolSkill {
   constructor({
     outputRoot = process.cwd(),
-    relativeDirPath = join(".claude", "skills"),
+    relativeDirPath = CLAUDECODE_SKILLS_DIR_PATH,
     dirName,
     frontmatter,
     body,
@@ -86,8 +87,8 @@ export class ClaudecodeSkill extends ToolSkill {
     global?: boolean;
   } = {}): ToolSkillSettablePaths {
     return {
-      relativeDirPath: CLAUDE_SKILLS_DIR_PATH,
-      alternativeSkillRoots: [CLAUDE_SCHEDULED_TASKS_DIR_PATH],
+      relativeDirPath: CLAUDECODE_SKILLS_DIR_PATH,
+      alternativeSkillRoots: [CLAUDECODE_SCHEDULED_TASKS_DIR_PATH],
     };
   }
 
@@ -131,7 +132,9 @@ export class ClaudecodeSkill extends ToolSkill {
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
-      ...(this.relativeDirPath === CLAUDE_SCHEDULED_TASKS_DIR_PATH && { "scheduled-task": true }),
+      ...(this.relativeDirPath === CLAUDECODE_SCHEDULED_TASKS_DIR_PATH && {
+        "scheduled-task": true,
+      }),
       ...(frontmatter.paths !== undefined && { paths: frontmatter.paths }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
@@ -183,7 +186,7 @@ export class ClaudecodeSkill extends ToolSkill {
 
     const settablePaths = ClaudecodeSkill.getSettablePaths({ global });
     const relativeDirPath = rulesyncFrontmatter.claudecode?.["scheduled-task"]
-      ? CLAUDE_SCHEDULED_TASKS_DIR_PATH
+      ? CLAUDECODE_SCHEDULED_TASKS_DIR_PATH
       : settablePaths.relativeDirPath;
 
     return new ClaudecodeSkill({

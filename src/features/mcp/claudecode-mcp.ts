@@ -1,5 +1,10 @@
 import { join } from "node:path";
 
+import {
+  CLAUDECODE_DIR,
+  CLAUDECODE_GLOBAL_MCP_FILE_NAME,
+  CLAUDECODE_MCP_FILE_NAME,
+} from "../../constants/claudecode-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { fileExists, readFileContent, readOrInitializeFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -40,19 +45,19 @@ export class ClaudecodeMcp extends ToolMcp {
    * is `~/.claude.json`; `fromFile` falls back here with a deprecation
    * warning (mirrors PR #333). Never modified or removed by rulesync.
    */
-  private static readonly LEGACY_GLOBAL_DIR = ".claude";
-  private static readonly LEGACY_GLOBAL_FILE = ".claude.json";
+  private static readonly LEGACY_GLOBAL_DIR = CLAUDECODE_DIR;
+  private static readonly LEGACY_GLOBAL_FILE = CLAUDECODE_GLOBAL_MCP_FILE_NAME;
 
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
     if (global) {
       return {
         relativeDirPath: ".",
-        relativeFilePath: ".claude.json",
+        relativeFilePath: CLAUDECODE_GLOBAL_MCP_FILE_NAME,
       };
     }
     return {
       relativeDirPath: ".",
-      relativeFilePath: ".mcp.json",
+      relativeFilePath: CLAUDECODE_MCP_FILE_NAME,
     };
   }
 

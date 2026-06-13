@@ -2,6 +2,11 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import {
+  CLAUDECODE_DIR,
+  CLAUDECODE_RULE_FILE_NAME,
+  CLAUDECODE_RULES_DIR_NAME,
+} from "../../constants/claudecode-paths.js";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
@@ -76,24 +81,24 @@ export class ClaudecodeRule extends ToolRule {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(".claude", ".", excludeToolDir),
-          relativeFilePath: "CLAUDE.md",
+          relativeDirPath: buildToolPath(CLAUDECODE_DIR, ".", excludeToolDir),
+          relativeFilePath: CLAUDECODE_RULE_FILE_NAME,
         },
       };
     }
     return {
       root: {
         relativeDirPath: ".",
-        relativeFilePath: "CLAUDE.md",
+        relativeFilePath: CLAUDECODE_RULE_FILE_NAME,
       },
       alternativeRoots: [
         {
-          relativeDirPath: ".claude",
-          relativeFilePath: "CLAUDE.md",
+          relativeDirPath: CLAUDECODE_DIR,
+          relativeFilePath: CLAUDECODE_RULE_FILE_NAME,
         },
       ],
       nonRoot: {
-        relativeDirPath: buildToolPath(".claude", "rules", excludeToolDir),
+        relativeDirPath: buildToolPath(CLAUDECODE_DIR, CLAUDECODE_RULES_DIR_NAME, excludeToolDir),
       },
     };
   }
