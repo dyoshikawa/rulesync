@@ -73,7 +73,7 @@ describe("VibeSubagent", () => {
     const rulesyncSubagent = new RulesyncSubagent({
       outputRoot: testDir,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-      relativeFilePath: "redteam.md",
+      relativeFilePath: "security-reviewer.md",
       frontmatter: {
         targets: ["vibe"],
         name: "Red team",
@@ -117,14 +117,14 @@ describe("VibeSubagent", () => {
     const vibeSubagent = new VibeSubagent({
       outputRoot: testDir,
       relativeDirPath: join(".vibe", "agents"),
-      relativeFilePath: "redteam.toml",
+      relativeFilePath: "security-reviewer.toml",
       body: toml,
       fileContent: toml,
     });
 
     const rulesyncSubagent = vibeSubagent.toRulesyncSubagent();
 
-    expect(rulesyncSubagent.getRelativeFilePath()).toBe("redteam.md");
+    expect(rulesyncSubagent.getRelativeFilePath()).toBe("security-reviewer.md");
     expect(rulesyncSubagent.getBody()).toBe("Review for security issues.");
     expect(rulesyncSubagent.getFrontmatter()).toMatchObject({
       targets: ["vibe"],
