@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 
+import * as smolToml from "smol-toml";
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_MCP_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
@@ -38,6 +39,7 @@ describe("E2E: mcp", () => {
     { target: "warp", outputPath: join(".warp", ".mcp.json") },
     { target: "zed", outputPath: join(".zed", "settings.json") },
     { target: "devin", outputPath: join(".windsurf", "mcp_config.json") },
+    { target: "vibe", outputPath: join(".vibe", "config.toml") },
   ])("should generate $target mcp", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -141,6 +143,11 @@ describe("E2E: mcp", () => {
       outputPath: "kilo.jsonc",
       content: JSON.stringify({ theme: "dark", mcp: {} }, null, 2),
     },
+    {
+      target: "vibe",
+      outputPath: join(".vibe", "config.toml"),
+      content: 'theme = "dark"\n',
+    },
   ])(
     "should succeed in check mode when a $target mcp file is non-deletable",
     async ({ target, outputPath, content }) => {
@@ -196,6 +203,54 @@ describe("E2E: mcp", () => {
 
     // Verify that there were no actual errors (warnings are acceptable)
     expect(hasError, `MCP daemon produced errors: ${stderrOutput}`).toBe(false);
+  });
+
+  it("should generate Vibe MCP and permissions into shared config.toml", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          mcpServers: {
+            "test-server": {
+              type: "stdio",
+              command: "echo",
+              args: ["hello"],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    await writeFileContent(
+      join(testDir, ".rulesync", "permissions.json"),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "*": "ask", "git *": "allow" },
+            edit: { "*": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "vibe", features: "mcp,permissions" });
+
+    const parsed = toTable(
+      smolToml.parse(await readFileContent(join(testDir, ".vibe", "config.toml"))),
+    );
+    const tools = toTable(parsed.tools);
+    const bash = toTable(tools.bash);
+    expect(toTableArray(parsed.mcp_servers)).toMatchObject([
+      { name: "test-server", command: "echo" },
+    ]);
+    expect(bash.permission).toBe("ask");
+    expect(bash.allow).toEqual(["git *"]);
+    expect(parsed.disabled_tools).toContain("write_file");
   });
 });
 
@@ -259,6 +314,29 @@ describe("E2E: mcp (import)", () => {
     expect(importedContent).toContain("test-server");
   });
 
+  it("should import vibe mcp from config.toml", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        'theme = "dark"',
+        "",
+        "[[mcp_servers]]",
+        'name = "test-server"',
+        'transport = "stdio"',
+        'command = "echo"',
+        'args = ["hello"]',
+      ].join("\n"),
+    );
+
+    await runImport({ target: "vibe", features: "mcp" });
+
+    const importedContent = await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH));
+    expect(importedContent).toContain("test-server");
+    expect(importedContent).toContain("hello");
+  });
+
   // Zed stores MCP servers under `context_servers` (not `mcpServers`) inside a
   // shared settings.json, so it needs a bespoke source rather than the generic
   // `mcpServers`-seeded import case above.
@@ -320,6 +398,7 @@ describe("E2E: mcp (global mode)", () => {
       target: "devin",
       outputPath: join(".codeium", "windsurf", "mcp_config.json"),
     },
+    { target: "vibe", outputPath: join(".vibe", "config.toml") },
   ])("should generate $target mcp in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
@@ -481,3 +560,17 @@ describe("E2E: mcp (global mode)", () => {
     expect(generatedContent).not.toContain("non-root-server");
   });
 });
+
+function toTable(value: unknown): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return { ...value };
+  }
+  return {};
+}
+
+function toTableArray(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map(toTable);
+}

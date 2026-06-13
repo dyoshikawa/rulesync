@@ -25,6 +25,22 @@ export const RulesyncSubagentFrontmatterSchema = z.looseObject({
       name: z.optional(z.string()),
     }),
   ),
+  vibe: z.optional(
+    z.looseObject({
+      agent_type: z.optional(z.enum(["agent", "subagent"])),
+      display_name: z.optional(z.string()),
+      description: z.optional(z.string()),
+      safety: z.optional(z.string()),
+      active_model: z.optional(z.string()),
+      system_prompt: z.optional(z.string()),
+      system_prompt_id: z.optional(z.string()),
+      compaction_prompt: z.optional(z.string()),
+      compaction_prompt_id: z.optional(z.string()),
+      enabled_tools: z.optional(z.array(z.string())),
+      disabled_tools: z.optional(z.array(z.string())),
+      tools: z.optional(z.record(z.string(), z.looseObject({}))),
+    }),
+  ),
 });
 
 // Input type allows targets to be omitted (will use default value)

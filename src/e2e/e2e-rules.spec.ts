@@ -42,6 +42,7 @@ describe("E2E: rules", () => {
     { target: "replit", outputPath: "replit.md" },
     { target: "pi", outputPath: "AGENTS.md" },
     { target: "zed", outputPath: ".rules" },
+    { target: "vibe", outputPath: "AGENTS.md" },
   ])("should generate $target rules", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -256,6 +257,7 @@ describe("E2E: rules (import)", () => {
     { target: "warp", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "replit", sourcePath: "replit.md", importedFileName: "overview.md" },
     { target: "pi", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "vibe", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     {
       target: "cline",
       sourcePath: join(".clinerules", "overview.md"),
@@ -336,6 +338,7 @@ describe("E2E: rules (global mode)", () => {
     { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
     { target: "pi", outputPath: join(".pi", "agent", "AGENTS.md") },
     { target: "zed", outputPath: join(".config", "zed", "AGENTS.md") },
+    { target: "vibe", outputPath: join(".vibe", "AGENTS.md") },
     { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },
     {
       target: "devin",

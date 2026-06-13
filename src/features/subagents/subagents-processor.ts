@@ -36,6 +36,7 @@ import {
   ToolSubagentFromRulesyncSubagentParams,
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
+import { VibeSubagent } from "./vibe-subagent.js";
 
 /**
  * Factory entry for each tool subagent class.
@@ -83,6 +84,7 @@ const subagentsProcessorToolTargetTuple = [
   "roo",
   "rovodev",
   "takt",
+  "vibe",
 ] as const;
 
 export type SubagentsProcessorToolTarget = (typeof subagentsProcessorToolTargetTuple)[number];
@@ -249,6 +251,13 @@ const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagent
     {
       class: TaktSubagent,
       meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+    },
+  ],
+  [
+    "vibe",
+    {
+      class: VibeSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.toml" },
     },
   ],
 ]);

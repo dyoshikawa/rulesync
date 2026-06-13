@@ -30,6 +30,7 @@ import {
   ToolIgnoreSettablePaths,
   ToolIgnoreSettablePathsParams,
 } from "./tool-ignore.js";
+import { VibeIgnore } from "./vibe-ignore.js";
 import { ZedIgnore } from "./zed-ignore.js";
 
 const ignoreProcessorToolTargets: ToolTarget[] = [
@@ -47,6 +48,7 @@ const ignoreProcessorToolTargets: ToolTarget[] = [
   "qwencode",
   "roo",
   "devin",
+  "vibe",
   "zed",
 ];
 
@@ -80,6 +82,7 @@ const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnoreFactory
   ["qwencode", { class: QwencodeIgnore }],
   ["roo", { class: RooIgnore }],
   ["devin", { class: DevinIgnore }],
+  ["vibe", { class: VibeIgnore }],
   ["zed", { class: ZedIgnore }],
 ]);
 

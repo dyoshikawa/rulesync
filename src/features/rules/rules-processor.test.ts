@@ -910,6 +910,7 @@ Content that would fail parsing`;
         "pi",
         "rovodev",
         "takt",
+        "vibe",
         "devin",
         "zed",
       ]);
@@ -952,9 +953,10 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("pi");
       expect(globalTargets).toContain("rovodev");
       expect(globalTargets).toContain("takt");
+      expect(globalTargets).toContain("vibe");
       expect(globalTargets).toContain("devin");
       expect(globalTargets).toContain("zed");
-      expect(globalTargets.length).toBe(22);
+      expect(globalTargets.length).toBe(23);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

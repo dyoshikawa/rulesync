@@ -39,7 +39,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
 
   // AGENTS.md
   {
-    target: ["agentsmd", "amp", "antigravity-ide", "pi", "warp"],
+    target: ["agentsmd", "amp", "antigravity-ide", "pi", "vibe", "warp"],
     feature: "rules",
     entry: "**/AGENTS.md",
   },
@@ -334,6 +334,13 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "devin", feature: "hooks", entry: "**/.windsurf/hooks.json" },
   { target: "devin", feature: "skills", entry: "**/.devin/skills/" },
   { target: "devin", feature: "skills", entry: "**/.codeium/windsurf/skills/" },
+
+  // Vibe
+  { target: "vibe", feature: "ignore", entry: "**/.vibeignore" },
+  { target: "vibe", feature: "skills", entry: "**/.vibe/skills/" },
+  { target: "vibe", feature: "subagents", entry: "**/.vibe/agents/" },
+  { target: "vibe", feature: "mcp", entry: "**/.vibe/config.toml" },
+  { target: "vibe", feature: "permissions", entry: "**/.vibe/config.toml" },
 
   // Warp
   // `/init` now writes `AGENTS.md` (handled by the shared AGENTS.md entry above).
