@@ -353,6 +353,7 @@
     "symref",
     "TOCTOU",
     "worktree",
-    "Worktree"
+    "Worktree",
+    "zedignore"
   ]
 }
