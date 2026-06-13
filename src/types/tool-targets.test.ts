@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
 
+import { CommandsProcessorToolTargetSchema } from "../features/commands/commands-processor.js";
+import { HooksProcessorToolTargetSchema } from "../features/hooks/hooks-processor.js";
+import { IgnoreProcessorToolTargetSchema } from "../features/ignore/ignore-processor.js";
+import { McpProcessorToolTargetSchema } from "../features/mcp/mcp-processor.js";
+import { PermissionsProcessorToolTargetSchema } from "../features/permissions/permissions-processor.js";
+import { RulesProcessorToolTargetSchema } from "../features/rules/rules-processor.js";
+import { SkillsProcessorToolTargetSchema } from "../features/skills/skills-processor.js";
+import { SubagentsProcessorToolTargetSchema } from "../features/subagents/subagents-processor.js";
 import {
   ALL_TOOL_TARGETS,
   ALL_TOOL_TARGETS_WITH_WILDCARD,
@@ -229,5 +237,29 @@ describe("tool targets", () => {
       expect(() => ToolTargetsSchema.parse(validToolTargets)).not.toThrow();
       expect(() => RulesyncTargetsSchema.parse(validToolTargets)).not.toThrow();
     });
+  });
+
+  describe("processor tool target consistency", () => {
+    const allTargetSet = new Set<string>(ALL_TOOL_TARGETS);
+
+    const processors = [
+      { name: "RulesProcessor", schema: RulesProcessorToolTargetSchema },
+      { name: "CommandsProcessor", schema: CommandsProcessorToolTargetSchema },
+      { name: "HooksProcessor", schema: HooksProcessorToolTargetSchema },
+      { name: "IgnoreProcessor", schema: IgnoreProcessorToolTargetSchema },
+      { name: "McpProcessor", schema: McpProcessorToolTargetSchema },
+      { name: "PermissionsProcessor", schema: PermissionsProcessorToolTargetSchema },
+      { name: "SkillsProcessor", schema: SkillsProcessorToolTargetSchema },
+      { name: "SubagentsProcessor", schema: SubagentsProcessorToolTargetSchema },
+    ];
+
+    for (const { name, schema } of processors) {
+      it(`${name}: all tool targets must be a subset of ALL_TOOL_TARGETS`, () => {
+        const unknownTargets = schema.options.filter(
+          (target: string) => !allTargetSet.has(target),
+        );
+        expect(unknownTargets).toEqual([]);
+      });
+    }
   });
 });
