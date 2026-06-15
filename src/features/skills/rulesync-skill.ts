@@ -90,6 +90,12 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
     }),
   ),
+  copilotcli: z.optional(
+    z.looseObject({
+      license: z.optional(z.string()),
+      "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+    }),
+  ),
   pi: z.optional(
     z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
@@ -210,6 +216,10 @@ export type RulesyncSkillFrontmatterInput = {
     "allowed-tools"?: string[];
   };
   copilot?: {
+    license?: string;
+    "allowed-tools"?: string | string[];
+  };
+  copilotcli?: {
     license?: string;
     "allowed-tools"?: string | string[];
   };
