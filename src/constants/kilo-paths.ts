@@ -3,7 +3,6 @@ import { join } from "node:path";
 export const KILO_DIR = ".kilo";
 export const KILO_GLOBAL_DIR = join(".config", "kilo");
 export const KILO_RULES_DIR_NAME = "rules";
-export const KILO_RULES_DIR_PATH = join(KILO_DIR, KILO_RULES_DIR_NAME);
 export const KILO_COMMANDS_DIR_PATH = join(KILO_DIR, "commands");
 export const KILO_GLOBAL_COMMANDS_DIR_PATH = join(KILO_GLOBAL_DIR, "commands");
 export const KILO_SKILLS_DIR_PATH = join(KILO_DIR, "skills");

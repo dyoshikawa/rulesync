@@ -6,20 +6,17 @@ export const ANTIGRAVITY_LEGACY_COMMANDS_DIR_PATH = join(ANTIGRAVITY_LEGACY_DIR,
 export const ANTIGRAVITY_LEGACY_SKILLS_DIR_PATH = join(ANTIGRAVITY_LEGACY_DIR, "skills");
 
 export const ANTIGRAVITY_DIR = ".agents";
-export const ANTIGRAVITY_RULES_DIR_PATH = join(ANTIGRAVITY_DIR, "rules");
-export const ANTIGRAVITY_COMMANDS_DIR_PATH = join(ANTIGRAVITY_DIR, "workflows");
 export const ANTIGRAVITY_SKILLS_DIR_PATH = join(ANTIGRAVITY_DIR, "skills");
 export const ANTIGRAVITY_MCP_FILE_NAME = "mcp_config.json";
-export const ANTIGRAVITY_MCP_PATH = join(ANTIGRAVITY_DIR, ANTIGRAVITY_MCP_FILE_NAME);
 export const ANTIGRAVITY_HOOKS_FILE_NAME = "hooks.json";
-export const ANTIGRAVITY_HOOKS_PATH = join(ANTIGRAVITY_DIR, ANTIGRAVITY_HOOKS_FILE_NAME);
 
-export const ANTIGRAVITY_RULE_FILE_CLI = "GEMINI.md";
-export const ANTIGRAVITY_RULE_FILE_IDE = "AGENTS.md";
 export const ANTIGRAVITY_IGNORE_FILE_NAME = ".geminiignore";
 
 export const ANTIGRAVITY_GEMINI_DIR = ".gemini";
 
+// Single source of truth for the Antigravity CLI global subdirectory under
+// `.gemini`. `antigravity-cli-paths.ts` re-exports these instead of redefining
+// them, so the CLI and the shared module never drift apart.
 export const ANTIGRAVITY_CLI_PERMISSIONS_SUBDIR = "antigravity-cli";
 export const ANTIGRAVITY_CLI_PERMISSIONS_DIR_PATH = join(
   ANTIGRAVITY_GEMINI_DIR,
@@ -32,30 +29,8 @@ export const ANTIGRAVITY_GLOBAL_CONFIG_DIR_PATH = join(
   ANTIGRAVITY_GEMINI_DIR,
   ANTIGRAVITY_GLOBAL_CONFIG_SUBDIR,
 );
-export const ANTIGRAVITY_GLOBAL_MCP_PATH = join(
-  ANTIGRAVITY_GLOBAL_CONFIG_DIR_PATH,
-  ANTIGRAVITY_MCP_FILE_NAME,
-);
-export const ANTIGRAVITY_GLOBAL_HOOKS_PATH = join(
-  ANTIGRAVITY_GLOBAL_CONFIG_DIR_PATH,
-  ANTIGRAVITY_HOOKS_FILE_NAME,
-);
-export const ANTIGRAVITY_GLOBAL_SKILLS_IDE_PATH = join(
-  ANTIGRAVITY_GLOBAL_CONFIG_DIR_PATH,
-  "skills",
-);
-export const ANTIGRAVITY_GLOBAL_SKILLS_CLI_PATH = join(
-  ANTIGRAVITY_GEMINI_DIR,
-  ANTIGRAVITY_CLI_PERMISSIONS_SUBDIR,
-  "skills",
-);
 export const ANTIGRAVITY_GLOBAL_SKILLS_LEGACY_PATH = join(
   ANTIGRAVITY_GEMINI_DIR,
   "antigravity",
   "skills",
-);
-export const ANTIGRAVITY_GLOBAL_WORKFLOWS_IDE_PATH = join(
-  ANTIGRAVITY_GEMINI_DIR,
-  "antigravity",
-  "global_workflows",
 );

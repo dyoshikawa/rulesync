@@ -2,7 +2,6 @@ import { join } from "node:path";
 
 export const GEMINICLI_DIR = ".gemini";
 export const GEMINICLI_MEMORIES_DIR_NAME = "memories";
-export const GEMINICLI_MEMORIES_DIR_PATH = join(GEMINICLI_DIR, GEMINICLI_MEMORIES_DIR_NAME);
 export const GEMINICLI_COMMANDS_DIR_PATH = join(GEMINICLI_DIR, "commands");
 export const GEMINICLI_SKILLS_DIR_PATH = join(GEMINICLI_DIR, "skills");
 export const GEMINICLI_AGENTS_DIR_PATH = join(GEMINICLI_DIR, "agents");

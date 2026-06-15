@@ -2,7 +2,6 @@ import { join } from "node:path";
 
 export const OPENCODE_DIR = ".opencode";
 export const OPENCODE_GLOBAL_DIR = join(".config", "opencode");
-export const OPENCODE_MEMORIES_DIR_PATH = join(OPENCODE_DIR, "memories");
 export const OPENCODE_COMMANDS_DIR_PATH = join(OPENCODE_DIR, "commands");
 export const OPENCODE_GLOBAL_COMMANDS_DIR_PATH = join(OPENCODE_GLOBAL_DIR, "commands");
 export const OPENCODE_SKILLS_DIR_PATH = join(OPENCODE_DIR, "skills");

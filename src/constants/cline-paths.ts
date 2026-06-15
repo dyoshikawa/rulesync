@@ -8,6 +8,5 @@ export const CLINE_SKILLS_DIR_PATH = join(CLINE_DIR, "skills");
 export const CLINE_AGENTS_DIR_PATH = join(CLINE_DIR, "agents");
 export const CLINE_MCP_DIR_PATH = join(CLINE_DIR, "data", "settings");
 export const CLINE_MCP_FILE_NAME = "cline_mcp_settings.json";
-export const CLINE_PERMISSIONS_DIR_PATH = CLINE_DIR;
 export const CLINE_PERMISSIONS_FILE_NAME = "command-permissions.json";
 export const CLINE_IGNORE_FILE_NAME = ".clineignore";

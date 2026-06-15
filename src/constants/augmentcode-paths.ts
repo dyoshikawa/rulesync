@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 export const AUGMENTCODE_DIR = ".augment";
-export const AUGMENTCODE_RULES_DIR_PATH = join(AUGMENTCODE_DIR, "rules");
 export const AUGMENTCODE_COMMANDS_DIR_PATH = join(AUGMENTCODE_DIR, "commands");
 export const AUGMENTCODE_SKILLS_DIR_PATH = join(AUGMENTCODE_DIR, "skills");
 export const AUGMENTCODE_AGENTS_DIR_PATH = join(AUGMENTCODE_DIR, "agents");

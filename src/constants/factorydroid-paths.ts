@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 export const FACTORYDROID_DIR = ".factory";
-export const FACTORYDROID_RULES_DIR_PATH = join(FACTORYDROID_DIR, "rules");
 export const FACTORYDROID_COMMANDS_DIR_PATH = join(FACTORYDROID_DIR, "commands");
 export const FACTORYDROID_SKILLS_DIR_PATH = join(FACTORYDROID_DIR, "skills");
 export const FACTORYDROID_DROIDS_DIR_PATH = join(FACTORYDROID_DIR, "droids");
