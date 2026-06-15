@@ -414,6 +414,9 @@ agentsskills: # for the Agent Skills standard target (optional; supports project
 copilot: # for GitHub Copilot-specific parameters (optional)
   license: MIT # (optional)
   allowed-tools: "shell" # (optional) tools pre-approved without per-use confirmation
+copilotcli: # for GitHub Copilot CLI-specific parameters (optional; project .github/skills/, global ~/.copilot/skills/)
+  license: MIT # (optional)
+  allowed-tools: "shell" # (optional) tools pre-approved without per-use confirmation
 rovodev: # for Rovo Dev CLI-specific parameters (optional; Agent Skills standard)
   allowed-tools: "grep bash" # (optional) space-separated string (a YAML list is also accepted)
   license: MIT # (optional)
