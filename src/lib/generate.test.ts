@@ -608,6 +608,76 @@ describe("generate", () => {
     });
   });
 
+  describe("execution order constraints", () => {
+    it("should run ignore before permissions to prevent shared settings.json data loss", async () => {
+      mockConfig.getFeatures.mockReturnValue(["ignore", "permissions"]);
+
+      const ignoreWriteAiFiles = vi.fn().mockResolvedValue({ count: 1, paths: [] });
+      const permissionsWriteAiFiles = vi.fn().mockResolvedValue({ count: 1, paths: [] });
+
+      vi.mocked(IgnoreProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+          loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+          convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
+          writeAiFiles: ignoreWriteAiFiles,
+        } as unknown as IgnoreProcessor;
+      });
+      vi.mocked(PermissionsProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+          loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+          convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
+          writeAiFiles: permissionsWriteAiFiles,
+        } as unknown as PermissionsProcessor;
+      });
+
+      await generate({ logger, config: mockConfig as never });
+
+      expect(ignoreWriteAiFiles).toHaveBeenCalled();
+      expect(permissionsWriteAiFiles).toHaveBeenCalled();
+      const ignoreCall = ignoreWriteAiFiles.mock.invocationCallOrder[0];
+      const permissionsCall = permissionsWriteAiFiles.mock.invocationCallOrder[0];
+      expect(ignoreCall).toBeLessThan(permissionsCall!);
+    });
+
+    it("should run mcp before rules to prevent shared kilo.jsonc data loss", async () => {
+      mockConfig.getFeatures.mockReturnValue(["mcp", "rules"]);
+
+      const mcpWriteAiFiles = vi.fn().mockResolvedValue({ count: 1, paths: [] });
+      const rulesWriteAiFiles = vi.fn().mockResolvedValue({ count: 1, paths: [] });
+
+      vi.mocked(McpProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+          loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+          convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
+          writeAiFiles: mcpWriteAiFiles,
+        } as unknown as McpProcessor;
+      });
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+          loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+          convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
+          writeAiFiles: rulesWriteAiFiles,
+        } as unknown as RulesProcessor;
+      });
+
+      await generate({ logger, config: mockConfig as never });
+
+      expect(mcpWriteAiFiles).toHaveBeenCalled();
+      expect(rulesWriteAiFiles).toHaveBeenCalled();
+      const mcpCall = mcpWriteAiFiles.mock.invocationCallOrder[0];
+      const rulesCall = rulesWriteAiFiles.mock.invocationCallOrder[0];
+      expect(mcpCall).toBeLessThan(rulesCall!);
+    });
+  });
+
   describe("all features combined", () => {
     it("should generate all features when all are enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([
