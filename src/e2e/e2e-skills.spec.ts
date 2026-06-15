@@ -40,6 +40,10 @@ describe("E2E: skills", () => {
       outputPath: join(".github", "skills", "test-skill", "SKILL.md"),
     },
     {
+      target: "copilotcli",
+      outputPath: join(".github", "skills", "test-skill", "SKILL.md"),
+    },
+    {
       target: "deepagents",
       outputPath: join(".deepagents", "skills", "test-skill", "SKILL.md"),
     },

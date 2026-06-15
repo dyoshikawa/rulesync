@@ -255,7 +255,10 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   },
   { target: "copilot", feature: "commands", entry: "**/.github/prompts/" },
   { target: "copilot", feature: "subagents", entry: "**/.github/agents/" },
-  { target: "copilot", feature: "skills", entry: "**/.github/skills/" },
+  // Copilot CLI shares the project `.github/skills/` location with the Copilot
+  // IDE target; its personal skills live under `~/.copilot/skills/` (home dir,
+  // not gitignored at the project level).
+  { target: ["copilot", "copilotcli"], feature: "skills", entry: "**/.github/skills/" },
   { target: "copilot", feature: "hooks", entry: "**/.github/hooks/" },
   { target: "copilot", feature: "mcp", entry: "**/.vscode/mcp.json" },
 
