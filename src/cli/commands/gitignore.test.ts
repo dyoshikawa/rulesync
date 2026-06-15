@@ -86,7 +86,12 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.github/agents/");
       expect(content).toContain("**/.github/hooks/");
       expect(content).toContain("**/.github/prompts/");
-      expect(content).toContain("**/.warp/");
+      expect(content).toContain("**/.warp/.mcp.json");
+      expect(content).toContain("**/.warp/skills/");
+      // Warp rules live in the root AGENTS.md, not `.warp/memories/`, so no bare
+      // `.warp/` rules entry is emitted (checked line-wise to avoid matching the
+      // `**/.warp/.mcp.json` prefix).
+      expect(content.split("\n").map((line) => line.trim())).not.toContain("**/.warp/");
       expect(content).toContain("**/.codex/memories/");
       expect(content).toContain("**/.agents/skills/");
       expect(content).toContain("**/.deepagents/AGENTS.md");

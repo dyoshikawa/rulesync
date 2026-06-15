@@ -349,7 +349,6 @@ rulesync.local.jsonc
 **/.windsurf/hooks.json
 **/.devin/skills/
 **/.codeium/windsurf/skills/
-**/.warp/
 **/.warp/.mcp.json
 **/.warp/skills/
 **/.rules
