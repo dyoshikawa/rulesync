@@ -373,8 +373,9 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "devin", feature: "skills", entry: "**/.codeium/windsurf/skills/" },
 
   // Warp
-  // `/init` now writes `AGENTS.md` (handled by the shared AGENTS.md entry above).
-  { target: "warp", feature: "rules", entry: "**/.warp/" },
+  // Warp reads project rules only from the root `AGENTS.md` (handled by the
+  // shared AGENTS.md entry above); it does not read `.warp/memories/`, so no
+  // rules entry under `.warp/` is emitted.
   { target: "warp", feature: "mcp", entry: "**/.warp/.mcp.json" },
   { target: "warp", feature: "skills", entry: "**/.warp/skills/" },
 

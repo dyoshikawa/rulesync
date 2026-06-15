@@ -746,13 +746,15 @@ export class RulesProcessor extends FeatureProcessor {
       })
       .filter((rule): rule is ToolRule => rule !== null);
 
-    // deepagents (dcode) reads project context only from the single
-    // `.deepagents/AGENTS.md` file; it neither scans a `memories/` directory nor
-    // follows `@`-style references. Fold every non-root rule body into the root
-    // rule so no rule content is silently lost, and drop the now-redundant
-    // non-root instances (which all share the root path).
-    if (this.toolTarget === "deepagents") {
-      this.foldDeepagentsNonRootRules(toolRules);
+    // Some tools read project rules only from a single root `AGENTS.md` file and
+    // neither scan a `memories/` directory nor follow references out of it:
+    // - deepagents (dcode) reads only `.deepagents/AGENTS.md`.
+    // - Warp reads only root/subdir `AGENTS.md`, never `.warp/memories/`.
+    // Fold every non-root rule body into the root rule so no rule content is
+    // silently lost, and drop the now-redundant non-root instances (which all
+    // share the root path).
+    if (this.toolTarget === "deepagents" || this.toolTarget === "warp") {
+      this.foldNonRootRulesIntoRootRule(toolRules);
     }
 
     const includeLocalRoot = resolveIncludeLocalRoot(this.featureOptions);
@@ -916,20 +918,20 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   /**
-   * Fold every deepagents rule body into a single `.deepagents/AGENTS.md`.
+   * Fold every non-root rule body into the single root rule file.
    *
-   * The deepagents (dcode) MemoryMiddleware loads project context only from the
-   * fixed `.deepagents/AGENTS.md` (and root `AGENTS.md`) files and never scans a
-   * `memories/` directory or follows references. `DeepagentsRule` therefore emits
-   * both root and non-root rules to the same `.deepagents/AGENTS.md` path, so all
-   * rule bodies must be merged into one instance to avoid colliding on that path
-   * (last-writer-wins would silently drop content).
+   * Used for tools whose rules engine reads only one root `AGENTS.md` and neither
+   * scans a `memories/` directory nor follows references (deepagents' dcode reads
+   * `.deepagents/AGENTS.md`; Warp reads root/subdir `AGENTS.md` but never
+   * `.warp/memories/`). Those rule classes emit both root and non-root rules to
+   * the same root path, so all bodies must be merged into one instance to avoid
+   * colliding on that path (last-writer-wins would silently drop content).
    *
    * The root rule (if any) becomes the merge target and leads the merged content;
    * otherwise the first rule is used so a rule set without a root overview still
    * produces a single, complete file. Mutates `toolRules` in place.
    */
-  private foldDeepagentsNonRootRules(toolRules: ToolRule[]): void {
+  private foldNonRootRulesIntoRootRule(toolRules: ToolRule[]): void {
     if (toolRules.length <= 1) {
       return;
     }

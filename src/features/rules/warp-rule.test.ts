@@ -7,7 +7,7 @@ import {
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { writeFileContent } from "../../utils/file.js";
 import { RulesyncRule, type RulesyncRuleFrontmatterInput } from "./rulesync-rule.js";
 import { WarpRule, type WarpRuleParams } from "./warp-rule.js";
 
@@ -131,22 +131,22 @@ describe("WarpRule", () => {
       expect(warpRule.getFilePath()).toBe(join(testDir, "AGENTS.md"));
     });
 
-    it("should create WarpRule from memory file in .warp/memories", async () => {
-      const memoryContent = "# Memory File\n\nThis is a memory file.";
-      const memoriesDir = join(testDir, ".warp/memories");
-      await ensureDir(memoriesDir);
-      await writeFileContent(join(memoriesDir, "test-memory.md"), memoryContent);
+    it("should always read the root AGENTS.md, ignoring the requested relativeFilePath", async () => {
+      // Warp reads rules only from the root AGENTS.md; fromFile therefore reads
+      // that file regardless of the relativeFilePath it is asked for.
+      const rootContent = "# Root\n\nWarp reads only this file.";
+      await writeFileContent(join(testDir, "AGENTS.md"), rootContent);
 
       const warpRule = await WarpRule.fromFile({
         outputRoot: testDir,
-        relativeFilePath: "test-memory.md",
+        relativeFilePath: "some-memory.md",
       });
 
-      expect(warpRule.isRoot()).toBe(false);
-      expect(warpRule.getRelativeDirPath()).toBe(".warp");
-      expect(warpRule.getRelativeFilePath()).toBe("test-memory.md");
-      expect(warpRule.getFileContent()).toBe(memoryContent);
-      expect(warpRule.getFilePath()).toBe(join(testDir, ".warp/test-memory.md"));
+      expect(warpRule.isRoot()).toBe(true);
+      expect(warpRule.getRelativeDirPath()).toBe(".");
+      expect(warpRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(warpRule.getFileContent()).toBe(rootContent);
+      expect(warpRule.getFilePath()).toBe(join(testDir, "AGENTS.md"));
     });
 
     it("should use default outputRoot (process.cwd()) when not provided", async () => {
@@ -210,13 +210,13 @@ describe("WarpRule", () => {
       expect(warpRule.isRoot()).toBe(true);
     });
 
-    it("should create WarpRule from RulesyncRule for memory file", () => {
+    it("should target the root AGENTS.md for a non-root rule (folded later by the processor)", () => {
       const frontmatter: RulesyncRuleFrontmatterInput = {
         description: "Test memory rule",
       };
 
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".warp/memories",
+        relativeDirPath: ".rulesync/rules",
         relativeFilePath: "memory.md",
         frontmatter,
         body: "# Memory Rule\n\nMemory content",
@@ -229,9 +229,12 @@ describe("WarpRule", () => {
 
       expect(warpRule).toBeInstanceOf(WarpRule);
       expect(warpRule.getOutputRoot()).toBe(testDir);
-      expect(warpRule.getRelativeDirPath()).toBe(".warp/memories");
-      expect(warpRule.getRelativeFilePath()).toBe("memory.md");
+      // Non-root rules resolve to the single root AGENTS.md; the RulesProcessor
+      // folds their bodies into the root rule before writing.
+      expect(warpRule.getRelativeDirPath()).toBe(".");
+      expect(warpRule.getRelativeFilePath()).toBe("AGENTS.md");
       expect(warpRule.isRoot()).toBe(false);
+      expect(warpRule.getFileContent()).toBe("# Memory Rule\n\nMemory content");
     });
 
     it("should use default outputRoot (process.cwd()) when not provided", () => {
@@ -365,24 +368,23 @@ describe("WarpRule", () => {
       expect(warpRule.getRelativeDirPath()).toBe(".");
     });
 
-    it("should correctly handle non-root files in fromFile", async () => {
-      const content = "# Memory File";
-      const memoriesDir = join(testDir, ".warp/memories");
-      await ensureDir(memoriesDir);
-      await writeFileContent(join(memoriesDir, "memory.md"), content);
+    it("should read the root AGENTS.md for any requested file in fromFile", async () => {
+      const content = "# Root File";
+      await writeFileContent(join(testDir, "AGENTS.md"), content);
 
       const warpRule = await WarpRule.fromFile({
         outputRoot: testDir,
         relativeFilePath: "memory.md",
       });
 
-      expect(warpRule.isRoot()).toBe(false);
-      expect(warpRule.getRelativeDirPath()).toBe(".warp");
+      expect(warpRule.isRoot()).toBe(true);
+      expect(warpRule.getRelativeDirPath()).toBe(".");
+      expect(warpRule.getRelativeFilePath()).toBe("AGENTS.md");
     });
   });
 
   describe("getSettablePaths", () => {
-    it("should return correct paths for root and nonRoot", () => {
+    it("should return only the root path (no non-root location)", () => {
       const paths = WarpRule.getSettablePaths();
 
       expect(paths.root).toEqual({
@@ -390,19 +392,16 @@ describe("WarpRule", () => {
         relativeFilePath: "AGENTS.md",
       });
 
-      expect(paths.nonRoot).toEqual({
-        relativeDirPath: ".warp/memories",
-      });
+      // Warp does not read `.warp/memories/`, so there is no non-root location.
+      expect(paths.nonRoot).toBeUndefined();
     });
 
     it("should have consistent paths structure", () => {
       const paths = WarpRule.getSettablePaths();
 
       expect(paths).toHaveProperty("root");
-      expect(paths).toHaveProperty("nonRoot");
       expect(paths.root).toHaveProperty("relativeDirPath");
       expect(paths.root).toHaveProperty("relativeFilePath");
-      expect(paths.nonRoot).toHaveProperty("relativeDirPath");
     });
   });
 
