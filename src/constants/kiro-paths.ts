@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 export const KIRO_DIR = ".kiro";
-export const KIRO_STEERING_DIR_PATH = join(KIRO_DIR, "steering");
 export const KIRO_PROMPTS_DIR_PATH = join(KIRO_DIR, "prompts");
 export const KIRO_SKILLS_DIR_PATH = join(KIRO_DIR, "skills");
 export const KIRO_SETTINGS_DIR_PATH = join(KIRO_DIR, "settings");

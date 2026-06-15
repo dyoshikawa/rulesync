@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 export const TAKT_DIR = ".takt";
 export const TAKT_FACETS_SUBDIR = "facets";
-export const TAKT_FACETS_DIR_PATH = join(TAKT_DIR, TAKT_FACETS_SUBDIR);
+const TAKT_FACETS_DIR_PATH = join(TAKT_DIR, TAKT_FACETS_SUBDIR);
 export const TAKT_RULES_DIR_PATH = join(TAKT_FACETS_DIR_PATH, "policies");
 export const TAKT_COMMANDS_DIR_PATH = join(TAKT_FACETS_DIR_PATH, "instructions");
 export const TAKT_SKILLS_DIR_PATH = join(TAKT_FACETS_DIR_PATH, "knowledge");

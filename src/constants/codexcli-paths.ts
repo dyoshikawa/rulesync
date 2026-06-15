@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 export const CODEXCLI_DIR = ".codex";
-export const CODEXCLI_MEMORIES_DIR_PATH = join(CODEXCLI_DIR, "memories");
 export const CODEXCLI_PROMPTS_DIR_PATH = join(CODEXCLI_DIR, "prompts");
 export const CODEXCLI_RULES_DIR_PATH = join(CODEXCLI_DIR, "rules");
 export const CODEXCLI_AGENTS_DIR_PATH = join(CODEXCLI_DIR, "agents");
