@@ -69,6 +69,7 @@ import {
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
 } from "./tool-rule.js";
+import { VibeRule } from "./vibe-rule.js";
 import { WarpRule } from "./warp-rule.js";
 import { ZedRule } from "./zed-rule.js";
 
@@ -101,6 +102,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "roo",
   "rovodev",
   "takt",
+  "vibe",
   "warp",
   "devin",
   "zed",
@@ -583,6 +585,20 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // No `additionalConventions` here: TAKT does not synthesize a root
         // overview rule (TaktRule.fromRulesyncRule always emits non-root files),
         // so the conventions block would never be rendered anywhere.
+      },
+    },
+  ],
+  [
+    "vibe",
+    {
+      class: VibeRule,
+      meta: {
+        // Vibe loads project AGENTS.md from the trusted working tree and
+        // user-level AGENTS.md from ~/.vibe/AGENTS.md. It does not have a
+        // native non-root rule directory.
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
       },
     },
   ],

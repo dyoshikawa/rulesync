@@ -29,6 +29,7 @@ import type {
   ToolPermissionsSettablePaths,
 } from "./tool-permissions.js";
 import { ToolPermissions } from "./tool-permissions.js";
+import { VibePermissions } from "./vibe-permissions.js";
 import { WarpPermissions } from "./warp-permissions.js";
 import { ZedPermissions } from "./zed-permissions.js";
 
@@ -47,6 +48,7 @@ const permissionsProcessorToolTargetTuple = [
   "kiro",
   "opencode",
   "qwencode",
+  "vibe",
   "warp",
   "zed",
 ] as const;
@@ -236,6 +238,17 @@ export const toolPermissionsFactories = new Map<
     "qwencode",
     {
       class: QwencodePermissions,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "vibe",
+    {
+      class: VibePermissions,
       meta: {
         supportsProject: true,
         supportsGlobal: true,

@@ -70,6 +70,7 @@ describe("tool targets", () => {
         "roo",
         "rovodev",
         "takt",
+        "vibe",
         "warp",
         "devin",
         "zed",

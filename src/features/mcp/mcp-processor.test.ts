@@ -1110,6 +1110,7 @@ describe("McpProcessor", () => {
       expect(targets).toContain("roo");
       expect(targets).toContain("codexcli"); // codexcli supports both project and global
       expect(targets).toContain("kilo"); // kilo supports both project and global
+      expect(targets).toContain("vibe");
     });
 
     it("should include kilo in global tool targets", () => {
@@ -1120,6 +1121,7 @@ describe("McpProcessor", () => {
       expect(globalTargets).toContain("kilo");
       expect(globalTargets).toContain("opencode"); // sanity: parity with opencode
       expect(globalTargets).toContain("cline"); // cline MCP is global-only
+      expect(globalTargets).toContain("vibe");
     });
   });
 
@@ -1133,6 +1135,7 @@ describe("McpProcessor", () => {
       expect(() => McpProcessorToolTargetSchema.parse("cline")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("codexcli")).not.toThrow();
       expect(() => McpProcessorToolTargetSchema.parse("roo")).not.toThrow();
+      expect(() => McpProcessorToolTargetSchema.parse("vibe")).not.toThrow();
     });
 
     it("should reject invalid tool targets", () => {

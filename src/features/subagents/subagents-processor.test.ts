@@ -971,6 +971,7 @@ Second global content`;
         "opencode",
         "rovodev",
         "takt",
+        "vibe",
       ]);
     });
 
@@ -1019,6 +1020,7 @@ Second global content`;
           "roo",
           "rovodev",
           "takt",
+          "vibe",
         ]),
       );
       expect(Array.isArray(subagentsProcessorToolTargets)).toBe(true);

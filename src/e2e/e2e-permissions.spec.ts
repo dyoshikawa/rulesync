@@ -429,6 +429,46 @@ describe("E2E: permissions", () => {
     expect(content.permissions.deny).toContain("Read(.env)");
   });
 
+  it("should generate vibe permissions into .vibe/config.toml and preserve MCP config", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[[mcp_servers]]", 'name = "existing"', 'transport = "stdio"', 'command = "node"'].join(
+        "\n",
+      ),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "*": "ask", "git *": "allow", "rm *": "deny" },
+            read: { "*": "allow" },
+            edit: { "*": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "vibe", features: "permissions" });
+
+    const parsed = toTable(
+      smolToml.parse(await readFileContent(join(testDir, ".vibe", "config.toml"))),
+    );
+    const tools = toTable(parsed.tools);
+    const bash = toTable(tools.bash);
+    const readFile = toTable(tools.read_file);
+    expect(toTableArray(parsed.mcp_servers)).toMatchObject([{ name: "existing", command: "node" }]);
+    expect(bash.permission).toBe("ask");
+    expect(bash.allow).toEqual(["git *"]);
+    expect(bash.deny).toEqual(["rm *"]);
+    expect(readFile.permission).toBe("always");
+    expect(parsed.disabled_tools).toContain("write_file");
+  });
+
   it("should remove denied Kiro web tools from existing allowedTools", async () => {
     const testDir = getTestDir();
 
@@ -787,6 +827,34 @@ enabled = true
     expect(content.permission.read["src/**"]).toBe("allow");
     expect(content.permission.read[".env"]).toBe("deny");
     expect(content.permission.webfetch["*"]).toBe("allow");
+  });
+
+  it("should import vibe permissions into .rulesync/permissions.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        'enabled_tools = ["read_file"]',
+        'disabled_tools = ["write_file"]',
+        "",
+        "[tools.bash]",
+        'permission = "ask"',
+        'allow = ["git *"]',
+        'deny = ["rm *"]',
+      ].join("\n"),
+    );
+
+    await runImport({ target: "vibe", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.read["*"]).toBe("allow");
+    expect(content.permission.edit["*"]).toBe("deny");
+    expect(content.permission.bash["*"]).toBe("ask");
+    expect(content.permission.bash["git *"]).toBe("allow");
+    expect(content.permission.bash["rm *"]).toBe("deny");
   });
 });
 
@@ -1247,6 +1315,42 @@ describe("E2E: permissions (global mode)", () => {
     // Unrelated user settings preserved by the non-destructive merge.
     expect(generated["amp.mcpServers"].my_server.command).toBe("x");
   });
+
+  it("should generate vibe permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          root: true,
+          permission: {
+            bash: { "*": "ask", "git status": "allow" },
+            edit: { "*": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "vibe",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const parsed = toTable(
+      smolToml.parse(await readFileContent(join(homeDir, ".vibe", "config.toml"))),
+    );
+    const tools = toTable(parsed.tools);
+    const bash = toTable(tools.bash);
+    expect(bash.permission).toBe("ask");
+    expect(bash.allow).toEqual(["git status"]);
+    expect(parsed.disabled_tools).toContain("write_file");
+  });
 });
 
 type AugmentEntry = {
@@ -1288,4 +1392,11 @@ function toTable(value: unknown): Record<string, unknown> {
     return { ...value };
   }
   return {};
+}
+
+function toTableArray(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map(toTable);
 }

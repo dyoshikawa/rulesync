@@ -32,6 +32,7 @@ describe("E2E: ignore", () => {
       outputPath: join(".zed", "settings.json"),
       format: "json" as const,
     },
+    { target: "vibe", outputPath: ".vibeignore", format: "plaintext" as const },
   ])("should generate $target ignore", async ({ target, outputPath, format }) => {
     const testDir = getTestDir();
 
@@ -81,6 +82,7 @@ credentials/
     { target: "junie", orphanPath: ".aiignore" },
     { target: "augmentcode", orphanPath: ".augmentignore" },
     { target: "devin", orphanPath: ".devinignore" },
+    { target: "vibe", orphanPath: ".vibeignore" },
     // zed ignore uses .zed/settings.json which is not deletable by rulesync
   ])(
     "should fail in check mode when delete would remove an orphan $target ignore file",
@@ -146,6 +148,7 @@ describe("E2E: ignore (import)", () => {
     { target: "junie", sourcePath: ".aiignore" },
     { target: "augmentcode", sourcePath: ".augmentignore" },
     { target: "devin", sourcePath: ".devinignore" },
+    { target: "vibe", sourcePath: ".vibeignore" },
   ])("should import $target ignore", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 

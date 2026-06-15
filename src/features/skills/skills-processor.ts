@@ -45,6 +45,7 @@ import {
   ToolSkillSettablePaths,
   toolSkillSearchRoots,
 } from "./tool-skill.js";
+import { VibeSkill } from "./vibe-skill.js";
 import { WarpSkill } from "./warp-skill.js";
 import { ZedSkill } from "./zed-skill.js";
 
@@ -100,6 +101,7 @@ const skillsProcessorToolTargetTuple = [
   "roo",
   "rovodev",
   "takt",
+  "vibe",
   "warp",
   "devin",
   "zed",
@@ -303,6 +305,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "takt",
     {
       class: TaktSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "vibe",
+    {
+      // Vibe follows the Agent Skills format and discovers project skills from
+      // `.vibe/skills/` and `.agents/skills/`, with user-level skills in
+      // `~/.vibe/skills/`.
+      class: VibeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

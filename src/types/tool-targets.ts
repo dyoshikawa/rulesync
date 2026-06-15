@@ -33,6 +33,7 @@ export const ALL_TOOL_TARGETS = [
   "roo",
   "rovodev",
   "takt",
+  "vibe",
   "warp",
   "devin",
   "zed",

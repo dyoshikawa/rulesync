@@ -115,6 +115,10 @@ describe("E2E: skills", () => {
       target: "factorydroid",
       outputPath: join(".factory", "skills", "test-skill", "SKILL.md"),
     },
+    {
+      target: "vibe",
+      outputPath: join(".vibe", "skills", "test-skill", "SKILL.md"),
+    },
   ])("should generate $target skills", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -194,6 +198,7 @@ This is the test skill body content.
     { target: "pi", orphanPath: join(".pi", "skills", "orphan-skill", "SKILL.md") },
     { target: "zed", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
     { target: "factorydroid", orphanPath: join(".factory", "skills", "orphan-skill", "SKILL.md") },
+    { target: "vibe", orphanPath: join(".vibe", "skills", "orphan-skill", "SKILL.md") },
   ])(
     "should fail in check mode when delete would remove an orphan $target skill file",
     async ({ target, orphanPath }) => {
@@ -248,6 +253,7 @@ describe("E2E: skills (import)", () => {
     { target: "pi", sourcePath: join(".pi", "skills", "test-skill", "SKILL.md") },
     { target: "zed", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "factorydroid", sourcePath: join(".factory", "skills", "test-skill", "SKILL.md") },
+    { target: "vibe", sourcePath: join(".vibe", "skills", "test-skill", "SKILL.md") },
   ])("should import $target skills", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
@@ -264,6 +270,27 @@ This is the test skill body content.`;
       join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill", "SKILL.md"),
     );
     expect(importedContent).toContain("test skill body content");
+  });
+
+  it("should import vibe skills from the .agents/skills fallback root", async () => {
+    const testDir = getTestDir();
+
+    const skillContent = `---
+name: fallback-skill
+description: "A fallback Vibe skill"
+---
+This is the fallback skill body content.`;
+    await writeFileContent(
+      join(testDir, ".agents", "skills", "fallback-skill", "SKILL.md"),
+      skillContent,
+    );
+
+    await runImport({ target: "vibe", features: "skills" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "fallback-skill", "SKILL.md"),
+    );
+    expect(importedContent).toContain("fallback skill body content");
   });
 });
 
@@ -366,6 +393,10 @@ describe("E2E: skills (global mode)", () => {
     {
       target: "factorydroid",
       outputPath: join(".factory", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "vibe",
+      outputPath: join(".vibe", "skills", "test-skill", "SKILL.md"),
     },
   ])("should generate $target skills in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
