@@ -2,14 +2,14 @@
 targets:
   - "*"
 description: >-
-  Batch-triage open pull requests: list PRs with prs-awaiting-author, review
+  Batch-triage open pull requests: list PRs with prs-awaiting-maintainer, review
   each with review-pr, then post-review-comments when there are merge-blocker
   findings, or create-scrap-issue for non-blocking findings and merge-pr when
   there are none. Use when the user wants to review and resolve a batch of PRs
   in one pass.
 ---
 
-# Batch Review Author PRs
+# Batch Review PRs Awaiting Maintainer
 
 This command triages a batch of open pull requests end to end. It lists the
 candidate PRs, reviews each one, and then takes one of two actions per PR
@@ -23,8 +23,9 @@ improvements) are **not** merge blockers.
 
 ## Step 1: List Target PRs
 
-Run the `/prs-awaiting-author` command to list the open pull requests where the
-ball is in the author's court. Collect their PR numbers as the work list for the
+Run the `/prs-awaiting-maintainer` command to list the open pull requests where
+the ball is in the maintainer's court — CI is green and the PR is ready to
+review, re-review, or merge. Collect their PR numbers as the work list for the
 following steps.
 
 If the list is empty, report that there is nothing to triage and stop.
