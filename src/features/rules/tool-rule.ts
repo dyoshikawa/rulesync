@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { AGENTSMD_MEMORIES_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import {
   RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -151,7 +152,7 @@ export abstract class ToolRule extends ToolFile {
     rulesyncRule,
     validate = true,
     rootPath = { relativeDirPath: ".", relativeFilePath: "AGENTS.md" },
-    nonRootPath = { relativeDirPath: join(".agents", "memories") },
+    nonRootPath = { relativeDirPath: AGENTSMD_MEMORIES_DIR_PATH },
   }: BuildToolRuleParamsParams): BuildToolRuleParamsResult {
     const params = this.buildToolRuleParamsDefault({
       outputRoot,

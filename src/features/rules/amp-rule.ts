@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { AMP_AGENTS_DIR, AMP_GLOBAL_DIR, AMP_RULE_FILE_NAME } from "../../constants/amp-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -46,18 +47,18 @@ export class AmpRule extends ToolRule {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(join(".config", "amp"), ".", excludeToolDir),
-          relativeFilePath: "AGENTS.md",
+          relativeDirPath: buildToolPath(AMP_GLOBAL_DIR, ".", excludeToolDir),
+          relativeFilePath: AMP_RULE_FILE_NAME,
         },
       };
     }
     return {
       root: {
         relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
+        relativeFilePath: AMP_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(".agents", "memories", excludeToolDir),
+        relativeDirPath: buildToolPath(AMP_AGENTS_DIR, "memories", excludeToolDir),
       },
     };
   }

@@ -1,5 +1,10 @@
 import { join } from "node:path";
 
+import {
+  AGENTSMD_DIR,
+  AGENTSMD_MEMORIES_DIR_PATH,
+  AGENTSMD_RULE_FILE_NAME,
+} from "../../constants/agentsmd-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -44,10 +49,10 @@ export class AgentsMdRule extends ToolRule {
     return {
       root: {
         relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
+        relativeFilePath: AGENTSMD_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(".agents", "memories", _options.excludeToolDir),
+        relativeDirPath: buildToolPath(AGENTSMD_DIR, "memories", _options.excludeToolDir),
       },
     };
   }
@@ -58,8 +63,10 @@ export class AgentsMdRule extends ToolRule {
     validate = true,
   }: ToolRuleFromFileParams): Promise<AgentsMdRule> {
     // Determine if it's a root file based on path
-    const isRoot = relativeFilePath === "AGENTS.md";
-    const relativePath = isRoot ? "AGENTS.md" : join(".agents", "memories", relativeFilePath);
+    const isRoot = relativeFilePath === AGENTSMD_RULE_FILE_NAME;
+    const relativePath = isRoot
+      ? AGENTSMD_RULE_FILE_NAME
+      : join(AGENTSMD_MEMORIES_DIR_PATH, relativeFilePath);
     const fileContent = await readFileContent(join(outputRoot, relativePath));
 
     return new AgentsMdRule({
@@ -67,7 +74,7 @@ export class AgentsMdRule extends ToolRule {
       relativeDirPath: isRoot
         ? this.getSettablePaths().root.relativeDirPath
         : this.getSettablePaths().nonRoot.relativeDirPath,
-      relativeFilePath: isRoot ? "AGENTS.md" : relativeFilePath,
+      relativeFilePath: isRoot ? AGENTSMD_RULE_FILE_NAME : relativeFilePath,
       fileContent,
       validate,
       root: isRoot,
@@ -79,7 +86,7 @@ export class AgentsMdRule extends ToolRule {
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): AgentsMdRule {
-    const isRoot = relativeFilePath === "AGENTS.md" && relativeDirPath === ".";
+    const isRoot = relativeFilePath === AGENTSMD_RULE_FILE_NAME && relativeDirPath === ".";
 
     return new AgentsMdRule({
       outputRoot,

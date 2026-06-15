@@ -2,6 +2,12 @@ import { join } from "node:path";
 
 import { parse as parseJsonc, type ParseError, printParseErrorCode } from "jsonc-parser";
 
+import {
+  AMP_DIR,
+  AMP_GLOBAL_DIR,
+  AMP_SETTINGS_FILE_NAME,
+  AMP_SETTINGS_JSONC_FILE_NAME,
+} from "../../constants/amp-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
@@ -72,13 +78,13 @@ export class AmpMcp extends ToolMcp {
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
     if (global) {
       return {
-        relativeDirPath: join(".config", "amp"),
-        relativeFilePath: "settings.jsonc",
+        relativeDirPath: AMP_GLOBAL_DIR,
+        relativeFilePath: AMP_SETTINGS_JSONC_FILE_NAME,
       };
     }
     return {
-      relativeDirPath: ".amp",
-      relativeFilePath: "settings.jsonc",
+      relativeDirPath: AMP_DIR,
+      relativeFilePath: AMP_SETTINGS_JSONC_FILE_NAME,
     };
   }
 
@@ -91,15 +97,15 @@ export class AmpMcp extends ToolMcp {
   private static async resolveSettingsFile(
     jsonDir: string,
   ): Promise<{ fileContent: string | null; relativeFilePath: string }> {
-    const jsoncContent = await readFileContentOrNull(join(jsonDir, "settings.jsonc"));
+    const jsoncContent = await readFileContentOrNull(join(jsonDir, AMP_SETTINGS_JSONC_FILE_NAME));
     if (jsoncContent !== null) {
-      return { fileContent: jsoncContent, relativeFilePath: "settings.jsonc" };
+      return { fileContent: jsoncContent, relativeFilePath: AMP_SETTINGS_JSONC_FILE_NAME };
     }
-    const jsonContent = await readFileContentOrNull(join(jsonDir, "settings.json"));
+    const jsonContent = await readFileContentOrNull(join(jsonDir, AMP_SETTINGS_FILE_NAME));
     if (jsonContent !== null) {
-      return { fileContent: jsonContent, relativeFilePath: "settings.json" };
+      return { fileContent: jsonContent, relativeFilePath: AMP_SETTINGS_FILE_NAME };
     }
-    return { fileContent: null, relativeFilePath: "settings.jsonc" };
+    return { fileContent: null, relativeFilePath: AMP_SETTINGS_JSONC_FILE_NAME };
   }
 
   static async fromFile({

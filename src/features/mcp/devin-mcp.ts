@@ -1,5 +1,10 @@
 import { join } from "node:path";
 
+import {
+  CODEIUM_WINDSURF_DIR,
+  DEVIN_MCP_FILE_NAME,
+  WINDSURF_DIR,
+} from "../../constants/devin-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
@@ -65,13 +70,13 @@ export class DevinMcp extends ToolMcp {
     // - Global mode: .codeium/windsurf/mcp_config.json (under the home dir)
     if (global) {
       return {
-        relativeDirPath: join(".codeium", "windsurf"),
-        relativeFilePath: "mcp_config.json",
+        relativeDirPath: CODEIUM_WINDSURF_DIR,
+        relativeFilePath: DEVIN_MCP_FILE_NAME,
       };
     }
     return {
-      relativeDirPath: ".windsurf",
-      relativeFilePath: "mcp_config.json",
+      relativeDirPath: WINDSURF_DIR,
+      relativeFilePath: DEVIN_MCP_FILE_NAME,
     };
   }
 

@@ -2,6 +2,11 @@ import { join } from "node:path";
 
 import { uniq } from "es-toolkit";
 
+import {
+  CURSOR_DIR,
+  CURSOR_PERMISSIONS_FILE_NAME,
+  CURSOR_PERMISSIONS_GLOBAL_FILE_NAME,
+} from "../../constants/cursor-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
@@ -239,8 +244,8 @@ export class CursorPermissions extends ToolPermissions {
     //   - Project-level: `<project>/.cursor/cli.json`
     //   - Global: `~/.cursor/cli-config.json`
     return {
-      relativeDirPath: ".cursor",
-      relativeFilePath: global ? "cli-config.json" : "cli.json",
+      relativeDirPath: CURSOR_DIR,
+      relativeFilePath: global ? CURSOR_PERMISSIONS_GLOBAL_FILE_NAME : CURSOR_PERMISSIONS_FILE_NAME,
     };
   }
 

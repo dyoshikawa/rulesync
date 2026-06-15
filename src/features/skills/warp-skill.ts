@@ -4,6 +4,7 @@ import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { WARP_SKILLS_DIR_PATH } from "../../constants/warp-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
@@ -14,16 +15,6 @@ import {
   ToolSkillFromRulesyncSkillParams,
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
-
-/**
- * Fixed skills directory for Warp Agent Skills.
- *
- * Warp reads Agent Skills from `.warp/skills/` (project) and `~/.warp/skills/`
- * (global/user). Both scopes share the same `.warp/skills` relative path; only
- * the output base differs (project directory vs. home directory), so the
- * relative path is identical for both project and global generation.
- */
-const WARP_SKILLS_DIR_PATH = join(".warp", "skills");
 
 /**
  * Warp Agent Skills require at least `name` and `description` in the SKILL.md

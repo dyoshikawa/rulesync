@@ -2,6 +2,10 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import {
+  ANTIGRAVITY_GLOBAL_SKILLS_LEGACY_PATH,
+  ANTIGRAVITY_LEGACY_SKILLS_DIR_PATH,
+} from "../../constants/antigravity-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
@@ -41,7 +45,7 @@ export type AntigravitySkillParams = {
 export class AntigravitySkill extends ToolSkill {
   constructor({
     outputRoot = process.cwd(),
-    relativeDirPath = join(".agent", "skills"),
+    relativeDirPath = ANTIGRAVITY_LEGACY_SKILLS_DIR_PATH,
     dirName,
     frontmatter,
     body,
@@ -80,11 +84,11 @@ export class AntigravitySkill extends ToolSkill {
     // - Global mode: {getHomeDirectory()}/.gemini/antigravity/skills/
     if (global) {
       return {
-        relativeDirPath: join(".gemini", "antigravity", "skills"),
+        relativeDirPath: ANTIGRAVITY_GLOBAL_SKILLS_LEGACY_PATH,
       };
     }
     return {
-      relativeDirPath: join(".agent", "skills"),
+      relativeDirPath: ANTIGRAVITY_LEGACY_SKILLS_DIR_PATH,
     };
   }
 

@@ -1,5 +1,10 @@
 import { join } from "node:path";
 
+import {
+  ANTIGRAVITY_DIR,
+  ANTIGRAVITY_GEMINI_DIR,
+  ANTIGRAVITY_MCP_FILE_NAME,
+} from "../../constants/antigravity-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -80,13 +85,13 @@ export class AntigravityMcp extends ToolMcp {
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
     if (global) {
       return {
-        relativeDirPath: join(".gemini", this.getGlobalSubdir()),
-        relativeFilePath: "mcp_config.json",
+        relativeDirPath: join(ANTIGRAVITY_GEMINI_DIR, this.getGlobalSubdir()),
+        relativeFilePath: ANTIGRAVITY_MCP_FILE_NAME,
       };
     }
     return {
-      relativeDirPath: ".agents",
-      relativeFilePath: "mcp_config.json",
+      relativeDirPath: ANTIGRAVITY_DIR,
+      relativeFilePath: ANTIGRAVITY_MCP_FILE_NAME,
     };
   }
 

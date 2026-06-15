@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { CLAUDECODE_SKILLS_DIR_PATH } from "../../constants/claudecode-paths.js";
 import { getHomeDirectory } from "../../utils/file.js";
 
 /**
@@ -52,7 +53,7 @@ export function relativeInstallDirFor(params: { agent: GhAgent; scope: GhScope }
   const { agent, scope } = params;
   if (scope === "project") {
     if (agent === "claude-code") {
-      return join(".claude", "skills");
+      return CLAUDECODE_SKILLS_DIR_PATH;
     }
     // github-copilot and the rest share the shared project layout.
     return join(".agents", "skills");
@@ -62,7 +63,7 @@ export function relativeInstallDirFor(params: { agent: GhAgent; scope: GhScope }
     case "github-copilot":
       return join(".copilot", "skills");
     case "claude-code":
-      return join(".claude", "skills");
+      return CLAUDECODE_SKILLS_DIR_PATH;
     case "cursor":
       return join(".cursor", "skills");
     case "codex":

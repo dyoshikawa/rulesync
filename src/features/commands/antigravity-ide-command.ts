@@ -1,5 +1,7 @@
-import { join } from "node:path";
-
+import {
+  ANTIGRAVITY_IDE_COMMANDS_DIR_PATH,
+  ANTIGRAVITY_IDE_GLOBAL_WORKFLOWS_DIR_PATH,
+} from "../../constants/antigravity-ide-paths.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { AntigravitySharedCommand } from "./antigravity-shared-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
@@ -13,11 +15,11 @@ import { RulesyncCommand } from "./rulesync-command.js";
  */
 export class AntigravityIdeCommand extends AntigravitySharedCommand {
   protected static override getProjectRelativeDirPath(): string {
-    return join(".agents", "workflows");
+    return ANTIGRAVITY_IDE_COMMANDS_DIR_PATH;
   }
 
   protected static override getGlobalRelativeDirPath(): string {
-    return join(".gemini", "antigravity", "global_workflows");
+    return ANTIGRAVITY_IDE_GLOBAL_WORKFLOWS_DIR_PATH;
   }
 
   protected override getToolTargetName(): ToolTarget {

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { ROO_IGNORE_FILE_NAME } from "../../constants/roo-paths.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
@@ -27,7 +28,7 @@ export class RooIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
-      relativeFilePath: ".rooignore",
+      relativeFilePath: ROO_IGNORE_FILE_NAME,
     };
   }
   toRulesyncIgnore(): RulesyncIgnore {

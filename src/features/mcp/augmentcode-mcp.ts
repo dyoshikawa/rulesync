@@ -1,5 +1,9 @@
 import { join } from "node:path";
 
+import {
+  AUGMENTCODE_DIR,
+  AUGMENTCODE_SETTINGS_FILE_NAME,
+} from "../../constants/augmentcode-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
@@ -81,8 +85,8 @@ export class AugmentcodeMcp extends ToolMcp {
 
   static getSettablePaths(_options?: { global?: boolean }): ToolMcpSettablePaths {
     return {
-      relativeDirPath: ".augment",
-      relativeFilePath: "settings.json",
+      relativeDirPath: AUGMENTCODE_DIR,
+      relativeFilePath: AUGMENTCODE_SETTINGS_FILE_NAME,
     };
   }
 

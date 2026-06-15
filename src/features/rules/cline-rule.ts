@@ -2,6 +2,8 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { AGENTSMD_DIR, AGENTSMD_RULE_FILE_NAME } from "../../constants/agentsmd-paths.js";
+import { CLINERULES_DIR } from "../../constants/cline-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -47,15 +49,15 @@ export class ClineRule extends ToolRule {
       // location (the agents.md standard), not a `.cline`-prefixed tool dir.
       return {
         root: {
-          relativeDirPath: buildToolPath(".agents", ".", excludeToolDir),
-          relativeFilePath: "AGENTS.md",
+          relativeDirPath: buildToolPath(AGENTSMD_DIR, ".", excludeToolDir),
+          relativeFilePath: AGENTSMD_RULE_FILE_NAME,
         },
       };
     }
     return {
       nonRoot: {
         // .clinerules is a flat directory, so excludeToolDir has no effect
-        relativeDirPath: ".clinerules",
+        relativeDirPath: CLINERULES_DIR,
       },
     };
   }

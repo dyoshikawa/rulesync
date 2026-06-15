@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { ANTIGRAVITY_IGNORE_FILE_NAME } from "../../constants/antigravity-cli-paths.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import type {
@@ -20,7 +21,7 @@ export class AntigravityCliIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
-      relativeFilePath: ".geminiignore",
+      relativeFilePath: ANTIGRAVITY_IGNORE_FILE_NAME,
     };
   }
 

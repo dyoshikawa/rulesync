@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { CODEXCLI_DIR, CODEXCLI_RULE_FILE_NAME } from "../../constants/codexcli-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -40,18 +41,18 @@ export class CodexcliRule extends ToolRule {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(".codex", ".", excludeToolDir),
-          relativeFilePath: "AGENTS.md",
+          relativeDirPath: buildToolPath(CODEXCLI_DIR, ".", excludeToolDir),
+          relativeFilePath: CODEXCLI_RULE_FILE_NAME,
         },
       };
     }
     return {
       root: {
         relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
+        relativeFilePath: CODEXCLI_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(".codex", "memories", excludeToolDir),
+        relativeDirPath: buildToolPath(CODEXCLI_DIR, "memories", excludeToolDir),
       },
     };
   }

@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { GEMINICLI_SKILLS_DIR_PATH } from "../../constants/geminicli-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
@@ -82,7 +83,7 @@ export class GeminiCliSkill extends ToolSkill {
     // - Project mode: {process.cwd()}/.gemini/skills/
     // - Global mode: {getHomeDirectory()}/.gemini/skills/
     return {
-      relativeDirPath: join(".gemini", "skills"),
+      relativeDirPath: GEMINICLI_SKILLS_DIR_PATH,
     };
   }
 

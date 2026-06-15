@@ -3,6 +3,7 @@ import { join } from "node:path";
 import * as smolToml from "smol-toml";
 import { z } from "zod/mini";
 
+import { CODEXCLI_AGENTS_DIR_PATH } from "../../constants/codexcli-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
@@ -74,7 +75,7 @@ export class CodexCliSubagent extends ToolSubagent {
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolSubagentSettablePaths {
     return {
-      relativeDirPath: join(".codex", "agents"),
+      relativeDirPath: CODEXCLI_AGENTS_DIR_PATH,
     };
   }
 

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { KIRO_MCP_FILE_NAME, KIRO_SETTINGS_DIR_PATH } from "../../constants/kiro-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -26,8 +27,8 @@ export class KiroMcp extends ToolMcp {
 
   static getSettablePaths(): ToolMcpSettablePaths {
     return {
-      relativeDirPath: join(".kiro", "settings"),
-      relativeFilePath: "mcp.json",
+      relativeDirPath: KIRO_SETTINGS_DIR_PATH,
+      relativeFilePath: KIRO_MCP_FILE_NAME,
     };
   }
 

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { TAKT_COMMANDS_DIR_PATH } from "../../constants/takt-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
@@ -12,8 +13,6 @@ import {
   ToolCommandFromRulesyncCommandParams,
   ToolCommandSettablePaths,
 } from "./tool-command.js";
-
-const DEFAULT_TAKT_COMMAND_DIR = "instructions";
 
 export type TaktCommandParams = {
   body: string;
@@ -40,7 +39,7 @@ export class TaktCommand extends ToolCommand {
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
     return {
-      relativeDirPath: join(".takt", "facets", DEFAULT_TAKT_COMMAND_DIR),
+      relativeDirPath: TAKT_COMMANDS_DIR_PATH,
     };
   }
 

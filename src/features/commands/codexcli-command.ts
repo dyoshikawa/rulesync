@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { CODEXCLI_PROMPTS_DIR_PATH } from "../../constants/codexcli-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
@@ -20,7 +21,7 @@ export class CodexcliCommand extends ToolCommand {
       throw new Error("CodexcliCommand only supports global mode. Please pass { global: true }.");
     }
     return {
-      relativeDirPath: join(".codex", "prompts"),
+      relativeDirPath: CODEXCLI_PROMPTS_DIR_PATH,
     };
   }
 

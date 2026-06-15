@@ -1,5 +1,9 @@
 import { join } from "node:path";
 
+import {
+  FACTORYDROID_DIR,
+  FACTORYDROID_RULE_FILE_NAME,
+} from "../../constants/factorydroid-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -45,18 +49,18 @@ export class FactorydroidRule extends ToolRule {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(".factory", ".", excludeToolDir),
-          relativeFilePath: "AGENTS.md",
+          relativeDirPath: buildToolPath(FACTORYDROID_DIR, ".", excludeToolDir),
+          relativeFilePath: FACTORYDROID_RULE_FILE_NAME,
         },
       };
     }
     return {
       root: {
         relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
+        relativeFilePath: FACTORYDROID_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(".factory", "rules", excludeToolDir),
+        relativeDirPath: buildToolPath(FACTORYDROID_DIR, "rules", excludeToolDir),
       },
     };
   }

@@ -3,6 +3,12 @@ import { join } from "node:path";
 import { uniq } from "es-toolkit";
 import { parse as parseJsonc, type ParseError, printParseErrorCode } from "jsonc-parser";
 
+import {
+  AMP_DIR,
+  AMP_GLOBAL_DIR,
+  AMP_SETTINGS_FILE_NAME,
+  AMP_SETTINGS_JSONC_FILE_NAME,
+} from "../../constants/amp-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
@@ -84,8 +90,8 @@ export class AmpPermissions extends ToolPermissions {
     global = false,
   }: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return global
-      ? { relativeDirPath: join(".config", "amp"), relativeFilePath: "settings.json" }
-      : { relativeDirPath: ".amp", relativeFilePath: "settings.json" };
+      ? { relativeDirPath: AMP_GLOBAL_DIR, relativeFilePath: AMP_SETTINGS_FILE_NAME }
+      : { relativeDirPath: AMP_DIR, relativeFilePath: AMP_SETTINGS_FILE_NAME };
   }
 
   /**
@@ -97,15 +103,15 @@ export class AmpPermissions extends ToolPermissions {
   private static async resolveSettingsFile(
     jsonDir: string,
   ): Promise<{ fileContent: string | null; relativeFilePath: string }> {
-    const jsoncContent = await readFileContentOrNull(join(jsonDir, "settings.jsonc"));
+    const jsoncContent = await readFileContentOrNull(join(jsonDir, AMP_SETTINGS_JSONC_FILE_NAME));
     if (jsoncContent !== null) {
-      return { fileContent: jsoncContent, relativeFilePath: "settings.jsonc" };
+      return { fileContent: jsoncContent, relativeFilePath: AMP_SETTINGS_JSONC_FILE_NAME };
     }
-    const jsonContent = await readFileContentOrNull(join(jsonDir, "settings.json"));
+    const jsonContent = await readFileContentOrNull(join(jsonDir, AMP_SETTINGS_FILE_NAME));
     if (jsonContent !== null) {
-      return { fileContent: jsonContent, relativeFilePath: "settings.json" };
+      return { fileContent: jsonContent, relativeFilePath: AMP_SETTINGS_FILE_NAME };
     }
-    return { fileContent: null, relativeFilePath: "settings.json" };
+    return { fileContent: null, relativeFilePath: AMP_SETTINGS_FILE_NAME };
   }
 
   static async fromFile({

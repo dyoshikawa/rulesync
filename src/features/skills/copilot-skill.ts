@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { COPILOT_SKILLS_DIR_PATH } from "../../constants/copilot-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
@@ -44,7 +45,7 @@ export type CopilotSkillParams = {
 export class CopilotSkill extends ToolSkill {
   constructor({
     outputRoot = process.cwd(),
-    relativeDirPath = join(".github", "skills"),
+    relativeDirPath = COPILOT_SKILLS_DIR_PATH,
     dirName,
     frontmatter,
     body,
@@ -78,7 +79,7 @@ export class CopilotSkill extends ToolSkill {
       throw new Error("CopilotSkill does not support global mode.");
     }
     return {
-      relativeDirPath: join(".github", "skills"),
+      relativeDirPath: COPILOT_SKILLS_DIR_PATH,
     };
   }
 

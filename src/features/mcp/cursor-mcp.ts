@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { CURSOR_DIR, CURSOR_MCP_FILE_NAME } from "../../constants/cursor-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
@@ -53,8 +54,8 @@ export class CursorMcp extends ToolMcp {
 
   static getSettablePaths(_options?: { global?: boolean }): ToolMcpSettablePaths {
     return {
-      relativeDirPath: ".cursor",
-      relativeFilePath: "mcp.json",
+      relativeDirPath: CURSOR_DIR,
+      relativeFilePath: CURSOR_MCP_FILE_NAME,
     };
   }
 

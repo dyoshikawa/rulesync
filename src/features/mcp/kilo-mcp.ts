@@ -3,6 +3,11 @@ import { join } from "node:path";
 import { parse as parseJsonc } from "jsonc-parser";
 import { z } from "zod/mini";
 
+import {
+  KILO_GLOBAL_DIR,
+  KILO_JSON_FILE_NAME,
+  KILO_JSONC_FILE_NAME,
+} from "../../constants/kilo-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -249,13 +254,13 @@ export class KiloMcp extends ToolMcp {
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
     if (global) {
       return {
-        relativeDirPath: join(".config", "kilo"),
-        relativeFilePath: "kilo.json",
+        relativeDirPath: KILO_GLOBAL_DIR,
+        relativeFilePath: KILO_JSON_FILE_NAME,
       };
     }
     return {
       relativeDirPath: ".",
-      relativeFilePath: "kilo.json",
+      relativeFilePath: KILO_JSON_FILE_NAME,
     };
   }
 
@@ -268,17 +273,17 @@ export class KiloMcp extends ToolMcp {
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
     let fileContent: string | null = null;
-    let relativeFilePath = "kilo.jsonc";
+    let relativeFilePath = KILO_JSONC_FILE_NAME;
 
-    const jsoncPath = join(jsonDir, "kilo.jsonc");
-    const jsonPath = join(jsonDir, "kilo.json");
+    const jsoncPath = join(jsonDir, KILO_JSONC_FILE_NAME);
+    const jsonPath = join(jsonDir, KILO_JSON_FILE_NAME);
 
     // Always try JSONC first (preferred format), then fall back to JSON
     fileContent = await readFileContentOrNull(jsoncPath);
     if (!fileContent) {
       fileContent = await readFileContentOrNull(jsonPath);
       if (fileContent) {
-        relativeFilePath = "kilo.json";
+        relativeFilePath = KILO_JSON_FILE_NAME;
       }
     }
 
@@ -305,17 +310,17 @@ export class KiloMcp extends ToolMcp {
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
     let fileContent: string | null = null;
-    let relativeFilePath = "kilo.jsonc";
+    let relativeFilePath = KILO_JSONC_FILE_NAME;
 
-    const jsoncPath = join(jsonDir, "kilo.jsonc");
-    const jsonPath = join(jsonDir, "kilo.json");
+    const jsoncPath = join(jsonDir, KILO_JSONC_FILE_NAME);
+    const jsonPath = join(jsonDir, KILO_JSON_FILE_NAME);
 
     // Try JSONC first (preferred format), then fall back to JSON
     fileContent = await readFileContentOrNull(jsoncPath);
     if (!fileContent) {
       fileContent = await readFileContentOrNull(jsonPath);
       if (fileContent) {
-        relativeFilePath = "kilo.json";
+        relativeFilePath = KILO_JSON_FILE_NAME;
       }
     }
 
@@ -368,17 +373,17 @@ export class KiloMcp extends ToolMcp {
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
     let fileContent: string | null = null;
-    let relativeFilePath = "kilo.jsonc";
+    let relativeFilePath = KILO_JSONC_FILE_NAME;
 
-    const jsoncPath = join(jsonDir, "kilo.jsonc");
-    const jsonPath = join(jsonDir, "kilo.json");
+    const jsoncPath = join(jsonDir, KILO_JSONC_FILE_NAME);
+    const jsonPath = join(jsonDir, KILO_JSON_FILE_NAME);
 
     // Prefer kilo.jsonc, fall back to kilo.json, mirroring fromRulesyncMcp.
     fileContent = await readFileContentOrNull(jsoncPath);
     if (!fileContent) {
       fileContent = await readFileContentOrNull(jsonPath);
       if (fileContent) {
-        relativeFilePath = "kilo.json";
+        relativeFilePath = KILO_JSON_FILE_NAME;
       }
     }
 

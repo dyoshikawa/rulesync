@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { GOOSE_IGNORE_FILE_NAME } from "../../constants/goose-paths.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
@@ -24,7 +25,7 @@ export class GooseIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
-      relativeFilePath: ".gooseignore",
+      relativeFilePath: GOOSE_IGNORE_FILE_NAME,
     };
   }
 

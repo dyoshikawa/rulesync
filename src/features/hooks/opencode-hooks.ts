@@ -1,5 +1,10 @@
 import { join } from "node:path";
 
+import {
+  OPENCODE_GLOBAL_PLUGINS_DIR_PATH,
+  OPENCODE_HOOKS_FILE_NAME,
+  OPENCODE_PLUGINS_DIR_PATH,
+} from "../../constants/opencode-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { CANONICAL_TO_OPENCODE_EVENT_NAMES, OPENCODE_HOOK_EVENTS } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
@@ -24,9 +29,9 @@ export class OpencodeHooks extends ToolHooks {
   static getSettablePaths(options?: { global?: boolean }): ToolHooksSettablePaths {
     return {
       relativeDirPath: options?.global
-        ? join(".config", "opencode", "plugins")
-        : join(".opencode", "plugins"),
-      relativeFilePath: "rulesync-hooks.js",
+        ? OPENCODE_GLOBAL_PLUGINS_DIR_PATH
+        : OPENCODE_PLUGINS_DIR_PATH,
+      relativeFilePath: OPENCODE_HOOKS_FILE_NAME,
     };
   }
 

@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { KILO_AGENTS_DIR_PATH, KILO_GLOBAL_AGENTS_DIR_PATH } from "../../constants/kilo-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
@@ -103,7 +104,7 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
     global?: boolean;
   } = {}): ToolSubagentSettablePaths {
     return {
-      relativeDirPath: global ? join(".config", "kilo", "agents") : join(".kilo", "agents"),
+      relativeDirPath: global ? KILO_GLOBAL_AGENTS_DIR_PATH : KILO_AGENTS_DIR_PATH,
     };
   }
 

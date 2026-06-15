@@ -1,5 +1,9 @@
 import { join } from "node:path";
 
+import {
+  OPENCODE_AGENTS_DIR_PATH,
+  OPENCODE_GLOBAL_AGENTS_DIR_PATH,
+} from "../../constants/opencode-paths.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
@@ -37,7 +41,7 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
     // `agent/` is deprecated upstream (kept only for backwards compatibility),
     // so rulesync emits the plural form to match the documented convention.
     return {
-      relativeDirPath: global ? join(".config", "opencode", "agents") : join(".opencode", "agents"),
+      relativeDirPath: global ? OPENCODE_GLOBAL_AGENTS_DIR_PATH : OPENCODE_AGENTS_DIR_PATH,
     };
   }
 

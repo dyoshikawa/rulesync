@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { COPILOT_HOOKS_DIR_PATH, COPILOT_HOOKS_FILE_NAME } from "../../constants/copilot-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
@@ -164,8 +165,8 @@ export class CopilotHooks extends ToolHooks {
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
     return {
-      relativeDirPath: join(".github", "hooks"),
-      relativeFilePath: "copilot-hooks.json",
+      relativeDirPath: COPILOT_HOOKS_DIR_PATH,
+      relativeFilePath: COPILOT_HOOKS_FILE_NAME,
     };
   }
 

@@ -4,6 +4,7 @@ import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
+import { ROVODEV_DIR, ROVODEV_RULE_FILE_NAME } from "../../constants/rovodev-paths.js";
 import {
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -1316,7 +1317,9 @@ export class RulesProcessor extends FeatureProcessor {
         if (!forDeletion || this.toolTarget !== "rovodev" || this.global) {
           return [];
         }
-        const primaryPaths = await findFilesByGlobs(join(this.outputRoot, ".rovodev", "AGENTS.md"));
+        const primaryPaths = await findFilesByGlobs(
+          join(this.outputRoot, ROVODEV_DIR, ROVODEV_RULE_FILE_NAME),
+        );
         if (primaryPaths.length === 0) {
           return [];
         }

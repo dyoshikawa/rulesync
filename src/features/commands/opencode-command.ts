@@ -2,6 +2,10 @@ import { join } from "node:path";
 
 import { optional, z } from "zod/mini";
 
+import {
+  OPENCODE_COMMANDS_DIR_PATH,
+  OPENCODE_GLOBAL_COMMANDS_DIR_PATH,
+} from "../../constants/opencode-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
@@ -58,9 +62,7 @@ export class OpenCodeCommand extends ToolCommand {
     // so rulesync emits the plural form to match the documented convention and
     // its own plural `.opencode/plugins` hooks output.
     return {
-      relativeDirPath: global
-        ? join(".config", "opencode", "commands")
-        : join(".opencode", "commands"),
+      relativeDirPath: global ? OPENCODE_GLOBAL_COMMANDS_DIR_PATH : OPENCODE_COMMANDS_DIR_PATH,
     };
   }
 

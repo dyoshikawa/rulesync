@@ -4,6 +4,7 @@ import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { ZED_SKILLS_DIR_PATH } from "../../constants/zed-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
@@ -42,7 +43,7 @@ export type ZedSkillParams = {
 export class ZedSkill extends ToolSkill {
   constructor({
     outputRoot = process.cwd(),
-    relativeDirPath = join(".agents", "skills"),
+    relativeDirPath = ZED_SKILLS_DIR_PATH,
     dirName,
     frontmatter,
     body,
@@ -77,7 +78,7 @@ export class ZedSkill extends ToolSkill {
     // - Project mode: {process.cwd()}/.agents/skills/
     // - Global mode: {getHomeDirectory()}/.agents/skills/
     return {
-      relativeDirPath: join(".agents", "skills"),
+      relativeDirPath: ZED_SKILLS_DIR_PATH,
     };
   }
 

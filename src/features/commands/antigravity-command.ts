@@ -2,6 +2,7 @@ import { basename, join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { ANTIGRAVITY_LEGACY_COMMANDS_DIR_PATH } from "../../constants/antigravity-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
@@ -50,7 +51,7 @@ export class AntigravityCommand extends ToolCommand {
 
   static getSettablePaths(): AntigravityCommandSettablePaths {
     return {
-      relativeDirPath: join(".agent", "workflows"),
+      relativeDirPath: ANTIGRAVITY_LEGACY_COMMANDS_DIR_PATH,
     };
   }
 

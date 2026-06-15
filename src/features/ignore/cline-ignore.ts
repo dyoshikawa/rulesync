@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { CLINE_IGNORE_FILE_NAME } from "../../constants/cline-paths.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
@@ -24,7 +25,7 @@ export class ClineIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
-      relativeFilePath: ".clineignore",
+      relativeFilePath: CLINE_IGNORE_FILE_NAME,
     };
   }
 

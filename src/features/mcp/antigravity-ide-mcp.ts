@@ -1,3 +1,4 @@
+import { ANTIGRAVITY_IDE_GLOBAL_CONFIG_SUBDIR } from "../../constants/antigravity-ide-paths.js";
 import { AntigravityMcp } from "./antigravity-mcp.js";
 
 /**
@@ -14,6 +15,6 @@ import { AntigravityMcp } from "./antigravity-mcp.js";
  */
 export class AntigravityIdeMcp extends AntigravityMcp {
   protected static override getGlobalSubdir(): string {
-    return "config";
+    return ANTIGRAVITY_IDE_GLOBAL_CONFIG_SUBDIR;
   }
 }

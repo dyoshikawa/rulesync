@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { JUNIE_IGNORE_FILE_NAME } from "../../constants/junie-paths.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
@@ -14,7 +15,7 @@ export class JunieIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
-      relativeFilePath: ".aiignore",
+      relativeFilePath: JUNIE_IGNORE_FILE_NAME,
     };
   }
 

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { WARP_DIR, WARP_RULE_FILE_NAME } from "../../constants/warp-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -44,10 +45,10 @@ export class WarpRule extends ToolRule {
     return {
       root: {
         relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
+        relativeFilePath: WARP_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(".warp", "memories", _options.excludeToolDir),
+        relativeDirPath: buildToolPath(WARP_DIR, "memories", _options.excludeToolDir),
       },
     };
   }
@@ -65,7 +66,7 @@ export class WarpRule extends ToolRule {
 
     return new WarpRule({
       outputRoot,
-      relativeDirPath: isRoot ? this.getSettablePaths().root.relativeDirPath : ".warp",
+      relativeDirPath: isRoot ? this.getSettablePaths().root.relativeDirPath : WARP_DIR,
       relativeFilePath: isRoot ? this.getSettablePaths().root.relativeFilePath : relativeFilePath,
       fileContent,
       validate,

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { ROVODEV_DIR, ROVODEV_MCP_FILE_NAME } from "../../constants/rovodev-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
@@ -68,8 +69,8 @@ export class RovodevMcp extends ToolMcp {
 
   static getSettablePaths(_options?: { global?: boolean }): ToolMcpSettablePaths {
     return {
-      relativeDirPath: ".rovodev",
-      relativeFilePath: "mcp.json",
+      relativeDirPath: ROVODEV_DIR,
+      relativeFilePath: ROVODEV_MCP_FILE_NAME,
     };
   }
 

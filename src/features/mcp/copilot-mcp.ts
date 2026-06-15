@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { COPILOT_MCP_DIR, COPILOT_MCP_FILE_NAME } from "../../constants/copilot-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContent } from "../../utils/file.js";
@@ -41,8 +42,8 @@ export class CopilotMcp extends ToolMcp {
 
   static getSettablePaths(): ToolMcpSettablePaths {
     return {
-      relativeDirPath: ".vscode",
-      relativeFilePath: "mcp.json",
+      relativeDirPath: COPILOT_MCP_DIR,
+      relativeFilePath: COPILOT_MCP_FILE_NAME,
     };
   }
   static async fromFile({

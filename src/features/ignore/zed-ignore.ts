@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { uniq } from "es-toolkit";
 
+import { ZED_DIR, ZED_SETTINGS_FILE_NAME } from "../../constants/zed-paths.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
@@ -29,8 +30,8 @@ export class ZedIgnore extends ToolIgnore {
 
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
-      relativeDirPath: ".zed",
-      relativeFilePath: "settings.json",
+      relativeDirPath: ZED_DIR,
+      relativeFilePath: ZED_SETTINGS_FILE_NAME,
     };
   }
 

@@ -1,5 +1,6 @@
 import path, { join, relative, resolve } from "node:path";
 
+import { TAKT_SKILLS_DIR_PATH } from "../../constants/takt-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { toPosixPath } from "../../utils/file.js";
 import { assertSafeTaktName, prependTaktExtends } from "../takt-shared.js";
@@ -86,7 +87,7 @@ export class TaktSkill extends ToolSkill {
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolSkillSettablePaths {
     return {
-      relativeDirPath: join(".takt", "facets", DEFAULT_TAKT_SKILL_DIR),
+      relativeDirPath: TAKT_SKILLS_DIR_PATH,
     };
   }
 
@@ -156,7 +157,7 @@ export class TaktSkill extends ToolSkill {
     assertSafeTaktName({ name: stem, featureLabel: "skill", sourceLabel });
     const fileName = `${stem}.md`;
 
-    const relativeDirPath = join(".takt", "facets", DEFAULT_TAKT_SKILL_DIR);
+    const relativeDirPath = TAKT_SKILLS_DIR_PATH;
 
     const body = prependTaktExtends({
       extendsName: typeof taktSection?.extends === "string" ? taktSection.extends : undefined,

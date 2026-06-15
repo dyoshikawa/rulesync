@@ -3,6 +3,12 @@ import { join } from "node:path";
 import { uniq } from "es-toolkit";
 import * as smolToml from "smol-toml";
 
+import {
+  WARP_DIR,
+  WARP_LINUX_DIR,
+  WARP_PERMISSIONS_FILE_NAME,
+  WARP_WIN32_DIR,
+} from "../../constants/warp-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
@@ -41,11 +47,11 @@ const DENYLIST_KEY = "agent_mode_command_execution_denylist";
 function warpSettingsDir(): string {
   switch (process.platform) {
     case "darwin":
-      return ".warp";
+      return WARP_DIR;
     case "win32":
-      return join("AppData", "Roaming", "warp", "Warp", "data");
+      return WARP_WIN32_DIR;
     default:
-      return join(".config", "warp-terminal");
+      return WARP_LINUX_DIR;
   }
 }
 
@@ -86,7 +92,7 @@ export class WarpPermissions extends ToolPermissions {
   static getSettablePaths(_options?: { global?: boolean }): ToolPermissionsSettablePaths {
     return {
       relativeDirPath: warpSettingsDir(),
-      relativeFilePath: "settings.toml",
+      relativeFilePath: WARP_PERMISSIONS_FILE_NAME,
     };
   }
 

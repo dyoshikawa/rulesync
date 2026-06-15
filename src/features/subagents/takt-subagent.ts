@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { TAKT_SUBAGENTS_DIR_PATH } from "../../constants/takt-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
@@ -13,8 +14,6 @@ import {
   ToolSubagentFromRulesyncSubagentParams,
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
-
-const DEFAULT_TAKT_SUBAGENT_DIR = "personas";
 
 export type TaktSubagentParams = {
   body: string;
@@ -40,7 +39,7 @@ export class TaktSubagent extends ToolSubagent {
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolSubagentSettablePaths {
     return {
-      relativeDirPath: join(".takt", "facets", DEFAULT_TAKT_SUBAGENT_DIR),
+      relativeDirPath: TAKT_SUBAGENTS_DIR_PATH,
     };
   }
 

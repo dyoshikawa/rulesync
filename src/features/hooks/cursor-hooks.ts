@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { CURSOR_DIR, CURSOR_HOOKS_FILE_NAME } from "../../constants/cursor-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
@@ -38,8 +39,8 @@ export class CursorHooks extends ToolHooks {
     // overriding `outputRoot` when `--global` is passed.
     // Reference: https://cursor.com/docs/agent/hooks
     return {
-      relativeDirPath: ".cursor",
-      relativeFilePath: "hooks.json",
+      relativeDirPath: CURSOR_DIR,
+      relativeFilePath: CURSOR_HOOKS_FILE_NAME,
     };
   }
 

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { JUNIE_MCP_DIR_PATH, JUNIE_MCP_FILE_NAME } from "../../constants/junie-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -28,8 +29,8 @@ export class JunieMcp extends ToolMcp {
     // The relative path is identical for both project and user scope. In global
     // mode the same path is resolved under the user home (`~/.junie/mcp/mcp.json`).
     return {
-      relativeDirPath: join(".junie", "mcp"),
-      relativeFilePath: "mcp.json",
+      relativeDirPath: JUNIE_MCP_DIR_PATH,
+      relativeFilePath: JUNIE_MCP_FILE_NAME,
     };
   }
 

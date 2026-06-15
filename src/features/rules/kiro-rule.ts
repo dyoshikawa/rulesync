@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { KIRO_DIR } from "../../constants/kiro-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
@@ -108,7 +109,7 @@ export class KiroRule extends ToolRule {
   ): KiroRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: buildToolPath(".kiro", "steering", _options.excludeToolDir),
+        relativeDirPath: buildToolPath(KIRO_DIR, "steering", _options.excludeToolDir),
       },
     };
   }

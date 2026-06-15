@@ -1,5 +1,9 @@
 import { join } from "node:path";
 
+import {
+  ANTIGRAVITY_GEMINI_DIR,
+  ANTIGRAVITY_SKILLS_DIR_PATH,
+} from "../../constants/antigravity-cli-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
@@ -44,7 +48,7 @@ export type AntigravitySharedSkillParams = {
 export class AntigravitySharedSkill extends ToolSkill {
   constructor({
     outputRoot = process.cwd(),
-    relativeDirPath = join(".agents", "skills"),
+    relativeDirPath = ANTIGRAVITY_SKILLS_DIR_PATH,
     dirName,
     frontmatter,
     body,
@@ -92,11 +96,11 @@ export class AntigravitySharedSkill extends ToolSkill {
     // - Global mode: {getHomeDirectory()}/.gemini/<subdir>/skills/
     if (global) {
       return {
-        relativeDirPath: join(".gemini", this.getGlobalSubdir(), "skills"),
+        relativeDirPath: join(ANTIGRAVITY_GEMINI_DIR, this.getGlobalSubdir(), "skills"),
       };
     }
     return {
-      relativeDirPath: join(".agents", "skills"),
+      relativeDirPath: ANTIGRAVITY_SKILLS_DIR_PATH,
     };
   }
 

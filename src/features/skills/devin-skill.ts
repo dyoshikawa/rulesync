@@ -2,6 +2,10 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import {
+  CODEIUM_WINDSURF_SKILLS_DIR_PATH,
+  DEVIN_SKILLS_DIR_PATH,
+} from "../../constants/devin-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
@@ -79,11 +83,11 @@ export class DevinSkill extends ToolSkill {
     // - Global mode: {getHomeDirectory()}/.codeium/windsurf/skills/
     if (global) {
       return {
-        relativeDirPath: join(".codeium", "windsurf", "skills"),
+        relativeDirPath: CODEIUM_WINDSURF_SKILLS_DIR_PATH,
       };
     }
     return {
-      relativeDirPath: join(".devin", "skills"),
+      relativeDirPath: DEVIN_SKILLS_DIR_PATH,
     };
   }
 

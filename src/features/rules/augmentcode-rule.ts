@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { AUGMENTCODE_DIR } from "../../constants/augmentcode-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
@@ -100,7 +101,7 @@ export class AugmentcodeRule extends ToolRule {
   ): AugmentcodeRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: buildToolPath(".augment", "rules", _options.excludeToolDir),
+        relativeDirPath: buildToolPath(AUGMENTCODE_DIR, "rules", _options.excludeToolDir),
       },
     };
   }

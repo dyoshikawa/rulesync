@@ -1,4 +1,16 @@
 import { GITIGNORE_DESTINATION_KEY } from "../../config/config.js";
+import {
+  CLAUDECODE_AGENTS_DIR_PATH,
+  CLAUDECODE_COMMANDS_DIR_PATH,
+  CLAUDECODE_DIR,
+  CLAUDECODE_LOCAL_RULE_FILE_NAME,
+  CLAUDECODE_MCP_FILE_NAME,
+  CLAUDECODE_MEMORIES_DIR_NAME,
+  CLAUDECODE_RULE_FILE_NAME,
+  CLAUDECODE_RULES_DIR_NAME,
+  CLAUDECODE_SETTINGS_LOCAL_FILE_NAME,
+  CLAUDECODE_SKILLS_DIR_PATH,
+} from "../../constants/claudecode-paths.js";
 import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import {
   ALL_FEATURES_WITH_WILDCARD,
@@ -7,6 +19,7 @@ import {
   type RulesyncFeatures,
 } from "../../types/features.js";
 import { ALL_TOOL_TARGETS_WITH_WILDCARD, type ToolTarget } from "../../types/tool-targets.js";
+import { toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 
 type GitignoreEntryTarget = ToolTarget | "common";
@@ -101,26 +114,50 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "augmentcode", feature: "mcp", entry: "**/.augment/settings.json" },
 
   // Claude Code
-  { target: "claudecode", feature: "rules", entry: "**/CLAUDE.md" },
-  { target: "claudecode", feature: "rules", entry: "**/CLAUDE.local.md" },
-  { target: "claudecode", feature: "rules", entry: "**/.claude/CLAUDE.md" },
+  { target: "claudecode", feature: "rules", entry: `**/${CLAUDECODE_RULE_FILE_NAME}` },
+  { target: "claudecode", feature: "rules", entry: `**/${CLAUDECODE_LOCAL_RULE_FILE_NAME}` },
   {
     target: "claudecode",
     feature: "rules",
-    entry: "**/.claude/CLAUDE.local.md",
+    entry: `**/${CLAUDECODE_DIR}/${CLAUDECODE_RULE_FILE_NAME}`,
   },
-  { target: "claudecode", feature: "rules", entry: "**/.claude/rules/" },
-  { target: "claudecode", feature: "commands", entry: "**/.claude/commands/" },
-  { target: "claudecode", feature: "subagents", entry: "**/.claude/agents/" },
-  { target: "claudecode", feature: "skills", entry: "**/.claude/skills/" },
-  { target: "claudecode", feature: "mcp", entry: "**/.mcp.json" },
-  { target: "claudecode", feature: "general", entry: "**/.claude/memories/" },
+  {
+    target: "claudecode",
+    feature: "rules",
+    entry: `**/${CLAUDECODE_DIR}/${CLAUDECODE_LOCAL_RULE_FILE_NAME}`,
+  },
+  {
+    target: "claudecode",
+    feature: "rules",
+    entry: `**/${CLAUDECODE_DIR}/${CLAUDECODE_RULES_DIR_NAME}/`,
+  },
+  {
+    target: "claudecode",
+    feature: "commands",
+    entry: `**/${toPosixPath(CLAUDECODE_COMMANDS_DIR_PATH)}/`,
+  },
+  {
+    target: "claudecode",
+    feature: "subagents",
+    entry: `**/${toPosixPath(CLAUDECODE_AGENTS_DIR_PATH)}/`,
+  },
+  {
+    target: "claudecode",
+    feature: "skills",
+    entry: `**/${toPosixPath(CLAUDECODE_SKILLS_DIR_PATH)}/`,
+  },
+  { target: "claudecode", feature: "mcp", entry: `**/${CLAUDECODE_MCP_FILE_NAME}` },
   {
     target: "claudecode",
     feature: "general",
-    entry: "**/.claude/settings.local.json",
+    entry: `**/${CLAUDECODE_DIR}/${CLAUDECODE_MEMORIES_DIR_NAME}/`,
   },
-  { target: "claudecode", feature: "general", entry: "**/.claude/*.lock" },
+  {
+    target: "claudecode",
+    feature: "general",
+    entry: `**/${CLAUDECODE_DIR}/${CLAUDECODE_SETTINGS_LOCAL_FILE_NAME}`,
+  },
+  { target: "claudecode", feature: "general", entry: `**/${CLAUDECODE_DIR}/*.lock` },
 
   // Cline
   { target: "cline", feature: "rules", entry: "**/.clinerules/" },

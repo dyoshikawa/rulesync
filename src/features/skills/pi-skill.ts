@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
+import { PI_AGENT_SKILLS_DIR_PATH, PI_SKILLS_DIR_PATH } from "../../constants/pi-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
@@ -88,11 +89,11 @@ export class PiSkill extends ToolSkill {
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolSkillSettablePaths {
     if (global) {
       return {
-        relativeDirPath: join(".pi", "agent", "skills"),
+        relativeDirPath: PI_AGENT_SKILLS_DIR_PATH,
       };
     }
     return {
-      relativeDirPath: join(".pi", "skills"),
+      relativeDirPath: PI_SKILLS_DIR_PATH,
     };
   }
 

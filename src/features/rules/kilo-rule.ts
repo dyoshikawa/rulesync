@@ -1,5 +1,11 @@
 import { join } from "node:path";
 
+import {
+  KILO_DIR,
+  KILO_GLOBAL_DIR,
+  KILO_RULE_FILE_NAME,
+  KILO_RULES_DIR_NAME,
+} from "../../constants/kilo-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -36,18 +42,18 @@ export class KiloRule extends ToolRule {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(".config/kilo", ".", excludeToolDir),
-          relativeFilePath: "AGENTS.md",
+          relativeDirPath: buildToolPath(KILO_GLOBAL_DIR, ".", excludeToolDir),
+          relativeFilePath: KILO_RULE_FILE_NAME,
         },
       };
     }
     return {
       root: {
         relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
+        relativeFilePath: KILO_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(".kilo", "rules", excludeToolDir),
+        relativeDirPath: buildToolPath(KILO_DIR, KILO_RULES_DIR_NAME, excludeToolDir),
       },
     };
   }

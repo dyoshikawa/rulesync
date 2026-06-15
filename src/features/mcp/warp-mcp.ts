@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { WARP_DIR, WARP_MCP_FILE_NAME } from "../../constants/warp-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
@@ -55,8 +56,8 @@ export class WarpMcp extends ToolMcp {
 
   static getSettablePaths(_options?: { global?: boolean }): ToolMcpSettablePaths {
     return {
-      relativeDirPath: ".warp",
-      relativeFilePath: ".mcp.json",
+      relativeDirPath: WARP_DIR,
+      relativeFilePath: WARP_MCP_FILE_NAME,
     };
   }
 

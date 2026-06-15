@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { REPLIT_RULE_FILE_NAME } from "../../constants/replit-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -36,7 +37,7 @@ export class ReplitRule extends ToolRule {
     return {
       root: {
         relativeDirPath: ".",
-        relativeFilePath: "replit.md",
+        relativeFilePath: REPLIT_RULE_FILE_NAME,
       },
     };
   }

@@ -1,5 +1,9 @@
 import { join } from "node:path";
 
+import {
+  AUGMENTCODE_DIR,
+  AUGMENTCODE_LEGACY_RULE_FILE_NAME,
+} from "../../constants/augmentcode-paths.js";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
@@ -53,10 +57,10 @@ export class AugmentcodeLegacyRule extends ToolRule {
     return {
       root: {
         relativeDirPath: ".",
-        relativeFilePath: ".augment-guidelines",
+        relativeFilePath: AUGMENTCODE_LEGACY_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(".augment", "rules", _options.excludeToolDir),
+        relativeDirPath: buildToolPath(AUGMENTCODE_DIR, "rules", _options.excludeToolDir),
       },
     };
   }

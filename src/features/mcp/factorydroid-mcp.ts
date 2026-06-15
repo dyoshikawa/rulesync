@@ -1,5 +1,9 @@
 import { join } from "node:path";
 
+import {
+  FACTORYDROID_DIR,
+  FACTORYDROID_MCP_FILE_NAME,
+} from "../../constants/factorydroid-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -28,8 +32,8 @@ export class FactorydroidMcp extends ToolMcp {
 
   static getSettablePaths(): ToolMcpSettablePaths {
     return {
-      relativeDirPath: ".factory",
-      relativeFilePath: "mcp.json",
+      relativeDirPath: FACTORYDROID_DIR,
+      relativeFilePath: FACTORYDROID_MCP_FILE_NAME,
     };
   }
 

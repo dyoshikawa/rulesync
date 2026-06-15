@@ -1,5 +1,4 @@
-import { join } from "node:path";
-
+import { AGENTSMD_SUBAGENTS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SimulatedSubagent } from "./simulated-subagent.js";
 import {
@@ -13,7 +12,7 @@ import {
 export class AgentsmdSubagent extends SimulatedSubagent {
   static getSettablePaths(): ToolSubagentSettablePaths {
     return {
-      relativeDirPath: join(".agents", "subagents"),
+      relativeDirPath: AGENTSMD_SUBAGENTS_DIR_PATH,
     };
   }
 

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { CLAUDECODE_DIR, CLAUDECODE_SETTINGS_FILE_NAME } from "../../constants/claudecode-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import {
@@ -51,7 +52,7 @@ export class ClaudecodeHooks extends ToolHooks {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
     // Currently, both global and project mode use the same paths.
     // The parameter is kept for consistency with other ToolHooks implementations.
-    return { relativeDirPath: ".claude", relativeFilePath: "settings.json" };
+    return { relativeDirPath: CLAUDECODE_DIR, relativeFilePath: CLAUDECODE_SETTINGS_FILE_NAME };
   }
 
   static async fromFile({

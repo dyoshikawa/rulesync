@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { ROO_DIR, ROO_MCP_FILE_NAME } from "../../constants/roo-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers, type McpServers } from "../../types/mcp.js";
 import { readFileContent } from "../../utils/file.js";
@@ -79,8 +80,8 @@ export class RooMcp extends ToolMcp {
 
   static getSettablePaths(): ToolMcpSettablePaths {
     return {
-      relativeDirPath: ".roo",
-      relativeFilePath: "mcp.json",
+      relativeDirPath: ROO_DIR,
+      relativeFilePath: ROO_MCP_FILE_NAME,
     };
   }
 

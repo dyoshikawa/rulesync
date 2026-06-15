@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { GEMINICLI_IGNORE_FILE_NAME } from "../../constants/geminicli-paths.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import type {
@@ -14,7 +15,7 @@ export class GeminiCliIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
-      relativeFilePath: ".geminiignore",
+      relativeFilePath: GEMINICLI_IGNORE_FILE_NAME,
     };
   }
 

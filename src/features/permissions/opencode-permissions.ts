@@ -3,6 +3,11 @@ import { join } from "node:path";
 import { parse as parseJsonc } from "jsonc-parser";
 import { z } from "zod/mini";
 
+import {
+  OPENCODE_GLOBAL_DIR,
+  OPENCODE_JSON_FILE_NAME,
+  OPENCODE_JSONC_FILE_NAME,
+} from "../../constants/opencode-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import type { PermissionsConfig } from "../../types/permissions.js";
@@ -48,8 +53,8 @@ export class OpencodePermissions extends ToolPermissions {
     global = false,
   }: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return global
-      ? { relativeDirPath: join(".config", "opencode"), relativeFilePath: "opencode.json" }
-      : { relativeDirPath: ".", relativeFilePath: "opencode.json" };
+      ? { relativeDirPath: OPENCODE_GLOBAL_DIR, relativeFilePath: OPENCODE_JSON_FILE_NAME }
+      : { relativeDirPath: ".", relativeFilePath: OPENCODE_JSON_FILE_NAME };
   }
 
   static async fromFile({
@@ -60,16 +65,16 @@ export class OpencodePermissions extends ToolPermissions {
     const basePaths = OpencodePermissions.getSettablePaths({ global });
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
-    const jsoncPath = join(jsonDir, "opencode.jsonc");
-    const jsonPath = join(jsonDir, "opencode.json");
+    const jsoncPath = join(jsonDir, OPENCODE_JSONC_FILE_NAME);
+    const jsonPath = join(jsonDir, OPENCODE_JSON_FILE_NAME);
 
     let fileContent = await readFileContentOrNull(jsoncPath);
-    let relativeFilePath = "opencode.jsonc";
+    let relativeFilePath = OPENCODE_JSONC_FILE_NAME;
 
     if (!fileContent) {
       fileContent = await readFileContentOrNull(jsonPath);
       if (fileContent) {
-        relativeFilePath = "opencode.json";
+        relativeFilePath = OPENCODE_JSON_FILE_NAME;
       }
     }
 
@@ -93,16 +98,16 @@ export class OpencodePermissions extends ToolPermissions {
     const basePaths = OpencodePermissions.getSettablePaths({ global });
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
-    const jsoncPath = join(jsonDir, "opencode.jsonc");
-    const jsonPath = join(jsonDir, "opencode.json");
+    const jsoncPath = join(jsonDir, OPENCODE_JSONC_FILE_NAME);
+    const jsonPath = join(jsonDir, OPENCODE_JSON_FILE_NAME);
 
     let fileContent = await readFileContentOrNull(jsoncPath);
-    let relativeFilePath = "opencode.jsonc";
+    let relativeFilePath = OPENCODE_JSONC_FILE_NAME;
 
     if (!fileContent) {
       fileContent = await readFileContentOrNull(jsonPath);
       if (fileContent) {
-        relativeFilePath = "opencode.json";
+        relativeFilePath = OPENCODE_JSON_FILE_NAME;
       }
     }
 

@@ -2,6 +2,10 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import {
+  AUGMENTCODE_DIR,
+  AUGMENTCODE_SETTINGS_FILE_NAME,
+} from "../../constants/augmentcode-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
@@ -259,8 +263,8 @@ export class AugmentcodePermissions extends ToolPermissions {
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return {
-      relativeDirPath: ".augment",
-      relativeFilePath: "settings.json",
+      relativeDirPath: AUGMENTCODE_DIR,
+      relativeFilePath: AUGMENTCODE_SETTINGS_FILE_NAME,
     };
   }
 

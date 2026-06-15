@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
+import { KIRO_SKILLS_DIR_PATH } from "../../constants/kiro-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
@@ -40,7 +41,7 @@ type KiroSkillParams = {
 export class KiroSkill extends ToolSkill {
   constructor({
     outputRoot = process.cwd(),
-    relativeDirPath = join(".kiro", "skills"),
+    relativeDirPath = KIRO_SKILLS_DIR_PATH,
     dirName,
     frontmatter,
     body,
@@ -74,7 +75,7 @@ export class KiroSkill extends ToolSkill {
       throw new Error("KiroSkill does not support global mode.");
     }
     return {
-      relativeDirPath: join(".kiro", "skills"),
+      relativeDirPath: KIRO_SKILLS_DIR_PATH,
     };
   }
 

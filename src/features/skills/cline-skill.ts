@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { CLINE_SKILLS_DIR_PATH } from "../../constants/cline-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
@@ -40,7 +41,7 @@ export type ClineSkillParams = {
 export class ClineSkill extends ToolSkill {
   constructor({
     outputRoot = process.cwd(),
-    relativeDirPath = join(".cline", "skills"),
+    relativeDirPath = CLINE_SKILLS_DIR_PATH,
     dirName,
     frontmatter,
     body,
@@ -75,7 +76,7 @@ export class ClineSkill extends ToolSkill {
     // - Project mode: {process.cwd()}/.cline/skills/
     // - Global mode: {getHomeDirectory()}/.cline/skills/
     return {
-      relativeDirPath: join(".cline", "skills"),
+      relativeDirPath: CLINE_SKILLS_DIR_PATH,
     };
   }
 

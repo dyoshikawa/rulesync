@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { AUGMENTCODE_IGNORE_FILE_NAME } from "../../constants/augmentcode-paths.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
@@ -36,7 +37,7 @@ export class AugmentcodeIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
-      relativeFilePath: ".augmentignore",
+      relativeFilePath: AUGMENTCODE_IGNORE_FILE_NAME,
     };
   }
 

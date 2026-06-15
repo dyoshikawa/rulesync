@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { PI_DIR, PI_MEMORIES_DIR, PI_RULE_FILE_NAME } from "../../constants/pi-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -47,18 +48,18 @@ export class PiRule extends ToolRule {
       // return only the root path entry.
       return {
         root: {
-          relativeDirPath: buildToolPath(".pi", "agent", excludeToolDir),
-          relativeFilePath: "AGENTS.md",
+          relativeDirPath: buildToolPath(PI_DIR, "agent", excludeToolDir),
+          relativeFilePath: PI_RULE_FILE_NAME,
         },
       };
     }
     return {
       root: {
         relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
+        relativeFilePath: PI_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(".agents", "memories", excludeToolDir),
+        relativeDirPath: buildToolPath(PI_MEMORIES_DIR, "memories", excludeToolDir),
       },
     };
   }

@@ -2,6 +2,11 @@ import { join } from "node:path";
 
 import * as smolToml from "smol-toml";
 
+import {
+  CODEXCLI_DIR,
+  CODEXCLI_HOOKS_FILE_NAME,
+  CODEXCLI_MCP_FILE_NAME,
+} from "../../constants/codexcli-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import {
   CODEXCLI_HOOK_EVENTS,
@@ -41,7 +46,7 @@ async function buildCodexConfigTomlContent({
 }: {
   outputRoot: string;
 }): Promise<string> {
-  const configPath = join(outputRoot, ".codex", "config.toml");
+  const configPath = join(outputRoot, CODEXCLI_DIR, CODEXCLI_MCP_FILE_NAME);
   const existingContent = (await readFileContentOrNull(configPath)) ?? smolToml.stringify({});
   let configToml: smolToml.TomlPrimitive;
   try {
@@ -78,8 +83,8 @@ export class CodexcliConfigToml extends ToolFile {
     const fileContent = await buildCodexConfigTomlContent({ outputRoot });
     return new CodexcliConfigToml({
       outputRoot,
-      relativeDirPath: ".codex",
-      relativeFilePath: "config.toml",
+      relativeDirPath: CODEXCLI_DIR,
+      relativeFilePath: CODEXCLI_MCP_FILE_NAME,
       fileContent,
     });
   }
@@ -94,7 +99,7 @@ export class CodexcliHooks extends ToolHooks {
   }
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
-    return { relativeDirPath: ".codex", relativeFilePath: "hooks.json" };
+    return { relativeDirPath: CODEXCLI_DIR, relativeFilePath: CODEXCLI_HOOKS_FILE_NAME };
   }
 
   static async fromFile({

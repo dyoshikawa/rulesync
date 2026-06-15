@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { ROVODEV_SUBAGENTS_DIR_PATH } from "../../constants/rovodev-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
@@ -62,7 +63,7 @@ export class RovodevSubagent extends ToolSubagent {
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolSubagentSettablePaths {
     return {
-      relativeDirPath: join(".rovodev", "subagents"),
+      relativeDirPath: ROVODEV_SUBAGENTS_DIR_PATH,
     };
   }
 
