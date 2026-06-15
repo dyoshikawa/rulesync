@@ -94,7 +94,7 @@ export const SubagentsProcessorToolTargetSchema = z.enum(subagentsProcessorToolT
  * Factory Map mapping tool targets to their subagent factories.
  * Using Map to preserve insertion order for consistent iteration.
  */
-const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagentFactory>([
+export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolSubagentFactory>([
   [
     "agentsmd",
     {

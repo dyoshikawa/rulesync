@@ -65,7 +65,7 @@ type ToolIgnoreFactory = {
   };
 };
 
-const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnoreFactory>([
+export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnoreFactory>([
   ["antigravity-cli", { class: AntigravityCliIgnore }],
   ["augmentcode", { class: AugmentcodeIgnore }],
   ["claudecode", { class: ClaudecodeIgnore }],

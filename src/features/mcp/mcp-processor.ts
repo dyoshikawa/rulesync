@@ -104,7 +104,7 @@ type ToolMcpFactory = {
  * Factory Map mapping tool targets to their MCP factories.
  * Using Map to preserve insertion order for consistent iteration.
  */
-const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
+export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
   [
     "amp",
     {

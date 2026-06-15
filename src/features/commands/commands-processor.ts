@@ -99,7 +99,7 @@ export const CommandsProcessorToolTargetSchema = z.enum(commandsProcessorToolTar
  * Factory Map mapping tool targets to their command factories.
  * Using Map to preserve insertion order for consistent iteration.
  */
-const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFactory>([
+export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCommandFactory>([
   [
     "agentsmd",
     {
