@@ -1207,7 +1207,7 @@ describe("E2E: permissions (global mode)", () => {
       process.platform === "darwin"
         ? ".warp"
         : process.platform === "win32"
-          ? join("AppData", "Roaming", "warp", "Warp", "data")
+          ? join("AppData", "Local", "warp", "Warp", "config")
           : join(".config", "warp-terminal");
     const generated = await readFileContent(join(homeDir, warpDir, "settings.toml"));
     expect(generated).toContain("agent_mode_command_execution_allowlist");

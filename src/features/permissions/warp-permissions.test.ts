@@ -50,7 +50,7 @@ describe("WarpPermissions", () => {
         process.platform === "darwin"
           ? ".warp"
           : process.platform === "win32"
-            ? join("AppData", "Roaming", "warp", "Warp", "data")
+            ? join("AppData", "Local", "warp", "Warp", "config")
             : join(".config", "warp-terminal");
       expect(paths.relativeDirPath).toBe(expectedDir);
     });

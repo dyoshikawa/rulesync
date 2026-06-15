@@ -39,8 +39,8 @@ const DENYLIST_KEY = "agent_mode_command_execution_denylist";
  *
  * - macOS: `~/.warp/settings.toml`
  * - Linux: `~/.config/warp-terminal/settings.toml`
- * - Windows: `%APPDATA%\warp\Warp\data\settings.toml` (`%APPDATA%` is
- *   `~/AppData/Roaming`)
+ * - Windows: `%LOCALAPPDATA%\warp\Warp\config\settings.toml` (`%LOCALAPPDATA%`
+ *   is `~/AppData/Local`)
  *
  * @see https://docs.warp.dev/terminal/settings/file-locations/
  */
