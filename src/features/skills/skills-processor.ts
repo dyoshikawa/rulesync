@@ -114,7 +114,7 @@ export const SkillsProcessorToolTargetSchema = z.enum(skillsProcessorToolTargetT
  * Factory Map mapping tool targets to their skill factories.
  * Using Map to preserve insertion order for consistent iteration.
  */
-const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>([
+export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFactory>([
   [
     "agentsmd",
     {

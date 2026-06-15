@@ -1,16 +1,34 @@
 import { describe, expect, it } from "vitest";
 
-import { CommandsProcessorToolTargetSchema } from "../features/commands/commands-processor.js";
-import { HooksProcessorToolTargetSchema } from "../features/hooks/hooks-processor.js";
-import { IgnoreProcessorToolTargetSchema } from "../features/ignore/ignore-processor.js";
-import { McpProcessorToolTargetSchema } from "../features/mcp/mcp-processor.js";
-import { PermissionsProcessorToolTargetSchema } from "../features/permissions/permissions-processor.js";
+import {
+  CommandsProcessorToolTargetSchema,
+  toolCommandFactories,
+} from "../features/commands/commands-processor.js";
+import {
+  HooksProcessorToolTargetSchema,
+  toolHooksFactories,
+} from "../features/hooks/hooks-processor.js";
+import {
+  IgnoreProcessorToolTargetSchema,
+  toolIgnoreFactories,
+} from "../features/ignore/ignore-processor.js";
+import { McpProcessorToolTargetSchema, toolMcpFactories } from "../features/mcp/mcp-processor.js";
+import {
+  PermissionsProcessorToolTargetSchema,
+  toolPermissionsFactories,
+} from "../features/permissions/permissions-processor.js";
 import {
   RulesProcessorToolTargetSchema,
   toolRuleFactories,
 } from "../features/rules/rules-processor.js";
-import { SkillsProcessorToolTargetSchema } from "../features/skills/skills-processor.js";
-import { SubagentsProcessorToolTargetSchema } from "../features/subagents/subagents-processor.js";
+import {
+  SkillsProcessorToolTargetSchema,
+  toolSkillFactories,
+} from "../features/skills/skills-processor.js";
+import {
+  SubagentsProcessorToolTargetSchema,
+  toolSubagentFactories,
+} from "../features/subagents/subagents-processor.js";
 import {
   ALL_TOOL_TARGETS,
   ALL_TOOL_TARGETS_WITH_WILDCARD,
@@ -245,28 +263,72 @@ describe("tool targets", () => {
   describe("processor tool target consistency", () => {
     const allTargetSet = new Set<string>(ALL_TOOL_TARGETS);
 
+    // This list is hand-maintained: a 9th processor added later must be appended
+    // here (and given a `factory` entry) or it will silently escape these checks,
+    // reintroducing the "scattered list drift" these tests guard against. There is
+    // no central processor registry to derive it from yet; keep it in sync by hand.
     const processors = [
-      { name: "RulesProcessor", schema: RulesProcessorToolTargetSchema },
-      { name: "CommandsProcessor", schema: CommandsProcessorToolTargetSchema },
-      { name: "HooksProcessor", schema: HooksProcessorToolTargetSchema },
-      { name: "IgnoreProcessor", schema: IgnoreProcessorToolTargetSchema },
-      { name: "McpProcessor", schema: McpProcessorToolTargetSchema },
-      { name: "PermissionsProcessor", schema: PermissionsProcessorToolTargetSchema },
-      { name: "SkillsProcessor", schema: SkillsProcessorToolTargetSchema },
-      { name: "SubagentsProcessor", schema: SubagentsProcessorToolTargetSchema },
+      {
+        name: "RulesProcessor",
+        schema: RulesProcessorToolTargetSchema,
+        factory: toolRuleFactories,
+      },
+      {
+        name: "CommandsProcessor",
+        schema: CommandsProcessorToolTargetSchema,
+        factory: toolCommandFactories,
+      },
+      {
+        name: "HooksProcessor",
+        schema: HooksProcessorToolTargetSchema,
+        factory: toolHooksFactories,
+      },
+      {
+        name: "IgnoreProcessor",
+        schema: IgnoreProcessorToolTargetSchema,
+        factory: toolIgnoreFactories,
+      },
+      { name: "McpProcessor", schema: McpProcessorToolTargetSchema, factory: toolMcpFactories },
+      {
+        name: "PermissionsProcessor",
+        schema: PermissionsProcessorToolTargetSchema,
+        factory: toolPermissionsFactories,
+      },
+      {
+        name: "SkillsProcessor",
+        schema: SkillsProcessorToolTargetSchema,
+        factory: toolSkillFactories,
+      },
+      {
+        name: "SubagentsProcessor",
+        schema: SubagentsProcessorToolTargetSchema,
+        factory: toolSubagentFactories,
+      },
     ];
 
     for (const { name, schema } of processors) {
+      // Direction asserted: every target a processor declares must exist in
+      // ALL_TOOL_TARGETS (catches a typo'd or stale target inside a processor).
+      // The reverse (every ALL_TOOL_TARGETS entry must appear in every processor)
+      // is intentionally NOT asserted, because not every tool supports every
+      // feature. Adding a tool to ALL_TOOL_TARGETS without wiring it into a given
+      // processor is therefore legitimate and is not caught here by design.
       it(`${name}: all tool targets must be a subset of ALL_TOOL_TARGETS`, () => {
         const unknownTargets = schema.options.filter((target: string) => !allTargetSet.has(target));
         expect(unknownTargets).toEqual([]);
       });
     }
 
-    it("RulesProcessor: schema options must match toolRuleFactories keys", () => {
-      const schemaTargets = [...RulesProcessorToolTargetSchema.options].toSorted();
-      const factoryTargets = [...toolRuleFactories.keys()].toSorted();
-      expect(schemaTargets).toEqual(factoryTargets);
-    });
+    // Stronger, bidirectional guarantee: a processor's schema enum must set-equal
+    // the keys of its factory Map. This catches drift in either direction within a
+    // single processor (a target in the schema but missing a factory, or a factory
+    // for a target the schema rejects). Applied to every processor, not just rules.
+    for (const { name, schema, factory } of processors) {
+      it(`${name}: schema options must match factory map keys`, () => {
+        const schemaTargets = [...schema.options].toSorted();
+        const factoryTargets = [...factory.keys()].toSorted();
+        expect(schemaTargets).toEqual(factoryTargets);
+      });
+    }
   });
 });

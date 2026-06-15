@@ -71,7 +71,10 @@ type ToolPermissionsFactory = {
   };
 };
 
-const toolPermissionsFactories = new Map<PermissionsProcessorToolTarget, ToolPermissionsFactory>([
+export const toolPermissionsFactories = new Map<
+  PermissionsProcessorToolTarget,
+  ToolPermissionsFactory
+>([
   [
     "amp",
     {

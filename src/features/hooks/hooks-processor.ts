@@ -101,7 +101,7 @@ type ToolHooksFactory = {
   supportsMatcher: boolean;
 };
 
-const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
+export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
   [
     "antigravity-cli",
     {
