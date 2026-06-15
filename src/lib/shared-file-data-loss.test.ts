@@ -82,7 +82,9 @@ describe("shared output file data-loss regressions", () => {
 
   describe("kilo.jsonc (mcp before rules)", () => {
     it("preserves the mcp/tools block when rules registers instructions afterward", async () => {
-      // 1. mcp feature writes the `mcp` block to kilo.jsonc.
+      // 1. mcp feature writes the `mcp` (and `tools`) block to kilo.jsonc.
+      //    `enabledTools` produces a top-level `tools` map so we can assert it is
+      //    preserved too, not just the `mcp` block.
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
@@ -91,6 +93,7 @@ describe("shared output file data-loss regressions", () => {
             "test-server": {
               command: "node",
               args: ["server.js"],
+              enabledTools: ["search"],
             },
           },
         }),
@@ -106,11 +109,13 @@ describe("shared output file data-loss regressions", () => {
       });
       await writeFileContent(rules.getFilePath(), rules.getFileContent());
 
-      // 3. The on-disk file must contain BOTH the mcp block and the instructions.
+      // 3. The on-disk file must contain BOTH the mcp/tools block and the
+      //    instructions.
       const finalContent = await readFileContent(join(testDir, "kilo.jsonc"));
       const kilo = JSON.parse(finalContent);
-      expect(kilo.mcp).toBeDefined();
       expect(kilo.mcp["test-server"]).toBeDefined();
+      expect(kilo.mcp["test-server"].type).toBe("local");
+      expect(kilo.tools["test-server_search"]).toBe(true);
       expect(kilo.instructions).toContain(join(".kilo", "rules", "coding.md"));
     });
   });
