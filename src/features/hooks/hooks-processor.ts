@@ -40,6 +40,7 @@ import { GeminicliHooks } from "./geminicli-hooks.js";
 import { GooseHooks } from "./goose-hooks.js";
 import { JunieHooks } from "./junie-hooks.js";
 import { KiloHooks } from "./kilo-hooks.js";
+import { KiroCliHooks } from "./kiro-cli-hooks.js";
 import { KiroHooks } from "./kiro-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -307,7 +308,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     // register a hooks adapter.)
     "kiro-cli",
     {
-      class: KiroHooks,
+      class: KiroCliHooks,
       meta: {
         supportsProject: true,
         supportsGlobal: false,

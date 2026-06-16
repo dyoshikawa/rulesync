@@ -28,7 +28,10 @@ import {
  * Filters shared hooks to KIRO_HOOK_EVENTS, merges config.kiro?.hooks,
  * then maps event names and emits Kiro CLI hook arrays.
  */
-function canonicalToKiroHooks(config: HooksConfig): Record<string, unknown[]> {
+function canonicalToKiroHooks(
+  config: HooksConfig,
+  overrideKey: "kiro" | "kiro-cli" = "kiro",
+): Record<string, unknown[]> {
   const kiroSupported: Set<string> = new Set(KIRO_HOOK_EVENTS);
   const sharedHooks: HooksConfig["hooks"] = {};
   for (const [event, defs] of Object.entries(config.hooks)) {
@@ -38,11 +41,12 @@ function canonicalToKiroHooks(config: HooksConfig): Record<string, unknown[]> {
   }
   const effectiveHooks: HooksConfig["hooks"] = {
     ...sharedHooks,
-    // Note: Tool-specific overrides (config.kiro?.hooks) bypass the
+    // Note: Tool-specific overrides (config[overrideKey]?.hooks) bypass the
     // KIRO_HOOK_EVENTS filter by design — users who define tool-level overrides
     // are expected to know the target tool's event surface. The HooksProcessor
-    // already warns about unsupported events before calling this function.
-    ...config.kiro?.hooks,
+    // already warns about unsupported events before calling this function. The
+    // override key is `kiro` for the legacy alias and `kiro-cli` for the CLI.
+    ...config[overrideKey]?.hooks,
   };
   const kiro: Record<string, unknown[]> = {};
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
@@ -132,6 +136,15 @@ export class KiroHooks extends ToolHooks {
     });
   }
 
+  /**
+   * The `HooksConfig` key whose `hooks` block provides tool-specific overrides
+   * for this target. The legacy `kiro` alias uses `kiro`; {@link import(
+   * "./kiro-cli-hooks.js").KiroCliHooks} overrides this to `kiro-cli`.
+   */
+  protected static getOverrideKey(): "kiro" | "kiro-cli" {
+    return "kiro";
+  }
+
   override isDeletable(): boolean {
     return false;
   }
@@ -179,7 +192,7 @@ export class KiroHooks extends ToolHooks {
       );
     }
     const config = rulesyncHooks.getJson();
-    const kiroHooks = canonicalToKiroHooks(config);
+    const kiroHooks = canonicalToKiroHooks(config, this.getOverrideKey());
     const merged = { ...agentConfig, hooks: kiroHooks };
     const fileContent = JSON.stringify(merged, null, 2);
     return new KiroHooks({
