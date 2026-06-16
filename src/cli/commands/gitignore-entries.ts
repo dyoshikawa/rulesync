@@ -307,6 +307,15 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "kiro", feature: "subagents", entry: "**/.kiro/agents/" },
   { target: "kiro", feature: "mcp", entry: "**/.kiro/settings/mcp.json" },
   { target: "kiro", feature: "ignore", entry: "**/.aiignore" },
+  // Kiro IDE and CLI write to the same `.kiro/` tree as the legacy `kiro` alias.
+  // (Kiro IDE subagents are Markdown under `.kiro/agents/`, the CLI's are JSON —
+  // both covered by the shared `**/.kiro/agents/` entry.)
+  { target: ["kiro-cli", "kiro-ide"], feature: "rules", entry: "**/.kiro/steering/" },
+  { target: ["kiro-cli", "kiro-ide"], feature: "commands", entry: "**/.kiro/prompts/" },
+  { target: ["kiro-cli", "kiro-ide"], feature: "skills", entry: "**/.kiro/skills/" },
+  { target: ["kiro-cli", "kiro-ide"], feature: "subagents", entry: "**/.kiro/agents/" },
+  { target: ["kiro-cli", "kiro-ide"], feature: "mcp", entry: "**/.kiro/settings/mcp.json" },
+  { target: ["kiro-cli", "kiro-ide"], feature: "ignore", entry: "**/.aiignore" },
   // Keep this after ignore entries like "**/.aiignore" so the exception remains effective.
   { target: "common", feature: "general", entry: "!.rulesync/.aiignore" },
 

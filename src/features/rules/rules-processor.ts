@@ -52,6 +52,8 @@ import { GeminiCliRule } from "./geminicli-rule.js";
 import { GooseRule } from "./goose-rule.js";
 import { JunieRule } from "./junie-rule.js";
 import { KiloRule } from "./kilo-rule.js";
+import { KiroCliRule } from "./kiro-cli-rule.js";
+import { KiroIdeRule } from "./kiro-ide-rule.js";
 import { KiroRule } from "./kiro-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
 import { PiRule } from "./pi-rule.js";
@@ -95,6 +97,8 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "junie",
   "kilo",
   "kiro",
+  "kiro-cli",
+  "kiro-ide",
   "opencode",
   "pi",
   "qwencode",
@@ -494,6 +498,28 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     "kiro",
     {
       class: KiroRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "toon",
+      },
+    },
+  ],
+  [
+    "kiro-cli",
+    {
+      class: KiroCliRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "toon",
+      },
+    },
+  ],
+  [
+    "kiro-ide",
+    {
+      class: KiroIdeRule,
       meta: {
         extension: "md",
         supportsGlobal: false,

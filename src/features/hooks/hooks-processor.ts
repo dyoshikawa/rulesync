@@ -65,6 +65,7 @@ const hooksProcessorToolTargetTuple = [
   "goose",
   "deepagents",
   "kiro",
+  "kiro-cli",
   "devin",
   "augmentcode",
   "junie",
@@ -290,6 +291,24 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       meta: {
         // Kiro hooks are project-level only (consistent with existing Kiro features).
         // Hooks are written to .kiro/agents/default.json alongside subagent configs.
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsImport: true,
+      },
+      supportedEvents: KIRO_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    // The Kiro CLI uses the same `.kiro/agents/default.json` agent-hook format.
+    // (Kiro IDE hooks use multi-file `.kiro/hooks/*.kiro.hook`, which the
+    // single-file hooks architecture does not yet emit, so `kiro-ide` does not
+    // register a hooks adapter.)
+    "kiro-cli",
+    {
+      class: KiroHooks,
+      meta: {
         supportsProject: true,
         supportsGlobal: false,
         supportsImport: true,

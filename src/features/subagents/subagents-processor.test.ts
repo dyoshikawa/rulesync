@@ -1086,6 +1086,8 @@ Second global content`;
           "junie",
           "kilo",
           "kiro",
+          "kiro-cli",
+          "kiro-ide",
           "opencode",
           "roo",
           "rovodev",

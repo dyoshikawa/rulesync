@@ -46,6 +46,8 @@ const permissionsProcessorToolTargetTuple = [
   "geminicli",
   "kilo",
   "kiro",
+  "kiro-cli",
+  "kiro-ide",
   "opencode",
   "qwencode",
   "vibe",
@@ -214,6 +216,29 @@ export const toolPermissionsFactories = new Map<
   ],
   [
     "kiro",
+    {
+      class: KiroPermissions,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    // Kiro IDE and CLI share the same permissions file.
+    "kiro-cli",
+    {
+      class: KiroPermissions,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "kiro-ide",
     {
       class: KiroPermissions,
       meta: {

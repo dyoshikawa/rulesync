@@ -24,7 +24,9 @@ import { GeminiCliCommand } from "./geminicli-command.js";
 import { GooseCommand } from "./goose-command.js";
 import { JunieCommand } from "./junie-command.js";
 import { KiloCommand } from "./kilo-command.js";
+import { KiroCliCommand } from "./kiro-cli-command.js";
 import { KiroCommand } from "./kiro-command.js";
+import { KiroIdeCommand } from "./kiro-ide-command.js";
 import { OpenCodeCommand } from "./opencode-command.js";
 import { PiCommand } from "./pi-command.js";
 import { RooCommand } from "./roo-command.js";
@@ -85,6 +87,8 @@ const commandsProcessorToolTargetTuple = [
   "junie",
   "kilo",
   "kiro",
+  "kiro-cli",
+  "kiro-ide",
   "opencode",
   "pi",
   "roo",
@@ -307,6 +311,32 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     "kiro",
     {
       class: KiroCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: false,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "kiro-cli",
+    {
+      class: KiroCliCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: false,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "kiro-ide",
+    {
+      class: KiroIdeCommand,
       meta: {
         extension: "md",
         supportsProject: true,

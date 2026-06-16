@@ -23,6 +23,8 @@ import { GeminiCliSubagent } from "./geminicli-subagent.js";
 import { GooseSubagent } from "./goose-subagent.js";
 import { JunieSubagent } from "./junie-subagent.js";
 import { KiloSubagent } from "./kilo-subagent.js";
+import { KiroCliSubagent } from "./kiro-cli-subagent.js";
+import { KiroIdeSubagent } from "./kiro-ide-subagent.js";
 import { KiroSubagent } from "./kiro-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
 import { RooSubagent } from "./roo-subagent.js";
@@ -82,6 +84,8 @@ const subagentsProcessorToolTargetTuple = [
   "goose",
   "junie",
   "kiro",
+  "kiro-cli",
+  "kiro-ide",
   "opencode",
   "roo",
   "rovodev",
@@ -225,6 +229,20 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     {
       class: KiroSubagent,
       meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.json" },
+    },
+  ],
+  [
+    "kiro-cli",
+    {
+      class: KiroCliSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.json" },
+    },
+  ],
+  [
+    "kiro-ide",
+    {
+      class: KiroIdeSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
     },
   ],
   [

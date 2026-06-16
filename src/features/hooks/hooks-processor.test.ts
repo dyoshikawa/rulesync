@@ -497,6 +497,7 @@ describe("HooksProcessor", () => {
         "geminicli",
         "goose",
         "kiro",
+        "kiro-cli",
         "devin",
         "augmentcode",
       ]);
@@ -537,6 +538,7 @@ describe("HooksProcessor", () => {
         "geminicli",
         "goose",
         "kiro",
+        "kiro-cli",
         "devin",
         "augmentcode",
       ]);

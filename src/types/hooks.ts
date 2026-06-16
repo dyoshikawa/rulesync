@@ -344,6 +344,7 @@ export const HooksConfigSchema = z.looseObject({
   goose: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   deepagents: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   kiro: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  "kiro-cli": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   devin: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   augmentcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "antigravity-ide": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),

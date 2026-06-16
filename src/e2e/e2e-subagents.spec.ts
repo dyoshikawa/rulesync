@@ -52,6 +52,14 @@ describe("E2E: subagents", () => {
       outputPath: join(".kiro", "agents", "planner.json"),
     },
     {
+      target: "kiro-cli",
+      outputPath: join(".kiro", "agents", "planner.json"),
+    },
+    {
+      target: "kiro-ide",
+      outputPath: join(".kiro", "agents", "planner.md"),
+    },
+    {
       target: "junie",
       outputPath: join(".junie", "agents", "planner.md"),
     },
@@ -222,6 +230,8 @@ You are a subagent-only helper.
     { target: "copilot", orphanPath: join(".github", "agents", "orphan.md") },
     { target: "deepagents", orphanPath: join(".deepagents", "agents", "orphan", "AGENTS.md") },
     { target: "kiro", orphanPath: join(".kiro", "agents", "orphan.json") },
+    { target: "kiro-cli", orphanPath: join(".kiro", "agents", "orphan.json") },
+    { target: "kiro-ide", orphanPath: join(".kiro", "agents", "orphan.md") },
     { target: "junie", orphanPath: join(".junie", "agents", "orphan.md") },
     { target: "factorydroid", orphanPath: join(".factory", "droids", "orphan.md") },
     { target: "cline", orphanPath: join(".cline", "agents", "orphan.yaml") },
@@ -344,6 +354,43 @@ Break down tasks into steps.
     await writeFileContent(join(testDir, ".kiro", "agents", "planner.json"), subagentContent);
 
     await runImport({ target: "kiro", features: "subagents" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+    );
+    expect(importedContent).toContain("planner");
+  });
+
+  it("should import kiro-cli subagents (JSON format)", async () => {
+    const testDir = getTestDir();
+
+    const subagentContent = JSON.stringify(
+      { name: "planner", description: "Plans tasks", prompt: "Break down tasks into steps." },
+      null,
+      2,
+    );
+    await writeFileContent(join(testDir, ".kiro", "agents", "planner.json"), subagentContent);
+
+    await runImport({ target: "kiro-cli", features: "subagents" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+    );
+    expect(importedContent).toContain("planner");
+  });
+
+  it("should import kiro-ide subagents (Markdown format)", async () => {
+    const testDir = getTestDir();
+
+    const subagentContent = `---
+name: planner
+description: "Plans implementation tasks"
+---
+Break down tasks into steps.
+`;
+    await writeFileContent(join(testDir, ".kiro", "agents", "planner.md"), subagentContent);
+
+    await runImport({ target: "kiro-ide", features: "subagents" });
 
     const importedContent = await readFileContent(
       join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
