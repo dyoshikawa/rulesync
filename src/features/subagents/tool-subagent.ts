@@ -57,6 +57,14 @@ export abstract class ToolSubagent extends ToolFile {
 
   abstract toRulesyncSubagent(): RulesyncSubagent;
 
+  /**
+   * Optional fan-out hook for tools whose native format aggregates several
+   * subagents into one file (e.g. Roo's `.roomodes`). When implemented, the
+   * processor uses it during import so one tool file yields N rulesync
+   * subagents. Tools with a one-file-per-subagent layout omit it.
+   */
+  toRulesyncSubagents?(): RulesyncSubagent[];
+
   static isTargetedByRulesyncSubagent(_rulesyncSubagent: RulesyncSubagent): boolean {
     throw new Error("Please implement this method in the subclass.");
   }

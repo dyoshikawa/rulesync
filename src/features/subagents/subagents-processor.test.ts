@@ -1101,7 +1101,7 @@ Second global content`;
     });
 
     it("should export subagentsProcessorToolTargetsSimulated constant", () => {
-      expect(new Set(subagentsProcessorToolTargetsSimulated)).toEqual(new Set(["agentsmd", "roo"]));
+      expect(new Set(subagentsProcessorToolTargetsSimulated)).toEqual(new Set(["agentsmd"]));
       expect(Array.isArray(subagentsProcessorToolTargetsSimulated)).toBe(true);
     });
 

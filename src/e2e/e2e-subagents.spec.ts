@@ -87,6 +87,10 @@ describe("E2E: subagents", () => {
       target: "goose",
       outputPath: join(".goose", "recipes", "subagents", "planner.yaml"),
     },
+    {
+      target: "roo",
+      outputPath: ".roomodes",
+    },
   ])("should generate $target subagents", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -112,30 +116,30 @@ You are the planner. Analyze files and create a plan.
     expect(generatedContent).toContain("Analyze files and create a plan.");
   });
 
-  it.each([
-    { target: "agentsmd", outputPath: join(".agents", "subagents", "planner.md") },
-    { target: "roo", outputPath: join(".roo", "subagents", "planner.md") },
-  ])("should generate $target simulated subagents", async ({ target, outputPath }) => {
-    const testDir = getTestDir();
+  it.each([{ target: "agentsmd", outputPath: join(".agents", "subagents", "planner.md") }])(
+    "should generate $target simulated subagents",
+    async ({ target, outputPath }) => {
+      const testDir = getTestDir();
 
-    const subagentContent = `---
+      const subagentContent = `---
 name: planner
 targets: ["*"]
 description: "Plans implementation tasks"
 ---
 You are the planner. Analyze files and create a plan.
 `;
-    await writeFileContent(
-      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
-      subagentContent,
-    );
+      await writeFileContent(
+        join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+        subagentContent,
+      );
 
-    await runGenerate({ target, features: "subagents", simulateSubagents: true });
+      await runGenerate({ target, features: "subagents", simulateSubagents: true });
 
-    const generatedContent = await readFileContent(join(testDir, outputPath));
-    expect(generatedContent).toContain("planner");
-    expect(generatedContent).toContain("Analyze files and create a plan.");
-  });
+      const generatedContent = await readFileContent(join(testDir, outputPath));
+      expect(generatedContent).toContain("planner");
+      expect(generatedContent).toContain("Analyze files and create a plan.");
+    },
+  );
 
   it("should preserve opencode.mode when generating OpenCode subagents", async () => {
     const testDir = getTestDir();

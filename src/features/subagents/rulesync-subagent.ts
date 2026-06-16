@@ -25,6 +25,15 @@ export const RulesyncSubagentFrontmatterSchema = z.looseObject({
       name: z.optional(z.string()),
     }),
   ),
+  roo: z.optional(
+    z.looseObject({
+      slug: z.optional(z.string()),
+      whenToUse: z.optional(z.string()),
+      roleDefinition: z.optional(z.string()),
+      customInstructions: z.optional(z.string()),
+      groups: z.optional(z.array(z.unknown())),
+    }),
+  ),
   vibe: z.optional(
     z.looseObject({
       agent_type: z.optional(z.enum(["agent", "subagent"])),
