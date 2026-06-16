@@ -86,7 +86,16 @@ export class GooseSubagent extends ToolSubagent {
   }
 
   toRulesyncSubagent(): RulesyncSubagent {
-    const { instructions: _instructions, title, description, ...restFields } = this.recipe;
+    // Both body fields (`instructions`, falling back to `prompt`) are excluded
+    // from the goose section so the body is never duplicated back into the
+    // recipe on regeneration.
+    const {
+      instructions: _instructions,
+      prompt: _prompt,
+      title,
+      description,
+      ...restFields
+    } = this.recipe;
 
     const gooseSection: Record<string, unknown> = { ...restFields };
 
@@ -156,7 +165,7 @@ export class GooseSubagent extends ToolSubagent {
       recipe,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
-      fileContent: dump(recipe),
+      fileContent: dump(recipe, { lineWidth: -1, noRefs: true }),
       validate,
       global,
     });

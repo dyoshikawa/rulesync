@@ -10,6 +10,7 @@ import {
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
+import { stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -49,7 +50,17 @@ export class GooseCommand extends ToolCommand {
 
   constructor(params: AiFileParams) {
     super(params);
-    this.recipe = this.parseRecipeContent(this.fileContent);
+    // When validation is disabled (e.g. forDeletion with placeholder content),
+    // never throw on malformed YAML — fall back to an empty recipe.
+    if (params.validate === false) {
+      try {
+        this.recipe = this.parseRecipeContent(this.fileContent);
+      } catch {
+        this.recipe = {};
+      }
+    } else {
+      this.recipe = this.parseRecipeContent(this.fileContent);
+    }
   }
 
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolCommandSettablePaths {
@@ -86,9 +97,16 @@ export class GooseCommand extends ToolCommand {
   }
 
   toRulesyncCommand(): RulesyncCommand {
-    // `prompt` becomes the body; everything else is preserved in the goose
-    // section so the recipe round-trips losslessly.
-    const { prompt: _prompt, description, ...restFields } = this.recipe;
+    // The body source (`prompt`, falling back to `instructions`) becomes the
+    // rulesync body; everything else is preserved in the goose section. Both
+    // body fields are excluded from the section so the body is never duplicated
+    // back into the recipe on regeneration.
+    const {
+      prompt: _prompt,
+      instructions: _instructions,
+      description,
+      ...restFields
+    } = this.recipe;
 
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["goose"],
@@ -97,7 +115,7 @@ export class GooseCommand extends ToolCommand {
     };
 
     const body = this.getBody();
-    const fileContent = `${body}\n`;
+    const fileContent = stringifyFrontmatter(body, rulesyncFrontmatter);
 
     return new RulesyncCommand({
       outputRoot: process.cwd(),
@@ -150,7 +168,7 @@ export class GooseCommand extends ToolCommand {
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
-      fileContent: dump(recipe),
+      fileContent: dump(recipe, { lineWidth: -1, noRefs: true }),
       validate,
     });
   }
@@ -196,7 +214,10 @@ export class GooseCommand extends ToolCommand {
     relativeFilePath,
   }: ToolCommandForDeletionParams): GooseCommand {
     // Minimal valid recipe YAML so the constructor's parser succeeds.
-    const placeholder = dump({ version: RECIPE_VERSION, title: "", description: "", prompt: "" });
+    const placeholder = dump(
+      { version: RECIPE_VERSION, title: "", description: "", prompt: "" },
+      { lineWidth: -1, noRefs: true },
+    );
     return new GooseCommand({
       outputRoot,
       relativeDirPath,

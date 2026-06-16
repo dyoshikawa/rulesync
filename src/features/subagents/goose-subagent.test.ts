@@ -96,6 +96,30 @@ describe("GooseSubagent", () => {
     });
   });
 
+  describe("toRulesyncSubagent (prompt fallback)", () => {
+    it("uses prompt as the body without duplicating it into the goose section", async () => {
+      const yamlContent = [
+        "version: 1.0.0",
+        "title: planner",
+        "description: Plans tasks",
+        "prompt: Break down tasks into steps.",
+      ].join("\n");
+      await writeFileContent(
+        join(testDir, ".goose", "recipes", "subagents", "planner.yaml"),
+        yamlContent,
+      );
+
+      const subagent = await GooseSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "planner.yaml",
+      });
+      const rulesync = subagent.toRulesyncSubagent();
+      expect(rulesync.getBody()).toBe("Break down tasks into steps.");
+      const goose = rulesync.getFrontmatter().goose as Record<string, unknown> | undefined;
+      expect(goose?.prompt).toBeUndefined();
+    });
+  });
+
   describe("fromFile", () => {
     it("loads a sub-recipe file from disk", async () => {
       const yamlContent =

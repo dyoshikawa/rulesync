@@ -100,6 +100,15 @@ describe("GooseCommand", () => {
       ]);
     });
 
+    it("does not line-fold a long prompt body", () => {
+      const longBody = `Run the deploy steps. ${"word ".repeat(60)}done.`;
+      const command = GooseCommand.fromRulesyncCommand({
+        rulesyncCommand: buildRulesyncCommand({ body: longBody }),
+      });
+      const recipe = load(command.getFileContent()) as Record<string, unknown>;
+      expect(recipe.prompt).toBe(longBody);
+    });
+
     it("writes to the global recipes dir when global is set", () => {
       const command = GooseCommand.fromRulesyncCommand({
         rulesyncCommand: buildRulesyncCommand(),
@@ -133,6 +142,28 @@ describe("GooseCommand", () => {
       expect(fm.description).toBe("Deploy the app");
       expect(fm.goose).toMatchObject({ version: "1.0.0", title: "deploy", activities: ["Build"] });
       expect((fm.goose as Record<string, unknown>).prompt).toBeUndefined();
+    });
+
+    it("uses instructions as the body without duplicating it into the goose section", () => {
+      const yamlContent = [
+        "version: 1.0.0",
+        "title: deploy",
+        "description: Deploy the app",
+        "instructions: Run the deploy steps.",
+      ].join("\n");
+
+      const command = new GooseCommand({
+        relativeDirPath: join(".goose", "recipes"),
+        relativeFilePath: "deploy.yaml",
+        fileContent: yamlContent,
+      });
+
+      const rulesync = command.toRulesyncCommand();
+      expect(rulesync.getBody()).toBe("Run the deploy steps.");
+      // The body field must not be echoed back into the goose section.
+      expect(
+        (rulesync.getFrontmatter().goose as Record<string, unknown>)?.instructions,
+      ).toBeUndefined();
     });
   });
 
