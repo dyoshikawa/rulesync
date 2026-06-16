@@ -330,6 +330,8 @@ Attention, again, you are just the planner, so though you can read any files and
 
 > **Cline note:** Cline file-based agents are emitted as YAML files (`<name>.yaml`) into `.cline/agents/` (project) and `~/.cline/agents/` (global, via `--global`). The file is a YAML frontmatter block (`name` required, `description`) followed by the system prompt body, matching Cline's agent config loader.
 
+> **Devin note:** Devin Local custom subagent profiles are emitted as `AGENT.md` files in a **directory-per-agent** layout: `.devin/agents/<name>/AGENT.md` (project) and `~/.config/devin/agents/<name>/AGENT.md` (global, via `--global`). The directory name `<name>` is the profile id (derived from the rulesync subagent file name). The `AGENT.md` is a YAML frontmatter block followed by the subagent's system prompt. Besides the shared `name`/`description`, the `devin` subagent block accepts these optional fields (all preserved on round-trip): `model` (string, override the subagent LLM), `allowed-tools` (list of strings, restrict available tools), `permissions` (object with `allow`/`deny`/`ask` string lists, override tool permissions), and `max-nesting` (integer, enable nested subagent spawning up to the given depth). See the [Devin subagents docs](https://docs.devin.ai/cli/subagents).
+
 > **Kilo note (as of 2026-05-13):** Kilo's documented default for user-defined agents is `mode: all`, which makes the agent available both as a top-level pick and as a subagent. Set `kilo.mode: subagent` to opt into hidden/subagent-only behavior.
 
 Besides `mode`, the `kilo` subagent block accepts these optional fields (all preserved on round-trip):

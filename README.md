@@ -102,7 +102,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Google Antigravity ⚠️  |  ✅   |        |     |    ✅    |           |   ✅   |       |             |
 | JetBrains Junie        |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |
 | AugmentCode            |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
-| Devin Desktop          |  ✅   |   ✅   | ✅  |    ✅    |           |   ✅   |  ✅   |             |
+| Devin Desktop          |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |
 | Warp                   |  ✅   |        | ✅  |          |           |   ✅   |       |     ✅      |
 | Replit                 |  ✅   |        |     |          |           |   ✅   |       |             |
 | Pi Coding Agent        |  ✅   |        |     |    ✅    |           |   ✅   |       |             |
