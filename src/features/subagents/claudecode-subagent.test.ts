@@ -46,6 +46,49 @@ describe("ClaudecodeSubagentFrontmatterSchema", () => {
     expect(() => ClaudecodeSubagentFrontmatterSchema.parse(frontmatter)).not.toThrow();
   });
 
+  it("should accept the full set of Claude Code subagent frontmatter fields", () => {
+    const frontmatter = {
+      name: "test-agent",
+      description: "A test agent",
+      model: "fable",
+      tools: ["Read", "Write"],
+      disallowedTools: ["Bash"],
+      permissionMode: "default",
+      maxTurns: 20,
+      skills: ["skill-creator"],
+      color: "cyan",
+      memory: "project",
+      effort: "high",
+      isolation: "worktree",
+      background: true,
+      initialPrompt: "Start by reading the spec.",
+      mcpServers: { github: { command: "github-mcp" } },
+      hooks: { PreToolUse: [] },
+    };
+
+    expect(() => ClaudecodeSubagentFrontmatterSchema.parse(frontmatter)).not.toThrow();
+  });
+
+  it("should reject non-number maxTurns", () => {
+    const invalidFrontmatter = {
+      name: "test-agent",
+      description: "A test agent",
+      maxTurns: "x",
+    };
+
+    expect(() => ClaudecodeSubagentFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
+  });
+
+  it("should reject non-boolean background", () => {
+    const invalidFrontmatter = {
+      name: "test-agent",
+      description: "A test agent",
+      background: "yes",
+    };
+
+    expect(() => ClaudecodeSubagentFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
+  });
+
   it("should reject frontmatter missing required fields", () => {
     // Missing name
     const missingName = {
@@ -743,6 +786,72 @@ describe("ClaudecodeSubagent", () => {
         model: "haiku",
         "allowed-tools": ["Read", "Write"],
         custom: { deep: { value: 42 } },
+      });
+    });
+
+    it("should round-trip the full set of Claude Code subagent fields through the claudecode section", () => {
+      const original = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "full-fields.md",
+        frontmatter: {
+          targets: ["claudecode"],
+          name: "full-agent",
+          description: "Full fields test",
+          claudecode: {
+            model: "fable",
+            tools: ["Read", "Write"],
+            disallowedTools: ["Bash"],
+            permissionMode: "default",
+            maxTurns: 20,
+            skills: ["skill-creator"],
+            color: "cyan",
+            memory: "project",
+            effort: "high",
+            isolation: "worktree",
+            background: true,
+            initialPrompt: "Start by reading the spec.",
+            mcpServers: { github: { command: "github-mcp" } },
+            hooks: { PreToolUse: [] },
+          },
+        },
+        body: "Body content",
+      });
+
+      const claudecode = ClaudecodeSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: ".claude/agents",
+        rulesyncSubagent: original,
+      }) as ClaudecodeSubagent;
+
+      const frontmatter = claudecode.getFrontmatter();
+      expect(frontmatter.disallowedTools).toEqual(["Bash"]);
+      expect(frontmatter.maxTurns).toBe(20);
+      expect(frontmatter.color).toBe("cyan");
+      expect(frontmatter.memory).toBe("project");
+      expect(frontmatter.effort).toBe("high");
+      expect(frontmatter.isolation).toBe("worktree");
+      expect(frontmatter.background).toBe(true);
+      expect(frontmatter.initialPrompt).toBe("Start by reading the spec.");
+      expect(frontmatter.mcpServers).toEqual({ github: { command: "github-mcp" } });
+      expect(frontmatter.hooks).toEqual({ PreToolUse: [] });
+
+      const backToRulesync = claudecode.toRulesyncSubagent();
+      expect(backToRulesync.getFrontmatter().claudecode).toEqual({
+        model: "fable",
+        tools: ["Read", "Write"],
+        disallowedTools: ["Bash"],
+        permissionMode: "default",
+        maxTurns: 20,
+        skills: ["skill-creator"],
+        color: "cyan",
+        memory: "project",
+        effort: "high",
+        isolation: "worktree",
+        background: true,
+        initialPrompt: "Start by reading the spec.",
+        mcpServers: { github: { command: "github-mcp" } },
+        hooks: { PreToolUse: [] },
       });
     });
 
