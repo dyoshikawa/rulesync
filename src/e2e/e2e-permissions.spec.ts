@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { load } from "js-yaml";
 import * as smolToml from "smol-toml";
 import { describe, expect, it } from "vitest";
 
@@ -1350,6 +1351,57 @@ describe("E2E: permissions (global mode)", () => {
     expect(bash.permission).toBe("ask");
     expect(bash.allow).toEqual(["git status"]);
     expect(parsed.disabled_tools).toContain("write_file");
+  });
+
+  it("should generate rovodev permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "*": "ask", "git status": "allow", "rm -rf .*": "deny" },
+            read: { "*": "allow" },
+            edit: { "*": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    // Pre-seed config.yml with unrelated user settings to verify the
+    // non-destructive merge into ~/.rovodev/config.yml.
+    await writeFileContent(
+      join(homeDir, ".rovodev", "config.yml"),
+      "agent:\n  model: claude\nsessions:\n  retention: 30\n",
+    );
+
+    await runGenerate({
+      target: "rovodev",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const parsed = load(await readFileContent(join(homeDir, ".rovodev", "config.yml")));
+    const root = toTable(parsed);
+    const toolPermissions = toTable(root.toolPermissions);
+    const bash = toTable(toolPermissions.bash);
+    // `bash` catch-all -> bash.default; other patterns -> bash.commands.
+    expect(bash.default).toBe("ask");
+    expect(bash.commands).toEqual([
+      { command: "git status", permission: "allow" },
+      { command: "rm -rf .*", permission: "deny" },
+    ]);
+    // `read` -> inspection tools, `edit` -> mutation tools.
+    expect(toolPermissions.open_files).toBe("allow");
+    expect(toolPermissions.create_file).toBe("deny");
+    // Unrelated user settings preserved by the non-destructive merge.
+    expect(toTable(root.agent).model).toBe("claude");
+    expect(toTable(root.sessions).retention).toBe(30);
   });
 });
 
