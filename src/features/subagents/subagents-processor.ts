@@ -442,45 +442,77 @@ export class SubagentsProcessor extends FeatureProcessor {
     const factory = this.getFactory(this.toolTarget);
     const paths = factory.class.getSettablePaths({ global: this.global });
 
-    const baseDir = join(this.outputRoot, paths.relativeDirPath);
-    const subagentFilePaths = await findFilesByGlobs(join(baseDir, factory.meta.filePattern));
+    // Orphan deletion must only ever target the canonical generation directory,
+    // so that import-only discovery roots (e.g. Junie's `.agents/`) are never
+    // removed. Importing, on the other hand, scans every discovery root.
+    const dirPaths = forDeletion
+      ? [paths.relativeDirPath]
+      : [paths.relativeDirPath, ...(paths.importDirPaths ?? [])];
 
-    // Compute the per-subagent file path relative to the tool's base directory.
-    // For flat layouts (e.g. `<name>.md`) this is identical to `basename(path)`,
-    // while for directory-per-agent layouts (e.g. deepagents' `<name>/AGENTS.md`)
-    // it preserves the subdirectory so the subagent name is not lost.
-    const toRelativeFilePath = (path: string): string => relative(baseDir, path);
+    const toolSubagents: ToolFile[] = [];
+    // Tracks subagent relative paths already loaded so that a duplicate in a
+    // lower-precedence import root does not silently shadow an earlier one.
+    const seenRelativeFilePaths = new Set<string>();
+    for (const dirPath of dirPaths) {
+      const baseDir = join(this.outputRoot, dirPath);
+      const subagentFilePaths = await findFilesByGlobs(join(baseDir, factory.meta.filePattern));
 
-    if (forDeletion) {
-      const toolSubagents = subagentFilePaths
-        .map((path) =>
-          factory.class.forDeletion({
+      // Compute the per-subagent file path relative to the tool's base directory.
+      // For flat layouts (e.g. `<name>.md`) this is identical to `basename(path)`,
+      // while for directory-per-agent layouts (e.g. deepagents' `<name>/AGENTS.md`)
+      // it preserves the subdirectory so the subagent name is not lost.
+      const toRelativeFilePath = (path: string): string => relative(baseDir, path);
+
+      if (forDeletion) {
+        toolSubagents.push(
+          ...subagentFilePaths
+            .map((path) =>
+              factory.class.forDeletion({
+                outputRoot: this.outputRoot,
+                relativeDirPath: dirPath,
+                relativeFilePath: toRelativeFilePath(path),
+                global: this.global,
+              }),
+            )
+            .filter((subagent) => subagent.isDeletable()),
+        );
+        continue;
+      }
+
+      const loaded = await Promise.all(
+        subagentFilePaths.map((path) =>
+          factory.class.fromFile({
             outputRoot: this.outputRoot,
-            relativeDirPath: paths.relativeDirPath,
+            relativeDirPath: dirPath,
             relativeFilePath: toRelativeFilePath(path),
             global: this.global,
           }),
-        )
-        .filter((subagent) => subagent.isDeletable());
-
-      this.logger.debug(
-        `Successfully loaded ${toolSubagents.length} ${paths.relativeDirPath} subagents`,
+        ),
       );
-      return toolSubagents;
+
+      // When more than one discovery root is scanned (e.g. Junie's
+      // `.junie/agents/` plus `.agents/`), two roots can hold a subagent with
+      // the same relative path. Downstream conversion keys by that path, so a
+      // later one would silently overwrite an earlier one. Warn instead of
+      // failing, keeping the earlier (higher-precedence) root's file.
+      const deduped: ToolFile[] = [];
+      for (const subagent of loaded) {
+        const key = subagent.getRelativeFilePath();
+        if (seenRelativeFilePaths.has(key)) {
+          this.logger.warn(
+            `Duplicate ${this.toolTarget} subagent "${key}" found in ${dirPath}; ` +
+              `keeping the one from a higher-precedence directory and ignoring this copy.`,
+          );
+          continue;
+        }
+        seenRelativeFilePaths.add(key);
+        deduped.push(subagent);
+      }
+      toolSubagents.push(...deduped);
     }
 
-    const toolSubagents = await Promise.all(
-      subagentFilePaths.map((path) =>
-        factory.class.fromFile({
-          outputRoot: this.outputRoot,
-          relativeFilePath: toRelativeFilePath(path),
-          global: this.global,
-        }),
-      ),
-    );
-
     this.logger.debug(
-      `Successfully loaded ${toolSubagents.length} ${paths.relativeDirPath} subagents`,
+      `Successfully loaded ${toolSubagents.length} ${this.toolTarget} subagents from ${dirPaths.join(", ")}`,
     );
     return toolSubagents;
   }

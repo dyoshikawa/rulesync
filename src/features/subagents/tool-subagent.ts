@@ -13,6 +13,14 @@ export type ToolSubagentFromRulesyncSubagentParams = Omit<
 
 export type ToolSubagentSettablePaths = {
   relativeDirPath: string;
+  /**
+   * Additional directories to scan when *importing* subagents, beyond
+   * `relativeDirPath`. Generation and orphan deletion always target only
+   * `relativeDirPath`; these extra roots are read-only discovery locations
+   * (e.g. Junie also reads the cross-tool `.agents/` directory). Omitted by
+   * tools that have a single subagent directory.
+   */
+  importDirPaths?: string[];
 };
 
 export type ToolSubagentFromFileParams = AiFileFromFileParams & {

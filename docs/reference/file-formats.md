@@ -282,7 +282,7 @@ opencode: # for OpenCode-specific parameters
       "git diff": allow
 kilo: # for Kilo-specific parameters
   mode: all # (optional, defaults to "all") use "subagent" for hidden/subagent-only agents
-junie: # for JetBrains Junie CLI specific parameters (.junie/agents/*.md)
+junie: # for JetBrains Junie CLI specific parameters (generated to .junie/agents/*.md; also imported from .agents/*.md)
   tools: ["Read", "Grep", "Edit"] # allowed tools
   disallowedTools: ["Bash", "WebSearch"] # disallowed tools
   mcpServers: ["github"] # MCP servers the subagent may use
