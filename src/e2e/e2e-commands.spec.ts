@@ -33,6 +33,7 @@ describe("E2E: commands", () => {
     { target: "devin", outputPath: join(".devin", "workflows", "review-pr.md") },
     { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
     { target: "goose", outputPath: join(".goose", "recipes", "review-pr.yaml") },
+    { target: "qwencode", outputPath: join(".qwen", "commands", "review-pr.md") },
   ])("should generate $target commands", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -211,6 +212,7 @@ describe("E2E: commands (global mode)", () => {
     },
     { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
     { target: "goose", outputPath: join(".config", "goose", "recipes", "review-pr.yaml") },
+    { target: "qwencode", outputPath: join(".qwen", "commands", "review-pr.md") },
   ])("should generate $target commands in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

@@ -908,6 +908,7 @@ Content that would fail parsing`;
         "kilo",
         "opencode",
         "pi",
+        "qwencode",
         "rovodev",
         "takt",
         "vibe",
@@ -956,7 +957,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("vibe");
       expect(globalTargets).toContain("devin");
       expect(globalTargets).toContain("zed");
-      expect(globalTargets.length).toBe(23);
+      expect(globalTargets.length).toBe(24);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

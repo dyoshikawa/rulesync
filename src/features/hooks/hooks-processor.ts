@@ -18,6 +18,7 @@ import {
   KILO_HOOK_EVENTS,
   KIRO_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
+  QWENCODE_HOOK_EVENTS,
   VIBE_HOOK_EVENTS,
   type HookEvent,
   type HookType,
@@ -44,6 +45,7 @@ import { KiloHooks } from "./kilo-hooks.js";
 import { KiroCliHooks } from "./kiro-cli-hooks.js";
 import { KiroHooks } from "./kiro-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
+import { QwencodeHooks } from "./qwencode-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import type {
   ToolHooksForDeletionParams,
@@ -73,6 +75,7 @@ const hooksProcessorToolTargetTuple = [
   "augmentcode",
   "junie",
   "vibe",
+  "qwencode",
 ] as const;
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
@@ -390,6 +393,23 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedHookTypes: ["command"],
       // All three Vibe events (before_tool/after_tool/post_agent_turn) accept a
       // `match` tool-name matcher (fnmatch glob or `re:` regex).
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "qwencode",
+    {
+      // Qwen Code hooks live under the `hooks` key of `.qwen/settings.json`
+      // (project) / `~/.qwen/settings.json` (global), using Claude-style
+      // PascalCase per-matcher arrays. Qwen's event set differs from Gemini CLI.
+      class: QwencodeHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: QWENCODE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
       supportsMatcher: true,
     },
   ],

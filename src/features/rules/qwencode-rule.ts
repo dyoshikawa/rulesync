@@ -20,15 +20,23 @@ import {
 
 export type QwencodeRuleParams = ToolRuleParams;
 
-export type QwencodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot: {
-    relativeDirPath: string;
-  };
-};
+export type QwencodeRuleSettablePaths =
+  | (Omit<ToolRuleSettablePaths, "root"> & {
+      root: {
+        relativeDirPath: string;
+        relativeFilePath: string;
+      };
+      nonRoot: {
+        relativeDirPath: string;
+      };
+    })
+  | {
+      root: {
+        relativeDirPath: string;
+        relativeFilePath: string;
+      };
+      nonRoot?: undefined;
+    };
 
 /**
  * Rule generator for Qwen Code AI assistant
@@ -43,6 +51,17 @@ export class QwencodeRule extends ToolRule {
       excludeToolDir?: boolean;
     } = {},
   ): QwencodeRuleSettablePaths {
+    // Global scope: the root memory file lives under `~/.qwen/QWEN.md`. Qwen
+    // Code does not document a global non-root memories directory, so only the
+    // root path is emitted (mirrors how geminicli global rules are wired).
+    if (_options.global) {
+      return {
+        root: {
+          relativeDirPath: buildToolPath(QWENCODE_DIR, ".", _options.excludeToolDir),
+          relativeFilePath: QWENCODE_RULE_FILE_NAME,
+        },
+      };
+    }
     return {
       root: {
         relativeDirPath: ".",
@@ -58,34 +77,52 @@ export class QwencodeRule extends ToolRule {
     outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
+    global = false,
   }: ToolRuleFromFileParams): Promise<QwencodeRule> {
+    const paths = this.getSettablePaths({ global });
     const isRoot = relativeFilePath === QWENCODE_RULE_FILE_NAME;
-    const relativePath = isRoot
-      ? QWENCODE_RULE_FILE_NAME
-      : join(QWENCODE_MEMORIES_DIR_PATH, relativeFilePath);
+
+    if (isRoot) {
+      const fileContent = await readFileContent(
+        join(outputRoot, paths.root.relativeDirPath, QWENCODE_RULE_FILE_NAME),
+      );
+      return new QwencodeRule({
+        outputRoot,
+        relativeDirPath: paths.root.relativeDirPath,
+        relativeFilePath: QWENCODE_RULE_FILE_NAME,
+        fileContent,
+        validate,
+        root: true,
+      });
+    }
+
+    if (!paths.nonRoot) {
+      throw new Error(`nonRoot path is not set for ${relativeFilePath}`);
+    }
+
+    const relativePath = join(QWENCODE_MEMORIES_DIR_PATH, relativeFilePath);
     const fileContent = await readFileContent(join(outputRoot, relativePath));
 
     return new QwencodeRule({
       outputRoot,
-      relativeDirPath: isRoot
-        ? this.getSettablePaths().root.relativeDirPath
-        : this.getSettablePaths().nonRoot.relativeDirPath,
-      relativeFilePath: isRoot ? QWENCODE_RULE_FILE_NAME : relativeFilePath,
+      relativeDirPath: paths.nonRoot.relativeDirPath,
+      relativeFilePath,
       fileContent,
       validate,
-      root: isRoot,
+      root: false,
     });
   }
 
   static fromRulesyncRule(params: ToolRuleFromRulesyncRuleParams): QwencodeRule {
-    const { outputRoot = process.cwd(), rulesyncRule, validate = true } = params;
+    const { outputRoot = process.cwd(), rulesyncRule, validate = true, global = false } = params;
+    const paths = this.getSettablePaths({ global });
     return new QwencodeRule(
       this.buildToolRuleParamsDefault({
         outputRoot,
         rulesyncRule,
         validate,
-        rootPath: this.getSettablePaths().root,
-        nonRootPath: this.getSettablePaths().nonRoot,
+        rootPath: paths.root,
+        nonRootPath: paths.nonRoot,
       }),
     );
   }

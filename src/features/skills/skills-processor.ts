@@ -33,6 +33,7 @@ import { KiroIdeSkill } from "./kiro-ide-skill.js";
 import { KiroSkill } from "./kiro-skill.js";
 import { OpenCodeSkill } from "./opencode-skill.js";
 import { PiSkill } from "./pi-skill.js";
+import { QwencodeSkill } from "./qwencode-skill.js";
 import { ReplitSkill } from "./replit-skill.js";
 import { RooSkill } from "./roo-skill.js";
 import { RovodevSkill } from "./rovodev-skill.js";
@@ -103,6 +104,7 @@ const skillsProcessorToolTargetTuple = [
   "kiro-ide",
   "opencode",
   "pi",
+  "qwencode",
   "replit",
   "roo",
   "rovodev",
@@ -301,6 +303,15 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "pi",
     {
       class: PiSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "qwencode",
+    {
+      // Qwen Code Agent Skills are directories (`<name>/SKILL.md`) under
+      // `.qwen/skills/` (project) / `~/.qwen/skills/` (personal/global).
+      class: QwencodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

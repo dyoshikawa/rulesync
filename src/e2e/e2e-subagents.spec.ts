@@ -32,6 +32,10 @@ describe("E2E: subagents", () => {
       outputPath: join(".gemini", "agents", "planner.md"),
     },
     {
+      target: "qwencode",
+      outputPath: join(".qwen", "agents", "planner.md"),
+    },
+    {
       target: "codexcli",
       outputPath: join(".codex", "agents", "planner.toml"),
     },
@@ -439,6 +443,7 @@ describe("E2E: subagents (global mode)", () => {
     { target: "copilotcli", outputPath: join(".copilot", "agents", "planner.agent.md") },
     { target: "cursor", outputPath: join(".cursor", "agents", "planner.md") },
     { target: "geminicli", outputPath: join(".gemini", "agents", "planner.md") },
+    { target: "qwencode", outputPath: join(".qwen", "agents", "planner.md") },
     { target: "junie", outputPath: join(".junie", "agents", "planner.md") },
     { target: "opencode", outputPath: join(".config", "opencode", "agents", "planner.md") },
     { target: "rovodev", outputPath: join(".rovodev", "subagents", "planner.md") },

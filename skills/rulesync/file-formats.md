@@ -62,7 +62,7 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
 
 ## `.rulesync/hooks.json`
 
-Hooks run scripts at lifecycle events (e.g. session start, before tool use). Events use **canonical camelCase** in this file, and Rulesync translates them per tool: Cursor uses them as-is; Claude Code, Factory Droid, Codex CLI, Gemini CLI, and Goose get PascalCase (with a few tool-specific name mappings) in their settings files; OpenCode and Kilo hooks are emitted as JavaScript plugins (`.opencode/plugins/rulesync-hooks.js`, `.kilo/plugins/rulesync-hooks.js`); Copilot and Copilot CLI map event names to their own camelCase (e.g. `beforeSubmitPrompt` → `userPromptSubmitted`, `stop` → `agentStop`, `afterError` → `errorOccurred`) and use `powershell`/`bash` command fields — Copilot CLI additionally covers a wider event set and supports `prompt` and `http` hook types beyond `command`; deepagents-cli uses a dot-notation (e.g. `session.start`, `tool.error`); Kiro emits hooks into `.kiro/agents/default.json` using Kiro's CLI event names (`agentSpawn`, `userPromptSubmit`, `preToolUse`, `postToolUse`, `stop`).
+Hooks run scripts at lifecycle events (e.g. session start, before tool use). Events use **canonical camelCase** in this file, and Rulesync translates them per tool: Cursor uses them as-is; Claude Code, Factory Droid, Codex CLI, Gemini CLI, and Goose get PascalCase (with a few tool-specific name mappings) in their settings files; OpenCode and Kilo hooks are emitted as JavaScript plugins (`.opencode/plugins/rulesync-hooks.js`, `.kilo/plugins/rulesync-hooks.js`); Copilot and Copilot CLI map event names to their own camelCase (e.g. `beforeSubmitPrompt` → `userPromptSubmitted`, `stop` → `agentStop`, `afterError` → `errorOccurred`) and use `powershell`/`bash` command fields — Copilot CLI additionally covers a wider event set and supports `prompt` and `http` hook types beyond `command`; deepagents-cli uses a dot-notation (e.g. `session.start`, `tool.error`); Kiro emits hooks into `.kiro/agents/default.json` using Kiro's CLI event names (`agentSpawn`, `userPromptSubmit`, `preToolUse`, `postToolUse`, `stop`); Qwen Code emits PascalCase events into the `hooks` key of `.qwen/settings.json` (its supported event set differs from Gemini CLI's).
 
 Example:
 
@@ -112,7 +112,7 @@ Example:
 
 - `version`: Schema version (currently `1`).
 - `hooks`: Map of canonical event names to an array of hook entries. These are dispatched to every tool that supports the given event.
-- `cursor.hooks`, `claudecode.hooks`, `opencode.hooks`, `kilo.hooks`, `copilot.hooks`, `copilotcli.hooks`, `factorydroid.hooks`, `geminicli.hooks`, `codexcli.hooks`, `goose.hooks`, `deepagents.hooks`, `kiro.hooks`: Tool-specific **override keys**. Entries under these keys are emitted only for the corresponding tool, so tool-only events (e.g. `afterFileEdit` for Cursor/OpenCode/Kilo, `worktreeCreate` for Claude Code, `afterError` for Copilot/Copilot CLI) can coexist with shared ones without leaking to other tools. `copilotcli.hooks` falls back to `copilot.hooks`, which in turn falls back to the shared `hooks` block.
+- `cursor.hooks`, `claudecode.hooks`, `opencode.hooks`, `kilo.hooks`, `copilot.hooks`, `copilotcli.hooks`, `factorydroid.hooks`, `geminicli.hooks`, `codexcli.hooks`, `goose.hooks`, `deepagents.hooks`, `kiro.hooks`, `qwencode.hooks`: Tool-specific **override keys**. Entries under these keys are emitted only for the corresponding tool, so tool-only events (e.g. `afterFileEdit` for Cursor/OpenCode/Kilo, `worktreeCreate` for Claude Code, `afterError` for Copilot/Copilot CLI) can coexist with shared ones without leaking to other tools. `copilotcli.hooks` falls back to `copilot.hooks`, which in turn falls back to the shared `hooks` block.
 
 **Hook entry keys:**
 
@@ -191,6 +191,8 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 
 > **Note:** Goose hooks follow the Open Plugins spec: Rulesync writes a plugin directory `hooks/hooks.json` that Goose auto-discovers at startup. Locations are `<project>/.agents/plugins/rulesync/hooks/hooks.json` (project) and `~/.agents/plugins/rulesync/hooks/hooks.json` (global). The JSON shape matches Claude Code's (`{ "hooks": { "EventName": [ { "matcher": "...", "hooks": [ { "type": "command", "command": "..." } ] } ] } }`). Thirteen lifecycle events are supported — `sessionStart` ⇄ `SessionStart`, `sessionEnd` ⇄ `SessionEnd`, `stop` ⇄ `Stop`, `beforeSubmitPrompt` ⇄ `UserPromptSubmit`, `preToolUse` ⇄ `PreToolUse`, `postToolUse` ⇄ `PostToolUse`, `postToolUseFailure` ⇄ `PostToolUseFailure`, `beforeReadFile` ⇄ `BeforeReadFile`, `afterFileEdit` ⇄ `AfterFileEdit`, `beforeShellExecution` ⇄ `BeforeShellExecution`, `afterShellExecution` ⇄ `AfterShellExecution`, `subagentStart` ⇄ `SubagentStart`, and `subagentStop` ⇄ `SubagentStop`. The `matcher` regex is preserved, commands are emitted verbatim (Goose exposes `PLUGIN_ROOT` as a runtime environment variable), and only `command`-type hooks are supported.
 
+> **Note:** Qwen Code hooks are written under the top-level `hooks` key of `.qwen/settings.json` (project) / `~/.qwen/settings.json` (global), using Claude-style PascalCase per-matcher arrays (`{ "EventName": [ { "matcher": "...", "hooks": [ { "type": "command", "command": "...", "timeout": ... } ] } ] }`). Qwen's supported event set **differs from Gemini CLI's**, so rulesync defines a Qwen-specific mapping. Thirteen lifecycle events are supported — `sessionStart` ⇄ `SessionStart`, `sessionEnd` ⇄ `SessionEnd`, `preToolUse` ⇄ `PreToolUse`, `postToolUse` ⇄ `PostToolUse`, `postToolUseFailure` ⇄ `PostToolUseFailure`, `beforeSubmitPrompt` ⇄ `UserPromptSubmit`, `stop` ⇄ `Stop`, `subagentStart` ⇄ `SubagentStart`, `subagentStop` ⇄ `SubagentStop`, `preCompact` ⇄ `PreCompact`, `postCompact` ⇄ `PostCompact`, `permissionRequest` ⇄ `PermissionRequest`, and `notification` ⇄ `Notification`. Qwen-only events (`StopFailure`, `TodoCreated`, `TodoCompleted`) have no canonical equivalent. Commands are emitted verbatim (no `$GEMINI_PROJECT_DIR` rewriting), only `command`-type hooks are supported, and other top-level keys in `settings.json` are preserved on round-trip. See the [Qwen Code hooks docs](https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/hooks.md).
+
 ## `.copilot/mcp-config.json`
 
 Example:
@@ -258,6 +260,8 @@ Execute the following in parallel:
 ```
 
 The command body itself uses a Claude Code-compatible **universal syntax** (e.g. `$ARGUMENTS`, `` !`cmd` ``). When a target tool expects a different placeholder syntax, rulesync translates it automatically on generation and reverses the translation on import. See [Command Syntax](./command-syntax.md) for the full mapping.
+
+> **Qwen Code note:** Custom commands are emitted as **Markdown** files (not TOML — TOML is deprecated upstream) under `.qwen/commands/` (project) and `~/.qwen/commands/` (global, via `--global`). The file is an optional YAML frontmatter block (`description`) followed by the prompt body. Subdirectory namespacing is supported: `.qwen/commands/git/commit.md` becomes the `/git:commit` command. Any extra fields are preserved on round-trip under the `qwencode:` block.
 
 ## `rulesync/subagents/*.md`
 
@@ -335,6 +339,8 @@ Attention, again, you are just the planner, so though you can read any files and
 ```
 
 > **Gemini CLI note (as of 2026-04-01):** Subagents are generated to `.gemini/agents/`. To enable the agents feature, set `"experimental": { "enableAgents": true }` in your `.gemini/settings.json`.
+
+> **Qwen Code note:** Subagents are emitted as Markdown + YAML frontmatter under `.qwen/agents/` (project) and `~/.qwen/agents/` (user/global, via `--global`); the body is the subagent's system prompt. Besides the shared `name`/`description`, the `qwencode:` block accepts these optional fields (all preserved on round-trip): `model`, `approvalMode` (`default` | `plan` | `auto-edit` | `yolo` | `bubble`), `tools` (allowlist), `disallowedTools` (denylist), `maxTurns`, `color`, `mcpServers` (per-agent MCP overrides), and `hooks` (per-agent hook registrations). See the [Qwen Code sub-agents docs](https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/sub-agents.md).
 
 > **Cline note:** Cline file-based agents are emitted as YAML files (`<name>.yaml`) into `.cline/agents/` (project) and `~/.cline/agents/` (global, via `--global`). The file is a YAML frontmatter block (`name` required, `description`) followed by the system prompt body, matching Cline's agent config loader.
 
@@ -469,6 +475,12 @@ cursor: # for Cursor-specific parameters (optional)
 takt: # takt specific parameters (optional; emitted under .takt/facets/knowledge/ — frontmatter is dropped on emit)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
   extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
+qwencode: # for Qwen Code-specific parameters (optional; project .qwen/skills/, global ~/.qwen/skills/)
+  priority: 10 # (optional) higher values appear earlier in /skills listings
+  paths: # (optional) glob patterns (string or list) gating model discovery to matching files
+    - "src/**/*.ts"
+  user-invocable: false # (optional) hide from slash-command invocation, keep model access
+  disable-model-invocation: true # (optional) hide from the model but allow direct user invocation
 ---
 
 This is the skill body content.
@@ -565,6 +577,8 @@ You can control which individual tools from an MCP server are enabled or disable
 
 - `enabledTools`: An array of tool names that should be explicitly enabled for this server.
 - `disabledTools`: An array of tool names that should be explicitly disabled for this server.
+
+> **Qwen Code note:** MCP servers are written to the `mcpServers` key of `.qwen/settings.json` (project) / `~/.qwen/settings.json` (global, via `--global`). Qwen supports stdio (`command`/`args`), SSE (`url`), and HTTP (`httpUrl`) transports. Rulesync maps the canonical per-server `enabledTools` ⇄ Qwen's `includeTools` (allowlist) and `disabledTools` ⇄ Qwen's `excludeTools` (denylist). Other top-level keys in `settings.json` are preserved on round-trip.
 
 ### Codex-specific: pass shell env vars to MCP servers (`envVars`)
 

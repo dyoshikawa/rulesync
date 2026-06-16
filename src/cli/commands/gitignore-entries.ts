@@ -338,8 +338,12 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
 
   // Qwen Code
   { target: "qwencode", feature: "rules", entry: "**/QWEN.md" },
+  { target: "qwencode", feature: "commands", entry: "**/.qwen/commands/" },
+  { target: "qwencode", feature: "subagents", entry: "**/.qwen/agents/" },
+  { target: "qwencode", feature: "skills", entry: "**/.qwen/skills/" },
   { target: "qwencode", feature: "ignore", entry: "**/.qwenignore" },
   { target: "qwencode", feature: "general", entry: "**/.qwen/memories/" },
+  // mcp + hooks both write to `.qwen/settings.json`, shared with permissions.
   { target: "qwencode", feature: "permissions", entry: "**/.qwen/settings.json" },
 
   // Replit

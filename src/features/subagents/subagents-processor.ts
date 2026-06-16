@@ -28,6 +28,7 @@ import { KiroCliSubagent } from "./kiro-cli-subagent.js";
 import { KiroIdeSubagent } from "./kiro-ide-subagent.js";
 import { KiroSubagent } from "./kiro-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
+import { QwencodeSubagent } from "./qwencode-subagent.js";
 import { RooSubagent } from "./roo-subagent.js";
 import { RovodevSubagent } from "./rovodev-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
@@ -100,6 +101,7 @@ const subagentsProcessorToolTargetTuple = [
   "kiro-cli",
   "kiro-ide",
   "opencode",
+  "qwencode",
   "roo",
   "rovodev",
   "takt",
@@ -285,6 +287,15 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     "opencode",
     {
       class: OpenCodeSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+    },
+  ],
+  [
+    "qwencode",
+    {
+      // Qwen Code subagents are native Markdown + YAML frontmatter under
+      // `.qwen/agents/` (project) and `~/.qwen/agents/` (user/global).
+      class: QwencodeSubagent,
       meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
     },
   ],

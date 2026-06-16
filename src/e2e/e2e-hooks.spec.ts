@@ -34,6 +34,7 @@ describe("E2E: hooks", () => {
     { target: "opencode", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
     { target: "codexcli", outputPath: join(".codex", "hooks.json") },
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
+    { target: "qwencode", outputPath: join(".qwen", "settings.json") },
     {
       target: "goose",
       outputPath: join(".agents", "plugins", "rulesync", "hooks", "hooks.json"),
@@ -121,6 +122,17 @@ describe("E2E: hooks", () => {
         // audit.sh — mapped to `Stop` — survives generation.
         expect(parsed.rulesync.Stop).toBeDefined();
         expect(JSON.stringify(parsed)).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "qwencode") {
+        // Qwen Code uses Claude-style PascalCase event names under the `hooks`
+        // key of .qwen/settings.json, but its mapping differs from Gemini CLI:
+        // canonical `sessionStart` → `SessionStart`, `stop` → `Stop`
+        // (NOT Gemini's BeforeAgent/AfterAgent). See
+        // CANONICAL_TO_QWENCODE_EVENT_NAMES in src/types/hooks.ts.
+        expect(parsed.hooks).toBeDefined();
+        expect(parsed.hooks.SessionStart).toBeDefined();
+        expect(parsed.hooks.Stop).toBeDefined();
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
       } else {
         // codexcli, geminicli, factorydroid, goose: event-name casing/mapping
         // varies per tool, so verify the configured hook command paths are preserved.
@@ -470,6 +482,7 @@ describe("E2E: hooks (global mode)", () => {
     { target: "claudecode", outputPath: join(".claude", "settings.json") },
     { target: "codexcli", outputPath: join(".codex", "hooks.json") },
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
+    { target: "qwencode", outputPath: join(".qwen", "settings.json") },
     {
       target: "goose",
       outputPath: join(".agents", "plugins", "rulesync", "hooks", "hooks.json"),
@@ -535,6 +548,16 @@ describe("E2E: hooks (global mode)", () => {
       const parsed = JSON.parse(generatedContent);
       expect(parsed.rulesync.Stop).toBeDefined();
       expect(JSON.stringify(parsed)).toContain(".rulesync/hooks/audit.sh");
+    } else if (target === "qwencode") {
+      // Qwen Code emits Claude-style PascalCase event names under the `hooks`
+      // key of .qwen/settings.json: canonical `sessionStart` → `SessionStart`,
+      // `stop` → `Stop`. See CANONICAL_TO_QWENCODE_EVENT_NAMES in
+      // src/types/hooks.ts.
+      const parsed = JSON.parse(generatedContent);
+      expect(parsed.hooks.SessionStart).toBeDefined();
+      expect(parsed.hooks.Stop).toBeDefined();
+      expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+      expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
     } else {
       assertHookCommandsPreserved(JSON.parse(generatedContent));
     }

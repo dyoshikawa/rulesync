@@ -93,7 +93,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Rovodev (Atlassian)    |  ✅   |        | ✅  |          |    ✅     |   ✅   |       |     ✅      |
 | Takt                   |  ✅   |        |     |    ✅    |    ✅     |   ✅   |       |             |
 | Vibe Code              |  ✅   |   ✅   | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |
-| Qwen Code              |  ✅   |   ✅   |     |          |           |        |       |     ✅      |
+| Qwen Code              |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Kiro ⚠️                |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Kiro CLI               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Kiro IDE               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |
