@@ -247,6 +247,9 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   // (`~/.config/goose/config.yaml`), which lives under the home directory and is
   // not gitignored at the project level (mirrors Cline's global-only MCP).
 
+  // Grok Build
+  { target: "grokcli", feature: "general", entry: "**/.grok/config.toml" },
+
   // GitHub Copilot
   {
     target: ["copilot", "copilotcli"],

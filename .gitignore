@@ -231,7 +231,6 @@ rulesync.local.jsonc
 **/.agents/memories/
 **/.agents/skills/
 **/.agents/rules/
-**/GEMINI.md
 **/.geminiignore
 **/.agents/workflows/
 **/.agents/mcp_config.json
@@ -278,6 +277,7 @@ rulesync.local.jsonc
 **/.factory/skills/
 **/.factory/mcp.json
 **/.factory/hooks.json
+**/GEMINI.md
 **/.gemini/commands/
 **/.gemini/agents/
 **/.gemini/skills/
@@ -288,6 +288,7 @@ rulesync.local.jsonc
 **/.goose/recipes/
 **/.goose/recipes/subagents/
 **/.agents/plugins/
+**/.grok/config.toml
 **/.github/copilot-instructions.md
 **/.github/instructions/
 **/.github/prompts/

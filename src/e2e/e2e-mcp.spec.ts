@@ -26,6 +26,7 @@ describe("E2E: mcp", () => {
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
     { target: "qwencode", outputPath: join(".qwen", "settings.json") },
     { target: "codexcli", outputPath: join(".codex", "config.toml") },
+    { target: "grokcli", outputPath: join(".grok", "config.toml") },
     { target: "copilot", outputPath: join(".vscode", "mcp.json") },
     { target: "copilotcli", outputPath: join(".copilot", "mcp-config.json") },
     { target: "opencode", outputPath: "opencode.jsonc" },
@@ -71,7 +72,7 @@ describe("E2E: mcp", () => {
   });
 
   it.each([
-    // amp, geminicli, codexcli, opencode, kilo use merged config files (isDeletable=false) — excluded
+    // amp, geminicli, codexcli, grokcli, opencode, kilo use merged config files (isDeletable=false) — excluded
     { target: "claudecode", orphanPath: ".mcp.json" },
     { target: "cursor", orphanPath: join(".cursor", "mcp.json") },
     { target: "copilot", orphanPath: join(".vscode", "mcp.json") },
@@ -132,6 +133,11 @@ describe("E2E: mcp", () => {
     {
       target: "codexcli",
       outputPath: join(".codex", "config.toml"),
+      content: '[ui]\ntheme = "dark"\n',
+    },
+    {
+      target: "grokcli",
+      outputPath: join(".grok", "config.toml"),
       content: '[ui]\ntheme = "dark"\n',
     },
     {
@@ -375,6 +381,7 @@ describe("E2E: mcp (global mode)", () => {
     { target: "goose", outputPath: join(".config", "goose", "config.yaml") },
     { target: "opencode", outputPath: join(".config", "opencode", "opencode.jsonc") },
     { target: "codexcli", outputPath: join(".codex", "config.toml") },
+    { target: "grokcli", outputPath: join(".grok", "config.toml") },
     { target: "copilotcli", outputPath: join(".copilot", "mcp-config.json") },
     { target: "deepagents", outputPath: join(".deepagents", ".mcp.json") },
     { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
