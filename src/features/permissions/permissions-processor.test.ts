@@ -113,6 +113,7 @@ describe("PermissionsProcessor", () => {
         "kilo",
         "opencode",
         "qwencode",
+        "rovodev",
         "vibe",
         "warp",
         "zed",

@@ -21,6 +21,7 @@ import { KiloPermissions } from "./kilo-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
 import { QwencodePermissions } from "./qwencode-permissions.js";
+import { RovodevPermissions } from "./rovodev-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import type {
   ToolPermissionsForDeletionParams,
@@ -50,6 +51,7 @@ const permissionsProcessorToolTargetTuple = [
   "kiro-ide",
   "opencode",
   "qwencode",
+  "rovodev",
   "vibe",
   "warp",
   "zed",
@@ -265,6 +267,21 @@ export const toolPermissionsFactories = new Map<
       class: QwencodePermissions,
       meta: {
         supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "rovodev",
+    {
+      class: RovodevPermissions,
+      meta: {
+        // Rovo Dev CLI reads tool permissions only from the global
+        // `~/.rovodev/config.yml` (`toolPermissions` block); there is no
+        // project-scoped Rovo Dev permissions file (mirrors the Rovodev MCP
+        // adapter).
+        supportsProject: false,
         supportsGlobal: true,
         supportsImport: true,
       },
