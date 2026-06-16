@@ -33,12 +33,20 @@ const VIBE_CONFIG_FILE_NAME = "config.toml";
 type VibeHookEntry = {
   name: string;
   type: string;
-  match: string;
+  match?: string;
   command: string;
   timeout?: number;
   strict?: boolean;
   description?: string;
 };
+
+/**
+ * Vibe scopes the tool-name `match` glob and the `strict` flag to tool hooks
+ * (`before_tool` / `after_tool`) only; `post_agent_turn` fires after every
+ * assistant turn and carries no matcher.
+ * @see https://github.com/mistralai/mistral-vibe/blob/main/README.md
+ */
+const VIBE_TOOL_EVENTS: ReadonlySet<string> = new Set(["before_tool", "after_tool"]);
 
 const SUPPORTED_VIBE_EVENTS: ReadonlySet<string> = new Set(VIBE_HOOK_EVENTS);
 
@@ -78,20 +86,24 @@ function canonicalToVibeHooks(
         continue;
       }
       const name = typeof def.name === "string" ? def.name : `${vibeEvent}-${index}`;
-      const match = typeof def.matcher === "string" && def.matcher !== "" ? def.matcher : "*";
+      const isToolEvent = VIBE_TOOL_EVENTS.has(vibeEvent);
       const entry: VibeHookEntry = {
         name,
         type: vibeEvent,
-        match,
         command: def.command,
       };
+      // The tool-name `match` glob applies to tool hooks only; `post_agent_turn`
+      // carries no matcher, so omit it there.
+      if (isToolEvent) {
+        entry.match = typeof def.matcher === "string" && def.matcher !== "" ? def.matcher : "*";
+      }
       if (typeof def.timeout === "number") {
         entry.timeout = def.timeout;
       }
       // Vibe's `strict` flag applies to tool hooks only. We carry it through when
       // present on the canonical definition (passed via the loose `strict` key).
       const strict = (def as Record<string, unknown>).strict;
-      if (typeof strict === "boolean") {
+      if (isToolEvent && typeof strict === "boolean") {
         entry.strict = strict;
       }
       if (typeof def.description === "string") {

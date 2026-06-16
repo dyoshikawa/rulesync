@@ -85,8 +85,8 @@ describe("VibeHooks", () => {
       expect(byType.after_tool.match).toBe("re:^serena_.*$");
 
       expect(byType.post_agent_turn).toBeDefined();
-      // No matcher provided → defaults to "*".
-      expect(byType.post_agent_turn.match).toBe("*");
+      // `match` applies to tool hooks only; post_agent_turn carries no matcher.
+      expect(byType.post_agent_turn.match).toBeUndefined();
     });
 
     it("should drop unsupported events and non-command hook types", async () => {
