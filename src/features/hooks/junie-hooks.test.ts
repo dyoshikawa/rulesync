@@ -81,6 +81,46 @@ describe("JunieHooks", () => {
       expect(parsed.hooks.PreToolUse).toBeUndefined();
     });
 
+    it("should drop matchers on matcher-less events (UserPromptSubmit, Stop) but keep them on SessionStart", async () => {
+      await ensureDir(join(testDir, ".junie"));
+      await writeFileContent(join(testDir, ".junie", "config.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          sessionStart: [
+            { type: "command", command: ".rulesync/hooks/session-start.sh", matcher: "startup" },
+          ],
+          beforeSubmitPrompt: [
+            { type: "command", command: ".rulesync/hooks/prompt.sh", matcher: "ignored" },
+          ],
+          stop: [{ type: "command", command: ".rulesync/hooks/audit.sh", matcher: "ignored" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const junieHooks = await JunieHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(junieHooks.getFileContent());
+      // SessionStart supports matchers, so it is preserved.
+      expect(parsed.hooks.SessionStart[0].matcher).toBe("startup");
+      // UserPromptSubmit and Stop are matcher-less; the matcher key is stripped.
+      expect(parsed.hooks.UserPromptSubmit[0].matcher).toBeUndefined();
+      expect(parsed.hooks.UserPromptSubmit[0].hooks).toBeDefined();
+      expect(parsed.hooks.Stop[0].matcher).toBeUndefined();
+      expect(parsed.hooks.Stop[0].hooks).toBeDefined();
+    });
+
     it("should preserve a pre-existing unrelated key in config.json", async () => {
       await ensureDir(join(testDir, ".junie"));
       await writeFileContent(

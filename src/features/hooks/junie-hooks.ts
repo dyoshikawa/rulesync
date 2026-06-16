@@ -22,6 +22,12 @@ import {
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
+// Junie CLI applies matchers only to `SessionStart` / `SessionEnd`;
+// `UserPromptSubmit` (beforeSubmitPrompt) and `Stop` (stop) are matcher-less and
+// always run, so any matcher on those events is dropped to match the upstream
+// capability. See https://junie.jetbrains.com/docs/junie-cli-hooks.html
+const JUNIE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(["beforeSubmitPrompt", "stop"]);
+
 const JUNIE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: JUNIE_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_JUNIE_EVENT_NAMES,
@@ -30,6 +36,7 @@ const JUNIE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // Junie CLI hooks only support `type: "command"`; drop any `prompt`-type
   // hooks so generation matches the declared capability.
   supportedHookTypes: new Set(["command"]),
+  noMatcherEvents: JUNIE_NO_MATCHER_EVENTS,
 };
 
 export class JunieHooks extends ToolHooks {
