@@ -252,7 +252,26 @@ function convertRulesyncToRovodevToolPermissions({
   const toolPermissions: RovodevToolPermissions = {};
   const allowedExternalPaths: string[] = [];
 
-  for (const [category, rules] of Object.entries(config.permission)) {
+  // `edit` and `write` collapse onto the same Rovo Dev file-mutation tools, so a
+  // conflicting catch-all between them cannot be represented. Warn that the loss
+  // is happening, and resolve it deterministically in favour of `edit` (the
+  // canonical category the mutation tools map back to on import).
+  const editCatchAll = config.permission.edit?.[CATCH_ALL_PATTERN];
+  const writeCatchAll = config.permission.write?.[CATCH_ALL_PATTERN];
+  if (editCatchAll && writeCatchAll && editCatchAll !== writeCatchAll) {
+    logger?.warn(
+      `Rovo Dev maps both "edit" and "write" onto the same file-mutation tools, but they have ` +
+        `conflicting catch-all permissions ("edit": "${editCatchAll}", "write": "${writeCatchAll}"). ` +
+        `The "edit" value takes precedence.`,
+    );
+  }
+
+  // Apply `edit` after `write` so the overlapping tool keys resolve deterministically
+  // to `edit`, consistent with the import direction.
+  const orderedEntries = Object.entries(config.permission).toSorted(
+    ([a], [b]) => (a === "edit" ? 1 : 0) - (b === "edit" ? 1 : 0),
+  );
+  for (const [category, rules] of orderedEntries) {
     if (category === "bash") {
       const bash = convertBashRules(rules);
       if (bash) {

@@ -147,6 +147,27 @@ describe("RovodevPermissions", () => {
       expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("webfetch"));
     });
 
+    it("warns and lets edit win when edit and write set conflicting catch-alls", async () => {
+      const mockLogger = createMockLogger();
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          write: { "*": "allow" },
+          edit: { "*": "deny" },
+        }),
+        logger: mockLogger,
+        global: true,
+      });
+
+      const tp = toolPermissionsOf(perms.getFileContent());
+      // edit (deny) deterministically wins over write (allow) on the shared tools.
+      expect(tp.create_file).toBe("deny");
+      expect(tp.find_and_replace_code).toBe("deny");
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"edit" value takes precedence'),
+      );
+    });
+
     it("merges into config.yml preserving all other top-level keys", async () => {
       const dirPath = join(testDir, ".rovodev");
       await ensureDir(dirPath);
