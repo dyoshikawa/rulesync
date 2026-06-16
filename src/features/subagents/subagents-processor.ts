@@ -450,6 +450,9 @@ export class SubagentsProcessor extends FeatureProcessor {
       : [paths.relativeDirPath, ...(paths.importDirPaths ?? [])];
 
     const toolSubagents: ToolFile[] = [];
+    // Tracks subagent relative paths already loaded so that a duplicate in a
+    // lower-precedence import root does not silently shadow an earlier one.
+    const seenRelativeFilePaths = new Set<string>();
     for (const dirPath of dirPaths) {
       const baseDir = join(this.outputRoot, dirPath);
       const subagentFilePaths = await findFilesByGlobs(join(baseDir, factory.meta.filePattern));
@@ -476,22 +479,40 @@ export class SubagentsProcessor extends FeatureProcessor {
         continue;
       }
 
-      toolSubagents.push(
-        ...(await Promise.all(
-          subagentFilePaths.map((path) =>
-            factory.class.fromFile({
-              outputRoot: this.outputRoot,
-              relativeDirPath: dirPath,
-              relativeFilePath: toRelativeFilePath(path),
-              global: this.global,
-            }),
-          ),
-        )),
+      const loaded = await Promise.all(
+        subagentFilePaths.map((path) =>
+          factory.class.fromFile({
+            outputRoot: this.outputRoot,
+            relativeDirPath: dirPath,
+            relativeFilePath: toRelativeFilePath(path),
+            global: this.global,
+          }),
+        ),
       );
+
+      // When more than one discovery root is scanned (e.g. Junie's
+      // `.junie/agents/` plus `.agents/`), two roots can hold a subagent with
+      // the same relative path. Downstream conversion keys by that path, so a
+      // later one would silently overwrite an earlier one. Warn instead of
+      // failing, keeping the earlier (higher-precedence) root's file.
+      const deduped: ToolFile[] = [];
+      for (const subagent of loaded) {
+        const key = subagent.getRelativeFilePath();
+        if (seenRelativeFilePaths.has(key)) {
+          this.logger.warn(
+            `Duplicate ${this.toolTarget} subagent "${key}" found in ${dirPath}; ` +
+              `keeping the one from a higher-precedence directory and ignoring this copy.`,
+          );
+          continue;
+        }
+        seenRelativeFilePaths.add(key);
+        deduped.push(subagent);
+      }
+      toolSubagents.push(...deduped);
     }
 
     this.logger.debug(
-      `Successfully loaded ${toolSubagents.length} ${paths.relativeDirPath} subagents`,
+      `Successfully loaded ${toolSubagents.length} ${this.toolTarget} subagents from ${dirPaths.join(", ")}`,
     );
     return toolSubagents;
   }

@@ -689,6 +689,22 @@ Body from inputRoot`;
       expect(dirPaths).toEqual([".agents", join(".junie", "agents")].toSorted());
     });
 
+    it("should keep the higher-precedence copy when the same name exists in both roots", async () => {
+      const junieDir = join(testDir, ".junie", "agents");
+      const sharedDir = join(testDir, ".agents");
+      await ensureDir(junieDir);
+      await ensureDir(sharedDir);
+
+      // Same relative path in both roots; `.junie/agents/` is scanned first and wins.
+      await writeFileContent(join(junieDir, "planner.md"), junieSubagentMd("planner"));
+      await writeFileContent(join(sharedDir, "planner.md"), junieSubagentMd("planner"));
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeDirPath()).toBe(join(".junie", "agents"));
+    });
+
     it("should not delete files in the .agents import root (forDeletion targets .junie/agents only)", async () => {
       const junieDir = join(testDir, ".junie", "agents");
       const sharedDir = join(testDir, ".agents");
