@@ -18,6 +18,7 @@ import { CopilotSubagent } from "./copilot-subagent.js";
 import { CopilotcliSubagent } from "./copilotcli-subagent.js";
 import { CursorSubagent } from "./cursor-subagent.js";
 import { DeepagentsSubagent } from "./deepagents-subagent.js";
+import { DevinSubagent } from "./devin-subagent.js";
 import { FactorydroidSubagent } from "./factorydroid-subagent.js";
 import { GeminiCliSubagent } from "./geminicli-subagent.js";
 import { GooseSubagent } from "./goose-subagent.js";
@@ -79,6 +80,7 @@ const subagentsProcessorToolTargetTuple = [
   "copilotcli",
   "cursor",
   "deepagents",
+  "devin",
   "factorydroid",
   "geminicli",
   "goose",
@@ -190,6 +192,22 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         // dcode discovers user-level subagents in `~/.deepagents/<agent_name>/agents/`.
         supportsGlobal: true,
         filePattern: join("*", "AGENTS.md"),
+      },
+    },
+  ],
+  [
+    "devin",
+    {
+      // Devin Local custom subagent profiles are native AGENT.md files in a
+      // directory-per-agent layout: `.devin/agents/<name>/AGENT.md` (project)
+      // and `~/.config/devin/agents/<name>/AGENT.md` (global). The flat agents
+      // root is not scanned, so the glob descends one level to the AGENT.md file.
+      // https://docs.devin.ai/cli/subagents
+      class: DevinSubagent,
+      meta: {
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: join("*", "AGENT.md"),
       },
     },
   ],

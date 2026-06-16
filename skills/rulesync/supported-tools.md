@@ -32,7 +32,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Google Antigravity ⚠️  | antigravity     |  ✅   |        |          |    ✅    |           | ✅ 🌏  |       |             |
 | JetBrains Junie        | junie           | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  🌏   |             |
 | AugmentCode            | augmentcode     | ✅ 🌏 |   ✅   |    🌏    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
-| Devin Desktop          | devin           | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |             |
+| Devin Desktop          | devin           | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |
 | Warp                   | warp            |  ✅   |        |  ✅ 🌏   |          |           | ✅ 🌏  |       |     🌏      |
 | Replit                 | replit          |  ✅   |        |          |          |           | ✅ 🌏  |       |             |
 | Pi Coding Agent        | pi              | ✅ 🌏 |        |          |  ✅ 🌏   |           | ✅ 🌏  |       |             |

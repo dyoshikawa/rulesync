@@ -48,6 +48,10 @@ describe("E2E: subagents", () => {
       outputPath: join(".deepagents", "agents", "planner", "AGENTS.md"),
     },
     {
+      target: "devin",
+      outputPath: join(".devin", "agents", "planner", "AGENT.md"),
+    },
+    {
       target: "kiro",
       outputPath: join(".kiro", "agents", "planner.json"),
     },
@@ -229,6 +233,7 @@ You are a subagent-only helper.
     { target: "codexcli", orphanPath: join(".codex", "agents", "orphan.toml") },
     { target: "copilot", orphanPath: join(".github", "agents", "orphan.md") },
     { target: "deepagents", orphanPath: join(".deepagents", "agents", "orphan", "AGENTS.md") },
+    { target: "devin", orphanPath: join(".devin", "agents", "orphan", "AGENT.md") },
     { target: "kiro", orphanPath: join(".kiro", "agents", "orphan.json") },
     { target: "kiro-cli", orphanPath: join(".kiro", "agents", "orphan.json") },
     { target: "kiro-ide", orphanPath: join(".kiro", "agents", "orphan.md") },
@@ -278,6 +283,7 @@ describe("E2E: subagents (import)", () => {
     { target: "junie", sourcePath: join(".junie", "agents", "planner.md") },
     { target: "factorydroid", sourcePath: join(".factory", "droids", "planner.md") },
     { target: "cline", sourcePath: join(".cline", "agents", "planner.yaml") },
+    { target: "devin", sourcePath: join(".devin", "agents", "planner", "AGENT.md") },
   ])("should import $target subagents", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
@@ -438,6 +444,10 @@ describe("E2E: subagents (global mode)", () => {
     {
       target: "deepagents",
       outputPath: join(".deepagents", "deepagents", "agents", "planner", "AGENTS.md"),
+    },
+    {
+      target: "devin",
+      outputPath: join(".config", "devin", "agents", "planner", "AGENT.md"),
     },
     { target: "vibe", outputPath: join(".vibe", "agents", "planner.toml") },
     {

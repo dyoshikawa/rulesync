@@ -351,6 +351,7 @@ rulesync.local.jsonc
 **/.windsurf/hooks.json
 **/.devin/skills/
 **/.codeium/windsurf/skills/
+**/.devin/agents/
 **/.vibeignore
 **/.vibe/skills/
 **/.vibe/agents/

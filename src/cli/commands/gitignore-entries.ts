@@ -388,6 +388,10 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "devin", feature: "hooks", entry: "**/.windsurf/hooks.json" },
   { target: "devin", feature: "skills", entry: "**/.devin/skills/" },
   { target: "devin", feature: "skills", entry: "**/.codeium/windsurf/skills/" },
+  // Devin Local custom subagent profiles: `.devin/agents/<name>/AGENT.md`
+  // (project). The global path `~/.config/devin/agents/` lives under the home
+  // directory and is not gitignored at the project level.
+  { target: "devin", feature: "subagents", entry: "**/.devin/agents/" },
 
   // Vibe
   { target: "vibe", feature: "ignore", entry: "**/.vibeignore" },
