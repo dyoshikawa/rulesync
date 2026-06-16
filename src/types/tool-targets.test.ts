@@ -63,6 +63,8 @@ describe("tool targets", () => {
         "junie",
         "kilo",
         "kiro",
+        "kiro-cli",
+        "kiro-ide",
         "opencode",
         "pi",
         "qwencode",

@@ -26,6 +26,8 @@ export const ALL_TOOL_TARGETS = [
   "junie",
   "kilo",
   "kiro",
+  "kiro-cli",
+  "kiro-ide",
   "opencode",
   "pi",
   "qwencode",

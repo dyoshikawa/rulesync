@@ -40,6 +40,7 @@ import { GeminicliHooks } from "./geminicli-hooks.js";
 import { GooseHooks } from "./goose-hooks.js";
 import { JunieHooks } from "./junie-hooks.js";
 import { KiloHooks } from "./kilo-hooks.js";
+import { KiroCliHooks } from "./kiro-cli-hooks.js";
 import { KiroHooks } from "./kiro-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -65,6 +66,7 @@ const hooksProcessorToolTargetTuple = [
   "goose",
   "deepagents",
   "kiro",
+  "kiro-cli",
   "devin",
   "augmentcode",
   "junie",
@@ -290,6 +292,24 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       meta: {
         // Kiro hooks are project-level only (consistent with existing Kiro features).
         // Hooks are written to .kiro/agents/default.json alongside subagent configs.
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsImport: true,
+      },
+      supportedEvents: KIRO_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    // The Kiro CLI uses the same `.kiro/agents/default.json` agent-hook format.
+    // (Kiro IDE hooks use multi-file `.kiro/hooks/*.kiro.hook`, which the
+    // single-file hooks architecture does not yet emit, so `kiro-ide` does not
+    // register a hooks adapter.)
+    "kiro-cli",
+    {
+      class: KiroCliHooks,
+      meta: {
         supportsProject: true,
         supportsGlobal: false,
         supportsImport: true,

@@ -28,6 +28,8 @@ import { FactorydroidSkill } from "./factorydroid-skill.js";
 import { GeminiCliSkill } from "./geminicli-skill.js";
 import { JunieSkill } from "./junie-skill.js";
 import { KiloSkill } from "./kilo-skill.js";
+import { KiroCliSkill } from "./kiro-cli-skill.js";
+import { KiroIdeSkill } from "./kiro-ide-skill.js";
 import { KiroSkill } from "./kiro-skill.js";
 import { OpenCodeSkill } from "./opencode-skill.js";
 import { PiSkill } from "./pi-skill.js";
@@ -97,6 +99,8 @@ const skillsProcessorToolTargetTuple = [
   "junie",
   "kilo",
   "kiro",
+  "kiro-cli",
+  "kiro-ide",
   "opencode",
   "pi",
   "replit",
@@ -269,6 +273,20 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "kiro",
     {
       class: KiroSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
+    },
+  ],
+  [
+    "kiro-cli",
+    {
+      class: KiroCliSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
+    },
+  ],
+  [
+    "kiro-ide",
+    {
+      class: KiroIdeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
     },
   ],

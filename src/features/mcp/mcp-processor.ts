@@ -62,6 +62,8 @@ const mcpProcessorToolTargetTuple = [
   "goose",
   "kilo",
   "kiro",
+  "kiro-cli",
+  "kiro-ide",
   "junie",
   "opencode",
   "roo",
@@ -318,6 +320,31 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
   ],
   [
     "kiro",
+    {
+      class: KiroMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    // Kiro IDE and CLI share the same `.kiro/settings/mcp.json` MCP config.
+    "kiro-cli",
+    {
+      class: KiroMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "kiro-ide",
     {
       class: KiroMcp,
       meta: {
