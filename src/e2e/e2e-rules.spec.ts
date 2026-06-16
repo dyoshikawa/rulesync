@@ -27,7 +27,7 @@ describe("E2E: rules", () => {
     { target: "copilot", outputPath: join(".github", "copilot-instructions.md") },
     { target: "opencode", outputPath: "AGENTS.md" },
     { target: "geminicli", outputPath: "GEMINI.md" },
-    { target: "antigravity-cli", outputPath: "GEMINI.md" },
+    { target: "antigravity-cli", outputPath: "AGENTS.md" },
     { target: "antigravity-ide", outputPath: "AGENTS.md" },
     { target: "goose", outputPath: ".goosehints" },
     { target: "copilotcli", outputPath: join(".github", "copilot-instructions.md") },
@@ -285,7 +285,7 @@ describe("E2E: rules (import)", () => {
     },
     {
       target: "antigravity-cli",
-      sourcePath: "GEMINI.md",
+      sourcePath: "AGENTS.md",
       importedFileName: "overview.md",
     },
     {

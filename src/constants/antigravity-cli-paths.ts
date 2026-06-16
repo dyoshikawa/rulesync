@@ -15,4 +15,12 @@ export {
 
 export const ANTIGRAVITY_AGENTS_DIR = ANTIGRAVITY_DIR;
 
-export const ANTIGRAVITY_RULE_FILE_NAME = "GEMINI.md";
+// Project-root rules file. The CLI reads the cross-tool `AGENTS.md` standard at
+// the workspace root (Gemini-lineage discovery order is `AGENTS.md`,
+// `CONTEXT.md`, `GEMINI.md`), so rulesync emits `AGENTS.md` to align with the
+// standard and the `antigravity-ide` target.
+export const ANTIGRAVITY_RULE_FILE_NAME = "AGENTS.md";
+
+// Global (user-scope) rules file lives in `~/.gemini/` and stays `GEMINI.md`,
+// matching the `antigravity-ide` global file and the shared Gemini home config.
+export const ANTIGRAVITY_GLOBAL_RULE_FILE_NAME = "GEMINI.md";

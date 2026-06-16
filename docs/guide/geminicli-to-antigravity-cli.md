@@ -31,7 +31,7 @@ transition.
 
 | Feature     | `geminicli`                            | `antigravity-cli`                                                                           |
 | ----------- | -------------------------------------- | ------------------------------------------------------------------------------------------- |
-| rules       | root `GEMINI.md` + `.gemini/memories/` | root `GEMINI.md` + `.agents/rules/`; global `~/.gemini/GEMINI.md`                           |
+| rules       | root `GEMINI.md` + `.gemini/memories/` | root `AGENTS.md` + `.agents/rules/`; global `~/.gemini/GEMINI.md`                           |
 | skills      | `.gemini/skills/`                      | `.agents/skills/`; global `~/.gemini/antigravity-cli/skills/`                               |
 | mcp         | `.gemini/settings.json` (`mcpServers`) | `.agents/mcp_config.json`; global `~/.gemini/config/mcp_config.json` (shared config dir)    |
 | hooks       | `.gemini/` (Gemini hook shape)         | `.agents/hooks.json`; global `~/.gemini/config/hooks.json` (Claude-Code-like matcher shape) |
@@ -41,6 +41,13 @@ transition.
 
 ### Notable differences
 
+- **Root rules file**: `antigravity-cli` emits the project root rule as the
+  cross-tool **`AGENTS.md`** (matching `antigravity-ide`), not `GEMINI.md`. The
+  CLI reads both, with the Gemini-lineage discovery order `AGENTS.md`,
+  `CONTEXT.md`, `GEMINI.md`. If you previously generated `antigravity-cli` output
+  and have a generated root `GEMINI.md`, rulesync no longer manages it — delete
+  the stale `GEMINI.md` manually after regenerating. Global scope is unchanged
+  (`~/.gemini/GEMINI.md`).
 - **MCP**: Antigravity uses `serverUrl` (not `url`) for HTTP servers and honors
   a `disabledTools` array. Rulesync emits the Antigravity-compatible shape
   automatically.
