@@ -114,6 +114,30 @@ describe("CodexcliHooks", () => {
       expect(parsed.hooks.PreCompact[0].hooks[0].command).toBe("echo compact");
     });
 
+    it("should convert postCompact to PostCompact with a trigger matcher", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              postCompact: [{ command: "echo post-compact", matcher: "auto" }],
+            },
+          }),
+        }),
+      );
+
+      const codexHooks = await CodexcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const parsed = JSON.parse(codexHooks.getFileContent());
+      expect(parsed.hooks.PostCompact).toBeDefined();
+      expect(parsed.hooks.PostCompact[0].matcher).toBe("auto");
+      expect(parsed.hooks.PostCompact[0].hooks[0].command).toBe("echo post-compact");
+      expect(parsed.hooks.PreCompact).toBeUndefined();
+    });
+
     it("should not prefix commands with a project dir variable", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({
@@ -391,6 +415,29 @@ describe("CodexcliHooks", () => {
       expect(parsed.hooks.subagentStart?.[0]?.command).toBe("echo agent-start");
       expect(parsed.hooks.subagentStop?.[0]?.command).toBe("echo agent-stop");
       expect(parsed.hooks.preCompact?.[0]?.command).toBe("echo compact");
+    });
+
+    it("should convert PostCompact to canonical postCompact preserving the trigger matcher", () => {
+      const codexHooks = new CodexcliHooks(
+        createMockAiFileParams({
+          relativeDirPath: ".codex",
+          relativeFilePath: "hooks.json",
+          fileContent: JSON.stringify({
+            hooks: {
+              PostCompact: [{ matcher: "manual", hooks: [{ command: "echo post-compact" }] }],
+            },
+          }),
+        }),
+      );
+
+      const rulesyncHooks = codexHooks.toRulesyncHooks();
+      const parsed = rulesyncHooks.getJson();
+
+      expect(parsed.hooks.postCompact?.[0]).toEqual({
+        type: "command",
+        command: "echo post-compact",
+        matcher: "manual",
+      });
     });
 
     it("should ignore invalid entries", () => {
