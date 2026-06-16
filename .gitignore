@@ -323,6 +323,9 @@ rulesync.local.jsonc
 **/.pi/prompts/
 **/.pi/skills/
 **/QWEN.md
+**/.qwen/commands/
+**/.qwen/agents/
+**/.qwen/skills/
 **/.qwenignore
 **/.qwen/memories/
 **/.qwen/settings.json

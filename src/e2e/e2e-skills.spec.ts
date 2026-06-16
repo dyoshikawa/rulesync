@@ -36,6 +36,10 @@ describe("E2E: skills", () => {
       outputPath: join(".gemini", "skills", "test-skill", "SKILL.md"),
     },
     {
+      target: "qwencode",
+      outputPath: join(".qwen", "skills", "test-skill", "SKILL.md"),
+    },
+    {
       target: "copilot",
       outputPath: join(".github", "skills", "test-skill", "SKILL.md"),
     },
@@ -341,6 +345,10 @@ describe("E2E: skills (global mode)", () => {
     {
       target: "geminicli",
       outputPath: join(".gemini", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "qwencode",
+      outputPath: join(".qwen", "skills", "test-skill", "SKILL.md"),
     },
     {
       target: "junie",

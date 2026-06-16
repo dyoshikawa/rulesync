@@ -26,6 +26,7 @@ import { JunieMcp } from "./junie-mcp.js";
 import { KiloMcp } from "./kilo-mcp.js";
 import { KiroMcp } from "./kiro-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
+import { QwencodeMcp } from "./qwencode-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
 import { RovodevMcp } from "./rovodev-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -66,6 +67,7 @@ const mcpProcessorToolTargetTuple = [
   "kiro-ide",
   "junie",
   "opencode",
+  "qwencode",
   "roo",
   "rovodev",
   "vibe",
@@ -371,6 +373,23 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     "opencode",
     {
       class: OpencodeMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: true,
+        supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
+    "qwencode",
+    {
+      // Qwen Code reads MCP servers from the `mcpServers` key of
+      // `.qwen/settings.json` (project) / `~/.qwen/settings.json` (global).
+      // It supports per-server tool filtering via `includeTools` (allowlist)
+      // and `excludeTools` (denylist), which the adapter maps to/from
+      // rulesync's `enabledTools`/`disabledTools`.
+      class: QwencodeMcp,
       meta: {
         supportsProject: true,
         supportsGlobal: true,

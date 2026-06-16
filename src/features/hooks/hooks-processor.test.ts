@@ -501,6 +501,7 @@ describe("HooksProcessor", () => {
         "devin",
         "augmentcode",
         "vibe",
+        "qwencode",
       ]);
     });
 
@@ -523,6 +524,7 @@ describe("HooksProcessor", () => {
         "augmentcode",
         "junie",
         "vibe",
+        "qwencode",
       ]);
     });
 
@@ -544,6 +546,7 @@ describe("HooksProcessor", () => {
         "devin",
         "augmentcode",
         "vibe",
+        "qwencode",
       ]);
     });
 
@@ -564,6 +567,7 @@ describe("HooksProcessor", () => {
         "augmentcode",
         "junie",
         "vibe",
+        "qwencode",
       ]);
     });
   });

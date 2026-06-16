@@ -28,6 +28,7 @@ import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { SkillsProcessor } from "../skills/skills-processor.js";
 import { AgentsmdSubagent } from "../subagents/agentsmd-subagent.js";
 import { GeminiCliSubagent } from "../subagents/geminicli-subagent.js";
+import { QwencodeSubagent } from "../subagents/qwencode-subagent.js";
 import { RovodevSubagent } from "../subagents/rovodev-subagent.js";
 import { SubagentsProcessor } from "../subagents/subagents-processor.js";
 import { AgentsMdRule } from "./agentsmd-rule.js";
@@ -554,8 +555,13 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       class: QwencodeRule,
       meta: {
         extension: "md",
-        supportsGlobal: false,
+        supportsGlobal: true,
         ruleDiscoveryMode: "toon",
+        // Qwen Code subagents are native (Markdown + YAML frontmatter under
+        // `.qwen/agents/`), so this mirrors how geminicli is wired.
+        additionalConventions: {
+          subagents: { subagentClass: QwencodeSubagent },
+        },
       },
     },
   ],

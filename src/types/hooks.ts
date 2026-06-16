@@ -357,6 +357,33 @@ export const JUNIE_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionEnd",
 ];
 
+/**
+ * Hook events supported by Qwen Code.
+ *
+ * Qwen Code documents a Claude-style PascalCase hooks surface under the `hooks`
+ * key of `.qwen/settings.json`. Its event set DIFFERS from Gemini CLI's
+ * (`BeforeAgent`/`AfterTool`/...), so qwencode defines its own constant instead
+ * of reusing {@link GEMINICLI_HOOK_EVENTS}. Only the canonical events with a
+ * genuine Qwen equivalent are mapped; Qwen-only events (`StopFailure`,
+ * `TodoCreated`, `TodoCompleted`) have no canonical counterpart and are omitted.
+ * @see https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/hooks.md
+ */
+export const QWENCODE_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+  "beforeSubmitPrompt",
+  "stop",
+  "subagentStart",
+  "subagentStop",
+  "preCompact",
+  "postCompact",
+  "permissionRequest",
+  "notification",
+];
+
 const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
 
 /**
@@ -384,6 +411,7 @@ export const HooksConfigSchema = z.looseObject({
   "antigravity-cli": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   junie: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   vibe: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  qwencode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
 });
 
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;
@@ -732,4 +760,34 @@ export const CANONICAL_TO_VIBE_EVENT_NAMES: Record<string, string> = {
  */
 export const VIBE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_VIBE_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to Qwen Code PascalCase.
+ *
+ * Qwen Code reuses the same Claude-style PascalCase event names for the events
+ * it shares, but its supported set differs from both Claude and Gemini CLI.
+ * @see https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/hooks.md
+ */
+export const CANONICAL_TO_QWENCODE_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  postToolUseFailure: "PostToolUseFailure",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  stop: "Stop",
+  subagentStart: "SubagentStart",
+  subagentStop: "SubagentStop",
+  preCompact: "PreCompact",
+  postCompact: "PostCompact",
+  permissionRequest: "PermissionRequest",
+  notification: "Notification",
+};
+
+/**
+ * Map Qwen Code PascalCase event names to canonical camelCase.
+ */
+export const QWENCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_QWENCODE_EVENT_NAMES).map(([k, v]) => [v, k]),
 );

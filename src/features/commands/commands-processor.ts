@@ -29,6 +29,7 @@ import { KiroCommand } from "./kiro-command.js";
 import { KiroIdeCommand } from "./kiro-ide-command.js";
 import { OpenCodeCommand } from "./opencode-command.js";
 import { PiCommand } from "./pi-command.js";
+import { QwencodeCommand } from "./qwencode-command.js";
 import { RooCommand } from "./roo-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { TaktCommand } from "./takt-command.js";
@@ -91,6 +92,7 @@ const commandsProcessorToolTargetTuple = [
   "kiro-ide",
   "opencode",
   "pi",
+  "qwencode",
   "roo",
   "takt",
   "devin",
@@ -369,6 +371,22 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "qwencode",
+    {
+      // Qwen Code custom commands are native Markdown files (TOML is deprecated
+      // upstream) under `.qwen/commands/` (project) / `~/.qwen/commands/`
+      // (global), with subdirectory namespacing (`git/commit.md` -> `/git:commit`).
+      class: QwencodeCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
       },
     },
   ],
