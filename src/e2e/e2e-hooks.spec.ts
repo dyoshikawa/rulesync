@@ -97,13 +97,14 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks.agentSpawn[0].command).toBe(".rulesync/hooks/session-start.sh");
         expect(parsed.hooks.stop[0].command).toBe(".rulesync/hooks/audit.sh");
       } else if (target === "copilot" || target === "copilotcli") {
-        // Copilot and Copilot CLI use camelCase event names. Neither supports
-        // the `stop` hook event (see COPILOT_HOOK_EVENTS in src/types/hooks.ts),
-        // so audit.sh is intentionally dropped during generation and cannot be
-        // asserted here.
+        // Copilot and Copilot CLI use camelCase event names and both map the
+        // canonical `stop` event to `agentStop` (see COPILOT_HOOK_EVENTS /
+        // COPILOTCLI_HOOK_EVENTS in src/types/hooks.ts).
         expect(parsed.hooks).toBeDefined();
         expect(parsed.hooks.sessionStart).toBeDefined();
+        expect(parsed.hooks.agentStop).toBeDefined();
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
       } else if (target === "augmentcode") {
         // AugmentCode mirrors Claude's PascalCase event names but emits commands
         // verbatim (AUGMENT_PROJECT_DIR is a runtime env var, not an inline prefix).
@@ -126,6 +127,35 @@ describe("E2E: hooks", () => {
         assertHookCommandsPreserved(parsed);
       }
     }
+  });
+
+  it("should map canonical stop/subagentStop to copilot agentStop/subagentStop", async () => {
+    const testDir = getTestDir();
+
+    const hooksContent = JSON.stringify(
+      {
+        version: 1,
+        hooks: {
+          stop: [{ command: ".rulesync/hooks/agent-stop.sh" }],
+          subagentStop: [{ command: ".rulesync/hooks/subagent-stop.sh" }],
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
+
+    await runGenerate({ target: "copilot", features: "hooks" });
+
+    const generatedContent = await readFileContent(
+      join(testDir, ".github", "hooks", "copilot-hooks.json"),
+    );
+    const parsed = JSON.parse(generatedContent);
+    // Canonical `stop` → `agentStop`, `subagentStop` → `subagentStop`.
+    expect(parsed.hooks.agentStop).toBeDefined();
+    expect(JSON.stringify(parsed.hooks.agentStop)).toContain(".rulesync/hooks/agent-stop.sh");
+    expect(parsed.hooks.subagentStop).toBeDefined();
+    expect(JSON.stringify(parsed.hooks.subagentStop)).toContain(".rulesync/hooks/subagent-stop.sh");
   });
 
   it("should generate devin hooks", async () => {

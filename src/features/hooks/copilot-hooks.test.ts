@@ -83,6 +83,35 @@ describe("CopilotHooks", () => {
       expect(parsed.hooks.stop).toBeUndefined();
     });
 
+    it("should map canonical stop/subagentStop to agentStop/subagentStop", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          stop: [{ command: ".rulesync/hooks/agent-stop.sh" }],
+          subagentStop: [{ command: ".rulesync/hooks/subagent-stop.sh" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const copilotHooks = await CopilotHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(copilotHooks.getFileContent());
+      expect(parsed.hooks.agentStop).toBeDefined();
+      expect(parsed.hooks.subagentStop).toBeDefined();
+      // Canonical names must not leak into the generated Copilot file.
+      expect(parsed.hooks.stop).toBeUndefined();
+    });
+
     it("should use bash field on non-Windows and timeoutSec instead of timeout", async () => {
       vi.spyOn(process, "platform", "get").mockReturnValue("linux");
       const config = {
@@ -451,6 +480,28 @@ describe("CopilotHooks", () => {
       expect(json.hooks.beforeSubmitPrompt?.[0]?.command).toBe("log-prompt.sh");
       expect(json.hooks.afterError).toHaveLength(1);
       expect(json.hooks.afterError?.[0]?.command).toBe("handle-error.sh");
+    });
+
+    it("should map agentStop/subagentStop back to canonical stop/subagentStop", () => {
+      const copilotHooks = new CopilotHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilot-hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            agentStop: [{ type: "command", bash: "agent-stop.sh" }],
+            subagentStop: [{ type: "command", bash: "subagent-stop.sh" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = copilotHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.stop).toHaveLength(1);
+      expect(json.hooks.stop?.[0]?.command).toBe("agent-stop.sh");
+      expect(json.hooks.subagentStop).toHaveLength(1);
+      expect(json.hooks.subagentStop?.[0]?.command).toBe("subagent-stop.sh");
     });
 
     it("should convert Copilot hooks with powershell-only to canonical format", () => {

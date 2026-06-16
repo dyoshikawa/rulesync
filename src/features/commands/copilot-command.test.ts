@@ -190,6 +190,8 @@ Body content`;
       expect(rulesyncCommand.getFrontmatter()).toEqual({
         targets: ["*"],
         description: "Test description",
+        // The deprecated `mode` is migrated to `agent` in the copilot section.
+        copilot: { agent: "agent" },
       });
       expect(rulesyncCommand.getRelativeFilePath()).toBe("test-command.md");
     });
@@ -640,9 +642,10 @@ Body content`;
       const rulesyncCommand = command.toRulesyncCommand();
       const frontmatter = rulesyncCommand.getFrontmatter();
 
-      // mode should not be in copilot section (it's excluded from extra fields)
+      // The deprecated `mode` is migrated to `agent`; other extra fields persist.
       expect(frontmatter.copilot).toEqual({
         "custom-field": { nested: "value" },
+        agent: "agent",
       });
     });
 
@@ -678,7 +681,6 @@ Body content`;
         relativeDirPath: join(".github", "prompts"),
         relativeFilePath: "test.prompt.md",
         frontmatter: {
-          mode: "agent",
           description: "Test command",
         },
         body: "Test body",
@@ -688,6 +690,62 @@ Body content`;
       const frontmatter = rulesyncCommand.getFrontmatter();
 
       expect(frontmatter.copilot).toBeUndefined();
+    });
+
+    it("should migrate deprecated mode to agent in copilot section", () => {
+      const command = new CopilotCommand({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "test.prompt.md",
+        frontmatter: {
+          mode: "plan",
+          description: "Test command",
+        },
+        body: "Test body",
+        validate: false,
+      });
+
+      const rulesyncCommand = command.toRulesyncCommand();
+      expect(rulesyncCommand.getFrontmatter().copilot).toEqual({ agent: "plan" });
+    });
+
+    it("should prefer explicit agent over deprecated mode", () => {
+      const command = new CopilotCommand({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "prompts"),
+        relativeFilePath: "test.prompt.md",
+        frontmatter: {
+          agent: "agent",
+          mode: "plan",
+          description: "Test command",
+        },
+        body: "Test body",
+        validate: false,
+      });
+
+      const rulesyncCommand = command.toRulesyncCommand();
+      expect(rulesyncCommand.getFrontmatter().copilot).toEqual({ agent: "agent" });
+    });
+
+    it("should round-trip agent through fromRulesyncCommand and toRulesyncCommand", () => {
+      const original = new RulesyncCommand({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "agent-roundtrip.md",
+        frontmatter: {
+          targets: ["copilot"],
+          description: "Agent roundtrip",
+          copilot: { agent: "plan" },
+        },
+        body: "Body content",
+        fileContent: "",
+      });
+
+      const copilot = CopilotCommand.fromRulesyncCommand({ rulesyncCommand: original });
+      expect(copilot.getFrontmatter().agent).toBe("plan");
+
+      const backToRulesync = copilot.toRulesyncCommand();
+      expect(backToRulesync.getFrontmatter().copilot).toEqual({ agent: "plan" });
     });
   });
 
