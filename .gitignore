@@ -351,6 +351,11 @@ rulesync.local.jsonc
 **/.windsurf/hooks.json
 **/.devin/skills/
 **/.codeium/windsurf/skills/
+**/.vibeignore
+**/.vibe/skills/
+**/.vibe/agents/
+**/.vibe/config.toml
+**/.vibe/hooks.toml
 **/.warp/.mcp.json
 **/.warp/skills/
 **/.rules

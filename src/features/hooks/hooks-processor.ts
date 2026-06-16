@@ -18,6 +18,7 @@ import {
   KILO_HOOK_EVENTS,
   KIRO_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
+  VIBE_HOOK_EVENTS,
   type HookEvent,
   type HookType,
 } from "../../types/hooks.js";
@@ -50,6 +51,7 @@ import type {
   ToolHooksFromRulesyncHooksParams,
 } from "./tool-hooks.js";
 import { ToolHooks } from "./tool-hooks.js";
+import { VibeHooks } from "./vibe-hooks.js";
 
 const hooksProcessorToolTargetTuple = [
   "antigravity-cli",
@@ -70,6 +72,7 @@ const hooksProcessorToolTargetTuple = [
   "devin",
   "augmentcode",
   "junie",
+  "vibe",
 ] as const;
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
@@ -367,6 +370,26 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       },
       supportedEvents: JUNIE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "vibe",
+    {
+      class: VibeHooks,
+      meta: {
+        // Mistral Vibe experimental hooks live in `.vibe/hooks.toml` (project) /
+        // `~/.vibe/hooks.toml` (global) and are gated behind
+        // `enable_experimental_hooks = true` in `.vibe/config.toml`, which
+        // rulesync merges via VibeHooks.getAuxiliaryFiles.
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: VIBE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      // All three Vibe events (before_tool/after_tool/post_agent_turn) accept a
+      // `match` tool-name matcher (fnmatch glob or `re:` regex).
       supportsMatcher: true,
     },
   ],
