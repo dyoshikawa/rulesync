@@ -26,12 +26,14 @@ describe("AugmentcodeSubagent", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should return .augment/agents for both project and global mode", () => {
+    it("should return .augment/agents with .agents as an import-only root for both modes", () => {
       expect(AugmentcodeSubagent.getSettablePaths()).toEqual({
         relativeDirPath: join(".augment", "agents"),
+        importDirPaths: [".agents"],
       });
       expect(AugmentcodeSubagent.getSettablePaths({ global: true })).toEqual({
         relativeDirPath: join(".augment", "agents"),
+        importDirPaths: [".agents"],
       });
     });
   });
@@ -177,6 +179,27 @@ Review carefully.`;
         disabled_tools: ["bash"],
       });
       expect(subagent.getBody()).toBe("Review carefully.");
+    });
+
+    it("should load a subagent from the .agents/ import root when relativeDirPath is set", async () => {
+      const fileContent = `---
+name: planner
+description: Plans work
+---
+
+Plan ahead.`;
+      await writeFileContent(join(testDir, ".agents", "planner.md"), fileContent);
+
+      const subagent = await AugmentcodeSubagent.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: ".agents",
+        relativeFilePath: "planner.md",
+        validate: true,
+      });
+
+      expect(subagent.getRelativeDirPath()).toBe(".agents");
+      expect(subagent.getFrontmatter().name).toBe("planner");
+      expect(subagent.getBody()).toBe("Plan ahead.");
     });
 
     it("should throw for invalid frontmatter", async () => {

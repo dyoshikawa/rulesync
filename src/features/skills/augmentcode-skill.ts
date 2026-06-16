@@ -2,7 +2,10 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
-import { AUGMENTCODE_SKILLS_DIR_PATH } from "../../constants/augmentcode-paths.js";
+import {
+  AUGMENTCODE_AGENTS_SKILLS_DIR_PATH,
+  AUGMENTCODE_SKILLS_DIR_PATH,
+} from "../../constants/augmentcode-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
@@ -85,8 +88,14 @@ export class AugmentcodeSkill extends ToolSkill {
     // modes. The actual location differs based on outputRoot:
     // - Project mode: {process.cwd()}/.augment/skills/
     // - Global mode: {getHomeDirectory()}/.augment/skills/
+    //
+    // Auggie CLI 0.16.0+ additionally discovers skills from the cross-tool
+    // `.agents/skills/` directory (project `.agents/skills/` and user
+    // `~/.agents/skills/`). That is an import-only root: generation still writes
+    // to `.augment/skills/`.
     return {
       relativeDirPath: AUGMENTCODE_SKILLS_DIR_PATH,
+      alternativeSkillRoots: [AUGMENTCODE_AGENTS_SKILLS_DIR_PATH],
     };
   }
 
