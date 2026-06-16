@@ -246,7 +246,10 @@ export class RooSubagent extends ToolSubagent {
         frontmatter: rulesyncFrontmatter,
         body: roleDefinition,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-        relativeFilePath: `${slug}.md`,
+        // Re-sanitize the imported slug before using it as a filename so a
+        // crafted `.roomodes` cannot produce a traversing path (defense in depth
+        // on top of the central path-traversal guard).
+        relativeFilePath: `${sanitizeRooSlug(slug)}.md`,
         validate: true,
       });
     });
