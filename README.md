@@ -80,7 +80,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Claude Code            |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Codex CLI              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Gemini CLI ⚠️          |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
-| Goose                  |  ✅   |   ✅   | ✅  |          |           |        |  ✅   |             |
+| Goose                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |        |  ✅   |             |
 | GitHub Copilot         |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |
 | GitHub Copilot CLI     |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |
 | Cursor                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |

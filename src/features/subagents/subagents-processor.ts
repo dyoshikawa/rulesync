@@ -20,6 +20,7 @@ import { CursorSubagent } from "./cursor-subagent.js";
 import { DeepagentsSubagent } from "./deepagents-subagent.js";
 import { FactorydroidSubagent } from "./factorydroid-subagent.js";
 import { GeminiCliSubagent } from "./geminicli-subagent.js";
+import { GooseSubagent } from "./goose-subagent.js";
 import { JunieSubagent } from "./junie-subagent.js";
 import { KiloSubagent } from "./kilo-subagent.js";
 import { KiroSubagent } from "./kiro-subagent.js";
@@ -78,6 +79,7 @@ const subagentsProcessorToolTargetTuple = [
   "deepagents",
   "factorydroid",
   "geminicli",
+  "goose",
   "junie",
   "kiro",
   "opencode",
@@ -202,6 +204,13 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     {
       class: GeminiCliSubagent,
       meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+    },
+  ],
+  [
+    "goose",
+    {
+      class: GooseSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.yaml" },
     },
   ],
   [

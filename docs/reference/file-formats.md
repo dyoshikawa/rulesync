@@ -571,6 +571,15 @@ env_vars = ["OPENAI_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY"]
 
 Goose configures MCP servers as **extensions** in the shared user config `~/.config/goose/config.yaml`, which is **global only** (Goose has no project-scoped MCP location), so they are generated with `--global`. The schema is non-standard, so Rulesync maps canonical MCP fields to Goose's: `command` → `cmd` (an array `command` folds its tail into `args`), `env` → `envs`, `url`/`httpUrl` → `uri`, and `disabled: true` → `enabled: false`. The `type` is derived — `command` ⇒ `stdio`, a remote `url` ⇒ `streamable_http` (or `sse` when the canonical `type` is `sse`). Each extension also carries its own `name`. Generation merges the `extensions:` block into the existing `config.yaml`, preserving other Goose settings (model, provider, ...), and the file is never deleted. See the [Goose extensions docs](https://block.github.io/goose/docs/getting-started/using-extensions/).
 
+### Goose-specific: commands and subagents as recipes
+
+Goose [recipes](https://block.github.io/goose/docs/guides/recipes/recipe-reference/) are reusable YAML workflow files (`version`, `title`, `description`, plus at least one of `instructions` / `prompt`, and optional `extensions`, `parameters`, `sub_recipes`, …). Rulesync maps:
+
+- **commands → top-level recipes** at `.goose/recipes/<name>.yaml` (project) and `~/.config/goose/recipes/<name>.yaml` (global). The command body becomes the recipe `prompt`.
+- **subagents → sub-recipes** at `.goose/recipes/subagents/<name>.yaml` (project) and `~/.config/goose/recipes/subagents/<name>.yaml` (global), referenced from a parent recipe's `sub_recipes` list by relative `path`. The subagent body becomes the recipe `instructions`.
+
+Subagents live in the `subagents/` subdirectory so the command-recipe and subagent-recipe file sets stay disjoint (import and orphan deletion never cross over). `title` defaults to the file name and `description` to the rulesync `description` (falling back to `title`) since recipes require both; `version` defaults to `1.0.0`. Any other recipe field round-trips through the rulesync `goose` section of a command/subagent.
+
 ## `.rulesync/.aiignore` or `.rulesyncignore`
 
 Rulesync supports a single ignore list that can live in either location below:

@@ -32,6 +32,7 @@ describe("E2E: commands", () => {
     { target: "pi", outputPath: join(".pi", "prompts", "review-pr.md") },
     { target: "devin", outputPath: join(".devin", "workflows", "review-pr.md") },
     { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
+    { target: "goose", outputPath: join(".goose", "recipes", "review-pr.yaml") },
   ])("should generate $target commands", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -100,6 +101,7 @@ Check the PR diff and provide feedback.
     { target: "pi", orphanPath: join(".pi", "prompts", "orphan.md") },
     { target: "devin", orphanPath: join(".devin", "workflows", "orphan.md") },
     { target: "factorydroid", orphanPath: join(".factory", "commands", "orphan.md") },
+    { target: "goose", orphanPath: join(".goose", "recipes", "orphan.yaml") },
   ])(
     "should fail in check mode when delete would remove an orphan $target command file",
     async ({ target, orphanPath }) => {
@@ -160,6 +162,25 @@ describe("E2E: commands (import)", () => {
     );
     expect(importedContent).toContain("Review the PR diff and provide feedback.");
   });
+
+  it("should import goose commands (recipe YAML)", async () => {
+    const testDir = getTestDir();
+
+    const recipeContent = [
+      "version: 1.0.0",
+      "title: review-pr",
+      "description: Review a pull request",
+      "prompt: Review the PR diff and provide feedback.",
+    ].join("\n");
+    await writeFileContent(join(testDir, ".goose", "recipes", "review-pr.yaml"), recipeContent);
+
+    await runImport({ target: "goose", features: "commands" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
+    );
+    expect(importedContent).toContain("Review the PR diff and provide feedback.");
+  });
 });
 
 describe("E2E: commands (global mode)", () => {
@@ -189,6 +210,7 @@ describe("E2E: commands (global mode)", () => {
       outputPath: join(".codeium", "windsurf", "global_workflows", "review-pr.md"),
     },
     { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
+    { target: "goose", outputPath: join(".config", "goose", "recipes", "review-pr.yaml") },
   ])("should generate $target commands in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

@@ -71,6 +71,10 @@ describe("E2E: subagents", () => {
       target: "vibe",
       outputPath: join(".vibe", "agents", "planner.toml"),
     },
+    {
+      target: "goose",
+      outputPath: join(".goose", "recipes", "subagents", "planner.yaml"),
+    },
   ])("should generate $target subagents", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -222,6 +226,7 @@ You are a subagent-only helper.
     { target: "factorydroid", orphanPath: join(".factory", "droids", "orphan.md") },
     { target: "cline", orphanPath: join(".cline", "agents", "orphan.yaml") },
     { target: "vibe", orphanPath: join(".vibe", "agents", "orphan.toml") },
+    { target: "goose", orphanPath: join(".goose", "recipes", "subagents", "orphan.yaml") },
   ])(
     "should fail in check mode when delete would remove an orphan $target subagent file",
     async ({ target, orphanPath }) => {
@@ -306,6 +311,28 @@ Break down tasks into steps.
     expect(importedContent).toContain("planner");
   });
 
+  it("should import goose subagents (sub-recipe YAML)", async () => {
+    const testDir = getTestDir();
+
+    const recipeContent = [
+      "version: 1.0.0",
+      "title: planner",
+      "description: Plans tasks",
+      "instructions: Break down tasks into steps.",
+    ].join("\n");
+    await writeFileContent(
+      join(testDir, ".goose", "recipes", "subagents", "planner.yaml"),
+      recipeContent,
+    );
+
+    await runImport({ target: "goose", features: "subagents" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+    );
+    expect(importedContent).toContain("planner");
+  });
+
   it("should import kiro subagents (JSON format)", async () => {
     const testDir = getTestDir();
 
@@ -366,6 +393,10 @@ describe("E2E: subagents (global mode)", () => {
       outputPath: join(".deepagents", "deepagents", "agents", "planner", "AGENTS.md"),
     },
     { target: "vibe", outputPath: join(".vibe", "agents", "planner.toml") },
+    {
+      target: "goose",
+      outputPath: join(".config", "goose", "recipes", "subagents", "planner.yaml"),
+    },
   ])("should generate $target subagents in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

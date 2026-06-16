@@ -285,6 +285,8 @@ rulesync.local.jsonc
 **/.goosehints
 **/.goose/
 **/.gooseignore
+**/.goose/recipes/
+**/.goose/recipes/subagents/
 **/.agents/plugins/
 **/.github/copilot-instructions.md
 **/.github/instructions/

@@ -235,6 +235,12 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "goose", feature: "rules", entry: "**/.goosehints" },
   { target: "goose", feature: "rules", entry: "**/.goose/" },
   { target: "goose", feature: "ignore", entry: "**/.gooseignore" },
+  // Goose recipes: commands map to top-level recipes (`.goose/recipes/*.yaml`)
+  // and subagents to sub-recipes (`.goose/recipes/subagents/*.yaml`). These are
+  // already covered by the broad `**/.goose/` rules entry above, but tagging
+  // them per-feature keeps coverage correct under feature-filtered gitignore.
+  { target: "goose", feature: "commands", entry: "**/.goose/recipes/" },
+  { target: "goose", feature: "subagents", entry: "**/.goose/recipes/subagents/" },
   // Goose lifecycle hooks plugin (.agents/plugins/<name>/hooks/hooks.json)
   { target: "goose", feature: "hooks", entry: "**/.agents/plugins/" },
   // Goose reads MCP "extensions" only from the global user config
