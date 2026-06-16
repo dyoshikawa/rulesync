@@ -41,6 +41,13 @@ transition.
 
 ### Notable differences
 
+- **Root rules file**: `antigravity-cli` emits the project root rule as the
+  cross-tool **`AGENTS.md`** (matching `antigravity-ide`), not `GEMINI.md`. The
+  CLI reads both, with the Gemini-lineage discovery order `AGENTS.md`,
+  `CONTEXT.md`, `GEMINI.md`. If you previously generated `antigravity-cli` output
+  and have a generated root `GEMINI.md`, rulesync no longer manages it — delete
+  the stale `GEMINI.md` manually after regenerating. Global scope is unchanged
+  (`~/.gemini/GEMINI.md`).
 - **MCP**: Antigravity uses `serverUrl` (not `url`) for HTTP servers and honors
   a `disabledTools` array. Rulesync emits the Antigravity-compatible shape
   automatically.

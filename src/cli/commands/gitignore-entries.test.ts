@@ -128,7 +128,18 @@ describe("filterGitignoreEntries", () => {
       // non-root rules under .agents/rules/.
       expect(result).toContain("**/AGENTS.md");
       expect(result).toContain("**/.agents/rules/");
-      // The CLI-only GEMINI.md must NOT be included for the IDE target.
+      // GEMINI.md (a geminicli-only entry) must NOT be included for this target.
+      expect(result).not.toContain("**/GEMINI.md");
+    });
+
+    it("should include the root AGENTS.md and .agents/rules entries for antigravity-cli", () => {
+      const result = filterGitignoreEntries({ logger, targets: ["antigravity-cli"] });
+
+      // antigravity-cli now emits the project root rule as AGENTS.md (matching
+      // antigravity-ide), not GEMINI.md, plus non-root rules under .agents/rules/.
+      expect(result).toContain("**/AGENTS.md");
+      expect(result).toContain("**/.agents/rules/");
+      // The project root is no longer GEMINI.md (that is a geminicli-only entry).
       expect(result).not.toContain("**/GEMINI.md");
     });
 
