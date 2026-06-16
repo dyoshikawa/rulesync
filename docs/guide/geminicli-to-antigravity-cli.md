@@ -31,7 +31,7 @@ transition.
 
 | Feature     | `geminicli`                            | `antigravity-cli`                                                                           |
 | ----------- | -------------------------------------- | ------------------------------------------------------------------------------------------- |
-| rules       | root `GEMINI.md` + `.gemini/memories/` | root `GEMINI.md` + `.agents/rules/`; global `~/.gemini/GEMINI.md`                           |
+| rules       | root `GEMINI.md` + `.gemini/memories/` | root `AGENTS.md` + `.agents/rules/`; global `~/.gemini/GEMINI.md`                           |
 | skills      | `.gemini/skills/`                      | `.agents/skills/`; global `~/.gemini/antigravity-cli/skills/`                               |
 | mcp         | `.gemini/settings.json` (`mcpServers`) | `.agents/mcp_config.json`; global `~/.gemini/config/mcp_config.json` (shared config dir)    |
 | hooks       | `.gemini/` (Gemini hook shape)         | `.agents/hooks.json`; global `~/.gemini/config/hooks.json` (Claude-Code-like matcher shape) |

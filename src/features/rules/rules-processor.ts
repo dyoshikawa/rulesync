@@ -294,7 +294,8 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       class: AntigravityCliRule,
       meta: {
         // The Antigravity CLI shares Gemini-CLI-class context files: a root
-        // GEMINI.md that @-references non-root memory files under `.agents/rules/`.
+        // context file (project `AGENTS.md`, global `~/.gemini/GEMINI.md`) that
+        // @-references non-root memory files under `.agents/rules/`.
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",

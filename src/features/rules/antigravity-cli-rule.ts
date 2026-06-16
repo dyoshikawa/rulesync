@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   ANTIGRAVITY_AGENTS_DIR,
   ANTIGRAVITY_GEMINI_DIR,
+  ANTIGRAVITY_GLOBAL_RULE_FILE_NAME,
   ANTIGRAVITY_RULE_FILE_NAME,
 } from "../../constants/antigravity-cli-paths.js";
 import { readFileContent } from "../../utils/file.js";
@@ -34,10 +35,11 @@ export type AntigravityCliRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  * successor in Antigravity 2.0).
  *
  * The CLI reads the same plain-markdown context files as Gemini CLI — a root
- * `GEMINI.md` plus non-root memory files in `.agents/rules/` — so this class
+ * context file plus non-root memory files in `.agents/rules/` — so this class
  * mirrors {@link GeminiCliRule} but points at the new `.agents/` tree.
  *
- * - Project scope: root `GEMINI.md`; non-root `.agents/rules/*.md`.
+ * - Project scope: root `AGENTS.md` (the cross-tool standard, matching
+ *   `antigravity-ide`); non-root `.agents/rules/*.md`.
  * - Global scope: a single plain `~/.gemini/GEMINI.md` (shared with the IDE).
  */
 export class AntigravityCliRule extends ToolRule {
@@ -52,7 +54,7 @@ export class AntigravityCliRule extends ToolRule {
       return {
         root: {
           relativeDirPath: buildToolPath(ANTIGRAVITY_GEMINI_DIR, ".", excludeToolDir),
-          relativeFilePath: ANTIGRAVITY_RULE_FILE_NAME,
+          relativeFilePath: ANTIGRAVITY_GLOBAL_RULE_FILE_NAME,
         },
       };
     }

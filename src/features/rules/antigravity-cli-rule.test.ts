@@ -35,11 +35,11 @@ describe("AntigravityCliRule", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should return root GEMINI.md and nonRoot .agents/rules for project scope", () => {
+    it("should return root AGENTS.md and nonRoot .agents/rules for project scope", () => {
       const paths = AntigravityCliRule.getSettablePaths();
 
       expect(paths.root.relativeDirPath).toBe(".");
-      expect(paths.root.relativeFilePath).toBe("GEMINI.md");
+      expect(paths.root.relativeFilePath).toBe("AGENTS.md");
       const nonRoot = (paths as { nonRoot: { relativeDirPath: string } }).nonRoot;
       expect(nonRoot.relativeDirPath).toBe(join(".agents", "rules"));
     });
@@ -53,7 +53,7 @@ describe("AntigravityCliRule", () => {
   });
 
   describe("fromRulesyncRule", () => {
-    it("should place a root rule in root GEMINI.md", () => {
+    it("should place a root rule in root AGENTS.md", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "overview.md",
@@ -69,7 +69,7 @@ describe("AntigravityCliRule", () => {
 
       expect(cliRule).toBeInstanceOf(AntigravityCliRule);
       expect(cliRule.getRelativeDirPath()).toBe(".");
-      expect(cliRule.getRelativeFilePath()).toBe("GEMINI.md");
+      expect(cliRule.getRelativeFilePath()).toBe("AGENTS.md");
       expect(cliRule.isRoot()).toBe(true);
       expect(cliRule.getFileContent().trim()).toBe("# Root Memory\n\nPlain body.");
     });
