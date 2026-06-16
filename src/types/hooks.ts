@@ -57,6 +57,7 @@ export type HookEvent =
   | "stop"
   | "subagentStop"
   | "preCompact"
+  | "postCompact"
   | "contextOffload"
   | "postToolUseFailure"
   | "subagentStart"
@@ -248,6 +249,7 @@ export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = [
   "subagentStart",
   "subagentStop",
   "preCompact",
+  "postCompact",
 ];
 
 /**
@@ -578,6 +580,7 @@ export const CANONICAL_TO_CODEXCLI_EVENT_NAMES: Record<string, string> = {
   subagentStart: "SubagentStart",
   subagentStop: "SubagentStop",
   preCompact: "PreCompact",
+  postCompact: "PostCompact",
 };
 
 /**

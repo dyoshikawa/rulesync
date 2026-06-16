@@ -140,6 +140,7 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 | `subagentStart`        |   ✅   |      —      |    —     |  —   |    —    |     ✅      |       —       |     —      |    ✅     |     —      |  —   |        —        |        —        |   —   |      —      |  ✅   |
 | `subagentStop`         |   ✅   |     ✅      |    —     |  —   |    —    |     ✅      |      ✅       |     —      |    ✅     |     —      |  —   |        —        |        —        |   —   |      —      |  ✅   |
 | `preCompact`           |   ✅   |     ✅      |    —     |  —   |    —    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  —   |        —        |        —        |   —   |      —      |   —   |
+| `postCompact`          |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     —      |    ✅     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
 | `afterFileEdit`        |   ✅   |      —      |    ✅    |  ✅  |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |  ✅   |
 | `beforeShellExecution` |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |  ✅   |
 | `afterShellExecution`  |   ✅   |      —      |    ✅    |  ✅  |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |  ✅   |
@@ -237,6 +238,8 @@ takt: # takt specific parameters (optional; emitted under .takt/facets/instructi
   extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
 pi: # pi coding agent specific parameters (optional)
   argument-hint: "[message]" # Hint shown in Pi's command palette
+codexcli: # Codex CLI custom-prompt specific parameters (optional)
+  argument-hint: "[message]" # Hint shown for the custom prompt's arguments
 roo: # Roo Code specific parameters (optional)
   mode: "architect" # (optional) mode slug to switch to before running the command body (e.g. "code", "architect")
 ---

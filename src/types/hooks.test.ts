@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   CANONICAL_TO_CLAUDE_EVENT_NAMES,
+  CANONICAL_TO_CODEXCLI_EVENT_NAMES,
   CANONICAL_TO_CURSOR_EVENT_NAMES,
   CANONICAL_TO_DEEPAGENTS_EVENT_NAMES,
   CANONICAL_TO_FACTORYDROID_EVENT_NAMES,
   CANONICAL_TO_OPENCODE_EVENT_NAMES,
   CLAUDE_HOOK_EVENTS,
+  CODEXCLI_HOOK_EVENTS,
+  CODEXCLI_TO_CANONICAL_EVENT_NAMES,
   CURSOR_HOOK_EVENTS,
   DEEPAGENTS_HOOK_EVENTS,
   FACTORYDROID_HOOK_EVENTS,
@@ -42,6 +45,26 @@ describe("Event map completeness", () => {
     for (const event of DEEPAGENTS_HOOK_EVENTS) {
       expect(CANONICAL_TO_DEEPAGENTS_EVENT_NAMES).toHaveProperty(event);
     }
+  });
+
+  it("every CODEXCLI_HOOK_EVENTS entry should exist in CANONICAL_TO_CODEXCLI_EVENT_NAMES", () => {
+    for (const event of CODEXCLI_HOOK_EVENTS) {
+      expect(CANONICAL_TO_CODEXCLI_EVENT_NAMES).toHaveProperty(event);
+    }
+  });
+});
+
+describe("Codex CLI event naming", () => {
+  it("should support the postCompact event mapped to PostCompact", () => {
+    // Verified against https://developers.openai.com/codex/hooks
+    expect(CODEXCLI_HOOK_EVENTS).toContain("postCompact");
+    expect(CANONICAL_TO_CODEXCLI_EVENT_NAMES.postCompact).toBe("PostCompact");
+    expect(CODEXCLI_TO_CANONICAL_EVENT_NAMES.PostCompact).toBe("postCompact");
+  });
+
+  it("should keep preCompact distinct from postCompact", () => {
+    expect(CANONICAL_TO_CODEXCLI_EVENT_NAMES.preCompact).toBe("PreCompact");
+    expect(CODEXCLI_TO_CANONICAL_EVENT_NAMES.PreCompact).toBe("preCompact");
   });
 });
 
