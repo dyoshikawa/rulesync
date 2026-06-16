@@ -33,6 +33,15 @@ describe("AugmentcodeSkill", () => {
         join(".augment", "skills"),
       );
     });
+
+    it("should expose .agents/skills as an alternative discovery root", () => {
+      expect(AugmentcodeSkill.getSettablePaths().alternativeSkillRoots).toEqual([
+        join(".agents", "skills"),
+      ]);
+      expect(AugmentcodeSkill.getSettablePaths({ global: true }).alternativeSkillRoots).toEqual([
+        join(".agents", "skills"),
+      ]);
+    });
   });
 
   describe("fromRulesyncSkill", () => {
@@ -126,6 +135,28 @@ This is the skill body.`;
         name: "python-testing",
         description: "How to test python",
       });
+    });
+
+    it("should load a skill from the .agents/skills import root when relativeDirPath is set", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "shared-skill");
+      await ensureDir(skillDir);
+      const skillContent = `---
+name: shared-skill
+description: Discovered from .agents/skills
+---
+
+Shared skill body.`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      const skill = await AugmentcodeSkill.fromDir({
+        outputRoot: testDir,
+        relativeDirPath: join(".agents", "skills"),
+        dirName: "shared-skill",
+      });
+
+      expect(skill.getRelativeDirPath()).toBe(join(".agents", "skills"));
+      expect(skill.getFrontmatter().name).toBe("shared-skill");
+      expect(skill.getBody()).toBe("Shared skill body.");
     });
 
     it("should throw when frontmatter is missing required fields", async () => {

@@ -2,7 +2,10 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
-import { AUGMENTCODE_AGENTS_DIR_PATH } from "../../constants/augmentcode-paths.js";
+import {
+  AUGMENTCODE_AGENTS_DIR_PATH,
+  AUGMENTCODE_ALT_AGENTS_DIR_PATH,
+} from "../../constants/augmentcode-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
@@ -71,8 +74,12 @@ export class AugmentcodeSubagent extends ToolSubagent {
   }
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolSubagentSettablePaths {
+    // Auggie CLI additionally discovers subagents from the cross-tool `.agents/`
+    // directory (project `.agents/` and user `~/.agents/`). That is an
+    // import-only root: generation still writes to `.augment/agents/`.
     return {
       relativeDirPath: AUGMENTCODE_AGENTS_DIR_PATH,
+      importDirPaths: [AUGMENTCODE_ALT_AGENTS_DIR_PATH],
     };
   }
 
@@ -166,12 +173,15 @@ export class AugmentcodeSubagent extends ToolSubagent {
 
   static async fromFile({
     outputRoot = process.cwd(),
+    relativeDirPath,
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolSubagentFromFileParams): Promise<AugmentcodeSubagent> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
+    // Honor an explicit discovery root (e.g. the `.agents/` import root) when
+    // provided; otherwise fall back to the canonical `.augment/agents/` location.
+    const dirPath = relativeDirPath ?? this.getSettablePaths({ global }).relativeDirPath;
+    const filePath = join(outputRoot, dirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
@@ -182,7 +192,7 @@ export class AugmentcodeSubagent extends ToolSubagent {
 
     return new AugmentcodeSubagent({
       outputRoot,
-      relativeDirPath: paths.relativeDirPath,
+      relativeDirPath: dirPath,
       relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),
