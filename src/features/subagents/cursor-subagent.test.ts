@@ -304,6 +304,95 @@ Body content`;
     });
   });
 
+  describe("cursor-specific frontmatter fields", () => {
+    it("should parse model, readonly and is_background as first-class fields from file", async () => {
+      const subagentsDir = join(testDir, ".cursor", "agents");
+      const filePath = join(subagentsDir, "cursor-fields-agent.md");
+      const fileContent = `---
+name: Cursor Fields Agent
+description: Agent exercising cursor-specific fields
+model: inherit
+readonly: true
+is_background: false
+---
+
+Body content`;
+      await writeFileContent(filePath, fileContent);
+
+      const subagent = await CursorSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "cursor-fields-agent.md",
+        validate: true,
+      });
+
+      expect(subagent.getFrontmatter()).toEqual({
+        name: "Cursor Fields Agent",
+        description: "Agent exercising cursor-specific fields",
+        model: "inherit",
+        readonly: true,
+        is_background: false,
+      });
+    });
+
+    it("should round-trip model, readonly and is_background through the cursor section", () => {
+      const sourceFrontmatter = {
+        name: "Round Trip Agent",
+        description: "Round trip description",
+        model: "inherit",
+        readonly: true,
+        is_background: true,
+      };
+      const cursorSubagent = new CursorSubagent({
+        outputRoot: testDir,
+        relativeDirPath: ".cursor/agents",
+        relativeFilePath: "round-trip-agent.md",
+        frontmatter: sourceFrontmatter,
+        body: "Round trip body",
+        fileContent: stringifyFrontmatter("Round trip body", sourceFrontmatter),
+        validate: true,
+      });
+
+      // Export: cursor-specific fields land in the namespaced `cursor` section.
+      const rulesyncSubagent = cursorSubagent.toRulesyncSubagent();
+      expect(rulesyncSubagent.getFrontmatter().cursor).toEqual({
+        model: "inherit",
+        readonly: true,
+        is_background: true,
+      });
+
+      // Import: cursor section is re-applied as first-class frontmatter fields.
+      const roundTripped = CursorSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: ".cursor/agents",
+        rulesyncSubagent,
+        validate: true,
+      }) as CursorSubagent;
+
+      expect(roundTripped.getFrontmatter()).toEqual(sourceFrontmatter);
+    });
+
+    it("should reject invalid types for cursor-specific fields", () => {
+      const frontmatter = {
+        name: "Invalid Types Agent",
+        description: "Invalid types",
+        readonly: "yes",
+      } as any;
+
+      expect(
+        () =>
+          new CursorSubagent({
+            outputRoot: testDir,
+            relativeDirPath: ".cursor/agents",
+            relativeFilePath: "invalid-types-agent.md",
+            frontmatter,
+            body: "Body",
+            fileContent: stringifyFrontmatter("Body", frontmatter),
+            validate: true,
+          }),
+      ).toThrow();
+    });
+  });
+
   describe("fromFile", () => {
     it("should load CursorSubagent from file", async () => {
       const subagentsDir = join(testDir, ".cursor", "agents");

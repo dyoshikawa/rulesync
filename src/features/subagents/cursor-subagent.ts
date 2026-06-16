@@ -20,6 +20,9 @@ import {
 const CursorSubagentFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.optional(z.string()),
+  model: z.optional(z.string()),
+  readonly: z.optional(z.boolean()),
+  is_background: z.optional(z.boolean()),
 });
 
 type CursorSubagentFrontmatter = z.infer<typeof CursorSubagentFrontmatterSchema>;
