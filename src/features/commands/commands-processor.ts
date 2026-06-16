@@ -21,6 +21,7 @@ import { CursorCommand } from "./cursor-command.js";
 import { DevinCommand } from "./devin-command.js";
 import { FactorydroidCommand } from "./factorydroid-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
+import { GooseCommand } from "./goose-command.js";
 import { JunieCommand } from "./junie-command.js";
 import { KiloCommand } from "./kilo-command.js";
 import { KiroCommand } from "./kiro-command.js";
@@ -51,7 +52,7 @@ type ToolCommandFactory = {
   };
   meta: {
     /** File extension for the command file */
-    extension: "md" | "toml" | "prompt.md";
+    extension: "md" | "toml" | "prompt.md" | "yaml";
     /** Whether the tool supports project-level commands */
     supportsProject: boolean;
     /** Whether the tool supports global (user-level) commands */
@@ -80,6 +81,7 @@ const commandsProcessorToolTargetTuple = [
   "cursor",
   "factorydroid",
   "geminicli",
+  "goose",
   "junie",
   "kilo",
   "kiro",
@@ -256,6 +258,22 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: true,
+      },
+    },
+  ],
+  [
+    "goose",
+    {
+      class: GooseCommand,
+      meta: {
+        extension: "yaml",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        // Non-recursive: project recipes live flat in `.goose/recipes/`, while
+        // subagent sub-recipes live in `.goose/recipes/subagents/` and must not
+        // be picked up by the command importer.
+        supportsSubdirectory: false,
       },
     },
   ],
