@@ -22,3 +22,6 @@ export const GROKCLI_MCP_FILE_NAME = "config.toml";
 
 /** Skills directory under `.grok/` (project: `./.grok/skills`, global: `~/.grok/skills`). */
 export const GROKCLI_SKILLS_DIR_PATH = join(GROKCLI_DIR, "skills");
+
+/** Instruction file. Grok reads the AGENTS.md instruction-file family natively. */
+export const GROKCLI_RULE_FILE_NAME = "AGENTS.md";
