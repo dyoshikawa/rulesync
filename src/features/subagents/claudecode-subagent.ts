@@ -23,8 +23,19 @@ export const ClaudecodeSubagentFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   model: z.optional(z.string()),
   tools: z.optional(z.union([z.string(), z.array(z.string())])),
+  disallowedTools: z.optional(z.union([z.string(), z.array(z.string())])),
   permissionMode: z.optional(z.string()),
+  maxTurns: z.optional(z.number()),
   skills: z.optional(z.union([z.string(), z.array(z.string())])),
+  color: z.optional(z.string()),
+  memory: z.optional(z.string()),
+  effort: z.optional(z.string()),
+  isolation: z.optional(z.string()),
+  background: z.optional(z.boolean()),
+  initialPrompt: z.optional(z.string()),
+  // Nested config objects are accepted loosely for now; dedicated schemas are a follow-up.
+  mcpServers: z.optional(z.unknown()),
+  hooks: z.optional(z.unknown()),
 });
 
 export type ClaudecodeSubagentFrontmatter = z.infer<typeof ClaudecodeSubagentFrontmatterSchema>;

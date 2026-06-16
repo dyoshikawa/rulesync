@@ -269,7 +269,20 @@ description: >- # subagent description
   suggest a specification, implement a new feature, refactor the codebase, or
   fix a bug. This agent can be called by the user explicitly only.
 claudecode: # for claudecode-specific parameters
-  model: inherit # opus, sonnet, haiku or inherit
+  model: inherit # opus, sonnet, haiku, fable, a full model id, or inherit (default)
+  tools: ["Read", "Write"] # (optional) allowed tools (string or list)
+  disallowedTools: ["Bash"] # (optional) tools to remove (string or list)
+  permissionMode: default # (optional) default | acceptEdits | bypassPermissions | plan
+  maxTurns: 20 # (optional) maximum agentic turns
+  skills: ["skill-creator"] # (optional) Agent Skills to utilize (string or list)
+  color: cyan # (optional) UI color (e.g. red, blue, green, cyan, ...)
+  memory: project # (optional) user | project | local
+  effort: high # (optional) low | medium | high | xhigh | max
+  isolation: worktree # (optional) run the subagent in an isolated git worktree
+  background: false # (optional) run the subagent in the background
+  initialPrompt: "Start by reading the spec." # (optional) seed prompt for the subagent
+  mcpServers: {} # (optional) MCP server config (passed through verbatim)
+  hooks: {} # (optional) hook config (passed through verbatim)
 copilot: # for GitHub Copilot specific parameters
   tools:
     - web/fetch # agent/runSubagent is always included automatically
