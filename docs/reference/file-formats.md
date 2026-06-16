@@ -286,6 +286,10 @@ opencode: # for OpenCode-specific parameters
       "git diff": allow
 kilo: # for Kilo-specific parameters
   mode: all # (optional, defaults to "all") use "subagent" for hidden/subagent-only agents
+cursor: # for Cursor-specific parameters (generated to .cursor/agents/*.md)
+  model: inherit # (optional, defaults to "inherit") model id, or "inherit" to use the parent's model
+  readonly: false # (optional, defaults to false) restrict the subagent to read-only tools
+  is_background: false # (optional, defaults to false) run the subagent as a background agent
 junie: # for JetBrains Junie CLI specific parameters (generated to .junie/agents/*.md; also imported from .agents/*.md)
   tools: ["Read", "Grep", "Edit"] # allowed tools
   disallowedTools: ["Bash", "WebSearch"] # disallowed tools
