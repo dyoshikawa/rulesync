@@ -1,42 +1,49 @@
 import { join } from "node:path";
 
+import { load } from "js-yaml";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
-import { RooSubagent } from "./roo-subagent.js";
+import { RooMode, RooSubagent, sanitizeRooSlug } from "./roo-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
-import {
-  SimulatedSubagentFrontmatter,
-  SimulatedSubagentFrontmatterSchema,
-} from "./simulated-subagent.js";
+
+function makeRulesyncSubagent({
+  testDir,
+  relativeFilePath = "planner.md",
+  frontmatter,
+  body = "You are the planner.",
+}: {
+  testDir: string;
+  relativeFilePath?: string;
+  frontmatter: Record<string, unknown>;
+  body?: string;
+}): RulesyncSubagent {
+  return new RulesyncSubagent({
+    outputRoot: testDir,
+    relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+    relativeFilePath,
+    frontmatter: frontmatter as never,
+    body,
+    validate: true,
+  });
+}
+
+function parseModes(content: string): RooMode[] {
+  const parsed = load(content) as { customModes: RooMode[] };
+  return parsed.customModes;
+}
 
 describe("RooSubagent", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
-  const validMarkdownContent = `---
-name: Test Roo Agent
-description: Test roo agent description
----
-
-This is the body of the roo agent.
-It can be multiline.`;
-
-  const invalidMarkdownContent = `---
-# Missing required fields
-invalid: true
----
-
-Body content`;
-
-  const markdownWithoutFrontmatter = `This is just plain content without frontmatter.`;
-
   beforeEach(async () => {
     const testSetup = await setupTestDirectory();
     testDir = testSetup.testDir;
     cleanup = testSetup.cleanup;
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
   });
 
   afterEach(async () => {
@@ -45,305 +52,235 @@ Body content`;
   });
 
   describe("getSettablePaths", () => {
-    it("should return correct paths for roo subagents", () => {
+    it("writes the aggregated .roomodes at the workspace root", () => {
       const paths = RooSubagent.getSettablePaths();
-      expect(paths).toEqual({
-        relativeDirPath: ".roo/subagents",
-      });
+      expect(paths).toEqual({ relativeDirPath: "." });
     });
   });
 
-  describe("constructor", () => {
-    it("should create instance with valid markdown content", () => {
-      const subagent = new RooSubagent({
-        outputRoot: testDir,
-        relativeDirPath: ".roo/subagents",
-        relativeFilePath: "test-agent.md",
-        frontmatter: {
-          name: "Test Roo Agent",
-          description: "Test roo agent description",
-        },
-        body: "This is the body of the roo agent.\nIt can be multiline.",
-        validate: true,
-      });
-
-      expect(subagent).toBeInstanceOf(RooSubagent);
-      expect(subagent.getBody()).toBe("This is the body of the roo agent.\nIt can be multiline.");
-      expect(subagent.getFrontmatter()).toEqual({
-        name: "Test Roo Agent",
-        description: "Test roo agent description",
-      });
+  describe("sanitizeRooSlug", () => {
+    it("lowercases and collapses invalid characters into hyphens", () => {
+      expect(sanitizeRooSlug("My Cool Agent!")).toBe("my-cool-agent");
+      expect(sanitizeRooSlug("planner_v2")).toBe("planner-v2");
+      expect(sanitizeRooSlug("--Lead--")).toBe("lead");
     });
 
-    it("should create instance with empty name and description", () => {
-      const subagent = new RooSubagent({
-        outputRoot: testDir,
-        relativeDirPath: ".roo/subagents",
-        relativeFilePath: "test-agent.md",
-        frontmatter: {
-          name: "",
-          description: "",
-        },
-        body: "This is a roo agent without name or description.",
-        validate: true,
-      });
-
-      expect(subagent.getBody()).toBe("This is a roo agent without name or description.");
-      expect(subagent.getFrontmatter()).toEqual({
-        name: "",
-        description: "",
-      });
-    });
-
-    it("should create instance without validation when validate is false", () => {
-      const subagent = new RooSubagent({
-        outputRoot: testDir,
-        relativeDirPath: ".roo/subagents",
-        relativeFilePath: "test-agent.md",
-        frontmatter: {
-          name: "Test Agent",
-          description: "Test description",
-        },
-        body: "Test body",
-        validate: false,
-      });
-
-      expect(subagent).toBeInstanceOf(RooSubagent);
-    });
-
-    it("should throw error for invalid frontmatter when validation is enabled", () => {
-      expect(
-        () =>
-          new RooSubagent({
-            outputRoot: testDir,
-            relativeDirPath: ".roo/subagents",
-            relativeFilePath: "invalid-agent.md",
-            frontmatter: {
-              // Missing required fields
-            } as SimulatedSubagentFrontmatter,
-            body: "Body content",
-            validate: true,
-          }),
-      ).toThrow();
-    });
-  });
-
-  describe("getBody", () => {
-    it("should return the body content", () => {
-      const subagent = new RooSubagent({
-        outputRoot: testDir,
-        relativeDirPath: ".roo/subagents",
-        relativeFilePath: "test-agent.md",
-        frontmatter: {
-          name: "Test Agent",
-          description: "Test description",
-        },
-        body: "This is the body content.\nWith multiple lines.",
-        validate: true,
-      });
-
-      expect(subagent.getBody()).toBe("This is the body content.\nWith multiple lines.");
-    });
-  });
-
-  describe("getFrontmatter", () => {
-    it("should return frontmatter with name and description", () => {
-      const subagent = new RooSubagent({
-        outputRoot: testDir,
-        relativeDirPath: ".roo/subagents",
-        relativeFilePath: "test-agent.md",
-        frontmatter: {
-          name: "Test Roo Agent",
-          description: "Test roo agent",
-        },
-        body: "Test body",
-        validate: true,
-      });
-
-      const frontmatter = subagent.getFrontmatter();
-      expect(frontmatter).toEqual({
-        name: "Test Roo Agent",
-        description: "Test roo agent",
-      });
-    });
-  });
-
-  describe("toRulesyncSubagent", () => {
-    it("should throw error as it is a simulated file", () => {
-      const subagent = new RooSubagent({
-        outputRoot: testDir,
-        relativeDirPath: ".roo/subagents",
-        relativeFilePath: "test-agent.md",
-        frontmatter: {
-          name: "Test Agent",
-          description: "Test description",
-        },
-        body: "Test body",
-        validate: true,
-      });
-
-      expect(() => subagent.toRulesyncSubagent()).toThrow(
-        "Not implemented because it is a SIMULATED file.",
-      );
+    it("falls back to 'mode' when nothing usable remains", () => {
+      expect(sanitizeRooSlug("!!!")).toBe("mode");
     });
   });
 
   describe("fromRulesyncSubagent", () => {
-    it("should create RooSubagent from RulesyncSubagent", () => {
-      const rulesyncSubagent = new RulesyncSubagent({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-        relativeFilePath: "test-agent.md",
+    it("maps a single subagent to one mode with default groups", () => {
+      const rulesyncSubagent = makeRulesyncSubagent({
+        testDir,
+        relativeFilePath: "Planner Agent.md",
         frontmatter: {
           targets: ["roo"],
-          name: "Test Agent",
-          description: "Test description from rulesync",
+          name: "Planner",
+          description: "Plans tasks",
         },
-        body: "Test agent content",
-        validate: true,
+        body: "You are the planner.",
       });
 
-      const rooSubagent = RooSubagent.fromRulesyncSubagent({
+      const roo = RooSubagent.fromRulesyncSubagent({
         outputRoot: testDir,
-        relativeDirPath: ".roo/subagents",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         rulesyncSubagent,
         validate: true,
       }) as RooSubagent;
 
-      expect(rooSubagent).toBeInstanceOf(RooSubagent);
-      expect(rooSubagent.getBody()).toBe("Test agent content");
-      expect(rooSubagent.getFrontmatter()).toEqual({
-        name: "Test Agent",
-        description: "Test description from rulesync",
-      });
-      expect(rooSubagent.getRelativeFilePath()).toBe("test-agent.md");
-      expect(rooSubagent.getRelativeDirPath()).toBe(".roo/subagents");
-    });
+      expect(roo).toBeInstanceOf(RooSubagent);
+      expect(roo.getRelativeFilePath()).toBe(".roomodes");
+      expect(roo.getRelativeDirPath()).toBe(".");
 
-    it("should handle RulesyncSubagent with different file extensions", () => {
-      const rulesyncSubagent = new RulesyncSubagent({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-        relativeFilePath: "complex-agent.txt",
-        frontmatter: {
-          targets: ["roo"],
-          name: "Complex Agent",
-          description: "Complex agent",
-        },
-        body: "Complex content",
-        validate: true,
-      });
-
-      const rooSubagent = RooSubagent.fromRulesyncSubagent({
-        outputRoot: testDir,
-        relativeDirPath: ".roo/subagents",
-        rulesyncSubagent,
-        validate: true,
-      }) as RooSubagent;
-
-      expect(rooSubagent.getRelativeFilePath()).toBe("complex-agent.txt");
-    });
-
-    it("should handle empty name and description", () => {
-      const rulesyncSubagent = new RulesyncSubagent({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-        relativeFilePath: "test-agent.md",
-        frontmatter: {
-          targets: ["roo"],
-          name: "",
-          description: "",
-        },
-        body: "Test content",
-        validate: true,
-      });
-
-      const rooSubagent = RooSubagent.fromRulesyncSubagent({
-        outputRoot: testDir,
-        relativeDirPath: ".roo/subagents",
-        rulesyncSubagent,
-        validate: true,
-      }) as RooSubagent;
-
-      expect(rooSubagent.getFrontmatter()).toEqual({
-        name: "",
-        description: "",
+      const modes = parseModes(roo.getFileContent());
+      expect(modes).toHaveLength(1);
+      expect(modes[0]).toMatchObject({
+        slug: "planner-agent",
+        name: "Planner",
+        description: "Plans tasks",
+        roleDefinition: "You are the planner.",
+        groups: ["read", "edit", "command", "mcp"],
       });
     });
   });
 
-  describe("fromFile", () => {
-    it("should load RooSubagent from file", async () => {
-      const subagentsDir = join(testDir, ".roo", "subagents");
-      const filePath = join(subagentsDir, "test-file-agent.md");
+  describe("fromRulesyncSubagents", () => {
+    it("aggregates multiple subagents into one .roomodes file", () => {
+      const planner = makeRulesyncSubagent({
+        testDir,
+        relativeFilePath: "planner.md",
+        frontmatter: { targets: ["roo"], name: "Planner", description: "Plans" },
+        body: "Planner role.",
+      });
+      const reviewer = makeRulesyncSubagent({
+        testDir,
+        relativeFilePath: "reviewer.md",
+        frontmatter: { targets: ["roo"], name: "Reviewer", description: "Reviews" },
+        body: "Reviewer role.",
+      });
 
-      await writeFileContent(filePath, validMarkdownContent);
-
-      const subagent = await RooSubagent.fromFile({
+      const roo = RooSubagent.fromRulesyncSubagents({
         outputRoot: testDir,
-        relativeFilePath: "test-file-agent.md",
+        rulesyncSubagents: [planner, reviewer],
+      });
+
+      const modes = parseModes(roo.getFileContent());
+      expect(modes).toHaveLength(2);
+      expect(modes.map((m) => m.slug)).toEqual(["planner", "reviewer"]);
+    });
+
+    it("de-duplicates by slug so a later subagent wins", () => {
+      const first = makeRulesyncSubagent({
+        testDir,
+        relativeFilePath: "planner.md",
+        frontmatter: { targets: ["roo"], name: "Planner", roo: { slug: "lead" } },
+        body: "First.",
+      });
+      const second = makeRulesyncSubagent({
+        testDir,
+        relativeFilePath: "reviewer.md",
+        frontmatter: { targets: ["roo"], name: "Reviewer", roo: { slug: "lead" } },
+        body: "Second.",
+      });
+
+      const roo = RooSubagent.fromRulesyncSubagents({
+        outputRoot: testDir,
+        rulesyncSubagents: [first, second],
+      });
+
+      const modes = parseModes(roo.getFileContent());
+      expect(modes).toHaveLength(1);
+      expect(modes[0]?.slug).toBe("lead");
+      expect(modes[0]?.roleDefinition).toBe("Second.");
+    });
+
+    it("honors the roo: section for groups, whenToUse, customInstructions, and roleDefinition override", () => {
+      const rulesyncSubagent = makeRulesyncSubagent({
+        testDir,
+        relativeFilePath: "docs.md",
+        frontmatter: {
+          targets: ["roo"],
+          name: "Docs",
+          description: "Doc writer",
+          roo: {
+            groups: ["read", ["edit", { fileRegex: "\\.md$", description: "Markdown" }]],
+            whenToUse: "When editing docs",
+            customInstructions: "Be concise",
+            roleDefinition: "You only touch docs.",
+          },
+        },
+        body: "This body is overridden.",
+      });
+
+      const roo = RooSubagent.fromRulesyncSubagents({
+        outputRoot: testDir,
+        rulesyncSubagents: [rulesyncSubagent],
+      });
+
+      const modes = parseModes(roo.getFileContent());
+      expect(modes[0]).toMatchObject({
+        slug: "docs",
+        name: "Docs",
+        whenToUse: "When editing docs",
+        customInstructions: "Be concise",
+        roleDefinition: "You only touch docs.",
+      });
+      expect(modes[0]?.groups).toEqual([
+        "read",
+        ["edit", { fileRegex: "\\.md$", description: "Markdown" }],
+      ]);
+    });
+  });
+
+  describe("isTargetedByRulesyncSubagent", () => {
+    it("returns true when targets include roo", () => {
+      const rulesyncSubagent = makeRulesyncSubagent({
+        testDir,
+        frontmatter: { targets: ["roo"], name: "Planner" },
+      });
+      expect(RooSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(true);
+    });
+
+    it("returns false when targets exclude roo", () => {
+      const rulesyncSubagent = makeRulesyncSubagent({
+        testDir,
+        frontmatter: { targets: ["copilot"], name: "Planner" },
+      });
+      expect(RooSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(false);
+    });
+  });
+
+  describe("fromFile and toRulesyncSubagents (import)", () => {
+    const roomodesContent = `customModes:
+  - slug: planner
+    name: Planner
+    description: Plans tasks
+    roleDefinition: You are the planner.
+    groups:
+      - read
+      - edit
+  - slug: reviewer
+    name: Reviewer
+    roleDefinition: You are the reviewer.
+    whenToUse: When reviewing code
+    customInstructions: Be thorough
+    groups:
+      - read
+`;
+
+    it("parses every custom mode from .roomodes", async () => {
+      await writeFileContent(join(testDir, ".roomodes"), roomodesContent);
+
+      const roo = await RooSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: ".roomodes",
         validate: true,
       });
 
-      expect(subagent).toBeInstanceOf(RooSubagent);
-      expect(subagent.getBody()).toBe("This is the body of the roo agent.\nIt can be multiline.");
-      expect(subagent.getFrontmatter()).toEqual({
-        name: "Test Roo Agent",
-        description: "Test roo agent description",
-      });
-      expect(subagent.getRelativeFilePath()).toBe("test-file-agent.md");
+      expect(roo).toBeInstanceOf(RooSubagent);
+      expect(roo.getModes()).toHaveLength(2);
     });
 
-    it("should handle file path with subdirectories", async () => {
-      const subagentsDir = join(testDir, ".roo", "subagents", "subdir");
-      const filePath = join(subagentsDir, "nested-agent.md");
+    it("fans out each mode into its own rulesync subagent", async () => {
+      await writeFileContent(join(testDir, ".roomodes"), roomodesContent);
 
-      await writeFileContent(filePath, validMarkdownContent);
-
-      const subagent = await RooSubagent.fromFile({
+      const roo = await RooSubagent.fromFile({
         outputRoot: testDir,
-        relativeFilePath: "subdir/nested-agent.md",
+        relativeFilePath: ".roomodes",
         validate: true,
       });
 
-      expect(subagent.getRelativeFilePath()).toBe("nested-agent.md");
+      const rulesyncSubagents = roo.toRulesyncSubagents();
+      expect(rulesyncSubagents).toHaveLength(2);
+
+      const planner = rulesyncSubagents[0];
+      expect(planner?.getRelativeFilePath()).toBe("planner.md");
+      expect(planner?.getBody()).toBe("You are the planner.");
+      expect(planner?.getFrontmatter()).toMatchObject({
+        targets: ["roo"],
+        name: "Planner",
+        description: "Plans tasks",
+      });
+
+      const reviewer = rulesyncSubagents[1];
+      expect(reviewer?.getFrontmatter()).toMatchObject({
+        name: "Reviewer",
+        roo: { whenToUse: "When reviewing code", customInstructions: "Be thorough" },
+      });
     });
 
-    it("should throw error when file does not exist", async () => {
-      await expect(
-        RooSubagent.fromFile({
-          outputRoot: testDir,
-          relativeFilePath: "non-existent-agent.md",
-          validate: true,
-        }),
-      ).rejects.toThrow();
-    });
-
-    it("should throw error when file contains invalid frontmatter", async () => {
-      const subagentsDir = join(testDir, ".roo", "subagents");
-      const filePath = join(subagentsDir, "invalid-agent.md");
-
-      await writeFileContent(filePath, invalidMarkdownContent);
-
-      await expect(
-        RooSubagent.fromFile({
-          outputRoot: testDir,
-          relativeFilePath: "invalid-agent.md",
-          validate: true,
-        }),
-      ).rejects.toThrow();
-    });
-
-    it("should handle file without frontmatter", async () => {
-      const subagentsDir = join(testDir, ".roo", "subagents");
-      const filePath = join(subagentsDir, "no-frontmatter.md");
-
-      await writeFileContent(filePath, markdownWithoutFrontmatter);
+    it("throws on invalid .roomodes", async () => {
+      await writeFileContent(
+        join(testDir, ".roomodes"),
+        "customModes:\n  - name: Missing slug and roleDefinition\n",
+      );
 
       await expect(
         RooSubagent.fromFile({
           outputRoot: testDir,
-          relativeFilePath: "no-frontmatter.md",
+          relativeFilePath: ".roomodes",
           validate: true,
         }),
       ).rejects.toThrow();
@@ -351,290 +288,40 @@ Body content`;
   });
 
   describe("validate", () => {
-    it("should return success for valid frontmatter", () => {
-      const subagent = new RooSubagent({
+    it("returns success for valid modes", () => {
+      const roo = new RooSubagent({
         outputRoot: testDir,
-        relativeDirPath: ".roo/subagents",
-        relativeFilePath: "valid-agent.md",
-        frontmatter: {
-          name: "Valid Agent",
-          description: "Valid description",
-        },
-        body: "Valid body",
-        validate: false, // Skip validation in constructor to test validate method
-      });
-
-      const result = subagent.validate();
-      expect(result.success).toBe(true);
-      expect(result.error).toBeNull();
-    });
-
-    it("should handle frontmatter with additional properties", () => {
-      const subagent = new RooSubagent({
-        outputRoot: testDir,
-        relativeDirPath: ".roo/subagents",
-        relativeFilePath: "agent-with-extras.md",
-        frontmatter: {
-          name: "Agent",
-          description: "Agent with extra properties",
-          // Additional properties should be allowed but not validated
-          extra: "property",
-        } as any,
-        body: "Body content",
+        relativeDirPath: ".",
+        relativeFilePath: ".roomodes",
+        modes: [{ slug: "planner", name: "Planner", roleDefinition: "Role." }],
         validate: false,
       });
+      expect(roo.validate().success).toBe(true);
+    });
 
-      const result = subagent.validate();
-      // The validation should pass as long as required fields are present
-      expect(result.success).toBe(true);
+    it("throws in the constructor for an invalid mode when validation is enabled", () => {
+      expect(
+        () =>
+          new RooSubagent({
+            outputRoot: testDir,
+            relativeDirPath: ".",
+            relativeFilePath: ".roomodes",
+            modes: [{ slug: "planner" } as RooMode],
+            validate: true,
+          }),
+      ).toThrow();
     });
   });
 
-  describe("SimulatedSubagentFrontmatterSchema", () => {
-    it("should validate valid frontmatter with name and description", () => {
-      const validFrontmatter = {
-        name: "Test Agent",
-        description: "Test description",
-      };
-
-      const result = SimulatedSubagentFrontmatterSchema.parse(validFrontmatter);
-      expect(result).toEqual(validFrontmatter);
-    });
-
-    it("should throw error for frontmatter without name", () => {
-      const invalidFrontmatter = {
-        description: "Test description",
-      };
-
-      expect(() => SimulatedSubagentFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
-    });
-
-    it("should accept frontmatter without description (description is optional)", () => {
-      const frontmatter = {
-        name: "Test Agent",
-      };
-
-      const result = SimulatedSubagentFrontmatterSchema.parse(frontmatter);
-      expect(result.name).toBe("Test Agent");
-      expect(result.description).toBeUndefined();
-    });
-
-    it("should throw error for frontmatter with invalid types", () => {
-      const invalidFrontmatter = {
-        name: 123, // Should be string
-        description: "Test",
-      };
-
-      expect(() => SimulatedSubagentFrontmatterSchema.parse(invalidFrontmatter)).toThrow();
-    });
-  });
-
-  describe("edge cases", () => {
-    it("should handle empty body content", () => {
-      const subagent = new RooSubagent({
+  describe("forDeletion", () => {
+    it("creates a minimal instance without parsing", () => {
+      const roo = RooSubagent.forDeletion({
         outputRoot: testDir,
-        relativeDirPath: ".roo/subagents",
-        relativeFilePath: "empty-body.md",
-        frontmatter: {
-          name: "Empty Body Agent",
-          description: "Agent with empty body",
-        },
-        body: "",
-        validate: true,
+        relativeDirPath: ".",
+        relativeFilePath: ".roomodes",
       });
-
-      expect(subagent.getBody()).toBe("");
-      expect(subagent.getFrontmatter()).toEqual({
-        name: "Empty Body Agent",
-        description: "Agent with empty body",
-      });
-    });
-
-    it("should handle special characters in content", () => {
-      const specialContent =
-        "Special characters: @#$%^&*()\nUnicode: 你好世界 🌍\nQuotes: \"Hello 'World'\"";
-
-      const subagent = new RooSubagent({
-        outputRoot: testDir,
-        relativeDirPath: ".roo/subagents",
-        relativeFilePath: "special-char.md",
-        frontmatter: {
-          name: "Special Agent",
-          description: "Special characters test",
-        },
-        body: specialContent,
-        validate: true,
-      });
-
-      expect(subagent.getBody()).toBe(specialContent);
-      expect(subagent.getBody()).toContain("@#$%^&*()");
-      expect(subagent.getBody()).toContain("你好世界 🌍");
-      expect(subagent.getBody()).toContain("\"Hello 'World'\"");
-    });
-
-    it("should handle very long content", () => {
-      const longContent = "A".repeat(10000);
-
-      const subagent = new RooSubagent({
-        outputRoot: testDir,
-        relativeDirPath: ".roo/subagents",
-        relativeFilePath: "long-content.md",
-        frontmatter: {
-          name: "Long Agent",
-          description: "Long content test",
-        },
-        body: longContent,
-        validate: true,
-      });
-
-      expect(subagent.getBody()).toBe(longContent);
-      expect(subagent.getBody().length).toBe(10000);
-    });
-
-    it("should handle multi-line name and description", () => {
-      const subagent = new RooSubagent({
-        outputRoot: testDir,
-        relativeDirPath: ".roo/subagents",
-        relativeFilePath: "multiline-fields.md",
-        frontmatter: {
-          name: "Multi-line\nAgent Name",
-          description: "This is a multi-line\ndescription with\nmultiple lines",
-        },
-        body: "Test body",
-        validate: true,
-      });
-
-      expect(subagent.getFrontmatter()).toEqual({
-        name: "Multi-line\nAgent Name",
-        description: "This is a multi-line\ndescription with\nmultiple lines",
-      });
-    });
-
-    it("should handle Windows-style line endings", () => {
-      const windowsContent = "Line 1\r\nLine 2\r\nLine 3";
-
-      const subagent = new RooSubagent({
-        outputRoot: testDir,
-        relativeDirPath: ".roo/subagents",
-        relativeFilePath: "windows-lines.md",
-        frontmatter: {
-          name: "Windows Agent",
-          description: "Test with Windows line endings",
-        },
-        body: windowsContent,
-        validate: true,
-      });
-
-      expect(subagent.getBody()).toBe(windowsContent);
-    });
-  });
-
-  describe("inheritance", () => {
-    it("should inherit from SimulatedSubagent", () => {
-      const subagent = new RooSubagent({
-        outputRoot: testDir,
-        relativeDirPath: ".roo/subagents",
-        relativeFilePath: "test.md",
-        frontmatter: {
-          name: "Test",
-          description: "Test",
-        },
-        body: "Test",
-        validate: true,
-      });
-
-      expect(subagent).toBeInstanceOf(RooSubagent);
-      // Test that it inherits methods from parent class
-      expect(() => subagent.toRulesyncSubagent()).toThrow(
-        "Not implemented because it is a SIMULATED file.",
-      );
-    });
-  });
-
-  describe("isTargetedByRulesyncSubagent", () => {
-    it("should return true when targets includes roo", () => {
-      const rulesyncSubagent = new RulesyncSubagent({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-        relativeFilePath: "test-agent.md",
-        frontmatter: {
-          targets: ["roo"],
-          name: "Test Agent",
-          description: "Test description",
-        },
-        body: "Test content",
-        validate: true,
-      });
-
-      expect(RooSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(true);
-    });
-
-    it("should return true when targets includes asterisk", () => {
-      const rulesyncSubagent = new RulesyncSubagent({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-        relativeFilePath: "test-agent.md",
-        frontmatter: {
-          targets: ["*"],
-          name: "Test Agent",
-          description: "Test description",
-        },
-        body: "Test content",
-        validate: true,
-      });
-
-      expect(RooSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(true);
-    });
-
-    it("should return false when targets array is empty", () => {
-      const rulesyncSubagent = new RulesyncSubagent({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-        relativeFilePath: "test-agent.md",
-        frontmatter: {
-          targets: [],
-          name: "Test Agent",
-          description: "Test description",
-        },
-        body: "Test content",
-        validate: false, // Skip validation to allow empty targets array
-      });
-
-      expect(RooSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(false);
-    });
-
-    it("should return false when targets does not include roo", () => {
-      const rulesyncSubagent = new RulesyncSubagent({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-        relativeFilePath: "test-agent.md",
-        frontmatter: {
-          targets: ["copilot", "cline"],
-          name: "Test Agent",
-          description: "Test description",
-        },
-        body: "Test content",
-        validate: true,
-      });
-
-      expect(RooSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(false);
-    });
-
-    it("should return true when targets includes roo among other targets", () => {
-      const rulesyncSubagent = new RulesyncSubagent({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-        relativeFilePath: "test-agent.md",
-        frontmatter: {
-          targets: ["copilot", "roo", "cline"],
-          name: "Test Agent",
-          description: "Test description",
-        },
-        body: "Test content",
-        validate: true,
-      });
-
-      expect(RooSubagent.isTargetedByRulesyncSubagent(rulesyncSubagent)).toBe(true);
+      expect(roo).toBeInstanceOf(RooSubagent);
+      expect(roo.getModes()).toEqual([]);
     });
   });
 });

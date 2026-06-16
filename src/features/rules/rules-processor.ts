@@ -28,7 +28,6 @@ import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { SkillsProcessor } from "../skills/skills-processor.js";
 import { AgentsmdSubagent } from "../subagents/agentsmd-subagent.js";
 import { GeminiCliSubagent } from "../subagents/geminicli-subagent.js";
-import { RooSubagent } from "../subagents/roo-subagent.js";
 import { RovodevSubagent } from "../subagents/rovodev-subagent.js";
 import { SubagentsProcessor } from "../subagents/subagents-processor.js";
 import { AgentsMdRule } from "./agentsmd-rule.js";
@@ -574,15 +573,14 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
   [
     "roo",
     {
+      // Roo subagents are native now (aggregated into `.roomodes`), so no
+      // simulated `additionalConventions.subagents` block is needed — mirrors
+      // how native subagent tools like geminicli are wired.
       class: RooRule,
       meta: {
         extension: "md",
         supportsGlobal: false,
         ruleDiscoveryMode: "auto",
-        additionalConventions: {
-          subagents: { subagentClass: RooSubagent },
-        },
-        createsSeparateConventionsRule: true,
       },
     },
   ],

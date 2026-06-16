@@ -350,7 +350,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "roo", feature: "skills", entry: "**/.roo/skills/" },
   { target: "roo", feature: "ignore", entry: "**/.rooignore" },
   { target: "roo", feature: "mcp", entry: "**/.roo/mcp.json" },
-  { target: "roo", feature: "subagents", entry: "**/.roo/subagents/" },
+  { target: "roo", feature: "subagents", entry: "**/.roomodes" },
 
   // Rovodev
   {

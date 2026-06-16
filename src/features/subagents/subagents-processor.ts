@@ -50,6 +50,17 @@ type ToolSubagentFactory = {
   class: {
     isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean;
     fromRulesyncSubagent(params: ToolSubagentFromRulesyncSubagentParams): ToolSubagent;
+    /**
+     * Optional aggregation hook. Tools whose native format collapses N subagents
+     * into a single shared file (e.g. Roo's `.roomodes`) implement this to emit
+     * one tool file holding every targeted subagent. When absent, the processor
+     * falls back to mapping each rulesync subagent independently.
+     */
+    fromRulesyncSubagents?(params: {
+      outputRoot?: string;
+      rulesyncSubagents: RulesyncSubagent[];
+      global?: boolean;
+    }): ToolSubagent;
     fromFile(params: ToolSubagentFromFileParams): Promise<ToolSubagent>;
     forDeletion(params: ToolSubagentForDeletionParams): ToolSubagent;
     getSettablePaths(options?: { global?: boolean }): ToolSubagentSettablePaths;
@@ -280,8 +291,12 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
   [
     "roo",
     {
+      // Roo Code reads project custom modes from a single aggregated `.roomodes`
+      // file at the workspace root (YAML). rulesync collapses every targeted
+      // subagent into that file's `customModes` array.
+      // https://roocodeinc.github.io/Roo-Code/features/custom-modes
       class: RooSubagent,
-      meta: { supportsSimulated: true, supportsGlobal: false, filePattern: "*.md" },
+      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: ".roomodes" },
     },
   ],
   [
@@ -381,21 +396,34 @@ export class SubagentsProcessor extends FeatureProcessor {
 
     const factory = this.getFactory(this.toolTarget);
 
-    const toolSubagents = rulesyncSubagents
-      .map((rulesyncSubagent) => {
-        if (!factory.class.isTargetedByRulesyncSubagent(rulesyncSubagent)) {
-          return null;
-        }
-        return factory.class.fromRulesyncSubagent({
-          outputRoot: this.outputRoot,
-          relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
-          rulesyncSubagent: rulesyncSubagent,
-          global: this.global,
-        });
-      })
-      .filter((subagent): subagent is ToolSubagent => subagent !== null);
+    const targeted = rulesyncSubagents.filter((rulesyncSubagent) =>
+      factory.class.isTargetedByRulesyncSubagent(rulesyncSubagent),
+    );
 
-    return toolSubagents;
+    // Tools whose native format aggregates every subagent into a single shared
+    // file (e.g. Roo's `.roomodes`) implement `fromRulesyncSubagents` to emit
+    // one tool file holding all targeted subagents. Otherwise map one-to-one.
+    if (factory.class.fromRulesyncSubagents) {
+      if (targeted.length === 0) {
+        return [];
+      }
+      return [
+        factory.class.fromRulesyncSubagents({
+          outputRoot: this.outputRoot,
+          rulesyncSubagents: targeted,
+          global: this.global,
+        }),
+      ];
+    }
+
+    return targeted.map((rulesyncSubagent) =>
+      factory.class.fromRulesyncSubagent({
+        outputRoot: this.outputRoot,
+        relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
+        rulesyncSubagent: rulesyncSubagent,
+        global: this.global,
+      }),
+    );
   }
 
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
@@ -411,6 +439,13 @@ export class SubagentsProcessor extends FeatureProcessor {
         this.logger.debug(
           `Skipping simulated subagent conversion: ${toolSubagent.getRelativeFilePath()}`,
         );
+        continue;
+      }
+
+      // Tools whose native format aggregates many subagents into one file
+      // (e.g. Roo's `.roomodes`) fan out to N rulesync subagents on import.
+      if (toolSubagent.toRulesyncSubagents) {
+        rulesyncSubagents.push(...toolSubagent.toRulesyncSubagents());
         continue;
       }
 

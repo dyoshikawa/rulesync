@@ -331,7 +331,7 @@ rulesync.local.jsonc
 **/.roo/skills/
 **/.rooignore
 **/.roo/mcp.json
-**/.roo/subagents/
+**/.roomodes
 **/.rovodev/AGENTS.md
 **/.rovodev/subagents/
 **/.rovodev/skills/

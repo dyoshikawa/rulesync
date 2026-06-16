@@ -317,6 +317,14 @@ junie: # for JetBrains Junie CLI specific parameters (generated to .junie/agents
   allowPromptArgument: true # whether the subagent accepts a prompt argument
 takt: # takt specific parameters (optional; emitted under .takt/facets/personas/)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
+roo: # for Roo Code specific parameters (optional; aggregated into the root .roomodes file)
+  slug: planner # (optional) custom mode slug (^[a-zA-Z0-9-]+$); defaults to the sanitized file name
+  whenToUse: "When planning a task" # (optional) guidance for automated mode selection
+  customInstructions: "Be concise." # (optional) extra behavioral guidelines
+  roleDefinition: "You are the planner." # (optional) overrides the body as the mode's roleDefinition
+  groups: # (optional, defaults to ["read", "edit", "command", "mcp"]) tool access
+    - read
+    - ["edit", { fileRegex: "\\.md$", description: "Markdown files" }]
 ---
 
 You are the planner for any tasks.
@@ -331,6 +339,8 @@ Attention, again, you are just the planner, so though you can read any files and
 > **Cline note:** Cline file-based agents are emitted as YAML files (`<name>.yaml`) into `.cline/agents/` (project) and `~/.cline/agents/` (global, via `--global`). The file is a YAML frontmatter block (`name` required, `description`) followed by the system prompt body, matching Cline's agent config loader.
 
 > **Devin note:** Devin Local custom subagent profiles are emitted as `AGENT.md` files in a **directory-per-agent** layout: `.devin/agents/<name>/AGENT.md` (project) and `~/.config/devin/agents/<name>/AGENT.md` (global, via `--global`). The directory name `<name>` is the profile id (derived from the rulesync subagent file name). The `AGENT.md` is a YAML frontmatter block followed by the subagent's system prompt. Besides the shared `name`/`description`, the `devin` subagent block accepts these optional fields (all preserved on round-trip): `model` (string, override the subagent LLM), `allowed-tools` (list of strings, restrict available tools), `permissions` (object with `allow`/`deny`/`ask` string lists, override tool permissions), and `max-nesting` (integer, enable nested subagent spawning up to the given depth). See the [Devin subagents docs](https://docs.devin.ai/cli/subagents).
+
+> **Roo note (as of 2026-06-16):** Roo Code reads project custom modes from a single aggregated `.roomodes` file at the workspace root (YAML; JSON also accepted). Rulesync therefore collapses every Roo-targeted subagent into that file's `customModes` array — each subagent becomes one mode whose `slug` is derived from the file name (sanitized to `^[a-zA-Z0-9-]+$`), `name`/`description` come from the shared frontmatter, and `roleDefinition` is the subagent body. The optional `roo:` block supplies `groups` (defaults to `["read", "edit", "command", "mcp"]`), `whenToUse`, `customInstructions`, an explicit `slug`, and a `roleDefinition` override. (Roo's previous `.roo/subagents/` output was inert — Roo Code never read it.) See the [Roo custom-modes docs](https://roocodeinc.github.io/Roo-Code/features/custom-modes).
 
 > **Kilo note (as of 2026-05-13):** Kilo's documented default for user-defined agents is `mode: all`, which makes the agent available both as a top-level pick and as a subagent. Set `kilo.mode: subagent` to opt into hidden/subagent-only behavior.
 
