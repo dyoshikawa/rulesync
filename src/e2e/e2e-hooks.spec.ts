@@ -466,11 +466,13 @@ describe("E2E: hooks (global mode)", () => {
       expect(parsed.hooks.sessionStart).toBeDefined();
       expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
     } else if (target === "junie") {
-      // Junie CLI only supports the `sessionStart` event (PascalCase
-      // SessionStart), so `stop` (audit.sh) is dropped during generation.
+      // Junie CLI supports SessionStart, UserPromptSubmit, Stop, and SessionEnd
+      // (PascalCase), so both `sessionStart` and `stop` (audit.sh) survive.
       const parsed = JSON.parse(generatedContent);
       expect(parsed.hooks.SessionStart).toBeDefined();
+      expect(parsed.hooks.Stop).toBeDefined();
       expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+      expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
     } else if (target === "antigravity-ide" || target === "antigravity-cli") {
       // Antigravity nests the event map under a generated `rulesync` hook name
       // and supports preToolUse/postToolUse/preModelInvocation/

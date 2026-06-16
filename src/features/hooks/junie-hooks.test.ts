@@ -36,7 +36,7 @@ describe("JunieHooks", () => {
   });
 
   describe("fromRulesyncHooks", () => {
-    it("should emit hooks.SessionStart from a canonical sessionStart hook and drop unsupported events", async () => {
+    it("should emit all supported Junie events from canonical inputs and drop unsupported events", async () => {
       await ensureDir(join(testDir, ".junie"));
       await writeFileContent(join(testDir, ".junie", "config.json"), JSON.stringify({}));
 
@@ -44,7 +44,11 @@ describe("JunieHooks", () => {
         version: 1,
         hooks: {
           sessionStart: [{ type: "command", command: ".rulesync/hooks/session-start.sh" }],
-          stop: [{ command: ".rulesync/hooks/audit.sh" }],
+          beforeSubmitPrompt: [{ type: "command", command: ".rulesync/hooks/prompt.sh" }],
+          stop: [{ type: "command", command: ".rulesync/hooks/audit.sh" }],
+          sessionEnd: [{ type: "command", command: ".rulesync/hooks/session-end.sh" }],
+          // preToolUse is not a Junie-supported event and must be dropped.
+          preToolUse: [{ type: "command", command: ".rulesync/hooks/pre-tool.sh" }],
         },
       };
       const rulesyncHooks = new RulesyncHooks({
@@ -66,8 +70,15 @@ describe("JunieHooks", () => {
       expect(JSON.stringify(parsed.hooks.SessionStart)).toContain(
         ".rulesync/hooks/session-start.sh",
       );
-      // Junie supports only sessionStart, so `stop` is dropped.
-      expect(parsed.hooks.Stop).toBeUndefined();
+      // UserPromptSubmit, Stop, and SessionEnd are now supported.
+      expect(parsed.hooks.UserPromptSubmit).toBeDefined();
+      expect(JSON.stringify(parsed.hooks.UserPromptSubmit)).toContain(".rulesync/hooks/prompt.sh");
+      expect(parsed.hooks.Stop).toBeDefined();
+      expect(JSON.stringify(parsed.hooks.Stop)).toContain(".rulesync/hooks/audit.sh");
+      expect(parsed.hooks.SessionEnd).toBeDefined();
+      expect(JSON.stringify(parsed.hooks.SessionEnd)).toContain(".rulesync/hooks/session-end.sh");
+      // preToolUse is not supported by Junie, so it is dropped.
+      expect(parsed.hooks.PreToolUse).toBeUndefined();
     });
 
     it("should preserve a pre-existing unrelated key in config.json", async () => {

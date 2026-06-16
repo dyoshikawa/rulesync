@@ -325,12 +325,21 @@ export const AUGMENTCODE_HOOK_EVENTS: readonly HookEvent[] = [
 
 /**
  * Hook events supported by JetBrains Junie CLI.
- * Junie CLI currently exposes only the SessionStart lifecycle event
- * (matchers `startup` / `resume`), defined under the `"hooks"` key of
- * `~/.junie/config.json`. Project-local hooks are ignored for safety.
+ *
+ * Junie CLI exposes four lifecycle events under the `"hooks"` key of
+ * `~/.junie/config.json`: `SessionStart`, `UserPromptSubmit`, `Stop`, and
+ * `SessionEnd`. Matchers apply only to `SessionStart` / `SessionEnd`
+ * (e.g. `startup` / `resume`); `UserPromptSubmit` and `Stop` are
+ * matcher-less. Only `type: "command"` hooks are supported. Project-local
+ * hooks are ignored for safety.
  * @see https://junie.jetbrains.com/docs/junie-cli-hooks.html
  */
-export const JUNIE_HOOK_EVENTS: readonly HookEvent[] = ["sessionStart"];
+export const JUNIE_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "beforeSubmitPrompt",
+  "stop",
+  "sessionEnd",
+];
 
 const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
 
@@ -675,6 +684,9 @@ export const KIRO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.from
  */
 export const CANONICAL_TO_JUNIE_EVENT_NAMES: Record<string, string> = {
   sessionStart: "SessionStart",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  stop: "Stop",
+  sessionEnd: "SessionEnd",
 };
 
 /**
