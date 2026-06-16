@@ -331,8 +331,10 @@ export const AUGMENTCODE_HOOK_EVENTS: readonly HookEvent[] = [
  * `post_agent_turn` ← `stop` (fires after every assistant turn that ends
  * without pending tool calls — the closest canonical equivalent to a
  * "turn end"/"stop" event, matching how codexcli/copilot/geminicli map their
- * stop events). All three events support the `match` tool-name matcher
- * (fnmatch glob or `re:` regex). Only `type: "command"` hooks are relevant.
+ * stop events). Only the tool events (`before_tool`/`after_tool`) carry the
+ * `match` tool-name matcher (fnmatch glob or `re:` regex) and the `strict`
+ * flag; `post_agent_turn` carries neither. Only `type: "command"` hooks are
+ * relevant.
  * @see https://github.com/mistralai/mistral-vibe/blob/main/README.md
  */
 export const VIBE_HOOK_EVENTS: readonly HookEvent[] = ["preToolUse", "postToolUse", "stop"];
