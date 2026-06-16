@@ -140,12 +140,16 @@ export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
 export const KILO_HOOK_EVENTS: readonly HookEvent[] = OPENCODE_HOOK_EVENTS;
 
 /**
- * Hook events supported by GitHub Copilot.
+ * Hook events supported by GitHub Copilot (cloud coding agent).
  *
- * Reused by the Copilot CLI tool target (`copilotcli-hooks.ts`); both targets
- * share the same six-event surface (`sessionStart`, `sessionEnd`,
- * `userPromptSubmitted` ← `beforeSubmitPrompt`, `preToolUse`, `postToolUse`,
- * `errorOccurred` ← `afterError`).
+ * GitHub now documents an eight-event surface for `.github/hooks/*.json`:
+ * `sessionStart`, `sessionEnd`, `userPromptSubmitted` ← `beforeSubmitPrompt`,
+ * `preToolUse`, `postToolUse`, `agentStop` ← `stop`, `subagentStop`, and
+ * `errorOccurred` ← `afterError`. `subagentStart` is intentionally absent: it is
+ * not part of the documented cloud-agent surface.
+ *
+ * @see https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks
+ * @see https://docs.github.com/en/copilot/concepts/agents/hooks
  */
 export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -153,6 +157,8 @@ export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
   "beforeSubmitPrompt",
   "preToolUse",
   "postToolUse",
+  "stop",
+  "subagentStop",
   "afterError",
 ];
 
@@ -508,6 +514,8 @@ export const CANONICAL_TO_COPILOT_EVENT_NAMES: Record<string, string> = {
   beforeSubmitPrompt: "userPromptSubmitted",
   preToolUse: "preToolUse",
   postToolUse: "postToolUse",
+  stop: "agentStop",
+  subagentStop: "subagentStop",
   afterError: "errorOccurred",
 };
 

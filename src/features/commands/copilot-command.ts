@@ -18,6 +18,12 @@ import {
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
 export const CopilotCommandFrontmatterSchema = z.looseObject({
+  // `agent` is the current VS Code prompt-file field (values `ask` | `agent` |
+  // `plan` | a custom agent name). See
+  // https://code.visualstudio.com/docs/copilot/customization/prompt-files
+  agent: z.optional(z.string()),
+  // `mode` is the deprecated predecessor of `agent`; still accepted for
+  // backward compatibility and migrated to `agent` on import.
   mode: z.optional(z.string()),
   description: z.optional(z.string()),
 });
@@ -67,13 +73,23 @@ export class CopilotCommand extends ToolCommand {
   }
 
   toRulesyncCommand(): RulesyncCommand {
-    const { mode: _mode, description, ...restFields } = this.frontmatter;
+    const { mode, agent, description, ...restFields } = this.frontmatter;
+
+    // Migrate the deprecated `mode` field to `agent`. If both are present, the
+    // explicit `agent` value wins.
+    const resolvedAgent = agent ?? mode;
+
+    const copilotFields = {
+      ...restFields,
+      ...(resolvedAgent !== undefined && { agent: resolvedAgent }),
+    };
 
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["*"],
       description,
-      // Preserve extra fields in copilot section (excluding mode which is fixed)
-      ...(Object.keys(restFields).length > 0 && { copilot: restFields }),
+      // Preserve extra copilot-specific fields (including the normalized `agent`;
+      // the deprecated `mode` is dropped in favor of `agent`).
+      ...(Object.keys(copilotFields).length > 0 && { copilot: copilotFields }),
     };
 
     // Strip .prompt.md extension and normalize to .md

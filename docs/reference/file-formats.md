@@ -62,7 +62,7 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
 
 ## `.rulesync/hooks.json`
 
-Hooks run scripts at lifecycle events (e.g. session start, before tool use). Events use **canonical camelCase** in this file, and Rulesync translates them per tool: Cursor uses them as-is; Claude Code, Factory Droid, Codex CLI, Gemini CLI, and Goose get PascalCase (with a few tool-specific name mappings) in their settings files; OpenCode and Kilo hooks are emitted as JavaScript plugins (`.opencode/plugins/rulesync-hooks.js`, `.kilo/plugins/rulesync-hooks.js`); Copilot and Copilot CLI map event names to their own camelCase (e.g. `beforeSubmitPrompt` → `userPromptSubmitted`, `afterError` → `errorOccurred`) and use `powershell`/`bash` command fields — Copilot CLI additionally covers a wider event set and supports `prompt` and `http` hook types beyond `command`; deepagents-cli uses a dot-notation (e.g. `session.start`, `tool.error`); Kiro emits hooks into `.kiro/agents/default.json` using Kiro's CLI event names (`agentSpawn`, `userPromptSubmit`, `preToolUse`, `postToolUse`, `stop`).
+Hooks run scripts at lifecycle events (e.g. session start, before tool use). Events use **canonical camelCase** in this file, and Rulesync translates them per tool: Cursor uses them as-is; Claude Code, Factory Droid, Codex CLI, Gemini CLI, and Goose get PascalCase (with a few tool-specific name mappings) in their settings files; OpenCode and Kilo hooks are emitted as JavaScript plugins (`.opencode/plugins/rulesync-hooks.js`, `.kilo/plugins/rulesync-hooks.js`); Copilot and Copilot CLI map event names to their own camelCase (e.g. `beforeSubmitPrompt` → `userPromptSubmitted`, `stop` → `agentStop`, `afterError` → `errorOccurred`) and use `powershell`/`bash` command fields — Copilot CLI additionally covers a wider event set and supports `prompt` and `http` hook types beyond `command`; deepagents-cli uses a dot-notation (e.g. `session.start`, `tool.error`); Kiro emits hooks into `.kiro/agents/default.json` using Kiro's CLI event names (`agentSpawn`, `userPromptSubmit`, `preToolUse`, `postToolUse`, `stop`).
 
 Example:
 
@@ -136,9 +136,9 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 | `preModelInvocation`   |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |       ✅        |       ✅        |   —   |      —      |   —   |
 | `postModelInvocation`  |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |       ✅        |       ✅        |   —   |      —      |   —   |
 | `postToolUseFailure`   |   ✅   |      —      |    —     |  —   |    —    |     ✅      |       —       |     —      |     —     |     ✅     |  —   |        —        |        —        |   —   |      —      |  ✅   |
-| `stop`                 |   ✅   |     ✅      |    ✅    |  ✅  |    —    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |       ✅        |       ✅        |   —   |     ✅      |  ✅   |
+| `stop`                 |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |       ✅        |       ✅        |   —   |     ✅      |  ✅   |
 | `subagentStart`        |   ✅   |      —      |    —     |  —   |    —    |     ✅      |       —       |     —      |    ✅     |     —      |  —   |        —        |        —        |   —   |      —      |  ✅   |
-| `subagentStop`         |   ✅   |     ✅      |    —     |  —   |    —    |     ✅      |      ✅       |     —      |    ✅     |     —      |  —   |        —        |        —        |   —   |      —      |  ✅   |
+| `subagentStop`         |   ✅   |     ✅      |    —     |  —   |   ✅    |     ✅      |      ✅       |     —      |    ✅     |     —      |  —   |        —        |        —        |   —   |      —      |  ✅   |
 | `preCompact`           |   ✅   |     ✅      |    —     |  —   |    —    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  —   |        —        |        —        |   —   |      —      |   —   |
 | `postCompact`          |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     —      |    ✅     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
 | `afterFileEdit`        |   ✅   |      —      |    ✅    |  ✅  |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |  ✅   |
@@ -230,6 +230,7 @@ description: "Review a pull request" # command description
 targets: ["*"] # * = all, or specific tools
 copilot: # copilot specific parameters (optional)
   description: "Review a pull request"
+  agent: "agent" # (optional) VS Code prompt-file agent: "ask", "agent", "plan", or a custom agent name (replaces the deprecated "mode")
 antigravity: # antigravity specific parameters
   trigger: "/review" # Specific trigger for workflow (renames file to review.md)
   turbo: true # (Optional, default: true) Append // turbo for auto-execution
