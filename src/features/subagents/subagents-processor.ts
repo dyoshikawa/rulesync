@@ -442,42 +442,53 @@ export class SubagentsProcessor extends FeatureProcessor {
     const factory = this.getFactory(this.toolTarget);
     const paths = factory.class.getSettablePaths({ global: this.global });
 
-    const baseDir = join(this.outputRoot, paths.relativeDirPath);
-    const subagentFilePaths = await findFilesByGlobs(join(baseDir, factory.meta.filePattern));
+    // Orphan deletion must only ever target the canonical generation directory,
+    // so that import-only discovery roots (e.g. Junie's `.agents/`) are never
+    // removed. Importing, on the other hand, scans every discovery root.
+    const dirPaths = forDeletion
+      ? [paths.relativeDirPath]
+      : [paths.relativeDirPath, ...(paths.importDirPaths ?? [])];
 
-    // Compute the per-subagent file path relative to the tool's base directory.
-    // For flat layouts (e.g. `<name>.md`) this is identical to `basename(path)`,
-    // while for directory-per-agent layouts (e.g. deepagents' `<name>/AGENTS.md`)
-    // it preserves the subdirectory so the subagent name is not lost.
-    const toRelativeFilePath = (path: string): string => relative(baseDir, path);
+    const toolSubagents: ToolFile[] = [];
+    for (const dirPath of dirPaths) {
+      const baseDir = join(this.outputRoot, dirPath);
+      const subagentFilePaths = await findFilesByGlobs(join(baseDir, factory.meta.filePattern));
 
-    if (forDeletion) {
-      const toolSubagents = subagentFilePaths
-        .map((path) =>
-          factory.class.forDeletion({
-            outputRoot: this.outputRoot,
-            relativeDirPath: paths.relativeDirPath,
-            relativeFilePath: toRelativeFilePath(path),
-            global: this.global,
-          }),
-        )
-        .filter((subagent) => subagent.isDeletable());
+      // Compute the per-subagent file path relative to the tool's base directory.
+      // For flat layouts (e.g. `<name>.md`) this is identical to `basename(path)`,
+      // while for directory-per-agent layouts (e.g. deepagents' `<name>/AGENTS.md`)
+      // it preserves the subdirectory so the subagent name is not lost.
+      const toRelativeFilePath = (path: string): string => relative(baseDir, path);
 
-      this.logger.debug(
-        `Successfully loaded ${toolSubagents.length} ${paths.relativeDirPath} subagents`,
+      if (forDeletion) {
+        toolSubagents.push(
+          ...subagentFilePaths
+            .map((path) =>
+              factory.class.forDeletion({
+                outputRoot: this.outputRoot,
+                relativeDirPath: dirPath,
+                relativeFilePath: toRelativeFilePath(path),
+                global: this.global,
+              }),
+            )
+            .filter((subagent) => subagent.isDeletable()),
+        );
+        continue;
+      }
+
+      toolSubagents.push(
+        ...(await Promise.all(
+          subagentFilePaths.map((path) =>
+            factory.class.fromFile({
+              outputRoot: this.outputRoot,
+              relativeDirPath: dirPath,
+              relativeFilePath: toRelativeFilePath(path),
+              global: this.global,
+            }),
+          ),
+        )),
       );
-      return toolSubagents;
     }
-
-    const toolSubagents = await Promise.all(
-      subagentFilePaths.map((path) =>
-        factory.class.fromFile({
-          outputRoot: this.outputRoot,
-          relativeFilePath: toRelativeFilePath(path),
-          global: this.global,
-        }),
-      ),
-    );
 
     this.logger.debug(
       `Successfully loaded ${toolSubagents.length} ${paths.relativeDirPath} subagents`,

@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
-import { JUNIE_AGENTS_DIR_PATH } from "../../constants/junie-paths.js";
+import { JUNIE_AGENTS_DIR_PATH, JUNIE_ALT_AGENTS_DIR_PATH } from "../../constants/junie-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
@@ -76,8 +76,13 @@ export class JunieSubagent extends ToolSubagent {
     // The actual location differs based on outputRoot:
     // - Project mode: {process.cwd()}/.junie/agents/
     // - Global mode: {getHomeDirectory()}/.junie/agents/
+    //
+    // Junie additionally discovers subagents from the cross-tool `.agents/`
+    // directory (project `.agents/` and user `~/.agents/`). That is an
+    // import-only root: generation still writes to `.junie/agents/`.
     return {
       relativeDirPath: JUNIE_AGENTS_DIR_PATH,
+      importDirPaths: [JUNIE_ALT_AGENTS_DIR_PATH],
     };
   }
 
@@ -183,12 +188,15 @@ export class JunieSubagent extends ToolSubagent {
 
   static async fromFile({
     outputRoot = process.cwd(),
+    relativeDirPath,
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolSubagentFromFileParams): Promise<JunieSubagent> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
+    // Honor an explicit discovery root (e.g. the `.agents/` import root) when
+    // provided; otherwise fall back to the canonical `.junie/agents/` location.
+    const dirPath = relativeDirPath ?? this.getSettablePaths({ global }).relativeDirPath;
+    const filePath = join(outputRoot, dirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
@@ -199,7 +207,7 @@ export class JunieSubagent extends ToolSubagent {
 
     return new JunieSubagent({
       outputRoot,
-      relativeDirPath: paths.relativeDirPath,
+      relativeDirPath: dirPath,
       relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),

@@ -93,6 +93,7 @@ describe("JunieSubagent", () => {
   it("should return settable paths", () => {
     expect(JunieSubagent.getSettablePaths()).toEqual({
       relativeDirPath: join(".junie", "agents"),
+      importDirPaths: [".agents"],
     });
   });
 
@@ -101,6 +102,7 @@ describe("JunieSubagent", () => {
     // identical to project mode, only the resolved outputRoot differs.
     expect(JunieSubagent.getSettablePaths({ global: true })).toEqual({
       relativeDirPath: join(".junie", "agents"),
+      importDirPaths: [".agents"],
     });
   });
 
@@ -434,6 +436,32 @@ describe("JunieSubagent", () => {
       });
 
       expect(subagent.getBody()).toBe("body content");
+    });
+
+    it("should load subagent from the .agents import root when relativeDirPath is given", async () => {
+      // Junie also discovers subagents from the cross-tool `.agents/` directory.
+      const frontmatter: JunieSubagentFrontmatter = {
+        name: "shared-agent",
+        description: "An agent loaded from the shared .agents directory",
+      };
+
+      const body = "Shared agent body";
+      const fileContent = stringifyFrontmatter(body, frontmatter);
+
+      const filePath = join(testDir, ".agents", "shared-agent.md");
+      await writeFileContent(filePath, fileContent);
+
+      const subagent = await JunieSubagent.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: ".agents",
+        relativeFilePath: "shared-agent.md",
+        validate: true,
+      });
+
+      expect(subagent).toBeInstanceOf(JunieSubagent);
+      expect(subagent.getFrontmatter()).toEqual(frontmatter);
+      expect(subagent.getBody()).toBe(body);
+      expect(subagent.getRelativeDirPath()).toBe(".agents");
     });
   });
 });

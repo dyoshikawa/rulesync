@@ -284,6 +284,28 @@ Break down tasks into steps.
     expect(importedContent).toContain("planner");
   });
 
+  it("should import junie subagents from the shared .agents directory", async () => {
+    const testDir = getTestDir();
+
+    const subagentContent = `---
+name: planner
+description: "Plans implementation tasks"
+---
+# Instructions
+Break down tasks into steps.
+`;
+    // Junie also discovers subagents from the cross-tool `.agents/` directory,
+    // not just `.junie/agents/`.
+    await writeFileContent(join(testDir, ".agents", "planner.md"), subagentContent);
+
+    await runImport({ target: "junie", features: "subagents" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+    );
+    expect(importedContent).toContain("planner");
+  });
+
   it("should import kiro subagents (JSON format)", async () => {
     const testDir = getTestDir();
 

@@ -10,6 +10,7 @@ import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { CodexCliSubagent } from "./codexcli-subagent.js";
 import { CopilotSubagent } from "./copilot-subagent.js";
 import { CursorSubagent } from "./cursor-subagent.js";
+import { JunieSubagent } from "./junie-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
   SubagentsProcessor,
@@ -26,6 +27,13 @@ import {
 const createMockGetFactoryThatThrowsUnsupported = () => {
   throw new Error("Unsupported tool target: unsupported");
 };
+
+/** Builds a minimal Junie subagent Markdown file with valid frontmatter. */
+const junieSubagentMd = (name: string): string => `---
+name: ${name}
+description: ${name} description
+---
+${name} content`;
 
 describe("SubagentsProcessor", () => {
   let testDir: string;
@@ -650,6 +658,50 @@ Body from inputRoot`;
       await expect(processor.loadToolFiles()).rejects.toThrow(
         "Unsupported tool target: unsupported",
       );
+    });
+  });
+
+  describe("loadJunieSubagents", () => {
+    let processor: SubagentsProcessor;
+
+    beforeEach(() => {
+      processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "junie",
+      });
+    });
+
+    it("should import from both .junie/agents and the shared .agents root", async () => {
+      const junieDir = join(testDir, ".junie", "agents");
+      const sharedDir = join(testDir, ".agents");
+      await ensureDir(junieDir);
+      await ensureDir(sharedDir);
+
+      await writeFileContent(join(junieDir, "native-agent.md"), junieSubagentMd("native-agent"));
+      await writeFileContent(join(sharedDir, "shared-agent.md"), junieSubagentMd("shared-agent"));
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(2);
+      expect(toolFiles.every((file) => file instanceof JunieSubagent)).toBe(true);
+      const dirPaths = toolFiles.map((file) => file.getRelativeDirPath()).toSorted();
+      expect(dirPaths).toEqual([".agents", join(".junie", "agents")].toSorted());
+    });
+
+    it("should not delete files in the .agents import root (forDeletion targets .junie/agents only)", async () => {
+      const junieDir = join(testDir, ".junie", "agents");
+      const sharedDir = join(testDir, ".agents");
+      await ensureDir(junieDir);
+      await ensureDir(sharedDir);
+
+      await writeFileContent(join(junieDir, "native-agent.md"), junieSubagentMd("native-agent"));
+      await writeFileContent(join(sharedDir, "shared-agent.md"), junieSubagentMd("shared-agent"));
+
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+
+      expect(filesToDelete).toHaveLength(1);
+      expect(filesToDelete[0]?.getRelativeDirPath()).toBe(join(".junie", "agents"));
     });
   });
 
