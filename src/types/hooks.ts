@@ -324,6 +324,20 @@ export const AUGMENTCODE_HOOK_EVENTS: readonly HookEvent[] = [
 ];
 
 /**
+ * Hook events supported by Mistral Vibe (mistral-vibe).
+ *
+ * Vibe exposes three experimental hook events in `.vibe/hooks.toml`:
+ * `before_tool` ← `preToolUse`, `after_tool` ← `postToolUse`, and
+ * `post_agent_turn` ← `stop` (fires after every assistant turn that ends
+ * without pending tool calls — the closest canonical equivalent to a
+ * "turn end"/"stop" event, matching how codexcli/copilot/geminicli map their
+ * stop events). All three events support the `match` tool-name matcher
+ * (fnmatch glob or `re:` regex). Only `type: "command"` hooks are relevant.
+ * @see https://github.com/mistralai/mistral-vibe/blob/main/README.md
+ */
+export const VIBE_HOOK_EVENTS: readonly HookEvent[] = ["preToolUse", "postToolUse", "stop"];
+
+/**
  * Hook events supported by JetBrains Junie CLI.
  *
  * Junie CLI exposes four lifecycle events under the `"hooks"` key of
@@ -367,6 +381,7 @@ export const HooksConfigSchema = z.looseObject({
   "antigravity-ide": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "antigravity-cli": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   junie: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  vibe: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
 });
 
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;
@@ -694,4 +709,25 @@ export const CANONICAL_TO_JUNIE_EVENT_NAMES: Record<string, string> = {
  */
 export const JUNIE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_JUNIE_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to Mistral Vibe snake_case.
+ *
+ * Vibe documents three experimental hook events. The canonical `stop` event maps
+ * to Vibe's `post_agent_turn` (fires after every assistant turn ending without
+ * pending tool calls) — the closest documented "turn end"/"stop" equivalent.
+ * @see https://github.com/mistralai/mistral-vibe/blob/main/README.md
+ */
+export const CANONICAL_TO_VIBE_EVENT_NAMES: Record<string, string> = {
+  preToolUse: "before_tool",
+  postToolUse: "after_tool",
+  stop: "post_agent_turn",
+};
+
+/**
+ * Map Mistral Vibe snake_case event names to canonical camelCase.
+ */
+export const VIBE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_VIBE_EVENT_NAMES).map(([k, v]) => [v, k]),
 );

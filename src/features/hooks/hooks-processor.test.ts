@@ -500,6 +500,7 @@ describe("HooksProcessor", () => {
         "kiro-cli",
         "devin",
         "augmentcode",
+        "vibe",
       ]);
     });
 
@@ -521,6 +522,7 @@ describe("HooksProcessor", () => {
         "devin",
         "augmentcode",
         "junie",
+        "vibe",
       ]);
     });
 
@@ -541,6 +543,7 @@ describe("HooksProcessor", () => {
         "kiro-cli",
         "devin",
         "augmentcode",
+        "vibe",
       ]);
     });
 
@@ -560,6 +563,7 @@ describe("HooksProcessor", () => {
         "devin",
         "augmentcode",
         "junie",
+        "vibe",
       ]);
     });
   });

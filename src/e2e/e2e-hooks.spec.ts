@@ -158,6 +158,60 @@ describe("E2E: hooks", () => {
     expect(JSON.stringify(parsed.hooks.subagentStop)).toContain(".rulesync/hooks/subagent-stop.sh");
   });
 
+  it("should generate vibe hooks (.vibe/hooks.toml + experimental flag)", async () => {
+    const testDir = getTestDir();
+
+    // Vibe supports before_tool/after_tool/post_agent_turn (← preToolUse/
+    // postToolUse/stop). It emits a flat `[[hooks]]` TOML array, not JSON.
+    const hooksContent = JSON.stringify(
+      {
+        version: 1,
+        hooks: {
+          preToolUse: [{ command: ".rulesync/hooks/audit.sh", matcher: "bash" }],
+          stop: [{ command: ".rulesync/hooks/session-start.sh" }],
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
+
+    await runGenerate({ target: "vibe", features: "hooks" });
+
+    const generatedContent = await readFileContent(join(testDir, ".vibe", "hooks.toml"));
+    // Snake_case event types and the matcher mapped to `match`.
+    expect(generatedContent).toContain('type = "before_tool"');
+    expect(generatedContent).toContain('type = "post_agent_turn"');
+    expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+    expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
+
+    // The experimental gating flag is merged into .vibe/config.toml.
+    const configContent = await readFileContent(join(testDir, ".vibe", "config.toml"));
+    expect(configContent).toContain("enable_experimental_hooks = true");
+  });
+
+  it("should import vibe hooks from .vibe/hooks.toml", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".vibe", "hooks.toml"),
+      [
+        "[[hooks]]",
+        'name = "deny-rm-rf"',
+        'type = "before_tool"',
+        'match = "bash"',
+        'command = "echo audit"',
+        "",
+      ].join("\n"),
+    );
+
+    await runImport({ target: "vibe", features: "hooks" });
+
+    const importedContent = await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
+    expect(importedContent).toContain("preToolUse");
+    expect(importedContent).toContain("echo audit");
+  });
+
   it("should generate devin hooks", async () => {
     const testDir = getTestDir();
 
@@ -521,5 +575,39 @@ describe("E2E: hooks (global mode)", () => {
     expect(parsed.hooks.post_write_code).toBeDefined();
     expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/pre-run.sh");
     expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/post-edit.sh");
+  });
+
+  it("should generate vibe hooks in home directory", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    const hooksContent = JSON.stringify(
+      {
+        version: 1,
+        root: true,
+        hooks: {
+          preToolUse: [{ command: ".rulesync/hooks/audit.sh", matcher: "bash" }],
+          stop: [{ command: ".rulesync/hooks/session-start.sh" }],
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
+
+    await runGenerate({
+      target: "vibe",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generatedContent = await readFileContent(join(homeDir, ".vibe", "hooks.toml"));
+    expect(generatedContent).toContain('type = "before_tool"');
+    expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+    expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
+
+    const configContent = await readFileContent(join(homeDir, ".vibe", "config.toml"));
+    expect(configContent).toContain("enable_experimental_hooks = true");
   });
 });

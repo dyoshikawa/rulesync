@@ -22,7 +22,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Roo Code               | roo             |  ✅   |   ✅   |    ✅    |    ✅    |    🎮     | ✅ 🌏  |       |             |
 | Rovodev (Atlassian)    | rovodev         | ✅ 🌏 |        |    🌏    |          |   ✅ 🌏   | ✅ 🌏  |       |             |
 | Takt                   | takt            | ✅ 🌏 |        |          |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |             |
-| Vibe Code              | vibe            | ✅ 🌏 |   ✅   |  ✅ 🌏   |          |   ✅ 🌏   | ✅ 🌏  |       |    ✅ 🌏    |
+| Vibe Code              | vibe            | ✅ 🌏 |   ✅   |  ✅ 🌏   |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
 | Qwen Code              | qwencode        |  ✅   |   ✅   |          |          |           |        |       |    ✅ 🌏    |
 | Kiro ⚠️                | kiro            |  ✅   |   ✅   |    ✅    |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Kiro CLI               | kiro-cli        |  ✅   |   ✅   |    ✅    |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |

@@ -395,6 +395,10 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "vibe", feature: "subagents", entry: "**/.vibe/agents/" },
   { target: "vibe", feature: "mcp", entry: "**/.vibe/config.toml" },
   { target: "vibe", feature: "permissions", entry: "**/.vibe/config.toml" },
+  // Experimental hooks live in `.vibe/hooks.toml`; the `enable_experimental_hooks`
+  // flag is merged into the shared `.vibe/config.toml` (already covered above).
+  { target: "vibe", feature: "hooks", entry: "**/.vibe/hooks.toml" },
+  { target: "vibe", feature: "hooks", entry: "**/.vibe/config.toml" },
 
   // Warp
   // Warp reads project rules only from the root `AGENTS.md` (handled by the
