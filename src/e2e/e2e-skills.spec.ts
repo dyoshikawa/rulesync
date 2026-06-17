@@ -32,6 +32,10 @@ describe("E2E: skills", () => {
       outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
     },
     {
+      target: "grokcli",
+      outputPath: join(".grok", "skills", "test-skill", "SKILL.md"),
+    },
+    {
       target: "geminicli",
       outputPath: join(".gemini", "skills", "test-skill", "SKILL.md"),
     },
