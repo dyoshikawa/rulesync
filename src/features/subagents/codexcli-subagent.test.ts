@@ -298,6 +298,34 @@ describe("CodexCliSubagent", () => {
       expect(codexcliSubagent.getBody()).not.toContain("wrong description");
     });
 
+    it("should not emit unsupported short-description field", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "reviewer.md",
+        frontmatter: {
+          targets: ["codexcli"],
+          name: "reviewer",
+          description: "Code reviewer",
+          codexcli: {
+            "short-description": "Review source changes",
+            model: "gpt-5",
+          },
+        },
+        body: "Review code changes",
+        validate: true,
+      });
+
+      const codexcliSubagent = CodexCliSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        rulesyncSubagent,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      }) as CodexCliSubagent;
+
+      expect(codexcliSubagent.getBody()).toContain('model = "gpt-5"');
+      expect(codexcliSubagent.getBody()).not.toContain("short-description");
+    });
+
     it("should handle empty body and description", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         outputRoot: testDir,
