@@ -132,6 +132,7 @@ export class CodexCliSubagent extends ToolSubagent {
       "name",
       "description",
       "developer_instructions",
+      "short-description",
     ]);
 
     // Build TOML object from rulesync frontmatter + codexcli section (tool-specific fields only)
