@@ -22,6 +22,7 @@ import { DevinMcp } from "./devin-mcp.js";
 import { FactorydroidMcp } from "./factorydroid-mcp.js";
 import { GeminiCliMcp } from "./geminicli-mcp.js";
 import { GooseMcp } from "./goose-mcp.js";
+import { GrokcliMcp } from "./grokcli-mcp.js";
 import { JunieMcp } from "./junie-mcp.js";
 import { KiloMcp } from "./kilo-mcp.js";
 import { KiroMcp } from "./kiro-mcp.js";
@@ -61,6 +62,7 @@ const mcpProcessorToolTargetTuple = [
   "factorydroid",
   "geminicli",
   "goose",
+  "grokcli",
   "kilo",
   "kiro",
   "kiro-cli",
@@ -296,6 +298,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       class: GooseMcp,
       meta: {
         supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "grokcli",
+    {
+      // Grok Build stores MCP servers in `.grok/config.toml` (project) and
+      // `~/.grok/config.toml` (global) as `[mcp_servers.<name>]` tables. It has
+      // no per-server tool allow/deny lists.
+      // https://docs.x.ai/build/overview
+      class: GrokcliMcp,
+      meta: {
+        supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,

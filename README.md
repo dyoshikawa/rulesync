@@ -81,6 +81,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Codex CLI              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Gemini CLI ⚠️          |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Goose                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |        |  ✅   |             |
+| Grok CLI               |       |        | ✅  |          |           |        |       |             |
 | GitHub Copilot         |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |
 | GitHub Copilot CLI     |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |
 | Cursor                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |

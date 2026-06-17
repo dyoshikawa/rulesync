@@ -60,6 +60,7 @@ describe("tool targets", () => {
         "factorydroid",
         "geminicli",
         "goose",
+        "grokcli",
         "junie",
         "kilo",
         "kiro",

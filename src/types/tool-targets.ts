@@ -23,6 +23,7 @@ export const ALL_TOOL_TARGETS = [
   "factorydroid",
   "geminicli",
   "goose",
+  "grokcli",
   "junie",
   "kilo",
   "kiro",
