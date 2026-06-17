@@ -1,7 +1,10 @@
+import { join } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { GrokcliMcp } from "./grokcli-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -112,15 +115,31 @@ describe("GrokcliMcp", () => {
     });
 
     it("preserves unrelated config.toml settings when adding mcp_servers", async () => {
+      // Pre-existing config with unrelated tables that Rulesync does not own.
+      const existingToml = `[ui]
+theme = "dark"
+
+[model]
+name = "grok-4"
+`;
+      await ensureDir(join(testDir, ".grok"));
+      await writeFileContent(join(testDir, ".grok/config.toml"), existingToml);
+
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: { a: { command: "a" } } }),
       });
 
-      // Pre-existing config with an unrelated table.
-      const first = await GrokcliMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
-      expect(first.getToml().mcp_servers).toBeDefined();
+      const grokcliMcp = await GrokcliMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const toml = grokcliMcp.getToml();
+
+      // The unrelated tables survive the round-trip untouched...
+      expect(toml.ui).toEqual({ theme: "dark" });
+      expect(toml.model).toEqual({ name: "grok-4" });
+      // ...while the new mcp_servers table is added alongside them.
+      const servers = isRecord(toml.mcp_servers) ? toml.mcp_servers : undefined;
+      expect(servers?.a).toEqual({ command: "a" });
     });
   });
 

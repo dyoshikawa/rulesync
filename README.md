@@ -80,10 +80,10 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Claude Code            |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Codex CLI              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Gemini CLI ⚠️          |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
-| Goose                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |        |  ✅   |             |
-| Grok CLI               |       |        | ✅  |          |           |        |       |             |
 | GitHub Copilot         |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |
 | GitHub Copilot CLI     |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |
+| Goose                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |        |  ✅   |             |
+| Grok CLI               |       |        | ✅  |          |           |        |       |             |
 | Cursor                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | deepagents-cli         |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |
 | Factory Droid          |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
