@@ -233,6 +233,48 @@ This is the body of the cursor skill.`;
       expect(fm["disable-model-invocation"]).toBe(true);
       expect(fm.metadata).toEqual({ author: "rulesync" });
     });
+
+    it("should pick up root-level disable-model-invocation when cursor section omits it", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "root-default",
+        frontmatter: {
+          name: "Root Default",
+          description: "Root-level flag",
+          "disable-model-invocation": true,
+        },
+        body: "Body",
+      });
+
+      const cursorSkill = CursorSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(cursorSkill.getFrontmatter()["disable-model-invocation"]).toBe(true);
+    });
+
+    it("should let cursor disable-model-invocation override the root-level value", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "override",
+        frontmatter: {
+          name: "Override",
+          description: "Cursor opts out of root default",
+          "disable-model-invocation": true,
+          cursor: { "disable-model-invocation": false },
+        },
+        body: "Body",
+      });
+
+      const cursorSkill = CursorSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(cursorSkill.getFrontmatter()["disable-model-invocation"]).toBe(false);
+    });
+
+    it("should omit disable-model-invocation when neither root nor cursor set it", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "no-flag",
+        frontmatter: { name: "No Flag", description: "No flag" },
+        body: "Body",
+      });
+
+      const cursorSkill = CursorSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(cursorSkill.getFrontmatter()["disable-model-invocation"]).toBeUndefined();
+    });
   });
 
   describe("forDeletion", () => {

@@ -230,6 +230,48 @@ describe("QwencodeSkill", () => {
 
       expect(qwencodeSkill.getGlobal()).toBe(true);
     });
+
+    it("should pick up root-level disable-model-invocation when qwencode section omits it", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "root-default",
+        frontmatter: {
+          name: "root-default",
+          description: "Root flag",
+          "disable-model-invocation": true,
+        },
+        body: "Body",
+      });
+
+      const qwencodeSkill = QwencodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(qwencodeSkill.getFrontmatter()["disable-model-invocation"]).toBe(true);
+    });
+
+    it("should let qwencode disable-model-invocation override the root-level value", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "override",
+        frontmatter: {
+          name: "override",
+          description: "Qwencode opts out",
+          "disable-model-invocation": true,
+          qwencode: { "disable-model-invocation": false },
+        } as RulesyncSkillFrontmatterInput,
+        body: "Body",
+      });
+
+      const qwencodeSkill = QwencodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(qwencodeSkill.getFrontmatter()["disable-model-invocation"]).toBe(false);
+    });
+
+    it("should omit disable-model-invocation when neither root nor qwencode set it", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "no-flag",
+        frontmatter: { name: "no-flag", description: "No flag" },
+        body: "Body",
+      });
+
+      const qwencodeSkill = QwencodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(qwencodeSkill.getFrontmatter()["disable-model-invocation"]).toBeUndefined();
+    });
   });
 
   describe("toRulesyncSkill", () => {

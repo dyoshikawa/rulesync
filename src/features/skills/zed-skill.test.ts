@@ -140,6 +140,57 @@ This is the body of the zed skill.`;
 
       expect(zedSkill.getFrontmatter()["disable-model-invocation"]).toBe(true);
     });
+
+    it("should pick up root-level disable-model-invocation when zed section omits it", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "root-default",
+        frontmatter: {
+          name: "root-default",
+          description: "Root flag",
+          "disable-model-invocation": true,
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const zedSkill = ZedSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+      expect(zedSkill.getFrontmatter()["disable-model-invocation"]).toBe(true);
+    });
+
+    it("should let zed disable-model-invocation override the root-level value", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "override",
+        frontmatter: {
+          name: "override",
+          description: "Zed opts out of root default",
+          "disable-model-invocation": true,
+          zed: { "disable-model-invocation": false },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const zedSkill = ZedSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+      expect(zedSkill.getFrontmatter()["disable-model-invocation"]).toBe(false);
+    });
+
+    it("should omit disable-model-invocation when neither root nor zed set it", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "no-flag",
+        frontmatter: { name: "no-flag", description: "No flag" },
+        body: "Body",
+        validate: true,
+      });
+
+      const zedSkill = ZedSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+      expect(zedSkill.getFrontmatter()["disable-model-invocation"]).toBeUndefined();
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {

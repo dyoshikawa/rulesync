@@ -151,13 +151,16 @@ export class CursorSkill extends ToolSkill {
     const settablePaths = CursorSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     const cursorSection = rulesyncFrontmatter.cursor;
+    const resolvedDisableModelInvocation =
+      cursorSection?.["disable-model-invocation"] ??
+      rulesyncFrontmatter["disable-model-invocation"];
 
     const cursorFrontmatter: CursorSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...(cursorSection?.paths !== undefined && { paths: cursorSection.paths }),
-      ...(cursorSection?.["disable-model-invocation"] !== undefined && {
-        "disable-model-invocation": cursorSection["disable-model-invocation"],
+      ...(resolvedDisableModelInvocation !== undefined && {
+        "disable-model-invocation": resolvedDisableModelInvocation,
       }),
       ...(cursorSection?.metadata !== undefined && { metadata: cursorSection.metadata }),
     };

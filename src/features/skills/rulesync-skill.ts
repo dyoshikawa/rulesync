@@ -14,6 +14,9 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   name: z.string(),
   description: z.string(),
   targets: z._default(RulesyncTargetsSchema, ["*"]),
+  // Default for tools that support the flag (claudecode, cursor, zed, pi, qwencode, factorydroid).
+  // A target-section value of the same key overrides this default.
+  "disable-model-invocation": z.optional(z.boolean()),
   claudecode: z.optional(
     z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
@@ -172,6 +175,7 @@ export type RulesyncSkillFrontmatterInput = {
   name: string;
   description: string;
   targets?: ("*" | string)[];
+  "disable-model-invocation"?: boolean;
   claudecode?: {
     "allowed-tools"?: string[];
     "disallowed-tools"?: string | string[];
