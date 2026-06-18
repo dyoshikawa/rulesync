@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { dump } from "js-yaml";
 import { z } from "zod/mini";
 
 import { CURSOR_DIR } from "../../constants/cursor-paths.js";
@@ -91,7 +92,14 @@ export class CursorRule extends ToolRule {
       lines.push(`alwaysApply: ${frontmatter.alwaysApply}`);
     }
     if (frontmatter.description) {
-      lines.push(`description: ${frontmatter.description}`);
+      // Serialize the description as a proper YAML scalar instead of raw interpolation.
+      // Raw interpolation corrupts the frontmatter whenever the value contains YAML
+      // indicators (e.g. a ": " sequence, a leading "#", or values like "true"/"123"),
+      // producing a file that this tool's own parser can no longer read. js-yaml only
+      // adds quotes when required, so plain descriptions stay unquoted (matching the
+      // MDC "no unnecessary quotes" convention used for globs below). lineWidth: -1
+      // prevents js-yaml from wrapping long descriptions into block scalars.
+      lines.push(dump({ description: frontmatter.description }, { lineWidth: -1 }).trimEnd());
     }
     if (frontmatter.globs !== undefined) {
       // Output globs without quotes
