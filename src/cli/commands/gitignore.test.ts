@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConfigResolver } from "../../config/config-resolver.js";
+import { KIRO_IGNORE_FILE_NAME } from "../../constants/kiro-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
 import { ALL_GITIGNORE_ENTRIES, filterGitignoreEntries } from "./gitignore-entries.js";
@@ -81,6 +82,7 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.kilo/rules/");
       expect(content).toContain("**/.kilo/workflows/");
       expect(content).toContain("**/.roo/skills/");
+      expect(content).toContain(`**/${KIRO_IGNORE_FILE_NAME}`);
       expect(content).toContain("**/.aiignore");
       expect(content).toContain("**/.mcp.json");
       expect(content).toContain("**/.github/agents/");
@@ -115,6 +117,22 @@ describe("gitignoreCommand", () => {
       const content = writeCall![1];
 
       expect(content.indexOf("**/.aiignore")).toBeLessThan(content.indexOf("!.rulesync/.aiignore"));
+    });
+
+    it("should include Kiro's dedicated .kiroignore entry for Kiro aliases", async () => {
+      for (const target of ["kiro", "kiro-cli", "kiro-ide"]) {
+        vi.mocked(fileExists).mockResolvedValue(false);
+        vi.mocked(writeFileContent).mockClear();
+
+        await gitignoreCommand(mockLogger, { targets: [target], features: ["ignore"] });
+
+        const writeCall = vi.mocked(writeFileContent).mock.calls[0];
+        expect(writeCall).toBeDefined();
+        const content = writeCall![1];
+
+        expect(content).toContain(`**/${KIRO_IGNORE_FILE_NAME}`);
+        expect(content).not.toContain("**/.aiignore");
+      }
     });
 
     it("should format content properly with newline at end", async () => {

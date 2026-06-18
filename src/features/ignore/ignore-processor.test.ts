@@ -245,7 +245,7 @@ describe("IgnoreProcessor", () => {
     });
 
     it("should load KiroIgnore for kiro target", async () => {
-      await writeFileContent(join(testDir, ".aiignore"), "*.log\nnode_modules/");
+      await writeFileContent(join(testDir, ".kiroignore"), "*.log\nnode_modules/");
 
       const processor = new IgnoreProcessor({ logger, outputRoot: testDir, toolTarget: "kiro" });
 

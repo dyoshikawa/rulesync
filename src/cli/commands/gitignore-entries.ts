@@ -11,6 +11,8 @@ import {
   CLAUDECODE_SETTINGS_LOCAL_FILE_NAME,
   CLAUDECODE_SKILLS_DIR_PATH,
 } from "../../constants/claudecode-paths.js";
+import { JUNIE_IGNORE_FILE_NAME } from "../../constants/junie-paths.js";
+import { KIRO_IGNORE_FILE_NAME } from "../../constants/kiro-paths.js";
 import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import {
   ALL_FEATURES_WITH_WILDCARD,
@@ -291,6 +293,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "junie", feature: "mcp", entry: "**/.junie/mcp/mcp.json" },
   { target: "junie", feature: "skills", entry: "**/.junie/skills/" },
   { target: "junie", feature: "subagents", entry: "**/.junie/agents/" },
+  { target: "junie", feature: "ignore", entry: `**/${JUNIE_IGNORE_FILE_NAME}` },
 
   // Kilo Code
   { target: "kilo", feature: "rules", entry: "**/.kilo/rules/" },
@@ -309,7 +312,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "kiro", feature: "skills", entry: "**/.kiro/skills/" },
   { target: "kiro", feature: "subagents", entry: "**/.kiro/agents/" },
   { target: "kiro", feature: "mcp", entry: "**/.kiro/settings/mcp.json" },
-  { target: "kiro", feature: "ignore", entry: "**/.aiignore" },
+  { target: "kiro", feature: "ignore", entry: `**/${KIRO_IGNORE_FILE_NAME}` },
   // Kiro IDE and CLI write to the same `.kiro/` tree as the legacy `kiro` alias.
   // (Kiro IDE subagents are Markdown under `.kiro/agents/`, the CLI's are JSON —
   // both covered by the shared `**/.kiro/agents/` entry.)
@@ -318,8 +321,8 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: ["kiro-cli", "kiro-ide"], feature: "skills", entry: "**/.kiro/skills/" },
   { target: ["kiro-cli", "kiro-ide"], feature: "subagents", entry: "**/.kiro/agents/" },
   { target: ["kiro-cli", "kiro-ide"], feature: "mcp", entry: "**/.kiro/settings/mcp.json" },
-  { target: ["kiro-cli", "kiro-ide"], feature: "ignore", entry: "**/.aiignore" },
-  // Keep this after ignore entries like "**/.aiignore" so the exception remains effective.
+  { target: ["kiro-cli", "kiro-ide"], feature: "ignore", entry: `**/${KIRO_IGNORE_FILE_NAME}` },
+  // Keep this after ignore entries like Junie's "**/.aiignore" so the exception remains effective.
   { target: "common", feature: "general", entry: "!.rulesync/.aiignore" },
 
   // OpenCode
