@@ -256,6 +256,7 @@ rulesync.local.jsonc
 **/.claude/*.lock
 **/.clinerules/
 **/.clinerules/workflows/
+**/.cline/skills/
 **/.clineignore
 **/.cline/agents/
 **/.cline/command-permissions.json
@@ -282,6 +283,7 @@ rulesync.local.jsonc
 **/.gemini/agents/
 **/.gemini/skills/
 **/.gemini/memories/
+**/.gemini/policies/
 **/.goosehints
 **/.goose/
 **/.gooseignore
@@ -300,13 +302,16 @@ rulesync.local.jsonc
 **/.copilot/agents/
 **/.copilot/hooks/
 **/.junie/guidelines.md
+**/.junie/commands/
 **/.junie/mcp/mcp.json
 **/.junie/skills/
 **/.junie/agents/
 **/.kilo/rules/
 **/.kilo/skills/
-**/.kilo/workflows/
+**/.kilo/commands/
+**/.kilo/agents/
 **/.kilo/mcp.json
+**/.kilo/plugins/
 **/.kilocodeignore
 **/.kiro/steering/
 **/.kiro/prompts/
@@ -332,6 +337,7 @@ rulesync.local.jsonc
 **/.qwen/settings.json
 **/replit.md
 **/.roo/rules/
+**/.roo/commands/
 **/.roo/skills/
 **/.rooignore
 **/.roo/mcp.json

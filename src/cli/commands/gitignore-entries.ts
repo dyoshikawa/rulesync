@@ -161,6 +161,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   // Cline
   { target: "cline", feature: "rules", entry: "**/.clinerules/" },
   { target: "cline", feature: "commands", entry: "**/.clinerules/workflows/" },
+  { target: "cline", feature: "skills", entry: "**/.cline/skills/" },
   { target: "cline", feature: "ignore", entry: "**/.clineignore" },
   // Cline reads MCP only from a global settings file
   // (`~/.cline/data/settings/cline_mcp_settings.json`), which lives under the
@@ -230,6 +231,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "geminicli", feature: "skills", entry: "**/.gemini/skills/" },
   { target: "geminicli", feature: "ignore", entry: "**/.geminiignore" },
   { target: "geminicli", feature: "general", entry: "**/.gemini/memories/" },
+  { target: "geminicli", feature: "permissions", entry: "**/.gemini/policies/" },
 
   // Goose
   { target: "goose", feature: "rules", entry: "**/.goosehints" },
@@ -288,6 +290,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
 
   // Junie
   { target: "junie", feature: "rules", entry: "**/.junie/guidelines.md" },
+  { target: "junie", feature: "commands", entry: "**/.junie/commands/" },
   { target: "junie", feature: "mcp", entry: "**/.junie/mcp/mcp.json" },
   { target: "junie", feature: "skills", entry: "**/.junie/skills/" },
   { target: "junie", feature: "subagents", entry: "**/.junie/agents/" },
@@ -295,8 +298,10 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   // Kilo Code
   { target: "kilo", feature: "rules", entry: "**/.kilo/rules/" },
   { target: "kilo", feature: "skills", entry: "**/.kilo/skills/" },
-  { target: "kilo", feature: "commands", entry: "**/.kilo/workflows/" },
+  { target: "kilo", feature: "commands", entry: "**/.kilo/commands/" },
+  { target: "kilo", feature: "subagents", entry: "**/.kilo/agents/" },
   { target: "kilo", feature: "mcp", entry: "**/.kilo/mcp.json" },
+  { target: "kilo", feature: "hooks", entry: "**/.kilo/plugins/" },
   { target: "kilo", feature: "ignore", entry: "**/.kilocodeignore" },
   // No `**/kilo.jsonc` entry: structurally identical to `opencode.jsonc` (no
   // entry). The Kilo translator preserves non-permissions Kilo settings on
@@ -354,6 +359,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
 
   // Roo
   { target: "roo", feature: "rules", entry: "**/.roo/rules/" },
+  { target: "roo", feature: "commands", entry: "**/.roo/commands/" },
   { target: "roo", feature: "skills", entry: "**/.roo/skills/" },
   { target: "roo", feature: "ignore", entry: "**/.rooignore" },
   { target: "roo", feature: "mcp", entry: "**/.roo/mcp.json" },
