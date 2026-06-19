@@ -32,6 +32,10 @@ describe("E2E: subagents", () => {
       outputPath: join(".gemini", "agents", "planner.md"),
     },
     {
+      target: "grokcli",
+      outputPath: join(".grok", "agents", "planner.md"),
+    },
+    {
       target: "qwencode",
       outputPath: join(".qwen", "agents", "planner.md"),
     },
@@ -238,6 +242,7 @@ You are a subagent-only helper.
     { target: "claudecode", orphanPath: join(".claude", "agents", "orphan.md") },
     { target: "cursor", orphanPath: join(".cursor", "agents", "orphan.md") },
     { target: "geminicli", orphanPath: join(".gemini", "agents", "orphan.md") },
+    { target: "grokcli", orphanPath: join(".grok", "agents", "orphan.md") },
     { target: "codexcli", orphanPath: join(".codex", "agents", "orphan.toml") },
     { target: "copilot", orphanPath: join(".github", "agents", "orphan.md") },
     { target: "deepagents", orphanPath: join(".deepagents", "agents", "orphan", "AGENTS.md") },
@@ -443,6 +448,7 @@ describe("E2E: subagents (global mode)", () => {
     { target: "copilotcli", outputPath: join(".copilot", "agents", "planner.agent.md") },
     { target: "cursor", outputPath: join(".cursor", "agents", "planner.md") },
     { target: "geminicli", outputPath: join(".gemini", "agents", "planner.md") },
+    { target: "grokcli", outputPath: join(".grok", "agents", "planner.md") },
     { target: "qwencode", outputPath: join(".qwen", "agents", "planner.md") },
     { target: "junie", outputPath: join(".junie", "agents", "planner.md") },
     { target: "opencode", outputPath: join(".config", "opencode", "agents", "planner.md") },
