@@ -435,6 +435,17 @@ replit: # for Replit Agent-specific parameters (optional; Agent Skills standard)
     agent-skills: ">=1.0.0"
   metadata: # (optional) free-form metadata
     author: rulesync
+deepagents: # for deepagents-cli (dcode)-specific parameters (optional; Agent Skills standard)
+  # Authored as a canonical list; emitted to SKILL.md as a space-delimited string
+  # (e.g. "Bash Read") because dcode rejects a YAML list at runtime.
+  allowed-tools:
+    - "Bash"
+    - "Read"
+  license: MIT # (optional)
+  compatibility: # (optional) free-form compatibility metadata
+    deepagents-version: ">=0.1.0"
+  metadata: # (optional) free-form metadata
+    author: rulesync
 opencode: # for OpenCode-specific parameters (optional)
   license: MIT # (optional)
   compatibility: # (optional) free-form compatibility metadata
