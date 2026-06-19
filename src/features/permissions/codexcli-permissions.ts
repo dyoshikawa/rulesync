@@ -29,6 +29,13 @@ const CODEX_GLOB_SCAN_MAX_DEPTH = 8; // Matches Codex CLI default glob_scan_max_
 // Codex's `:workspace` baseline grants write to the entire workspace root plus /tmp and
 // $TMPDIR, so it must only be emitted when the user asked for a workspace-wide write.
 const WORKSPACE_WIDE_WRITE_PATTERNS = new Set([".", "./", "**", "./**"]);
+// `:minimal = "read"` enables include_platform_defaults (openai/codex#13434), providing the
+// platform/runtime read access needed for basic sandboxed command execution.
+const CODEX_MINIMAL_KEY = ":minimal";
+// Special filesystem paths whose values are Codex-native baselines rather than user-managed
+// access rules. Rulesync emits `:minimal` as a fixed baseline and pass-throughs all others
+// from existing config verbatim, but never attempts to import them into rulesync's own model.
+const CODEX_FILESYSTEM_BASELINE_KEYS = new Set([CODEX_MINIMAL_KEY, ":root", ":tmpdir"]);
 // Codex rejects the global `*` wildcard in denied network domains at config load time,
 // while allowed domains accept it for denylist-only setups (openai/codex#15549).
 const GLOBAL_WILDCARD_DOMAIN = "*";
@@ -220,7 +227,9 @@ function convertRulesyncToCodexProfile({
   config: PermissionsConfig;
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): CodexPermissionProfile {
-  const filesystem: CodexFilesystem = {};
+  // `:minimal = "read"` is always emitted as a fixed baseline so sandboxed command execution
+  // works on macOS, Linux, and Windows without requiring users to configure it explicitly.
+  const filesystem: CodexFilesystem = { [CODEX_MINIMAL_KEY]: "read" };
   const workspaceRootFilesystem: CodexFilesystemRuleTable = {};
   const domains: Record<string, "allow" | "deny"> = {};
 
@@ -325,6 +334,13 @@ function convertCodexProfileToRulesync({
     permission.read = {};
     permission.edit = {};
     for (const [pattern, access] of Object.entries(profile.filesystem)) {
+      // Baseline keys like `:minimal`, `:root`, `:tmpdir` are Codex-native sandbox settings,
+      // not user-managed access rules. Skip them so they don't pollute rulesync's model and
+      // are re-emitted verbatim on the next generate pass via mergeWithExistingProfile.
+      if (CODEX_FILESYSTEM_BASELINE_KEYS.has(pattern)) {
+        continue;
+      }
+
       if (isCodexFilesystemAccess(access)) {
         addRulesyncFilesystemRule(permission, pattern, access);
         continue;
@@ -421,10 +437,27 @@ function mergeWithExistingProfile({
   // convertRulesyncToCodexProfile never sets description, so the existing value wins.
   const description = newProfile.description ?? existingProfile.description;
 
+  // Merge filesystem: start from newProfile's filesystem (which already includes :minimal),
+  // then overlay any existing baseline keys that newProfile did not set, so user-customized
+  // values like `:root = "read"` or `:tmpdir = "write"` survive round-trips.
+  let mergedFilesystem = newProfile.filesystem;
+  if (existingProfile.filesystem) {
+    const baselineOverrides: CodexFilesystem = {};
+    for (const key of CODEX_FILESYSTEM_BASELINE_KEYS) {
+      const existingValue = existingProfile.filesystem[key];
+      if (existingValue !== undefined && mergedFilesystem?.[key] === undefined) {
+        baselineOverrides[key] = existingValue;
+      }
+    }
+    if (Object.keys(baselineOverrides).length > 0) {
+      mergedFilesystem = { ...baselineOverrides, ...mergedFilesystem };
+    }
+  }
+
   return {
     ...(description !== undefined ? { description } : {}),
     ...(newProfile.extends !== undefined ? { extends: newProfile.extends } : {}),
-    ...(newProfile.filesystem ? { filesystem: newProfile.filesystem } : {}),
+    ...(mergedFilesystem ? { filesystem: mergedFilesystem } : {}),
     ...(hasNetwork ? { network: mergedNetwork } : {}),
   };
 }
