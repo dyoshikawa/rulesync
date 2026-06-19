@@ -275,6 +275,24 @@ Do the thing.`;
       expect(deepagents?.compatibility).toEqual({ "deepagents-version": ">=0.1.0" });
       expect(deepagents?.metadata).toEqual({ author: "rulesync" });
     });
+
+    it("should accept a string-form compatibility (Agent Skills spec) on import", () => {
+      // dcode follows the Agent Skills spec, where `compatibility` is a free-form
+      // string. A hand-authored SKILL.md using that form must not be rejected.
+      const skill = new DeepagentsSkill({
+        outputRoot: testDir,
+        dirName: "string-compat-skill",
+        frontmatter: {
+          name: "String Compat Skill",
+          description: "Has string compatibility.",
+          compatibility: "deepagents>=0.1.0",
+        },
+        body: "Instructions.",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().deepagents?.compatibility).toBe("deepagents>=0.1.0");
+    });
   });
 
   describe("allowed-tools round-trip", () => {

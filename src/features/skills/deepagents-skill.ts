@@ -30,7 +30,10 @@ export const DeepagentsSkillFrontmatterSchema = z.looseObject({
   // Agent Skills spec fields read by dcode's `_parse_skill_metadata`.
   // https://agentskills.io/specification
   license: z.optional(z.string()),
-  compatibility: z.optional(z.looseObject({})),
+  // The Agent Skills spec defines `compatibility` as a free-form string
+  // (1–500 chars), which is what dcode actually reads; an object form is also
+  // tolerated for backward compatibility (matches the `agentsskills` adapter).
+  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
   metadata: z.optional(z.looseObject({})),
 });
 

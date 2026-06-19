@@ -86,7 +86,9 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
     z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
       license: z.optional(z.string()),
-      compatibility: z.optional(z.looseObject({})),
+      // The Agent Skills spec defines `compatibility` as a free-form string
+      // (1–500 chars); an object form is also tolerated for back-compat.
+      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
       metadata: z.optional(z.looseObject({})),
     }),
   ),
@@ -227,7 +229,7 @@ export type RulesyncSkillFrontmatterInput = {
   deepagents?: {
     "allowed-tools"?: string[];
     license?: string;
-    compatibility?: Record<string, unknown>;
+    compatibility?: string | Record<string, unknown>;
     metadata?: Record<string, unknown>;
   };
   copilot?: {
