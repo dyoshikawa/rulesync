@@ -97,9 +97,22 @@ export class CursorRule extends ToolRule {
       // indicators (e.g. a ": " sequence, a leading "#", or values like "true"/"123"),
       // producing a file that this tool's own parser can no longer read. js-yaml only
       // adds quotes when required, so plain descriptions stay unquoted (matching the
-      // MDC "no unnecessary quotes" convention used for globs below). lineWidth: -1
-      // prevents js-yaml from wrapping long descriptions into block scalars.
-      lines.push(dump({ description: frontmatter.description }, { lineWidth: -1 }).trimEnd());
+      // MDC "no unnecessary quotes" convention used for globs below).
+      //
+      // Flatten any newlines into spaces first: a genuinely multi-line value would
+      // otherwise serialize to a YAML block scalar (`description: |-`), and Cursor's
+      // simplified MDC frontmatter parser does not read block-scalar indicators (this
+      // mirrors the `avoidBlockScalars` serializer used by the sibling Cursor
+      // features). `lineWidth: -1` then keeps the resulting single-line value from
+      // being folded across lines.
+      // Guard against non-string values reaching here when validation is skipped
+      // (validate: false): only strings can be flattened, others pass through.
+      const rawDescription = frontmatter.description;
+      const description =
+        typeof rawDescription === "string"
+          ? rawDescription.replace(/\n+/g, " ").trim()
+          : rawDescription;
+      lines.push(dump({ description }, { lineWidth: -1 }).trimEnd());
     }
     if (frontmatter.globs !== undefined) {
       // Output globs without quotes

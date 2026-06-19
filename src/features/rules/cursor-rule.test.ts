@@ -438,6 +438,36 @@ This is the rule content
       expect(parsed.getBody()).toBe("Always enable strict mode.");
     });
 
+    it("should flatten a multi-line description into a single-line scalar Cursor can read", async () => {
+      // A genuinely multi-line description must NOT serialize to a YAML block scalar
+      // (`description: |-`): Cursor's simplified MDC parser does not read block-scalar
+      // indicators. The newlines are flattened to spaces before serialization.
+      const generated = new CursorRule({
+        frontmatter: { description: "Line one\nLine two", globs: "*.ts", alwaysApply: false },
+        body: "Body.",
+        relativeDirPath: ".cursor/rules",
+        relativeFilePath: "multiline.mdc",
+      });
+
+      const content = generated.getFileContent();
+      // No block-scalar indicator, and the value is on a single line.
+      expect(content).not.toContain("description: |");
+      expect(content).not.toContain("description: >");
+      expect(content).toContain("description: Line one Line two");
+
+      const filePath = join(testDir, ".cursor/rules", "multiline.mdc");
+      await writeFileContent(filePath, content);
+      const parsed = await CursorRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "multiline.mdc",
+      });
+      expect(parsed.getFrontmatter()).toEqual({
+        description: "Line one Line two",
+        globs: "*.ts",
+        alwaysApply: false,
+      });
+    });
+
     it("should handle file with no frontmatter", async () => {
       const filePath = join(testDir, ".cursor/rules", "simple.mdc");
       const content = "Just plain content without frontmatter";
