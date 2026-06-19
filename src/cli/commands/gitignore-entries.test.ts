@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toolCommandFactories } from "../../features/commands/commands-processor.js";
 import { toolHooksFactories } from "../../features/hooks/hooks-processor.js";
+import { toolIgnoreFactories } from "../../features/ignore/ignore-processor.js";
 import { toolMcpFactories } from "../../features/mcp/mcp-processor.js";
 import { toolPermissionsFactories } from "../../features/permissions/permissions-processor.js";
 import { toolSkillFactories } from "../../features/skills/skills-processor.js";
@@ -137,12 +138,17 @@ describe("getSettablePaths coverage", () => {
     ["mcp", toolMcpFactories],
     ["hooks", toolHooksFactories],
     ["permissions", toolPermissionsFactories],
+    // `ignore` outputs a single file per tool (e.g. `.augmentignore`), fitting the
+    // file-feature shape.
+    ["ignore", toolIgnoreFactories],
   ] as const;
 
   for (const [feature, factories] of fileFeatures) {
     for (const [target, factory] of factories) {
       if (TARGETS_WITHOUT_GITIGNORE_ENTRIES.has(target)) continue;
-      const meta = factory.meta as { supportsProject?: boolean } | undefined;
+      // `ToolIgnoreFactory` has no `meta`; guard the lookup so the union stays type-safe.
+      const meta =
+        "meta" in factory ? (factory.meta as { supportsProject?: boolean } | undefined) : undefined;
       if (meta && meta.supportsProject === false) continue;
       it(`covers ${feature} output for ${target}`, () => {
         // No try/catch: project-supporting tools must resolve without throwing
