@@ -130,6 +130,7 @@ describe("E2E: permissions", () => {
     const network = toTable(rulesyncProfile.network);
     const domains = toTable(network.domains);
     const workspaceRoots = toTable(filesystem[":workspace_roots"]);
+    expect(filesystem[":minimal"]).toBe("read");
     expect(filesystem["/workspace/project/**"]).toBe("read");
     expect(filesystem["/workspace/project/src/**"]).toBe("write");
     expect(filesystem.glob_scan_max_depth).toBe(8);
