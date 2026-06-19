@@ -84,6 +84,12 @@ export class GrokcliSkill extends ToolSkill {
     // Grok Build skills use the same relative path for both project and global
     // modes; the location differs based on outputRoot (./.grok/skills vs
     // ~/.grok/skills).
+    //
+    // Grok also discovers skills from `~/.agents/skills/` (Agents.md
+    // compatibility) and from extra `[skills] paths` entries in
+    // `~/.grok/config.toml`. rulesync intentionally emits only the canonical
+    // `.grok/skills/` root, matching how the other native-skill tools target a
+    // single canonical directory.
     return {
       relativeDirPath: GROKCLI_SKILLS_DIR_PATH,
     };
@@ -144,13 +150,12 @@ export class GrokcliSkill extends ToolSkill {
     global = false,
   }: ToolSkillFromRulesyncSkillParams): GrokcliSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+    const settablePaths = GrokcliSkill.getSettablePaths({ global });
 
     const grokcliFrontmatter: GrokcliSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
     };
-
-    const settablePaths = GrokcliSkill.getSettablePaths({ global });
 
     return new GrokcliSkill({
       outputRoot,

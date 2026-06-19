@@ -347,6 +347,10 @@ describe("E2E: skills (global mode)", () => {
       outputPath: join(".copilot", "skills", "test-skill", "SKILL.md"),
     },
     {
+      target: "grokcli",
+      outputPath: join(".grok", "skills", "test-skill", "SKILL.md"),
+    },
+    {
       target: "geminicli",
       outputPath: join(".gemini", "skills", "test-skill", "SKILL.md"),
     },
