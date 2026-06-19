@@ -30,3 +30,6 @@ export const GROKCLI_SKILLS_DIR_PATH = join(GROKCLI_DIR, "skills");
  * `grok inspect`; format matches the bundled `~/.grok/bundled/agents/*.md`).
  */
 export const GROKCLI_AGENTS_DIR_PATH = join(GROKCLI_DIR, "agents");
+
+/** Instruction file. Grok reads the AGENTS.md instruction-file family natively. */
+export const GROKCLI_RULE_FILE_NAME = "AGENTS.md";

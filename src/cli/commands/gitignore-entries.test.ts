@@ -113,13 +113,17 @@ describe("getSettablePaths coverage", () => {
   for (const [feature, factories] of dirFeatures) {
     for (const [target, factory] of factories) {
       if (TARGETS_WITHOUT_GITIGNORE_ENTRIES.has(target)) continue;
+      // Skip global-only tools explicitly (same guard as the fileFeatures branch
+      // below) rather than relying on `getSettablePaths({ global: false })`
+      // throwing and a broad catch swallowing it — otherwise a global-only tool
+      // refactored to return a project path would silently change coverage.
+      const meta = factory.meta as { supportsProject?: boolean } | undefined;
+      if (meta && meta.supportsProject === false) continue;
       it(`covers ${feature} output for ${target}`, () => {
-        let paths: { relativeDirPath?: string };
-        try {
-          paths = factory.class.getSettablePaths({ global: false });
-        } catch {
-          return;
-        }
+        // No try/catch: a project-supporting tool must resolve a project path
+        // without throwing, so an unexpected throw fails the test instead of
+        // passing silently.
+        const paths = factory.class.getSettablePaths({ global: false });
         const dir = paths.relativeDirPath;
         if (!dir || dir === ".") return;
         const glob = dirToGlob(dir);
@@ -141,12 +145,11 @@ describe("getSettablePaths coverage", () => {
       const meta = factory.meta as { supportsProject?: boolean } | undefined;
       if (meta && meta.supportsProject === false) continue;
       it(`covers ${feature} output for ${target}`, () => {
-        let paths: { relativeDirPath?: string; relativeFilePath?: string };
-        try {
-          paths = factory.class.getSettablePaths({ global: false });
-        } catch {
-          return;
-        }
+        // No try/catch: project-supporting tools must resolve without throwing
+        // (global-only tools are already skipped above), so an unexpected throw
+        // fails the test instead of passing silently.
+        const paths: { relativeDirPath?: string; relativeFilePath?: string } =
+          factory.class.getSettablePaths({ global: false });
         if (!paths.relativeFilePath) return;
         const glob = fileToGlob(paths.relativeDirPath, paths.relativeFilePath);
         if (DERIVED_PATHS_NOT_GITIGNORED.has(glob)) return;

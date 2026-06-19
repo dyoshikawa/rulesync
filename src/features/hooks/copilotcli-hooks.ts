@@ -138,7 +138,12 @@ function canonicalToCopilotCliHooks(
         if (def.prompt === undefined || def.prompt === null) continue;
         entries.push({ type: "prompt", prompt: def.prompt, ...rest });
       } else if (hookType === "http") {
-        entries.push({ type: "http", ...timeoutPart, ...rest });
+        entries.push({
+          type: "http",
+          ...(def.url !== undefined && def.url !== null && { url: def.url }),
+          ...timeoutPart,
+          ...rest,
+        });
       } else {
         const command = def.command;
         entries.push({

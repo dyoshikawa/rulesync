@@ -904,6 +904,7 @@ Content that would fail parsing`;
         "factorydroid",
         "geminicli",
         "goose",
+        "grokcli",
         "junie",
         "kilo",
         "opencode",
@@ -950,6 +951,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("junie");
       expect(globalTargets).toContain("kilo");
       expect(globalTargets).toContain("goose");
+      expect(globalTargets).toContain("grokcli");
       expect(globalTargets).toContain("opencode");
       expect(globalTargets).toContain("pi");
       expect(globalTargets).toContain("rovodev");
@@ -957,7 +959,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("vibe");
       expect(globalTargets).toContain("devin");
       expect(globalTargets).toContain("zed");
-      expect(globalTargets.length).toBe(24);
+      expect(globalTargets.length).toBe(25);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

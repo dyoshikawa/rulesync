@@ -193,7 +193,7 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 
 > **Note:** Goose hooks follow the Open Plugins spec: Rulesync writes a plugin directory `hooks/hooks.json` that Goose auto-discovers at startup. Locations are `<project>/.agents/plugins/rulesync/hooks/hooks.json` (project) and `~/.agents/plugins/rulesync/hooks/hooks.json` (global). The JSON shape matches Claude Code's (`{ "hooks": { "EventName": [ { "matcher": "...", "hooks": [ { "type": "command", "command": "..." } ] } ] } }`). Thirteen lifecycle events are supported — `sessionStart` ⇄ `SessionStart`, `sessionEnd` ⇄ `SessionEnd`, `stop` ⇄ `Stop`, `beforeSubmitPrompt` ⇄ `UserPromptSubmit`, `preToolUse` ⇄ `PreToolUse`, `postToolUse` ⇄ `PostToolUse`, `postToolUseFailure` ⇄ `PostToolUseFailure`, `beforeReadFile` ⇄ `BeforeReadFile`, `afterFileEdit` ⇄ `AfterFileEdit`, `beforeShellExecution` ⇄ `BeforeShellExecution`, `afterShellExecution` ⇄ `AfterShellExecution`, `subagentStart` ⇄ `SubagentStart`, and `subagentStop` ⇄ `SubagentStop`. The `matcher` regex is preserved, commands are emitted verbatim (Goose exposes `PLUGIN_ROOT` as a runtime environment variable), and only `command`-type hooks are supported.
 
-> **Note:** Qwen Code hooks are written under the top-level `hooks` key of `.qwen/settings.json` (project) / `~/.qwen/settings.json` (global), using Claude-style PascalCase per-matcher arrays (`{ "EventName": [ { "matcher": "...", "hooks": [ { "type": "command", "command": "...", "timeout": ... } ] } ] }`). Qwen's supported event set **differs from Gemini CLI's**, so rulesync defines a Qwen-specific mapping. Thirteen lifecycle events are supported — `sessionStart` ⇄ `SessionStart`, `sessionEnd` ⇄ `SessionEnd`, `preToolUse` ⇄ `PreToolUse`, `postToolUse` ⇄ `PostToolUse`, `postToolUseFailure` ⇄ `PostToolUseFailure`, `beforeSubmitPrompt` ⇄ `UserPromptSubmit`, `stop` ⇄ `Stop`, `subagentStart` ⇄ `SubagentStart`, `subagentStop` ⇄ `SubagentStop`, `preCompact` ⇄ `PreCompact`, `postCompact` ⇄ `PostCompact`, `permissionRequest` ⇄ `PermissionRequest`, and `notification` ⇄ `Notification`. Qwen-only events (`StopFailure`, `TodoCreated`, `TodoCompleted`) have no canonical equivalent. Commands are emitted verbatim (no `$GEMINI_PROJECT_DIR` rewriting), only `command`-type hooks are supported, and other top-level keys in `settings.json` are preserved on round-trip. See the [Qwen Code hooks docs](https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/hooks.md).
+> **Note:** Qwen Code hooks are written under the top-level `hooks` key of `.qwen/settings.json` (project) / `~/.qwen/settings.json` (global), using Claude-style PascalCase per-matcher arrays (`{ "EventName": [ { "matcher": "...", "sequential": false, "hooks": [ { "type": "command", "command": "...", "timeout": ... } ] } ] }`). Qwen's supported event set **differs from Gemini CLI's**, so rulesync defines a Qwen-specific mapping. Sixteen lifecycle events are supported — `sessionStart` ⇄ `SessionStart`, `sessionEnd` ⇄ `SessionEnd`, `preToolUse` ⇄ `PreToolUse`, `postToolUse` ⇄ `PostToolUse`, `postToolUseFailure` ⇄ `PostToolUseFailure`, `beforeSubmitPrompt` ⇄ `UserPromptSubmit`, `stop` ⇄ `Stop`, `stopFailure` ⇄ `StopFailure`, `subagentStart` ⇄ `SubagentStart`, `subagentStop` ⇄ `SubagentStop`, `preCompact` ⇄ `PreCompact`, `postCompact` ⇄ `PostCompact`, `permissionRequest` ⇄ `PermissionRequest`, `notification` ⇄ `Notification`, `todoCreated` ⇄ `TodoCreated`, and `todoCompleted` ⇄ `TodoCompleted`. Commands are emitted verbatim (no `$GEMINI_PROJECT_DIR` rewriting). Qwen's four hook types are supported: `command`, `prompt`, `http` (which carries a `url` and POSTs JSON to it; the type and URL round-trip), and `function`. The group-level `sequential` flag (parallel by default) and the top-level `disableAllHooks` switch are both round-tripped, and other top-level keys in `settings.json` are preserved. See the [Qwen Code hooks docs](https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/hooks.md).
 
 ## `.copilot/mcp-config.json`
 
@@ -435,6 +435,17 @@ replit: # for Replit Agent-specific parameters (optional; Agent Skills standard)
     agent-skills: ">=1.0.0"
   metadata: # (optional) free-form metadata
     author: rulesync
+deepagents: # for deepagents-cli (dcode)-specific parameters (optional; Agent Skills standard)
+  # Authored as a canonical list; emitted to SKILL.md as a space-delimited string
+  # (e.g. "Bash Read") because dcode rejects a YAML list at runtime.
+  allowed-tools:
+    - "Bash"
+    - "Read"
+  license: MIT # (optional)
+  compatibility: # (optional) free-form compatibility metadata
+    deepagents-version: ">=0.1.0"
+  metadata: # (optional) free-form metadata
+    author: rulesync
 opencode: # for OpenCode-specific parameters (optional)
   license: MIT # (optional)
   compatibility: # (optional) free-form compatibility metadata
@@ -478,6 +489,8 @@ cursor: # for Cursor-specific parameters (optional)
   disable-model-invocation: true # (optional) only include the skill when invoked via /skill-name
   metadata: # (optional) free-form metadata
     author: rulesync
+factorydroid: # for Factory Droid-specific parameters (optional)
+  disable-model-invocation: true # (optional) prevent the model from auto-invoking this skill
 takt: # takt specific parameters (optional; emitted under .takt/facets/knowledge/ — frontmatter is dropped on emit)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
   extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)

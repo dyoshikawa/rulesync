@@ -8,6 +8,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveDisableModelInvocation } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -126,10 +127,16 @@ export class FactorydroidSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    const factorydroidBlock = {
+      ...(frontmatter["disable-model-invocation"] !== undefined && {
+        "disable-model-invocation": frontmatter["disable-model-invocation"],
+      }),
+    };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
+      ...(Object.keys(factorydroidBlock).length > 0 && { factorydroid: factorydroidBlock }),
     };
 
     return new RulesyncSkill({
@@ -152,7 +159,10 @@ export class FactorydroidSkill extends ToolSkill {
   }: ToolSkillFromRulesyncSkillParams): FactorydroidSkill {
     const settablePaths = FactorydroidSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
-    const resolvedDisableModelInvocation = rulesyncFrontmatter["disable-model-invocation"];
+    const resolvedDisableModelInvocation = resolveDisableModelInvocation({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: rulesyncFrontmatter.factorydroid,
+    });
 
     const factorydroidFrontmatter: FactorydroidSkillFrontmatter = {
       name: rulesyncFrontmatter.name,

@@ -8,6 +8,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveDisableModelInvocation } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -169,12 +170,17 @@ export class PiSkill extends ToolSkill {
     const settablePaths = PiSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     const piSection = rulesyncFrontmatter.pi;
-    const resolvedDisableModelInvocation =
-      piSection?.["disable-model-invocation"] ?? rulesyncFrontmatter["disable-model-invocation"];
+    const resolvedDisableModelInvocation = resolveDisableModelInvocation({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: piSection,
+    });
 
     const piFrontmatter: PiSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      // Spread the section first to carry over any tool-specific keys, then
+      // re-apply the resolved `disable-model-invocation` so the root default is
+      // honored when the section omits the key.
       ...piSection,
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,

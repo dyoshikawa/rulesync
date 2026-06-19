@@ -187,6 +187,78 @@ describe("QwencodeHooks", () => {
       expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe("echo override");
       expect(parsed.hooks.SessionEnd[0].hooks[0].command).toBe("echo end");
     });
+
+    it("should map the new TodoCreated, TodoCompleted, and StopFailure events", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              todoCreated: [{ command: "echo created" }],
+              todoCompleted: [{ command: "echo completed" }],
+              stopFailure: [{ command: "echo stop-failure" }],
+            },
+          }),
+        }),
+      );
+
+      const qwencodeHooks = await QwencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const parsed = JSON.parse(qwencodeHooks.getFileContent());
+      expect(parsed.hooks.TodoCreated[0].hooks[0].command).toBe("echo created");
+      expect(parsed.hooks.TodoCompleted[0].hooks[0].command).toBe("echo completed");
+      expect(parsed.hooks.StopFailure[0].hooks[0].command).toBe("echo stop-failure");
+    });
+
+    it("should preserve the http hook type and its url", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              preToolUse: [{ type: "http", url: "https://example.com/hook", matcher: "Edit" }],
+            },
+          }),
+        }),
+      );
+
+      const qwencodeHooks = await QwencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const parsed = JSON.parse(qwencodeHooks.getFileContent());
+      expect(parsed.hooks.PreToolUse[0].hooks[0].type).toBe("http");
+      expect(parsed.hooks.PreToolUse[0].hooks[0].url).toBe("https://example.com/hook");
+    });
+
+    it("should emit group-level sequential and top-level disableAllHooks", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              preToolUse: [{ command: "echo a", matcher: "Edit", sequential: true }],
+            },
+            qwencode: {
+              disableAllHooks: true,
+            },
+          }),
+        }),
+      );
+
+      const qwencodeHooks = await QwencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const parsed = JSON.parse(qwencodeHooks.getFileContent());
+      expect(parsed.disableAllHooks).toBe(true);
+      expect(parsed.hooks.PreToolUse[0].sequential).toBe(true);
+    });
   });
 
   describe("toRulesyncHooks", () => {
@@ -251,6 +323,72 @@ describe("QwencodeHooks", () => {
 
       const parsed = qwencodeHooks.toRulesyncHooks().getJson();
       expect(parsed.hooks.sessionStart?.[0]?.command).toBe("$GEMINI_PROJECT_DIR/echo start");
+    });
+
+    it("should import the new TodoCreated, TodoCompleted, and StopFailure events", () => {
+      const qwencodeHooks = new QwencodeHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              TodoCreated: [{ hooks: [{ command: "echo created" }] }],
+              TodoCompleted: [{ hooks: [{ command: "echo completed" }] }],
+              StopFailure: [{ hooks: [{ command: "echo stop-failure" }] }],
+            },
+          }),
+        }),
+      );
+
+      const parsed = qwencodeHooks.toRulesyncHooks().getJson();
+      expect(parsed.hooks.todoCreated?.[0]?.command).toBe("echo created");
+      expect(parsed.hooks.todoCompleted?.[0]?.command).toBe("echo completed");
+      expect(parsed.hooks.stopFailure?.[0]?.command).toBe("echo stop-failure");
+    });
+
+    it("should preserve the http hook type and its url on import", () => {
+      const qwencodeHooks = new QwencodeHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              PreToolUse: [
+                {
+                  matcher: "Edit",
+                  hooks: [{ type: "http", url: "https://example.com/hook" }],
+                },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const parsed = qwencodeHooks.toRulesyncHooks().getJson();
+      expect(parsed.hooks.preToolUse?.[0]).toEqual({
+        type: "http",
+        url: "https://example.com/hook",
+        matcher: "Edit",
+      });
+    });
+
+    it("should round-trip group-level sequential and top-level disableAllHooks", () => {
+      const qwencodeHooks = new QwencodeHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            disableAllHooks: true,
+            hooks: {
+              PreToolUse: [
+                {
+                  matcher: "Edit",
+                  sequential: true,
+                  hooks: [{ type: "command", command: "echo a" }],
+                },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const parsed = qwencodeHooks.toRulesyncHooks().getJson();
+      expect(parsed.qwencode?.disableAllHooks).toBe(true);
+      expect(parsed.hooks.preToolUse?.[0]?.sequential).toBe(true);
     });
 
     it("should ignore invalid entries", () => {

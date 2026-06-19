@@ -22,7 +22,19 @@ import {
 export const DeepagentsSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
-  "allowed-tools": z.optional(z.array(z.string())),
+  // dcode's `_parse_allowed_tools` only accepts a space-delimited string; a YAML
+  // list is rejected at runtime (the allowlist is silently dropped). A list is
+  // still accepted here for tolerant parsing of hand-written files, but on emit
+  // rulesync always writes the space-delimited string form.
+  "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+  // Agent Skills spec fields read by dcode's `_parse_skill_metadata`.
+  // https://agentskills.io/specification
+  license: z.optional(z.string()),
+  // The Agent Skills spec defines `compatibility` as a free-form string
+  // (1–500 chars), which is what dcode actually reads; an object form is also
+  // tolerated for backward compatibility (matches the `agentsskills` adapter).
+  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+  metadata: z.optional(z.looseObject({})),
 });
 
 export type DeepagentsSkillFrontmatter = z.infer<typeof DeepagentsSkillFrontmatterSchema>;
@@ -111,13 +123,27 @@ export class DeepagentsSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    const allowedTools = frontmatter["allowed-tools"];
+    // Normalize back to the canonical rulesync array representation. dcode
+    // serializes `allowed-tools` as a whitespace-delimited string, so split it.
+    const allowedToolsArray =
+      allowedTools === undefined
+        ? undefined
+        : Array.isArray(allowedTools)
+          ? allowedTools
+          : allowedTools.split(/\s+/).filter((tool) => tool.length > 0);
+    const deepagentsBlock = {
+      ...(allowedToolsArray !== undefined &&
+        allowedToolsArray.length > 0 && { "allowed-tools": allowedToolsArray }),
+      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
+      ...(frontmatter.compatibility !== undefined && { compatibility: frontmatter.compatibility }),
+      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+    };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
-      ...(frontmatter["allowed-tools"] && {
-        deepagents: { "allowed-tools": frontmatter["allowed-tools"] },
-      }),
+      ...(Object.keys(deepagentsBlock).length > 0 && { deepagents: deepagentsBlock }),
     };
 
     return new RulesyncSkill({
@@ -141,12 +167,20 @@ export class DeepagentsSkill extends ToolSkill {
     const settablePaths = DeepagentsSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
+    const deepagentsSection = rulesyncFrontmatter.deepagents;
+    const allowedTools = deepagentsSection?.["allowed-tools"];
+    // dcode only honors a space-delimited string; serialize the canonical array
+    // into that form so the allowlist is not dropped at runtime.
+    const allowedToolsString = Array.isArray(allowedTools) ? allowedTools.join(" ") : allowedTools;
     const deepagentsFrontmatter: DeepagentsSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...(rulesyncFrontmatter.deepagents?.["allowed-tools"] && {
-        "allowed-tools": rulesyncFrontmatter.deepagents["allowed-tools"],
+      ...(allowedToolsString && { "allowed-tools": allowedToolsString }),
+      ...(deepagentsSection?.license !== undefined && { license: deepagentsSection.license }),
+      ...(deepagentsSection?.compatibility !== undefined && {
+        compatibility: deepagentsSection.compatibility,
       }),
+      ...(deepagentsSection?.metadata !== undefined && { metadata: deepagentsSection.metadata }),
     };
 
     return new DeepagentsSkill({

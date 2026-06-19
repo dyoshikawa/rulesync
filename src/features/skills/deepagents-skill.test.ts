@@ -48,19 +48,19 @@ describe("DeepagentsSkill", () => {
       expect(skill.getBody()).toBe("## Instructions\n\nDo the thing.");
     });
 
-    it("should create with allowed-tools", () => {
+    it("should create with allowed-tools as a space-delimited string", () => {
       const skill = new DeepagentsSkill({
         outputRoot: testDir,
         dirName: "tool-skill",
         frontmatter: {
           name: "Tool Skill",
           description: "Uses specific tools.",
-          "allowed-tools": ["read_file", "write_file"],
+          "allowed-tools": "read_file write_file",
         },
         body: "Use the tools.",
       });
 
-      expect(skill.getFrontmatter()["allowed-tools"]).toEqual(["read_file", "write_file"]);
+      expect(skill.getFrontmatter()["allowed-tools"]).toBe("read_file write_file");
     });
 
     it("should not throw on invalid frontmatter when validate=false", () => {
@@ -132,6 +132,51 @@ Do the thing.`;
 
       expect(skill.getFrontmatter()).not.toHaveProperty("allowed-tools");
     });
+
+    it("should serialize allowed-tools as a space-delimited string", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync/skills",
+        dirName: "my-skill",
+        frontmatter: {
+          name: "My Skill",
+          description: "Does something.",
+          targets: ["*"],
+          deepagents: { "allowed-tools": ["Bash", "Read", "Write"] },
+        },
+        body: "Instructions here.",
+      });
+
+      const skill = DeepagentsSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill });
+
+      expect(skill.getFrontmatter()["allowed-tools"]).toBe("Bash Read Write");
+    });
+
+    it("should carry license, compatibility, and metadata through", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync/skills",
+        dirName: "my-skill",
+        frontmatter: {
+          name: "My Skill",
+          description: "Does something.",
+          targets: ["*"],
+          deepagents: {
+            license: "MIT",
+            compatibility: { "deepagents-version": ">=0.1.0" },
+            metadata: { author: "rulesync" },
+          },
+        },
+        body: "Instructions here.",
+      });
+
+      const skill = DeepagentsSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill });
+      const frontmatter = skill.getFrontmatter();
+
+      expect(frontmatter.license).toBe("MIT");
+      expect(frontmatter.compatibility).toEqual({ "deepagents-version": ">=0.1.0" });
+      expect(frontmatter.metadata).toEqual({ author: "rulesync" });
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {
@@ -186,6 +231,100 @@ Do the thing.`;
       expect(rulesyncSkill.getFrontmatter().name).toBe("My Skill");
       expect(rulesyncSkill.getFrontmatter().description).toBe("Does something.");
       expect(rulesyncSkill.getFrontmatter().targets).toEqual(["*"]);
+    });
+
+    it("should parse a space-delimited allowed-tools string back into an array", () => {
+      const skill = new DeepagentsSkill({
+        outputRoot: testDir,
+        dirName: "tool-skill",
+        frontmatter: {
+          name: "Tool Skill",
+          description: "Uses tools.",
+          "allowed-tools": "Bash Read Write",
+        },
+        body: "Instructions.",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+
+      expect(rulesyncSkill.getFrontmatter().deepagents?.["allowed-tools"]).toEqual([
+        "Bash",
+        "Read",
+        "Write",
+      ]);
+    });
+
+    it("should carry license, compatibility, and metadata through", () => {
+      const skill = new DeepagentsSkill({
+        outputRoot: testDir,
+        dirName: "meta-skill",
+        frontmatter: {
+          name: "Meta Skill",
+          description: "Has metadata.",
+          license: "MIT",
+          compatibility: { "deepagents-version": ">=0.1.0" },
+          metadata: { author: "rulesync" },
+        },
+        body: "Instructions.",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      const deepagents = rulesyncSkill.getFrontmatter().deepagents;
+
+      expect(deepagents?.license).toBe("MIT");
+      expect(deepagents?.compatibility).toEqual({ "deepagents-version": ">=0.1.0" });
+      expect(deepagents?.metadata).toEqual({ author: "rulesync" });
+    });
+
+    it("should accept a string-form compatibility (Agent Skills spec) on import", () => {
+      // dcode follows the Agent Skills spec, where `compatibility` is a free-form
+      // string. A hand-authored SKILL.md using that form must not be rejected.
+      const skill = new DeepagentsSkill({
+        outputRoot: testDir,
+        dirName: "string-compat-skill",
+        frontmatter: {
+          name: "String Compat Skill",
+          description: "Has string compatibility.",
+          compatibility: "deepagents>=0.1.0",
+        },
+        body: "Instructions.",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().deepagents?.compatibility).toBe("deepagents>=0.1.0");
+    });
+  });
+
+  describe("allowed-tools round-trip", () => {
+    it("should preserve the canonical array across emit and import", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync/skills",
+        dirName: "round-trip-skill",
+        frontmatter: {
+          name: "Round Trip Skill",
+          description: "Round-trips allowed-tools.",
+          targets: ["*"],
+          deepagents: { "allowed-tools": ["Bash", "Read", "Write"] },
+        },
+        body: "Instructions.",
+      });
+
+      const deepagentsSkill = DeepagentsSkill.fromRulesyncSkill({
+        outputRoot: testDir,
+        rulesyncSkill,
+      });
+
+      // dcode-specific serialization is a space-delimited string.
+      expect(deepagentsSkill.getFrontmatter()["allowed-tools"]).toBe("Bash Read Write");
+
+      // Importing back yields the canonical array representation again.
+      const roundTripped = deepagentsSkill.toRulesyncSkill();
+      expect(roundTripped.getFrontmatter().deepagents?.["allowed-tools"]).toEqual([
+        "Bash",
+        "Read",
+        "Write",
+      ]);
     });
   });
 

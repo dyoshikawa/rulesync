@@ -85,6 +85,11 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   deepagents: z.optional(
     z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
+      license: z.optional(z.string()),
+      // The Agent Skills spec defines `compatibility` as a free-form string
+      // (1–500 chars); an object form is also tolerated for back-compat.
+      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+      metadata: z.optional(z.looseObject({})),
     }),
   ),
   copilot: z.optional(
@@ -135,6 +140,11 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       paths: z.optional(z.union([z.string(), z.array(z.string())])),
       "disable-model-invocation": z.optional(z.boolean()),
       metadata: z.optional(z.looseObject({})),
+    }),
+  ),
+  factorydroid: z.optional(
+    z.looseObject({
+      "disable-model-invocation": z.optional(z.boolean()),
     }),
   ),
   agentsskills: z.optional(
@@ -218,6 +228,9 @@ export type RulesyncSkillFrontmatterInput = {
   };
   deepagents?: {
     "allowed-tools"?: string[];
+    license?: string;
+    compatibility?: string | Record<string, unknown>;
+    metadata?: Record<string, unknown>;
   };
   copilot?: {
     license?: string;
@@ -254,6 +267,9 @@ export type RulesyncSkillFrontmatterInput = {
     paths?: string | string[];
     "disable-model-invocation"?: boolean;
     metadata?: Record<string, unknown>;
+  };
+  factorydroid?: {
+    "disable-model-invocation"?: boolean;
   };
   agentsskills?: {
     license?: string;
