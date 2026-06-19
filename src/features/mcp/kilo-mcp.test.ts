@@ -378,6 +378,65 @@ describe("KiloMcp", () => {
       });
       expect((json as any).version).toBe("1.0.0");
     });
+
+    it("should import from the alternative .kilo/kilo.jsonc project location", async () => {
+      const kiloDir = join(testDir, ".kilo");
+      await ensureDir(kiloDir);
+      const jsonData = {
+        mcp: {
+          "scoped-server": {
+            type: "local",
+            command: ["node", "scoped.js"],
+            enabled: true,
+          },
+        },
+      };
+      await writeFileContent(join(kiloDir, "kilo.jsonc"), JSON.stringify(jsonData, null, 2));
+
+      const kiloMcp = await KiloMcp.fromFile({ outputRoot: testDir });
+
+      expect(kiloMcp.getJson().mcp).toEqual(jsonData.mcp);
+      expect(kiloMcp.getRelativeDirPath()).toBe(".kilo");
+      expect(kiloMcp.getFilePath()).toBe(join(testDir, ".kilo", "kilo.jsonc"));
+    });
+
+    it("should import from the alternative .kilo/kilo.json project location", async () => {
+      const kiloDir = join(testDir, ".kilo");
+      await ensureDir(kiloDir);
+      const jsonData = {
+        mcp: {
+          "scoped-json": {
+            type: "local",
+            command: ["node", "scoped.js"],
+            enabled: true,
+          },
+        },
+      };
+      await writeFileContent(join(kiloDir, "kilo.json"), JSON.stringify(jsonData, null, 2));
+
+      const kiloMcp = await KiloMcp.fromFile({ outputRoot: testDir });
+
+      expect(kiloMcp.getJson().mcp).toEqual(jsonData.mcp);
+      expect(kiloMcp.getFilePath()).toBe(join(testDir, ".kilo", "kilo.json"));
+    });
+
+    it("should prefer the root kilo.jsonc over the .kilo/ alternative location", async () => {
+      const kiloDir = join(testDir, ".kilo");
+      await ensureDir(kiloDir);
+      await writeFileContent(
+        join(testDir, "kilo.jsonc"),
+        JSON.stringify({ mcp: { root: { type: "local", command: ["root"], enabled: true } } }),
+      );
+      await writeFileContent(
+        join(kiloDir, "kilo.jsonc"),
+        JSON.stringify({ mcp: { nested: { type: "local", command: ["nested"], enabled: true } } }),
+      );
+
+      const kiloMcp = await KiloMcp.fromFile({ outputRoot: testDir });
+
+      expect(Object.keys(kiloMcp.getJson().mcp ?? {})).toEqual(["root"]);
+      expect(kiloMcp.getRelativeDirPath()).toBe(".");
+    });
   });
 
   describe("fromRulesyncMcp", () => {

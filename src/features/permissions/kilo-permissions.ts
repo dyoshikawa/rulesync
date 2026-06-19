@@ -3,7 +3,12 @@ import { join } from "node:path";
 import { type ParseError, parse as parseJsonc, printParseErrorCode } from "jsonc-parser";
 import { z } from "zod/mini";
 
-import { KILO_GLOBAL_DIR, KILO_JSONC_FILE_NAME } from "../../constants/kilo-paths.js";
+import {
+  KILO_DIR,
+  KILO_GLOBAL_DIR,
+  KILO_JSON_FILE_NAME,
+  KILO_JSONC_FILE_NAME,
+} from "../../constants/kilo-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import { type ValidationResult } from "../../types/ai-file.js";
 import type { PermissionsConfig } from "../../types/permissions.js";
@@ -119,21 +124,65 @@ export class KiloPermissions extends ToolPermissions {
     validate = true,
     global = false,
   }: ToolPermissionsFromFileParams): Promise<KiloPermissions> {
-    const basePaths = KiloPermissions.getSettablePaths({ global });
-    const filePath = join(outputRoot, basePaths.relativeDirPath, basePaths.relativeFilePath);
-
-    const fileContent = await readFileContentOrNull(filePath);
+    const { fileContent, filePath, relativeDirPath, relativeFilePath } =
+      await KiloPermissions.resolveImportConfig({ outputRoot, global });
 
     const parsed = parseKiloJsoncStrict(fileContent ?? "{}", filePath);
     const nextJson = { ...parsed, permission: parsed.permission ?? {} };
 
     return new KiloPermissions({
       outputRoot,
-      relativeDirPath: basePaths.relativeDirPath,
-      relativeFilePath: basePaths.relativeFilePath,
+      relativeDirPath,
+      relativeFilePath,
       fileContent: JSON.stringify(nextJson, null, 2),
       validate,
     });
+  }
+
+  /**
+   * Resolve the config file to import permissions from, probing in priority order:
+   *   1. project root `kilo.jsonc` / `kilo.json` (or the global `.config/kilo`
+   *      directory in global mode), then
+   *   2. the alternative project location `.kilo/kilo.jsonc` / `.kilo/kilo.json`.
+   *
+   * Kilo accepts project config at the root OR under `.kilo/`, so the import side
+   * probes both. The write side intentionally stays at the root location returned
+   * by `getSettablePaths`.
+   * https://kilo.ai/docs/automate/mcp/using-in-kilo-code
+   */
+  private static async resolveImportConfig({
+    outputRoot,
+    global,
+  }: {
+    outputRoot: string;
+    global: boolean;
+  }): Promise<{
+    fileContent: string | null;
+    filePath: string;
+    relativeDirPath: string;
+    relativeFilePath: string;
+  }> {
+    const rootDirPath = KiloPermissions.getSettablePaths({ global }).relativeDirPath;
+    // The alternative `.kilo/` project location only applies to project scope.
+    const candidateDirPaths = global ? [rootDirPath] : [rootDirPath, KILO_DIR];
+
+    for (const relativeDirPath of candidateDirPaths) {
+      for (const relativeFilePath of [KILO_JSONC_FILE_NAME, KILO_JSON_FILE_NAME]) {
+        const filePath = join(outputRoot, relativeDirPath, relativeFilePath);
+        const fileContent = await readFileContentOrNull(filePath);
+        if (fileContent !== null) {
+          return { fileContent, filePath, relativeDirPath, relativeFilePath };
+        }
+      }
+    }
+
+    // Nothing found: fall back to the root JSONC path for the (empty) result.
+    return {
+      fileContent: null,
+      filePath: join(outputRoot, rootDirPath, KILO_JSONC_FILE_NAME),
+      relativeDirPath: rootDirPath,
+      relativeFilePath: KILO_JSONC_FILE_NAME,
+    };
   }
 
   static async fromRulesyncPermissions({
