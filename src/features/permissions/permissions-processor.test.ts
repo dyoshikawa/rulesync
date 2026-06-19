@@ -110,6 +110,7 @@ describe("PermissionsProcessor", () => {
         "cursor",
         "factorydroid",
         "geminicli",
+        "goose",
         "kilo",
         "opencode",
         "qwencode",
