@@ -102,7 +102,6 @@ const stripTrailingSlash = (glob: string): string => glob.replace(/\/$/, "");
 // instead of silently matching a broader parent.
 const SUBTREE_COVERAGE_DIRS = ["**/.cursor", "**/.agents", "**/.goose", "**/.rovodev/.rulesync"];
 
-// A directory output must match a registry entry exactly, unless under a subtree root.
 const isCoveredDir = (dirGlob: string): boolean => {
   const normalized = stripTrailingSlash(dirGlob);
   if (SUBTREE_COVERAGE_DIRS.some((root) => normalized.startsWith(`${root}/`))) return true;
@@ -184,7 +183,8 @@ describe("getSettablePaths coverage", () => {
   }
 
   // `rules` has a composite shape ({ root, alternativeRoots, nonRoot }); roots are
-  // files, nonRoot is a directory.
+  // files, nonRoot is a directory. No supportsProject guard: rules are universally
+  // project-scoped, so getSettablePaths({ global: false }) never throws here.
   for (const [target, factory] of toolRuleFactories) {
     if (TARGETS_WITHOUT_GITIGNORE_ENTRIES.has(target)) continue;
     it(`covers rules output for ${target}`, () => {
@@ -269,6 +269,7 @@ describe("registry reverse coverage", () => {
     "**/.copilot/agents",
     "**/.copilot/hooks",
     "**/.codeium/windsurf/skills",
+    // supportsProject:false, so the project-scope collector skips it.
     "**/.deepagents/hooks.json",
     // Outputs not produced via getSettablePaths (single-file or local/legacy rules).
     "**/.roomodes",
@@ -287,7 +288,6 @@ describe("registry reverse coverage", () => {
       if (targets.includes("common")) continue;
       const normalized = stripTrailingSlash(tag.entry);
       if (REVERSE_COVERAGE_EXCEPTIONS.has(normalized)) continue;
-      // Real if some tool emits it exactly, or emits a file under it.
       const matched = [...emitted].some(
         (glob) => glob === normalized || glob.startsWith(`${normalized}/`),
       );
