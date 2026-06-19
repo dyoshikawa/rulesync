@@ -158,6 +158,48 @@ This is a test factorydroid skill content.`;
       const factorydroidSkill = FactorydroidSkill.fromRulesyncSkill({ rulesyncSkill });
       expect(factorydroidSkill.getFrontmatter()["disable-model-invocation"]).toBeUndefined();
     });
+
+    it("should let the factorydroid section override the root disable-model-invocation", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "section-override",
+        frontmatter: {
+          name: "Section Override",
+          description: "Section flag",
+          targets: ["factorydroid"],
+          "disable-model-invocation": false,
+          factorydroid: {
+            "disable-model-invocation": true,
+          },
+        },
+        body: "Body",
+      });
+
+      const factorydroidSkill = FactorydroidSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(factorydroidSkill.getFrontmatter()["disable-model-invocation"]).toBe(true);
+    });
+
+    it("should let a false factorydroid section override a true root value", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "section-false-override",
+        frontmatter: {
+          name: "Section False Override",
+          description: "Section flag",
+          targets: ["factorydroid"],
+          "disable-model-invocation": true,
+          factorydroid: {
+            "disable-model-invocation": false,
+          },
+        },
+        body: "Body",
+      });
+
+      const factorydroidSkill = FactorydroidSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(factorydroidSkill.getFrontmatter()["disable-model-invocation"]).toBe(false);
+    });
   });
 
   describe("toRulesyncSkill", () => {
@@ -183,6 +225,32 @@ This is a test factorydroid skill content.`;
         targets: ["*"],
       });
       expect(rulesyncSkill.getBody()).toBe("Test body");
+    });
+
+    it("should round-trip disable-model-invocation into the factorydroid section", () => {
+      const skill = new FactorydroidSkill({
+        outputRoot: testDir,
+        relativeDirPath: join(".factory", "skills"),
+        dirName: "dmi-skill",
+        frontmatter: {
+          name: "DMI Skill",
+          description: "DMI description",
+          "disable-model-invocation": true,
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+
+      expect(rulesyncSkill.getFrontmatter()).toEqual({
+        name: "DMI Skill",
+        description: "DMI description",
+        targets: ["*"],
+        factorydroid: {
+          "disable-model-invocation": true,
+        },
+      });
     });
   });
 

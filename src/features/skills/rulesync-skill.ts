@@ -137,6 +137,11 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       metadata: z.optional(z.looseObject({})),
     }),
   ),
+  factorydroid: z.optional(
+    z.looseObject({
+      "disable-model-invocation": z.optional(z.boolean()),
+    }),
+  ),
   agentsskills: z.optional(
     z.looseObject({
       license: z.optional(z.string()),
@@ -254,6 +259,9 @@ export type RulesyncSkillFrontmatterInput = {
     paths?: string | string[];
     "disable-model-invocation"?: boolean;
     metadata?: Record<string, unknown>;
+  };
+  factorydroid?: {
+    "disable-model-invocation"?: boolean;
   };
   agentsskills?: {
     license?: string;

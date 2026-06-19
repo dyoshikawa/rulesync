@@ -8,6 +8,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveDisableModelInvocation } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -151,9 +152,10 @@ export class CursorSkill extends ToolSkill {
     const settablePaths = CursorSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     const cursorSection = rulesyncFrontmatter.cursor;
-    const resolvedDisableModelInvocation =
-      cursorSection?.["disable-model-invocation"] ??
-      rulesyncFrontmatter["disable-model-invocation"];
+    const resolvedDisableModelInvocation = resolveDisableModelInvocation({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: cursorSection,
+    });
 
     const cursorFrontmatter: CursorSkillFrontmatter = {
       name: rulesyncFrontmatter.name,

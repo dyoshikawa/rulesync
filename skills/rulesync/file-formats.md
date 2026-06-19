@@ -478,6 +478,8 @@ cursor: # for Cursor-specific parameters (optional)
   disable-model-invocation: true # (optional) only include the skill when invoked via /skill-name
   metadata: # (optional) free-form metadata
     author: rulesync
+factorydroid: # for Factory Droid-specific parameters (optional)
+  disable-model-invocation: true # (optional) prevent the model from auto-invoking this skill
 takt: # takt specific parameters (optional; emitted under .takt/facets/knowledge/ — frontmatter is dropped on emit)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
   extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
