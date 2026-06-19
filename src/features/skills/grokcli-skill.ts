@@ -42,6 +42,12 @@ export type GrokcliSkillParams = {
  * `name`/`description` frontmatter (verified via `grok inspect`). The format is
  * Claude-compatible, so only `name` and `description` are required; any extra
  * frontmatter keys are preserved verbatim via the loose schema.
+ *
+ * Scope: rulesync emits to the single canonical `.grok/skills/` root only. Grok
+ * Build also reads skills from `~/.agents/skills/` (Agents.md compatibility) and
+ * any extra `[skills] paths` declared in `~/.grok/config.toml`; those secondary
+ * sources are intentionally out of scope, matching how rulesync emits one
+ * canonical skills root per tool.
  * @see https://docs.x.ai/build/features/skills-plugins-marketplaces
  */
 export class GrokcliSkill extends ToolSkill {
@@ -143,14 +149,13 @@ export class GrokcliSkill extends ToolSkill {
     validate = true,
     global = false,
   }: ToolSkillFromRulesyncSkillParams): GrokcliSkill {
+    const settablePaths = GrokcliSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
     const grokcliFrontmatter: GrokcliSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
     };
-
-    const settablePaths = GrokcliSkill.getSettablePaths({ global });
 
     return new GrokcliSkill({
       outputRoot,
