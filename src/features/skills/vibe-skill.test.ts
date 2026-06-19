@@ -114,6 +114,53 @@ describe("VibeSkill", () => {
     });
   });
 
+  it("should pick up root-level user-invocable when vibe section omits it", () => {
+    const rulesyncSkill = new RulesyncSkill({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+      dirName: "root-user-invocable",
+      frontmatter: {
+        name: "root-user-invocable",
+        description: "Root user-invocable",
+        targets: ["vibe"],
+        "user-invocable": false,
+      },
+      body: "Body",
+    });
+
+    const vibeSkill = VibeSkill.fromRulesyncSkill({
+      outputRoot: testDir,
+      rulesyncSkill,
+    });
+
+    expect(vibeSkill.getFrontmatter()["user-invocable"]).toBe(false);
+  });
+
+  it("should let the vibe section override the root-level user-invocable value", () => {
+    const rulesyncSkill = new RulesyncSkill({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+      dirName: "user-invocable-override",
+      frontmatter: {
+        name: "user-invocable-override",
+        description: "Vibe overrides user-invocable",
+        targets: ["vibe"],
+        "user-invocable": true,
+        vibe: {
+          "user-invocable": false,
+        },
+      },
+      body: "Body",
+    });
+
+    const vibeSkill = VibeSkill.fromRulesyncSkill({
+      outputRoot: testDir,
+      rulesyncSkill,
+    });
+
+    expect(vibeSkill.getFrontmatter()["user-invocable"]).toBe(false);
+  });
+
   it("should load from .agents/skills import fallback when requested by the processor", async () => {
     const skillDir = join(testDir, ".agents", "skills", "fallback");
     await ensureDir(skillDir);

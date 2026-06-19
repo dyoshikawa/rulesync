@@ -8,7 +8,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveDisableModelInvocation } from "./skills-utils.js";
+import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -131,6 +131,9 @@ export class FactorydroidSkill extends ToolSkill {
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
+      ...(frontmatter["user-invocable"] !== undefined && {
+        "user-invocable": frontmatter["user-invocable"],
+      }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -163,12 +166,19 @@ export class FactorydroidSkill extends ToolSkill {
       rootFrontmatter: rulesyncFrontmatter,
       section: rulesyncFrontmatter.factorydroid,
     });
+    const resolvedUserInvocable = resolveUserInvocable({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: rulesyncFrontmatter.factorydroid,
+    });
 
     const factorydroidFrontmatter: FactorydroidSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,
+      }),
+      ...(resolvedUserInvocable !== undefined && {
+        "user-invocable": resolvedUserInvocable,
       }),
     };
 

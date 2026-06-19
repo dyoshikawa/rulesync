@@ -8,7 +8,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveDisableModelInvocation } from "./skills-utils.js";
+import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -172,14 +172,18 @@ export class QwencodeSkill extends ToolSkill {
       rootFrontmatter: rulesyncFrontmatter,
       section: qwencodeSection,
     });
+    const resolvedUserInvocable = resolveUserInvocable({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: qwencodeSection,
+    });
 
     const qwencodeFrontmatter: QwencodeSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...(qwencodeSection?.priority !== undefined && { priority: qwencodeSection.priority }),
       ...(qwencodeSection?.paths !== undefined && { paths: qwencodeSection.paths }),
-      ...(qwencodeSection?.["user-invocable"] !== undefined && {
-        "user-invocable": qwencodeSection["user-invocable"],
+      ...(resolvedUserInvocable !== undefined && {
+        "user-invocable": resolvedUserInvocable,
       }),
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,

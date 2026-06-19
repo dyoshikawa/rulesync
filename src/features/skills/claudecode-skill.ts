@@ -11,7 +11,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveDisableModelInvocation } from "./skills-utils.js";
+import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -29,6 +29,7 @@ export const ClaudecodeSkillFrontmatterSchema = z.looseObject({
   "disallowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
   model: z.optional(z.string()),
   "disable-model-invocation": z.optional(z.boolean()),
+  "user-invocable": z.optional(z.boolean()),
   paths: z.optional(z.union([z.string(), z.array(z.string())])),
 });
 
@@ -133,6 +134,9 @@ export class ClaudecodeSkill extends ToolSkill {
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
+      ...(frontmatter["user-invocable"] !== undefined && {
+        "user-invocable": frontmatter["user-invocable"],
+      }),
       ...(this.relativeDirPath === CLAUDECODE_SCHEDULED_TASKS_DIR_PATH && {
         "scheduled-task": true,
       }),
@@ -169,6 +173,10 @@ export class ClaudecodeSkill extends ToolSkill {
       rootFrontmatter: rulesyncFrontmatter,
       section: rulesyncFrontmatter.claudecode,
     });
+    const resolvedUserInvocable = resolveUserInvocable({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: rulesyncFrontmatter.claudecode,
+    });
 
     const claudecodeFrontmatter: ClaudecodeSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
@@ -184,6 +192,9 @@ export class ClaudecodeSkill extends ToolSkill {
       }),
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,
+      }),
+      ...(resolvedUserInvocable !== undefined && {
+        "user-invocable": resolvedUserInvocable,
       }),
       ...(rulesyncFrontmatter.claudecode?.paths !== undefined && {
         paths: rulesyncFrontmatter.claudecode.paths,
