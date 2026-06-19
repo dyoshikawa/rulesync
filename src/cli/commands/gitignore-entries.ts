@@ -253,6 +253,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
 
   // Grok Build
   { target: "grokcli", feature: "general", entry: "**/.grok/config.toml" },
+  { target: "grokcli", feature: "skills", entry: "**/.grok/skills/" },
 
   // GitHub Copilot
   {
