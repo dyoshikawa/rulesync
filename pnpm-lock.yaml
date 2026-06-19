@@ -7,6 +7,9 @@ settings:
 overrides:
   gray-matter>js-yaml: 4.2.0
 
+patchedDependencies:
+  gray-matter@4.0.3: 0e2b238ee6601ee9b92d68bebc85640d09c5c5fb08f0d4d1b832a6084098ff73
+
 importers:
 
   .:
@@ -43,7 +46,7 @@ importers:
         version: 16.2.0
       gray-matter:
         specifier: 4.0.3
-        version: 4.0.3
+        version: 4.0.3(patch_hash=0e2b238ee6601ee9b92d68bebc85640d09c5c5fb08f0d4d1b832a6084098ff73)
       js-yaml:
         specifier: 4.2.0
         version: 4.2.0
@@ -6837,7 +6840,7 @@ snapshots:
 
   gpt-tokenizer@3.4.0: {}
 
-  gray-matter@4.0.3:
+  gray-matter@4.0.3(patch_hash=0e2b238ee6601ee9b92d68bebc85640d09c5c5fb08f0d4d1b832a6084098ff73):
     dependencies:
       js-yaml: 4.2.0
       kind-of: 6.0.3
