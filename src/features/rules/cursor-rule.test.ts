@@ -509,7 +509,7 @@ This is the rule content
         frontmatter: { description: 123 as unknown as string },
         body: "Body.",
         relativeDirPath: ".cursor/rules",
-        relativeFilePath: "nonstring.mdc",
+        relativeFilePath: "non-string.mdc",
         validate: false,
       });
 
