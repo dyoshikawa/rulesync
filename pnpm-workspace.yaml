@@ -4,3 +4,7 @@ allowBuilds:
   simple-git-hooks: false
   tldjs: false
 minimumReleaseAge: 1440 # 1 day
+overrides:
+  gray-matter>js-yaml: 4.2.0
+patchedDependencies:
+  gray-matter@4.0.3: patches/gray-matter@4.0.3.patch
