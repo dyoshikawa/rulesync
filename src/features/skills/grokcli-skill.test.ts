@@ -1,6 +1,12 @@
+import { join } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { SKILL_FILE_NAME } from "../../constants/general.js";
+import { GROKCLI_SKILLS_DIR_PATH } from "../../constants/grokcli-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { GrokcliSkill } from "./grokcli-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 
@@ -101,6 +107,68 @@ describe("GrokcliSkill", () => {
       const result = grokcliSkill.validate();
       expect(result.success).toBe(true);
       expect(result.error).toBeNull();
+    });
+  });
+
+  describe("global mode output", () => {
+    // Unit-level global coverage: with `global: true` the adapter targets the
+    // canonical `.grok/skills` root (relative to the supplied outputRoot) and
+    // round-trips a SKILL.md. The actual `~/` home-directory resolution happens
+    // in the SkillsProcessor and is covered by the e2e skills global-mode
+    // matrix; here outputRoot stands in for the resolved home directory.
+    let homeDir: string;
+    let homeCleanup: () => Promise<void>;
+
+    beforeEach(async () => {
+      ({ testDir: homeDir, cleanup: homeCleanup } = await setupTestDirectory({ home: true }));
+    });
+
+    afterEach(async () => {
+      await homeCleanup();
+    });
+
+    it("generates a global skill into <outputRoot>/.grok/skills/<name>/SKILL.md and reads it back", async () => {
+      // outputRoot stands in for the resolved home directory; the adapter writes
+      // `<outputRoot>/.grok/skills/<name>/SKILL.md` in global mode.
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "greet",
+        frontmatter: { name: "greet", description: "Greet the user", targets: ["*"] },
+        body: "Say hello.",
+      });
+
+      const grokcliSkill = GrokcliSkill.fromRulesyncSkill({
+        outputRoot: homeDir,
+        rulesyncSkill,
+        global: true,
+      });
+
+      // The skill targets the canonical `.grok/skills` root for both project and
+      // global modes; the global location differs only via outputRoot.
+      expect(grokcliSkill.getRelativeDirPath()).toBe(GROKCLI_SKILLS_DIR_PATH);
+      expect(grokcliSkill.getGlobal()).toBe(true);
+
+      // Write the generated SKILL.md to its resolved global location.
+      const skillDir = join(homeDir, GROKCLI_SKILLS_DIR_PATH, grokcliSkill.getDirName());
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        stringifyFrontmatter(grokcliSkill.getBody(), grokcliSkill.getFrontmatter()),
+      );
+
+      // Read it back from the pseudo-home directory in global mode.
+      const readBack = await GrokcliSkill.fromDir({
+        outputRoot: homeDir,
+        dirName: "greet",
+        global: true,
+      });
+
+      expect(readBack.getGlobal()).toBe(true);
+      expect(readBack.getRelativeDirPath()).toBe(GROKCLI_SKILLS_DIR_PATH);
+      expect(readBack.getDirName()).toBe("greet");
+      expect(readBack.getBody()).toBe("Say hello.");
+      const frontmatter = readBack.getFrontmatter();
+      expect(frontmatter.name).toBe("greet");
+      expect(frontmatter.description).toBe("Greet the user");
     });
   });
 });
