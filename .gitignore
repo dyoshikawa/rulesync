@@ -307,6 +307,7 @@ rulesync.local.jsonc
 **/.junie/mcp/mcp.json
 **/.junie/skills/
 **/.junie/agents/
+**/.aiignore
 **/.kilo/rules/
 **/.kilo/skills/
 **/.kilo/commands/
@@ -319,7 +320,7 @@ rulesync.local.jsonc
 **/.kiro/skills/
 **/.kiro/agents/
 **/.kiro/settings/mcp.json
-**/.aiignore
+**/.kiroignore
 !.rulesync/.aiignore
 **/.opencode/commands/
 **/.opencode/agents/
@@ -330,11 +331,11 @@ rulesync.local.jsonc
 **/.pi/prompts/
 **/.pi/skills/
 **/QWEN.md
+**/.qwen/rules/
 **/.qwen/commands/
 **/.qwen/agents/
 **/.qwen/skills/
 **/.qwenignore
-**/.qwen/memories/
 **/.qwen/settings.json
 **/replit.md
 **/.roo/rules/

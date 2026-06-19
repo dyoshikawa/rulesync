@@ -556,7 +556,11 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       meta: {
         extension: "md",
         supportsGlobal: true,
-        ruleDiscoveryMode: "toon",
+        // Qwen Code natively auto-discovers Markdown rule files under
+        // `.qwen/rules/` (project) and `~/.qwen/rules/` (global) and injects
+        // them by path, so the root `QWEN.md` must not carry a reference block
+        // to the non-root rules (mirrors how cursor/antigravity are wired).
+        ruleDiscoveryMode: "auto",
         // Qwen Code subagents are native (Markdown + YAML frontmatter under
         // `.qwen/agents/`), so this mirrors how geminicli is wired.
         additionalConventions: {
