@@ -130,10 +130,5 @@
   },
   "publishConfig": {
     "access": "public"
-  },
-  "pnpm": {
-    "overrides": {
-      "gray-matter>js-yaml": "4.2.0"
-    }
   }
 }
