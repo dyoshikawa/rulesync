@@ -8,24 +8,6 @@ import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { GrokcliRule } from "./grokcli-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
-// The pseudo-home directory pattern (see .claude/rules/testing-guidelines.md):
-// in global mode the RulesProcessor resolves the user-level `~/.grok/AGENTS.md`
-// path through `getHomeDirectory()`, so the mock points it at a temporary
-// pseudo-home directory created by `setupTestDirectory({ home: true })`.
-const { getHomeDirectoryMock } = vi.hoisted(() => {
-  return {
-    getHomeDirectoryMock: vi.fn(),
-  };
-});
-
-vi.mock("../../utils/file.js", async () => {
-  const actual = await vi.importActual<typeof import("../../utils/file.js")>("../../utils/file.js");
-  return {
-    ...actual,
-    getHomeDirectory: getHomeDirectoryMock,
-  };
-});
-
 describe("GrokcliRule", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -262,23 +244,26 @@ describe("GrokcliRule", () => {
   });
 
   describe("global mode round-trip", () => {
+    // Unit-level global coverage: with `global: true` the adapter maps the root
+    // rule to `.grok/AGENTS.md` (relative to the supplied outputRoot) and reads
+    // it back. The actual `~/` home-directory resolution happens in the
+    // RulesProcessor and is covered by the e2e rules global-mode matrix; here we
+    // point outputRoot at a temp dir and assert the global path mapping plus a
+    // full generate-and-read-back round-trip.
     let homeDir: string;
     let homeCleanup: () => Promise<void>;
 
     beforeEach(async () => {
       ({ testDir: homeDir, cleanup: homeCleanup } = await setupTestDirectory({ home: true }));
-      getHomeDirectoryMock.mockReturnValue(homeDir);
     });
 
     afterEach(async () => {
       await homeCleanup();
-      getHomeDirectoryMock.mockClear();
     });
 
-    it("should generate ~/.grok/AGENTS.md in global mode and read it back", async () => {
-      // Generate a grokcli rule in global mode. The pseudo-home directory acts
-      // as the outputRoot, mirroring how the RulesProcessor resolves the
-      // user-level `~/.grok/AGENTS.md` path in global mode.
+    it("should generate the global .grok/AGENTS.md root rule and read it back", async () => {
+      // outputRoot stands in for the resolved home directory; the adapter writes
+      // `<outputRoot>/.grok/AGENTS.md` in global mode.
       const rulesyncRule = new RulesyncRule({
         outputRoot: homeDir,
         relativeDirPath: ".rulesync/rules",

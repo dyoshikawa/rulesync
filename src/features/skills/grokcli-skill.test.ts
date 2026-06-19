@@ -10,24 +10,6 @@ import { stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { GrokcliSkill } from "./grokcli-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 
-// The pseudo-home directory pattern (see .claude/rules/testing-guidelines.md):
-// in global mode the RulesProcessor resolves the user-level `~/.grok/skills/`
-// root through `getHomeDirectory()`, so the mock points it at a temporary
-// pseudo-home directory created by `setupTestDirectory({ home: true })`.
-const { getHomeDirectoryMock } = vi.hoisted(() => {
-  return {
-    getHomeDirectoryMock: vi.fn(),
-  };
-});
-
-vi.mock("../../utils/file.js", async () => {
-  const actual = await vi.importActual<typeof import("../../utils/file.js")>("../../utils/file.js");
-  return {
-    ...actual,
-    getHomeDirectory: getHomeDirectoryMock,
-  };
-});
-
 describe("GrokcliSkill", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -129,23 +111,25 @@ describe("GrokcliSkill", () => {
   });
 
   describe("global mode output", () => {
+    // Unit-level global coverage: with `global: true` the adapter targets the
+    // canonical `.grok/skills` root (relative to the supplied outputRoot) and
+    // round-trips a SKILL.md. The actual `~/` home-directory resolution happens
+    // in the SkillsProcessor and is covered by the e2e skills global-mode
+    // matrix; here outputRoot stands in for the resolved home directory.
     let homeDir: string;
     let homeCleanup: () => Promise<void>;
 
     beforeEach(async () => {
       ({ testDir: homeDir, cleanup: homeCleanup } = await setupTestDirectory({ home: true }));
-      getHomeDirectoryMock.mockReturnValue(homeDir);
     });
 
     afterEach(async () => {
       await homeCleanup();
-      getHomeDirectoryMock.mockClear();
     });
 
-    it("generates a global skill into ~/.grok/skills/<name>/SKILL.md and reads it back", async () => {
-      // Generate a grokcli skill in global mode. The pseudo-home directory acts
-      // as the outputRoot, mirroring how the RulesProcessor resolves the
-      // user-level `~/.grok/skills/` root in global mode.
+    it("generates a global skill into <outputRoot>/.grok/skills/<name>/SKILL.md and reads it back", async () => {
+      // outputRoot stands in for the resolved home directory; the adapter writes
+      // `<outputRoot>/.grok/skills/<name>/SKILL.md` in global mode.
       const rulesyncSkill = new RulesyncSkill({
         dirName: "greet",
         frontmatter: { name: "greet", description: "Greet the user", targets: ["*"] },
