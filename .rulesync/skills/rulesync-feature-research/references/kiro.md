@@ -2,17 +2,17 @@
 
 ## Official Docs
 
-| Feature       | Official docs                                         | Upstream surface                                                              |
-| ------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------- |
-| index         | `https://kiro.dev/docs/`                              | Kiro IDE documentation index                                                  |
-| `rules`       | `https://kiro.dev/docs/steering/`                     | `.kiro/steering`, global `~/.kiro/steering`, AGENTS.md steering directives    |
-| `ignore`      | No dedicated upstream ignore surface in map           | Rulesync maps `.kiroignore`; verify upstream before extending ignore behavior |
-| `mcp`         | `https://kiro.dev/docs/mcp/`                          | MCP server configuration and prompt/resource mentions                         |
-| `commands`    | `https://kiro.dev/docs/chat/slash-commands/`          | Slash commands for hooks, steering files, and skill commands                  |
-| `subagents`   | `https://kiro.dev/docs/cli/reference/slash-commands/` | `/agent` command, `.kiro/agents`, `~/.kiro/agents`                            |
-| `skills`      | `https://kiro.dev/docs/skills/`                       | `.kiro/skills`, `~/.kiro/skills`, Agent Skills standard                       |
-| `hooks`       | `https://kiro.dev/docs/hooks/`                        | Agent hooks for IDE events and manual triggers                                |
-| `permissions` | `https://kiro.dev/docs/cli/reference/slash-commands/` | `/tools` permissions and trusted tools                                        |
+| Feature       | Official docs                                         | Upstream surface                                                               |
+| ------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------ |
+| index         | `https://kiro.dev/docs/`                              | Kiro IDE documentation index                                                   |
+| `rules`       | `https://kiro.dev/docs/steering/`                     | `.kiro/steering`, global `~/.kiro/steering`, AGENTS.md steering directives     |
+| `ignore`      | `https://kiro.dev/docs/editor/kiroignore/`            | `.kiroignore` (project), global `~/.kiro/settings/kiroignore` (not yet mapped) |
+| `mcp`         | `https://kiro.dev/docs/mcp/`                          | MCP server configuration and prompt/resource mentions                          |
+| `commands`    | `https://kiro.dev/docs/chat/slash-commands/`          | Slash commands for hooks, steering files, and skill commands                   |
+| `subagents`   | `https://kiro.dev/docs/cli/reference/slash-commands/` | `/agent` command, `.kiro/agents`, `~/.kiro/agents`                             |
+| `skills`      | `https://kiro.dev/docs/skills/`                       | `.kiro/skills`, `~/.kiro/skills`, Agent Skills standard                        |
+| `hooks`       | `https://kiro.dev/docs/hooks/`                        | Agent hooks for IDE events and manual triggers                                 |
+| `permissions` | `https://kiro.dev/docs/cli/reference/slash-commands/` | `/tools` permissions and trusted tools                                         |
 
 ## Client Anchors
 
