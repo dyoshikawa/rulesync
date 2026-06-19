@@ -394,6 +394,7 @@ describe("E2E: rules (global mode)", () => {
     { target: "goose", outputPath: join(".config", "goose", ".goosehints") },
     { target: "copilotcli", outputPath: join(".copilot", "copilot-instructions.md") },
     { target: "deepagents", outputPath: join(".deepagents", "deepagents", "AGENTS.md") },
+    { target: "grokcli", outputPath: join(".grok", "AGENTS.md") },
     { target: "factorydroid", outputPath: join(".factory", "AGENTS.md") },
     { target: "kilo", outputPath: join(".config", "kilo", "AGENTS.md") },
     { target: "rovodev", outputPath: join(".rovodev", "AGENTS.md") },
