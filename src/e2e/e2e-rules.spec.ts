@@ -109,6 +109,52 @@ This is a test rule for E2E testing.
     expect(generatedContent).toContain("Test Rule");
   });
 
+  it("should generate qwencode non-root rules into .qwen/rules with paths frontmatter", async () => {
+    const testDir = getTestDir();
+
+    // Root rule -> QWEN.md, non-root rule with globs -> .qwen/rules/*.md with `paths`.
+    const rootRuleContent = `---
+root: true
+targets: ["*"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Root Rule
+`;
+    const nonRootRuleContent = `---
+targets: ["*"]
+description: "Coding guidelines"
+globs: ["src/**/*.ts"]
+---
+
+# Non-Root Rule
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      rootRuleContent,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "coding-guidelines.md"),
+      nonRootRuleContent,
+    );
+
+    await runGenerate({ target: "qwencode", features: "rules" });
+
+    // Root memory file is unchanged.
+    const rootContent = await readFileContent(join(testDir, "QWEN.md"));
+    expect(rootContent).toContain("Root Rule");
+
+    // Non-root rule lands in .qwen/rules/ with `paths` and `description`.
+    const nonRootContent = await readFileContent(
+      join(testDir, ".qwen", "rules", "coding-guidelines.md"),
+    );
+    expect(nonRootContent).toContain("Non-Root Rule");
+    expect(nonRootContent).toContain("paths:");
+    expect(nonRootContent).toContain("src/**/*.ts");
+    expect(nonRootContent).toContain("description: Coding guidelines");
+  });
+
   it("should fail in check mode when delete would remove an orphan rule file", async () => {
     const testDir = getTestDir();
 
@@ -357,6 +403,7 @@ describe("E2E: rules (global mode)", () => {
       outputPath: join(".codeium", "windsurf", "memories", "global_rules.md"),
     },
     { target: "junie", outputPath: join(".junie", "AGENTS.md") },
+    { target: "qwencode", outputPath: join(".qwen", "QWEN.md") },
   ])("should generate $target rules in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
@@ -434,5 +481,54 @@ globs: ["src/**/*"]
     const generatedContent = await readFileContent(join(homeDir, ".claude", "CLAUDE.md"));
     expect(generatedContent).toContain("Root Rule Content");
     expect(generatedContent).not.toContain("Non-Root Rule Content");
+  });
+
+  it("should generate qwencode non-root rules into ~/.qwen/rules in global mode", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    const rootRuleContent = `---
+root: true
+targets: ["*"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Root Rule Content
+`;
+    const nonRootRuleContent = `---
+targets: ["*"]
+description: "Global coding guidelines"
+globs: ["src/**/*.ts"]
+---
+
+# Global Non-Root Rule
+`;
+    await writeFileContent(
+      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      rootRuleContent,
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "coding-guidelines.md"),
+      nonRootRuleContent,
+    );
+
+    await runGenerate({
+      target: "qwencode",
+      features: "rules",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // Root memory file -> ~/.qwen/QWEN.md
+    const rootContent = await readFileContent(join(homeDir, ".qwen", "QWEN.md"));
+    expect(rootContent).toContain("Root Rule Content");
+
+    // Non-root rule -> ~/.qwen/rules/*.md with `paths` frontmatter
+    const nonRootContent = await readFileContent(
+      join(homeDir, ".qwen", "rules", "coding-guidelines.md"),
+    );
+    expect(nonRootContent).toContain("Global Non-Root Rule");
+    expect(nonRootContent).toContain("src/**/*.ts");
   });
 });
