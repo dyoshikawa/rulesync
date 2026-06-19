@@ -164,6 +164,10 @@ export class ClaudecodeSkill extends ToolSkill {
   }: ToolSkillFromRulesyncSkillParams): ClaudecodeSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
+    const resolvedDisableModelInvocation =
+      rulesyncFrontmatter.claudecode?.["disable-model-invocation"] ??
+      rulesyncFrontmatter["disable-model-invocation"];
+
     const claudecodeFrontmatter: ClaudecodeSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
@@ -176,8 +180,8 @@ export class ClaudecodeSkill extends ToolSkill {
       ...(rulesyncFrontmatter.claudecode?.model && {
         model: rulesyncFrontmatter.claudecode.model,
       }),
-      ...(rulesyncFrontmatter.claudecode?.["disable-model-invocation"] !== undefined && {
-        "disable-model-invocation": rulesyncFrontmatter.claudecode["disable-model-invocation"],
+      ...(resolvedDisableModelInvocation !== undefined && {
+        "disable-model-invocation": resolvedDisableModelInvocation,
       }),
       ...(rulesyncFrontmatter.claudecode?.paths !== undefined && {
         paths: rulesyncFrontmatter.claudecode.paths,

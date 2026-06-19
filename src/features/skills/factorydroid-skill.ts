@@ -152,10 +152,14 @@ export class FactorydroidSkill extends ToolSkill {
   }: ToolSkillFromRulesyncSkillParams): FactorydroidSkill {
     const settablePaths = FactorydroidSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+    const resolvedDisableModelInvocation = rulesyncFrontmatter["disable-model-invocation"];
 
     const factorydroidFrontmatter: FactorydroidSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...(resolvedDisableModelInvocation !== undefined && {
+        "disable-model-invocation": resolvedDisableModelInvocation,
+      }),
     };
 
     return new FactorydroidSkill({

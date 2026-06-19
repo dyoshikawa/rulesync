@@ -145,11 +145,17 @@ export class ZedSkill extends ToolSkill {
   }: ToolSkillFromRulesyncSkillParams): ZedSkill {
     const settablePaths = ZedSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+    const zedSection = rulesyncFrontmatter.zed;
+    const resolvedDisableModelInvocation =
+      zedSection?.["disable-model-invocation"] ?? rulesyncFrontmatter["disable-model-invocation"];
 
     const zedFrontmatter: ZedSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...rulesyncFrontmatter.zed,
+      ...zedSection,
+      ...(resolvedDisableModelInvocation !== undefined && {
+        "disable-model-invocation": resolvedDisableModelInvocation,
+      }),
     };
 
     return new ZedSkill({

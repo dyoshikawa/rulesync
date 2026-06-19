@@ -168,11 +168,17 @@ export class PiSkill extends ToolSkill {
   }: ToolSkillFromRulesyncSkillParams): PiSkill {
     const settablePaths = PiSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+    const piSection = rulesyncFrontmatter.pi;
+    const resolvedDisableModelInvocation =
+      piSection?.["disable-model-invocation"] ?? rulesyncFrontmatter["disable-model-invocation"];
 
     const piFrontmatter: PiSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...rulesyncFrontmatter.pi,
+      ...piSection,
+      ...(resolvedDisableModelInvocation !== undefined && {
+        "disable-model-invocation": resolvedDisableModelInvocation,
+      }),
     };
 
     return new PiSkill({

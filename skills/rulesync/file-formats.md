@@ -379,6 +379,10 @@ name: example-skill # skill name
 description: >- # skill description
   A sample skill that demonstrates the skill format
 targets: ["*"] # * = all, or specific tools
+# (optional) shared default for tools that support the flag — claudecode, cursor,
+# zed, pi, qwencode, and factorydroid. Any of those tool sections can override it
+# by setting their own `disable-model-invocation` value below.
+disable-model-invocation: true
 claudecode: # for claudecode-specific parameters
   model: sonnet # opus, sonnet, haiku, or any string
   allowed-tools:

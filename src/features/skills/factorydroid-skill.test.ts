@@ -123,6 +123,41 @@ This is a test factorydroid skill content.`;
       expect(factorydroidSkill.getGlobal()).toBe(true);
       expect(factorydroidSkill.getRelativeDirPath()).toBe(join(".factory", "skills"));
     });
+
+    it("should pick up root-level disable-model-invocation", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "root-default",
+        frontmatter: {
+          name: "Root Default",
+          description: "Root flag",
+          targets: ["factorydroid"],
+          "disable-model-invocation": true,
+        },
+        body: "Body",
+      });
+
+      const factorydroidSkill = FactorydroidSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(factorydroidSkill.getFrontmatter()["disable-model-invocation"]).toBe(true);
+    });
+
+    it("should omit disable-model-invocation when the root value is not set", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "no-flag",
+        frontmatter: {
+          name: "No Flag",
+          description: "No flag",
+          targets: ["factorydroid"],
+        },
+        body: "Body",
+      });
+
+      const factorydroidSkill = FactorydroidSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(factorydroidSkill.getFrontmatter()["disable-model-invocation"]).toBeUndefined();
+    });
   });
 
   describe("toRulesyncSkill", () => {

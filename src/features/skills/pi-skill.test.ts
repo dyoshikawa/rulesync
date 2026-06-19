@@ -263,6 +263,57 @@ Body`,
         metadata: { author: "rulesync" },
       });
     });
+
+    it("should pick up root-level disable-model-invocation when pi section omits it", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "root-default",
+        frontmatter: {
+          name: "root-default",
+          description: "Root flag",
+          "disable-model-invocation": true,
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const skill = PiSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill });
+      expect(skill.getFrontmatter()["disable-model-invocation"]).toBe(true);
+    });
+
+    it("should let pi disable-model-invocation override the root-level value", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "override",
+        frontmatter: {
+          name: "override",
+          description: "Pi opts out of root default",
+          "disable-model-invocation": true,
+          pi: { "disable-model-invocation": false },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const skill = PiSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill });
+      expect(skill.getFrontmatter()["disable-model-invocation"]).toBe(false);
+    });
+
+    it("should omit disable-model-invocation when neither root nor pi set it", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "no-flag",
+        frontmatter: { name: "no-flag", description: "No flag" },
+        body: "Body",
+        validate: true,
+      });
+
+      const skill = PiSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill });
+      expect(skill.getFrontmatter()["disable-model-invocation"]).toBeUndefined();
+    });
   });
 
   describe("toRulesyncSkill", () => {

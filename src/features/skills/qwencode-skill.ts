@@ -167,6 +167,9 @@ export class QwencodeSkill extends ToolSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     const qwencodeSection = (rulesyncFrontmatter as { qwencode?: QwencodeRulesyncSection })
       .qwencode;
+    const resolvedDisableModelInvocation =
+      qwencodeSection?.["disable-model-invocation"] ??
+      rulesyncFrontmatter["disable-model-invocation"];
 
     const qwencodeFrontmatter: QwencodeSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
@@ -176,8 +179,8 @@ export class QwencodeSkill extends ToolSkill {
       ...(qwencodeSection?.["user-invocable"] !== undefined && {
         "user-invocable": qwencodeSection["user-invocable"],
       }),
-      ...(qwencodeSection?.["disable-model-invocation"] !== undefined && {
-        "disable-model-invocation": qwencodeSection["disable-model-invocation"],
+      ...(resolvedDisableModelInvocation !== undefined && {
+        "disable-model-invocation": resolvedDisableModelInvocation,
       }),
     };
 
