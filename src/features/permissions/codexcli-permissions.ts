@@ -33,8 +33,8 @@ const WORKSPACE_WIDE_WRITE_PATTERNS = new Set([".", "./", "**", "./**"]);
 // openai/codex#13434), providing platform/runtime read access for basic sandboxed command execution.
 const CODEX_MINIMAL_KEY = ":minimal";
 // Special filesystem paths whose values are Codex-native baselines rather than user-managed
-// access rules. Rulesync emits `:minimal` as a fixed baseline and pass-throughs all others
-// from existing config verbatim, but never attempts to import them into rulesync's own model.
+// access rules. Rulesync emits `:minimal` as a fixed baseline and passes all others
+// from existing config through verbatim, never importing them into rulesync's own model.
 // Keys mirror parse_special_path in codex-rs/config/src/permissions_toml.rs.
 const CODEX_FILESYSTEM_BASELINE_KEYS = new Set([
   CODEX_MINIMAL_KEY,
