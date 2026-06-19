@@ -1717,6 +1717,80 @@ targets: ["opencode", "agentsmd"]
       expect(finalContent).toContain("# Reversed Order Content");
       expect(agentsMdToolFiles[0]).toBeInstanceOf(AgentsMdRule);
     });
+
+    it("should ignore shared root AGENTS.md in check mode while checking codexcli non-root rules", async () => {
+      await ensureDir(join(testDir, ".rulesync", "rules"));
+      await writeFileContent(
+        join(testDir, ".rulesync", "rules", "codex-root.md"),
+        `---
+root: true
+targets: ["codexcli"]
+---
+# Codex Root`,
+      );
+      await writeFileContent(
+        join(testDir, ".rulesync", "rules", "opencode-root.md"),
+        `---
+root: true
+targets: ["opencode"]
+---
+# OpenCode Root`,
+      );
+      await writeFileContent(
+        join(testDir, ".rulesync", "rules", "codex-memory.md"),
+        `---
+targets: ["codexcli"]
+---
+# Codex Memory`,
+      );
+
+      const codexProcessor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "codexcli",
+      });
+      const codexRulesyncFiles = await codexProcessor.loadRulesyncFiles();
+      const codexToolFiles =
+        await codexProcessor.convertRulesyncFilesToToolFiles(codexRulesyncFiles);
+      await codexProcessor.writeAiFiles(codexToolFiles);
+
+      const openCodeProcessor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "opencode",
+      });
+      const openCodeRulesyncFiles = await openCodeProcessor.loadRulesyncFiles();
+      const openCodeToolFiles =
+        await openCodeProcessor.convertRulesyncFilesToToolFiles(openCodeRulesyncFiles);
+      await openCodeProcessor.writeAiFiles(openCodeToolFiles);
+
+      expect(await readFileContent(join(testDir, "AGENTS.md"))).toContain("# OpenCode Root");
+      expect(await readFileContent(join(testDir, ".codex", "memories", "codex-memory.md"))).toBe(
+        "# Codex Memory\n",
+      );
+
+      const codexCheckProcessor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "codexcli",
+        dryRun: true,
+        check: true,
+      });
+      const codexCheckRulesyncFiles = await codexCheckProcessor.loadRulesyncFiles();
+      const codexCheckToolFiles =
+        await codexCheckProcessor.convertRulesyncFilesToToolFiles(codexCheckRulesyncFiles);
+
+      await expect(codexCheckProcessor.writeAiFiles(codexCheckToolFiles)).resolves.toEqual({
+        count: 0,
+        paths: [],
+      });
+      await expect(
+        codexCheckProcessor.removeOrphanAiFiles(
+          await codexCheckProcessor.loadToolFiles({ forDeletion: true }),
+          codexCheckToolFiles,
+        ),
+      ).resolves.toBe(0);
+    });
   });
 
   describe("loadRulesyncFiles warning for missing root rule", () => {

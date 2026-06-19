@@ -10,6 +10,7 @@ import {
   RULESYNC_RULES_RELATIVE_DIR_PATH,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import type { AiFile } from "../../types/ai-file.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import type { FeatureOptions } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
@@ -18,6 +19,7 @@ import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { checkPathTraversal, findFilesByGlobs, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import type { WriteResult } from "../../utils/result.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
 import { KiloMcp } from "../mcp/kilo-mcp.js";
@@ -722,6 +724,7 @@ export class RulesProcessor extends FeatureProcessor {
   private readonly getFactory: GetFactory;
   private readonly skills?: RulesyncSkill[];
   private readonly featureOptions?: FeatureOptions;
+  private readonly check: boolean;
 
   constructor({
     outputRoot = process.cwd(),
@@ -735,6 +738,7 @@ export class RulesProcessor extends FeatureProcessor {
     skills,
     featureOptions,
     dryRun = false,
+    check = false,
     logger,
   }: {
     outputRoot?: string;
@@ -748,6 +752,7 @@ export class RulesProcessor extends FeatureProcessor {
     skills?: RulesyncSkill[];
     featureOptions?: FeatureOptions;
     dryRun?: boolean;
+    check?: boolean;
     logger: Logger;
   }) {
     super({ outputRoot, inputRoot, dryRun, logger });
@@ -765,6 +770,47 @@ export class RulesProcessor extends FeatureProcessor {
     this.getFactory = getFactory;
     this.skills = skills;
     this.featureOptions = featureOptions;
+    this.check = check;
+  }
+
+  private shouldSkipSharedProjectRootRuleInCheck(
+    aiFile: AiFile,
+    generatedFiles: AiFile[],
+  ): boolean {
+    if (!this.check || this.global || !(aiFile instanceof ToolRule) || !aiFile.isRoot()) {
+      return false;
+    }
+
+    const settablePaths = this.getFactory(this.toolTarget).class.getSettablePaths({
+      global: this.global,
+    });
+    const hasModularRuleOutput =
+      "nonRoot" in settablePaths &&
+      settablePaths.nonRoot !== null &&
+      generatedFiles.some((file) => file instanceof ToolRule && !file.isRoot());
+
+    return (
+      hasModularRuleOutput &&
+      aiFile.getRelativeDirPath() === "." &&
+      aiFile.getRelativeFilePath() === "AGENTS.md"
+    );
+  }
+
+  async writeAiFiles(aiFiles: AiFile[]): Promise<WriteResult> {
+    const filesToCheck = aiFiles.filter(
+      (aiFile) => !this.shouldSkipSharedProjectRootRuleInCheck(aiFile, aiFiles),
+    );
+    return super.writeAiFiles(filesToCheck);
+  }
+
+  async removeOrphanAiFiles(existingFiles: AiFile[], generatedFiles: AiFile[]): Promise<number> {
+    const existingFilesToCheck = existingFiles.filter(
+      (aiFile) => !this.shouldSkipSharedProjectRootRuleInCheck(aiFile, generatedFiles),
+    );
+    const generatedFilesToCheck = generatedFiles.filter(
+      (aiFile) => !this.shouldSkipSharedProjectRootRuleInCheck(aiFile, generatedFiles),
+    );
+    return super.removeOrphanAiFiles(existingFilesToCheck, generatedFilesToCheck);
   }
 
   async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {

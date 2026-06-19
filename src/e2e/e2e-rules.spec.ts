@@ -166,6 +166,69 @@ This is a test rule for E2E testing.
     expect(stdout).not.toContain("All files are up to date (rules)");
   });
 
+  it("should check codexcli non-root rules when another target owns project AGENTS.md", async () => {
+    const testDir = getTestDir();
+
+    const codexRootRuleContent = `---
+root: true
+targets: ["codexcli"]
+description: "Codex root rule"
+globs: ["**/*"]
+---
+
+# Codex Root Rule
+`;
+    const opencodeRootRuleContent = `---
+root: true
+targets: ["opencode"]
+description: "OpenCode root rule"
+globs: ["**/*"]
+---
+
+# OpenCode Root Rule
+`;
+    const codexMemoryRuleContent = `---
+targets: ["codexcli"]
+description: "Codex memory"
+globs: ["src/**/*"]
+---
+
+# Codex Memory Rule
+`;
+
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "codex-root.md"),
+      codexRootRuleContent,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "opencode-root.md"),
+      opencodeRootRuleContent,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "codex-memory.md"),
+      codexMemoryRuleContent,
+    );
+
+    await runGenerate({ target: "codexcli,opencode", features: "rules", deleteFiles: true });
+
+    expect(await readFileContent(join(testDir, "AGENTS.md"))).toContain("OpenCode Root Rule");
+    expect(await readFileContent(join(testDir, ".codex", "memories", "codex-memory.md"))).toContain(
+      "Codex Memory Rule",
+    );
+
+    const { stdout, stderr } = await runGenerate({
+      target: "codexcli",
+      features: "rules",
+      deleteFiles: true,
+      check: true,
+      env: { NODE_ENV: "e2e" },
+    });
+
+    expect(stderr).toBe("");
+    expect(stdout).toContain("All files are up to date.");
+    expect(stdout).not.toContain("Would write: AGENTS.md");
+  });
+
   it("should write BOTH instructions (rules) and mcp into a single kilo.jsonc when generating rules+mcp together", async () => {
     const testDir = getTestDir();
 

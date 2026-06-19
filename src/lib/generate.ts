@@ -269,6 +269,7 @@ async function generateRulesCore(params: {
         skills: skills,
         featureOptions: config.getFeatureOptions(toolTarget, "rules"),
         dryRun: config.isPreviewMode(),
+        check: config.getCheck(),
         logger,
       });
 
