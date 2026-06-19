@@ -22,6 +22,7 @@ import { DevinSubagent } from "./devin-subagent.js";
 import { FactorydroidSubagent } from "./factorydroid-subagent.js";
 import { GeminiCliSubagent } from "./geminicli-subagent.js";
 import { GooseSubagent } from "./goose-subagent.js";
+import { GrokcliSubagent } from "./grokcli-subagent.js";
 import { JunieSubagent } from "./junie-subagent.js";
 import { KiloSubagent } from "./kilo-subagent.js";
 import { KiroCliSubagent } from "./kiro-cli-subagent.js";
@@ -96,6 +97,7 @@ const subagentsProcessorToolTargetTuple = [
   "factorydroid",
   "geminicli",
   "goose",
+  "grokcli",
   "junie",
   "kiro",
   "kiro-cli",
@@ -246,6 +248,13 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     {
       class: GooseSubagent,
       meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.yaml" },
+    },
+  ],
+  [
+    "grokcli",
+    {
+      class: GrokcliSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
     },
   ],
   [

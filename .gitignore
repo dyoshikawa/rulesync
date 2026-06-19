@@ -292,6 +292,7 @@ rulesync.local.jsonc
 **/.agents/plugins/
 **/.grok/config.toml
 **/.grok/skills/
+**/.grok/agents/
 **/.github/copilot-instructions.md
 **/.github/instructions/
 **/.github/prompts/
