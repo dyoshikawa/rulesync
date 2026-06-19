@@ -79,7 +79,7 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.roo/rules/");
       expect(content).toContain("**/.kilo/skills/");
       expect(content).toContain("**/.kilo/rules/");
-      expect(content).toContain("**/.kilo/workflows/");
+      expect(content).toContain("**/.kilo/commands/");
       expect(content).toContain("**/.roo/skills/");
       expect(content).toContain("**/.aiignore");
       expect(content).toContain("**/.mcp.json");
