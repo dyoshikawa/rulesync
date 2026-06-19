@@ -250,6 +250,8 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   // Goose reads MCP "extensions" only from the global user config
   // (`~/.config/goose/config.yaml`), which lives under the home directory and is
   // not gitignored at the project level (mirrors Cline's global-only MCP).
+  // Goose tool permissions are likewise global-only
+  // (`~/.config/goose/permission.yaml`), so there is no project-level entry.
 
   // Grok Build
   { target: "grokcli", feature: "general", entry: "**/.grok/config.toml" },

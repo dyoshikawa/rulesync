@@ -17,6 +17,7 @@ import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-per
 import { CursorPermissions } from "./cursor-permissions.js";
 import { FactorydroidPermissions } from "./factorydroid-permissions.js";
 import { GeminicliPermissions } from "./geminicli-permissions.js";
+import { GoosePermissions } from "./goose-permissions.js";
 import { KiloPermissions } from "./kilo-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
@@ -45,6 +46,7 @@ const permissionsProcessorToolTargetTuple = [
   "cursor",
   "factorydroid",
   "geminicli",
+  "goose",
   "kilo",
   "kiro",
   "kiro-cli",
@@ -200,6 +202,20 @@ export const toolPermissionsFactories = new Map<
       class: GeminicliPermissions,
       meta: {
         supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "goose",
+    {
+      class: GoosePermissions,
+      meta: {
+        // Goose persists per-tool permission overrides only in the global user
+        // `~/.config/goose/permission.yaml`; there is no project-scoped Goose
+        // permission file (mirrors the Rovodev adapter).
+        supportsProject: false,
         supportsGlobal: true,
         supportsImport: true,
       },

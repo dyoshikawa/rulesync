@@ -1403,6 +1403,62 @@ describe("E2E: permissions (global mode)", () => {
     expect(toTable(root.agent).model).toBe("claude");
     expect(toTable(root.sessions).retention).toBe(30);
   });
+
+  it("should generate goose permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "*": "allow" },
+            edit: { "*": "ask" },
+            webfetch: { "*": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    // Pre-seed permission.yaml with a smart_approve LLM cache to verify the
+    // non-destructive merge into ~/.config/goose/permission.yaml.
+    await writeFileContent(
+      join(homeDir, ".config", "goose", "permission.yaml"),
+      [
+        "smart_approve:",
+        "  always_allow:",
+        "    - developer__shell",
+        "  ask_before: []",
+        "  never_allow: []",
+      ].join("\n"),
+    );
+
+    await runGenerate({
+      target: "goose",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // Goose persists per-tool permission overrides under the `user` key of the
+    // global ~/.config/goose/permission.yaml, with allow/ask/deny mapped onto
+    // always_allow/ask_before/never_allow lists of tool names. Permissions are
+    // global-scope only, so there is no project-mode equivalent.
+    const parsed = load(
+      await readFileContent(join(homeDir, ".config", "goose", "permission.yaml")),
+    );
+    const root = toTable(parsed);
+    const user = toTable(root.user);
+    expect(user.always_allow).toEqual(["developer__shell"]);
+    expect(user.ask_before).toEqual(["developer__text_editor"]);
+    expect(user.never_allow).toEqual(["webfetch"]);
+    // The smart_approve LLM cache is preserved by the non-destructive merge.
+    const smartApprove = toTable(root.smart_approve);
+    expect(smartApprove.always_allow).toEqual(["developer__shell"]);
+  });
 });
 
 type AugmentEntry = {
