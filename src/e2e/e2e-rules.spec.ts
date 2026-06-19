@@ -386,6 +386,7 @@ describe("E2E: rules (global mode)", () => {
     { target: "copilot", outputPath: join(".copilot", "copilot-instructions.md") },
     { target: "opencode", outputPath: join(".config", "opencode", "AGENTS.md") },
     { target: "codexcli", outputPath: join(".codex", "AGENTS.md") },
+    { target: "grokcli", outputPath: join(".grok", "AGENTS.md") },
     { target: "amp", outputPath: join(".config", "amp", "AGENTS.md") },
     { target: "cline", outputPath: join(".agents", "AGENTS.md") },
     { target: "geminicli", outputPath: join(".gemini", "GEMINI.md") },

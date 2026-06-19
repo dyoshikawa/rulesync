@@ -2,10 +2,29 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { GROKCLI_DIR, GROKCLI_RULE_FILE_NAME } from "../../constants/grokcli-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { writeFileContent } from "../../utils/file.js";
+import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { GrokcliRule } from "./grokcli-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
+
+// The pseudo-home directory pattern (see .claude/rules/testing-guidelines.md):
+// in global mode the RulesProcessor resolves the user-level `~/.grok/AGENTS.md`
+// path through `getHomeDirectory()`, so the mock points it at a temporary
+// pseudo-home directory created by `setupTestDirectory({ home: true })`.
+const { getHomeDirectoryMock } = vi.hoisted(() => {
+  return {
+    getHomeDirectoryMock: vi.fn(),
+  };
+});
+
+vi.mock("../../utils/file.js", async () => {
+  const actual = await vi.importActual<typeof import("../../utils/file.js")>("../../utils/file.js");
+  return {
+    ...actual,
+    getHomeDirectory: getHomeDirectoryMock,
+  };
+});
 
 describe("GrokcliRule", () => {
   let testDir: string;
@@ -239,6 +258,63 @@ describe("GrokcliRule", () => {
       });
 
       expect(rule.validate()).toEqual({ success: true, error: null });
+    });
+  });
+
+  describe("global mode round-trip", () => {
+    let homeDir: string;
+    let homeCleanup: () => Promise<void>;
+
+    beforeEach(async () => {
+      ({ testDir: homeDir, cleanup: homeCleanup } = await setupTestDirectory({ home: true }));
+      getHomeDirectoryMock.mockReturnValue(homeDir);
+    });
+
+    afterEach(async () => {
+      await homeCleanup();
+      getHomeDirectoryMock.mockClear();
+    });
+
+    it("should generate ~/.grok/AGENTS.md in global mode and read it back", async () => {
+      // Generate a grokcli rule in global mode. The pseudo-home directory acts
+      // as the outputRoot, mirroring how the RulesProcessor resolves the
+      // user-level `~/.grok/AGENTS.md` path in global mode.
+      const rulesyncRule = new RulesyncRule({
+        outputRoot: homeDir,
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "root.md",
+        frontmatter: { root: true, targets: ["grokcli"] },
+        body: "# Global Grok Instructions\n\nGlobal content.",
+      });
+
+      const generated = GrokcliRule.fromRulesyncRule({
+        outputRoot: homeDir,
+        rulesyncRule,
+        global: true,
+      });
+
+      expect(generated.getRelativeDirPath()).toBe(GROKCLI_DIR);
+      expect(generated.getRelativeFilePath()).toBe(GROKCLI_RULE_FILE_NAME);
+
+      // Write the generated content to its resolved global location.
+      const dirPath = join(homeDir, generated.getRelativeDirPath());
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, generated.getRelativeFilePath()),
+        generated.getFileContent(),
+      );
+
+      // Read it back from the pseudo-home directory in global mode.
+      const readBack = await GrokcliRule.fromFile({
+        outputRoot: homeDir,
+        relativeFilePath: GROKCLI_RULE_FILE_NAME,
+        global: true,
+      });
+
+      expect(readBack.getRelativeDirPath()).toBe(GROKCLI_DIR);
+      expect(readBack.getRelativeFilePath()).toBe(GROKCLI_RULE_FILE_NAME);
+      expect(readBack.isRoot()).toBe(true);
+      expect(readBack.getFileContent()).toBe("# Global Grok Instructions\n\nGlobal content.");
     });
   });
 });

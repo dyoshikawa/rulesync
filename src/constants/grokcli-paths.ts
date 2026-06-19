@@ -31,5 +31,10 @@ export const GROKCLI_SKILLS_DIR_PATH = join(GROKCLI_DIR, "skills");
  */
 export const GROKCLI_AGENTS_DIR_PATH = join(GROKCLI_DIR, "agents");
 
-/** Instruction file. Grok reads the AGENTS.md instruction-file family natively. */
+/**
+ * Instruction file. Grok reads the AGENTS.md instruction-file family natively,
+ * including the user-level `~/.grok/AGENTS.md` for global rules (verified via
+ * `grok inspect`, consistent with the `.grok/` global discovery used by the
+ * MCP/skills/subagents adapters).
+ */
 export const GROKCLI_RULE_FILE_NAME = "AGENTS.md";
