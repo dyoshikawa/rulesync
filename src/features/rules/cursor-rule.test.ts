@@ -468,6 +468,54 @@ This is the rule content
       });
     });
 
+    it("should flatten and still quote a multi-line description containing YAML indicators", async () => {
+      // The riskiest combination: newlines AND injection-significant characters. The
+      // value must be flattened to one line AND quoted so it cannot break out of the
+      // frontmatter.
+      const generated = new CursorRule({
+        frontmatter: {
+          description: "Line one: foo\n---\nalwaysApply: true",
+          globs: "*.ts",
+          alwaysApply: false,
+        },
+        body: "Body.",
+        relativeDirPath: ".cursor/rules",
+        relativeFilePath: "tricky.mdc",
+      });
+
+      const content = generated.getFileContent();
+      expect(content).not.toContain("description: |");
+      // The flattened value is quoted (single line), keeping `---`/`alwaysApply:`
+      // safely inside the scalar.
+      expect(content).toContain("description: 'Line one: foo --- alwaysApply: true'");
+
+      const filePath = join(testDir, ".cursor/rules", "tricky.mdc");
+      await writeFileContent(filePath, content);
+      const parsed = await CursorRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "tricky.mdc",
+      });
+      expect(parsed.getFrontmatter()).toEqual({
+        description: "Line one: foo --- alwaysApply: true",
+        globs: "*.ts",
+        alwaysApply: false,
+      });
+    });
+
+    it("should pass a non-string description through unchanged when validation is skipped", () => {
+      // On the validate: false path a non-string description must not throw (the flatten
+      // guard skips it) and is serialized as-is by js-yaml.
+      const generated = new CursorRule({
+        frontmatter: { description: 123 as unknown as string },
+        body: "Body.",
+        relativeDirPath: ".cursor/rules",
+        relativeFilePath: "nonstring.mdc",
+        validate: false,
+      });
+
+      expect(generated.getFileContent()).toContain("description: 123");
+    });
+
     it("should handle file with no frontmatter", async () => {
       const filePath = join(testDir, ".cursor/rules", "simple.mdc");
       const content = "Just plain content without frontmatter";
