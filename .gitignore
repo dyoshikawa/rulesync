@@ -303,7 +303,9 @@ rulesync.local.jsonc
 **/.copilot/mcp-config.json
 **/.copilot/agents/
 **/.copilot/hooks/
+**/.junie/AGENTS.md
 **/.junie/guidelines.md
+**/.junie/memories/
 **/.junie/commands/
 **/.junie/mcp/mcp.json
 **/.junie/skills/
@@ -313,7 +315,6 @@ rulesync.local.jsonc
 **/.kilo/skills/
 **/.kilo/commands/
 **/.kilo/agents/
-**/.kilo/mcp.json
 **/.kilo/plugins/
 **/.kilocodeignore
 **/.kiro/steering/

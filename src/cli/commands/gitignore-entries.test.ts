@@ -5,6 +5,7 @@ import { toolHooksFactories } from "../../features/hooks/hooks-processor.js";
 import { toolIgnoreFactories } from "../../features/ignore/ignore-processor.js";
 import { toolMcpFactories } from "../../features/mcp/mcp-processor.js";
 import { toolPermissionsFactories } from "../../features/permissions/permissions-processor.js";
+import { toolRuleFactories } from "../../features/rules/rules-processor.js";
 import { toolSkillFactories } from "../../features/skills/skills-processor.js";
 import { toolSubagentFactories } from "../../features/subagents/subagents-processor.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
@@ -93,11 +94,29 @@ const fileToGlob = (relativeDirPath: string | undefined, relativeFilePath: strin
   return `**/${toPosixPath(hasDir ? `${relativeDirPath}/${relativeFilePath}` : relativeFilePath)}`;
 };
 
-const isCoveredByRegistry = (glob: string): boolean => {
-  const normalized = glob.replace(/\/$/, "");
+const stripTrailingSlash = (glob: string): string => glob.replace(/\/$/, "");
+
+// Registry entries that deliberately gitignore a whole tool subtree, so a deeper
+// output dir is covered without its own entry. Directories outside these must
+// match EXACTLY, so a rename like `.augment/commands/` → `.augment/cmds/` fails
+// instead of silently matching a broader parent.
+const SUBTREE_COVERAGE_DIRS = ["**/.cursor", "**/.agents", "**/.goose", "**/.rovodev/.rulesync"];
+
+// A directory output must match a registry entry exactly, unless under a subtree root.
+const isCoveredDir = (dirGlob: string): boolean => {
+  const normalized = stripTrailingSlash(dirGlob);
+  if (SUBTREE_COVERAGE_DIRS.some((root) => normalized.startsWith(`${root}/`))) return true;
+  return GITIGNORE_ENTRY_REGISTRY.some((tag) => stripTrailingSlash(tag.entry) === normalized);
+};
+
+// A file output may match an entry exactly, or fall under a registered directory
+// entry (trailing slash) that gitignores its whole subtree.
+const isCoveredFile = (fileGlob: string): boolean => {
+  const normalized = stripTrailingSlash(fileGlob);
   return GITIGNORE_ENTRY_REGISTRY.some((tag) => {
-    const entry = tag.entry.replace(/\/$/, "");
-    return entry === normalized || normalized.startsWith(`${entry}/`);
+    if (tag.entry === normalized) return true;
+    if (!tag.entry.endsWith("/")) return false;
+    return normalized.startsWith(stripTrailingSlash(tag.entry) + "/");
   });
 };
 
@@ -129,7 +148,7 @@ describe("getSettablePaths coverage", () => {
         if (!dir || dir === ".") return;
         const glob = dirToGlob(dir);
         if (DERIVED_PATHS_NOT_GITIGNORED.has(glob.replace(/\/$/, ""))) return;
-        expect(isCoveredByRegistry(glob)).toBe(true);
+        expect(isCoveredDir(glob)).toBe(true);
       });
     }
   }
@@ -159,10 +178,136 @@ describe("getSettablePaths coverage", () => {
         if (!paths.relativeFilePath) return;
         const glob = fileToGlob(paths.relativeDirPath, paths.relativeFilePath);
         if (DERIVED_PATHS_NOT_GITIGNORED.has(glob)) return;
-        expect(isCoveredByRegistry(glob)).toBe(true);
+        expect(isCoveredFile(glob)).toBe(true);
       });
     }
   }
+
+  // `rules` has a composite shape ({ root, alternativeRoots, nonRoot }); roots are
+  // files, nonRoot is a directory.
+  for (const [target, factory] of toolRuleFactories) {
+    if (TARGETS_WITHOUT_GITIGNORE_ENTRIES.has(target)) continue;
+    it(`covers rules output for ${target}`, () => {
+      const paths = factory.class.getSettablePaths({ global: false });
+      const rootFiles = [paths.root, ...(paths.alternativeRoots ?? [])].filter(
+        (entry): entry is { relativeDirPath: string; relativeFilePath: string } =>
+          entry !== undefined,
+      );
+      for (const root of rootFiles) {
+        const glob = fileToGlob(root.relativeDirPath, root.relativeFilePath);
+        if (DERIVED_PATHS_NOT_GITIGNORED.has(glob)) continue;
+        expect(isCoveredFile(glob), `root ${glob}`).toBe(true);
+      }
+      const nonRootDir = paths.nonRoot?.relativeDirPath;
+      if (nonRootDir && nonRootDir !== ".") {
+        const glob = dirToGlob(nonRootDir);
+        if (!DERIVED_PATHS_NOT_GITIGNORED.has(glob.replace(/\/$/, ""))) {
+          expect(isCoveredDir(glob), `nonRoot ${glob}`).toBe(true);
+        }
+      }
+    });
+  }
+});
+
+describe("registry reverse coverage", () => {
+  // Every project-scope output glob some tool actually emits — the inverse of the
+  // coverage check, used to detect ghost entries no tool writes anymore.
+  const collectEmittedGlobs = (): Set<string> => {
+    const globs = new Set<string>();
+    const dirFactories = [toolCommandFactories, toolSkillFactories, toolSubagentFactories];
+    const fileFactories = [
+      toolMcpFactories,
+      toolHooksFactories,
+      toolPermissionsFactories,
+      toolIgnoreFactories,
+    ];
+    for (const factories of dirFactories) {
+      for (const [target, factory] of factories) {
+        if (TARGETS_WITHOUT_GITIGNORE_ENTRIES.has(target)) continue;
+        const meta =
+          "meta" in factory
+            ? (factory.meta as { supportsProject?: boolean } | undefined)
+            : undefined;
+        if (meta && meta.supportsProject === false) continue;
+        const dir = factory.class.getSettablePaths({ global: false }).relativeDirPath;
+        if (dir && dir !== ".") globs.add(stripTrailingSlash(dirToGlob(dir)));
+      }
+    }
+    for (const factories of fileFactories) {
+      for (const [target, factory] of factories) {
+        if (TARGETS_WITHOUT_GITIGNORE_ENTRIES.has(target)) continue;
+        const meta =
+          "meta" in factory
+            ? (factory.meta as { supportsProject?: boolean } | undefined)
+            : undefined;
+        if (meta && meta.supportsProject === false) continue;
+        const paths: { relativeDirPath?: string; relativeFilePath?: string } =
+          factory.class.getSettablePaths({ global: false });
+        if (paths.relativeFilePath)
+          globs.add(fileToGlob(paths.relativeDirPath, paths.relativeFilePath));
+      }
+    }
+    for (const [target, factory] of toolRuleFactories) {
+      if (TARGETS_WITHOUT_GITIGNORE_ENTRIES.has(target)) continue;
+      const paths = factory.class.getSettablePaths({ global: false });
+      for (const root of [paths.root, ...(paths.alternativeRoots ?? [])]) {
+        if (root) globs.add(fileToGlob(root.relativeDirPath, root.relativeFilePath));
+      }
+      const nonRootDir = paths.nonRoot?.relativeDirPath;
+      if (nonRootDir && nonRootDir !== ".") globs.add(stripTrailingSlash(dirToGlob(nonRootDir)));
+    }
+    return globs;
+  };
+
+  // Real entries the reverse check can't match to a `{ global: false }` output.
+  const REVERSE_COVERAGE_EXCEPTIONS = new Set([
+    // Aggregate subtree roots and shared trees re-tagged per target.
+    ...SUBTREE_COVERAGE_DIRS,
+    "**/AGENTS.md",
+    "**/.agents/skills",
+    // Global-scope-only outputs (emitted under the home dir).
+    "**/.copilot/agents",
+    "**/.copilot/hooks",
+    "**/.codeium/windsurf/skills",
+    "**/.deepagents/hooks.json",
+    // Outputs not produced via getSettablePaths (single-file or local/legacy rules).
+    "**/.roomodes",
+    "**/.codexignore",
+    "**/.augment-guidelines",
+    "**/CLAUDE.local.md",
+    "**/.claude/CLAUDE.local.md",
+  ]);
+
+  it("has no ghost entries — every non-general entry maps to an emitted output", () => {
+    const emitted = collectEmittedGlobs();
+    const ghosts: string[] = [];
+    for (const tag of GITIGNORE_ENTRY_REGISTRY) {
+      if (tag.feature === "general") continue;
+      const targets = Array.isArray(tag.target) ? tag.target : [tag.target];
+      if (targets.includes("common")) continue;
+      const normalized = stripTrailingSlash(tag.entry);
+      if (REVERSE_COVERAGE_EXCEPTIONS.has(normalized)) continue;
+      // Real if some tool emits it exactly, or emits a file under it.
+      const matched = [...emitted].some(
+        (glob) => glob === normalized || glob.startsWith(`${normalized}/`),
+      );
+      if (!matched) ghosts.push(`${tag.entry} (${targets.join(",")}/${tag.feature})`);
+    }
+    expect(ghosts).toEqual([]);
+  });
+
+  it("subtree-coverage roots exist as directory entries in the registry", () => {
+    // Guard that each prefix-coverage root is itself a registered directory entry,
+    // so removing the root surfaces here instead of silently widening coverage.
+    const dirEntries = new Set(
+      GITIGNORE_ENTRY_REGISTRY.filter((tag) => tag.entry.endsWith("/")).map((tag) =>
+        stripTrailingSlash(tag.entry),
+      ),
+    );
+    for (const root of SUBTREE_COVERAGE_DIRS) {
+      expect(dirEntries, `missing subtree root ${root}`).toContain(root);
+    }
+  });
 });
 
 describe("ALL_GITIGNORE_ENTRIES", () => {

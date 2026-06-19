@@ -293,7 +293,12 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "copilotcli", feature: "hooks", entry: "**/.copilot/hooks/" },
 
   // Junie
+  // Current root rule is `.junie/AGENTS.md`; `.junie/guidelines.md` is the legacy
+  // file still accepted on import, so both are gitignored.
+  { target: "junie", feature: "rules", entry: "**/.junie/AGENTS.md" },
   { target: "junie", feature: "rules", entry: "**/.junie/guidelines.md" },
+  // Non-root rules are emitted as memory files under `.junie/memories/`.
+  { target: "junie", feature: "rules", entry: "**/.junie/memories/" },
   { target: "junie", feature: "commands", entry: "**/.junie/commands/" },
   { target: "junie", feature: "mcp", entry: "**/.junie/mcp/mcp.json" },
   { target: "junie", feature: "skills", entry: "**/.junie/skills/" },
@@ -305,13 +310,13 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "kilo", feature: "skills", entry: "**/.kilo/skills/" },
   { target: "kilo", feature: "commands", entry: "**/.kilo/commands/" },
   { target: "kilo", feature: "subagents", entry: "**/.kilo/agents/" },
-  { target: "kilo", feature: "mcp", entry: "**/.kilo/mcp.json" },
   { target: "kilo", feature: "hooks", entry: "**/.kilo/plugins/" },
   { target: "kilo", feature: "ignore", entry: "**/.kilocodeignore" },
-  // No `**/kilo.jsonc` entry: structurally identical to `opencode.jsonc` (no
-  // entry). The Kilo translator preserves non-permissions Kilo settings on
-  // round-trip, so the file is intended to be checked in by the user — adding
-  // `**/kilo.jsonc` would be too aggressive.
+  // No `**/kilo.json` (MCP) or `**/kilo.jsonc` entry: structurally identical to
+  // `opencode.jsonc` (no entry). The Kilo translator preserves non-permissions
+  // Kilo settings on round-trip, so the file is intended to be checked in by the
+  // user — a gitignore entry would be too aggressive. (The MCP output moved to the
+  // root `kilo.json`; the old `**/.kilo/mcp.json` entry was a stale ghost.)
 
   // Kiro
   { target: "kiro", feature: "rules", entry: "**/.kiro/steering/" },
