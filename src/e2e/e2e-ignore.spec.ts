@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { KIRO_IGNORE_FILE_NAME } from "../constants/kiro-paths.js";
 import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
 import { runGenerate, runImport, useTestDirectory } from "./e2e-helper.js";
@@ -23,7 +24,9 @@ describe("E2E: ignore", () => {
     { target: "kilo", outputPath: ".kilocodeignore", format: "plaintext" as const },
     { target: "roo", outputPath: ".rooignore", format: "plaintext" as const },
     { target: "qwencode", outputPath: ".qwenignore", format: "plaintext" as const },
-    { target: "kiro", outputPath: ".aiignore", format: "plaintext" as const },
+    { target: "kiro", outputPath: KIRO_IGNORE_FILE_NAME, format: "plaintext" as const },
+    { target: "kiro-cli", outputPath: KIRO_IGNORE_FILE_NAME, format: "plaintext" as const },
+    { target: "kiro-ide", outputPath: KIRO_IGNORE_FILE_NAME, format: "plaintext" as const },
     { target: "junie", outputPath: ".aiignore", format: "plaintext" as const },
     { target: "augmentcode", outputPath: ".augmentignore", format: "plaintext" as const },
     { target: "devin", outputPath: ".devinignore", format: "plaintext" as const },
@@ -78,7 +81,9 @@ credentials/
     { target: "kilo", orphanPath: ".kilocodeignore" },
     { target: "roo", orphanPath: ".rooignore" },
     { target: "qwencode", orphanPath: ".qwenignore" },
-    { target: "kiro", orphanPath: ".aiignore" },
+    { target: "kiro", orphanPath: KIRO_IGNORE_FILE_NAME },
+    { target: "kiro-cli", orphanPath: KIRO_IGNORE_FILE_NAME },
+    { target: "kiro-ide", orphanPath: KIRO_IGNORE_FILE_NAME },
     { target: "junie", orphanPath: ".aiignore" },
     { target: "augmentcode", orphanPath: ".augmentignore" },
     { target: "devin", orphanPath: ".devinignore" },
@@ -144,7 +149,9 @@ describe("E2E: ignore (import)", () => {
     { target: "kilo", sourcePath: ".kilocodeignore" },
     { target: "roo", sourcePath: ".rooignore" },
     { target: "qwencode", sourcePath: ".qwenignore" },
-    { target: "kiro", sourcePath: ".aiignore" },
+    { target: "kiro", sourcePath: KIRO_IGNORE_FILE_NAME },
+    { target: "kiro-cli", sourcePath: KIRO_IGNORE_FILE_NAME },
+    { target: "kiro-ide", sourcePath: KIRO_IGNORE_FILE_NAME },
     { target: "junie", sourcePath: ".aiignore" },
     { target: "augmentcode", sourcePath: ".augmentignore" },
     { target: "devin", sourcePath: ".devinignore" },

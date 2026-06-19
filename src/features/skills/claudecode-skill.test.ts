@@ -607,6 +607,57 @@ describe("ClaudecodeSkill", () => {
       expect(claudecodeSkill.getFrontmatter()["disable-model-invocation"]).toBe(false);
     });
 
+    it("should pick up root-level disable-model-invocation when claudecode section omits it", () => {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
+        name: "root-default-skill",
+        description: "Skill with root-level disable-model-invocation",
+        "disable-model-invocation": true,
+      };
+
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "root-default-skill",
+        frontmatter: rulesyncFrontmatter,
+        body: "Body",
+      });
+
+      const claudecodeSkill = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(claudecodeSkill.getFrontmatter()["disable-model-invocation"]).toBe(true);
+    });
+
+    it("should let claudecode disable-model-invocation override the root-level value", () => {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
+        name: "override-skill",
+        description: "Skill where the claudecode section overrides the root default",
+        "disable-model-invocation": true,
+        claudecode: { "disable-model-invocation": false },
+      };
+
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "override-skill",
+        frontmatter: rulesyncFrontmatter,
+        body: "Body",
+      });
+
+      const claudecodeSkill = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(claudecodeSkill.getFrontmatter()["disable-model-invocation"]).toBe(false);
+    });
+
+    it("should omit disable-model-invocation when neither root nor claudecode set it", () => {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
+        name: "no-flag-skill",
+        description: "Skill without the flag",
+      };
+
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "no-flag-skill",
+        frontmatter: rulesyncFrontmatter,
+        body: "Body",
+      });
+
+      const claudecodeSkill = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(claudecodeSkill.getFrontmatter()["disable-model-invocation"]).toBeUndefined();
+    });
+
     it("should convert from RulesyncSkill with paths as string", () => {
       const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
         name: "paths-string-skill",

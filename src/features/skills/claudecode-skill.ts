@@ -11,6 +11,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveDisableModelInvocation } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -164,6 +165,11 @@ export class ClaudecodeSkill extends ToolSkill {
   }: ToolSkillFromRulesyncSkillParams): ClaudecodeSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
+    const resolvedDisableModelInvocation = resolveDisableModelInvocation({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: rulesyncFrontmatter.claudecode,
+    });
+
     const claudecodeFrontmatter: ClaudecodeSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
@@ -176,8 +182,8 @@ export class ClaudecodeSkill extends ToolSkill {
       ...(rulesyncFrontmatter.claudecode?.model && {
         model: rulesyncFrontmatter.claudecode.model,
       }),
-      ...(rulesyncFrontmatter.claudecode?.["disable-model-invocation"] !== undefined && {
-        "disable-model-invocation": rulesyncFrontmatter.claudecode["disable-model-invocation"],
+      ...(resolvedDisableModelInvocation !== undefined && {
+        "disable-model-invocation": resolvedDisableModelInvocation,
       }),
       ...(rulesyncFrontmatter.claudecode?.paths !== undefined && {
         paths: rulesyncFrontmatter.claudecode.paths,

@@ -60,6 +60,8 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
 
 > **OpenCode note:** OpenCode writes the root rule to the auto-loaded `AGENTS.md` and non-root rules to `.opencode/memories/*.md`. Because OpenCode auto-loads only the root `AGENTS.md` plus files explicitly listed in the `instructions` array of `opencode.json` (it does not auto-discover a rules directory), Rulesync also registers each generated non-root rule file in the `instructions` array of the shared `opencode.json`/`opencode.jsonc` (the root `AGENTS.md` is auto-loaded and is therefore not registered). This merge is non-destructive: existing keys such as `mcp`, `tools`, and `permission` are preserved, and the `instructions` list is deduped and sorted.
 
+> **Qwen Code note:** Qwen Code writes the root rule to the auto-loaded `QWEN.md` (project) / `~/.qwen/QWEN.md` (global, via `--global`) as plain Markdown, and non-root rules to its path-based context-rule directory `.qwen/rules/` (project) / `~/.qwen/rules/` (global). Each non-root rule is a Markdown file with optional YAML frontmatter: Rulesync maps `globs` ⇄ Qwen's `paths` (a picomatch glob array) and `description` ⇄ `description`. A rule **with** specific `paths` is _conditional_ — Qwen lazily injects it only when the model touches a matching file — while a rule **without** `paths` (empty or wildcard `**/*`/`*` globs) is a _baseline_ rule loaded at session start and is written as plain Markdown with no frontmatter block. The `.qwen/rules/` directory supersedes the legacy `.qwen/memories/` import surface, so each rule is emitted to exactly one location; the root `QWEN.md` is unchanged. See the [Qwen Code memory/context docs](https://github.com/QwenLM/qwen-code).
+
 ## `.rulesync/hooks.json`
 
 Hooks run scripts at lifecycle events (e.g. session start, before tool use). Events use **canonical camelCase** in this file, and Rulesync translates them per tool: Cursor uses them as-is; Claude Code, Factory Droid, Codex CLI, Gemini CLI, and Goose get PascalCase (with a few tool-specific name mappings) in their settings files; OpenCode and Kilo hooks are emitted as JavaScript plugins (`.opencode/plugins/rulesync-hooks.js`, `.kilo/plugins/rulesync-hooks.js`); Copilot and Copilot CLI map event names to their own camelCase (e.g. `beforeSubmitPrompt` → `userPromptSubmitted`, `stop` → `agentStop`, `afterError` → `errorOccurred`) and use `powershell`/`bash` command fields — Copilot CLI additionally covers a wider event set and supports `prompt` and `http` hook types beyond `command`; deepagents-cli uses a dot-notation (e.g. `session.start`, `tool.error`); Kiro emits hooks into `.kiro/agents/default.json` using Kiro's CLI event names (`agentSpawn`, `userPromptSubmit`, `preToolUse`, `postToolUse`, `stop`); Qwen Code emits PascalCase events into the `hooks` key of `.qwen/settings.json` (its supported event set differs from Gemini CLI's).
@@ -191,7 +193,7 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 
 > **Note:** Goose hooks follow the Open Plugins spec: Rulesync writes a plugin directory `hooks/hooks.json` that Goose auto-discovers at startup. Locations are `<project>/.agents/plugins/rulesync/hooks/hooks.json` (project) and `~/.agents/plugins/rulesync/hooks/hooks.json` (global). The JSON shape matches Claude Code's (`{ "hooks": { "EventName": [ { "matcher": "...", "hooks": [ { "type": "command", "command": "..." } ] } ] } }`). Thirteen lifecycle events are supported — `sessionStart` ⇄ `SessionStart`, `sessionEnd` ⇄ `SessionEnd`, `stop` ⇄ `Stop`, `beforeSubmitPrompt` ⇄ `UserPromptSubmit`, `preToolUse` ⇄ `PreToolUse`, `postToolUse` ⇄ `PostToolUse`, `postToolUseFailure` ⇄ `PostToolUseFailure`, `beforeReadFile` ⇄ `BeforeReadFile`, `afterFileEdit` ⇄ `AfterFileEdit`, `beforeShellExecution` ⇄ `BeforeShellExecution`, `afterShellExecution` ⇄ `AfterShellExecution`, `subagentStart` ⇄ `SubagentStart`, and `subagentStop` ⇄ `SubagentStop`. The `matcher` regex is preserved, commands are emitted verbatim (Goose exposes `PLUGIN_ROOT` as a runtime environment variable), and only `command`-type hooks are supported.
 
-> **Note:** Qwen Code hooks are written under the top-level `hooks` key of `.qwen/settings.json` (project) / `~/.qwen/settings.json` (global), using Claude-style PascalCase per-matcher arrays (`{ "EventName": [ { "matcher": "...", "hooks": [ { "type": "command", "command": "...", "timeout": ... } ] } ] }`). Qwen's supported event set **differs from Gemini CLI's**, so rulesync defines a Qwen-specific mapping. Thirteen lifecycle events are supported — `sessionStart` ⇄ `SessionStart`, `sessionEnd` ⇄ `SessionEnd`, `preToolUse` ⇄ `PreToolUse`, `postToolUse` ⇄ `PostToolUse`, `postToolUseFailure` ⇄ `PostToolUseFailure`, `beforeSubmitPrompt` ⇄ `UserPromptSubmit`, `stop` ⇄ `Stop`, `subagentStart` ⇄ `SubagentStart`, `subagentStop` ⇄ `SubagentStop`, `preCompact` ⇄ `PreCompact`, `postCompact` ⇄ `PostCompact`, `permissionRequest` ⇄ `PermissionRequest`, and `notification` ⇄ `Notification`. Qwen-only events (`StopFailure`, `TodoCreated`, `TodoCompleted`) have no canonical equivalent. Commands are emitted verbatim (no `$GEMINI_PROJECT_DIR` rewriting), only `command`-type hooks are supported, and other top-level keys in `settings.json` are preserved on round-trip. See the [Qwen Code hooks docs](https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/hooks.md).
+> **Note:** Qwen Code hooks are written under the top-level `hooks` key of `.qwen/settings.json` (project) / `~/.qwen/settings.json` (global), using Claude-style PascalCase per-matcher arrays (`{ "EventName": [ { "matcher": "...", "sequential": false, "hooks": [ { "type": "command", "command": "...", "timeout": ... } ] } ] }`). Qwen's supported event set **differs from Gemini CLI's**, so rulesync defines a Qwen-specific mapping. Sixteen lifecycle events are supported — `sessionStart` ⇄ `SessionStart`, `sessionEnd` ⇄ `SessionEnd`, `preToolUse` ⇄ `PreToolUse`, `postToolUse` ⇄ `PostToolUse`, `postToolUseFailure` ⇄ `PostToolUseFailure`, `beforeSubmitPrompt` ⇄ `UserPromptSubmit`, `stop` ⇄ `Stop`, `stopFailure` ⇄ `StopFailure`, `subagentStart` ⇄ `SubagentStart`, `subagentStop` ⇄ `SubagentStop`, `preCompact` ⇄ `PreCompact`, `postCompact` ⇄ `PostCompact`, `permissionRequest` ⇄ `PermissionRequest`, `notification` ⇄ `Notification`, `todoCreated` ⇄ `TodoCreated`, and `todoCompleted` ⇄ `TodoCompleted`. Commands are emitted verbatim (no `$GEMINI_PROJECT_DIR` rewriting). Qwen's four hook types are supported: `command`, `prompt`, `http` (which carries a `url` and POSTs JSON to it; the type and URL round-trip), and `function`. The group-level `sequential` flag (parallel by default) and the top-level `disableAllHooks` switch are both round-tripped, and other top-level keys in `settings.json` are preserved. See the [Qwen Code hooks docs](https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/hooks.md).
 
 ## `.copilot/mcp-config.json`
 
@@ -379,6 +381,10 @@ name: example-skill # skill name
 description: >- # skill description
   A sample skill that demonstrates the skill format
 targets: ["*"] # * = all, or specific tools
+# (optional) shared default for tools that support the flag — claudecode, cursor,
+# zed, pi, qwencode, and factorydroid. Any of those tool sections can override it
+# by setting their own `disable-model-invocation` value below.
+disable-model-invocation: true
 claudecode: # for claudecode-specific parameters
   model: sonnet # opus, sonnet, haiku, or any string
   allowed-tools:
@@ -429,6 +435,17 @@ replit: # for Replit Agent-specific parameters (optional; Agent Skills standard)
     agent-skills: ">=1.0.0"
   metadata: # (optional) free-form metadata
     author: rulesync
+deepagents: # for deepagents-cli (dcode)-specific parameters (optional; Agent Skills standard)
+  # Authored as a canonical list; emitted to SKILL.md as a space-delimited string
+  # (e.g. "Bash Read") because dcode rejects a YAML list at runtime.
+  allowed-tools:
+    - "Bash"
+    - "Read"
+  license: MIT # (optional)
+  compatibility: # (optional) free-form compatibility metadata
+    deepagents-version: ">=0.1.0"
+  metadata: # (optional) free-form metadata
+    author: rulesync
 opencode: # for OpenCode-specific parameters (optional)
   license: MIT # (optional)
   compatibility: # (optional) free-form compatibility metadata
@@ -472,6 +489,8 @@ cursor: # for Cursor-specific parameters (optional)
   disable-model-invocation: true # (optional) only include the skill when invoked via /skill-name
   metadata: # (optional) free-form metadata
     author: rulesync
+factorydroid: # for Factory Droid-specific parameters (optional)
+  disable-model-invocation: true # (optional) prevent the model from auto-invoking this skill
 takt: # takt specific parameters (optional; emitted under .takt/facets/knowledge/ — frontmatter is dropped on emit)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
   extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)

@@ -8,6 +8,7 @@ import { ZED_SKILLS_DIR_PATH } from "../../constants/zed-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveDisableModelInvocation } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -145,11 +146,22 @@ export class ZedSkill extends ToolSkill {
   }: ToolSkillFromRulesyncSkillParams): ZedSkill {
     const settablePaths = ZedSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+    const zedSection = rulesyncFrontmatter.zed;
+    const resolvedDisableModelInvocation = resolveDisableModelInvocation({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: zedSection,
+    });
 
     const zedFrontmatter: ZedSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...rulesyncFrontmatter.zed,
+      // Spread the section first to carry over any tool-specific keys, then
+      // re-apply the resolved `disable-model-invocation` so the root default is
+      // honored when the section omits the key.
+      ...zedSection,
+      ...(resolvedDisableModelInvocation !== undefined && {
+        "disable-model-invocation": resolvedDisableModelInvocation,
+      }),
     };
 
     return new ZedSkill({

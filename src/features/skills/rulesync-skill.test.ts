@@ -588,6 +588,31 @@ This has leading and trailing whitespace.
       const result = RulesyncSkillFrontmatterSchema.safeParse(frontmatter);
       expect(result.success).toBe(false);
     });
+
+    it("should accept root-level disable-model-invocation", () => {
+      const frontmatter = {
+        name: "test-skill",
+        description: "Test",
+        "disable-model-invocation": true,
+      };
+
+      const result = RulesyncSkillFrontmatterSchema.safeParse(frontmatter);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data["disable-model-invocation"]).toBe(true);
+      }
+    });
+
+    it("should reject non-boolean root-level disable-model-invocation", () => {
+      const frontmatter = {
+        name: "test-skill",
+        description: "Test",
+        "disable-model-invocation": "yes",
+      };
+
+      const result = RulesyncSkillFrontmatterSchema.safeParse(frontmatter);
+      expect(result.success).toBe(false);
+    });
   });
 
   describe("integration", () => {

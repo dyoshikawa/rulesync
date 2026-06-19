@@ -26,6 +26,9 @@ export const safeString = z.pipe(
 export const HookDefinitionSchema = z.looseObject({
   command: z.optional(safeString),
   type: z.optional(z.enum(["command", "prompt", "http"])),
+  // Qwen Code: target URL for `http` hooks (the hook POSTs JSON to this URL).
+  // https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/hooks.md
+  url: z.optional(safeString),
   timeout: z.optional(z.number()),
   matcher: z.optional(safeString),
   prompt: z.optional(safeString),
@@ -35,6 +38,11 @@ export const HookDefinitionSchema = z.looseObject({
   // Cursor: when true, a hook failure (crash, timeout, invalid JSON) blocks the
   // action instead of allowing it through. https://cursor.com/docs/hooks
   failClosed: z.optional(z.boolean()),
+  // Qwen Code: when true, the hooks within this matcher group run sequentially
+  // instead of in parallel (the default). Stored per-definition so it can be
+  // round-tripped through the canonical, flat list of definitions.
+  // https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/hooks.md
+  sequential: z.optional(z.boolean()),
 });
 
 export type HookDefinition = z.infer<typeof HookDefinitionSchema>;
@@ -80,7 +88,10 @@ export type HookEvent =
   | "worktreeCreate"
   | "worktreeRemove"
   | "workspaceOpen"
-  | "messageDisplay";
+  | "messageDisplay"
+  | "todoCreated"
+  | "todoCompleted"
+  | "stopFailure";
 
 /** Hook events supported by Cursor. */
 export const CURSOR_HOOK_EVENTS: readonly HookEvent[] = [
@@ -363,9 +374,9 @@ export const JUNIE_HOOK_EVENTS: readonly HookEvent[] = [
  * Qwen Code documents a Claude-style PascalCase hooks surface under the `hooks`
  * key of `.qwen/settings.json`. Its event set DIFFERS from Gemini CLI's
  * (`BeforeAgent`/`AfterTool`/...), so qwencode defines its own constant instead
- * of reusing {@link GEMINICLI_HOOK_EVENTS}. Only the canonical events with a
- * genuine Qwen equivalent are mapped; Qwen-only events (`StopFailure`,
- * `TodoCreated`, `TodoCompleted`) have no canonical counterpart and are omitted.
+ * of reusing {@link GEMINICLI_HOOK_EVENTS}. The Qwen-specific events
+ * `TodoCreated`, `TodoCompleted`, and `StopFailure` map to the canonical
+ * `todoCreated`, `todoCompleted`, and `stopFailure` events respectively.
  * @see https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/hooks.md
  */
 export const QWENCODE_HOOK_EVENTS: readonly HookEvent[] = [
@@ -376,12 +387,15 @@ export const QWENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "postToolUseFailure",
   "beforeSubmitPrompt",
   "stop",
+  "stopFailure",
   "subagentStart",
   "subagentStop",
   "preCompact",
   "postCompact",
   "permissionRequest",
   "notification",
+  "todoCreated",
+  "todoCompleted",
 ];
 
 const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
@@ -411,7 +425,13 @@ export const HooksConfigSchema = z.looseObject({
   "antigravity-cli": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   junie: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   vibe: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
-  qwencode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  qwencode: z.optional(
+    z.looseObject({
+      hooks: z.optional(hooksRecordSchema),
+      // Qwen Code top-level switch that disables every hook when true.
+      disableAllHooks: z.optional(z.boolean()),
+    }),
+  ),
 });
 
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;
@@ -779,10 +799,13 @@ export const CANONICAL_TO_QWENCODE_EVENT_NAMES: Record<string, string> = {
   stop: "Stop",
   subagentStart: "SubagentStart",
   subagentStop: "SubagentStop",
+  stopFailure: "StopFailure",
   preCompact: "PreCompact",
   postCompact: "PostCompact",
   permissionRequest: "PermissionRequest",
   notification: "Notification",
+  todoCreated: "TodoCreated",
+  todoCompleted: "TodoCompleted",
 };
 
 /**

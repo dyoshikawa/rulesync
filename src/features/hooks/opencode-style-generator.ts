@@ -30,6 +30,14 @@ export function generateOpencodeStylePluginCode(
   supportedEvents: readonly string[],
   toolConfigKey: "kilo" | "opencode",
   eventMap: Record<string, string>,
+  // Export shape of the generated plugin module:
+  // - "named" (default): `export const RulesyncHooksPlugin = async ({ $ }) => {...}`
+  //   — the OpenCode convention.
+  // - "default": `export default { id: "rulesync-hooks", server: async ({ $ }) => {...} }`
+  //   — Kilo's canonical `{ id, server }` module descriptor. Kilo marks named
+  //   exports as legacy, so the Kilo target emits this form.
+  //   https://kilo.ai/docs/automate/extending/plugins
+  exportStyle: "named" | "default" = "named",
 ): string {
   const supported: Set<string> = new Set(supportedEvents);
   const configHooks = { ...config.hooks, ...config[toolConfigKey]?.hooks };
@@ -67,46 +75,67 @@ export function generateOpencodeStylePluginCode(
     }
   }
 
-  const lines: string[] = [];
-  lines.push("export const RulesyncHooksPlugin = async ({ $ }) => {");
-  lines.push("  return {");
+  // Build the handler entries (the contents of the returned object) once with a
+  // base indentation, then wrap them in the requested export shape. The default
+  // (Kilo) export nests the function one level deeper, so its body is re-indented
+  // by an extra two spaces relative to the named (OpenCode) export.
+  const bodyLines: string[] = [];
 
   if (Object.keys(genericEventHandlers).length > 0) {
-    lines.push("    event: async ({ event }) => {");
+    bodyLines.push("    event: async ({ event }) => {");
     let isFirst = true;
     for (const [eventName, handlers] of Object.entries(genericEventHandlers)) {
-      lines.push(`      ${isFirst ? "if" : "else if"} (event.type === "${eventName}") {`);
+      bodyLines.push(`      ${isFirst ? "if" : "else if"} (event.type === "${eventName}") {`);
       isFirst = false;
       for (const handler of handlers) {
         const escapedCommand = escapeForTemplateLiteral(handler.command);
-        lines.push(`        await $\`${escapedCommand}\`;`);
+        bodyLines.push(`        await $\`${escapedCommand}\`;`);
       }
-      lines.push("      }");
+      bodyLines.push("      }");
     }
-    lines.push("    },");
+    bodyLines.push("    },");
   }
 
   for (const [eventName, handlers] of Object.entries(namedEventHandlers)) {
-    lines.push(`    "${eventName}": async (input) => {`);
+    bodyLines.push(`    "${eventName}": async (input) => {`);
     for (const handler of handlers) {
       const escapedCommand = escapeForTemplateLiteral(handler.command);
       if (handler.matcher) {
         const safeMatcher = validateAndSanitizeMatcher(handler.matcher);
-        lines.push("      {");
-        lines.push(`        const __re = new RegExp("${safeMatcher}");`);
-        lines.push(`        if (__re.test(input.tool)) {`);
-        lines.push(`          await $\`${escapedCommand}\`;`);
-        lines.push("        }");
-        lines.push("      }");
+        bodyLines.push("      {");
+        bodyLines.push(`        const __re = new RegExp("${safeMatcher}");`);
+        bodyLines.push(`        if (__re.test(input.tool)) {`);
+        bodyLines.push(`          await $\`${escapedCommand}\`;`);
+        bodyLines.push("        }");
+        bodyLines.push("      }");
       } else {
-        lines.push(`      await $\`${escapedCommand}\`;`);
+        bodyLines.push(`      await $\`${escapedCommand}\`;`);
       }
     }
-    lines.push("    },");
+    bodyLines.push("    },");
   }
 
-  lines.push("  };");
-  lines.push("};");
+  const lines: string[] = [];
+  if (exportStyle === "default") {
+    lines.push("export default {");
+    lines.push('  id: "rulesync-hooks",');
+    lines.push("  server: async ({ $ }) => {");
+    lines.push("    return {");
+    // Indent the handler entries by an extra two spaces to account for the
+    // additional `server` function nesting level. Blank lines stay empty.
+    for (const line of bodyLines) {
+      lines.push(line === "" ? "" : `  ${line}`);
+    }
+    lines.push("    };");
+    lines.push("  },");
+    lines.push("};");
+  } else {
+    lines.push("export const RulesyncHooksPlugin = async ({ $ }) => {");
+    lines.push("  return {");
+    lines.push(...bodyLines);
+    lines.push("  };");
+    lines.push("};");
+  }
   lines.push("");
 
   return lines.join("\n");

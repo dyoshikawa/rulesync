@@ -8,6 +8,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveDisableModelInvocation } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -167,6 +168,10 @@ export class QwencodeSkill extends ToolSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     const qwencodeSection = (rulesyncFrontmatter as { qwencode?: QwencodeRulesyncSection })
       .qwencode;
+    const resolvedDisableModelInvocation = resolveDisableModelInvocation({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: qwencodeSection,
+    });
 
     const qwencodeFrontmatter: QwencodeSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
@@ -176,8 +181,8 @@ export class QwencodeSkill extends ToolSkill {
       ...(qwencodeSection?.["user-invocable"] !== undefined && {
         "user-invocable": qwencodeSection["user-invocable"],
       }),
-      ...(qwencodeSection?.["disable-model-invocation"] !== undefined && {
-        "disable-model-invocation": qwencodeSection["disable-model-invocation"],
+      ...(resolvedDisableModelInvocation !== undefined && {
+        "disable-model-invocation": resolvedDisableModelInvocation,
       }),
     };
 

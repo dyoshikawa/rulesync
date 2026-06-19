@@ -3,12 +3,11 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { PI_AGENT_SKILLS_DIR_PATH, PI_SKILLS_DIR_PATH } from "../../constants/pi-paths.js";
+import { GROKCLI_SKILLS_DIR_PATH } from "../../constants/grokcli-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveDisableModelInvocation } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -17,30 +16,18 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-/**
- * Frontmatter schema for Pi Coding Agent skills.
- *
- * Pi follows the Agent Skills standard (SKILL.md with `name` and `description`).
- * Additional fields are preserved via `looseObject` so Pi-specific metadata
- * passes through unchanged.
- */
-export const PiSkillFrontmatterSchema = z.looseObject({
+export const GrokcliSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
-  "allowed-tools": z.optional(z.array(z.string())),
-  "disable-model-invocation": z.optional(z.boolean()),
-  license: z.optional(z.string()),
-  compatibility: z.optional(z.looseObject({})),
-  metadata: z.optional(z.looseObject({})),
 });
 
-export type PiSkillFrontmatter = z.infer<typeof PiSkillFrontmatterSchema>;
+export type GrokcliSkillFrontmatter = z.infer<typeof GrokcliSkillFrontmatterSchema>;
 
-export type PiSkillParams = {
+export type GrokcliSkillParams = {
   outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
-  frontmatter: PiSkillFrontmatter;
+  frontmatter: GrokcliSkillFrontmatter;
   body: string;
   otherFiles?: SkillFile[];
   validate?: boolean;
@@ -48,27 +35,29 @@ export type PiSkillParams = {
 };
 
 /**
- * Skill generator for Pi Coding Agent.
+ * Represents a Grok Build skill directory.
  *
- * - Project scope: `.pi/skills/<name>/SKILL.md`
- * - Global scope: `~/.pi/agent/skills/<name>/SKILL.md`
+ * Grok Build discovers skills under `./.grok/skills/` (project) and
+ * `~/.grok/skills/` (global), each a directory containing a `SKILL.md` with
+ * `name`/`description` frontmatter (verified via `grok inspect`). The format is
+ * Claude-compatible, so only `name` and `description` are required; any extra
+ * frontmatter keys are preserved verbatim via the loose schema.
+ * @see https://docs.x.ai/build/features/skills-plugins-marketplaces
  */
-export class PiSkill extends ToolSkill {
+export class GrokcliSkill extends ToolSkill {
   constructor({
     outputRoot = process.cwd(),
-    relativeDirPath,
+    relativeDirPath = GROKCLI_SKILLS_DIR_PATH,
     dirName,
     frontmatter,
     body,
     otherFiles = [],
     validate = true,
     global = false,
-  }: PiSkillParams) {
-    const resolvedDirPath = relativeDirPath ?? PiSkill.getSettablePaths({ global }).relativeDirPath;
-
+  }: GrokcliSkillParams) {
     super({
       outputRoot,
-      relativeDirPath: resolvedDirPath,
+      relativeDirPath,
       dirName,
       mainFile: {
         name: SKILL_FILE_NAME,
@@ -87,19 +76,27 @@ export class PiSkill extends ToolSkill {
     }
   }
 
-  static getSettablePaths({ global }: { global?: boolean } = {}): ToolSkillSettablePaths {
-    if (global) {
-      return {
-        relativeDirPath: PI_AGENT_SKILLS_DIR_PATH,
-      };
-    }
+  static getSettablePaths({
+    global: _global = false,
+  }: {
+    global?: boolean;
+  } = {}): ToolSkillSettablePaths {
+    // Grok Build skills use the same relative path for both project and global
+    // modes; the location differs based on outputRoot (./.grok/skills vs
+    // ~/.grok/skills).
+    //
+    // Grok also discovers skills from `~/.agents/skills/` (Agents.md
+    // compatibility) and from extra `[skills] paths` entries in
+    // `~/.grok/config.toml`. rulesync intentionally emits only the canonical
+    // `.grok/skills/` root, matching how the other native-skill tools target a
+    // single canonical directory.
     return {
-      relativeDirPath: PI_SKILLS_DIR_PATH,
+      relativeDirPath: GROKCLI_SKILLS_DIR_PATH,
     };
   }
 
-  getFrontmatter(): PiSkillFrontmatter {
-    return PiSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
+  getFrontmatter(): GrokcliSkillFrontmatter {
+    return GrokcliSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
   }
 
   getBody(): string {
@@ -107,14 +104,13 @@ export class PiSkill extends ToolSkill {
   }
 
   validate(): ValidationResult {
-    if (!this.mainFile) {
+    if (this.mainFile === undefined) {
       return {
         success: false,
         error: new Error(`${this.getDirPath()}: ${SKILL_FILE_NAME} file does not exist`),
       };
     }
-
-    const result = PiSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
+    const result = GrokcliSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
     if (!result.success) {
       return {
         success: false,
@@ -129,24 +125,10 @@ export class PiSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
-    const piBlock = {
-      ...(frontmatter["allowed-tools"] !== undefined && {
-        "allowed-tools": frontmatter["allowed-tools"],
-      }),
-      ...(frontmatter["disable-model-invocation"] !== undefined && {
-        "disable-model-invocation": frontmatter["disable-model-invocation"],
-      }),
-      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
-      ...(frontmatter.compatibility !== undefined && {
-        compatibility: frontmatter.compatibility,
-      }),
-      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
-    };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
-      ...(Object.keys(piBlock).length > 0 && { pi: piBlock }),
     };
 
     return new RulesyncSkill({
@@ -166,32 +148,20 @@ export class PiSkill extends ToolSkill {
     rulesyncSkill,
     validate = true,
     global = false,
-  }: ToolSkillFromRulesyncSkillParams): PiSkill {
-    const settablePaths = PiSkill.getSettablePaths({ global });
+  }: ToolSkillFromRulesyncSkillParams): GrokcliSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
-    const piSection = rulesyncFrontmatter.pi;
-    const resolvedDisableModelInvocation = resolveDisableModelInvocation({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: piSection,
-    });
+    const settablePaths = GrokcliSkill.getSettablePaths({ global });
 
-    const piFrontmatter: PiSkillFrontmatter = {
+    const grokcliFrontmatter: GrokcliSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      // Spread the section first to carry over any tool-specific keys, then
-      // re-apply the resolved `disable-model-invocation` so the root default is
-      // honored when the section omits the key.
-      ...piSection,
-      ...(resolvedDisableModelInvocation !== undefined && {
-        "disable-model-invocation": resolvedDisableModelInvocation,
-      }),
     };
 
-    return new PiSkill({
+    return new GrokcliSkill({
       outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
-      frontmatter: piFrontmatter,
+      frontmatter: grokcliFrontmatter,
       body: rulesyncSkill.getBody(),
       otherFiles: rulesyncSkill.getOtherFiles(),
       validate,
@@ -201,16 +171,16 @@ export class PiSkill extends ToolSkill {
 
   static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
     const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("pi");
+    return targets.includes("*") || targets.includes("grokcli");
   }
 
-  static async fromDir(params: ToolSkillFromDirParams): Promise<PiSkill> {
+  static async fromDir(params: ToolSkillFromDirParams): Promise<GrokcliSkill> {
     const loaded = await this.loadSkillDirContent({
       ...params,
-      getSettablePaths: PiSkill.getSettablePaths,
+      getSettablePaths: GrokcliSkill.getSettablePaths,
     });
 
-    const result = PiSkillFrontmatterSchema.safeParse(loaded.frontmatter);
+    const result = GrokcliSkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
       const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
@@ -218,7 +188,7 @@ export class PiSkill extends ToolSkill {
       );
     }
 
-    return new PiSkill({
+    return new GrokcliSkill({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
@@ -235,11 +205,10 @@ export class PiSkill extends ToolSkill {
     relativeDirPath,
     dirName,
     global = false,
-  }: ToolSkillForDeletionParams): PiSkill {
-    const settablePaths = PiSkill.getSettablePaths({ global });
-    return new PiSkill({
+  }: ToolSkillForDeletionParams): GrokcliSkill {
+    return new GrokcliSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

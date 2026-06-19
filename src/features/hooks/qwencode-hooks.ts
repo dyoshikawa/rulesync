@@ -58,13 +58,23 @@ function canonicalToQwencodeHooks(config: HooksConfig): Record<string, unknown[]
         return {
           type: def.type ?? "command",
           ...(def.command !== undefined && def.command !== null && { command: def.command }),
+          ...(def.url !== undefined && def.url !== null && { url: def.url }),
           ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
           ...(def.name !== undefined && def.name !== null && { name: def.name }),
           ...(def.description !== undefined &&
             def.description !== null && { description: def.description }),
         };
       });
-      entries.push(matcherKey ? { matcher: matcherKey, hooks } : { hooks });
+      // A matcher group runs sequentially when any of its definitions opt in.
+      // Qwen Code defaults to parallel execution, so only emit when true.
+      const sequential = defs.some((def) => def.sequential === true);
+      const group: Record<string, unknown> = matcherKey
+        ? { matcher: matcherKey, hooks }
+        : { hooks };
+      if (sequential) {
+        group.sequential = true;
+      }
+      entries.push(group);
     }
     qwencode[qwencodeEventName] = entries;
   }
@@ -79,6 +89,8 @@ function canonicalToQwencodeHooks(config: HooksConfig): Record<string, unknown[]
 const QwencodeHookEntrySchema = z.looseObject({
   type: z.optional(z.string()),
   command: z.optional(z.string()),
+  // Target URL for `http` hooks (the hook POSTs JSON to this URL).
+  url: z.optional(z.string()),
   timeout: z.optional(z.number()),
   name: z.optional(z.string()),
   description: z.optional(z.string()),
@@ -86,11 +98,13 @@ const QwencodeHookEntrySchema = z.looseObject({
 
 /**
  * A matcher group entry in a Qwen Code event array.
- * Each event maps to an array of these groups.
+ * Each event maps to an array of these groups. The `sequential` flag (parallel
+ * by default) makes the group's hooks run one after another.
  */
 const QwencodeMatcherEntrySchema = z.looseObject({
   matcher: z.optional(z.string()),
   hooks: z.optional(z.array(QwencodeHookEntrySchema)),
+  sequential: z.optional(z.boolean()),
 });
 
 /**
@@ -110,16 +124,22 @@ function qwencodeHooksToCanonical(qwencodeHooks: unknown): HooksConfig["hooks"] 
       if (!parseResult.success) continue;
       const entry = parseResult.data;
       const hooks = entry.hooks ?? [];
+      const sequential = entry.sequential === true;
       for (const h of hooks) {
         const command = h.command;
-        const hookType = h.type === "command" || h.type === "prompt" ? h.type : "command";
+        // Preserve the `http` transport (and its target URL) instead of
+        // collapsing every non-prompt hook to `command`.
+        const hookType =
+          h.type === "command" || h.type === "prompt" || h.type === "http" ? h.type : "command";
         defs.push({
           type: hookType,
           ...(command !== undefined && command !== null && { command }),
+          ...(h.url !== undefined && h.url !== null && { url: h.url }),
           ...(h.timeout !== undefined && h.timeout !== null && { timeout: h.timeout }),
           ...(h.name !== undefined && h.name !== null && { name: h.name }),
           ...(h.description !== undefined &&
             h.description !== null && { description: h.description }),
+          ...(sequential && { sequential: true }),
           ...(entry.matcher !== undefined &&
             entry.matcher !== null &&
             entry.matcher !== "" && { matcher: entry.matcher }),
@@ -189,7 +209,12 @@ export class QwencodeHooks extends ToolHooks {
     }
     const config = rulesyncHooks.getJson();
     const qwencodeHooks = canonicalToQwencodeHooks(config);
-    const merged = { ...settings, hooks: qwencodeHooks };
+    const merged: Record<string, unknown> = { ...settings, hooks: qwencodeHooks };
+    // Round-trip Qwen Code's top-level switch that disables every hook.
+    const disableAllHooks = config.qwencode?.disableAllHooks;
+    if (typeof disableAllHooks === "boolean") {
+      merged.disableAllHooks = disableAllHooks;
+    }
     const fileContent = JSON.stringify(merged, null, 2);
     return new QwencodeHooks({
       outputRoot,
@@ -201,7 +226,7 @@ export class QwencodeHooks extends ToolHooks {
   }
 
   toRulesyncHooks(): RulesyncHooks {
-    let settings: { hooks?: unknown };
+    let settings: { hooks?: unknown; disableAllHooks?: unknown };
     try {
       settings = JSON.parse(this.getFileContent());
     } catch (error) {
@@ -213,8 +238,13 @@ export class QwencodeHooks extends ToolHooks {
       );
     }
     const hooks = qwencodeHooksToCanonical(settings.hooks);
+    // Preserve the top-level `disableAllHooks` switch under the qwencode namespace.
+    const canonical: HooksConfig =
+      typeof settings.disableAllHooks === "boolean"
+        ? { version: 1, hooks, qwencode: { disableAllHooks: settings.disableAllHooks } }
+        : { version: 1, hooks };
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify({ version: 1, hooks }, null, 2),
+      fileContent: JSON.stringify(canonical, null, 2),
     });
   }
 

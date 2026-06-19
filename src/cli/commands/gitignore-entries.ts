@@ -11,6 +11,8 @@ import {
   CLAUDECODE_SETTINGS_LOCAL_FILE_NAME,
   CLAUDECODE_SKILLS_DIR_PATH,
 } from "../../constants/claudecode-paths.js";
+import { JUNIE_IGNORE_FILE_NAME } from "../../constants/junie-paths.js";
+import { KIRO_IGNORE_FILE_NAME } from "../../constants/kiro-paths.js";
 import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import {
   ALL_FEATURES_WITH_WILDCARD,
@@ -161,6 +163,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   // Cline
   { target: "cline", feature: "rules", entry: "**/.clinerules/" },
   { target: "cline", feature: "commands", entry: "**/.clinerules/workflows/" },
+  { target: "cline", feature: "skills", entry: "**/.cline/skills/" },
   { target: "cline", feature: "ignore", entry: "**/.clineignore" },
   // Cline reads MCP only from a global settings file
   // (`~/.cline/data/settings/cline_mcp_settings.json`), which lives under the
@@ -230,6 +233,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "geminicli", feature: "skills", entry: "**/.gemini/skills/" },
   { target: "geminicli", feature: "ignore", entry: "**/.geminiignore" },
   { target: "geminicli", feature: "general", entry: "**/.gemini/memories/" },
+  { target: "geminicli", feature: "permissions", entry: "**/.gemini/policies/" },
 
   // Goose
   { target: "goose", feature: "rules", entry: "**/.goosehints" },
@@ -249,6 +253,8 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
 
   // Grok Build
   { target: "grokcli", feature: "general", entry: "**/.grok/config.toml" },
+  { target: "grokcli", feature: "skills", entry: "**/.grok/skills/" },
+  { target: "grokcli", feature: "subagents", entry: "**/.grok/agents/" },
 
   // GitHub Copilot
   {
@@ -288,15 +294,19 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
 
   // Junie
   { target: "junie", feature: "rules", entry: "**/.junie/guidelines.md" },
+  { target: "junie", feature: "commands", entry: "**/.junie/commands/" },
   { target: "junie", feature: "mcp", entry: "**/.junie/mcp/mcp.json" },
   { target: "junie", feature: "skills", entry: "**/.junie/skills/" },
   { target: "junie", feature: "subagents", entry: "**/.junie/agents/" },
+  { target: "junie", feature: "ignore", entry: `**/${JUNIE_IGNORE_FILE_NAME}` },
 
   // Kilo Code
   { target: "kilo", feature: "rules", entry: "**/.kilo/rules/" },
   { target: "kilo", feature: "skills", entry: "**/.kilo/skills/" },
-  { target: "kilo", feature: "commands", entry: "**/.kilo/workflows/" },
+  { target: "kilo", feature: "commands", entry: "**/.kilo/commands/" },
+  { target: "kilo", feature: "subagents", entry: "**/.kilo/agents/" },
   { target: "kilo", feature: "mcp", entry: "**/.kilo/mcp.json" },
+  { target: "kilo", feature: "hooks", entry: "**/.kilo/plugins/" },
   { target: "kilo", feature: "ignore", entry: "**/.kilocodeignore" },
   // No `**/kilo.jsonc` entry: structurally identical to `opencode.jsonc` (no
   // entry). The Kilo translator preserves non-permissions Kilo settings on
@@ -309,7 +319,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "kiro", feature: "skills", entry: "**/.kiro/skills/" },
   { target: "kiro", feature: "subagents", entry: "**/.kiro/agents/" },
   { target: "kiro", feature: "mcp", entry: "**/.kiro/settings/mcp.json" },
-  { target: "kiro", feature: "ignore", entry: "**/.aiignore" },
+  { target: "kiro", feature: "ignore", entry: `**/${KIRO_IGNORE_FILE_NAME}` },
   // Kiro IDE and CLI write to the same `.kiro/` tree as the legacy `kiro` alias.
   // (Kiro IDE subagents are Markdown under `.kiro/agents/`, the CLI's are JSON —
   // both covered by the shared `**/.kiro/agents/` entry.)
@@ -318,8 +328,8 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: ["kiro-cli", "kiro-ide"], feature: "skills", entry: "**/.kiro/skills/" },
   { target: ["kiro-cli", "kiro-ide"], feature: "subagents", entry: "**/.kiro/agents/" },
   { target: ["kiro-cli", "kiro-ide"], feature: "mcp", entry: "**/.kiro/settings/mcp.json" },
-  { target: ["kiro-cli", "kiro-ide"], feature: "ignore", entry: "**/.aiignore" },
-  // Keep this after ignore entries like "**/.aiignore" so the exception remains effective.
+  { target: ["kiro-cli", "kiro-ide"], feature: "ignore", entry: `**/${KIRO_IGNORE_FILE_NAME}` },
+  // Keep this after ignore entries like Junie's "**/.aiignore" so the exception remains effective.
   { target: "common", feature: "general", entry: "!.rulesync/.aiignore" },
 
   // OpenCode
@@ -341,11 +351,12 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
 
   // Qwen Code
   { target: "qwencode", feature: "rules", entry: "**/QWEN.md" },
+  // Non-root rules are emitted as path-based context rules under `.qwen/rules/`.
+  { target: "qwencode", feature: "rules", entry: "**/.qwen/rules/" },
   { target: "qwencode", feature: "commands", entry: "**/.qwen/commands/" },
   { target: "qwencode", feature: "subagents", entry: "**/.qwen/agents/" },
   { target: "qwencode", feature: "skills", entry: "**/.qwen/skills/" },
   { target: "qwencode", feature: "ignore", entry: "**/.qwenignore" },
-  { target: "qwencode", feature: "general", entry: "**/.qwen/memories/" },
   // mcp + hooks both write to `.qwen/settings.json`, shared with permissions.
   { target: "qwencode", feature: "permissions", entry: "**/.qwen/settings.json" },
 
@@ -354,6 +365,7 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
 
   // Roo
   { target: "roo", feature: "rules", entry: "**/.roo/rules/" },
+  { target: "roo", feature: "commands", entry: "**/.roo/commands/" },
   { target: "roo", feature: "skills", entry: "**/.roo/skills/" },
   { target: "roo", feature: "ignore", entry: "**/.rooignore" },
   { target: "roo", feature: "mcp", entry: "**/.roo/mcp.json" },

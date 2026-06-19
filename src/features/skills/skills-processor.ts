@@ -26,6 +26,7 @@ import { DeepagentsSkill } from "./deepagents-skill.js";
 import { DevinSkill } from "./devin-skill.js";
 import { FactorydroidSkill } from "./factorydroid-skill.js";
 import { GeminiCliSkill } from "./geminicli-skill.js";
+import { GrokcliSkill } from "./grokcli-skill.js";
 import { JunieSkill } from "./junie-skill.js";
 import { KiloSkill } from "./kilo-skill.js";
 import { KiroCliSkill } from "./kiro-cli-skill.js";
@@ -97,6 +98,7 @@ const skillsProcessorToolTargetTuple = [
   "deepagents",
   "factorydroid",
   "geminicli",
+  "grokcli",
   "junie",
   "kilo",
   "kiro",
@@ -254,6 +256,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "geminicli",
     {
       class: GeminiCliSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "grokcli",
+    {
+      // Grok Build discovers skills under .grok/skills/ (project) and
+      // ~/.grok/skills/ (global), each a SKILL.md directory.
+      // https://docs.x.ai/build/features/skills-plugins-marketplaces
+      class: GrokcliSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

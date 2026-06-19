@@ -14,6 +14,9 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   name: z.string(),
   description: z.string(),
   targets: z._default(RulesyncTargetsSchema, ["*"]),
+  // Default for tools that support the flag (claudecode, cursor, zed, pi, qwencode, factorydroid).
+  // A target-section value of the same key overrides this default.
+  "disable-model-invocation": z.optional(z.boolean()),
   claudecode: z.optional(
     z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
@@ -82,6 +85,11 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   deepagents: z.optional(
     z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
+      license: z.optional(z.string()),
+      // The Agent Skills spec defines `compatibility` as a free-form string
+      // (1–500 chars); an object form is also tolerated for back-compat.
+      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+      metadata: z.optional(z.looseObject({})),
     }),
   ),
   copilot: z.optional(
@@ -134,6 +142,11 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       metadata: z.optional(z.looseObject({})),
     }),
   ),
+  factorydroid: z.optional(
+    z.looseObject({
+      "disable-model-invocation": z.optional(z.boolean()),
+    }),
+  ),
   agentsskills: z.optional(
     z.looseObject({
       license: z.optional(z.string()),
@@ -172,6 +185,7 @@ export type RulesyncSkillFrontmatterInput = {
   name: string;
   description: string;
   targets?: ("*" | string)[];
+  "disable-model-invocation"?: boolean;
   claudecode?: {
     "allowed-tools"?: string[];
     "disallowed-tools"?: string | string[];
@@ -214,6 +228,9 @@ export type RulesyncSkillFrontmatterInput = {
   };
   deepagents?: {
     "allowed-tools"?: string[];
+    license?: string;
+    compatibility?: string | Record<string, unknown>;
+    metadata?: Record<string, unknown>;
   };
   copilot?: {
     license?: string;
@@ -250,6 +267,9 @@ export type RulesyncSkillFrontmatterInput = {
     paths?: string | string[];
     "disable-model-invocation"?: boolean;
     metadata?: Record<string, unknown>;
+  };
+  factorydroid?: {
+    "disable-model-invocation"?: boolean;
   };
   agentsskills?: {
     license?: string;

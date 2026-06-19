@@ -1,7 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { toolCommandFactories } from "../../features/commands/commands-processor.js";
+import { toolHooksFactories } from "../../features/hooks/hooks-processor.js";
+import { toolMcpFactories } from "../../features/mcp/mcp-processor.js";
+import { toolPermissionsFactories } from "../../features/permissions/permissions-processor.js";
+import { toolSkillFactories } from "../../features/skills/skills-processor.js";
+import { toolSubagentFactories } from "../../features/subagents/subagents-processor.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { ALL_TOOL_TARGETS } from "../../types/tool-targets.js";
+import { toPosixPath } from "../../utils/file.js";
 import {
   ALL_GITIGNORE_ENTRIES,
   GITIGNORE_ENTRY_REGISTRY,
@@ -58,6 +65,98 @@ describe("GITIGNORE_ENTRY_REGISTRY", () => {
       }
     }
   });
+});
+
+// Project-scope outputs that are intentionally NOT gitignored because they are
+// user-managed settings files that rulesync merges into (and round-trips),
+// rather than fully-owned generated artifacts.
+const DERIVED_PATHS_NOT_GITIGNORED = new Set([
+  "**/.amp/settings.json",
+  "**/.amp/settings.jsonc",
+  "**/.antigravity/settings.json",
+  "**/.claude/settings.json",
+  "**/.factory/settings.json",
+  "**/.gemini/settings.json",
+  "**/.zed/settings.json",
+  "**/.warp/settings.toml",
+  "**/kilo.json",
+  "**/kilo.jsonc",
+  "**/opencode.json",
+]);
+
+const dirToGlob = (relativeDirPath: string): string =>
+  `**/${toPosixPath(relativeDirPath).replace(/\/$/, "")}/`;
+
+const fileToGlob = (relativeDirPath: string | undefined, relativeFilePath: string): string => {
+  const hasDir = relativeDirPath && relativeDirPath !== ".";
+  return `**/${toPosixPath(hasDir ? `${relativeDirPath}/${relativeFilePath}` : relativeFilePath)}`;
+};
+
+const isCoveredByRegistry = (glob: string): boolean => {
+  const normalized = glob.replace(/\/$/, "");
+  return GITIGNORE_ENTRY_REGISTRY.some((tag) => {
+    const entry = tag.entry.replace(/\/$/, "");
+    return entry === normalized || normalized.startsWith(`${entry}/`);
+  });
+};
+
+describe("getSettablePaths coverage", () => {
+  // Guards against the implicit coupling between each tool's getSettablePaths
+  // (the source of truth for output locations) and the hand-written registry:
+  // every project-scope output must be gitignored, or explicitly excepted.
+  const dirFeatures = [
+    ["commands", toolCommandFactories],
+    ["skills", toolSkillFactories],
+    ["subagents", toolSubagentFactories],
+  ] as const;
+
+  for (const [feature, factories] of dirFeatures) {
+    for (const [target, factory] of factories) {
+      if (TARGETS_WITHOUT_GITIGNORE_ENTRIES.has(target)) continue;
+      // Skip global-only tools explicitly (same guard as the fileFeatures branch
+      // below) rather than relying on `getSettablePaths({ global: false })`
+      // throwing and a broad catch swallowing it — otherwise a global-only tool
+      // refactored to return a project path would silently change coverage.
+      const meta = factory.meta as { supportsProject?: boolean } | undefined;
+      if (meta && meta.supportsProject === false) continue;
+      it(`covers ${feature} output for ${target}`, () => {
+        // No try/catch: a project-supporting tool must resolve a project path
+        // without throwing, so an unexpected throw fails the test instead of
+        // passing silently.
+        const paths = factory.class.getSettablePaths({ global: false });
+        const dir = paths.relativeDirPath;
+        if (!dir || dir === ".") return;
+        const glob = dirToGlob(dir);
+        if (DERIVED_PATHS_NOT_GITIGNORED.has(glob.replace(/\/$/, ""))) return;
+        expect(isCoveredByRegistry(glob)).toBe(true);
+      });
+    }
+  }
+
+  const fileFeatures = [
+    ["mcp", toolMcpFactories],
+    ["hooks", toolHooksFactories],
+    ["permissions", toolPermissionsFactories],
+  ] as const;
+
+  for (const [feature, factories] of fileFeatures) {
+    for (const [target, factory] of factories) {
+      if (TARGETS_WITHOUT_GITIGNORE_ENTRIES.has(target)) continue;
+      const meta = factory.meta as { supportsProject?: boolean } | undefined;
+      if (meta && meta.supportsProject === false) continue;
+      it(`covers ${feature} output for ${target}`, () => {
+        // No try/catch: project-supporting tools must resolve without throwing
+        // (global-only tools are already skipped above), so an unexpected throw
+        // fails the test instead of passing silently.
+        const paths: { relativeDirPath?: string; relativeFilePath?: string } =
+          factory.class.getSettablePaths({ global: false });
+        if (!paths.relativeFilePath) return;
+        const glob = fileToGlob(paths.relativeDirPath, paths.relativeFilePath);
+        if (DERIVED_PATHS_NOT_GITIGNORED.has(glob)) return;
+        expect(isCoveredByRegistry(glob)).toBe(true);
+      });
+    }
+  }
 });
 
 describe("ALL_GITIGNORE_ENTRIES", () => {
