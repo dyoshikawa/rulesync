@@ -2,6 +2,7 @@ import { basename, join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
+import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
@@ -662,6 +663,29 @@ export class CommandsProcessor extends FeatureProcessor {
 
   static getToolTargetsSimulated(): ToolTarget[] {
     return [...commandsProcessorToolTargetsSimulated];
+  }
+
+  /**
+   * Convention section describing how simulated custom slash commands are invoked,
+   * embedded into a tool's root rule (e.g. AGENTS.md) by the rules feature.
+   */
+  static getSimulatedConventionSection(): string {
+    return `## Simulated Custom Slash Commands
+
+Custom slash commands allow you to define frequently-used prompts as Markdown files that you can execute.
+
+### Syntax
+
+Users can use following syntax to invoke a custom command.
+
+\`\`\`txt
+s/<command> [arguments]
+\`\`\`
+
+This syntax employs a double slash (\`s/\`) to prevent conflicts with built-in slash commands.
+The \`s\` in \`s/\` stands for *simulate*. Because custom slash commands are not built-in, this syntax provides a pseudo way to invoke them.
+
+When users call a custom slash command, you have to look for the markdown file, \`${join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "{command}.md")}\`, then execute the contents of that file as the block of operations.`;
   }
 
   /**
