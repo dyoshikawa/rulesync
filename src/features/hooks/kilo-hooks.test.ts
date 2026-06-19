@@ -266,13 +266,52 @@ describe("KiloHooks", () => {
 
       expect(kiloHooks.getFileContent()).toBe(
         [
-          "export const RulesyncHooksPlugin = async ({ $ }) => {",
-          "  return {",
-          "  };",
+          "export default {",
+          '  id: "rulesync-hooks",',
+          "  server: async ({ $ }) => {",
+          "    return {",
+          "    };",
+          "  },",
           "};",
           "",
         ].join("\n"),
       );
+    });
+
+    it("should emit a canonical default-export { id, server } plugin descriptor", () => {
+      const config = {
+        version: 1,
+        hooks: {
+          sessionStart: [{ type: "command", command: ".rulesync/hooks/session-start.sh" }],
+          preToolUse: [{ type: "command", command: "lint.sh", matcher: "Write" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const kiloHooks = KiloHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = kiloHooks.getFileContent();
+      // Canonical Kilo plugin shape: default export with id + server descriptor.
+      expect(content).toContain("export default {");
+      expect(content).toContain('  id: "rulesync-hooks",');
+      expect(content).toContain("  server: async ({ $ }) => {");
+      // Must NOT emit the legacy named export used by the OpenCode target.
+      expect(content).not.toContain("export const RulesyncHooksPlugin");
+      // Handlers are still present, just nested under `server`.
+      expect(content).toContain('event.type === "session.created"');
+      expect(content).toContain('new RegExp("Write")');
+      // Generated module must be syntactically valid ESM.
+      execFileSync("node", ["--input-type=module", "--check"], { input: content });
     });
 
     it("should escape ${} interpolation in commands", () => {
@@ -361,32 +400,32 @@ describe("KiloHooks", () => {
       const content = kiloHooks.getFileContent();
       expect(content).toContain(
         [
-          "      {",
-          '        const __re = new RegExp("Read");',
-          "        if (__re.test(input.tool)) {",
-          "          await $`audit-read.sh`;",
+          "        {",
+          '          const __re = new RegExp("Read");',
+          "          if (__re.test(input.tool)) {",
+          "            await $`audit-read.sh`;",
+          "          }",
           "        }",
-          "      }",
         ].join("\n"),
       );
       expect(content).toContain(
         [
-          "      {",
-          '        const __re = new RegExp("Write");',
-          "        if (__re.test(input.tool)) {",
-          "          await $`audit-write.sh`;",
+          "        {",
+          '          const __re = new RegExp("Write");',
+          "          if (__re.test(input.tool)) {",
+          "            await $`audit-write.sh`;",
+          "          }",
           "        }",
-          "      }",
         ].join("\n"),
       );
       expect(content).toContain(
         [
-          "      {",
-          '        const __re = new RegExp("Edit");',
-          "        if (__re.test(input.tool)) {",
-          "          await $`audit-edit.sh`;",
+          "        {",
+          '          const __re = new RegExp("Edit");',
+          "          if (__re.test(input.tool)) {",
+          "            await $`audit-edit.sh`;",
+          "          }",
           "        }",
-          "      }",
         ].join("\n"),
       );
 
@@ -584,6 +623,44 @@ describe("KiloHooks", () => {
       });
       expect(kiloHooks).toBeInstanceOf(KiloHooks);
       expect(kiloHooks.getFileContent()).toBe(content);
+    });
+
+    it("should load from the singular .kilo/plugin/ directory when the plural one is absent", async () => {
+      const pluginDir = join(testDir, ".kilo", "plugin");
+      await ensureDir(pluginDir);
+      const content = [
+        "export default {",
+        '  id: "rulesync-hooks",',
+        "  server: async ({ $ }) => {",
+        "    return {}",
+        "  },",
+        "}",
+      ].join("\n");
+      await writeFileContent(join(pluginDir, "rulesync-hooks.js"), content);
+
+      const kiloHooks = await KiloHooks.fromFile({
+        outputRoot: testDir,
+        validate: false,
+      });
+      expect(kiloHooks).toBeInstanceOf(KiloHooks);
+      expect(kiloHooks.getFileContent()).toBe(content);
+      expect(kiloHooks.getRelativeDirPath()).toBe(join(".kilo", "plugin"));
+    });
+
+    it("should prefer the plural .kilo/plugins/ directory over the singular one", async () => {
+      const pluralDir = join(testDir, ".kilo", "plugins");
+      const singularDir = join(testDir, ".kilo", "plugin");
+      await ensureDir(pluralDir);
+      await ensureDir(singularDir);
+      await writeFileContent(join(pluralDir, "rulesync-hooks.js"), "// plural");
+      await writeFileContent(join(singularDir, "rulesync-hooks.js"), "// singular");
+
+      const kiloHooks = await KiloHooks.fromFile({
+        outputRoot: testDir,
+        validate: false,
+      });
+      expect(kiloHooks.getFileContent()).toBe("// plural");
+      expect(kiloHooks.getRelativeDirPath()).toBe(join(".kilo", "plugins"));
     });
   });
 

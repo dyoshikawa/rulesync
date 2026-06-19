@@ -4,6 +4,7 @@ import { parse as parseJsonc } from "jsonc-parser";
 import { z } from "zod/mini";
 
 import {
+  KILO_DIR,
   KILO_GLOBAL_DIR,
   KILO_JSON_FILE_NAME,
   KILO_JSONC_FILE_NAME,
@@ -264,28 +265,75 @@ export class KiloMcp extends ToolMcp {
     };
   }
 
+  /**
+   * Resolve the config file to import from, probing in priority order:
+   *   1. project root `kilo.jsonc` / `kilo.json` (or the global `.config/kilo`
+   *      directory in global mode), then
+   *   2. the alternative project location `.kilo/kilo.jsonc` / `.kilo/kilo.json`.
+   *
+   * Kilo accepts project config at the root OR under `.kilo/` ("for a cleaner
+   * setup"), so the import side probes both. The write side intentionally stays
+   * at the root location returned by `getSettablePaths`.
+   * https://kilo.ai/docs/automate/mcp/using-in-kilo-code
+   */
+  private static async resolveImportConfig({
+    outputRoot,
+    global,
+  }: {
+    outputRoot: string;
+    global: boolean;
+  }): Promise<{ fileContent: string | null; relativeDirPath: string; relativeFilePath: string }> {
+    const rootDirPath = this.getSettablePaths({ global }).relativeDirPath;
+    // The alternative `.kilo/` project location only applies to project scope.
+    const candidateDirPaths = global ? [rootDirPath] : [rootDirPath, KILO_DIR];
+
+    // Track the first existing-but-empty file so the empty-content path is
+    // preserved (an existing empty `kilo.json` should be parsed as-is, matching
+    // the previous root-only behavior, rather than silently defaulting to an
+    // empty `mcp` object).
+    let emptyFallback: { relativeDirPath: string; relativeFilePath: string } | null = null;
+
+    for (const relativeDirPath of candidateDirPaths) {
+      const jsonDir = join(outputRoot, relativeDirPath);
+
+      // Always try JSONC first (preferred format), then fall back to JSON.
+      for (const relativeFilePath of [KILO_JSONC_FILE_NAME, KILO_JSON_FILE_NAME]) {
+        const content = await readFileContentOrNull(join(jsonDir, relativeFilePath));
+        if (content === null) {
+          continue;
+        }
+        if (content) {
+          return { fileContent: content, relativeDirPath, relativeFilePath };
+        }
+        // Existing but empty file: remember the first one as a fallback.
+        emptyFallback ??= { relativeDirPath, relativeFilePath };
+      }
+    }
+
+    if (emptyFallback) {
+      return {
+        fileContent: "",
+        relativeDirPath: emptyFallback.relativeDirPath,
+        relativeFilePath: emptyFallback.relativeFilePath,
+      };
+    }
+
+    return {
+      fileContent: null,
+      relativeDirPath: rootDirPath,
+      relativeFilePath: KILO_JSONC_FILE_NAME,
+    };
+  }
+
   static async fromFile({
     outputRoot = process.cwd(),
     validate = true,
     global = false,
   }: ToolMcpFromFileParams): Promise<KiloMcp> {
-    const basePaths = this.getSettablePaths({ global });
-    const jsonDir = join(outputRoot, basePaths.relativeDirPath);
-
-    let fileContent: string | null = null;
-    let relativeFilePath = KILO_JSONC_FILE_NAME;
-
-    const jsoncPath = join(jsonDir, KILO_JSONC_FILE_NAME);
-    const jsonPath = join(jsonDir, KILO_JSON_FILE_NAME);
-
-    // Always try JSONC first (preferred format), then fall back to JSON
-    fileContent = await readFileContentOrNull(jsoncPath);
-    if (!fileContent) {
-      fileContent = await readFileContentOrNull(jsonPath);
-      if (fileContent) {
-        relativeFilePath = KILO_JSON_FILE_NAME;
-      }
-    }
+    const { fileContent, relativeDirPath, relativeFilePath } = await this.resolveImportConfig({
+      outputRoot,
+      global,
+    });
 
     const fileContentToUse = fileContent ?? '{"mcp":{}}';
     const json = parseJsonc(fileContentToUse);
@@ -293,7 +341,7 @@ export class KiloMcp extends ToolMcp {
 
     return new KiloMcp({
       outputRoot,
-      relativeDirPath: basePaths.relativeDirPath,
+      relativeDirPath,
       relativeFilePath,
       fileContent: JSON.stringify(newJson, null, 2),
       validate,

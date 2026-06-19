@@ -198,6 +198,53 @@ describe("KiloPermissions", () => {
     expect(rulesync.permission.bash).toEqual({ "*": "ask" });
   });
 
+  it("should import from the alternative .kilo/kilo.jsonc project location", async () => {
+    await ensureDir(join(testDir, ".kilo"));
+    await writeFileContent(
+      join(testDir, ".kilo", "kilo.jsonc"),
+      JSON.stringify({ permission: { bash: "ask" } }),
+    );
+
+    const instance = await KiloPermissions.fromFile({ outputRoot: testDir });
+    const rulesync = instance.toRulesyncPermissions().getJson();
+
+    expect(rulesync.permission.bash).toEqual({ "*": "ask" });
+    expect(instance.getRelativeDirPath()).toBe(".kilo");
+    expect(instance.getFilePath()).toBe(join(testDir, ".kilo", "kilo.jsonc"));
+  });
+
+  it("should import from the alternative .kilo/kilo.json project location", async () => {
+    await ensureDir(join(testDir, ".kilo"));
+    await writeFileContent(
+      join(testDir, ".kilo", "kilo.json"),
+      JSON.stringify({ permission: { read: { ".env": "deny" } } }),
+    );
+
+    const instance = await KiloPermissions.fromFile({ outputRoot: testDir });
+    const rulesync = instance.toRulesyncPermissions().getJson();
+
+    expect(rulesync.permission.read).toEqual({ ".env": "deny" });
+    expect(instance.getFilePath()).toBe(join(testDir, ".kilo", "kilo.json"));
+  });
+
+  it("should prefer the root kilo.jsonc over the .kilo/ alternative location", async () => {
+    await ensureDir(join(testDir, ".kilo"));
+    await writeFileContent(
+      join(testDir, "kilo.jsonc"),
+      JSON.stringify({ permission: { bash: "allow" } }),
+    );
+    await writeFileContent(
+      join(testDir, ".kilo", "kilo.jsonc"),
+      JSON.stringify({ permission: { bash: "deny" } }),
+    );
+
+    const instance = await KiloPermissions.fromFile({ outputRoot: testDir });
+    const rulesync = instance.toRulesyncPermissions().getJson();
+
+    expect(rulesync.permission.bash).toEqual({ "*": "allow" });
+    expect(instance.getRelativeDirPath()).toBe(".");
+  });
+
   it("forDeletion returns non-deletable instance", () => {
     const instance = KiloPermissions.forDeletion({
       outputRoot: testDir,
