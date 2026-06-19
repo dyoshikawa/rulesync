@@ -258,7 +258,9 @@ export class QwencodeRule extends ToolRule {
     const isUniversal = globs.every((glob) => glob === "**/*" || glob === "*");
     const frontmatter: QwencodeRuleFrontmatter = {
       paths: isUniversal ? undefined : globs,
-      description: rulesyncFrontmatter.description,
+      // Omit empty descriptions so they do not leave a bare `description: ''`
+      // line in the emitted frontmatter.
+      description: rulesyncFrontmatter.description || undefined,
     };
 
     return new QwencodeRule({

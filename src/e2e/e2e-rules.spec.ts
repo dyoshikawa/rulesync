@@ -144,6 +144,9 @@ globs: ["src/**/*.ts"]
     // Root memory file is unchanged.
     const rootContent = await readFileContent(join(testDir, "QWEN.md"));
     expect(rootContent).toContain("Root Rule");
+    // Qwen Code auto-discovers `.qwen/rules/`, so the root file must not carry a
+    // reference block pointing at the non-root rule files.
+    expect(rootContent).not.toContain(".qwen/rules/");
 
     // Non-root rule lands in .qwen/rules/ with `paths` and `description`.
     const nonRootContent = await readFileContent(
