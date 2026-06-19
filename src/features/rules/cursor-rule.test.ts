@@ -410,6 +410,34 @@ This is the rule content
       expect(rule.getRelativeFilePath()).toBe("test.mdc");
     });
 
+    it("should round-trip a description containing YAML-special characters", async () => {
+      // A description with a ": " sequence (and other YAML indicators) must be emitted
+      // as a quoted scalar; otherwise the generated frontmatter is invalid YAML and
+      // fromFile throws when reading it back. See the constructor stringify path.
+      const description = "Use this rule: enforce strict TypeScript settings";
+      const generated = new CursorRule({
+        frontmatter: { description, globs: "*.ts", alwaysApply: false },
+        body: "Always enable strict mode.",
+        relativeDirPath: ".cursor/rules",
+        relativeFilePath: "strict.mdc",
+      });
+
+      const filePath = join(testDir, ".cursor/rules", "strict.mdc");
+      await writeFileContent(filePath, generated.getFileContent());
+
+      const parsed = await CursorRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "strict.mdc",
+      });
+
+      expect(parsed.getFrontmatter()).toEqual({
+        description,
+        globs: "*.ts",
+        alwaysApply: false,
+      });
+      expect(parsed.getBody()).toBe("Always enable strict mode.");
+    });
+
     it("should handle file with no frontmatter", async () => {
       const filePath = join(testDir, ".cursor/rules", "simple.mdc");
       const content = "Just plain content without frontmatter";
