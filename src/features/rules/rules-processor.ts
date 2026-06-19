@@ -50,6 +50,7 @@ import { DevinRule } from "./devin-rule.js";
 import { FactorydroidRule } from "./factorydroid-rule.js";
 import { GeminiCliRule } from "./geminicli-rule.js";
 import { GooseRule } from "./goose-rule.js";
+import { GrokcliRule } from "./grokcli-rule.js";
 import { JunieRule } from "./junie-rule.js";
 import { KiloRule } from "./kilo-rule.js";
 import { KiroCliRule } from "./kiro-cli-rule.js";
@@ -94,6 +95,7 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "factorydroid",
   "geminicli",
   "goose",
+  "grokcli",
   "junie",
   "kilo",
   "kiro",
@@ -473,6 +475,21 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     },
   ],
   [
+    "grokcli",
+    {
+      // Grok Build reads the AGENTS.md instruction-file family natively
+      // (root/subdir AGENTS.md + global ~/.grok/AGENTS.md) but never a
+      // `.grok/memories/` directory, so non-root rules are folded into the
+      // single root AGENTS.md below (same handling as warp / deepagents).
+      class: GrokcliRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+      },
+    },
+  ],
+  [
     "junie",
     {
       class: JunieRule,
@@ -801,10 +818,16 @@ export class RulesProcessor extends FeatureProcessor {
     // neither scan a `memories/` directory nor follow references out of it:
     // - deepagents (dcode) reads only `.deepagents/AGENTS.md`.
     // - Warp reads only root/subdir `AGENTS.md`, never `.warp/memories/`.
+    // - Grok Build reads only root/subdir `AGENTS.md` (+ global `~/.grok/AGENTS.md`),
+    //   never `.grok/memories/` (verified via `grok inspect`).
     // Fold every non-root rule body into the root rule so no rule content is
     // silently lost, and drop the now-redundant non-root instances (which all
     // share the root path).
-    if (this.toolTarget === "deepagents" || this.toolTarget === "warp") {
+    if (
+      this.toolTarget === "deepagents" ||
+      this.toolTarget === "warp" ||
+      this.toolTarget === "grokcli"
+    ) {
       this.foldNonRootRulesIntoRootRule(toolRules);
     }
 
