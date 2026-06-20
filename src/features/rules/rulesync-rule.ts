@@ -189,7 +189,17 @@ export class RulesyncRule extends RulesyncFile {
 
     // Read file content
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
+    const { frontmatter, body: content, hasFrontmatter } = parseFrontmatter(fileContent, filePath);
+
+    // Check that the file actually contains a YAML frontmatter block.
+    // Without this check, a file without frontmatter would be silently accepted
+    // with default values (targets: ["*"], root: false, etc.), which is almost
+    // certainly not what the user intended. See issue #316.
+    if (!hasFrontmatter) {
+      throw new Error(
+        `Missing frontmatter in ${filePath}. Rulesync files must begin with a YAML frontmatter block delimited by '---'.`,
+      );
+    }
 
     // Validate frontmatter using RuleFrontmatterSchema
     const result = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);

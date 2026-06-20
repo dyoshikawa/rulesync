@@ -128,7 +128,13 @@ export class RulesyncCommand extends RulesyncFile {
       relativeFilePath,
     );
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
+    const { frontmatter, body: content, hasFrontmatter } = parseFrontmatter(fileContent, filePath);
+
+    if (!hasFrontmatter) {
+      throw new Error(
+        `Missing frontmatter in ${filePath}. Rulesync files must begin with a YAML frontmatter block delimited by '---'.`,
+      );
+    }
 
     // Validate frontmatter using CommandFrontmatterSchema
     const result = RulesyncCommandFrontmatterSchema.safeParse(frontmatter);

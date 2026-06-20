@@ -332,6 +332,23 @@ Invalid rule`;
       ).rejects.toThrow("Invalid frontmatter");
     });
 
+    it("should throw error when frontmatter is missing (issue #316)", async () => {
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
+      await ensureDir(rulesDir);
+
+      // A markdown file without any YAML frontmatter fence
+      const ruleContent = "This is just plain markdown without frontmatter.";
+
+      const filePath = join(rulesDir, "no-frontmatter.md");
+      await writeFileContent(filePath, ruleContent);
+
+      await expect(
+        RulesyncRule.fromFile({
+          relativeFilePath: "no-frontmatter.md",
+        }),
+      ).rejects.toThrow("Missing frontmatter");
+    });
+
     it("should handle cursor configuration in frontmatter", async () => {
       const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);

@@ -690,12 +690,16 @@ describe("ClaudecodeIgnore", () => {
       expect(claudecodeIgnore.getPatterns()).toEqual(["Read(*.log)"]);
     });
 
-    it("should throw error when shared settings file does not exist", async () => {
-      await expect(
-        ClaudecodeIgnore.fromFile({
-          outputRoot: testDir,
-        }),
-      ).rejects.toThrow("File not found");
+    it("should fall back to empty settings when shared settings.json does not exist", async () => {
+      // See issue #1769: `rulesync import` should not crash when .claude/settings.json
+      // is missing. Instead, it should gracefully fall back to an empty settings
+      // document with no deny patterns.
+      const claudecodeIgnore = await ClaudecodeIgnore.fromFile({
+        outputRoot: testDir,
+      });
+
+      expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.json");
+      expect(claudecodeIgnore.getPatterns()).toEqual([]);
     });
 
     it("should fall back to empty settings when settings.local.json is missing", async () => {

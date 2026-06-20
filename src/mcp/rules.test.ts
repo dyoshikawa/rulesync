@@ -76,7 +76,7 @@ description: "Second rule"
       expect(parsed.rules[1].frontmatter.root).toBe(false);
     });
 
-    it("should handle rules without frontmatter", async () => {
+    it("should skip rules without frontmatter (issue #316)", async () => {
       const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
       await ensureDir(rulesDir);
 
@@ -85,15 +85,9 @@ description: "Second rule"
       const result = await ruleTools.listRules.execute();
       const parsed = JSON.parse(result);
 
-      expect(parsed.rules).toHaveLength(1);
-      // RulesyncRule adds default values for missing frontmatter fields
-      expect(parsed.rules[0].frontmatter).toEqual({
-        root: false,
-        localRoot: false,
-        targets: ["*"],
-        description: undefined,
-        globs: [],
-      });
+      // Rules without frontmatter are now rejected with a clear error
+      // (see issue #316), so listRules skips them via its error handler.
+      expect(parsed.rules).toHaveLength(0);
     });
 
     it("should skip non-markdown files", async () => {

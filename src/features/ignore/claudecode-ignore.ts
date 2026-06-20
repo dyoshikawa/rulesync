@@ -172,18 +172,14 @@ export class ClaudecodeIgnore extends ToolIgnore {
     validate = true,
     options,
   }: ToolIgnoreFromFileParams): Promise<ClaudecodeIgnore> {
-    const fileMode = resolveFileMode(options);
     const paths = this.getSettablePaths({ options });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    // When `fileMode: "local"` is configured but the user has not yet created
-    // `.claude/settings.local.json` (a common case during `rulesync import`),
+    // When the settings file does not exist (either shared or local mode),
     // gracefully fall back to an empty settings document instead of throwing.
-    // For "shared" mode, missing settings.json is still an error — it should
-    // exist if the user has configured shared ignore patterns.
+    // This matches the pattern used by ClaudecodePermissions and ClaudecodeHooks,
+    // and prevents `rulesync import` from crashing when .claude/settings.json
+    // has not been created yet (see issue #1769).
     const exists = await fileExists(filePath);
-    if (!exists && fileMode === "shared") {
-      throw new Error(`File not found: ${filePath}`);
-    }
     const fileContent = exists ? await readFileContent(filePath) : "{}";
 
     return new ClaudecodeIgnore({

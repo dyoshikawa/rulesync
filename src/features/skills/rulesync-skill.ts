@@ -414,7 +414,17 @@ export class RulesyncSkill extends AiDir {
     }
 
     const fileContent = await readFileContent(skillFilePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, skillFilePath);
+    const {
+      frontmatter,
+      body: content,
+      hasFrontmatter,
+    } = parseFrontmatter(fileContent, skillFilePath);
+
+    if (!hasFrontmatter) {
+      throw new Error(
+        `Missing frontmatter in ${skillFilePath}. Rulesync files must begin with a YAML frontmatter block delimited by '---'.`,
+      );
+    }
 
     const result = RulesyncSkillFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
