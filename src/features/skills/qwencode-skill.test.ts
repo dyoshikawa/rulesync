@@ -272,6 +272,37 @@ describe("QwencodeSkill", () => {
       const qwencodeSkill = QwencodeSkill.fromRulesyncSkill({ rulesyncSkill });
       expect(qwencodeSkill.getFrontmatter()["disable-model-invocation"]).toBeUndefined();
     });
+
+    it("should pick up root-level user-invocable when qwencode section omits it", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "root-user-invocable",
+        frontmatter: {
+          name: "root-user-invocable",
+          description: "Root user-invocable",
+          "user-invocable": false,
+        },
+        body: "Body",
+      });
+
+      const qwencodeSkill = QwencodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(qwencodeSkill.getFrontmatter()["user-invocable"]).toBe(false);
+    });
+
+    it("should let qwencode user-invocable override the root-level value", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "user-invocable-override",
+        frontmatter: {
+          name: "user-invocable-override",
+          description: "Qwencode overrides user-invocable",
+          "user-invocable": true,
+          qwencode: { "user-invocable": false },
+        } as RulesyncSkillFrontmatterInput,
+        body: "Body",
+      });
+
+      const qwencodeSkill = QwencodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(qwencodeSkill.getFrontmatter()["user-invocable"]).toBe(false);
+    });
   });
 
   describe("toRulesyncSkill", () => {

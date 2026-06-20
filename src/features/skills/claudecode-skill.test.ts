@@ -373,6 +373,27 @@ describe("ClaudecodeSkill", () => {
       });
     });
 
+    it("should convert to RulesyncSkill with user-invocable false", () => {
+      const frontmatter: ClaudecodeSkillFrontmatter = {
+        name: "hidden-skill",
+        description: "Skill hidden from the slash menu",
+        "user-invocable": false,
+      };
+
+      const skill = new ClaudecodeSkill({
+        dirName: "hidden-skill",
+        frontmatter,
+        body: "Hidden body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+
+      expect(rulesyncFrontmatter.claudecode).toEqual({
+        "user-invocable": false,
+      });
+    });
+
     it("should convert to RulesyncSkill with paths as string", () => {
       const frontmatter: ClaudecodeSkillFrontmatter = {
         name: "paths-string-skill",
@@ -656,6 +677,74 @@ describe("ClaudecodeSkill", () => {
 
       const claudecodeSkill = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
       expect(claudecodeSkill.getFrontmatter()["disable-model-invocation"]).toBeUndefined();
+    });
+
+    it("should convert from RulesyncSkill with user-invocable false", () => {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
+        name: "hidden-skill",
+        description: "Skill hidden from the slash menu",
+        claudecode: { "user-invocable": false },
+      };
+
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "hidden-skill",
+        frontmatter: rulesyncFrontmatter,
+        body: "Hidden body",
+      });
+
+      const claudecodeSkill = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(claudecodeSkill.getFrontmatter()["user-invocable"]).toBe(false);
+    });
+
+    it("should omit user-invocable when claudecode section does not set it", () => {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
+        name: "no-user-invocable-skill",
+        description: "Skill without user-invocable",
+      };
+
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "no-user-invocable-skill",
+        frontmatter: rulesyncFrontmatter,
+        body: "Body",
+      });
+
+      const claudecodeSkill = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(claudecodeSkill.getFrontmatter()["user-invocable"]).toBeUndefined();
+    });
+
+    it("should pick up root-level user-invocable when claudecode section omits it", () => {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
+        name: "root-user-invocable-skill",
+        description: "Skill with root-level user-invocable",
+        "user-invocable": false,
+      };
+
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "root-user-invocable-skill",
+        frontmatter: rulesyncFrontmatter,
+        body: "Body",
+      });
+
+      const claudecodeSkill = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(claudecodeSkill.getFrontmatter()["user-invocable"]).toBe(false);
+    });
+
+    it("should let claudecode user-invocable override the root-level value", () => {
+      const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
+        name: "user-invocable-override-skill",
+        description: "Skill where the claudecode section overrides the root default",
+        "user-invocable": true,
+        claudecode: { "user-invocable": false },
+      };
+
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "user-invocable-override-skill",
+        frontmatter: rulesyncFrontmatter,
+        body: "Body",
+      });
+
+      const claudecodeSkill = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(claudecodeSkill.getFrontmatter()["user-invocable"]).toBe(false);
     });
 
     it("should convert from RulesyncSkill with paths as string", () => {

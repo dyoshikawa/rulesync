@@ -200,6 +200,45 @@ This is a test factorydroid skill content.`;
       const factorydroidSkill = FactorydroidSkill.fromRulesyncSkill({ rulesyncSkill });
       expect(factorydroidSkill.getFrontmatter()["disable-model-invocation"]).toBe(false);
     });
+
+    it("should pick up root-level user-invocable when factorydroid section omits it", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "root-user-invocable",
+        frontmatter: {
+          name: "Root User Invocable",
+          description: "Root user-invocable",
+          targets: ["factorydroid"],
+          "user-invocable": false,
+        },
+        body: "Body",
+      });
+
+      const factorydroidSkill = FactorydroidSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(factorydroidSkill.getFrontmatter()["user-invocable"]).toBe(false);
+    });
+
+    it("should let the factorydroid section override the root-level user-invocable value", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "user-invocable-override",
+        frontmatter: {
+          name: "User Invocable Override",
+          description: "Factorydroid overrides user-invocable",
+          targets: ["factorydroid"],
+          "user-invocable": true,
+          factorydroid: {
+            "user-invocable": false,
+          },
+        },
+        body: "Body",
+      });
+
+      const factorydroidSkill = FactorydroidSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(factorydroidSkill.getFrontmatter()["user-invocable"]).toBe(false);
+    });
   });
 
   describe("toRulesyncSkill", () => {

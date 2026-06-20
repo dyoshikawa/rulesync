@@ -48,3 +48,24 @@ export function resolveDisableModelInvocation({
 }): boolean | undefined {
   return section?.["disable-model-invocation"] ?? rootFrontmatter["disable-model-invocation"];
 }
+
+/**
+ * Resolve the effective `user-invocable` value for a tool skill.
+ *
+ * The rulesync skill frontmatter exposes a root-level `user-invocable` default
+ * that applies to every tool supporting the flag (claudecode, qwencode, vibe,
+ * factorydroid). Each tool's own section may override that default with a
+ * per-target value. A defined section value (including `false`) always wins
+ * over the root default.
+ *
+ * @returns The resolved boolean, or `undefined` when neither value is set.
+ */
+export function resolveUserInvocable({
+  rootFrontmatter,
+  section,
+}: {
+  rootFrontmatter: { "user-invocable"?: boolean };
+  section: { "user-invocable"?: boolean } | undefined;
+}): boolean | undefined {
+  return section?.["user-invocable"] ?? rootFrontmatter["user-invocable"];
+}

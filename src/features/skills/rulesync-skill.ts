@@ -17,12 +17,16 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   // Default for tools that support the flag (claudecode, cursor, zed, pi, qwencode, factorydroid).
   // A target-section value of the same key overrides this default.
   "disable-model-invocation": z.optional(z.boolean()),
+  // Default for tools that support the flag (claudecode, qwencode, vibe, factorydroid).
+  // A target-section value of the same key overrides this default.
+  "user-invocable": z.optional(z.boolean()),
   claudecode: z.optional(
     z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
       "disallowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
       model: z.optional(z.string()),
       "disable-model-invocation": z.optional(z.boolean()),
+      "user-invocable": z.optional(z.boolean()),
       "scheduled-task": z.optional(z.boolean()),
       paths: z.optional(z.union([z.string(), z.array(z.string())])),
     }),
@@ -145,6 +149,7 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   factorydroid: z.optional(
     z.looseObject({
       "disable-model-invocation": z.optional(z.boolean()),
+      "user-invocable": z.optional(z.boolean()),
     }),
   ),
   agentsskills: z.optional(
@@ -186,11 +191,13 @@ export type RulesyncSkillFrontmatterInput = {
   description: string;
   targets?: ("*" | string)[];
   "disable-model-invocation"?: boolean;
+  "user-invocable"?: boolean;
   claudecode?: {
     "allowed-tools"?: string[];
     "disallowed-tools"?: string | string[];
     model?: string;
     "disable-model-invocation"?: boolean;
+    "user-invocable"?: boolean;
     "scheduled-task"?: boolean;
     paths?: string | string[];
   };
@@ -270,6 +277,7 @@ export type RulesyncSkillFrontmatterInput = {
   };
   factorydroid?: {
     "disable-model-invocation"?: boolean;
+    "user-invocable"?: boolean;
   };
   agentsskills?: {
     license?: string;

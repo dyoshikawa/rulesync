@@ -7,6 +7,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveUserInvocable } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -161,6 +162,11 @@ export class VibeSkill extends ToolSkill {
         ? (looseTopLevel.metadata as Record<string, unknown>)
         : undefined;
 
+    const resolvedUserInvocable = resolveUserInvocable({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: vibeSection,
+    });
+
     const vibeFrontmatter: VibeSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
@@ -173,8 +179,8 @@ export class VibeSkill extends ToolSkill {
       ...(vibeSection?.metadata !== undefined || topLevelMetadata !== undefined
         ? { metadata: vibeSection?.metadata ?? topLevelMetadata }
         : {}),
-      ...(vibeSection?.["user-invocable"] !== undefined && {
-        "user-invocable": vibeSection["user-invocable"],
+      ...(resolvedUserInvocable !== undefined && {
+        "user-invocable": resolvedUserInvocable,
       }),
       ...(vibeSection?.["allowed-tools"] !== undefined && {
         "allowed-tools": vibeSection["allowed-tools"],

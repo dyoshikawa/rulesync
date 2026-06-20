@@ -385,6 +385,10 @@ targets: ["*"] # * = all, or specific tools
 # zed, pi, qwencode, and factorydroid. Any of those tool sections can override it
 # by setting their own `disable-model-invocation` value below.
 disable-model-invocation: true
+# (optional) shared default for tools that support the flag — claudecode, qwencode,
+# vibe, and factorydroid. Any of those tool sections can override it by setting
+# their own `user-invocable` value below.
+user-invocable: false
 claudecode: # for claudecode-specific parameters
   model: sonnet # opus, sonnet, haiku, or any string
   allowed-tools:
@@ -395,6 +399,7 @@ claudecode: # for claudecode-specific parameters
   disallowed-tools: # (optional) removes these tools while the skill is active (string or list)
     - "WebFetch"
   disable-model-invocation: true # (optional) disable model invocation for this skill
+  user-invocable: false # (optional) hide from the / menu while keeping model access
   scheduled-task: true # (optional) emit to .claude/scheduled-tasks/<name>/SKILL.md instead of .claude/skills/<name>/SKILL.md
   # paths (optional) limits auto-activation to matching globs. Accepts a
   # comma-separated string, e.g. paths: "src/**/*.ts,test/**/*.ts", or a list:
@@ -491,6 +496,7 @@ cursor: # for Cursor-specific parameters (optional)
     author: rulesync
 factorydroid: # for Factory Droid-specific parameters (optional)
   disable-model-invocation: true # (optional) prevent the model from auto-invoking this skill
+  user-invocable: false # (optional) hide from the slash-command menu, keep model access
 takt: # takt specific parameters (optional; emitted under .takt/facets/knowledge/ — frontmatter is dropped on emit)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
   extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
