@@ -812,6 +812,28 @@ Content that would fail parsing`;
       expect(filePaths).toContain("CLAUDE.local.md");
     });
 
+    it("should NOT include CLAUDE.local.md for deletion for claudecode in global mode", async () => {
+      // Local-root files (CLAUDE.local.md) are a project-scope concept; rulesync
+      // never generates them in global mode, so the clean path must skip them in
+      // global scope rather than searching for and deleting a user's hand-placed
+      // global file.
+      await writeFileContent(join(testDir, "CLAUDE.local.md"), "# Local");
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+        global: true,
+      });
+
+      const filesToDelete = await processor.loadToolFiles({
+        forDeletion: true,
+      });
+
+      const filePaths = filesToDelete.map((f) => f.getRelativeFilePath());
+      expect(filePaths).not.toContain("CLAUDE.local.md");
+    });
+
     it("should include AGENTS.local.md for deletion for rovodev", async () => {
       await ensureDir(join(testDir, ".rovodev"));
       await writeFileContent(join(testDir, ".rovodev", "AGENTS.md"), "# Root");

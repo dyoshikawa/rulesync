@@ -943,7 +943,7 @@ export class RulesProcessor extends FeatureProcessor {
     rootRule.setFileContent(newContent);
 
     if (meta.mirrorsRootToAgentsMd && !this.global) {
-      this.mirrorRootRuleToAgentsMd(toolRules, rootRule, newContent);
+      this.mirrorRootRuleToAgentsMd({ toolRules, rootRule, content: newContent });
     }
 
     return [...toolRules, ...extraFiles];
@@ -953,11 +953,15 @@ export class RulesProcessor extends FeatureProcessor {
    * Mirror the primary root rule to a project-root `AGENTS.md` for tools whose
    * primary root lives in a subdirectory (rovodev: `.rovodev/AGENTS.md`).
    */
-  private mirrorRootRuleToAgentsMd(
-    toolRules: ToolRule[],
-    rootRule: ToolRule,
-    content: string,
-  ): void {
+  private mirrorRootRuleToAgentsMd({
+    toolRules,
+    rootRule,
+    content,
+  }: {
+    toolRules: ToolRule[];
+    rootRule: ToolRule;
+    content: string;
+  }): void {
     if (!(rootRule instanceof RovodevRule)) {
       return;
     }
