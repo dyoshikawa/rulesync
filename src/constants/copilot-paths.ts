@@ -11,6 +11,11 @@ export const COPILOT_HOOKS_FILE_NAME = "copilot-hooks.json";
 export const COPILOT_MCP_DIR = ".vscode";
 export const COPILOT_MCP_FILE_NAME = "mcp.json";
 export const COPILOTCLI_MCP_FILE_NAME = "mcp-config.json";
+// Copilot CLI auto-loads project-scoped MCP servers from `.github/mcp.json`
+// (workspace config). Global/personal MCP servers live in
+// `~/.copilot/mcp-config.json` (COPILOTCLI_MCP_FILE_NAME under COPILOT_DIR).
+// https://github.com/github/copilot-cli (changelog v1.0.61, 2026-06-09)
+export const COPILOTCLI_PROJECT_MCP_FILE_NAME = "mcp.json";
 export const COPILOTCLI_AGENTS_DIR_PATH = join(COPILOT_DIR, "agents");
 export const COPILOTCLI_HOOKS_DIR_PATH = join(COPILOT_DIR, "hooks");
 export const COPILOTCLI_HOOKS_FILE_NAME = "copilotcli-hooks.json";

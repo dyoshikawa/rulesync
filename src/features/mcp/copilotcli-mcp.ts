@@ -1,6 +1,11 @@
 import { join } from "node:path";
 
-import { COPILOT_DIR, COPILOTCLI_MCP_FILE_NAME } from "../../constants/copilot-paths.js";
+import {
+  COPILOT_DIR,
+  COPILOTCLI_MCP_FILE_NAME,
+  COPILOTCLI_PROJECT_MCP_FILE_NAME,
+  GITHUB_DIR,
+} from "../../constants/copilot-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServerSchema, type McpServer, type McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
@@ -133,16 +138,31 @@ export class CopilotcliMcp extends ToolMcp {
   /**
    * In global mode, ~/.copilot/mcp-config.json should not be deleted
    * as it may contain other user settings.
-   * In local mode, .copilot/mcp-config.json can be safely deleted.
+   * In project mode, .github/mcp.json is a rulesync-managed workspace MCP file
+   * and can be safely deleted.
    */
   override isDeletable(): boolean {
     return !this.global;
   }
 
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolMcpSettablePaths {
+  /**
+   * - **Project scope**: `<project>/.github/mcp.json` — the Copilot CLI
+   *   auto-loads MCP servers from this workspace config file. It uses the
+   *   standard `{ "mcpServers": {...} }` shape.
+   *   https://github.com/github/copilot-cli (changelog v1.0.61, 2026-06-09)
+   * - **Global scope**: `~/.copilot/mcp-config.json` — the personal/global
+   *   Copilot CLI MCP configuration.
+   */
+  static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolMcpSettablePaths {
+    if (global) {
+      return {
+        relativeDirPath: COPILOT_DIR,
+        relativeFilePath: COPILOTCLI_MCP_FILE_NAME,
+      };
+    }
     return {
-      relativeDirPath: COPILOT_DIR,
-      relativeFilePath: COPILOTCLI_MCP_FILE_NAME,
+      relativeDirPath: GITHUB_DIR,
+      relativeFilePath: COPILOTCLI_PROJECT_MCP_FILE_NAME,
     };
   }
 

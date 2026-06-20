@@ -300,6 +300,7 @@ rulesync.local.jsonc
 **/.github/skills/
 **/.github/hooks/
 **/.vscode/mcp.json
+**/.github/mcp.json
 **/.copilot/mcp-config.json
 **/.copilot/agents/
 **/.copilot/hooks/
