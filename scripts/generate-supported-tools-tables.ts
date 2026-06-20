@@ -2,52 +2,9 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { getProcessorRegistryEntry, PROCESSOR_REGISTRY } from "../src/types/processor-registry.js";
+import { TOOL_DISPLAY, type ToolDisplayEntry } from "../src/types/tool-display.js";
 import { ALL_TOOL_TARGETS, type ToolTarget } from "../src/types/tool-targets.js";
 import { formatError } from "../src/utils/error.js";
-
-// Display metadata — the only hand-maintained part: label, ordering and grouping
-// for each target. Support cells are derived from each feature's getToolTargets,
-// so the ✅/mode matrix never needs manual editing. `legacy` targets are aliases
-// that are intentionally hidden from the user-facing tables.
-type Group = "ai" | "standard";
-type DisplayEntry = { key: ToolTarget; label: string; group: Group };
-
-const DISPLAY: DisplayEntry[] = [
-  { key: "agentsmd", label: "AGENTS.md", group: "standard" },
-  { key: "agentsskills", label: "AgentsSkills", group: "standard" },
-  { key: "amp", label: "Amp", group: "ai" },
-  { key: "claudecode", label: "Claude Code", group: "ai" },
-  { key: "codexcli", label: "Codex CLI", group: "ai" },
-  { key: "geminicli", label: "Gemini CLI ⚠️", group: "ai" },
-  { key: "copilot", label: "GitHub Copilot", group: "ai" },
-  { key: "copilotcli", label: "GitHub Copilot CLI", group: "ai" },
-  { key: "goose", label: "Goose", group: "ai" },
-  { key: "grokcli", label: "Grok CLI", group: "ai" },
-  { key: "cursor", label: "Cursor", group: "ai" },
-  { key: "deepagents", label: "deepagents-cli", group: "ai" },
-  { key: "factorydroid", label: "Factory Droid", group: "ai" },
-  { key: "opencode", label: "OpenCode", group: "ai" },
-  { key: "cline", label: "Cline", group: "ai" },
-  { key: "kilo", label: "Kilo Code", group: "ai" },
-  { key: "roo", label: "Roo Code", group: "ai" },
-  { key: "rovodev", label: "Rovodev (Atlassian)", group: "ai" },
-  { key: "takt", label: "Takt", group: "ai" },
-  { key: "vibe", label: "Vibe Code", group: "ai" },
-  { key: "qwencode", label: "Qwen Code", group: "ai" },
-  { key: "kiro", label: "Kiro ⚠️", group: "ai" },
-  { key: "kiro-cli", label: "Kiro CLI", group: "ai" },
-  { key: "kiro-ide", label: "Kiro IDE", group: "ai" },
-  { key: "antigravity-ide", label: "Google Antigravity IDE", group: "ai" },
-  { key: "antigravity-cli", label: "Google Antigravity CLI", group: "ai" },
-  { key: "antigravity", label: "Google Antigravity ⚠️", group: "ai" },
-  { key: "junie", label: "JetBrains Junie", group: "ai" },
-  { key: "augmentcode", label: "AugmentCode", group: "ai" },
-  { key: "devin", label: "Devin Desktop", group: "ai" },
-  { key: "warp", label: "Warp", group: "ai" },
-  { key: "replit", label: "Replit", group: "ai" },
-  { key: "pi", label: "Pi Coding Agent", group: "ai" },
-  { key: "zed", label: "Zed", group: "ai" },
-];
 
 const FEATURES = [
   "rules",
@@ -121,7 +78,7 @@ const docsCell = (feature: FeatureName, key: ToolTarget): string => {
 
 const FEATURE_HEADERS = FEATURES.map((f) => f);
 
-const buildReadmeTable = (entries: DisplayEntry[]): string => {
+const buildReadmeTable = (entries: ToolDisplayEntry[]): string => {
   const header = `| Tool | ${FEATURE_HEADERS.join(" | ")} |`;
   const sep = `| --- | ${FEATURE_HEADERS.map(() => ":-:").join(" | ")} |`;
   const rows = entries.map((e) => {
@@ -134,7 +91,7 @@ const buildReadmeTable = (entries: DisplayEntry[]): string => {
 const buildDocsTable = (): string => {
   const header = `| Tool | --targets | ${FEATURE_HEADERS.join(" | ")} |`;
   const sep = `| --- | --- | ${FEATURE_HEADERS.map(() => ":-:").join(" | ")} |`;
-  const rows = DISPLAY.map((e) => {
+  const rows = TOOL_DISPLAY.map((e) => {
     const cells = FEATURES.map((f) => docsCell(f, e.key));
     return `| ${e.label} | ${e.key} | ${cells.join(" | ")} |`;
   });
@@ -157,8 +114,8 @@ const replaceBetween = (content: string, marker: string, body: string): string =
 };
 
 const renderReadme = (content: string): string => {
-  const ai = buildReadmeTable(DISPLAY.filter((e) => e.group === "ai"));
-  const std = buildReadmeTable(DISPLAY.filter((e) => e.group === "standard"));
+  const ai = buildReadmeTable(TOOL_DISPLAY.filter((e) => e.group === "ai"));
+  const std = buildReadmeTable(TOOL_DISPLAY.filter((e) => e.group === "standard"));
   return replaceBetween(replaceBetween(content, README_AI_MARK, ai), README_STD_MARK, std);
 };
 
@@ -190,14 +147,16 @@ const main = (): void => {
   }
 
   // Display list must cover exactly the non-legacy targets.
-  const displayed = new Set(DISPLAY.map((e) => e.key));
+  const displayed = new Set(TOOL_DISPLAY.map((e) => e.key));
   const expected = ALL_TOOL_TARGETS.filter((t) => !t.endsWith("-legacy"));
   const missing = expected.filter((t) => !displayed.has(t));
   const extra = [...displayed].filter((t) => !expected.includes(t));
   if (missing.length || extra.length) {
     drift = true;
     // oxlint-disable-next-line no-console
-    console.error(`DISPLAY drift — missing: ${missing.join(", ")}; extra: ${extra.join(", ")}`);
+    console.error(
+      `TOOL_DISPLAY drift — missing: ${missing.join(", ")}; extra: ${extra.join(", ")}`,
+    );
   }
 
   if (check && drift) process.exit(1);
