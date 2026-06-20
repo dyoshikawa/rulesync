@@ -48,7 +48,7 @@
     "build": "tsup src/cli/index.ts src/index.ts --format cjs,esm --dts --clean",
     "check": "pnpm run fmt:check && pnpm run oxlint && pnpm run typecheck",
     "check:gitignore": "pnpm run dev gitignore && git diff --exit-code .gitignore .gitattributes",
-    "check:supported-tools": "tsx scripts/generate-supported-tools-tables.ts --check",
+    "check:supported-tools": "tsx scripts/generate-supported-tools-tables.ts && git diff --exit-code README.md docs/reference/supported-tools.md",
     "check:sync-skill-docs": "tsx scripts/check-skill-docs-sync.ts",
     "cicheck": "pnpm run cicheck:code && pnpm run cicheck:content",
     "cicheck:code": "pnpm run check && pnpm run test",

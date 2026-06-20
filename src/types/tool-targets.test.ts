@@ -275,11 +275,9 @@ describe("tool targets", () => {
       });
     }
 
-    // ALL_TOOL_TARGETS must equal the union of every processor's factory keys: a
-    // tool exists iff at least one feature supports it. This makes the master
-    // list a derived view in practice — adding a tool to a factory without
-    // listing it here (or vice versa) fails the build. The literal stays because
-    // `z.enum` needs a static tuple to infer the `ToolTarget` union type.
+    // ALL_TOOL_TARGETS is derived from the feature tuples; this asserts those
+    // tuples agree with the factory-map keys, so a tool present in a factory but
+    // missing from its tuple (or vice versa) fails the build.
     it("ALL_TOOL_TARGETS equals the union of all processor factory keys", () => {
       const union = new Set<string>();
       for (const { factory } of processors) {

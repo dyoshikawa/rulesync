@@ -153,7 +153,6 @@ const DERIVED_FEATURES: ReadonlyArray<Feature> = [
   "ignore",
 ];
 
-// All gitignore entries rulesync emits, derived from every tool's
-// getSettablePaths — the single source of truth for output locations.
+// Every gitignore entry rulesync emits, derived from each tool's getSettablePaths.
 export const deriveAllGitignoreEntries = (): GitignoreEntryTag[] =>
   DERIVED_FEATURES.flatMap((feature) => deriveFeatureGitignoreEntries(feature));

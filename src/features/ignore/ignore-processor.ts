@@ -34,7 +34,6 @@ import {
 import { VibeIgnore } from "./vibe-ignore.js";
 import { ZedIgnore } from "./zed-ignore.js";
 
-
 export type IgnoreProcessorToolTarget = (typeof ignoreProcessorToolTargetTuple)[number];
 
 export const IgnoreProcessorToolTargetSchema = z.enum(ignoreProcessorToolTargetTuple);

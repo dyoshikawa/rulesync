@@ -56,7 +56,6 @@ import type {
 import { ToolHooks } from "./tool-hooks.js";
 import { VibeHooks } from "./vibe-hooks.js";
 
-
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
 
 export const HooksProcessorToolTargetSchema = z.enum(hooksProcessorToolTargetTuple);

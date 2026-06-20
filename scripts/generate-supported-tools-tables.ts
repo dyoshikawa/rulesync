@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -123,43 +124,33 @@ const renderDocs = (content: string): string =>
   replaceBetween(content, DOCS_MARK, buildDocsTable());
 
 const main = (): void => {
-  const check = process.argv.includes("--check");
-  const root = process.cwd();
-  const targets = [
-    { path: join(root, "README.md"), render: renderReadme },
-    { path: join(root, "docs/reference/supported-tools.md"), render: renderDocs },
-  ];
-
-  let drift = false;
-  for (const { path, render } of targets) {
-    const current = readFileSync(path, "utf8");
-    const next = render(current);
-    if (current === next) continue;
-    if (check) {
-      drift = true;
-      // oxlint-disable-next-line no-console
-      console.error(`Supported-tools table is stale: ${path}. Run \`pnpm run generate:tables\`.`);
-    } else {
-      writeFileSync(path, next);
-      // oxlint-disable-next-line no-console
-      console.log(`Updated ${path}`);
-    }
-  }
-
   // Display list must cover exactly the non-legacy targets.
   const displayed = new Set(TOOL_DISPLAY.map((e) => e.key));
   const expected = ALL_TOOL_TARGETS.filter((t) => !t.endsWith("-legacy"));
   const missing = expected.filter((t) => !displayed.has(t));
   const extra = [...displayed].filter((t) => !expected.includes(t));
   if (missing.length || extra.length) {
-    drift = true;
     // oxlint-disable-next-line no-console
     console.error(
       `TOOL_DISPLAY drift — missing: ${missing.join(", ")}; extra: ${extra.join(", ")}`,
     );
+    process.exit(1);
   }
 
-  if (check && drift) process.exit(1);
+  const root = process.cwd();
+  const targets = [
+    { path: join(root, "README.md"), render: renderReadme },
+    { path: join(root, "docs/reference/supported-tools.md"), render: renderDocs },
+  ];
+  for (const { path, render } of targets) {
+    writeFileSync(path, render(readFileSync(path, "utf8")));
+  }
+
+  // Tables are written without column alignment; oxfmt owns the final layout, so
+  // run it here. Freshness is checked in CI by running this script then
+  // `git diff` (see the `check:supported-tools` package script) — the same
+  // approach as the gitignore generator, avoiding an oxfmt-vs-generator conflict.
+  execFileSync("pnpm", ["exec", "oxfmt", ...targets.map((t) => t.path)], { stdio: "inherit" });
 };
 
 main();

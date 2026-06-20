@@ -1,8 +1,6 @@
-// Per-feature tool-target tuples. These are the single source of truth for which
-// tools each feature supports, and `ALL_TOOL_TARGETS` is derived from their union
-// (see tool-targets.ts). This file is a leaf module — it must not import anything,
-// so feature processors can import their tuple from here without a cycle through
-// `ToolTarget`.
+// Per-feature tool-target tuples; `ALL_TOOL_TARGETS` is their union (tool-targets.ts).
+// Keep this a leaf module (no imports) so feature processors can import their tuple
+// without a cycle through `ToolTarget`.
 
 export const rulesProcessorToolTargetTuple = [
   "agentsmd",

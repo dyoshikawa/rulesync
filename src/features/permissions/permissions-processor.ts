@@ -36,7 +36,6 @@ import { VibePermissions } from "./vibe-permissions.js";
 import { WarpPermissions } from "./warp-permissions.js";
 import { ZedPermissions } from "./zed-permissions.js";
 
-
 export type PermissionsProcessorToolTarget = (typeof permissionsProcessorToolTargetTuple)[number];
 
 export const PermissionsProcessorToolTargetSchema = z.enum(permissionsProcessorToolTargetTuple);
