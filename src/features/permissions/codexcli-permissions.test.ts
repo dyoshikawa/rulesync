@@ -867,6 +867,158 @@ mode = "full"
     expect(domains["api.example.com"]).toBe("allow");
   });
 
+  it("should always emit :minimal = 'read' as a filesystem baseline", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({ permission: {} }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain("[permissions.rulesync.filesystem]");
+    expect(fileContent).toContain('":minimal" = "read"');
+  });
+
+  it("should emit :minimal = 'read' alongside user filesystem rules", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          read: { "src/**": "allow" },
+          edit: { "docs/**": "allow" },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain('":minimal" = "read"');
+    expect(fileContent).toContain('"src/**" = "read"');
+    expect(fileContent).toContain('"docs/**" = "write"');
+  });
+
+  it("should not import :minimal into rulesync permissions model", () => {
+    const codexPermissions = new CodexcliPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".codex",
+      relativeFilePath: "config.toml",
+      fileContent: `
+default_permissions = "rulesync"
+
+[permissions.rulesync.filesystem]
+":minimal" = "read"
+"src/**" = "read"
+`,
+    });
+
+    const rulesyncPermissions = codexPermissions.toRulesyncPermissions();
+    const json = rulesyncPermissions.getJson();
+    expect(json.permission.read?.[":minimal"]).toBeUndefined();
+    expect(json.permission.edit?.[":minimal"]).toBeUndefined();
+    expect(json.permission.read?.["src/**"]).toBe("allow");
+  });
+
+  it("should round-trip :minimal through rulesync without loss", async () => {
+    const codexDir = join(testDir, ".codex");
+    await ensureDir(codexDir);
+    await writeFileContent(
+      join(codexDir, "config.toml"),
+      `
+default_permissions = "rulesync"
+
+[permissions.rulesync.filesystem]
+":minimal" = "read"
+"src/**" = "read"
+`,
+    );
+
+    const imported = await CodexcliPermissions.fromFile({ outputRoot: testDir });
+    const rulesyncPermissions = imported.toRulesyncPermissions();
+
+    const regenerated = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: rulesyncPermissions.getFileContent(),
+      }),
+    });
+
+    const fileContent = regenerated.getFileContent();
+    expect(fileContent).toContain('":minimal" = "read"');
+    expect(fileContent).toContain('"src/**" = "read"');
+  });
+
+  it("should preserve user-customized :root and :tmpdir baseline values on round-trip", async () => {
+    const codexDir = join(testDir, ".codex");
+    await ensureDir(codexDir);
+    await writeFileContent(
+      join(codexDir, "config.toml"),
+      `
+default_permissions = "rulesync"
+
+[permissions.rulesync.filesystem]
+":minimal" = "read"
+":tmpdir" = "write"
+`,
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({ permission: {} }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain('":minimal" = "read"');
+    expect(fileContent).toContain('":tmpdir" = "write"');
+  });
+
+  it("should not import :root or :tmpdir into rulesync permissions model", () => {
+    const codexPermissions = new CodexcliPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".codex",
+      relativeFilePath: "config.toml",
+      fileContent: `
+default_permissions = "rulesync"
+
+[permissions.rulesync.filesystem]
+":minimal" = "read"
+":root" = "deny"
+":tmpdir" = "write"
+"src/**" = "read"
+`,
+    });
+
+    const rulesyncPermissions = codexPermissions.toRulesyncPermissions();
+    const json = rulesyncPermissions.getJson();
+    expect(json.permission.read?.[":minimal"]).toBeUndefined();
+    expect(json.permission.read?.[":root"]).toBeUndefined();
+    expect(json.permission.edit?.[":root"]).toBeUndefined();
+    expect(json.permission.read?.[":tmpdir"]).toBeUndefined();
+    expect(json.permission.edit?.[":tmpdir"]).toBeUndefined();
+    expect(json.permission.read?.["src/**"]).toBe("allow");
+  });
+
   it("should convert rulesync bash permissions to Codex CLI .rules file", () => {
     const rulesFile = createCodexcliBashRulesFile({
       outputRoot: testDir,
