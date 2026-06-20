@@ -334,5 +334,18 @@ describe("tool targets", () => {
         expect(schemaTargets).toEqual(factoryTargets);
       });
     }
+
+    // ALL_TOOL_TARGETS must equal the union of every processor's factory keys: a
+    // tool exists iff at least one feature supports it. This makes the master
+    // list a derived view in practice — adding a tool to a factory without
+    // listing it here (or vice versa) fails the build. The literal stays because
+    // `z.enum` needs a static tuple to infer the `ToolTarget` union type.
+    it("ALL_TOOL_TARGETS equals the union of all processor factory keys", () => {
+      const union = new Set<string>();
+      for (const { factory } of processors) {
+        for (const target of factory.keys()) union.add(target);
+      }
+      expect([...union].toSorted()).toEqual([...ALL_TOOL_TARGETS].toSorted());
+    });
   });
 });
