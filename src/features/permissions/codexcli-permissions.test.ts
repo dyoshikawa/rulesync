@@ -962,38 +962,48 @@ default_permissions = "rulesync"
     expect(fileContent).toContain('"src/**" = "read"');
   });
 
-  it("should preserve user-customized :root and :tmpdir baseline values on round-trip", async () => {
-    const codexDir = join(testDir, ".codex");
-    await ensureDir(codexDir);
-    await writeFileContent(
-      join(codexDir, "config.toml"),
-      `
+  it("should preserve user-customized :root and :tmpdir through the rulesync model on a fresh generate", async () => {
+    // Import a config whose special paths are user-managed, capture the resulting rulesync model,
+    // then regenerate into a FRESH directory with NO pre-existing .codex/config.toml. The values
+    // must survive because they round-trip through the model, not via an existing config overlay.
+    const sourceCodexPermissions = new CodexcliPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".codex",
+      relativeFilePath: "config.toml",
+      fileContent: `
 default_permissions = "rulesync"
 
 [permissions.rulesync.filesystem]
 ":minimal" = "read"
+":root" = "deny"
 ":tmpdir" = "write"
 `,
-    );
-
-    const rulesyncPermissions = new RulesyncPermissions({
-      outputRoot: testDir,
-      relativeDirPath: ".rulesync",
-      relativeFilePath: "permissions.json",
-      fileContent: JSON.stringify({ permission: {} }),
     });
 
-    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
-      outputRoot: testDir,
-      rulesyncPermissions,
-    });
+    const rulesyncPermissions = sourceCodexPermissions.toRulesyncPermissions();
 
-    const fileContent = codexPermissions.getFileContent();
-    expect(fileContent).toContain('":minimal" = "read"');
-    expect(fileContent).toContain('":tmpdir" = "write"');
+    const { testDir: freshDir, cleanup: cleanupFresh } = await setupTestDirectory();
+    try {
+      const regenerated = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: freshDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          outputRoot: freshDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: rulesyncPermissions.getFileContent(),
+        }),
+      });
+
+      const fileContent = regenerated.getFileContent();
+      expect(fileContent).toContain('":minimal" = "read"');
+      expect(fileContent).toContain('":root" = "deny"');
+      expect(fileContent).toContain('":tmpdir" = "write"');
+    } finally {
+      await cleanupFresh();
+    }
   });
 
-  it("should not import :root or :tmpdir into rulesync permissions model", () => {
+  it("should import :root and :tmpdir into the rulesync model but never :minimal", () => {
     const codexPermissions = new CodexcliPermissions({
       outputRoot: testDir,
       relativeDirPath: ".codex",
@@ -1011,12 +1021,63 @@ default_permissions = "rulesync"
 
     const rulesyncPermissions = codexPermissions.toRulesyncPermissions();
     const json = rulesyncPermissions.getJson();
+    // `:minimal` is the always-emitted fixed baseline and must not pollute the model.
     expect(json.permission.read?.[":minimal"]).toBeUndefined();
-    expect(json.permission.read?.[":root"]).toBeUndefined();
-    expect(json.permission.edit?.[":root"]).toBeUndefined();
-    expect(json.permission.read?.[":tmpdir"]).toBeUndefined();
-    expect(json.permission.edit?.[":tmpdir"]).toBeUndefined();
+    expect(json.permission.edit?.[":minimal"]).toBeUndefined();
+    // `:root = "deny"` becomes a deny on both read and edit.
+    expect(json.permission.read?.[":root"]).toBe("deny");
+    expect(json.permission.edit?.[":root"]).toBe("deny");
+    // `:tmpdir = "write"` becomes an edit allow.
+    expect(json.permission.edit?.[":tmpdir"]).toBe("allow");
     expect(json.permission.read?.["src/**"]).toBe("allow");
+  });
+
+  it("should not lose a restrictive :root = 'deny' on a fresh-clone generate (regression for #1965)", async () => {
+    // Regression: PR #1960 skipped :root/:tmpdir/:slash_tmp on import and relied on an existing
+    // .codex/config.toml to re-emit them. In a fresh clone (no generated config) a user's
+    // restrictive ":root" = "deny" was silently dropped. The values must now survive purely
+    // through the rulesync model.
+    const sourceCodexPermissions = new CodexcliPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".codex",
+      relativeFilePath: "config.toml",
+      fileContent: `
+default_permissions = "rulesync"
+
+[permissions.rulesync.filesystem]
+":minimal" = "read"
+":root" = "deny"
+":tmpdir" = "write"
+`,
+    });
+
+    const rulesyncPermissions = sourceCodexPermissions.toRulesyncPermissions();
+    const json = rulesyncPermissions.getJson();
+    expect(json.permission.read?.[":root"]).toBe("deny");
+    expect(json.permission.edit?.[":root"]).toBe("deny");
+    expect(json.permission.edit?.[":tmpdir"]).toBe("allow");
+
+    const { testDir: freshDir, cleanup: cleanupFresh } = await setupTestDirectory();
+    try {
+      const regenerated = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: freshDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          outputRoot: freshDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: rulesyncPermissions.getFileContent(),
+        }),
+      });
+
+      const fileContent = regenerated.getFileContent();
+      // The restrictive deny is preserved, not lost.
+      expect(fileContent).toContain('":root" = "deny"');
+      expect(fileContent).toContain('":tmpdir" = "write"');
+      // The fixed baseline is still always emitted.
+      expect(fileContent).toContain('":minimal" = "read"');
+    } finally {
+      await cleanupFresh();
+    }
   });
 
   it("should convert rulesync bash permissions to Codex CLI .rules file", () => {
