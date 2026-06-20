@@ -10,6 +10,7 @@ import { FeatureProcessor } from "../../types/feature-processor.js";
 import type { FeatureOptions } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
+import { rulesProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { checkPathTraversal, findFilesByGlobs, toPosixPath } from "../../utils/file.js";
@@ -72,43 +73,6 @@ import { VibeRule } from "./vibe-rule.js";
 import { WarpRule } from "./warp-rule.js";
 import { ZedRule } from "./zed-rule.js";
 
-const rulesProcessorToolTargetTuple = [
-  "agentsmd",
-  "amp",
-  "antigravity",
-  "antigravity-cli",
-  "antigravity-ide",
-  "augmentcode",
-  "augmentcode-legacy",
-  "claudecode",
-  "claudecode-legacy",
-  "cline",
-  "codexcli",
-  "copilot",
-  "copilotcli",
-  "cursor",
-  "deepagents",
-  "factorydroid",
-  "geminicli",
-  "goose",
-  "grokcli",
-  "junie",
-  "kilo",
-  "kiro",
-  "kiro-cli",
-  "kiro-ide",
-  "opencode",
-  "pi",
-  "qwencode",
-  "replit",
-  "roo",
-  "rovodev",
-  "takt",
-  "vibe",
-  "warp",
-  "devin",
-  "zed",
-] as const;
 export type RulesProcessorToolTarget = (typeof rulesProcessorToolTargetTuple)[number];
 export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargetTuple);
 

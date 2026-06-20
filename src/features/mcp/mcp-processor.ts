@@ -4,6 +4,7 @@ import { RULESYNC_MCP_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
+import { mcpProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
@@ -46,37 +47,6 @@ import { ZedMcp } from "./zed-mcp.js";
  * Supported tool targets for McpProcessor.
  * Using a tuple to preserve order for consistent iteration.
  */
-const mcpProcessorToolTargetTuple = [
-  "amp",
-  "antigravity-cli",
-  "antigravity-ide",
-  "augmentcode",
-  "claudecode",
-  "claudecode-legacy",
-  "cline",
-  "codexcli",
-  "copilot",
-  "copilotcli",
-  "cursor",
-  "deepagents",
-  "factorydroid",
-  "geminicli",
-  "goose",
-  "grokcli",
-  "kilo",
-  "kiro",
-  "kiro-cli",
-  "kiro-ide",
-  "junie",
-  "opencode",
-  "qwencode",
-  "roo",
-  "rovodev",
-  "vibe",
-  "warp",
-  "devin",
-  "zed",
-] as const;
 
 export type McpProcessorToolTarget = (typeof mcpProcessorToolTargetTuple)[number];
 

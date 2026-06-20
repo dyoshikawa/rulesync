@@ -40,9 +40,11 @@ import {
 describe("tool targets", () => {
   describe("ALL_TOOL_TARGETS", () => {
     it("should contain expected AI tool targets", () => {
+      // Order follows the union of the per-feature tuples (rules tuple first,
+      // then each feature's new targets appended in order — `agentsskills`,
+      // unique to skills, therefore lands last).
       const expectedTargets = [
         "agentsmd",
-        "agentsskills",
         "amp",
         "antigravity",
         "antigravity-cli",
@@ -77,9 +79,10 @@ describe("tool targets", () => {
         "warp",
         "devin",
         "zed",
+        "agentsskills",
       ];
 
-      expect(ALL_TOOL_TARGETS).toEqual(expectedTargets);
+      expect([...ALL_TOOL_TARGETS]).toEqual(expectedTargets);
       expect(ALL_TOOL_TARGETS).toHaveLength(expectedTargets.length);
     });
 

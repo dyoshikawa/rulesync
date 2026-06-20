@@ -6,6 +6,7 @@ import { z } from "zod/mini";
 import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiDir } from "../../types/ai-dir.js";
 import { DirFeatureProcessor } from "../../types/dir-feature-processor.js";
+import { skillsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { directoryExists, findFilesByGlobs } from "../../utils/file.js";
@@ -81,42 +82,6 @@ type ToolSkillFactory = {
  * Supported tool targets for SkillsProcessor.
  * Using a tuple to preserve order for consistent iteration.
  */
-const skillsProcessorToolTargetTuple = [
-  "agentsmd",
-  "agentsskills",
-  "amp",
-  "antigravity",
-  "antigravity-cli",
-  "antigravity-ide",
-  "augmentcode",
-  "claudecode",
-  "claudecode-legacy",
-  "cline",
-  "codexcli",
-  "copilot",
-  "copilotcli",
-  "cursor",
-  "deepagents",
-  "factorydroid",
-  "geminicli",
-  "grokcli",
-  "junie",
-  "kilo",
-  "kiro",
-  "kiro-cli",
-  "kiro-ide",
-  "opencode",
-  "pi",
-  "qwencode",
-  "replit",
-  "roo",
-  "rovodev",
-  "takt",
-  "vibe",
-  "warp",
-  "devin",
-  "zed",
-] as const;
 
 export type SkillsProcessorToolTarget = (typeof skillsProcessorToolTargetTuple)[number];
 

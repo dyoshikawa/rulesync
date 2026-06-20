@@ -2,45 +2,17 @@ import { z } from "zod/mini";
 
 import { PerTargetFeaturesValueSchema } from "./features.js";
 import type { PerFeatureConfig, PerTargetFeaturesValue } from "./features.js";
+import { ALL_TOOL_TARGET_TUPLES } from "./tool-target-tuples.js";
 
-export const ALL_TOOL_TARGETS = [
-  "agentsmd",
-  "agentsskills",
-  "amp",
-  "antigravity",
-  "antigravity-cli",
-  "antigravity-ide",
-  "augmentcode",
-  "augmentcode-legacy",
-  "claudecode",
-  "claudecode-legacy",
-  "cline",
-  "codexcli",
-  "copilot",
-  "copilotcli",
-  "cursor",
-  "deepagents",
-  "factorydroid",
-  "geminicli",
-  "goose",
-  "grokcli",
-  "junie",
-  "kilo",
-  "kiro",
-  "kiro-cli",
-  "kiro-ide",
-  "opencode",
-  "pi",
-  "qwencode",
-  "replit",
-  "roo",
-  "rovodev",
-  "takt",
-  "vibe",
-  "warp",
-  "devin",
-  "zed",
-] as const;
+// A tool exists iff at least one feature supports it, so the master list is the
+// union of every feature's tuple — no separately-maintained literal to drift.
+// The union type is preserved via the explicit annotation so `z.enum` still
+// infers a literal `ToolTarget`.
+type AllToolTarget = (typeof ALL_TOOL_TARGET_TUPLES)[number][number];
+
+export const ALL_TOOL_TARGETS: readonly [AllToolTarget, ...AllToolTarget[]] = [
+  ...new Set(ALL_TOOL_TARGET_TUPLES.flat()),
+] as [AllToolTarget, ...AllToolTarget[]];
 
 export const ALL_TOOL_TARGETS_WITH_WILDCARD = [...ALL_TOOL_TARGETS, "*"] as const;
 

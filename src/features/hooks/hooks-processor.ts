@@ -25,6 +25,7 @@ import {
 } from "../../types/hooks.js";
 import type { RulesyncFile } from "../../types/rulesync-file.js";
 import type { ToolFile } from "../../types/tool-file.js";
+import { hooksProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
@@ -55,28 +56,6 @@ import type {
 import { ToolHooks } from "./tool-hooks.js";
 import { VibeHooks } from "./vibe-hooks.js";
 
-const hooksProcessorToolTargetTuple = [
-  "antigravity-cli",
-  "antigravity-ide",
-  "kilo",
-  "cursor",
-  "claudecode",
-  "codexcli",
-  "copilot",
-  "copilotcli",
-  "opencode",
-  "factorydroid",
-  "geminicli",
-  "goose",
-  "deepagents",
-  "kiro",
-  "kiro-cli",
-  "devin",
-  "augmentcode",
-  "junie",
-  "vibe",
-  "qwencode",
-] as const;
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
 
