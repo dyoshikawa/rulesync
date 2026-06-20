@@ -95,6 +95,9 @@ describe("registry derivation", () => {
   // Replaces the old reverse-coverage guard for the hand-maintained list: every
   // non-common entry must stay an explicitly-justified exception, so a renamed or
   // dropped tool path can't leave a stale hand-written entry behind unnoticed.
+  // `justified` is deliberately a hand-listed snapshot, not derived from
+  // HAND_MAINTAINED_GITIGNORE_ENTRIES — deriving it would make the check a
+  // tautology. Adding a hand-maintained entry must be a conscious edit here.
   it("every hand-maintained tool entry is an explicitly justified exception", () => {
     const justified = new Set([
       // rulesync meta files and local-root files (not in any getSettablePaths).

@@ -11,9 +11,9 @@ export type GitignoreEntryTag = {
 };
 
 // Targets excluded from derivation: they don't generate project files
-// (agentsskills), or share their outputs with a non-legacy counterpart and so
-// must not produce their own gitignore entries (antigravity → antigravity-ide,
-// augmentcode-legacy → augmentcode, claudecode-legacy → claudecode).
+// (agentsskills), are deprecated aliases whose outputs are covered elsewhere
+// (augmentcode-legacy → augmentcode, claudecode-legacy → claudecode), or — for
+// `antigravity` (legacy) — write to a `.agent/` tree rulesync does not generate.
 const TARGETS_NOT_DERIVED: ReadonlySet<string> = new Set([
   "agentsskills",
   "antigravity",
