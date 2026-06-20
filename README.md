@@ -74,47 +74,51 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 
 ### AI Coding Tools
 
-| Tool                   | rules | ignore | mcp | commands | subagents | skills | hooks | permissions |
-| ---------------------- | :---: | :----: | :-: | :------: | :-------: | :----: | :---: | :---------: |
-| Amp                    |  ✅   |        | ✅  |          |           |   ✅   |       |     ✅      |
-| Claude Code            |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
-| Codex CLI              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
-| Gemini CLI ⚠️          |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
-| GitHub Copilot         |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |
-| GitHub Copilot CLI     |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |
-| Goose                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |        |  ✅   |     ✅      |
-| Grok CLI               |  ✅   |        | ✅  |          |    ✅     |   ✅   |       |             |
-| Cursor                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
-| deepagents-cli         |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |
-| Factory Droid          |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
-| OpenCode               |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
-| Cline                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |
-| Kilo Code              |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
-| Roo Code               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |             |
-| Rovodev (Atlassian)    |  ✅   |        | ✅  |          |    ✅     |   ✅   |       |     ✅      |
-| Takt                   |  ✅   |        |     |    ✅    |    ✅     |   ✅   |       |             |
-| Vibe Code              |  ✅   |   ✅   | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |
-| Qwen Code              |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
-| Kiro ⚠️                |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
-| Kiro CLI               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
-| Kiro IDE               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |
-| Google Antigravity IDE |  ✅   |        | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |
-| Google Antigravity CLI |  ✅   |   ✅   | ✅  |          |           |   ✅   |  ✅   |     ✅      |
-| Google Antigravity ⚠️  |  ✅   |        |     |    ✅    |           |   ✅   |       |             |
-| JetBrains Junie        |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |
-| AugmentCode            |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
-| Devin Desktop          |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |
-| Warp                   |  ✅   |        | ✅  |          |           |   ✅   |       |     ✅      |
-| Replit                 |  ✅   |        |     |          |           |   ✅   |       |             |
-| Pi Coding Agent        |  ✅   |        |     |    ✅    |           |   ✅   |       |             |
-| Zed                    |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |     ✅      |
+<!-- SUPPORTED_TOOLS_AI:BEGIN -->
+| Tool | rules | ignore | mcp | commands | subagents | skills | hooks | permissions |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| Amp | ✅ |  | ✅ |  |  | ✅ |  | ✅ |
+| Claude Code | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Codex CLI | ✅ |  | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Gemini CLI ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| GitHub Copilot | ✅ |  | ✅ | ✅ | ✅ | ✅ | ✅ |  |
+| GitHub Copilot CLI | ✅ |  | ✅ |  | ✅ | ✅ | ✅ |  |
+| Goose | ✅ | ✅ | ✅ | ✅ | ✅ |  | ✅ | ✅ |
+| Grok CLI | ✅ |  | ✅ |  | ✅ | ✅ |  |  |
+| Cursor | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| deepagents-cli | ✅ |  | ✅ |  | ✅ | ✅ | ✅ |  |
+| Factory Droid | ✅ |  | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| OpenCode | ✅ |  | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Cline | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |  | ✅ |
+| Kilo Code | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Roo Code | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |  |  |
+| Rovodev (Atlassian) | ✅ |  | ✅ |  | ✅ | ✅ |  | ✅ |
+| Takt | ✅ |  |  | ✅ | ✅ | ✅ |  |  |
+| Vibe Code | ✅ | ✅ | ✅ |  | ✅ | ✅ | ✅ | ✅ |
+| Qwen Code | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Kiro ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Kiro CLI | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Kiro IDE | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |  | ✅ |
+| Google Antigravity IDE | ✅ |  | ✅ | ✅ |  | ✅ | ✅ | ✅ |
+| Google Antigravity CLI | ✅ | ✅ | ✅ |  |  | ✅ | ✅ | ✅ |
+| Google Antigravity ⚠️ | ✅ |  |  | ✅ |  | ✅ |  |  |
+| JetBrains Junie | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |  |
+| AugmentCode | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Devin Desktop | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |  |
+| Warp | ✅ |  | ✅ |  |  | ✅ |  | ✅ |
+| Replit | ✅ |  |  |  |  | ✅ |  |  |
+| Pi Coding Agent | ✅ |  |  | ✅ |  | ✅ |  |  |
+| Zed | ✅ | ✅ | ✅ |  |  | ✅ |  | ✅ |
+<!-- SUPPORTED_TOOLS_AI:END -->
 
 ### Open Standards
 
-| Standard     | rules | ignore | mcp | commands | subagents | skills | hooks | permissions |
-| ------------ | :---: | :----: | :-: | :------: | :-------: | :----: | :---: | :---------: |
-| AGENTS.md    |  ✅   |        |     |    ✅    |    ✅     |   ✅   |       |             |
-| Agent Skills |       |        |     |          |           |   ✅   |       |             |
+<!-- SUPPORTED_TOOLS_STANDARD:BEGIN -->
+| Tool | rules | ignore | mcp | commands | subagents | skills | hooks | permissions |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| AGENTS.md | ✅ |  |  | ✅ | ✅ | ✅ |  |  |
+| AgentsSkills |  |  |  |  |  | ✅ |  |  |
+<!-- SUPPORTED_TOOLS_STANDARD:END -->
 
 - ⚠️: Deprecated — still supported, but see the note below
 

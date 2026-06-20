@@ -6,6 +6,7 @@ import { deriveAllGitignoreEntries, DERIVED_PATHS_NOT_GITIGNORED } from "./gitig
 import {
   ALL_GITIGNORE_ENTRIES,
   GITIGNORE_ENTRY_REGISTRY,
+  HAND_MAINTAINED_GITIGNORE_ENTRIES,
   filterGitignoreEntries,
 } from "./gitignore-entries.js";
 
@@ -81,6 +82,16 @@ describe("registry derivation", () => {
     for (const tag of deriveAllGitignoreEntries()) {
       expect(DERIVED_PATHS_NOT_GITIGNORED.has(tag.entry)).toBe(false);
     }
+  });
+
+  it("no hand-maintained entry duplicates a derived one — the list can't silently rot", () => {
+    const key = (tag: { target: unknown; feature: string; entry: string }): string =>
+      `${tag.target}::${tag.feature}::${tag.entry}`;
+    const derivedKeys = new Set(deriveAllGitignoreEntries().map(key));
+    const redundant = HAND_MAINTAINED_GITIGNORE_ENTRIES.filter((tag) =>
+      derivedKeys.has(key(tag)),
+    ).map(key);
+    expect(redundant).toEqual([]);
   });
 });
 

@@ -37,7 +37,7 @@ const normalizeGitignoreEntryTargets = (
 //     convenience (`.claude/*.lock`, `.takt/runs/`, lock files, …)
 //   - the `.codexignore` ghost (codexcli has no ignore processor)
 // Everything a tool actually emits is derived below from getSettablePaths.
-const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag> = [
+export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag> = [
   // rulesync's own meta files (common scope).
   {
     target: "common",
