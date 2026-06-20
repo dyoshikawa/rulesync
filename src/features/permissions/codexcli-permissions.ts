@@ -31,17 +31,13 @@ const CODEX_GLOB_SCAN_MAX_DEPTH = 8; // Matches Codex CLI default glob_scan_max_
 const WORKSPACE_WIDE_WRITE_PATTERNS = new Set([".", "./", "**", "./**"]);
 // `:minimal = "read"` enables `include_platform_defaults()` (FileSystemSpecialPath::Minimal,
 // openai/codex#13434), providing platform/runtime read access for basic sandboxed command execution.
+// It is always emitted as a fixed baseline and is the only special filesystem path that rulesync
+// does not import into its own model (it is not user-managed). All other special paths such as
+// `:root`, `:tmpdir`, and `:slash_tmp` are treated like ordinary filesystem rules: they are
+// imported into the rulesync model and re-emitted from it, so they round-trip without relying on
+// an existing config file being present. Keys mirror parse_special_path in
+// codex-rs/config/src/permissions_toml.rs.
 const CODEX_MINIMAL_KEY = ":minimal";
-// Special filesystem paths whose values are Codex-native baselines rather than user-managed
-// access rules. Rulesync emits `:minimal` as a fixed baseline and passes all others
-// from existing config through verbatim, never importing them into rulesync's own model.
-// Keys mirror parse_special_path in codex-rs/config/src/permissions_toml.rs.
-const CODEX_FILESYSTEM_BASELINE_KEYS = new Set([
-  CODEX_MINIMAL_KEY,
-  ":root",
-  ":tmpdir",
-  ":slash_tmp",
-]);
 // Codex rejects the global `*` wildcard in denied network domains at config load time,
 // while allowed domains accept it for denylist-only setups (openai/codex#15549).
 const GLOBAL_WILDCARD_DOMAIN = "*";
@@ -340,10 +336,13 @@ function convertCodexProfileToRulesync({
     permission.read = {};
     permission.edit = {};
     for (const [pattern, access] of Object.entries(profile.filesystem)) {
-      // Baseline keys like `:minimal`, `:root`, `:tmpdir` are Codex-native sandbox settings,
-      // not user-managed access rules. Skip them so they don't pollute rulesync's model and
-      // are re-emitted verbatim on the next generate pass via mergeWithExistingProfile.
-      if (CODEX_FILESYSTEM_BASELINE_KEYS.has(pattern)) {
+      // `:minimal` is the always-emitted fixed baseline and is not user-managed, so it is not
+      // imported into rulesync's model (it would otherwise pollute it and is re-added on every
+      // export). Every other special path such as `:root`, `:tmpdir`, and `:slash_tmp` is a
+      // user-managed access rule and flows through addRulesyncFilesystemRule like any other
+      // filesystem pattern, so it round-trips through the model without relying on an existing
+      // config file.
+      if (pattern === CODEX_MINIMAL_KEY) {
         continue;
       }
 
@@ -443,22 +442,12 @@ function mergeWithExistingProfile({
   // convertRulesyncToCodexProfile never sets description, so the existing value wins.
   const description = newProfile.description ?? existingProfile.description;
 
-  // Merge filesystem: start from newProfile's filesystem (which already includes :minimal),
-  // then overlay any existing baseline keys that newProfile did not set, so user-customized
-  // values like `:root = "read"` or `:tmpdir = "write"` survive round-trips.
-  let mergedFilesystem = newProfile.filesystem;
-  if (existingProfile.filesystem) {
-    const baselineOverrides: CodexFilesystem = {};
-    for (const key of CODEX_FILESYSTEM_BASELINE_KEYS) {
-      const existingValue = existingProfile.filesystem[key];
-      if (existingValue !== undefined && mergedFilesystem?.[key] === undefined) {
-        baselineOverrides[key] = existingValue;
-      }
-    }
-    if (Object.keys(baselineOverrides).length > 0) {
-      mergedFilesystem = { ...baselineOverrides, ...mergedFilesystem };
-    }
-  }
+  // newProfile.filesystem is authoritative: it always includes the `:minimal` baseline and, since
+  // every other special path (`:root`, `:tmpdir`, `:slash_tmp`) now round-trips through the
+  // rulesync model, it already carries the user-managed values. We deliberately do NOT overlay
+  // baseline keys from the existing config, which would re-introduce stale values the user
+  // intentionally removed from `.rulesync/permissions.json`.
+  const mergedFilesystem = newProfile.filesystem;
 
   return {
     ...(description !== undefined ? { description } : {}),
