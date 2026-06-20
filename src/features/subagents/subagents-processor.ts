@@ -2,6 +2,7 @@ import { join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
+import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
@@ -641,6 +642,20 @@ export class SubagentsProcessor extends FeatureProcessor {
 
   static getToolTargetsSimulated(): ToolTarget[] {
     return [...subagentsProcessorToolTargetsSimulated];
+  }
+
+  /**
+   * Convention section describing how simulated subagents are invoked, embedded
+   * into a tool's root rule (e.g. AGENTS.md) by the rules feature.
+   */
+  static getSimulatedConventionSection(): string {
+    return `## Simulated Subagents
+
+Simulated subagents are specialized AI assistants that can be invoked to handle specific types of tasks. In this case, it can be appear something like custom slash commands simply. Simulated subagents can be called by custom slash commands.
+
+When users call a simulated subagent, it will look for the corresponding markdown file, \`${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "{subagent}.md")}\`, and execute its contents as the block of operations.
+
+For example, if the user instructs \`Call planner subagent to plan the refactoring\`, you have to look for the markdown file, \`${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md")}\`, and execute its contents as the block of operations.`;
   }
 
   /**

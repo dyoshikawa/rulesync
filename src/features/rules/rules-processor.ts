@@ -5,11 +5,7 @@ import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { ROVODEV_DIR, ROVODEV_RULE_FILE_NAME } from "../../constants/rovodev-paths.js";
-import {
-  RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
-  RULESYNC_RULES_RELATIVE_DIR_PATH,
-  RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-} from "../../constants/rulesync-paths.js";
+import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import type { FeatureOptions } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
@@ -221,6 +217,22 @@ type AdditionalConventionsConfig = {
 };
 
 /**
+ * Integration contract that lets the rules feature register non-root rule paths
+ * into an MCP-owned shared config without knowing its file format. The MCP feature
+ * (kilo.jsonc, opencode.json) implements `fromInstructions`.
+ */
+type McpInstructionsRegistrar = {
+  fromInstructions(params: {
+    outputRoot?: string;
+    instructions: string[];
+    validate?: boolean;
+    global?: boolean;
+  }): Promise<ToolFile>;
+};
+
+type LocalRootMode = "separate-local-file" | "append-to-root";
+
+/**
  * Factory entry for each tool rule class.
  * Stores the class reference and metadata for a tool.
  */
@@ -245,6 +257,23 @@ type ToolRuleFactory = {
     additionalConventions?: AdditionalConventionsConfig;
     /** Whether to create a separate rule file for additional conventions instead of prepending to root */
     createsSeparateConventionsRule?: boolean;
+    /**
+     * Fold every non-root rule body into the single root rule file, for tools that
+     * read only one root `AGENTS.md` and never scan a non-root directory.
+     */
+    foldsNonRootIntoRoot?: boolean;
+    /**
+     * MCP feature that registers non-root rule paths into its shared config's
+     * `instructions` key (project scope only); set when the tool does not
+     * auto-load non-root rules. The root rule is auto-loaded and never registered.
+     */
+    mcpInstructionsRegistrar?: McpInstructionsRegistrar;
+    /** How a `localRoot: true` rule is materialized. Defaults to `append-to-root`. */
+    localRootMode?: LocalRootMode;
+    /** File name for the `separate-local-file` local-root file. */
+    localRootFileName?: string;
+    /** Mirror the generated root rule to a project-root `AGENTS.md` (project scope only). */
+    mirrorsRootToAgentsMd?: boolean;
   };
 };
 
@@ -351,6 +380,8 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
+        localRootMode: "separate-local-file",
+        localRootFileName: "CLAUDE.local.md",
       },
     },
   ],
@@ -362,6 +393,8 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "claudecode-legacy",
+        localRootMode: "separate-local-file",
+        localRootFileName: "CLAUDE.local.md",
       },
     },
   ],
@@ -431,6 +464,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // dcode reads user-level context from `~/.deepagents/<agent_name>/AGENTS.md`.
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
+        foldsNonRootIntoRoot: true,
       },
     },
   ],
@@ -486,6 +520,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
+        foldsNonRootIntoRoot: true,
       },
     },
   ],
@@ -508,6 +543,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
+        mcpInstructionsRegistrar: KiloMcp,
       },
     },
   ],
@@ -552,6 +588,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
+        mcpInstructionsRegistrar: OpencodeMcp,
       },
     },
   ],
@@ -623,6 +660,9 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
           subagents: { subagentClass: RovodevSubagent },
           skills: { skillClass: RovodevSkill },
         },
+        localRootMode: "separate-local-file",
+        localRootFileName: "AGENTS.local.md",
+        mirrorsRootToAgentsMd: true,
       },
     },
   ],
@@ -662,6 +702,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: false,
         ruleDiscoveryMode: "toon",
+        foldsNonRootIntoRoot: true,
       },
     },
   ],
@@ -814,20 +855,7 @@ export class RulesProcessor extends FeatureProcessor {
       })
       .filter((rule): rule is ToolRule => rule !== null);
 
-    // Some tools read project rules only from a single root `AGENTS.md` file and
-    // neither scan a `memories/` directory nor follow references out of it:
-    // - deepagents (dcode) reads only `.deepagents/AGENTS.md`.
-    // - Warp reads only root/subdir `AGENTS.md`, never `.warp/memories/`.
-    // - Grok Build reads only root/subdir `AGENTS.md` (+ global `~/.grok/AGENTS.md`),
-    //   never `.grok/memories/` (verified via `grok inspect`).
-    // Fold every non-root rule body into the root rule so no rule content is
-    // silently lost, and drop the now-redundant non-root instances (which all
-    // share the root path).
-    if (
-      this.toolTarget === "deepagents" ||
-      this.toolTarget === "warp" ||
-      this.toolTarget === "grokcli"
-    ) {
+    if (meta.foldsNonRootIntoRoot) {
       this.foldNonRootRulesIntoRootRule(toolRules);
     }
 
@@ -870,43 +898,17 @@ export class RulesProcessor extends FeatureProcessor {
       }
     }
 
-    // Kilo v7 does not auto-load files under `.kilo/rules/`; they are only read
-    // when registered in the `instructions` key of the shared `kilo.jsonc`. The
-    // root rule (`AGENTS.md`) IS auto-loaded, so it must NOT be registered. This
-    // merge is non-destructive: KiloMcp.fromInstructions preserves mcp/tools and
-    // any other existing keys. Only applies in project scope (no nonRoot rules
-    // exist in global scope).
+    // Non-root rules of some tools are not auto-loaded; the tool's MCP feature
+    // registers them in its shared config's `instructions` key. The root rule is
+    // auto-loaded and never registered. Project scope only.
     const extraFiles: ToolFile[] = [];
-    if (this.toolTarget === "kilo" && !this.global) {
+    if (meta.mcpInstructionsRegistrar && !this.global) {
       const instructionPaths = toolRules
         .filter((rule) => !rule.isRoot())
         .map((rule) => toPosixPath(join(rule.getRelativeDirPath(), rule.getRelativeFilePath())));
       if (instructionPaths.length > 0) {
         extraFiles.push(
-          await KiloMcp.fromInstructions({
-            outputRoot: this.outputRoot,
-            instructions: instructionPaths,
-            validate: true,
-            global: this.global,
-          }),
-        );
-      }
-    }
-
-    // OpenCode auto-loads only the root `AGENTS.md` plus files explicitly listed
-    // in the `instructions` key of `opencode.json`; it does NOT auto-discover a
-    // rules directory. Non-root rules written to `.opencode/memories/` are
-    // therefore silently ignored unless registered here. The root `AGENTS.md` is
-    // auto-loaded, so it must NOT be registered. This merge is non-destructive:
-    // OpencodeMcp.fromInstructions preserves mcp/tools and any other existing
-    // keys. Only applies in project scope (no nonRoot rules exist in global scope).
-    if (this.toolTarget === "opencode" && !this.global) {
-      const instructionPaths = toolRules
-        .filter((rule) => !rule.isRoot())
-        .map((rule) => toPosixPath(join(rule.getRelativeDirPath(), rule.getRelativeFilePath())));
-      if (instructionPaths.length > 0) {
-        extraFiles.push(
-          await OpencodeMcp.fromInstructions({
+          await meta.mcpInstructionsRegistrar.fromInstructions({
             outputRoot: this.outputRoot,
             instructions: instructionPaths,
             validate: true,
@@ -940,26 +942,41 @@ export class RulesProcessor extends FeatureProcessor {
     const newContent = referenceSection + conventionsSection + rootRule.getFileContent();
     rootRule.setFileContent(newContent);
 
-    if (this.toolTarget === "rovodev" && !this.global && rootRule instanceof RovodevRule) {
-      const primary = RovodevRule.getSettablePaths({ global: false }).root;
-      if (
-        rootRule.getRelativeDirPath() === primary.relativeDirPath &&
-        rootRule.getRelativeFilePath() === primary.relativeFilePath
-      ) {
-        toolRules.push(
-          new RovodevRule({
-            outputRoot: this.outputRoot,
-            relativeDirPath: ".",
-            relativeFilePath: "AGENTS.md",
-            fileContent: newContent,
-            validate: true,
-            root: true,
-          }),
-        );
-      }
+    if (meta.mirrorsRootToAgentsMd && !this.global) {
+      this.mirrorRootRuleToAgentsMd(toolRules, rootRule, newContent);
     }
 
     return [...toolRules, ...extraFiles];
+  }
+
+  /**
+   * Mirror the primary root rule to a project-root `AGENTS.md` for tools whose
+   * primary root lives in a subdirectory (rovodev: `.rovodev/AGENTS.md`).
+   */
+  private mirrorRootRuleToAgentsMd(
+    toolRules: ToolRule[],
+    rootRule: ToolRule,
+    content: string,
+  ): void {
+    if (!(rootRule instanceof RovodevRule)) {
+      return;
+    }
+    const primary = RovodevRule.getSettablePaths({ global: false }).root;
+    if (
+      rootRule.getRelativeDirPath() === primary.relativeDirPath &&
+      rootRule.getRelativeFilePath() === primary.relativeFilePath
+    ) {
+      toolRules.push(
+        new RovodevRule({
+          outputRoot: this.outputRoot,
+          relativeDirPath: ".",
+          relativeFilePath: "AGENTS.md",
+          fileContent: content,
+          validate: true,
+          root: true,
+        }),
+      );
+    }
   }
 
   private buildSkillList(skillClass: {
@@ -1032,67 +1049,79 @@ export class RulesProcessor extends FeatureProcessor {
 
   /**
    * Handle localRoot rule generation based on tool target.
-   * - Claude Code: generates `./CLAUDE.local.md`
-   * - Claude Code Legacy: generates `./CLAUDE.local.md`
-   * - Rovodev: generates `./AGENTS.local.md` (Rovo Dev CLI project memory)
-   * - Other tools: appends content to the root file with one blank line separator
+   * - `separate-local-file`: writes a dedicated `*.local.md` root file
+   *   (claudecode/legacy: `./CLAUDE.local.md`, rovodev: `./AGENTS.local.md`)
+   * - `append-to-root` (default): appends the body to the root file
    */
   private handleLocalRootRule(
     toolRules: ToolRule[],
     localRootRule: RulesyncRule,
-    _factory: ToolRuleFactory,
+    factory: ToolRuleFactory,
   ): void {
     const localRootBody = localRootRule.getBody();
+    const { meta } = factory;
 
-    if (this.toolTarget === "claudecode") {
-      // Claude Code: generate separate CLAUDE.local.md file in project root
-      const paths = ClaudecodeRule.getSettablePaths({ global: this.global });
-      toolRules.push(
-        new ClaudecodeRule({
-          outputRoot: this.outputRoot,
-          relativeDirPath: paths.root.relativeDirPath,
-          relativeFilePath: "CLAUDE.local.md",
-          frontmatter: {},
-          body: localRootBody,
-          validate: true,
-          root: true, // Treat as root so it doesn't have frontmatter
-        }),
-      );
-    } else if (this.toolTarget === "claudecode-legacy") {
-      // Claude Code Legacy: generate separate CLAUDE.local.md file in ./
-      const paths = ClaudecodeLegacyRule.getSettablePaths({
-        global: this.global,
+    if (meta.localRootMode === "separate-local-file" && meta.localRootFileName) {
+      const localRule = this.buildLocalRootFile({
+        factory,
+        fileName: meta.localRootFileName,
+        body: localRootBody,
       });
-      toolRules.push(
-        new ClaudecodeLegacyRule({
-          outputRoot: this.outputRoot,
-          relativeDirPath: paths.root.relativeDirPath,
-          relativeFilePath: "CLAUDE.local.md",
-          fileContent: localRootBody,
-          validate: true,
-          root: true, // Treat as root so it doesn't have frontmatter
-        }),
-      );
-    } else if (this.toolTarget === "rovodev") {
-      toolRules.push(
-        new RovodevRule({
-          outputRoot: this.outputRoot,
-          relativeDirPath: ".",
-          relativeFilePath: "AGENTS.local.md",
-          fileContent: localRootBody,
-          validate: true,
-          root: true,
-        }),
-      );
-    } else {
-      // For other tools, append to root file with blank line separator
-      const rootRule = toolRules.find((rule) => rule.isRoot());
-      if (rootRule) {
-        const currentContent = rootRule.getFileContent();
-        const newContent = currentContent + "\n\n" + localRootBody;
-        rootRule.setFileContent(newContent);
+      if (localRule) {
+        toolRules.push(localRule);
       }
+      return;
     }
+
+    const rootRule = toolRules.find((rule) => rule.isRoot());
+    if (rootRule) {
+      rootRule.setFileContent(rootRule.getFileContent() + "\n\n" + localRootBody);
+    }
+  }
+
+  private buildLocalRootFile({
+    factory,
+    fileName,
+    body,
+  }: {
+    factory: ToolRuleFactory;
+    fileName: string;
+    body: string;
+  }): ToolRule | null {
+    if (factory.class === ClaudecodeRule) {
+      const paths = ClaudecodeRule.getSettablePaths({ global: this.global });
+      return new ClaudecodeRule({
+        outputRoot: this.outputRoot,
+        relativeDirPath: paths.root.relativeDirPath,
+        relativeFilePath: fileName,
+        frontmatter: {},
+        body,
+        validate: true,
+        root: true,
+      });
+    }
+    if (factory.class === ClaudecodeLegacyRule) {
+      const paths = ClaudecodeLegacyRule.getSettablePaths({ global: this.global });
+      return new ClaudecodeLegacyRule({
+        outputRoot: this.outputRoot,
+        relativeDirPath: paths.root.relativeDirPath,
+        relativeFilePath: fileName,
+        fileContent: body,
+        validate: true,
+        root: true,
+      });
+    }
+    if (factory.class === RovodevRule) {
+      return new RovodevRule({
+        outputRoot: this.outputRoot,
+        relativeDirPath: ".",
+        relativeFilePath: fileName,
+        fileContent: body,
+        validate: true,
+        root: true,
+      });
+    }
+    return null;
   }
 
   /**
@@ -1118,7 +1147,10 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   /**
-   * Generate additional conventions section based on meta configuration.
+   * Build the additional-conventions section by collecting per-feature sections
+   * contributed by each feature processor. The rules feature only decides which
+   * features contribute (based on meta + simulate flags) and concatenates them;
+   * the section wording lives in each feature's `getSimulatedConventionSection`.
    */
   private generateAdditionalConventionsSectionFromMeta(meta: ToolRuleFactory["meta"]): string {
     const { additionalConventions } = meta;
@@ -1126,35 +1158,43 @@ export class RulesProcessor extends FeatureProcessor {
       return "";
     }
 
-    const conventions: Parameters<typeof this.generateAdditionalConventionsSection>[0] = {};
+    const overview = `# Additional Conventions Beyond the Built-in Functions
 
-    if (additionalConventions.commands) {
-      const { commandClass } = additionalConventions.commands;
-      const relativeDirPath = commandClass.getSettablePaths({
-        global: this.global,
-      }).relativeDirPath;
-      conventions.commands = { relativeDirPath };
+As this project's AI coding tool, you must follow the additional conventions below, in addition to the built-in functions.`;
+
+    const sections: string[] = [overview];
+
+    if (
+      additionalConventions.commands &&
+      this.simulateCommands &&
+      CommandsProcessor.getToolTargetsSimulated().includes(this.toolTarget)
+    ) {
+      sections.push(CommandsProcessor.getSimulatedConventionSection());
     }
 
-    if (additionalConventions.subagents) {
-      const { subagentClass } = additionalConventions.subagents;
-      const relativeDirPath = subagentClass.getSettablePaths({
-        global: this.global,
-      }).relativeDirPath;
-      conventions.subagents = { relativeDirPath };
+    if (
+      additionalConventions.subagents &&
+      this.simulateSubagents &&
+      SubagentsProcessor.getToolTargetsSimulated().includes(this.toolTarget)
+    ) {
+      sections.push(SubagentsProcessor.getSimulatedConventionSection());
     }
 
-    if (additionalConventions.skills) {
-      const { skillClass, globalOnly } = additionalConventions.skills;
-      // Skip skills if they are globalOnly and we're not in global mode
-      if (!globalOnly || this.global) {
-        conventions.skills = {
-          skillList: this.buildSkillList(skillClass),
-        };
-      }
+    const skillsConfig = additionalConventions.skills;
+    if (
+      skillsConfig &&
+      this.simulateSkills &&
+      SkillsProcessor.getToolTargetsSimulated().includes(this.toolTarget) &&
+      (!skillsConfig.globalOnly || this.global)
+    ) {
+      sections.push(
+        SkillsProcessor.getSimulatedConventionSection({
+          skillList: this.buildSkillList(skillsConfig.skillClass),
+        }),
+      );
     }
 
-    return this.generateAdditionalConventionsSection(conventions);
+    return sections.join("\n\n") + "\n\n";
   }
 
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
@@ -1353,44 +1393,45 @@ export class RulesProcessor extends FeatureProcessor {
       })();
       this.logger.debug(`Found ${rootToolRules.length} root tool rule files`);
 
-      // Load CLAUDE.local.md / AGENTS.local.md for deletion (claudecode, claudecode-legacy, rovodev)
+      // Load the separate `*.local.md` file for deletion when the tool uses one.
       const localRootToolRules = await (async () => {
-        if (!forDeletion) {
+        if (
+          !forDeletion ||
+          this.global ||
+          factory.meta.localRootMode !== "separate-local-file" ||
+          !factory.meta.localRootFileName
+        ) {
           return [];
         }
+        const fileName = factory.meta.localRootFileName;
 
-        if (this.toolTarget === "rovodev") {
-          if (this.global) {
-            return [];
-          }
-          const uniqueLocalRootFilePaths = await findFilesByGlobs(
-            join(this.outputRoot, "AGENTS.local.md"),
-          );
-          return buildDeletionRulesFromPaths(uniqueLocalRootFilePaths);
-        }
-
-        if (this.toolTarget !== "claudecode" && this.toolTarget !== "claudecode-legacy") {
-          return [];
+        // rovodev writes its local file at the project root, not under its root dir.
+        if (factory.class === RovodevRule) {
+          const filePaths = await findFilesByGlobs(join(this.outputRoot, fileName));
+          return buildDeletionRulesFromPaths(filePaths);
         }
 
         if (!settablePaths.root) {
           return [];
         }
-
-        const uniqueLocalRootFilePaths = await findFilesWithFallback(
-          join(this.outputRoot, settablePaths.root.relativeDirPath ?? ".", "CLAUDE.local.md"),
+        const filePaths = await findFilesWithFallback(
+          join(this.outputRoot, settablePaths.root.relativeDirPath ?? ".", fileName),
           settablePaths.alternativeRoots,
-          (alt) => join(this.outputRoot, alt.relativeDirPath, "CLAUDE.local.md"),
+          (alt) => join(this.outputRoot, alt.relativeDirPath, fileName),
         );
-
-        return buildDeletionRulesFromPaths(uniqueLocalRootFilePaths);
+        return buildDeletionRulesFromPaths(filePaths);
       })();
       this.logger.debug(
         `Found ${localRootToolRules.length} local root tool rule files for deletion`,
       );
 
-      const rovodevMirrorDeletionRules = await (async () => {
-        if (!forDeletion || this.toolTarget !== "rovodev" || this.global) {
+      const rootMirrorDeletionRules = await (async () => {
+        if (
+          !forDeletion ||
+          this.global ||
+          !factory.meta.mirrorsRootToAgentsMd ||
+          factory.class !== RovodevRule
+        ) {
           return [];
         }
         const primaryPaths = await findFilesByGlobs(
@@ -1422,7 +1463,7 @@ export class RulesProcessor extends FeatureProcessor {
 
         const modularRootRelative = settablePaths.nonRoot.relativeDirPath;
         const nonRootPathsForImport =
-          this.toolTarget === "rovodev"
+          factory.class === RovodevRule
             ? nonRootFilePaths.filter((filePath) => {
                 const relativeFilePath = relative(nonRootOutputRoot, filePath);
                 const ok = RovodevRule.isAllowedModularRulesRelativePath(relativeFilePath);
@@ -1456,7 +1497,7 @@ export class RulesProcessor extends FeatureProcessor {
       return [
         ...rootToolRules,
         ...localRootToolRules,
-        ...rovodevMirrorDeletionRules,
+        ...rootMirrorDeletionRules,
         ...nonRootToolRules,
       ];
     } catch (error) {
@@ -1557,102 +1598,5 @@ export class RulesProcessor extends FeatureProcessor {
     }
 
     return lines.join("\n") + "\n\n";
-  }
-
-  private generateAdditionalConventionsSection({
-    commands,
-    subagents,
-    skills,
-  }: {
-    commands?: {
-      relativeDirPath: string;
-    };
-    subagents?: {
-      relativeDirPath: string;
-    };
-    skills?: {
-      skillList?: Array<{
-        name: string;
-        description: string;
-        path: string;
-      }>;
-    };
-  }): string {
-    const overview = `# Additional Conventions Beyond the Built-in Functions
-
-As this project's AI coding tool, you must follow the additional conventions below, in addition to the built-in functions.`;
-
-    const commandsSection = commands
-      ? `## Simulated Custom Slash Commands
-
-Custom slash commands allow you to define frequently-used prompts as Markdown files that you can execute.
-
-### Syntax
-
-Users can use following syntax to invoke a custom command.
-
-\`\`\`txt
-s/<command> [arguments]
-\`\`\`
-
-This syntax employs a double slash (\`s/\`) to prevent conflicts with built-in slash commands.
-The \`s\` in \`s/\` stands for *simulate*. Because custom slash commands are not built-in, this syntax provides a pseudo way to invoke them.
-
-When users call a custom slash command, you have to look for the markdown file, \`${join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "{command}.md")}\`, then execute the contents of that file as the block of operations.`
-      : "";
-
-    const subagentsSection = subagents
-      ? `## Simulated Subagents
-
-Simulated subagents are specialized AI assistants that can be invoked to handle specific types of tasks. In this case, it can be appear something like custom slash commands simply. Simulated subagents can be called by custom slash commands.
-
-When users call a simulated subagent, it will look for the corresponding markdown file, \`${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "{subagent}.md")}\`, and execute its contents as the block of operations.
-
-For example, if the user instructs \`Call planner subagent to plan the refactoring\`, you have to look for the markdown file, \`${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md")}\`, and execute its contents as the block of operations.`
-      : "";
-
-    const skillsSection = skills ? this.generateSkillsSection(skills) : "";
-
-    const result =
-      [
-        overview,
-        ...(this.simulateCommands &&
-        CommandsProcessor.getToolTargetsSimulated().includes(this.toolTarget)
-          ? [commandsSection]
-          : []),
-        ...(this.simulateSubagents &&
-        SubagentsProcessor.getToolTargetsSimulated().includes(this.toolTarget)
-          ? [subagentsSection]
-          : []),
-        ...(this.simulateSkills &&
-        SkillsProcessor.getToolTargetsSimulated().includes(this.toolTarget)
-          ? [skillsSection]
-          : []),
-      ].join("\n\n") + "\n\n";
-    return result;
-  }
-
-  private generateSkillsSection(skills: {
-    skillList?: Array<{
-      name: string;
-      description: string;
-      path: string;
-    }>;
-  }): string {
-    if (!skills.skillList || skills.skillList.length === 0) {
-      return "";
-    }
-
-    const skillListWithAtPrefix = skills.skillList.map((skill) => ({
-      ...skill,
-      path: `@${skill.path}`,
-    }));
-    const toonContent = encode({ skillList: skillListWithAtPrefix });
-
-    return `## Simulated Skills
-
-Simulated skills are specialized capabilities that can be invoked to handle specific types of tasks. When you determine that a skill would be helpful for the current task, read the corresponding SKILL.md file and execute its instructions.
-
-${toonContent}`;
   }
 }

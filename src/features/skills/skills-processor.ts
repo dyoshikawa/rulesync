@@ -1,5 +1,6 @@
 import { basename, join } from "node:path";
 
+import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
 
 import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
@@ -668,6 +669,33 @@ export class SkillsProcessor extends DirFeatureProcessor {
    */
   static getToolTargetsSimulated(): ToolTarget[] {
     return skillsProcessorToolTargetsSimulated;
+  }
+
+  /**
+   * Convention section describing simulated skills, embedded into a tool's root
+   * rule (e.g. AGENTS.md) by the rules feature. Returns an empty string when there
+   * are no skills to list.
+   */
+  static getSimulatedConventionSection({
+    skillList,
+  }: {
+    skillList?: Array<{ name: string; description: string; path: string }>;
+  }): string {
+    if (!skillList || skillList.length === 0) {
+      return "";
+    }
+
+    const skillListWithAtPrefix = skillList.map((skill) => ({
+      ...skill,
+      path: `@${skill.path}`,
+    }));
+    const toonContent = encode({ skillList: skillListWithAtPrefix });
+
+    return `## Simulated Skills
+
+Simulated skills are specialized capabilities that can be invoked to handle specific types of tasks. When you determine that a skill would be helpful for the current task, read the corresponding SKILL.md file and execute its instructions.
+
+${toonContent}`;
   }
 
   /**
