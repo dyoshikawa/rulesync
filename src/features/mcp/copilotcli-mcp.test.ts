@@ -118,11 +118,11 @@ describe("CopilotcliMcp", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should return correct paths for project mode", () => {
+    it("should return the project workspace MCP path for project mode", () => {
       const paths = CopilotcliMcp.getSettablePaths({ global: false });
 
-      expect(paths.relativeDirPath).toBe(".copilot");
-      expect(paths.relativeFilePath).toBe("mcp-config.json");
+      expect(paths.relativeDirPath).toBe(".github");
+      expect(paths.relativeFilePath).toBe("mcp.json");
     });
 
     it("should return correct paths for global mode", () => {
@@ -132,18 +132,18 @@ describe("CopilotcliMcp", () => {
       expect(paths.relativeFilePath).toBe("mcp-config.json");
     });
 
-    it("should return correct paths when global is not specified", () => {
+    it("should default to project workspace MCP path when global is not specified", () => {
       const paths = CopilotcliMcp.getSettablePaths();
 
-      expect(paths.relativeDirPath).toBe(".copilot");
-      expect(paths.relativeFilePath).toBe("mcp-config.json");
+      expect(paths.relativeDirPath).toBe(".github");
+      expect(paths.relativeFilePath).toBe("mcp.json");
     });
   });
 
   describe("fromFile", () => {
-    it("should create instance from file with default parameters", async () => {
-      const copilotDir = join(testDir, ".copilot");
-      await ensureDir(copilotDir);
+    it("should create instance from the project workspace file with default parameters", async () => {
+      const githubDir = join(testDir, ".github");
+      await ensureDir(githubDir);
 
       const jsonData = {
         mcpServers: {
@@ -154,10 +154,7 @@ describe("CopilotcliMcp", () => {
           },
         },
       };
-      await writeFileContent(
-        join(copilotDir, "mcp-config.json"),
-        JSON.stringify(jsonData, null, 2),
-      );
+      await writeFileContent(join(githubDir, "mcp.json"), JSON.stringify(jsonData, null, 2));
 
       const copilotCliMcp = await CopilotcliMcp.fromFile({
         outputRoot: testDir,
@@ -165,13 +162,13 @@ describe("CopilotcliMcp", () => {
 
       expect(copilotCliMcp).toBeInstanceOf(CopilotcliMcp);
       expect(copilotCliMcp.getJson()).toEqual(jsonData);
-      expect(copilotCliMcp.getFilePath()).toBe(join(testDir, ".copilot/mcp-config.json"));
+      expect(copilotCliMcp.getFilePath()).toBe(join(testDir, ".github/mcp.json"));
     });
 
     it("should create instance from file with custom outputRoot", async () => {
       const customDir = join(testDir, "custom");
-      const copilotDir = join(customDir, ".copilot");
-      await ensureDir(copilotDir);
+      const githubDir = join(customDir, ".github");
+      await ensureDir(githubDir);
 
       const jsonData = {
         mcpServers: {
@@ -182,13 +179,13 @@ describe("CopilotcliMcp", () => {
           },
         },
       };
-      await writeFileContent(join(copilotDir, "mcp-config.json"), JSON.stringify(jsonData));
+      await writeFileContent(join(githubDir, "mcp.json"), JSON.stringify(jsonData));
 
       const copilotCliMcp = await CopilotcliMcp.fromFile({
         outputRoot: customDir,
       });
 
-      expect(copilotCliMcp.getFilePath()).toBe(join(customDir, ".copilot/mcp-config.json"));
+      expect(copilotCliMcp.getFilePath()).toBe(join(customDir, ".github/mcp.json"));
       expect(copilotCliMcp.getJson()).toEqual(jsonData);
     });
 
@@ -258,8 +255,60 @@ describe("CopilotcliMcp", () => {
           },
         },
       });
-      expect(copilotCliMcp.getRelativeDirPath()).toBe(".copilot");
-      expect(copilotCliMcp.getRelativeFilePath()).toBe("mcp-config.json");
+      expect(copilotCliMcp.getRelativeDirPath()).toBe(".github");
+      expect(copilotCliMcp.getRelativeFilePath()).toBe("mcp.json");
+    });
+
+    it("should write the global config to .copilot/mcp-config.json in global mode", async () => {
+      const inputMcpServers = {
+        "global-server": {
+          command: "npx",
+          args: ["global-mcp-server"],
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
+      });
+
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      expect(copilotCliMcp.getFilePath()).toBe(join(testDir, ".copilot/mcp-config.json"));
+    });
+
+    it("should write the project workspace config to .github/mcp.json in project mode", async () => {
+      const inputMcpServers = {
+        "project-server": {
+          command: "npx",
+          args: ["project-mcp-server"],
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
+      });
+
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+      });
+
+      expect(copilotCliMcp.getFilePath()).toBe(join(testDir, ".github/mcp.json"));
+      expect(copilotCliMcp.getJson()).toEqual({
+        mcpServers: {
+          "project-server": {
+            type: "stdio",
+            command: "npx",
+            args: ["project-mcp-server"],
+          },
+        },
+      });
     });
 
     it("should preserve env field when converting", async () => {
@@ -771,8 +820,8 @@ describe("CopilotcliMcp", () => {
 
   describe("integration", () => {
     it("should handle complete workflow: fromFile -> toRulesyncMcp -> fromRulesyncMcp", async () => {
-      const copilotDir = join(testDir, ".copilot");
-      await ensureDir(copilotDir);
+      const githubDir = join(testDir, ".github");
+      await ensureDir(githubDir);
 
       const originalServers = {
         "workflow-server": {
@@ -785,7 +834,7 @@ describe("CopilotcliMcp", () => {
         },
       };
       await writeFileContent(
-        join(copilotDir, "mcp-config.json"),
+        join(githubDir, "mcp.json"),
         JSON.stringify({ mcpServers: originalServers }, null, 2),
       );
 
@@ -818,7 +867,8 @@ describe("CopilotcliMcp", () => {
 
       // Verify data integrity - type field is restored
       expect(newCopilotcliMcp.getJson()).toEqual({ mcpServers: originalServers });
-      expect(newCopilotcliMcp.getFilePath()).toBe(join(testDir, ".copilot/mcp-config.json"));
+      // Project mode writes the workspace MCP config to .github/mcp.json.
+      expect(newCopilotcliMcp.getFilePath()).toBe(join(testDir, ".github/mcp.json"));
     });
 
     it('should preserve unknown fields like "tools" and "url" during conversion', async () => {
@@ -900,6 +950,8 @@ describe("CopilotcliMcp", () => {
 
       // Verify data integrity - type field is restored and all data preserved
       expect(roundTrippedMcp.getJson()).toEqual({ mcpServers: originalServers });
+      // Project mode writes the workspace MCP config to .github/mcp.json.
+      expect(roundTrippedMcp.getFilePath()).toBe(join(testDir, ".github/mcp.json"));
     });
   });
 });

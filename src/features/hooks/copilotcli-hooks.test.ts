@@ -47,8 +47,8 @@ describe("CopilotcliHooks", () => {
         hooks: {
           sessionStart: [{ type: "command", command: "echo session-start" }],
           beforeSubmitPrompt: [{ command: "echo prompt" }],
-          // matchers are unsupported and dropped
-          preToolUse: [{ matcher: "Edit|Write", command: "echo skipped" }],
+          // matchers are honored on preToolUse/postToolUse
+          preToolUse: [{ matcher: "Edit|Write", command: "echo edit" }],
           // event not in the Copilot CLI surface — dropped
           worktreeCreate: [{ command: "echo skipped" }],
         },
@@ -71,10 +71,78 @@ describe("CopilotcliHooks", () => {
       expect(parsed.version).toBe(1);
       expect(parsed.hooks.sessionStart).toBeDefined();
       expect(parsed.hooks.userPromptSubmitted).toBeDefined();
-      // matcher entry was dropped, so preToolUse must not exist
-      expect(parsed.hooks.preToolUse).toBeUndefined();
+      // matcher entry is now honored on preToolUse and emits the matcher field
+      expect(parsed.hooks.preToolUse).toBeDefined();
+      expect(parsed.hooks.preToolUse[0]).toMatchObject({ matcher: "Edit|Write" });
       // event outside the Copilot CLI surface must not leak through
       expect(parsed.hooks.worktreeCreate).toBeUndefined();
+    });
+
+    it("emits matcher on preToolUse/postToolUse and drops it on other events", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [{ matcher: "Edit|Write", command: "echo pre" }],
+          postToolUse: [{ matcher: "Bash", command: "echo post" }],
+          // matcher on an unsupported event must be dropped, but the hook kept
+          sessionStart: [{ matcher: "ignored", command: "echo start" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const hooks = await CopilotcliHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+      const parsed = JSON.parse(hooks.getFileContent());
+
+      expect(parsed.hooks.preToolUse[0]).toMatchObject({ matcher: "Edit|Write" });
+      expect(parsed.hooks.postToolUse[0]).toMatchObject({ matcher: "Bash" });
+      // sessionStart hook is kept but its matcher is stripped
+      expect(parsed.hooks.sessionStart).toBeDefined();
+      expect(parsed.hooks.sessionStart[0].matcher).toBeUndefined();
+    });
+
+    it("round-trips a preToolUse matcher through import and export", async () => {
+      const fileContent = JSON.stringify({
+        version: 1,
+        hooks: {
+          preToolUse: [{ type: "command", matcher: "Edit|Write", bash: "echo edit" }],
+        },
+      });
+      const hooks = new CopilotcliHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilotcli-hooks.json",
+        fileContent,
+        validate: false,
+      });
+
+      // Import preserves the matcher in canonical format.
+      const canonical = JSON.parse(hooks.toRulesyncHooks().getFileContent());
+      expect(canonical.hooks.preToolUse[0]).toMatchObject({
+        type: "command",
+        command: "echo edit",
+        matcher: "Edit|Write",
+      });
+
+      // Re-export emits the matcher again.
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(canonical),
+        validate: false,
+      });
+      const reexported = await CopilotcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+      });
+      const parsed = JSON.parse(reexported.getFileContent());
+      expect(parsed.hooks.preToolUse[0]).toMatchObject({ matcher: "Edit|Write" });
     });
 
     it("maps the wider Copilot CLI event surface", async () => {

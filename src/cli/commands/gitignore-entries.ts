@@ -279,6 +279,13 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "copilot", feature: "mcp", entry: "**/.vscode/mcp.json" },
 
   // GitHub Copilot CLI
+  // Project: <project>/.github/mcp.json (workspace MCP config auto-loaded by the CLI)
+  // Global: ~/.copilot/mcp-config.json
+  {
+    target: "copilotcli",
+    feature: "mcp",
+    entry: "**/.github/mcp.json",
+  },
   {
     target: "copilotcli",
     feature: "mcp",

@@ -268,6 +268,7 @@ describe("registry reverse coverage", () => {
     // Global-scope-only outputs (emitted under the home dir).
     "**/.copilot/agents",
     "**/.copilot/hooks",
+    "**/.copilot/mcp-config.json",
     "**/.codeium/windsurf/skills",
     // supportsProject:false, so the project-scope collector skips it.
     "**/.deepagents/hooks.json",

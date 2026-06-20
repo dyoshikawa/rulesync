@@ -67,15 +67,34 @@ import {
  *   all rulesync-managed Copilot CLI files under the single `~/.copilot/`
  *   root and will revisit if the spec later mandates an alternate layout.
  *
+ * Hook entries on `preToolUse` / `postToolUse` may carry an optional `matcher`
+ * field (a regex compiled as `^(?:PATTERN)$`, tested against `toolName`); it is
+ * emitted on those events and dropped (with a warning) on any other event,
+ * which never honors matchers. See changelog v1.0.36 (2026-04-24) and v1.0.63
+ * (2026-06-15). Reference: https://docs.github.com/en/copilot/reference/hooks-reference
+ *
  * The output JSON schema and platform-specific `bash` / `powershell` command
  * field selection match `copilot-hooks.ts`, but the event surface diverges (the
  * cloud agent uses the narrower `COPILOT_HOOK_EVENTS` set).
  */
+/**
+ * Canonical events whose Copilot CLI hook entries honor an optional `matcher`
+ * field (a regex compiled as `^(?:PATTERN)$`, tested against `toolName`).
+ *
+ * Confirmed by the upstream changelog: v1.0.36 (2026-04-24, `preToolUse.matcher`
+ * honored) and v1.0.63 (2026-06-15, "PostToolUse hook matchers (e.g.
+ * `Edit|Write`) are now honored instead of silently dropped").
+ * @see https://docs.github.com/en/copilot/reference/hooks-reference
+ */
+const COPILOTCLI_MATCHER_EVENTS: ReadonlySet<string> = new Set(["preToolUse", "postToolUse"]);
+
 const CopilotCliHookEntrySchema = z.looseObject({
   // `type` defaults to "command" so hand-edited entries omitting the field
   // import successfully — this matches the most common case and avoids
   // silently dropping otherwise-valid entries.
   type: z._default(z.string(), "command"),
+  // Optional tool-name matcher honored on preToolUse/postToolUse entries.
+  matcher: z.optional(z.string()),
   bash: z.optional(z.string()),
   powershell: z.optional(z.string()),
   prompt: z.optional(z.string()),
@@ -114,13 +133,25 @@ function canonicalToCopilotCliHooks(
   const out: Record<string, CopilotCliHookEntry[]> = {};
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
     const copilotEventName = CANONICAL_TO_COPILOTCLI_EVENT_NAMES[eventName] ?? eventName;
+    const matcherSupported = COPILOTCLI_MATCHER_EVENTS.has(eventName);
     const entries: CopilotCliHookEntry[] = [];
     for (const def of definitions) {
-      // Copilot CLI does not accept matchers.
-      if (def.matcher) continue;
       const hookType = def.type ?? "command";
       const timeout = def.timeout;
       const timeoutPart = timeout !== undefined && timeout !== null ? { timeoutSec: timeout } : {};
+      // Copilot CLI honors `matcher` only on preToolUse/postToolUse entries; on
+      // any other event a matcher would be silently dropped by the CLI, so we
+      // drop it here with a warning rather than emitting a dead field.
+      let matcherPart: { matcher?: string } = {};
+      if (def.matcher !== undefined && def.matcher !== null && def.matcher !== "") {
+        if (matcherSupported) {
+          matcherPart = { matcher: def.matcher };
+        } else {
+          logger?.warn(
+            `Copilot CLI hook matchers are only honored on preToolUse/postToolUse; dropping matcher "${def.matcher}" on '${eventName}'.`,
+          );
+        }
+      }
       // Non-canonical fields (cwd, env, url, headers, allowedEnvVars, ...) pass
       // through verbatim.
       const rest = Object.fromEntries(
@@ -140,6 +171,7 @@ function canonicalToCopilotCliHooks(
       } else if (hookType === "http") {
         entries.push({
           type: "http",
+          ...matcherPart,
           ...(def.url !== undefined && def.url !== null && { url: def.url }),
           ...timeoutPart,
           ...rest,
@@ -148,6 +180,7 @@ function canonicalToCopilotCliHooks(
         const command = def.command;
         entries.push({
           type: "command",
+          ...matcherPart,
           ...(command !== undefined && command !== null && { [commandField]: command }),
           ...timeoutPart,
           ...rest,
@@ -207,18 +240,24 @@ function copilotCliHooksToCanonical(rawHooks: unknown, logger?: Logger): HooksCo
       const entry = parseResult.data;
       const timeout = entry.timeoutSec;
       const timeoutPart = timeout !== undefined ? { timeout } : {};
+      // Preserve the matcher on import so it round-trips back to export. It is
+      // only meaningful on preToolUse/postToolUse, but keeping it on any entry
+      // is harmless — export drops it again on unsupported events.
+      const matcherPart =
+        entry.matcher !== undefined && entry.matcher !== "" ? { matcher: entry.matcher } : {};
       const passthrough = importPassthrough(entry);
 
       if (entry.type === "prompt") {
         if (entry.prompt === undefined) continue;
-        defs.push({ type: "prompt", prompt: entry.prompt, ...passthrough });
+        defs.push({ type: "prompt", prompt: entry.prompt, ...matcherPart, ...passthrough });
       } else if (entry.type === "http") {
-        defs.push({ type: "http", ...timeoutPart, ...passthrough });
+        defs.push({ type: "http", ...matcherPart, ...timeoutPart, ...passthrough });
       } else {
         const command = resolveImportCommand(entry, logger);
         defs.push({
           type: "command",
           ...(command !== undefined && { command }),
+          ...matcherPart,
           ...timeoutPart,
           ...passthrough,
         });
