@@ -1,12 +1,5 @@
-import { toolCommandFactories } from "../../features/commands/commands-processor.js";
-import { toolHooksFactories } from "../../features/hooks/hooks-processor.js";
-import { toolIgnoreFactories } from "../../features/ignore/ignore-processor.js";
-import { toolMcpFactories } from "../../features/mcp/mcp-processor.js";
-import { toolPermissionsFactories } from "../../features/permissions/permissions-processor.js";
-import { toolRuleFactories } from "../../features/rules/rules-processor.js";
-import { toolSkillFactories } from "../../features/skills/skills-processor.js";
-import { toolSubagentFactories } from "../../features/subagents/subagents-processor.js";
 import type { Feature } from "../../types/features.js";
+import { getProcessorRegistryEntry } from "../../types/processor-registry.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 
 export type GitignoreEntryTarget = ToolTarget | "common";
@@ -111,7 +104,8 @@ const deriveFileEntries = (factories: FactoryMap, feature: Feature): GitignoreEn
 // directory subtree.
 const deriveRulesEntries = (): GitignoreEntryTag[] => {
   const entries: GitignoreEntryTag[] = [];
-  for (const [target, factory] of toolRuleFactories) {
+  const factories = getProcessorRegistryEntry("rules").factory as unknown as FactoryMap;
+  for (const [target, factory] of factories) {
     if (TARGETS_NOT_DERIVED.has(target)) continue;
     const paths = getProjectPaths(factory) as {
       root?: { relativeDirPath: string; relativeFilePath: string };
@@ -135,27 +129,17 @@ const deriveRulesEntries = (): GitignoreEntryTag[] => {
   return entries;
 };
 
+// commands/skills/subagents emit a directory tree; mcp/hooks/permissions/ignore
+// emit a single file; rules has a composite root+nonRoot shape.
+const DIR_FEATURES = new Set<Feature>(["commands", "skills", "subagents"]);
+const FILE_FEATURES = new Set<Feature>(["mcp", "hooks", "permissions", "ignore"]);
+
 export const deriveFeatureGitignoreEntries = (feature: Feature): GitignoreEntryTag[] => {
-  switch (feature) {
-    case "commands":
-      return deriveDirEntries(toolCommandFactories, "commands");
-    case "skills":
-      return deriveDirEntries(toolSkillFactories, "skills");
-    case "subagents":
-      return deriveDirEntries(toolSubagentFactories, "subagents");
-    case "mcp":
-      return deriveFileEntries(toolMcpFactories, "mcp");
-    case "hooks":
-      return deriveFileEntries(toolHooksFactories, "hooks");
-    case "permissions":
-      return deriveFileEntries(toolPermissionsFactories, "permissions");
-    case "ignore":
-      return deriveFileEntries(toolIgnoreFactories, "ignore");
-    case "rules":
-      return deriveRulesEntries();
-    default:
-      return [];
-  }
+  if (feature === "rules") return deriveRulesEntries();
+  const factory = getProcessorRegistryEntry(feature).factory as unknown as FactoryMap;
+  if (DIR_FEATURES.has(feature)) return deriveDirEntries(factory, feature);
+  if (FILE_FEATURES.has(feature)) return deriveFileEntries(factory, feature);
+  return [];
 };
 
 const DERIVED_FEATURES: ReadonlyArray<Feature> = [

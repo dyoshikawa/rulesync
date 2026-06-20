@@ -1,34 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  CommandsProcessorToolTargetSchema,
-  toolCommandFactories,
-} from "../features/commands/commands-processor.js";
-import {
-  HooksProcessorToolTargetSchema,
-  toolHooksFactories,
-} from "../features/hooks/hooks-processor.js";
-import {
-  IgnoreProcessorToolTargetSchema,
-  toolIgnoreFactories,
-} from "../features/ignore/ignore-processor.js";
-import { McpProcessorToolTargetSchema, toolMcpFactories } from "../features/mcp/mcp-processor.js";
-import {
-  PermissionsProcessorToolTargetSchema,
-  toolPermissionsFactories,
-} from "../features/permissions/permissions-processor.js";
-import {
-  RulesProcessorToolTargetSchema,
-  toolRuleFactories,
-} from "../features/rules/rules-processor.js";
-import {
-  SkillsProcessorToolTargetSchema,
-  toolSkillFactories,
-} from "../features/skills/skills-processor.js";
-import {
-  SubagentsProcessorToolTargetSchema,
-  toolSubagentFactories,
-} from "../features/subagents/subagents-processor.js";
+import { PROCESSOR_REGISTRY } from "./processor-registry.js";
 import {
   ALL_TOOL_TARGETS,
   ALL_TOOL_TARGETS_WITH_WILDCARD,
@@ -270,48 +242,13 @@ describe("tool targets", () => {
   describe("processor tool target consistency", () => {
     const allTargetSet = new Set<string>(ALL_TOOL_TARGETS);
 
-    // This list is hand-maintained: a 9th processor added later must be appended
-    // here (and given a `factory` entry) or it will silently escape these checks,
-    // reintroducing the "scattered list drift" these tests guard against. There is
-    // no central processor registry to derive it from yet; keep it in sync by hand.
-    const processors = [
-      {
-        name: "RulesProcessor",
-        schema: RulesProcessorToolTargetSchema,
-        factory: toolRuleFactories,
-      },
-      {
-        name: "CommandsProcessor",
-        schema: CommandsProcessorToolTargetSchema,
-        factory: toolCommandFactories,
-      },
-      {
-        name: "HooksProcessor",
-        schema: HooksProcessorToolTargetSchema,
-        factory: toolHooksFactories,
-      },
-      {
-        name: "IgnoreProcessor",
-        schema: IgnoreProcessorToolTargetSchema,
-        factory: toolIgnoreFactories,
-      },
-      { name: "McpProcessor", schema: McpProcessorToolTargetSchema, factory: toolMcpFactories },
-      {
-        name: "PermissionsProcessor",
-        schema: PermissionsProcessorToolTargetSchema,
-        factory: toolPermissionsFactories,
-      },
-      {
-        name: "SkillsProcessor",
-        schema: SkillsProcessorToolTargetSchema,
-        factory: toolSkillFactories,
-      },
-      {
-        name: "SubagentsProcessor",
-        schema: SubagentsProcessorToolTargetSchema,
-        factory: toolSubagentFactories,
-      },
-    ];
+    // Derived from the central PROCESSOR_REGISTRY, so a ninth feature added there
+    // is automatically covered by these checks — no hand-maintained list to drift.
+    const processors = PROCESSOR_REGISTRY.map((entry) => ({
+      name: entry.feature,
+      schema: entry.schema,
+      factory: entry.factory,
+    }));
 
     for (const { name, schema } of processors) {
       // Direction asserted: every target a processor declares must exist in

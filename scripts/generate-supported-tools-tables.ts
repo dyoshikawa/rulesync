@@ -1,15 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { CommandsProcessor } from "../src/features/commands/commands-processor.js";
-import { HooksProcessor } from "../src/features/hooks/hooks-processor.js";
-import { IgnoreProcessor } from "../src/features/ignore/ignore-processor.js";
-import { toolMcpFactories } from "../src/features/mcp/mcp-processor.js";
-import { McpProcessor } from "../src/features/mcp/mcp-processor.js";
-import { PermissionsProcessor } from "../src/features/permissions/permissions-processor.js";
-import { RulesProcessor } from "../src/features/rules/rules-processor.js";
-import { SkillsProcessor } from "../src/features/skills/skills-processor.js";
-import { SubagentsProcessor } from "../src/features/subagents/subagents-processor.js";
+import { getProcessorRegistryEntry, PROCESSOR_REGISTRY } from "../src/types/processor-registry.js";
 import { ALL_TOOL_TARGETS, type ToolTarget } from "../src/types/tool-targets.js";
 import { formatError } from "../src/utils/error.js";
 
@@ -86,41 +78,26 @@ const safeGlobal = (feature: string, fn: () => ToolTarget[]): ToolTarget[] => {
   }
 };
 
-// Per-feature support, split by mode, derived entirely from getToolTargets.
-const project: Record<FeatureName, ReadonlySet<ToolTarget>> = {
-  rules: setOf(RulesProcessor.getToolTargets()),
-  ignore: setOf(IgnoreProcessor.getToolTargets()),
-  mcp: setOf(McpProcessor.getToolTargets()),
-  commands: setOf(CommandsProcessor.getToolTargets()),
-  subagents: setOf(SubagentsProcessor.getToolTargets()),
-  skills: setOf(SkillsProcessor.getToolTargets()),
-  hooks: setOf(HooksProcessor.getToolTargets()),
-  permissions: setOf(PermissionsProcessor.getToolTargets()),
-};
+// Per-feature support, split by mode, derived from each registered processor's
+// getToolTargets — no per-feature wiring to keep in sync.
+const project = {} as Record<FeatureName, ReadonlySet<ToolTarget>>;
+const global = {} as Record<FeatureName, ReadonlySet<ToolTarget>>;
+const simulated = {} as Partial<Record<FeatureName, ReadonlySet<ToolTarget>>>;
+for (const { feature, processor } of PROCESSOR_REGISTRY) {
+  const f = feature as FeatureName;
+  project[f] = setOf(processor.getToolTargets());
+  global[f] = setOf(safeGlobal(feature, () => processor.getToolTargets({ global: true })));
+  if (processor.getToolTargetsSimulated) {
+    simulated[f] = setOf(processor.getToolTargetsSimulated());
+  }
+}
 
-const global: Record<FeatureName, ReadonlySet<ToolTarget>> = {
-  rules: setOf(safeGlobal("rules", () => RulesProcessor.getToolTargets({ global: true }))),
-  ignore: setOf(safeGlobal("ignore", () => IgnoreProcessor.getToolTargets({ global: true }))),
-  mcp: setOf(safeGlobal("mcp", () => McpProcessor.getToolTargets({ global: true }))),
-  commands: setOf(safeGlobal("commands", () => CommandsProcessor.getToolTargets({ global: true }))),
-  subagents: setOf(
-    safeGlobal("subagents", () => SubagentsProcessor.getToolTargets({ global: true })),
-  ),
-  skills: setOf(safeGlobal("skills", () => SkillsProcessor.getToolTargets({ global: true }))),
-  hooks: setOf(safeGlobal("hooks", () => HooksProcessor.getToolTargets({ global: true }))),
-  permissions: setOf(
-    safeGlobal("permissions", () => PermissionsProcessor.getToolTargets({ global: true })),
-  ),
-};
-
-const simulated: Partial<Record<FeatureName, ReadonlySet<ToolTarget>>> = {
-  commands: setOf(CommandsProcessor.getToolTargetsSimulated()),
-  subagents: setOf(SubagentsProcessor.getToolTargetsSimulated()),
-  skills: setOf(SkillsProcessor.getToolTargetsSimulated()),
-};
-
+const mcpFactory = getProcessorRegistryEntry("mcp").factory as ReadonlyMap<
+  ToolTarget,
+  { meta: { supportsEnabledTools: boolean; supportsDisabledTools: boolean } }
+>;
 const mcpToolConfig = setOf(
-  [...toolMcpFactories.entries()]
+  [...mcpFactory.entries()]
     .filter(([, f]) => f.meta.supportsEnabledTools || f.meta.supportsDisabledTools)
     .map(([target]) => target),
 );
