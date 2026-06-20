@@ -33,7 +33,7 @@ import {
 import { VibeIgnore } from "./vibe-ignore.js";
 import { ZedIgnore } from "./zed-ignore.js";
 
-const ignoreProcessorToolTargets: ToolTarget[] = [
+const ignoreProcessorToolTargetTuple = [
   "antigravity-cli",
   "augmentcode",
   "claudecode",
@@ -52,11 +52,11 @@ const ignoreProcessorToolTargets: ToolTarget[] = [
   "devin",
   "vibe",
   "zed",
-];
+] as const;
 
-export const IgnoreProcessorToolTargetSchema = z.enum(ignoreProcessorToolTargets);
+export type IgnoreProcessorToolTarget = (typeof ignoreProcessorToolTargetTuple)[number];
 
-export type IgnoreProcessorToolTarget = z.infer<typeof IgnoreProcessorToolTargetSchema>;
+export const IgnoreProcessorToolTargetSchema = z.enum(ignoreProcessorToolTargetTuple);
 
 type ToolIgnoreFactory = {
   class: {
@@ -89,6 +89,8 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
   ["vibe", { class: VibeIgnore }],
   ["zed", { class: ZedIgnore }],
 ]);
+
+const ignoreProcessorToolTargets: ToolTarget[] = [...toolIgnoreFactories.keys()];
 
 type GetFactory = (target: IgnoreProcessorToolTarget) => ToolIgnoreFactory;
 

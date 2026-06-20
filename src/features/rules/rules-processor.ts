@@ -72,7 +72,7 @@ import { VibeRule } from "./vibe-rule.js";
 import { WarpRule } from "./warp-rule.js";
 import { ZedRule } from "./zed-rule.js";
 
-const rulesProcessorToolTargets: ToolTarget[] = [
+const rulesProcessorToolTargetTuple = [
   "agentsmd",
   "amp",
   "antigravity",
@@ -108,9 +108,9 @@ const rulesProcessorToolTargets: ToolTarget[] = [
   "warp",
   "devin",
   "zed",
-];
-export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargets);
-export type RulesProcessorToolTarget = z.infer<typeof RulesProcessorToolTargetSchema>;
+] as const;
+export type RulesProcessorToolTarget = (typeof rulesProcessorToolTargetTuple)[number];
+export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargetTuple);
 
 const formatRulePaths = (rules: RulesyncRule[]): string =>
   rules.map((r) => join(r.getRelativeDirPath(), r.getRelativeFilePath())).join(", ");
@@ -738,13 +738,14 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
   ],
 ]);
 
-/**
- * Tool targets that support global (user scope) mode.
- * Derived from the factory meta configuration.
- */
-export const rulesProcessorToolTargetsGlobal: ToolTarget[] = Array.from(toolRuleFactories.entries())
-  .filter(([_, factory]) => factory.meta.supportsGlobal)
-  .map(([target]) => target);
+const allToolTargetKeys = [...toolRuleFactories.keys()];
+
+const rulesProcessorToolTargets: ToolTarget[] = allToolTargetKeys;
+
+export const rulesProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolRuleFactories.get(target);
+  return factory?.meta.supportsGlobal ?? false;
+});
 
 /**
  * Factory retrieval function type for dependency injection.
