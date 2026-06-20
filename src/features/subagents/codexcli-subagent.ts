@@ -95,9 +95,19 @@ export class CodexCliSubagent extends ToolSubagent {
         { cause: error },
       );
     }
-    const { name, description, developer_instructions, ...restFields } = parsed;
+    const {
+      name,
+      description,
+      developer_instructions,
+      // `short-description` is a field Codex rejects, so it is excluded on the
+      // generation side; drop it here too so import/export stay symmetric and a
+      // stray value never round-trips into the rulesync `codexcli` section.
+      "short-description": _shortDescription,
+      ...restFields
+    } = parsed;
 
-    // Build codexcli section with all fields except name, description, and developer_instructions
+    // Build codexcli section with all fields except name, description,
+    // developer_instructions, and short-description.
     const codexcliSection: Record<string, unknown> = {
       ...restFields,
     };

@@ -323,7 +323,34 @@ describe("CodexCliSubagent", () => {
       }) as CodexCliSubagent;
 
       expect(codexcliSubagent.getBody()).toContain('model = "gpt-5"');
-      expect(codexcliSubagent.getBody()).not.toContain("short-description");
+      // Assert the TOML-key assignment form is absent rather than a bare
+      // substring, so the check cannot be satisfied incidentally by the value.
+      expect(codexcliSubagent.getBody()).not.toMatch(/^\s*"?short-description"?\s*=/m);
+    });
+
+    it("should drop short-description on import so it does not round-trip", () => {
+      // A (hypothetical) Codex TOML carrying `short-description` must not carry
+      // that field into the rulesync `codexcli` section — import/export symmetry.
+      const toml = [
+        'name = "reviewer"',
+        'description = "Code reviewer"',
+        '"short-description" = "Review source changes"',
+        'model = "gpt-5"',
+        'developer_instructions = "Review code changes"',
+      ].join("\n");
+      const codexcliSubagent = new CodexCliSubagent({
+        outputRoot: testDir,
+        relativeDirPath: ".codex/agents",
+        relativeFilePath: "reviewer.toml",
+        body: toml,
+        fileContent: toml,
+        validate: false,
+      });
+
+      const rulesyncSubagent = codexcliSubagent.toRulesyncSubagent();
+      const frontmatter = rulesyncSubagent.getFrontmatter();
+      expect(frontmatter.codexcli).toEqual({ model: "gpt-5" });
+      expect(frontmatter.codexcli).not.toHaveProperty("short-description");
     });
 
     it("should handle empty body and description", () => {
