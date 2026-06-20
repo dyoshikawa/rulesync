@@ -62,18 +62,18 @@ describe("GITIGNORE_ENTRY_REGISTRY", () => {
   });
 });
 
+const entryKey = (tag: { target: unknown; feature: string; entry: string }): string =>
+  `${tag.target}::${tag.feature}::${tag.entry}`;
+
 describe("registry derivation", () => {
   it("registry is the hand-maintained entries plus the derived ones", () => {
     const derived = deriveAllGitignoreEntries();
-    const derivedKeys = new Set(
-      derived.map((tag) => `${tag.target}::${tag.feature}::${tag.entry}`),
-    );
-    const registryKeys = GITIGNORE_ENTRY_REGISTRY.map(
-      (tag) => `${tag.target}::${tag.feature}::${tag.entry}`,
-    );
+    const derivedKeys = new Set(derived.map(entryKey));
+    const registryKeys = GITIGNORE_ENTRY_REGISTRY.map(entryKey);
     for (const tag of derived) {
-      const key = `${tag.target}::${tag.feature}::${tag.entry}`;
-      expect(registryKeys, `derived entry missing from registry: ${key}`).toContain(key);
+      expect(registryKeys, `derived entry missing from registry: ${entryKey(tag)}`).toContain(
+        entryKey(tag),
+      );
     }
     expect(derivedKeys.size).toBeGreaterThan(0);
   });
@@ -85,13 +85,48 @@ describe("registry derivation", () => {
   });
 
   it("no hand-maintained entry duplicates a derived one — the list can't silently rot", () => {
-    const key = (tag: { target: unknown; feature: string; entry: string }): string =>
-      `${tag.target}::${tag.feature}::${tag.entry}`;
-    const derivedKeys = new Set(deriveAllGitignoreEntries().map(key));
+    const derivedKeys = new Set(deriveAllGitignoreEntries().map(entryKey));
     const redundant = HAND_MAINTAINED_GITIGNORE_ENTRIES.filter((tag) =>
-      derivedKeys.has(key(tag)),
-    ).map(key);
+      derivedKeys.has(entryKey(tag)),
+    ).map(entryKey);
     expect(redundant).toEqual([]);
+  });
+
+  // Replaces the old reverse-coverage guard for the hand-maintained list: every
+  // non-common entry must stay an explicitly-justified exception, so a renamed or
+  // dropped tool path can't leave a stale hand-written entry behind unnoticed.
+  it("every hand-maintained tool entry is an explicitly justified exception", () => {
+    const justified = new Set([
+      // rulesync meta files and local-root files (not in any getSettablePaths).
+      "claudecode::rules::**/CLAUDE.local.md",
+      "claudecode::rules::**/.claude/CLAUDE.local.md",
+      "claudecode::general::**/.claude/*.lock",
+      "claudecode::general::**/.claude/settings.local.json",
+      "claudecode::general::**/.claude/memories/",
+      "opencode::general::**/.opencode/package-lock.json",
+      "rovodev::general::**/.rovodev/.rulesync/",
+      "takt::general::**/.takt/runs/",
+      "takt::general::**/.takt/tasks/",
+      "takt::general::**/.takt/.cache/",
+      "takt::general::**/.takt/config.yaml",
+      // Legacy/aggregate/ghost outputs not produced via getSettablePaths.
+      "augmentcode::rules::**/.augment-guidelines",
+      "roo::subagents::**/.roomodes",
+      "codexcli::ignore::**/.codexignore",
+      // Shared trees and global-scope outputs (emitted under the home dir).
+      "rovodev::skills::**/.agents/skills/",
+      "devin::skills::**/.codeium/windsurf/skills/",
+      "copilotcli::subagents::**/.copilot/agents/",
+      "copilotcli::mcp::**/.copilot/mcp-config.json",
+      "copilotcli::hooks::**/.copilot/hooks/",
+      "deepagents::hooks::**/.deepagents/hooks.json",
+    ]);
+    const unjustified = HAND_MAINTAINED_GITIGNORE_ENTRIES.filter((tag) => {
+      const targets = Array.isArray(tag.target) ? tag.target : [tag.target];
+      if (targets.includes("common")) return false;
+      return !justified.has(entryKey(tag));
+    }).map(entryKey);
+    expect(unjustified).toEqual([]);
   });
 });
 

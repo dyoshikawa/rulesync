@@ -11,6 +11,7 @@ import { RulesProcessor } from "../src/features/rules/rules-processor.js";
 import { SkillsProcessor } from "../src/features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../src/features/subagents/subagents-processor.js";
 import { ALL_TOOL_TARGETS, type ToolTarget } from "../src/types/tool-targets.js";
+import { formatError } from "../src/utils/error.js";
 
 // Display metadata — the only hand-maintained part: label, ordering and grouping
 // for each target. Support cells are derived from each feature's getToolTargets,
@@ -70,10 +71,17 @@ type FeatureName = (typeof FEATURES)[number];
 
 const setOf = (targets: ToolTarget[]): ReadonlySet<ToolTarget> => new Set(targets);
 
-const safeGlobal = (fn: () => ToolTarget[]): ToolTarget[] => {
+// A processor that does not support global mode throws; treat that as "no global
+// targets" but surface it, so a real bug in a global implementation can't silently
+// drop every 🌏 glyph for that feature.
+const safeGlobal = (feature: string, fn: () => ToolTarget[]): ToolTarget[] => {
   try {
     return fn();
-  } catch {
+  } catch (error) {
+    // oxlint-disable-next-line no-console
+    console.error(
+      `Warning: ${feature} getToolTargets({ global: true }) failed: ${formatError(error)}`,
+    );
     return [];
   }
 };
@@ -91,14 +99,18 @@ const project: Record<FeatureName, ReadonlySet<ToolTarget>> = {
 };
 
 const global: Record<FeatureName, ReadonlySet<ToolTarget>> = {
-  rules: setOf(safeGlobal(() => RulesProcessor.getToolTargets({ global: true }))),
-  ignore: setOf(safeGlobal(() => IgnoreProcessor.getToolTargets({ global: true }))),
-  mcp: setOf(safeGlobal(() => McpProcessor.getToolTargets({ global: true }))),
-  commands: setOf(safeGlobal(() => CommandsProcessor.getToolTargets({ global: true }))),
-  subagents: setOf(safeGlobal(() => SubagentsProcessor.getToolTargets({ global: true }))),
-  skills: setOf(safeGlobal(() => SkillsProcessor.getToolTargets({ global: true }))),
-  hooks: setOf(safeGlobal(() => HooksProcessor.getToolTargets({ global: true }))),
-  permissions: setOf(safeGlobal(() => PermissionsProcessor.getToolTargets({ global: true }))),
+  rules: setOf(safeGlobal("rules", () => RulesProcessor.getToolTargets({ global: true }))),
+  ignore: setOf(safeGlobal("ignore", () => IgnoreProcessor.getToolTargets({ global: true }))),
+  mcp: setOf(safeGlobal("mcp", () => McpProcessor.getToolTargets({ global: true }))),
+  commands: setOf(safeGlobal("commands", () => CommandsProcessor.getToolTargets({ global: true }))),
+  subagents: setOf(
+    safeGlobal("subagents", () => SubagentsProcessor.getToolTargets({ global: true })),
+  ),
+  skills: setOf(safeGlobal("skills", () => SkillsProcessor.getToolTargets({ global: true }))),
+  hooks: setOf(safeGlobal("hooks", () => HooksProcessor.getToolTargets({ global: true }))),
+  permissions: setOf(
+    safeGlobal("permissions", () => PermissionsProcessor.getToolTargets({ global: true })),
+  ),
 };
 
 const simulated: Partial<Record<FeatureName, ReadonlySet<ToolTarget>>> = {
