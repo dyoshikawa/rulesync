@@ -508,6 +508,9 @@ qwencode: # for Qwen Code-specific parameters (optional; project .qwen/skills/, 
     - "src/**/*.ts"
   user-invocable: false # (optional) hide from slash-command invocation, keep model access
   disable-model-invocation: true # (optional) hide from the model but allow direct user invocation
+vibe: # for Vibe Code-specific parameters (optional)
+  user-invocable: false # (optional) hide from slash-command invocation, keep model access
+  allowed-tools: "Bash Read" # (optional) space-delimited or list of allowed tool names
 ---
 
 This is the skill body content.
