@@ -225,6 +225,8 @@ This file is used by the GitHub Copilot CLI for MCP server configuration. Rulesy
 - **Project mode:** `.github/mcp.json` (relative to project root) — the Copilot CLI auto-loads MCP servers from this workspace config file ([changelog v1.0.61, 2026-06-09](https://github.com/github/copilot-cli)).
 - **Global mode:** `~/.copilot/mcp-config.json` (relative to home directory) — the personal/global MCP configuration.
 
+> **Migration note:** earlier Rulesync versions wrote the **project-mode** Copilot CLI MCP config to `.copilot/mcp-config.json` (the same path used for global mode). Project mode now writes the dedicated workspace file `.github/mcp.json` instead, so a previously generated project-scope `.copilot/mcp-config.json` is no longer managed and can be removed by hand.
+
 Rulesync preserves explicit `type` values for `http`, `sse`, and `local` servers. For command-based servers that omit a transport type, Rulesync emits the mandatory `"type": "stdio"` field required by the Copilot CLI.
 
 ## `rulesync/commands/*.md`
