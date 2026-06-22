@@ -7,6 +7,12 @@ import {
   RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
 } from "../constants/rulesync-paths.js";
 import {
+  ALL_TOOL_TARGETS,
+  type ToolTarget,
+  isRulesyncConfigTargetsObject,
+  type RulesyncConfigTargets,
+} from "../types/tool-targets.js";
+import {
   fileExists,
   getHomeDirectory,
   readFileContent,
@@ -310,6 +316,7 @@ export class ConfigResolver {
       // captured `cwd` so the value is still deterministic.
       inputRoot: resolvedInputRoot !== undefined ? resolve(resolvedInputRoot) : cwd,
       sources: configByFile.sources ?? getDefaults().sources,
+      configFileTargets: extractConfigFileTargets(configByFile.targets),
     };
     const config = new Config(configParams);
     // The legacy `antigravity` target is never produced by wildcard expansion
@@ -342,4 +349,15 @@ function getOutputRootsInLightOfGlobal({
   });
 
   return outputRoots.map((outputRoot) => resolve(outputRoot));
+}
+
+function extractConfigFileTargets(
+  targets: RulesyncConfigTargets | undefined,
+): ToolTarget[] | undefined {
+  if (targets === undefined) return undefined;
+  const validTargets = new Set<string>(ALL_TOOL_TARGETS);
+  if (isRulesyncConfigTargetsObject(targets)) {
+    return Object.keys(targets).filter((key): key is ToolTarget => validTargets.has(key));
+  }
+  return targets.filter((key): key is ToolTarget => key !== "*" && validTargets.has(key));
 }
