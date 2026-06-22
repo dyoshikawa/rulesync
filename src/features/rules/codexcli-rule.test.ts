@@ -48,29 +48,21 @@ This is the main agent configuration for the project.
       expect(rule.getOutputRoot()).toBe(testDir);
     });
 
-    it("should load non-root rule from .codex/memories directory", async () => {
-      const memoriesDir = join(testDir, ".codex", "memories");
-      await ensureDir(memoriesDir);
+    it("should read the root AGENTS.md even when given a non-root relativeFilePath", async () => {
+      const content = `# Root Agent Configuration
 
-      const memoryContent = `# Memory Instructions
-
-This is a specific memory configuration.
-
-- Handle errors gracefully
-- Log important events`;
-
-      const filePath = join(memoriesDir, "error-handling.md");
-      await writeFileContent(filePath, memoryContent);
+This is the single source of truth for Codex CLI.`;
+      await writeFileContent(join(testDir, "AGENTS.md"), content);
 
       const rule = await CodexcliRule.fromFile({
         outputRoot: testDir,
         relativeFilePath: "error-handling.md",
       });
 
-      expect(rule.getFileContent()).toBe(memoryContent);
-      expect(rule.getRelativeFilePath()).toBe("error-handling.md");
-      expect(rule.getRelativeDirPath()).toBe(".codex/memories");
-      expect(rule.getOutputRoot()).toBe(testDir);
+      expect(rule.getFileContent()).toBe(content);
+      expect(rule.getRelativeDirPath()).toBe(".");
+      expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(rule.isRoot()).toBe(true);
     });
 
     it("should handle empty content files", async () => {
@@ -124,8 +116,7 @@ This is a specific memory configuration.
       expect(ruleWithoutValidation.getFileContent()).toBe(agentsContent);
     });
 
-    it("should determine root status correctly", async () => {
-      // Test root file
+    it("should always read from the root AGENTS.md", async () => {
       const rootContent = "Root agent instructions";
       const rootPath = join(testDir, "AGENTS.md");
       await writeFileContent(rootPath, rootContent);
@@ -137,22 +128,16 @@ This is a specific memory configuration.
 
       expect(rootRule.getRelativeFilePath()).toBe("AGENTS.md");
       expect(rootRule.getRelativeDirPath()).toBe(".");
-
-      // Test non-root file
-      const memoriesDir = join(testDir, ".codex", "memories");
-      await ensureDir(memoriesDir);
-
-      const nonRootContent = "Non-root memory instructions";
-      const nonRootPath = join(memoriesDir, "specific.md");
-      await writeFileContent(nonRootPath, nonRootContent);
+      expect(rootRule.isRoot()).toBe(true);
 
       const nonRootRule = await CodexcliRule.fromFile({
         outputRoot: testDir,
         relativeFilePath: "specific.md",
       });
 
-      expect(nonRootRule.getRelativeFilePath()).toBe("specific.md");
-      expect(nonRootRule.getRelativeDirPath()).toBe(".codex/memories");
+      expect(nonRootRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(nonRootRule.getRelativeDirPath()).toBe(".");
+      expect(nonRootRule.isRoot()).toBe(true);
     });
   });
 
@@ -194,9 +179,10 @@ This is a specific memory configuration.
       });
 
       expect(codexcliRule.getFileContent()).toBe("Non-root rule body content");
-      expect(codexcliRule.getRelativeFilePath()).toBe("specific.md");
-      expect(codexcliRule.getRelativeDirPath()).toBe(".codex/memories");
+      expect(codexcliRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(codexcliRule.getRelativeDirPath()).toBe(".");
       expect(codexcliRule.getOutputRoot()).toBe(testDir);
+      expect(codexcliRule.isRoot()).toBe(false);
     });
 
     it("should handle empty body content", () => {
@@ -254,7 +240,7 @@ More detailed instructions here.`;
       expect(codexcliRule.getFileContent()).toBe(complexBody);
     });
 
-    it("should handle subprojectPath from agentsmd field", () => {
+    it("should ignore subprojectPath and target root AGENTS.md (folding)", () => {
       const rulesyncRule = new RulesyncRule({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -277,7 +263,7 @@ More detailed instructions here.`;
       expect(codexcliRule.getFileContent()).toBe(
         "# Subproject CodexCLI\n\nContent for subproject.",
       );
-      expect(codexcliRule.getRelativeDirPath()).toBe("packages/my-app");
+      expect(codexcliRule.getRelativeDirPath()).toBe(".");
       expect(codexcliRule.getRelativeFilePath()).toBe("AGENTS.md");
     });
 
@@ -290,7 +276,7 @@ More detailed instructions here.`;
           root: true,
           targets: ["codexcli"],
           agentsmd: {
-            subprojectPath: "packages/my-app", // Should be ignored
+            subprojectPath: "packages/my-app",
           },
         },
         body: "# Root CodexCLI\n\nRoot content.",
@@ -306,7 +292,7 @@ More detailed instructions here.`;
       expect(codexcliRule.getRelativeFilePath()).toBe("AGENTS.md");
     });
 
-    it("should handle empty subprojectPath", () => {
+    it("should target root AGENTS.md even with empty subprojectPath", () => {
       const rulesyncRule = new RulesyncRule({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -327,11 +313,11 @@ More detailed instructions here.`;
       });
 
       expect(codexcliRule.getFileContent()).toBe("# Empty Subproject CodexCLI\n\nContent.");
-      expect(codexcliRule.getRelativeDirPath()).toBe(".codex/memories");
-      expect(codexcliRule.getRelativeFilePath()).toBe("test.md");
+      expect(codexcliRule.getRelativeDirPath()).toBe(".");
+      expect(codexcliRule.getRelativeFilePath()).toBe("AGENTS.md");
     });
 
-    it("should handle complex nested subprojectPath", () => {
+    it("should target root AGENTS.md even with complex nested subprojectPath", () => {
       const rulesyncRule = new RulesyncRule({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -354,11 +340,11 @@ More detailed instructions here.`;
       expect(codexcliRule.getFileContent()).toBe(
         "# Nested Subproject CodexCLI\n\nDeeply nested content.",
       );
-      expect(codexcliRule.getRelativeDirPath()).toBe("packages/apps/my-app/src");
+      expect(codexcliRule.getRelativeDirPath()).toBe(".");
       expect(codexcliRule.getRelativeFilePath()).toBe("AGENTS.md");
     });
 
-    it("should handle undefined agentsmd field", () => {
+    it("should target root AGENTS.md when agentsmd field is undefined", () => {
       const rulesyncRule = new RulesyncRule({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -376,8 +362,8 @@ More detailed instructions here.`;
       });
 
       expect(codexcliRule.getFileContent()).toBe("# No agentsmd\n\nContent without agentsmd.");
-      expect(codexcliRule.getRelativeDirPath()).toBe(".codex/memories");
-      expect(codexcliRule.getRelativeFilePath()).toBe("test.md");
+      expect(codexcliRule.getRelativeDirPath()).toBe(".");
+      expect(codexcliRule.getRelativeFilePath()).toBe("AGENTS.md");
     });
 
     it("should respect validation parameter", () => {
@@ -447,25 +433,26 @@ More detailed instructions here.`;
       expect(rulesyncRule.getFrontmatter().globs).toEqual(["**/*"]);
     });
 
-    it("should convert non-root CodexcliRule to RulesyncRule", async () => {
-      const memoriesDir = join(testDir, ".codex", "memories");
-      await ensureDir(memoriesDir);
-
-      const memoryContent = "Non-root memory instructions";
-      const filePath = join(memoriesDir, "specific.md");
-      await writeFileContent(filePath, memoryContent);
-
-      const codexcliRule = await CodexcliRule.fromFile({
+    it("should convert non-root CodexcliRule to RulesyncRule", () => {
+      const rulesyncRuleInput = new RulesyncRule({
         outputRoot: testDir,
+        relativeDirPath: "rules",
         relativeFilePath: "specific.md",
+        frontmatter: { root: false, targets: ["*"], description: "Test rule", globs: [] },
+        body: "Non-root rule body content",
+        validate: false,
+      });
+
+      const codexcliRule = CodexcliRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: rulesyncRuleInput,
       });
 
       const rulesyncRule = codexcliRule.toRulesyncRule();
 
-      expect(rulesyncRule.getBody()).toBe(memoryContent);
+      expect(rulesyncRule.getBody()).toBe("Non-root rule body content");
       expect(rulesyncRule.getFrontmatter().root).toBe(false);
       expect(rulesyncRule.getFrontmatter().targets).toEqual(["*"]);
-      expect(rulesyncRule.getFrontmatter().description).toBeUndefined();
       expect(rulesyncRule.getFrontmatter().globs).toEqual([]);
     });
 
@@ -570,7 +557,7 @@ More detailed instructions here.`;
   });
 
   describe("getSettablePaths", () => {
-    it("should return correct paths for root and nonRoot", () => {
+    it("should return only the root AGENTS.md path (no nonRoot)", () => {
       const paths = CodexcliRule.getSettablePaths();
 
       expect(paths.root).toEqual({
@@ -578,19 +565,15 @@ More detailed instructions here.`;
         relativeFilePath: "AGENTS.md",
       });
 
-      expect(paths.nonRoot).toEqual({
-        relativeDirPath: ".codex/memories",
-      });
+      expect(paths.nonRoot).toBeUndefined();
     });
 
     it("should have consistent paths structure", () => {
       const paths = CodexcliRule.getSettablePaths();
 
       expect(paths).toHaveProperty("root");
-      expect(paths).toHaveProperty("nonRoot");
       expect(paths.root).toHaveProperty("relativeDirPath");
       expect(paths.root).toHaveProperty("relativeFilePath");
-      expect(paths.nonRoot).toHaveProperty("relativeDirPath");
     });
   });
 
@@ -873,64 +856,28 @@ interface ApiResponse<T> {
       expect(finalRulesyncRule.getBody()).toBe(originalContent);
       expect(finalRulesyncRule.getFrontmatter().root).toBe(true);
       expect(finalRulesyncRule.getFrontmatter().targets).toEqual(["*"]);
-      expect(finalRulesyncRule.getFrontmatter().description).toBe("OpenAI Codex CLI configuration");
-      expect(finalRulesyncRule.getFrontmatter().globs).toEqual(["src/**/*.ts"]);
       expect(finalRulesyncRule.validate().success).toBe(true);
     });
 
     it("should handle file system operations correctly", async () => {
-      // Setup directory structure
-      const memoriesDir = join(testDir, ".codex", "memories");
-      await ensureDir(memoriesDir);
+      // CodexcliRule always reads from the root AGENTS.md
+      const rootContent = "Main agent instructions";
+      await writeFileContent(join(testDir, "AGENTS.md"), rootContent);
 
-      // Test multiple files
-      const files = [
-        { path: "AGENTS.md", content: "Main agent instructions", isRoot: true },
-        {
-          path: join("memories", "typescript.md"),
-          content: "TypeScript guidelines",
-          isRoot: false,
-        },
-        { path: join("memories", "testing.md"), content: "Testing best practices", isRoot: false },
-      ];
+      const rule = await CodexcliRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "AGENTS.md",
+      });
 
-      const rules: CodexcliRule[] = [];
+      expect(rule.getFileContent()).toBe(rootContent);
+      expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(rule.getRelativeDirPath()).toBe(".");
+      expect(rule.validate().success).toBe(true);
 
-      // Create and load all files
-      for (const file of files) {
-        const fullPath = file.isRoot
-          ? join(testDir, file.path)
-          : join(testDir, ".codex", file.path);
-        await writeFileContent(fullPath, file.content);
-
-        const fileName = file.isRoot ? file.path : file.path.split("/").pop()!;
-        const rule = await CodexcliRule.fromFile({
-          outputRoot: testDir,
-          relativeFilePath: fileName,
-        });
-
-        expect(rule.getFileContent()).toBe(file.content);
-        expect(rule.validate().success).toBe(true);
-
-        rules.push(rule);
-      }
-
-      // Verify each rule has correct properties
-      expect(rules[0]?.getRelativeFilePath()).toBe("AGENTS.md");
-      expect(rules[0]?.getRelativeDirPath()).toBe(".");
-
-      expect(rules[1]?.getRelativeFilePath()).toBe("typescript.md");
-      expect(rules[1]?.getRelativeDirPath()).toBe(".codex/memories");
-
-      expect(rules[2]?.getRelativeFilePath()).toBe("testing.md");
-      expect(rules[2]?.getRelativeDirPath()).toBe(".codex/memories");
-
-      // Test conversion to RulesyncRule for all
-      for (const rule of rules) {
-        const rulesyncRule = rule.toRulesyncRule();
-        expect(rulesyncRule.validate().success).toBe(true);
-        expect(rulesyncRule.getBody()).toBe(rule.getFileContent());
-      }
+      // toRulesyncRule round-trip
+      const rulesyncRule = rule.toRulesyncRule();
+      expect(rulesyncRule.validate().success).toBe(true);
+      expect(rulesyncRule.getBody()).toBe(rootContent);
     });
   });
 });

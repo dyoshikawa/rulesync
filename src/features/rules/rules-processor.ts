@@ -382,7 +382,8 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       meta: {
         extension: "md",
         supportsGlobal: true,
-        ruleDiscoveryMode: "toon",
+        ruleDiscoveryMode: "auto",
+        foldsNonRootIntoRoot: true,
       },
     },
   ],

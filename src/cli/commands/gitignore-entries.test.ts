@@ -231,7 +231,10 @@ describe("filterGitignoreEntries", () => {
 
       // Should include general entries for all targets
       expect(result).toContain("**/.claude/memories/");
-      expect(result).toContain("**/.codex/memories/");
+
+      // codexcli no longer emits .codex/memories/ (non-root rules are folded
+      // into the root AGENTS.md — see issue #1765)
+      expect(result).not.toContain("**/.codex/memories/");
 
       // Should include rules entries
       expect(result).toContain("**/CLAUDE.md");

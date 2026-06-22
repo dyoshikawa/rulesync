@@ -94,7 +94,9 @@ describe("gitignoreCommand", () => {
       // `.warp/` rules entry is emitted (checked line-wise to avoid matching the
       // `**/.warp/.mcp.json` prefix).
       expect(content.split("\n").map((line) => line.trim())).not.toContain("**/.warp/");
-      expect(content).toContain("**/.codex/memories/");
+      // codexcli no longer emits .codex/memories/ (non-root rules are folded
+      // into the root AGENTS.md — see issue #1765)
+      expect(content).not.toContain("**/.codex/memories/");
       expect(content).toContain("**/.agents/skills/");
       expect(content).toContain("**/.deepagents/AGENTS.md");
       expect(content).not.toContain("**/.deepagents/memories/");
