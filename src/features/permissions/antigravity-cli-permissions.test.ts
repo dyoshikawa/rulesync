@@ -124,6 +124,55 @@ describe("AntigravityCliPermissions", () => {
     expect(settings.permissions?.allow).toContain("mcp__server__tool");
   });
 
+  it("should map read/write/edit/webfetch to the engine action vocabulary", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          read: { "src/**": "allow" },
+          write: { "dist/**": "deny" },
+          edit: { "config/**": "ask" },
+          webfetch: { "https://example.com/*": "allow" },
+        },
+      }),
+    });
+
+    const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
+    expect(settings.permissions?.allow).toContain("read_file(src/**)");
+    expect(settings.permissions?.deny).toContain("write_file(dist/**)");
+    // edit collapses onto write_file as well.
+    expect(settings.permissions?.ask).toContain("write_file(config/**)");
+    expect(settings.permissions?.allow).toContain("read_url(https://example.com/*)");
+  });
+
+  it("should round-trip read_file/write_file/read_url back into canonical categories", () => {
+    const permissions = new AntigravityCliPermissions({
+      outputRoot: testDir,
+      relativeDirPath: join(".gemini", "antigravity-cli"),
+      relativeFilePath: "settings.json",
+      fileContent: JSON.stringify({
+        permissions: {
+          allow: ["read_file(src/**)", "read_url(https://example.com/*)"],
+          deny: ["write_file(dist/**)"],
+        },
+      }),
+      global: true,
+    });
+
+    const json = permissions.toRulesyncPermissions().getJson();
+    expect(json.permission.read?.["src/**"]).toBe("allow");
+    // write_file collapses to canonical `write` (edit/write are a documented, lossy merge).
+    expect(json.permission.write?.["dist/**"]).toBe("deny");
+    expect(json.permission.webfetch?.["https://example.com/*"]).toBe("allow");
+  });
+
   it("should sort and de-duplicate merged allow entries", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
@@ -154,7 +203,9 @@ describe("AntigravityCliPermissions", () => {
       join(dir, "settings.json"),
       JSON.stringify({
         someOtherSetting: true,
-        permissions: { allow: ["read(src/**)"] },
+        // `execute_url` is an engine action with no canonical equivalent, so it
+        // is never managed by a rulesync config and must survive untouched.
+        permissions: { allow: ["execute_url(https://deploy.example.com)"] },
       }),
     );
 
@@ -175,11 +226,42 @@ describe("AntigravityCliPermissions", () => {
     });
 
     const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
-    // "read" is not derived from a managed category (only "bash"/"command" is), so it survives.
-    expect(settings.permissions?.allow).toContain("read(src/**)");
+    expect(settings.permissions?.allow).toContain("execute_url(https://deploy.example.com)");
     expect(settings.permissions?.allow).toContain("command(git status *)");
     // Unrelated top-level settings are also preserved.
     expect(settings.someOtherSetting).toBe(true);
+  });
+
+  it("should replace existing read_file entries when the read category is managed", async () => {
+    const dir = join(testDir, ".gemini", "antigravity-cli");
+    await ensureDir(dir);
+    await writeFileContent(
+      join(dir, "settings.json"),
+      JSON.stringify({
+        permissions: { allow: ["read_file(old/**)"] },
+      }),
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          read: { "src/**": "allow" },
+        },
+      }),
+    });
+
+    const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
+    // `read` maps to the managed `read_file` action, so the stale entry is dropped.
+    expect(settings.permissions?.allow).not.toContain("read_file(old/**)");
+    expect(settings.permissions?.allow).toContain("read_file(src/**)");
   });
 
   it("should replace existing entries for managed tools instead of accumulating them", async () => {
