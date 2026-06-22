@@ -1,6 +1,6 @@
 {
   "name": "rulesync",
-  "version": "8.30.1",
+  "version": "8.31.0",
   "description": "Unified AI rules management CLI tool that generates configuration files for various AI development tools",
   "keywords": [
     "ai",
@@ -53,7 +53,6 @@
     "cicheck": "pnpm run cicheck:code && pnpm run cicheck:content",
     "cicheck:code": "pnpm run check && pnpm run test",
     "cicheck:content": "pnpm run check:sync-skill-docs && pnpm run check:gitignore && pnpm run check:supported-tools && pnpm run cspell && pnpm run secretlint",
-    "generate:tables": "tsx scripts/generate-supported-tools-tables.ts",
     "cspell": "cspell --no-progress --gitignore .",
     "dev": "tsx src/cli/index.ts",
     "docs:build": "vitepress build docs",
@@ -64,6 +63,7 @@
     "fmt:check": "oxfmt --check .",
     "generate": "pnpm run dev generate",
     "generate:schema": "tsx scripts/generate-json-schema.ts",
+    "generate:tables": "tsx scripts/generate-supported-tools-tables.ts",
     "knip": "knip",
     "oxlint": "oxlint . --max-warnings 0",
     "oxlint:fix": "oxlint . --fix --max-warnings 0",
