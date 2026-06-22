@@ -27,6 +27,9 @@ export const RovodevSkillFrontmatterSchema = z.looseObject({
   // https://support.atlassian.com/rovo/docs/extend-rovo-dev-cli-with-agent-skills/
   "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
   license: z.optional(z.string()),
+  // The Agent Skills spec defines `compatibility` as a free-form string
+  // (1–500 chars); the object form stays accepted for back-compat.
+  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
   metadata: z.optional(z.looseObject({})),
 });
 
@@ -138,6 +141,9 @@ export class RovodevSkill extends ToolSkill {
         "allowed-tools": frontmatter["allowed-tools"],
       }),
       ...(frontmatter.license !== undefined && { license: frontmatter.license }),
+      ...(frontmatter.compatibility !== undefined && {
+        compatibility: frontmatter.compatibility,
+      }),
       ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
@@ -176,6 +182,9 @@ export class RovodevSkill extends ToolSkill {
         "allowed-tools": rovodevSection["allowed-tools"],
       }),
       ...(rovodevSection?.license !== undefined && { license: rovodevSection.license }),
+      ...(rovodevSection?.compatibility !== undefined && {
+        compatibility: rovodevSection.compatibility,
+      }),
       ...(rovodevSection?.metadata !== undefined && { metadata: rovodevSection.metadata }),
     };
 

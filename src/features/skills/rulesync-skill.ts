@@ -136,6 +136,9 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
     z.looseObject({
       "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
       license: z.optional(z.string()),
+      // The Agent Skills spec defines `compatibility` as a free-form string
+      // (1–500 chars); the object form stays accepted for back-compat.
+      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
       metadata: z.optional(z.looseObject({})),
     }),
   ),
@@ -268,6 +271,7 @@ export type RulesyncSkillFrontmatterInput = {
   rovodev?: {
     "allowed-tools"?: string | string[];
     license?: string;
+    compatibility?: string | Record<string, unknown>;
     metadata?: Record<string, unknown>;
   };
   cursor?: {

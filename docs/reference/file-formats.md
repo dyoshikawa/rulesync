@@ -488,6 +488,7 @@ copilotcli: # for GitHub Copilot CLI-specific parameters (optional; project .git
 rovodev: # for Rovo Dev CLI-specific parameters (optional; Agent Skills standard)
   allowed-tools: "grep bash" # (optional) space-separated string (a YAML list is also accepted)
   license: MIT # (optional)
+  compatibility: "Requires Python 3.14+ and uv" # (optional) free-form string (object form also accepted)
   metadata: # (optional) free-form metadata
     author: rulesync
 zed: # for Zed-specific parameters (optional)
