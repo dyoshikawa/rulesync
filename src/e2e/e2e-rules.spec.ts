@@ -111,6 +111,44 @@ This is a test rule for E2E testing.
     expect(generatedContent).toContain("Test Rule");
   });
 
+  it("should fold pi non-root rules into the root AGENTS.md", async () => {
+    const testDir = getTestDir();
+
+    const rootRuleContent = `---
+root: true
+targets: ["pi"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Pi Root Rule
+`;
+    const nonRootRuleContent = `---
+targets: ["pi"]
+description: "Detail rule"
+globs: ["src/**/*"]
+---
+
+# Pi Detail Rule
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      rootRuleContent,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "detail.md"),
+      nonRootRuleContent,
+    );
+
+    await runGenerate({ target: "pi", features: "rules" });
+
+    // Both bodies land in the single root AGENTS.md; no inert .agents/memories tree.
+    const rootContent = await readFileContent(join(testDir, "AGENTS.md"));
+    expect(rootContent).toContain("Pi Root Rule");
+    expect(rootContent).toContain("Pi Detail Rule");
+    expect(await fileExists(join(testDir, ".agents", "memories", "detail.md"))).toBe(false);
+  });
+
   it("should generate qwencode non-root rules into .qwen/rules with paths frontmatter", async () => {
     const testDir = getTestDir();
 
