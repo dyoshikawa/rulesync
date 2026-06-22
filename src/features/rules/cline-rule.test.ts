@@ -204,6 +204,109 @@ describe("ClineRule", () => {
       expect(clineRule).toBeInstanceOf(ClineRule);
     });
 
+    it("should emit paths frontmatter for a non-root rule with specific globs", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".",
+        relativeFilePath: "coding-guidelines.md",
+        frontmatter: {
+          description: "Coding guidelines",
+          targets: ["*"],
+          root: false,
+          globs: ["src/**/*.ts"],
+        },
+        body: "# Coding Guidelines",
+      });
+
+      const clineRule = ClineRule.fromRulesyncRule({ rulesyncRule });
+
+      const content = clineRule.getFileContent();
+      expect(content).toContain("paths:");
+      expect(content).toContain("src/**/*.ts");
+      expect(content).toContain("description: Coding guidelines");
+      expect(content).not.toContain("alwaysApply");
+      expect(content).toContain("# Coding Guidelines");
+    });
+
+    it("should keep all globs in paths when universal and specific globs are mixed", () => {
+      // A mix of universal and specific globs is not "universal" overall, so the
+      // whole list is emitted as conditional paths (matches the qwencode pattern).
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".",
+        relativeFilePath: "mixed.md",
+        frontmatter: {
+          targets: ["*"],
+          root: false,
+          globs: ["**/*", "src/**/*.ts"],
+        },
+        body: "# Mixed",
+      });
+
+      const clineRule = ClineRule.fromRulesyncRule({ rulesyncRule });
+
+      const content = clineRule.getFileContent();
+      expect(content).toContain("paths:");
+      expect(content).toContain("src/**/*.ts");
+      expect(content).not.toContain("alwaysApply");
+    });
+
+    it("should emit alwaysApply for a non-root rule with universal globs", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".",
+        relativeFilePath: "conventions.md",
+        frontmatter: {
+          description: "Conventions",
+          targets: ["*"],
+          root: false,
+          globs: ["**/*"],
+        },
+        body: "# Conventions",
+      });
+
+      const clineRule = ClineRule.fromRulesyncRule({ rulesyncRule });
+
+      const content = clineRule.getFileContent();
+      expect(content).toContain("alwaysApply: true");
+      expect(content).not.toContain("paths:");
+    });
+
+    it("should emit plain Markdown for a non-root rule without globs or description", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".",
+        relativeFilePath: "freeform.md",
+        frontmatter: {
+          targets: ["*"],
+          root: false,
+          globs: [],
+        },
+        body: "# Freeform",
+      });
+
+      const clineRule = ClineRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(clineRule.getFileContent()).toBe("# Freeform");
+    });
+
+    it("should write a project root rule to AGENTS.md as plain Markdown", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".",
+        relativeFilePath: "overview.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          description: "Root rule",
+          globs: ["**/*"],
+        },
+        body: "# Project Root Rule",
+      });
+
+      const clineRule = ClineRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(clineRule.isRoot()).toBe(true);
+      expect(clineRule.getRelativeDirPath()).toBe(".");
+      expect(clineRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(clineRule.getFileContent()).toBe("# Project Root Rule");
+    });
+
     it("should write a global root AGENTS.md under .agents in global mode", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: ".",
@@ -386,12 +489,14 @@ console.log("Code example");
       expect(clineRule.getFileContent()).toBe(testFileContent);
     });
 
-    it("should load file with frontmatter correctly", async () => {
+    it("should parse paths/description frontmatter on load", async () => {
       const clinerulesDir = join(testDir, ".clinerules");
       await ensureDir(clinerulesDir);
 
       const testFileContent = `---
 description: This is a rule with frontmatter
+paths:
+  - "src/**/*.ts"
 ---
 
 # Rule with Frontmatter
@@ -405,7 +510,67 @@ This rule has YAML frontmatter.`;
         relativeFilePath: "frontmatter-test.md",
       });
 
-      expect(clineRule.getFileContent()).toBe(testFileContent);
+      expect(clineRule.getFrontmatter()?.description).toBe("This is a rule with frontmatter");
+      expect(clineRule.getFrontmatter()?.paths).toEqual(["src/**/*.ts"]);
+      expect(clineRule.getBody()).toContain("# Rule with Frontmatter");
+      // The body is round-tripped back to globs via paths.
+      const rulesyncRule = clineRule.toRulesyncRule();
+      expect(rulesyncRule.getFrontmatter().globs).toEqual(["src/**/*.ts"]);
+    });
+
+    it("should round-trip a single-string paths value into a globs array", async () => {
+      const clinerulesDir = join(testDir, ".clinerules");
+      await ensureDir(clinerulesDir);
+
+      const testFileContent = `---
+paths: "src/**/*.ts"
+---
+
+# Single Path Rule`;
+      await writeFileContent(join(clinerulesDir, "single-path.md"), testFileContent);
+
+      const clineRule = await ClineRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "single-path.md",
+      });
+
+      expect(clineRule.toRulesyncRule().getFrontmatter().globs).toEqual(["src/**/*.ts"]);
+    });
+
+    it("should round-trip alwaysApply: true into universal globs on import", async () => {
+      const clinerulesDir = join(testDir, ".clinerules");
+      await ensureDir(clinerulesDir);
+
+      const testFileContent = `---
+description: Always on
+alwaysApply: true
+---
+
+# Always Rule`;
+      await writeFileContent(join(clinerulesDir, "always.md"), testFileContent);
+
+      const clineRule = await ClineRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "always.md",
+      });
+
+      const rulesyncFrontmatter = clineRule.toRulesyncRule().getFrontmatter();
+      expect(rulesyncFrontmatter.globs).toEqual(["**/*"]);
+      expect(rulesyncFrontmatter.description).toBe("Always on");
+    });
+
+    it("should parse a frontmatter-less file as an always-active rule", async () => {
+      const clinerulesDir = join(testDir, ".clinerules");
+      await ensureDir(clinerulesDir);
+
+      await writeFileContent(join(clinerulesDir, "plain.md"), "# Plain Rule\n\nNo frontmatter.");
+
+      const clineRule = await ClineRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "plain.md",
+      });
+
+      expect(clineRule.toRulesyncRule().getFrontmatter().globs).toEqual([]);
     });
 
     it("should handle nested directory structure", async () => {
@@ -427,9 +592,11 @@ This rule has YAML frontmatter.`;
   });
 
   describe("ClineRuleFrontmatterSchema", () => {
-    it("should validate valid frontmatter", () => {
+    it("should validate frontmatter with paths, alwaysApply, and description", () => {
       const validFrontmatter = {
         description: "This is a valid description",
+        paths: ["src/**/*.ts"],
+        alwaysApply: true,
       };
 
       const result = ClineRuleFrontmatterSchema.safeParse(validFrontmatter);
@@ -437,42 +604,39 @@ This rule has YAML frontmatter.`;
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.description).toBe("This is a valid description");
+        expect(result.data.paths).toEqual(["src/**/*.ts"]);
+        expect(result.data.alwaysApply).toBe(true);
       }
     });
 
-    it("should reject frontmatter without description", () => {
-      const invalidFrontmatter = {};
+    it("should accept empty frontmatter (all fields optional)", () => {
+      const result = ClineRuleFrontmatterSchema.safeParse({});
 
-      const result = ClineRuleFrontmatterSchema.safeParse(invalidFrontmatter);
+      expect(result.success).toBe(true);
+    });
 
-      expect(result.success).toBe(false);
+    it("should accept paths as a single string", () => {
+      const result = ClineRuleFrontmatterSchema.safeParse({ paths: "src/**/*.ts" });
+
+      expect(result.success).toBe(true);
     });
 
     it("should reject frontmatter with non-string description", () => {
-      const invalidFrontmatter = {
-        description: 123,
-      };
-
-      const result = ClineRuleFrontmatterSchema.safeParse(invalidFrontmatter);
+      const result = ClineRuleFrontmatterSchema.safeParse({ description: 123 });
 
       expect(result.success).toBe(false);
     });
 
-    it("should reject frontmatter with null description", () => {
-      const invalidFrontmatter = {
-        description: null,
-      };
-
-      const result = ClineRuleFrontmatterSchema.safeParse(invalidFrontmatter);
+    it("should reject frontmatter with non-boolean alwaysApply", () => {
+      const result = ClineRuleFrontmatterSchema.safeParse({ alwaysApply: "yes" });
 
       expect(result.success).toBe(false);
     });
 
-    it("should allow additional properties beyond description", () => {
+    it("should preserve additional properties (looseObject)", () => {
       const frontmatterWithExtra = {
         description: "Valid description",
         category: "test",
-        priority: 1,
       };
 
       const result = ClineRuleFrontmatterSchema.safeParse(frontmatterWithExtra);
@@ -480,7 +644,7 @@ This rule has YAML frontmatter.`;
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.description).toBe("Valid description");
-        // Additional properties are allowed but not included in the parsed result
+        expect((result.data as Record<string, unknown>).category).toBe("test");
       }
     });
   });
