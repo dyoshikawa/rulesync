@@ -465,8 +465,8 @@ describe("E2E: permissions", () => {
     const readFile = toTable(tools.read_file);
     expect(toTableArray(parsed.mcp_servers)).toMatchObject([{ name: "existing", command: "node" }]);
     expect(bash.permission).toBe("ask");
-    expect(bash.allow).toEqual(["git *"]);
-    expect(bash.deny).toEqual(["rm *"]);
+    expect(bash.allowlist).toEqual(["git *"]);
+    expect(bash.denylist).toEqual(["rm *"]);
     expect(readFile.permission).toBe("always");
     expect(parsed.disabled_tools).toContain("write_file");
   });
@@ -1350,7 +1350,7 @@ describe("E2E: permissions (global mode)", () => {
     const tools = toTable(parsed.tools);
     const bash = toTable(tools.bash);
     expect(bash.permission).toBe("ask");
-    expect(bash.allow).toEqual(["git status"]);
+    expect(bash.allowlist).toEqual(["git status"]);
     expect(parsed.disabled_tools).toContain("write_file");
   });
 

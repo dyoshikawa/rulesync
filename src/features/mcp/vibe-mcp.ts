@@ -35,8 +35,20 @@ const VIBE_MCP_SERVER_FIELDS = [
   "command",
   "args",
   "env",
+  "cwd",
+  "auth",
   "startup_timeout_sec",
   "tool_timeout_sec",
+] as const;
+
+// Legacy top-level static-auth keys. Vibe auto-promotes these into an `[auth]`
+// block, but mixing them with an explicit `auth` table raises an error upstream,
+// so they are suppressed whenever a structured `auth` block is present.
+const VIBE_LEGACY_STATIC_AUTH_FIELDS = [
+  "headers",
+  "api_key_env",
+  "api_key_header",
+  "api_key_format",
 ] as const;
 
 export class VibeMcp extends ToolMcp {
@@ -195,8 +207,17 @@ function rulesyncMcpServerToVibe(name: string, server: McpServer): VibeMcpServer
     }
   }
 
+  const hasStructuredAuth = serverRecord.auth !== undefined;
   for (const field of VIBE_MCP_SERVER_FIELDS) {
     if (field === "transport" || field === "command" || field === "args") {
+      continue;
+    }
+    // Never emit legacy top-level static-auth keys alongside an `[auth]` block;
+    // upstream rejects the mix.
+    if (
+      hasStructuredAuth &&
+      (VIBE_LEGACY_STATIC_AUTH_FIELDS as readonly string[]).includes(field)
+    ) {
       continue;
     }
     if (serverRecord[field] !== undefined) {

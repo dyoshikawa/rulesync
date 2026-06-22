@@ -65,8 +65,8 @@ describe("VibePermissions", () => {
       { name: "fetch", transport: "http", url: "https://example.com/mcp" },
     ]);
     expect(parsed.tools.bash.permission).toBe("ask");
-    expect(parsed.tools.bash.allow).toEqual(["git status"]);
-    expect(parsed.tools.bash.deny).toEqual(["rm -rf *"]);
+    expect(parsed.tools.bash.allowlist).toEqual(["git status"]);
+    expect(parsed.tools.bash.denylist).toEqual(["rm -rf *"]);
     expect(parsed.tools.read_file.permission).toBe("always");
     expect(parsed.disabled_tools).toEqual(["write_file"]);
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('pattern-level "ask" rules'));
@@ -136,7 +136,7 @@ describe("VibePermissions", () => {
     });
     const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
 
-    expect(parsed.tools.write_file.allow).toEqual(["*.md", "*.txt"]);
+    expect(parsed.tools.write_file.allowlist).toEqual(["*.md", "*.txt"]);
   });
 
   it("should clear a stale disabled_tools entry when rulesync now allows the tool", async () => {
@@ -192,6 +192,58 @@ describe("VibePermissions", () => {
 
     expect(parsed.enabled_tools).toBeUndefined();
     expect(parsed.disabled_tools).toEqual(["read_file"]);
+  });
+
+  it("should migrate legacy allow/deny keys to allowlist/denylist", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.bash]", 'permission = "ask"', 'allow = ["git status"]', 'deny = ["rm -rf *"]'].join(
+        "\n",
+      ),
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          bash: { "git push": "allow" },
+        },
+      }),
+    });
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    // Legacy keys are dropped; the merged patterns land on the canonical keys.
+    expect(parsed.tools.bash.allow).toBeUndefined();
+    expect(parsed.tools.bash.deny).toBeUndefined();
+    expect(parsed.tools.bash.allowlist).toEqual(["git push", "git status"]);
+    expect(parsed.tools.bash.denylist).toEqual(["rm -rf *"]);
+  });
+
+  it("should import legacy allow/deny keys as a fallback", () => {
+    const vibePermissions = new VibePermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".vibe",
+      relativeFilePath: "config.toml",
+      fileContent: [
+        "[tools.bash]",
+        'allow = ["git status"]',
+        "[tools.read_file]",
+        'allowlist = ["src/**"]',
+      ].join("\n"),
+    });
+
+    const parsed = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+
+    expect(parsed.permission.bash["git status"]).toBe("allow");
+    expect(parsed.permission.read["src/**"]).toBe("allow");
   });
 
   it("should preserve enabled/disabled filters for tools rulesync does not configure", async () => {

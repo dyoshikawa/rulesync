@@ -153,11 +153,17 @@ export class VibePermissions extends ToolPermissions {
         }
       }
 
+      // Vibe's per-tool config honors `allowlist`/`denylist` (BaseToolConfig);
+      // the legacy `allow`/`deny` keys are tolerated (extra="allow") but never
+      // consulted. Emit the canonical keys and drop any legacy keys carried over
+      // from the existing file so a server is never left with both.
+      delete nextTool.allow;
+      delete nextTool.deny;
       if (allow.size > 0) {
-        nextTool.allow = [...allow].toSorted();
+        nextTool.allowlist = [...allow].toSorted();
       }
       if (deny.size > 0) {
-        nextTool.deny = [...deny].toSorted();
+        nextTool.denylist = [...deny].toSorted();
       }
       tools[vibeToolName] = nextTool;
     }
