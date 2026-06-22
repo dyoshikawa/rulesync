@@ -17,6 +17,7 @@
     "no-new": "off",
     "no-underscore-dangle": "off",
     "typescript/no-explicit-any": "warn",
+    "complexity": ["warn", { "max": 52 }],
     "unicorn/prefer-node-protocol": "error",
     "unicorn/no-array-reduce": "off"
   },
