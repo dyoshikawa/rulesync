@@ -5,7 +5,10 @@ import { setTimeout } from "node:timers/promises";
 import * as smolToml from "smol-toml";
 import { describe, expect, it } from "vitest";
 
-import { RULESYNC_MCP_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
+import {
+  RULESYNC_MCP_RELATIVE_FILE_PATH,
+  RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
+} from "../constants/rulesync-paths.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
   runGenerate,
@@ -20,7 +23,7 @@ describe("E2E: mcp", () => {
   const { getTestDir } = useTestDirectory();
 
   it.each([
-    { target: "amp", outputPath: join(".amp", "settings.jsonc") },
+    { target: "amp", outputPath: join(".amp", "settings.json") },
     { target: "claudecode", outputPath: ".mcp.json" },
     { target: "cursor", outputPath: join(".cursor", "mcp.json") },
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
@@ -69,6 +72,38 @@ describe("E2E: mcp", () => {
     // Verify that the expected output file was generated and contains the server
     const generatedContent = await readFileContent(join(testDir, outputPath));
     expect(generatedContent).toContain("test-server");
+  });
+
+  it("should co-locate amp mcp and permissions in a single settings.json on a clean repo", async () => {
+    const testDir = getTestDir();
+
+    // Setup: both an MCP source and a permissions source, no pre-existing Amp settings file.
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          mcpServers: {
+            "test-server": { type: "stdio", command: "echo", args: ["hello"], env: {} },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({ permission: { edit_file: { "*": "deny" } } }, null, 2),
+    );
+
+    // Execute: generate both features together for Amp.
+    await runGenerate({ target: "amp", features: "mcp,permissions" });
+
+    // Both adapters default to settings.json, so the keys must co-locate there and
+    // no stray settings.jsonc should be created.
+    expect(await fileExists(join(testDir, ".amp", "settings.jsonc"))).toBe(false);
+    const content = JSON.parse(await readFileContent(join(testDir, ".amp", "settings.json")));
+    expect(content["amp.mcpServers"]).toHaveProperty("test-server");
+    expect(content["amp.tools.disable"]).toEqual(["edit_file"]);
   });
 
   it.each([
@@ -122,7 +157,7 @@ describe("E2E: mcp", () => {
   it.each([
     {
       target: "amp",
-      outputPath: join(".amp", "settings.jsonc"),
+      outputPath: join(".amp", "settings.json"),
       content: JSON.stringify({ "amp.dangerouslyAllowAll": false, "amp.mcpServers": {} }, null, 2),
     },
     {
@@ -392,7 +427,7 @@ describe("E2E: mcp (global mode)", () => {
     },
     { target: "kilo", outputPath: join(".config", "kilo", "kilo.jsonc") },
     { target: "junie", outputPath: join(".junie", "mcp", "mcp.json") },
-    { target: "amp", outputPath: join(".config", "amp", "settings.jsonc") },
+    { target: "amp", outputPath: join(".config", "amp", "settings.json") },
     {
       target: "antigravity-ide",
       outputPath: join(".gemini", "config", "mcp_config.json"),
