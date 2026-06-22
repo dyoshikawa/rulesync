@@ -1154,6 +1154,8 @@ describe("E2E: permissions (global mode)", () => {
         {
           permission: {
             bash: { "git status *": "allow", "rm -rf *": "deny" },
+            read: { "src/**": "allow" },
+            webfetch: { "https://example.com/*": "allow" },
           },
         },
         null,
@@ -1169,13 +1171,16 @@ describe("E2E: permissions (global mode)", () => {
     });
 
     // The Antigravity CLI uses Claude-Code-style `permissions.allow/deny`
-    // arrays and exposes shell execution as the `command` tool. Permissions are
+    // arrays over the Fine-Grained Permissions Engine action vocabulary
+    // (`command`/`read_file`/`write_file`/`read_url`/...). Permissions are
     // global-scope only, so there is no project-mode equivalent.
     const generated = JSON.parse(
       await readFileContent(join(homeDir, ".gemini", "antigravity-cli", "settings.json")),
     );
     expect(generated.permissions.allow).toContain("command(git status *)");
     expect(generated.permissions.deny).toContain("command(rm -rf *)");
+    expect(generated.permissions.allow).toContain("read_file(src/**)");
+    expect(generated.permissions.allow).toContain("read_url(https://example.com/*)");
   });
 
   it("should generate warp permissions in home directory with --global", async () => {

@@ -124,6 +124,55 @@ describe("AntigravityCliPermissions", () => {
     expect(settings.permissions?.allow).toContain("mcp__server__tool");
   });
 
+  it("should map read/write/edit/webfetch to the engine action vocabulary", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          read: { "src/**": "allow" },
+          write: { "dist/**": "deny" },
+          edit: { "config/**": "ask" },
+          webfetch: { "https://example.com/*": "allow" },
+        },
+      }),
+    });
+
+    const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
+    expect(settings.permissions?.allow).toContain("read_file(src/**)");
+    expect(settings.permissions?.deny).toContain("write_file(dist/**)");
+    // edit collapses onto write_file as well.
+    expect(settings.permissions?.ask).toContain("write_file(config/**)");
+    expect(settings.permissions?.allow).toContain("read_url(https://example.com/*)");
+  });
+
+  it("should round-trip read_file/write_file/read_url back into canonical categories", () => {
+    const permissions = new AntigravityCliPermissions({
+      outputRoot: testDir,
+      relativeDirPath: join(".gemini", "antigravity-cli"),
+      relativeFilePath: "settings.json",
+      fileContent: JSON.stringify({
+        permissions: {
+          allow: ["read_file(src/**)", "read_url(https://example.com/*)"],
+          deny: ["write_file(dist/**)"],
+        },
+      }),
+      global: true,
+    });
+
+    const json = permissions.toRulesyncPermissions().getJson();
+    expect(json.permission.read?.["src/**"]).toBe("allow");
+    // write_file collapses to canonical `write` (edit/write are a documented, lossy merge).
+    expect(json.permission.write?.["dist/**"]).toBe("deny");
+    expect(json.permission.webfetch?.["https://example.com/*"]).toBe("allow");
+  });
+
   it("should sort and de-duplicate merged allow entries", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,

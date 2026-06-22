@@ -36,17 +36,34 @@ type AntigravityCliSettingsJson = {
 };
 
 /**
- * Mapping from rulesync canonical tool category names (lowercase) to Antigravity
- * CLI tool names. The CLI exposes shell execution as `command`; all other
- * categories pass through unchanged (e.g., `mcp__server__tool`).
+ * Deliberate mapping from rulesync canonical permission categories to the
+ * Antigravity CLI Fine-Grained Permissions Engine action vocabulary
+ * (`read_file`, `write_file`, `read_url`, `command`, `mcp`, plus `execute_url` /
+ * `unsandboxed` which have no canonical equivalent and pass through). `edit` and
+ * `write` both map to `write_file`, and `webfetch` / `websearch` both map to
+ * `read_url`; on import those collapse to the canonical `write` / `webfetch`
+ * form (a documented, lossy normalization). This shares the action vocabulary of
+ * the Antigravity IDE engine — see {@link AntigravityIdePermissions}.
+ *
+ * @see https://antigravity.google/docs/cli-permissions
  */
 const CANONICAL_TO_ANTIGRAVITY_CLI_TOOL_NAMES: Record<string, string> = {
+  read: "read_file",
+  edit: "write_file",
+  write: "write_file",
   bash: "command",
+  webfetch: "read_url",
+  websearch: "read_url",
+  mcp: "mcp",
 };
 
-const ANTIGRAVITY_CLI_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_ANTIGRAVITY_CLI_TOOL_NAMES).map(([k, v]) => [v, k]),
-);
+const ANTIGRAVITY_CLI_TO_CANONICAL_TOOL_NAMES: Record<string, string> = {
+  read_file: "read",
+  write_file: "write",
+  command: "bash",
+  read_url: "webfetch",
+  mcp: "mcp",
+};
 
 function toAntigravityCliToolName(canonical: string): string {
   return CANONICAL_TO_ANTIGRAVITY_CLI_TOOL_NAMES[canonical] ?? canonical;
