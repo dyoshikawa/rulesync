@@ -201,6 +201,42 @@ describe("VibeMcp", () => {
     expect(imported.mcpServers.remote.auth.type).toBe("oauth");
   });
 
+  it("should pass through and round-trip a static auth block", async () => {
+    const rulesyncMcp = new RulesyncMcp({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: {
+          remote: {
+            type: "http",
+            url: "https://example.com/mcp",
+            auth: {
+              type: "static",
+              headers: { "X-Custom": "value" },
+              api_key_env: "MCP_TOKEN",
+              api_key_header: "Authorization",
+              api_key_format: "Bearer {token}",
+            },
+          },
+        },
+      }),
+    });
+
+    const vibeMcp = await VibeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+    const parsed = smolToml.parse(vibeMcp.getFileContent()) as any;
+    expect(parsed.mcp_servers[0].auth).toMatchObject({
+      type: "static",
+      api_key_env: "MCP_TOKEN",
+    });
+
+    const imported = JSON.parse(vibeMcp.toRulesyncMcp().getFileContent());
+    expect(imported.mcpServers.remote.auth).toMatchObject({
+      type: "static",
+      api_key_env: "MCP_TOKEN",
+    });
+  });
+
   it("should not be deletable because config.toml is shared", () => {
     const vibeMcp = VibeMcp.forDeletion({
       outputRoot: testDir,
