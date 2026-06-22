@@ -295,6 +295,7 @@ body`,
           description: "Desc",
           "allowed-tools": "grep bash",
           license: "MIT",
+          compatibility: "Requires Python 3.14+ and uv",
           metadata: { author: "rulesync" },
         },
         body: "Body",
@@ -305,6 +306,7 @@ body`,
       expect(rulesync.getFrontmatter().rovodev).toEqual({
         "allowed-tools": "grep bash",
         license: "MIT",
+        compatibility: "Requires Python 3.14+ and uv",
         metadata: { author: "rulesync" },
       });
 
@@ -317,6 +319,7 @@ body`,
       const fm = roundTripped.getFrontmatter();
       expect(fm["allowed-tools"]).toBe("grep bash");
       expect(fm.license).toBe("MIT");
+      expect(fm.compatibility).toBe("Requires Python 3.14+ and uv");
       expect(fm.metadata).toEqual({ author: "rulesync" });
     });
   });
