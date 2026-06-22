@@ -227,6 +227,28 @@ describe("ClineRule", () => {
       expect(content).toContain("# Coding Guidelines");
     });
 
+    it("should keep all globs in paths when universal and specific globs are mixed", () => {
+      // A mix of universal and specific globs is not "universal" overall, so the
+      // whole list is emitted as conditional paths (matches the qwencode pattern).
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".",
+        relativeFilePath: "mixed.md",
+        frontmatter: {
+          targets: ["*"],
+          root: false,
+          globs: ["**/*", "src/**/*.ts"],
+        },
+        body: "# Mixed",
+      });
+
+      const clineRule = ClineRule.fromRulesyncRule({ rulesyncRule });
+
+      const content = clineRule.getFileContent();
+      expect(content).toContain("paths:");
+      expect(content).toContain("src/**/*.ts");
+      expect(content).not.toContain("alwaysApply");
+    });
+
     it("should emit alwaysApply for a non-root rule with universal globs", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: ".",
@@ -494,6 +516,61 @@ This rule has YAML frontmatter.`;
       // The body is round-tripped back to globs via paths.
       const rulesyncRule = clineRule.toRulesyncRule();
       expect(rulesyncRule.getFrontmatter().globs).toEqual(["src/**/*.ts"]);
+    });
+
+    it("should round-trip a single-string paths value into a globs array", async () => {
+      const clinerulesDir = join(testDir, ".clinerules");
+      await ensureDir(clinerulesDir);
+
+      const testFileContent = `---
+paths: "src/**/*.ts"
+---
+
+# Single Path Rule`;
+      await writeFileContent(join(clinerulesDir, "single-path.md"), testFileContent);
+
+      const clineRule = await ClineRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "single-path.md",
+      });
+
+      expect(clineRule.toRulesyncRule().getFrontmatter().globs).toEqual(["src/**/*.ts"]);
+    });
+
+    it("should round-trip alwaysApply: true into universal globs on import", async () => {
+      const clinerulesDir = join(testDir, ".clinerules");
+      await ensureDir(clinerulesDir);
+
+      const testFileContent = `---
+description: Always on
+alwaysApply: true
+---
+
+# Always Rule`;
+      await writeFileContent(join(clinerulesDir, "always.md"), testFileContent);
+
+      const clineRule = await ClineRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "always.md",
+      });
+
+      const rulesyncFrontmatter = clineRule.toRulesyncRule().getFrontmatter();
+      expect(rulesyncFrontmatter.globs).toEqual(["**/*"]);
+      expect(rulesyncFrontmatter.description).toBe("Always on");
+    });
+
+    it("should parse a frontmatter-less file as an always-active rule", async () => {
+      const clinerulesDir = join(testDir, ".clinerules");
+      await ensureDir(clinerulesDir);
+
+      await writeFileContent(join(clinerulesDir, "plain.md"), "# Plain Rule\n\nNo frontmatter.");
+
+      const clineRule = await ClineRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "plain.md",
+      });
+
+      expect(clineRule.toRulesyncRule().getFrontmatter().globs).toEqual([]);
     });
 
     it("should handle nested directory structure", async () => {
