@@ -117,7 +117,7 @@ describe("WarpPermissions", () => {
     });
 
     it("preserves other agents.profiles keys and other top-level tables", async () => {
-      const dir = join(testDir, ".config", "warp-terminal");
+      const dir = join(testDir, WarpPermissions.getSettablePaths().relativeDirPath);
       await ensureDir(dir);
       await writeFileContent(
         join(dir, "settings.toml"),
