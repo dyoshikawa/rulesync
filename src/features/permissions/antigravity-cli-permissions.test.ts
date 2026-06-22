@@ -203,7 +203,9 @@ describe("AntigravityCliPermissions", () => {
       join(dir, "settings.json"),
       JSON.stringify({
         someOtherSetting: true,
-        permissions: { allow: ["read(src/**)"] },
+        // `execute_url` is an engine action with no canonical equivalent, so it
+        // is never managed by a rulesync config and must survive untouched.
+        permissions: { allow: ["execute_url(https://deploy.example.com)"] },
       }),
     );
 
@@ -224,11 +226,42 @@ describe("AntigravityCliPermissions", () => {
     });
 
     const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
-    // "read" is not derived from a managed category (only "bash"/"command" is), so it survives.
-    expect(settings.permissions?.allow).toContain("read(src/**)");
+    expect(settings.permissions?.allow).toContain("execute_url(https://deploy.example.com)");
     expect(settings.permissions?.allow).toContain("command(git status *)");
     // Unrelated top-level settings are also preserved.
     expect(settings.someOtherSetting).toBe(true);
+  });
+
+  it("should replace existing read_file entries when the read category is managed", async () => {
+    const dir = join(testDir, ".gemini", "antigravity-cli");
+    await ensureDir(dir);
+    await writeFileContent(
+      join(dir, "settings.json"),
+      JSON.stringify({
+        permissions: { allow: ["read_file(old/**)"] },
+      }),
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          read: { "src/**": "allow" },
+        },
+      }),
+    });
+
+    const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
+    // `read` maps to the managed `read_file` action, so the stale entry is dropped.
+    expect(settings.permissions?.allow).not.toContain("read_file(old/**)");
+    expect(settings.permissions?.allow).toContain("read_file(src/**)");
   });
 
   it("should replace existing entries for managed tools instead of accumulating them", async () => {
