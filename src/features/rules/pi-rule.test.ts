@@ -22,16 +22,14 @@ describe("PiRule", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should return project paths by default", () => {
+    it("should return a root-only project path (non-root folds into root)", () => {
       const paths = PiRule.getSettablePaths();
 
       expect(paths.root).toEqual({
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.md",
       });
-      expect(paths.nonRoot).toEqual({
-        relativeDirPath: join(".agents", "memories"),
-      });
+      expect(paths.nonRoot).toBeUndefined();
     });
 
     it("should return global paths when global is true", () => {
@@ -41,7 +39,7 @@ describe("PiRule", () => {
         relativeDirPath: join(".pi", "agent"),
         relativeFilePath: "AGENTS.md",
       });
-      expect("nonRoot" in paths).toBe(false);
+      expect(paths.nonRoot).toBeUndefined();
     });
 
     it("should honor excludeToolDir for global paths", () => {
@@ -50,14 +48,6 @@ describe("PiRule", () => {
       expect(paths.root).toEqual({
         relativeDirPath: "agent",
         relativeFilePath: "AGENTS.md",
-      });
-    });
-
-    it("should honor excludeToolDir for project non-root paths", () => {
-      const paths = PiRule.getSettablePaths({ excludeToolDir: true });
-
-      expect(paths.nonRoot).toEqual({
-        relativeDirPath: "memories",
       });
     });
   });
@@ -78,11 +68,9 @@ describe("PiRule", () => {
       expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
     });
 
-    it("should load a non-root memories file", async () => {
-      const memoriesDir = join(testDir, ".agents", "memories");
-      await ensureDir(memoriesDir);
-      const content = "# Memory\nBody.";
-      await writeFileContent(join(memoriesDir, "memory.md"), content);
+    it("should always read the root AGENTS.md regardless of the requested file", async () => {
+      const content = "# Root Pi Agent\n\nContent.";
+      await writeFileContent(join(testDir, "AGENTS.md"), content);
 
       const rule = await PiRule.fromFile({
         outputRoot: testDir,
@@ -90,9 +78,9 @@ describe("PiRule", () => {
       });
 
       expect(rule.getFileContent()).toBe(content);
-      expect(rule.isRoot()).toBe(false);
-      expect(rule.getRelativeDirPath()).toBe(join(".agents", "memories"));
-      expect(rule.getRelativeFilePath()).toBe("memory.md");
+      expect(rule.isRoot()).toBe(true);
+      expect(rule.getRelativeDirPath()).toBe(".");
+      expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
     });
 
     it("should load root AGENTS.md in global mode", async () => {
@@ -112,14 +100,21 @@ describe("PiRule", () => {
       expect(rule.getRelativeDirPath()).toBe(join(".pi", "agent"));
     });
 
-    it("should throw when asked for non-root file in global mode", async () => {
-      await expect(
-        PiRule.fromFile({
-          outputRoot: testDir,
-          relativeFilePath: "memory.md",
-          global: true,
-        }),
-      ).rejects.toThrow(/global mode/i);
+    it("should read the global root AGENTS.md regardless of the requested file", async () => {
+      const globalDir = join(testDir, ".pi", "agent");
+      await ensureDir(globalDir);
+      const content = "# Global Pi Agent";
+      await writeFileContent(join(globalDir, "AGENTS.md"), content);
+
+      const rule = await PiRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "memory.md",
+        global: true,
+      });
+
+      expect(rule.getFileContent()).toBe(content);
+      expect(rule.isRoot()).toBe(true);
+      expect(rule.getRelativeDirPath()).toBe(join(".pi", "agent"));
     });
   });
 
@@ -147,7 +142,7 @@ describe("PiRule", () => {
       expect(rule.getFileContent()).toContain("# Root");
     });
 
-    it("should produce a non-root rule under .agents/memories", () => {
+    it("should write a non-root rule to the root AGENTS.md (folded)", () => {
       const rulesyncRule = new RulesyncRule({
         outputRoot: testDir,
         relativeDirPath: ".rulesync/rules",
@@ -164,12 +159,15 @@ describe("PiRule", () => {
         rulesyncRule,
       });
 
+      // Non-root rules share the root path so the RulesProcessor folds their
+      // bodies into the single AGENTS.md.
       expect(rule.isRoot()).toBe(false);
-      expect(rule.getRelativeDirPath()).toBe(join(".agents", "memories"));
-      expect(rule.getRelativeFilePath()).toBe("memory.md");
+      expect(rule.getRelativeDirPath()).toBe(".");
+      expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(rule.getFileContent()).toBe("# Memory\nBody.");
     });
 
-    it("should throw for non-root rule in global mode", () => {
+    it("should write a non-root rule to the global root path (folded)", () => {
       const rulesyncRule = new RulesyncRule({
         outputRoot: testDir,
         relativeDirPath: ".rulesync/rules",
@@ -181,13 +179,14 @@ describe("PiRule", () => {
         body: "# Memory\nBody.",
       });
 
-      expect(() =>
-        PiRule.fromRulesyncRule({
-          outputRoot: testDir,
-          rulesyncRule,
-          global: true,
-        }),
-      ).toThrow(/global mode/i);
+      const rule = PiRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule,
+        global: true,
+      });
+
+      expect(rule.getRelativeDirPath()).toBe(join(".pi", "agent"));
+      expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
     });
 
     it("should use global root paths when global is true", () => {

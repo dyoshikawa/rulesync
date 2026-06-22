@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
-import { PI_DIR, PI_MEMORIES_DIR, PI_RULE_FILE_NAME } from "../../constants/pi-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
+import { PI_DIR, PI_RULE_FILE_NAME } from "../../constants/pi-paths.js";
+import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -10,99 +10,77 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
-  ToolRuleSettablePathsGlobal,
   buildToolPath,
 } from "./tool-rule.js";
 
-export type PiRuleSettablePaths = ToolRuleSettablePaths & {
+export type PiRuleParams = AiFileParams & {
+  root?: boolean;
+};
+
+export type PiRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
   root: {
     relativeDirPath: string;
     relativeFilePath: string;
   };
+  nonRoot?: undefined;
 };
-
-export type PiRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
 
 /**
  * Rule generator for Pi Coding Agent.
  *
- * Pi uses a single `AGENTS.md` file at the project root for the overview,
- * plus optional `.agents/memories/*.md` files referenced from the root via
- * TOON format (`ruleDiscoveryMode: "toon"`).
+ * Pi loads instruction context only from the `AGENTS.md` / `CLAUDE.md` family —
+ * the global `~/.pi/agent/AGENTS.md` plus files discovered by walking up the
+ * directory tree from the current working directory. It does NOT resolve
+ * `@`-imports or a TOON file list, and has no `.agents/memories/` concept, so
+ * non-root rule bodies written to a subdirectory are never read.
+ * (Verified against the official docs: https://pi.dev/docs/latest/usage)
  *
- * In global mode, only the root `~/.pi/agent/AGENTS.md` is emitted; non-root
- * rules are not supported.
+ * rulesync's topic-based non-root rules therefore have no project subdirectory
+ * to map onto; their bodies are folded into the single root `AGENTS.md` by the
+ * RulesProcessor (there is no separate non-root output location — `nonRoot` is
+ * `undefined`). This mirrors the codexcli, grokcli, warp, and deepagents targets.
  */
 export class PiRule extends ToolRule {
+  constructor({ fileContent, root, ...rest }: PiRuleParams) {
+    super({
+      ...rest,
+      fileContent,
+      root: root ?? false,
+    });
+  }
+
   static getSettablePaths({
-    global,
+    global = false,
     excludeToolDir,
   }: {
     global?: boolean;
     excludeToolDir?: boolean;
-  } = {}): PiRuleSettablePaths | PiRuleSettablePathsGlobal {
-    if (global) {
-      // When excludeToolDir is true the caller drops the `.pi` prefix and only
-      // the `agent` directory remains (e.g. when emitting into a pre-scoped
-      // global directory). Pi has no non-root memories in global mode, so we
-      // return only the root path entry.
-      return {
-        root: {
-          relativeDirPath: buildToolPath(PI_DIR, "agent", excludeToolDir),
-          relativeFilePath: PI_RULE_FILE_NAME,
-        },
-      };
-    }
+  } = {}): PiRuleSettablePaths {
     return {
       root: {
-        relativeDirPath: ".",
+        relativeDirPath: global ? buildToolPath(PI_DIR, "agent", excludeToolDir) : ".",
         relativeFilePath: PI_RULE_FILE_NAME,
-      },
-      nonRoot: {
-        relativeDirPath: buildToolPath(PI_MEMORIES_DIR, "memories", excludeToolDir),
       },
     };
   }
 
   static async fromFile({
     outputRoot = process.cwd(),
-    relativeFilePath,
+    relativeFilePath: _relativeFilePath,
     validate = true,
     global = false,
   }: ToolRuleFromFileParams): Promise<PiRule> {
-    const paths = this.getSettablePaths({ global });
-    const isRoot = relativeFilePath === paths.root.relativeFilePath;
-
-    if (isRoot) {
-      const fileContent = await readFileContent(
-        join(outputRoot, paths.root.relativeDirPath, paths.root.relativeFilePath),
-      );
-
-      return new PiRule({
-        outputRoot,
-        relativeDirPath: paths.root.relativeDirPath,
-        relativeFilePath: paths.root.relativeFilePath,
-        fileContent,
-        validate,
-        root: true,
-      });
-    }
-
-    if (!paths.nonRoot) {
-      throw new Error(
-        `PiRule does not support non-root rules in global mode; expected '${paths.root.relativeFilePath}' but got '${relativeFilePath}'`,
-      );
-    }
-
-    const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
+    const { root } = this.getSettablePaths({ global });
+    const relativePath = join(root.relativeDirPath, root.relativeFilePath);
     const fileContent = await readFileContent(join(outputRoot, relativePath));
+
     return new PiRule({
       outputRoot,
-      relativeDirPath: paths.nonRoot.relativeDirPath,
-      relativeFilePath,
+      relativeDirPath: root.relativeDirPath,
+      relativeFilePath: root.relativeFilePath,
       fileContent,
       validate,
-      root: false,
+      root: true,
     });
   }
 
@@ -112,23 +90,17 @@ export class PiRule extends ToolRule {
     validate = true,
     global = false,
   }: ToolRuleFromRulesyncRuleParams): PiRule {
-    const paths = this.getSettablePaths({ global });
+    const { root } = this.getSettablePaths({ global });
+    const isRoot = rulesyncRule.getFrontmatter().root ?? false;
 
-    if (global && !rulesyncRule.getFrontmatter().root) {
-      throw new Error(
-        `PiRule does not support non-root rules in global mode; expected a root rule but got '${rulesyncRule.getRelativeFilePath()}'`,
-      );
-    }
-
-    return new PiRule(
-      this.buildToolRuleParamsAgentsmd({
-        outputRoot,
-        rulesyncRule,
-        validate,
-        rootPath: paths.root,
-        nonRootPath: paths.nonRoot,
-      }),
-    );
+    return new PiRule({
+      outputRoot,
+      relativeDirPath: root.relativeDirPath,
+      relativeFilePath: root.relativeFilePath,
+      fileContent: rulesyncRule.getBody(),
+      validate,
+      root: isRoot,
+    });
   }
 
   toRulesyncRule(): RulesyncRule {
@@ -147,8 +119,10 @@ export class PiRule extends ToolRule {
     relativeFilePath,
     global = false,
   }: ToolRuleForDeletionParams): PiRule {
-    const paths = this.getSettablePaths({ global });
-    const isRoot = relativeFilePath === paths.root.relativeFilePath;
+    const { root } = this.getSettablePaths({ global });
+    const isRoot =
+      relativeFilePath === PI_RULE_FILE_NAME &&
+      (relativeDirPath === "." || relativeDirPath === root.relativeDirPath);
 
     return new PiRule({
       outputRoot,
