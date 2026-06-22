@@ -96,6 +96,7 @@ describe("generate", () => {
     getSilent: ReturnType<typeof vi.fn>;
     getOutputRoots: ReturnType<typeof vi.fn>;
     getTargets: ReturnType<typeof vi.fn>;
+    getConfigFileTargets: ReturnType<typeof vi.fn>;
     getFeatures: ReturnType<typeof vi.fn>;
     getFeatureOptions: ReturnType<typeof vi.fn>;
     getDelete: ReturnType<typeof vi.fn>;
@@ -114,6 +115,7 @@ describe("generate", () => {
       getSilent: vi.fn().mockReturnValue(false),
       getOutputRoots: vi.fn().mockReturnValue(["."]),
       getTargets: vi.fn().mockReturnValue(["claudecode"]),
+      getConfigFileTargets: vi.fn().mockReturnValue(["claudecode"]),
       getFeatures: vi.fn().mockReturnValue(["rules"]),
       getFeatureOptions: vi.fn().mockReturnValue(undefined),
       getDelete: vi.fn().mockReturnValue(false),

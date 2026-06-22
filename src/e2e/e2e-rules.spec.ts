@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  RULESYNC_CONFIG_RELATIVE_FILE_PATH,
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -259,6 +260,74 @@ globs: ["src/**/*"]
     expect(json.instructions).toEqual([".kilo/rules/detail.md"]);
     expect(json.mcp?.["test-server"]).toBeDefined();
     expect(json.mcp["test-server"].type).toBe("local");
+  });
+
+  it("should pass check for a non-owning target when another target owns AGENTS.md", async () => {
+    const testDir = getTestDir();
+
+    const rootRuleContent = `---
+root: true
+targets: ["*"]
+description: "Root rule"
+---
+
+# Root Rule
+`;
+    const nonRootRuleContent = `---
+targets: ["*"]
+description: "Detail rule"
+globs: ["src/**/*"]
+---
+
+# Detail Rule
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      rootRuleContent,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "detail.md"),
+      nonRootRuleContent,
+    );
+
+    await writeFileContent(
+      join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          targets: {
+            codexcli: ["rules"],
+            "antigravity-ide": ["rules"],
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    // Full generate with both targets — antigravity-ide is last so it owns AGENTS.md
+    await runGenerate({
+      target: "codexcli,antigravity-ide",
+      features: "rules",
+      env: { NODE_ENV: "e2e" },
+    });
+
+    // AGENTS.md exists (owned by antigravity-ide)
+    expect(await readFileContent(join(testDir, "AGENTS.md"))).toContain("Root Rule");
+
+    // Codex non-root rules exist
+    const codexNonRoot = await readFileContent(join(testDir, ".codex", "memories", "detail.md"));
+    expect(codexNonRoot).toContain("Detail Rule");
+
+    // Check codexcli only — should pass even though AGENTS.md is owned by antigravity-ide
+    const { stdout, stderr } = await runGenerate({
+      target: "codexcli",
+      features: "rules",
+      check: true,
+      env: { NODE_ENV: "e2e" },
+    });
+
+    expect(stderr).toBe("");
+    expect(stdout).toContain("All files are up to date.");
   });
 });
 

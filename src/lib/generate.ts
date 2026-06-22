@@ -21,7 +21,7 @@ import type { Feature } from "../types/features.js";
 import type { RulesyncFile } from "../types/rulesync-file.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
-import { fileExists } from "../utils/file.js";
+import { fileExists, toPosixPath } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
 
@@ -50,14 +50,20 @@ async function processFeatureGeneration<T extends AiFile>(params: {
   config: Config;
   processor: FeatureProcessor;
   toolFiles: T[];
+  skipFilePaths?: Set<string>;
 }): Promise<FeatureGenerateResult> {
-  const { config, processor, toolFiles } = params;
+  const { config, processor, toolFiles, skipFilePaths } = params;
+
+  const filesToCheck =
+    skipFilePaths && skipFilePaths.size > 0
+      ? toolFiles.filter((f) => !skipFilePaths.has(f.getRelativePathFromCwd()))
+      : toolFiles;
 
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
 
-  const writeResult = await processor.writeAiFiles(toolFiles);
+  const writeResult = await processor.writeAiFiles(filesToCheck);
   totalCount += writeResult.count;
   allPaths.push(...writeResult.paths);
   if (writeResult.count > 0) hasDiff = true;
@@ -102,8 +108,9 @@ async function processDirFeatureGeneration(params: {
 async function processEmptyFeatureGeneration(params: {
   config: Config;
   processor: FeatureProcessor;
+  skipFilePaths?: Set<string>;
 }): Promise<FeatureGenerateResult> {
-  const { config, processor } = params;
+  const { config, processor, skipFilePaths } = params;
 
   const totalCount = 0;
   let hasDiff = false;
@@ -111,7 +118,12 @@ async function processEmptyFeatureGeneration(params: {
   if (config.getDelete()) {
     const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
 
-    const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, []);
+    const filesToDelete =
+      skipFilePaths && skipFilePaths.size > 0
+        ? existingToolFiles.filter((f) => !skipFilePaths.has(f.getRelativePathFromCwd()))
+        : existingToolFiles;
+
+    const orphanCount = await processor.removeOrphanAiFiles(filesToDelete, []);
     if (orphanCount > 0) hasDiff = true;
   }
 
@@ -126,13 +138,14 @@ async function processFeatureWithRulesyncFiles(params: {
   config: Config;
   processor: FeatureProcessor;
   rulesyncFiles: RulesyncFile[];
+  skipFilePaths?: Set<string>;
 }): Promise<FeatureGenerateResult> {
-  const { config, processor, rulesyncFiles } = params;
+  const { config, processor, rulesyncFiles, skipFilePaths } = params;
   if (rulesyncFiles.length === 0) {
-    return processEmptyFeatureGeneration({ config, processor });
+    return processEmptyFeatureGeneration({ config, processor, skipFilePaths });
   }
   const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-  return processFeatureGeneration({ config, processor, toolFiles });
+  return processFeatureGeneration({ config, processor, toolFiles, skipFilePaths });
 }
 
 const SIMULATE_OPTION_MAP: Partial<Record<Feature, string>> = {
@@ -236,6 +249,23 @@ export async function generate(params: {
   };
 }
 
+function computeRootFileOwnership(params: {
+  targets: ToolTarget[];
+  global: boolean;
+}): Map<string, ToolTarget> {
+  const ownerByPath = new Map<string, ToolTarget>();
+  for (const target of params.targets) {
+    const factory = RulesProcessor.getFactory(target);
+    if (!factory) continue;
+    const paths = factory.class.getSettablePaths({ global: params.global });
+    if ("root" in paths && paths.root) {
+      const rootPath = toPosixPath(join(paths.root.relativeDirPath, paths.root.relativeFilePath));
+      ownerByPath.set(rootPath, target);
+    }
+  }
+  return ownerByPath;
+}
+
 async function generateRulesCore(params: {
   config: Config;
   logger: Logger;
@@ -250,6 +280,14 @@ async function generateRulesCore(params: {
   const supportedTargets = RulesProcessor.getToolTargets({ global: config.getGlobal() });
   const toolTargets = intersection(config.getTargets(), supportedTargets);
   warnUnsupportedTargets({ config, supportedTargets, featureName: "rules", logger });
+
+  const isCheck = config.getCheck();
+  const rootFileOwner = isCheck
+    ? computeRootFileOwnership({
+        targets: config.getConfigFileTargets(),
+        global: config.getGlobal(),
+      })
+    : new Map<string, ToolTarget>();
 
   for (const outputRoot of config.getOutputRoots()) {
     for (const toolTarget of toolTargets) {
@@ -273,7 +311,22 @@ async function generateRulesCore(params: {
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
-      const result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
+
+      const skipFilePaths = new Set<string>();
+      if (isCheck) {
+        for (const [rootPath, owner] of rootFileOwner) {
+          if (owner !== toolTarget) {
+            skipFilePaths.add(rootPath);
+          }
+        }
+      }
+
+      const result = await processFeatureWithRulesyncFiles({
+        config,
+        processor,
+        rulesyncFiles,
+        skipFilePaths: skipFilePaths.size > 0 ? skipFilePaths : undefined,
+      });
 
       totalCount += result.count;
       allPaths.push(...result.paths);

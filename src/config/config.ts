@@ -105,6 +105,7 @@ type InferredConfigParams = z.infer<typeof ConfigParamsSchema>;
 export type ConfigParams = Omit<InferredConfigParams, "targets" | "features"> & {
   targets?: RulesyncConfigTargets;
   features?: RulesyncFeatures;
+  configFileTargets?: ToolTarget[];
 };
 
 export const PartialConfigParamsSchema = z.partial(ConfigParamsSchema);
@@ -223,6 +224,7 @@ export class Config {
    * Undefined when `this.targets` is in array form.
    */
   private readonly objectFormTargetKeys: ToolTarget[] | undefined;
+  private readonly configFileTargets: ToolTarget[] | undefined;
   private readonly verbose: boolean;
   private readonly delete: boolean;
   private readonly global: boolean;
@@ -254,6 +256,7 @@ export class Config {
     check,
     inputRoot,
     sources,
+    configFileTargets,
   }: ConfigParams) {
     // Defense-in-depth: enforce the same mutual-exclusivity rule that the
     // file loader applies, so programmatic `new Config(...)` callers can't
@@ -293,6 +296,7 @@ export class Config {
     this.objectFormTargetKeys = isRulesyncConfigTargetsObject(resolvedTargets)
       ? Config.filterValidToolTargets(Object.keys(resolvedTargets))
       : undefined;
+    this.configFileTargets = configFileTargets;
     this.verbose = verbose;
     this.delete = isDelete;
 
@@ -426,6 +430,10 @@ export class Config {
     }
 
     return arrayTargets.filter((target): target is ToolTarget => target !== "*");
+  }
+
+  public getConfigFileTargets(): ToolTarget[] {
+    return this.configFileTargets ?? this.getTargets();
   }
 
   public getFeatures(): Features;
