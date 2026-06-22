@@ -160,6 +160,70 @@ globs: ["src/**/*.ts"]
     expect(nonRootContent).toContain("description: Coding guidelines");
   });
 
+  it("should generate cline non-root rules into .clinerules with paths frontmatter", async () => {
+    const testDir = getTestDir();
+
+    // Root rule -> AGENTS.md (plain); non-root rule with globs -> .clinerules/*.md
+    // with `paths`; universal-glob rule -> `alwaysApply`.
+    const rootRuleContent = `---
+root: true
+targets: ["*"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Root Rule
+`;
+    const nonRootRuleContent = `---
+targets: ["*"]
+description: "Coding guidelines"
+globs: ["src/**/*.ts"]
+---
+
+# Non-Root Rule
+`;
+    const alwaysRuleContent = `---
+targets: ["*"]
+description: "Always conventions"
+globs: ["**/*"]
+---
+
+# Always Rule
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      rootRuleContent,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "coding-guidelines.md"),
+      nonRootRuleContent,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "always.md"),
+      alwaysRuleContent,
+    );
+
+    await runGenerate({ target: "cline", features: "rules" });
+
+    // Root rule lands in the plain AGENTS.md memory file.
+    const rootContent = await readFileContent(join(testDir, "AGENTS.md"));
+    expect(rootContent).toContain("Root Rule");
+
+    // Non-root rule with specific globs lands in .clinerules/ with `paths`.
+    const nonRootContent = await readFileContent(
+      join(testDir, ".clinerules", "coding-guidelines.md"),
+    );
+    expect(nonRootContent).toContain("Non-Root Rule");
+    expect(nonRootContent).toContain("paths:");
+    expect(nonRootContent).toContain("src/**/*.ts");
+    expect(nonRootContent).toContain("description: Coding guidelines");
+
+    // Universal-glob rule maps to alwaysApply instead of paths.
+    const alwaysContent = await readFileContent(join(testDir, ".clinerules", "always.md"));
+    expect(alwaysContent).toContain("alwaysApply: true");
+    expect(alwaysContent).not.toContain("paths:");
+  });
+
   it("should fail in check mode when delete would remove an orphan rule file", async () => {
     const testDir = getTestDir();
 
