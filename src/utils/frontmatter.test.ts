@@ -230,6 +230,28 @@ This is the body content.`;
 
       expect(result.frontmatter).toEqual({});
       expect(result.body).toBe(content);
+      expect(result.hasFrontmatter).toBe(false);
+    });
+
+    it("should set hasFrontmatter to true when frontmatter is present", () => {
+      const content = `---
+title: Test
+---
+Body content.`;
+
+      const result = parseFrontmatter(content);
+
+      expect(result.hasFrontmatter).toBe(true);
+    });
+
+    it("should set hasFrontmatter to true for empty frontmatter section", () => {
+      const content = `---
+---
+Body content.`;
+
+      const result = parseFrontmatter(content);
+
+      expect(result.hasFrontmatter).toBe(true);
     });
 
     it("should parse complex nested frontmatter", () => {
@@ -461,6 +483,76 @@ const code = "preserved";
 
       // Reset mock
       mockMatter.shouldThrow = false;
+    });
+  });
+
+  // Regression tests for issue #1973: verify that the gray-matter js-yaml
+  // override (PR #1959) is actually effective. The patch rewrites gray-matter's
+  // YAML engine from the deprecated js-yaml v3 API (safeLoad/safeDump) to the
+  // js-yaml v4 API (load/dump). If the patch is silently dropped by a future
+  // `pnpm install`, these tests will catch the regression.
+  describe("js-yaml v4 engine regression (issue #1973)", () => {
+    it("should parse YAML 1.2 scalars correctly (yes/no as strings, not booleans)", () => {
+      // js-yaml v3 (YAML 1.1) parses yes/no/on/off as booleans.
+      // js-yaml v4 (YAML 1.2 core schema) parses them as strings.
+      // This difference is the most reliable way to detect which engine is active.
+      const content = `---
+flag: yes
+status: no
+toggle: on
+---
+Body.`;
+
+      const result = parseFrontmatter(content);
+
+      // With js-yaml v4, these should be strings, not booleans
+      expect(result.frontmatter.flag).toBe("yes");
+      expect(result.frontmatter.status).toBe("no");
+      expect(result.frontmatter.toggle).toBe("on");
+    });
+
+    it("should not line-wrap long strings when avoidBlockScalars is true (lineWidth: -1)", () => {
+      // The custom engine override in stringifyFrontmatter uses lineWidth: -1
+      // to prevent js-yaml from wrapping long lines. If the override is not
+      // applied, js-yaml's default lineWidth of 80 would cause wrapping.
+      const body = "Body";
+      const veryLongValue =
+        "This is an intentionally very long string value that exceeds the default " +
+        "js-yaml lineWidth of 80 characters and would be wrapped if lineWidth is not " +
+        "set to -1 in the dump options for the custom YAML engine override";
+
+      const result = stringifyFrontmatter(
+        body,
+        { description: veryLongValue },
+        { avoidBlockScalars: true },
+      );
+
+      // The long value should appear on a single line, not wrapped
+      const lines = result.split("\n");
+      const descriptionLine = lines.find((line) => line.startsWith("description:"));
+      expect(descriptionLine).toBeDefined();
+      // The full value should be on one line (no wrapping)
+      expect(descriptionLine).toContain(veryLongValue);
+    });
+
+    it("should round-trip correctly with avoidBlockScalars custom engine", () => {
+      // Verify that stringify (with custom engine) and parse (with patched default
+      // engine) are consistent — both use js-yaml v4.
+      const body = "Body content";
+      const frontmatter = {
+        name: "test-agent",
+        description:
+          "A very long description that would normally be wrapped by js-yaml at column 80 but should remain on a single line when using the custom engine with lineWidth disabled",
+        targets: ["claudecode", "cursor"],
+      };
+
+      const stringified = stringifyFrontmatter(body, frontmatter, { avoidBlockScalars: true });
+      const parsed = parseFrontmatter(stringified);
+
+      expect(parsed.frontmatter.name).toBe("test-agent");
+      expect(parsed.frontmatter.description).toBe(frontmatter.description);
+      expect(parsed.frontmatter.targets).toEqual(["claudecode", "cursor"]);
+      expect(parsed.hasFrontmatter).toBe(true);
     });
   });
 });

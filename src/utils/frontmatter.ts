@@ -137,13 +137,19 @@ export function parseFrontmatter(
 ): {
   frontmatter: Record<string, unknown>;
   body: string;
+  hasFrontmatter: boolean;
 } {
   let frontmatter: Record<string, unknown>;
   let body: string;
+  let hasFrontmatter: boolean;
   try {
     const result = matter(content);
     frontmatter = result.data;
     body = result.content;
+    // gray-matter returns an empty .matter string and sets .content equal to
+    // the original input when no YAML frontmatter fence (---) is present.
+    // Use this to detect whether the file actually contained frontmatter.
+    hasFrontmatter = result.matter !== "" || content.trimStart().startsWith("---");
   } catch (error) {
     if (filePath) {
       throw new Error(`Failed to parse frontmatter in ${filePath}: ${formatError(error)}`, {
@@ -158,5 +164,5 @@ export function parseFrontmatter(
   // Zod validation (z.optional(z.string()) does not accept null).
   const cleanFrontmatter = deepRemoveNullishObject(frontmatter);
 
-  return { frontmatter: cleanFrontmatter, body };
+  return { frontmatter: cleanFrontmatter, body, hasFrontmatter };
 }
