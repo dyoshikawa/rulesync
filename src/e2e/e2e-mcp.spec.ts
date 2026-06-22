@@ -291,7 +291,7 @@ describe("E2E: mcp", () => {
       { name: "test-server", command: "echo" },
     ]);
     expect(bash.permission).toBe("ask");
-    expect(bash.allow).toEqual(["git *"]);
+    expect(bash.allowlist).toEqual(["git *"]);
     expect(parsed.disabled_tools).toContain("write_file");
   });
 });

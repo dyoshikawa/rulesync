@@ -132,6 +132,75 @@ describe("VibeMcp", () => {
     });
   });
 
+  it("should emit stdio cwd and round-trip it on import", async () => {
+    const rulesyncMcp = new RulesyncMcp({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: {
+          local: {
+            type: "stdio",
+            command: "node",
+            args: ["server.js"],
+            cwd: "/srv/project",
+          },
+        },
+      }),
+    });
+
+    const vibeMcp = await VibeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+    const parsed = smolToml.parse(vibeMcp.getFileContent()) as any;
+    expect(parsed.mcp_servers[0].cwd).toBe("/srv/project");
+
+    // Round-trips back into the canonical schema on import.
+    const imported = JSON.parse(vibeMcp.toRulesyncMcp().getFileContent());
+    expect(imported.mcpServers.local.cwd).toBe("/srv/project");
+  });
+
+  it("should emit a structured auth block and suppress legacy static-auth keys", async () => {
+    const rulesyncMcp = new RulesyncMcp({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: {
+          remote: {
+            type: "http",
+            url: "https://example.com/mcp",
+            // Legacy top-level static-auth keys must not be emitted alongside an
+            // explicit `auth` block (upstream rejects the mix).
+            headers: { Authorization: "Bearer legacy" },
+            api_key_env: "LEGACY_TOKEN",
+            auth: {
+              type: "oauth",
+              scopes: ["read", "write"],
+              client_id: "abc123",
+              redirect_port: 47823,
+            },
+          },
+        },
+      }),
+    });
+
+    const vibeMcp = await VibeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+    const parsed = smolToml.parse(vibeMcp.getFileContent()) as any;
+    const server = parsed.mcp_servers[0];
+
+    expect(server.auth).toMatchObject({
+      type: "oauth",
+      scopes: ["read", "write"],
+      client_id: "abc123",
+      redirect_port: 47823,
+    });
+    expect(server.headers).toBeUndefined();
+    expect(server.api_key_env).toBeUndefined();
+
+    // The auth block round-trips on import.
+    const imported = JSON.parse(vibeMcp.toRulesyncMcp().getFileContent());
+    expect(imported.mcpServers.remote.auth.type).toBe("oauth");
+  });
+
   it("should not be deletable because config.toml is shared", () => {
     const vibeMcp = VibeMcp.forDeletion({
       outputRoot: testDir,
