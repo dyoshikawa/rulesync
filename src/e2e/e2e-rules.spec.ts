@@ -8,7 +8,7 @@ import {
   RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
-import { readFileContent, writeFileContent } from "../utils/file.js";
+import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
   runGenerate,
   runImport,
@@ -314,9 +314,14 @@ globs: ["src/**/*"]
     // AGENTS.md exists (owned by antigravity-ide)
     expect(await readFileContent(join(testDir, "AGENTS.md"))).toContain("Root Rule");
 
-    // Codex non-root rules exist
-    const codexNonRoot = await readFileContent(join(testDir, ".codex", "memories", "detail.md"));
-    expect(codexNonRoot).toContain("Detail Rule");
+    // The non-root "Detail Rule" body is emitted by the owning target
+    // (antigravity-ide) under its own .agents/rules/ tree.
+    const nonRoot = await readFileContent(join(testDir, ".agents", "rules", "detail.md"));
+    expect(nonRoot).toContain("Detail Rule");
+
+    // codexcli folds non-root rules into the root AGENTS.md and no longer writes
+    // the inert .codex/memories/ tree (see #1765 / #1979).
+    expect(await fileExists(join(testDir, ".codex", "memories", "detail.md"))).toBe(false);
 
     // Check codexcli only — should pass even though AGENTS.md is owned by antigravity-ide
     const { stdout, stderr } = await runGenerate({
