@@ -26,18 +26,18 @@ describe("AmpMcp", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should return project settings path with jsonc preferred", () => {
+    it("should return project settings path defaulting to settings.json", () => {
       const paths = AmpMcp.getSettablePaths();
 
       expect(paths.relativeDirPath).toBe(".amp");
-      expect(paths.relativeFilePath).toBe("settings.jsonc");
+      expect(paths.relativeFilePath).toBe("settings.json");
     });
 
-    it("should return global settings path with jsonc preferred", () => {
+    it("should return global settings path defaulting to settings.json", () => {
       const paths = AmpMcp.getSettablePaths({ global: true });
 
       expect(paths.relativeDirPath).toBe(join(".config", "amp"));
-      expect(paths.relativeFilePath).toBe("settings.jsonc");
+      expect(paths.relativeFilePath).toBe("settings.json");
     });
   });
 
@@ -150,7 +150,7 @@ describe("AmpMcp", () => {
           },
         },
       });
-      expect(ampMcp.getFilePath()).toBe(join(testDir, ".amp", "settings.jsonc"));
+      expect(ampMcp.getFilePath()).toBe(join(testDir, ".amp", "settings.json"));
     });
 
     it("should preserve existing non-MCP Amp settings", async () => {
@@ -229,7 +229,7 @@ describe("AmpMcp", () => {
         global: true,
       });
 
-      expect(ampMcp.getFilePath()).toBe(join(testDir, ".config", "amp", "settings.jsonc"));
+      expect(ampMcp.getFilePath()).toBe(join(testDir, ".config", "amp", "settings.json"));
     });
 
     it("should reject malformed existing settings instead of replacing them", async () => {
@@ -463,11 +463,11 @@ describe("AmpMcp", () => {
       expect(ampMcp.getFilePath()).toBe(join(testDir, ".amp", "settings.json"));
     });
 
-    it("should create settings.jsonc when neither file exists", async () => {
+    it("should create settings.json when neither file exists", async () => {
       const ampMcp = await AmpMcp.fromFile({ outputRoot: testDir });
 
       expect(ampMcp.getJson()).toEqual({ "amp.mcpServers": {} });
-      expect(ampMcp.getFilePath()).toBe(join(testDir, ".amp", "settings.jsonc"));
+      expect(ampMcp.getFilePath()).toBe(join(testDir, ".amp", "settings.json"));
     });
   });
 });

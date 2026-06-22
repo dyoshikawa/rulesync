@@ -79,12 +79,12 @@ export class AmpMcp extends ToolMcp {
     if (global) {
       return {
         relativeDirPath: AMP_GLOBAL_DIR,
-        relativeFilePath: AMP_SETTINGS_JSONC_FILE_NAME,
+        relativeFilePath: AMP_SETTINGS_FILE_NAME,
       };
     }
     return {
       relativeDirPath: AMP_DIR,
-      relativeFilePath: AMP_SETTINGS_JSONC_FILE_NAME,
+      relativeFilePath: AMP_SETTINGS_FILE_NAME,
     };
   }
 
@@ -92,7 +92,10 @@ export class AmpMcp extends ToolMcp {
    * Probe `<jsonDir>/settings.jsonc` first, falling back to `settings.json`,
    * so existing user files are read-modified-written in place instead of a
    * fresh `.json` sibling being created next to a hand-authored `.jsonc`.
-   * Defaults to `settings.jsonc` when neither file exists.
+   * Defaults to `settings.json` when neither file exists. This matches Amp's
+   * canonically documented settings file (`.amp/settings.json`) and keeps the
+   * default co-located with `amp-permissions.ts`, so generating MCP and
+   * permissions together on a clean repo writes a single shared settings file.
    */
   private static async resolveSettingsFile(
     jsonDir: string,
@@ -105,7 +108,7 @@ export class AmpMcp extends ToolMcp {
     if (jsonContent !== null) {
       return { fileContent: jsonContent, relativeFilePath: AMP_SETTINGS_FILE_NAME };
     }
-    return { fileContent: null, relativeFilePath: AMP_SETTINGS_JSONC_FILE_NAME };
+    return { fileContent: null, relativeFilePath: AMP_SETTINGS_FILE_NAME };
   }
 
   static async fromFile({
