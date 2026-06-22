@@ -4,6 +4,7 @@ import { RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH } from "../../constants/rulesyn
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import type { RulesyncFile } from "../../types/rulesync-file.js";
 import type { ToolFile } from "../../types/tool-file.js";
+import { permissionsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
@@ -34,30 +35,6 @@ import { ToolPermissions } from "./tool-permissions.js";
 import { VibePermissions } from "./vibe-permissions.js";
 import { WarpPermissions } from "./warp-permissions.js";
 import { ZedPermissions } from "./zed-permissions.js";
-
-const permissionsProcessorToolTargetTuple = [
-  "amp",
-  "antigravity-cli",
-  "antigravity-ide",
-  "augmentcode",
-  "claudecode",
-  "cline",
-  "codexcli",
-  "cursor",
-  "factorydroid",
-  "geminicli",
-  "goose",
-  "kilo",
-  "kiro",
-  "kiro-cli",
-  "kiro-ide",
-  "opencode",
-  "qwencode",
-  "rovodev",
-  "vibe",
-  "warp",
-  "zed",
-] as const;
 
 export type PermissionsProcessorToolTarget = (typeof permissionsProcessorToolTargetTuple)[number];
 

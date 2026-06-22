@@ -10,6 +10,7 @@ import { FeatureProcessor } from "../../types/feature-processor.js";
 import type { FeatureOptions } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
+import { rulesProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { checkPathTraversal, findFilesByGlobs, toPosixPath } from "../../utils/file.js";
@@ -72,45 +73,8 @@ import { VibeRule } from "./vibe-rule.js";
 import { WarpRule } from "./warp-rule.js";
 import { ZedRule } from "./zed-rule.js";
 
-const rulesProcessorToolTargets: ToolTarget[] = [
-  "agentsmd",
-  "amp",
-  "antigravity",
-  "antigravity-cli",
-  "antigravity-ide",
-  "augmentcode",
-  "augmentcode-legacy",
-  "claudecode",
-  "claudecode-legacy",
-  "cline",
-  "codexcli",
-  "copilot",
-  "copilotcli",
-  "cursor",
-  "deepagents",
-  "factorydroid",
-  "geminicli",
-  "goose",
-  "grokcli",
-  "junie",
-  "kilo",
-  "kiro",
-  "kiro-cli",
-  "kiro-ide",
-  "opencode",
-  "pi",
-  "qwencode",
-  "replit",
-  "roo",
-  "rovodev",
-  "takt",
-  "vibe",
-  "warp",
-  "devin",
-  "zed",
-];
-export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargets);
-export type RulesProcessorToolTarget = z.infer<typeof RulesProcessorToolTargetSchema>;
+export type RulesProcessorToolTarget = (typeof rulesProcessorToolTargetTuple)[number];
+export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargetTuple);
 
 const formatRulePaths = (rules: RulesyncRule[]): string =>
   rules.map((r) => join(r.getRelativeDirPath(), r.getRelativeFilePath())).join(", ");
@@ -738,13 +702,14 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
   ],
 ]);
 
-/**
- * Tool targets that support global (user scope) mode.
- * Derived from the factory meta configuration.
- */
-export const rulesProcessorToolTargetsGlobal: ToolTarget[] = Array.from(toolRuleFactories.entries())
-  .filter(([_, factory]) => factory.meta.supportsGlobal)
-  .map(([target]) => target);
+const allToolTargetKeys = [...toolRuleFactories.keys()];
+
+const rulesProcessorToolTargets: ToolTarget[] = allToolTargetKeys;
+
+export const rulesProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolRuleFactories.get(target);
+  return factory?.meta.supportsGlobal ?? false;
+});
 
 /**
  * Factory retrieval function type for dependency injection.

@@ -6,6 +6,7 @@ import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-p
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
+import { subagentsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { directoryExists, findFilesByGlobs, listDirectoryFiles } from "../../utils/file.js";
@@ -82,34 +83,6 @@ type ToolSubagentFactory = {
  * Supported tool targets for SubagentsProcessor.
  * Using a tuple to preserve order for consistent iteration.
  */
-const subagentsProcessorToolTargetTuple = [
-  "kilo",
-  "agentsmd",
-  "augmentcode",
-  "claudecode",
-  "claudecode-legacy",
-  "cline",
-  "codexcli",
-  "copilot",
-  "copilotcli",
-  "cursor",
-  "deepagents",
-  "devin",
-  "factorydroid",
-  "geminicli",
-  "goose",
-  "grokcli",
-  "junie",
-  "kiro",
-  "kiro-cli",
-  "kiro-ide",
-  "opencode",
-  "qwencode",
-  "roo",
-  "rovodev",
-  "takt",
-  "vibe",
-] as const;
 
 export type SubagentsProcessorToolTarget = (typeof subagentsProcessorToolTargetTuple)[number];
 

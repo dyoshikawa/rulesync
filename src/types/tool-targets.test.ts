@@ -1,34 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  CommandsProcessorToolTargetSchema,
-  toolCommandFactories,
-} from "../features/commands/commands-processor.js";
-import {
-  HooksProcessorToolTargetSchema,
-  toolHooksFactories,
-} from "../features/hooks/hooks-processor.js";
-import {
-  IgnoreProcessorToolTargetSchema,
-  toolIgnoreFactories,
-} from "../features/ignore/ignore-processor.js";
-import { McpProcessorToolTargetSchema, toolMcpFactories } from "../features/mcp/mcp-processor.js";
-import {
-  PermissionsProcessorToolTargetSchema,
-  toolPermissionsFactories,
-} from "../features/permissions/permissions-processor.js";
-import {
-  RulesProcessorToolTargetSchema,
-  toolRuleFactories,
-} from "../features/rules/rules-processor.js";
-import {
-  SkillsProcessorToolTargetSchema,
-  toolSkillFactories,
-} from "../features/skills/skills-processor.js";
-import {
-  SubagentsProcessorToolTargetSchema,
-  toolSubagentFactories,
-} from "../features/subagents/subagents-processor.js";
+import { PROCESSOR_REGISTRY } from "./processor-registry.js";
 import {
   ALL_TOOL_TARGETS,
   ALL_TOOL_TARGETS_WITH_WILDCARD,
@@ -40,9 +12,11 @@ import {
 describe("tool targets", () => {
   describe("ALL_TOOL_TARGETS", () => {
     it("should contain expected AI tool targets", () => {
+      // Order follows the union of the per-feature tuples (rules tuple first,
+      // then each feature's new targets appended in order — `agentsskills`,
+      // unique to skills, therefore lands last).
       const expectedTargets = [
         "agentsmd",
-        "agentsskills",
         "amp",
         "antigravity",
         "antigravity-cli",
@@ -77,9 +51,10 @@ describe("tool targets", () => {
         "warp",
         "devin",
         "zed",
+        "agentsskills",
       ];
 
-      expect(ALL_TOOL_TARGETS).toEqual(expectedTargets);
+      expect([...ALL_TOOL_TARGETS]).toEqual(expectedTargets);
       expect(ALL_TOOL_TARGETS).toHaveLength(expectedTargets.length);
     });
 
@@ -267,48 +242,13 @@ describe("tool targets", () => {
   describe("processor tool target consistency", () => {
     const allTargetSet = new Set<string>(ALL_TOOL_TARGETS);
 
-    // This list is hand-maintained: a 9th processor added later must be appended
-    // here (and given a `factory` entry) or it will silently escape these checks,
-    // reintroducing the "scattered list drift" these tests guard against. There is
-    // no central processor registry to derive it from yet; keep it in sync by hand.
-    const processors = [
-      {
-        name: "RulesProcessor",
-        schema: RulesProcessorToolTargetSchema,
-        factory: toolRuleFactories,
-      },
-      {
-        name: "CommandsProcessor",
-        schema: CommandsProcessorToolTargetSchema,
-        factory: toolCommandFactories,
-      },
-      {
-        name: "HooksProcessor",
-        schema: HooksProcessorToolTargetSchema,
-        factory: toolHooksFactories,
-      },
-      {
-        name: "IgnoreProcessor",
-        schema: IgnoreProcessorToolTargetSchema,
-        factory: toolIgnoreFactories,
-      },
-      { name: "McpProcessor", schema: McpProcessorToolTargetSchema, factory: toolMcpFactories },
-      {
-        name: "PermissionsProcessor",
-        schema: PermissionsProcessorToolTargetSchema,
-        factory: toolPermissionsFactories,
-      },
-      {
-        name: "SkillsProcessor",
-        schema: SkillsProcessorToolTargetSchema,
-        factory: toolSkillFactories,
-      },
-      {
-        name: "SubagentsProcessor",
-        schema: SubagentsProcessorToolTargetSchema,
-        factory: toolSubagentFactories,
-      },
-    ];
+    // Derived from the central PROCESSOR_REGISTRY, so a ninth feature added there
+    // is automatically covered by these checks — no hand-maintained list to drift.
+    const processors = PROCESSOR_REGISTRY.map((entry) => ({
+      name: entry.feature,
+      schema: entry.schema,
+      factory: entry.factory,
+    }));
 
     for (const { name, schema } of processors) {
       // Direction asserted: every target a processor declares must exist in
@@ -334,5 +274,16 @@ describe("tool targets", () => {
         expect(schemaTargets).toEqual(factoryTargets);
       });
     }
+
+    // ALL_TOOL_TARGETS is derived from the feature tuples; this asserts those
+    // tuples agree with the factory-map keys, so a tool present in a factory but
+    // missing from its tuple (or vice versa) fails the build.
+    it("ALL_TOOL_TARGETS equals the union of all processor factory keys", () => {
+      const union = new Set<string>();
+      for (const { factory } of processors) {
+        for (const target of factory.keys()) union.add(target);
+      }
+      expect([...union].toSorted()).toEqual([...ALL_TOOL_TARGETS].toSorted());
+    });
   });
 });

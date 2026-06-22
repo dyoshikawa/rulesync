@@ -6,6 +6,7 @@ import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-pa
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
+import { commandsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { checkPathTraversal, findFilesByGlobs } from "../../utils/file.js";
@@ -72,32 +73,6 @@ type ToolCommandFactory = {
  * Supported tool targets for CommandsProcessor.
  * Using a tuple to preserve order for consistent iteration.
  */
-const commandsProcessorToolTargetTuple = [
-  "agentsmd",
-  "antigravity",
-  "antigravity-ide",
-  "augmentcode",
-  "claudecode",
-  "claudecode-legacy",
-  "cline",
-  "codexcli",
-  "copilot",
-  "cursor",
-  "factorydroid",
-  "geminicli",
-  "goose",
-  "junie",
-  "kilo",
-  "kiro",
-  "kiro-cli",
-  "kiro-ide",
-  "opencode",
-  "pi",
-  "qwencode",
-  "roo",
-  "takt",
-  "devin",
-] as const;
 
 export type CommandsProcessorToolTarget = (typeof commandsProcessorToolTargetTuple)[number];
 

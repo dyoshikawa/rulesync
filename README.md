@@ -74,6 +74,8 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 
 ### AI Coding Tools
 
+<!-- SUPPORTED_TOOLS_AI:BEGIN -->
+
 | Tool                   | rules | ignore | mcp | commands | subagents | skills | hooks | permissions |
 | ---------------------- | :---: | :----: | :-: | :------: | :-------: | :----: | :---: | :---------: |
 | Amp                    |  ✅   |        | ✅  |          |           |   ✅   |       |     ✅      |
@@ -109,12 +111,18 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Pi Coding Agent        |  ✅   |        |     |    ✅    |           |   ✅   |       |             |
 | Zed                    |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |     ✅      |
 
+<!-- SUPPORTED_TOOLS_AI:END -->
+
 ### Open Standards
 
-| Standard     | rules | ignore | mcp | commands | subagents | skills | hooks | permissions |
+<!-- SUPPORTED_TOOLS_STANDARD:BEGIN -->
+
+| Tool         | rules | ignore | mcp | commands | subagents | skills | hooks | permissions |
 | ------------ | :---: | :----: | :-: | :------: | :-------: | :----: | :---: | :---------: |
 | AGENTS.md    |  ✅   |        |     |    ✅    |    ✅     |   ✅   |       |             |
-| Agent Skills |       |        |     |          |           |   ✅   |       |             |
+| AgentsSkills |       |        |     |          |           |   ✅   |       |             |
+
+<!-- SUPPORTED_TOOLS_STANDARD:END -->
 
 - ⚠️: Deprecated — still supported, but see the note below
 

@@ -5,6 +5,7 @@ import { FeatureProcessor } from "../../types/feature-processor.js";
 import type { FeatureOptions } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
+import { ignoreProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
@@ -33,30 +34,9 @@ import {
 import { VibeIgnore } from "./vibe-ignore.js";
 import { ZedIgnore } from "./zed-ignore.js";
 
-const ignoreProcessorToolTargets: ToolTarget[] = [
-  "antigravity-cli",
-  "augmentcode",
-  "claudecode",
-  "claudecode-legacy",
-  "cline",
-  "cursor",
-  "geminicli",
-  "goose",
-  "junie",
-  "kilo",
-  "kiro",
-  "kiro-cli",
-  "kiro-ide",
-  "qwencode",
-  "roo",
-  "devin",
-  "vibe",
-  "zed",
-];
+export type IgnoreProcessorToolTarget = (typeof ignoreProcessorToolTargetTuple)[number];
 
-export const IgnoreProcessorToolTargetSchema = z.enum(ignoreProcessorToolTargets);
-
-export type IgnoreProcessorToolTarget = z.infer<typeof IgnoreProcessorToolTargetSchema>;
+export const IgnoreProcessorToolTargetSchema = z.enum(ignoreProcessorToolTargetTuple);
 
 type ToolIgnoreFactory = {
   class: {
@@ -89,6 +69,8 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
   ["vibe", { class: VibeIgnore }],
   ["zed", { class: ZedIgnore }],
 ]);
+
+const ignoreProcessorToolTargets: ToolTarget[] = [...toolIgnoreFactories.keys()];
 
 type GetFactory = (target: IgnoreProcessorToolTarget) => ToolIgnoreFactory;
 

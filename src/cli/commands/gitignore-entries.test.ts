@@ -1,19 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { toolCommandFactories } from "../../features/commands/commands-processor.js";
-import { toolHooksFactories } from "../../features/hooks/hooks-processor.js";
-import { toolIgnoreFactories } from "../../features/ignore/ignore-processor.js";
-import { toolMcpFactories } from "../../features/mcp/mcp-processor.js";
-import { toolPermissionsFactories } from "../../features/permissions/permissions-processor.js";
-import { toolRuleFactories } from "../../features/rules/rules-processor.js";
-import { toolSkillFactories } from "../../features/skills/skills-processor.js";
-import { toolSubagentFactories } from "../../features/subagents/subagents-processor.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { ALL_TOOL_TARGETS } from "../../types/tool-targets.js";
-import { toPosixPath } from "../../utils/file.js";
+import { deriveAllGitignoreEntries, DERIVED_PATHS_NOT_GITIGNORED } from "./gitignore-derive.js";
 import {
   ALL_GITIGNORE_ENTRIES,
   GITIGNORE_ENTRY_REGISTRY,
+  HAND_MAINTAINED_GITIGNORE_ENTRIES,
   filterGitignoreEntries,
 } from "./gitignore-entries.js";
 
@@ -69,245 +62,74 @@ describe("GITIGNORE_ENTRY_REGISTRY", () => {
   });
 });
 
-// Project-scope outputs that are intentionally NOT gitignored because they are
-// user-managed settings files that rulesync merges into (and round-trips),
-// rather than fully-owned generated artifacts.
-const DERIVED_PATHS_NOT_GITIGNORED = new Set([
-  "**/.amp/settings.json",
-  "**/.amp/settings.jsonc",
-  "**/.antigravity/settings.json",
-  "**/.claude/settings.json",
-  "**/.factory/settings.json",
-  "**/.gemini/settings.json",
-  "**/.zed/settings.json",
-  "**/.warp/settings.toml",
-  "**/kilo.json",
-  "**/kilo.jsonc",
-  "**/opencode.json",
-]);
+const entryKey = (tag: { target: unknown; feature: string; entry: string }): string =>
+  `${tag.target}::${tag.feature}::${tag.entry}`;
 
-const dirToGlob = (relativeDirPath: string): string =>
-  `**/${toPosixPath(relativeDirPath).replace(/\/$/, "")}/`;
-
-const fileToGlob = (relativeDirPath: string | undefined, relativeFilePath: string): string => {
-  const hasDir = relativeDirPath && relativeDirPath !== ".";
-  return `**/${toPosixPath(hasDir ? `${relativeDirPath}/${relativeFilePath}` : relativeFilePath)}`;
-};
-
-const stripTrailingSlash = (glob: string): string => glob.replace(/\/$/, "");
-
-// Registry entries that deliberately gitignore a whole tool subtree, so a deeper
-// output dir is covered without its own entry. Directories outside these must
-// match EXACTLY, so a rename like `.augment/commands/` → `.augment/cmds/` fails
-// instead of silently matching a broader parent.
-const SUBTREE_COVERAGE_DIRS = ["**/.cursor", "**/.agents", "**/.goose", "**/.rovodev/.rulesync"];
-
-const isCoveredDir = (dirGlob: string): boolean => {
-  const normalized = stripTrailingSlash(dirGlob);
-  if (SUBTREE_COVERAGE_DIRS.some((root) => normalized.startsWith(`${root}/`))) return true;
-  return GITIGNORE_ENTRY_REGISTRY.some((tag) => stripTrailingSlash(tag.entry) === normalized);
-};
-
-// A file output may match an entry exactly, or fall under a registered directory
-// entry (trailing slash) that gitignores its whole subtree.
-const isCoveredFile = (fileGlob: string): boolean => {
-  const normalized = stripTrailingSlash(fileGlob);
-  return GITIGNORE_ENTRY_REGISTRY.some((tag) => {
-    if (tag.entry === normalized) return true;
-    if (!tag.entry.endsWith("/")) return false;
-    return normalized.startsWith(stripTrailingSlash(tag.entry) + "/");
-  });
-};
-
-describe("getSettablePaths coverage", () => {
-  // Guards against the implicit coupling between each tool's getSettablePaths
-  // (the source of truth for output locations) and the hand-written registry:
-  // every project-scope output must be gitignored, or explicitly excepted.
-  const dirFeatures = [
-    ["commands", toolCommandFactories],
-    ["skills", toolSkillFactories],
-    ["subagents", toolSubagentFactories],
-  ] as const;
-
-  for (const [feature, factories] of dirFeatures) {
-    for (const [target, factory] of factories) {
-      if (TARGETS_WITHOUT_GITIGNORE_ENTRIES.has(target)) continue;
-      // Skip global-only tools explicitly (same guard as the fileFeatures branch
-      // below) rather than relying on `getSettablePaths({ global: false })`
-      // throwing and a broad catch swallowing it — otherwise a global-only tool
-      // refactored to return a project path would silently change coverage.
-      const meta = factory.meta as { supportsProject?: boolean } | undefined;
-      if (meta && meta.supportsProject === false) continue;
-      it(`covers ${feature} output for ${target}`, () => {
-        // No try/catch: a project-supporting tool must resolve a project path
-        // without throwing, so an unexpected throw fails the test instead of
-        // passing silently.
-        const paths = factory.class.getSettablePaths({ global: false });
-        const dir = paths.relativeDirPath;
-        if (!dir || dir === ".") return;
-        const glob = dirToGlob(dir);
-        if (DERIVED_PATHS_NOT_GITIGNORED.has(glob.replace(/\/$/, ""))) return;
-        expect(isCoveredDir(glob)).toBe(true);
-      });
-    }
-  }
-
-  const fileFeatures = [
-    ["mcp", toolMcpFactories],
-    ["hooks", toolHooksFactories],
-    ["permissions", toolPermissionsFactories],
-    // `ignore` outputs a single file per tool (e.g. `.augmentignore`), fitting the
-    // file-feature shape.
-    ["ignore", toolIgnoreFactories],
-  ] as const;
-
-  for (const [feature, factories] of fileFeatures) {
-    for (const [target, factory] of factories) {
-      if (TARGETS_WITHOUT_GITIGNORE_ENTRIES.has(target)) continue;
-      // `ToolIgnoreFactory` has no `meta`; guard the lookup so the union stays type-safe.
-      const meta =
-        "meta" in factory ? (factory.meta as { supportsProject?: boolean } | undefined) : undefined;
-      if (meta && meta.supportsProject === false) continue;
-      it(`covers ${feature} output for ${target}`, () => {
-        // No try/catch: project-supporting tools must resolve without throwing
-        // (global-only tools are already skipped above), so an unexpected throw
-        // fails the test instead of passing silently.
-        const paths: { relativeDirPath?: string; relativeFilePath?: string } =
-          factory.class.getSettablePaths({ global: false });
-        if (!paths.relativeFilePath) return;
-        const glob = fileToGlob(paths.relativeDirPath, paths.relativeFilePath);
-        if (DERIVED_PATHS_NOT_GITIGNORED.has(glob)) return;
-        expect(isCoveredFile(glob)).toBe(true);
-      });
-    }
-  }
-
-  // `rules` has a composite shape ({ root, alternativeRoots, nonRoot }); roots are
-  // files, nonRoot is a directory. No supportsProject guard: rules are universally
-  // project-scoped, so getSettablePaths({ global: false }) never throws here.
-  for (const [target, factory] of toolRuleFactories) {
-    if (TARGETS_WITHOUT_GITIGNORE_ENTRIES.has(target)) continue;
-    it(`covers rules output for ${target}`, () => {
-      const paths = factory.class.getSettablePaths({ global: false });
-      const rootFiles = [paths.root, ...(paths.alternativeRoots ?? [])].filter(
-        (entry): entry is { relativeDirPath: string; relativeFilePath: string } =>
-          entry !== undefined,
+describe("registry derivation", () => {
+  it("registry is the hand-maintained entries plus the derived ones", () => {
+    const derived = deriveAllGitignoreEntries();
+    const derivedKeys = new Set(derived.map(entryKey));
+    const registryKeys = GITIGNORE_ENTRY_REGISTRY.map(entryKey);
+    for (const tag of derived) {
+      expect(registryKeys, `derived entry missing from registry: ${entryKey(tag)}`).toContain(
+        entryKey(tag),
       );
-      for (const root of rootFiles) {
-        const glob = fileToGlob(root.relativeDirPath, root.relativeFilePath);
-        if (DERIVED_PATHS_NOT_GITIGNORED.has(glob)) continue;
-        expect(isCoveredFile(glob), `root ${glob}`).toBe(true);
-      }
-      const nonRootDir = paths.nonRoot?.relativeDirPath;
-      if (nonRootDir && nonRootDir !== ".") {
-        const glob = dirToGlob(nonRootDir);
-        if (!DERIVED_PATHS_NOT_GITIGNORED.has(glob.replace(/\/$/, ""))) {
-          expect(isCoveredDir(glob), `nonRoot ${glob}`).toBe(true);
-        }
-      }
-    });
-  }
-});
-
-describe("registry reverse coverage", () => {
-  // Every project-scope output glob some tool actually emits — the inverse of the
-  // coverage check, used to detect ghost entries no tool writes anymore.
-  const collectEmittedGlobs = (): Set<string> => {
-    const globs = new Set<string>();
-    const dirFactories = [toolCommandFactories, toolSkillFactories, toolSubagentFactories];
-    const fileFactories = [
-      toolMcpFactories,
-      toolHooksFactories,
-      toolPermissionsFactories,
-      toolIgnoreFactories,
-    ];
-    for (const factories of dirFactories) {
-      for (const [target, factory] of factories) {
-        if (TARGETS_WITHOUT_GITIGNORE_ENTRIES.has(target)) continue;
-        const meta =
-          "meta" in factory
-            ? (factory.meta as { supportsProject?: boolean } | undefined)
-            : undefined;
-        if (meta && meta.supportsProject === false) continue;
-        const dir = factory.class.getSettablePaths({ global: false }).relativeDirPath;
-        if (dir && dir !== ".") globs.add(stripTrailingSlash(dirToGlob(dir)));
-      }
     }
-    for (const factories of fileFactories) {
-      for (const [target, factory] of factories) {
-        if (TARGETS_WITHOUT_GITIGNORE_ENTRIES.has(target)) continue;
-        const meta =
-          "meta" in factory
-            ? (factory.meta as { supportsProject?: boolean } | undefined)
-            : undefined;
-        if (meta && meta.supportsProject === false) continue;
-        const paths: { relativeDirPath?: string; relativeFilePath?: string } =
-          factory.class.getSettablePaths({ global: false });
-        if (paths.relativeFilePath)
-          globs.add(fileToGlob(paths.relativeDirPath, paths.relativeFilePath));
-      }
-    }
-    for (const [target, factory] of toolRuleFactories) {
-      if (TARGETS_WITHOUT_GITIGNORE_ENTRIES.has(target)) continue;
-      const paths = factory.class.getSettablePaths({ global: false });
-      for (const root of [paths.root, ...(paths.alternativeRoots ?? [])]) {
-        if (root) globs.add(fileToGlob(root.relativeDirPath, root.relativeFilePath));
-      }
-      const nonRootDir = paths.nonRoot?.relativeDirPath;
-      if (nonRootDir && nonRootDir !== ".") globs.add(stripTrailingSlash(dirToGlob(nonRootDir)));
-    }
-    return globs;
-  };
+    expect(derivedKeys.size).toBeGreaterThan(0);
+  });
 
-  // Real entries the reverse check can't match to a `{ global: false }` output.
-  const REVERSE_COVERAGE_EXCEPTIONS = new Set([
-    // Aggregate subtree roots and shared trees re-tagged per target.
-    ...SUBTREE_COVERAGE_DIRS,
-    "**/AGENTS.md",
-    "**/.agents/skills",
-    // Global-scope-only outputs (emitted under the home dir).
-    "**/.copilot/agents",
-    "**/.copilot/hooks",
-    "**/.copilot/mcp-config.json",
-    "**/.codeium/windsurf/skills",
-    // supportsProject:false, so the project-scope collector skips it.
-    "**/.deepagents/hooks.json",
-    // Outputs not produced via getSettablePaths (single-file or local/legacy rules).
-    "**/.roomodes",
-    "**/.codexignore",
-    "**/.augment-guidelines",
-    "**/CLAUDE.local.md",
-    "**/.claude/CLAUDE.local.md",
-  ]);
+  it("every derived entry that rulesync owns is gitignored, not in the exclusion set", () => {
+    for (const tag of deriveAllGitignoreEntries()) {
+      expect(DERIVED_PATHS_NOT_GITIGNORED.has(tag.entry)).toBe(false);
+    }
+  });
 
-  it("has no ghost entries — every non-general entry maps to an emitted output", () => {
-    const emitted = collectEmittedGlobs();
-    const ghosts: string[] = [];
-    for (const tag of GITIGNORE_ENTRY_REGISTRY) {
-      if (tag.feature === "general") continue;
+  it("no hand-maintained entry duplicates a derived one — the list can't silently rot", () => {
+    const derivedKeys = new Set(deriveAllGitignoreEntries().map(entryKey));
+    const redundant = HAND_MAINTAINED_GITIGNORE_ENTRIES.filter((tag) =>
+      derivedKeys.has(entryKey(tag)),
+    ).map(entryKey);
+    expect(redundant).toEqual([]);
+  });
+
+  // Replaces the old reverse-coverage guard for the hand-maintained list: every
+  // non-common entry must stay an explicitly-justified exception, so a renamed or
+  // dropped tool path can't leave a stale hand-written entry behind unnoticed.
+  // `justified` is deliberately a hand-listed snapshot, not derived from
+  // HAND_MAINTAINED_GITIGNORE_ENTRIES — deriving it would make the check a
+  // tautology. Adding a hand-maintained entry must be a conscious edit here.
+  it("every hand-maintained tool entry is an explicitly justified exception", () => {
+    const justified = new Set([
+      // rulesync meta files and local-root files (not in any getSettablePaths).
+      "claudecode::rules::**/CLAUDE.local.md",
+      "claudecode::rules::**/.claude/CLAUDE.local.md",
+      "claudecode::general::**/.claude/*.lock",
+      "claudecode::general::**/.claude/settings.local.json",
+      "claudecode::general::**/.claude/memories/",
+      "opencode::general::**/.opencode/package-lock.json",
+      "rovodev::general::**/.rovodev/.rulesync/",
+      "takt::general::**/.takt/runs/",
+      "takt::general::**/.takt/tasks/",
+      "takt::general::**/.takt/.cache/",
+      "takt::general::**/.takt/config.yaml",
+      // Legacy/aggregate/ghost outputs not produced via getSettablePaths.
+      "augmentcode::rules::**/.augment-guidelines",
+      "roo::subagents::**/.roomodes",
+      "codexcli::ignore::**/.codexignore",
+      // Shared trees and global-scope outputs (emitted under the home dir).
+      "rovodev::skills::**/.agents/skills/",
+      "devin::skills::**/.codeium/windsurf/skills/",
+      "copilotcli::subagents::**/.copilot/agents/",
+      "copilotcli::mcp::**/.copilot/mcp-config.json",
+      "copilotcli::hooks::**/.copilot/hooks/",
+      "deepagents::hooks::**/.deepagents/hooks.json",
+    ]);
+    const unjustified = HAND_MAINTAINED_GITIGNORE_ENTRIES.filter((tag) => {
       const targets = Array.isArray(tag.target) ? tag.target : [tag.target];
-      if (targets.includes("common")) continue;
-      const normalized = stripTrailingSlash(tag.entry);
-      if (REVERSE_COVERAGE_EXCEPTIONS.has(normalized)) continue;
-      const matched = [...emitted].some(
-        (glob) => glob === normalized || glob.startsWith(`${normalized}/`),
-      );
-      if (!matched) ghosts.push(`${tag.entry} (${targets.join(",")}/${tag.feature})`);
-    }
-    expect(ghosts).toEqual([]);
-  });
-
-  it("subtree-coverage roots exist as directory entries in the registry", () => {
-    // Guard that each prefix-coverage root is itself a registered directory entry,
-    // so removing the root surfaces here instead of silently widening coverage.
-    const dirEntries = new Set(
-      GITIGNORE_ENTRY_REGISTRY.filter((tag) => tag.entry.endsWith("/")).map((tag) =>
-        stripTrailingSlash(tag.entry),
-      ),
-    );
-    for (const root of SUBTREE_COVERAGE_DIRS) {
-      expect(dirEntries, `missing subtree root ${root}`).toContain(root);
-    }
+      if (targets.includes("common")) return false;
+      return !justified.has(entryKey(tag));
+    }).map(entryKey);
+    expect(unjustified).toEqual([]);
   });
 });
 
@@ -413,7 +235,7 @@ describe("filterGitignoreEntries", () => {
 
       // Should include rules entries
       expect(result).toContain("**/CLAUDE.md");
-      expect(result).toContain("**/.cursor/");
+      expect(result).toContain("**/.cursor/rules/");
       expect(result).toContain("**/.github/instructions/");
 
       // Should NOT include non-rules, non-general entries
@@ -502,7 +324,7 @@ describe("filterGitignoreEntries", () => {
       expect(result).not.toContain("**/.claude/commands/");
 
       // Targets not in the object should include all features
-      expect(result).toContain("**/.cursor/");
+      expect(result).toContain("**/.cursor/rules/");
       expect(result).toContain("**/.cursorignore");
     });
 
