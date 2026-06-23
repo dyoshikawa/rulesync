@@ -75,22 +75,25 @@ function buildClaudecodeSkillFrontmatter({
   resolvedUserInvocable: boolean | undefined;
 }): ClaudecodeSkillFrontmatter {
   const section = rulesyncFrontmatter.claudecode ?? {};
-  // Every claudecode-specific field is a straight pass-through, plus the two
-  // resolved invocation flags. Build a candidate map and copy across only the
-  // keys that are actually present, so the function stays data-driven (and well
-  // under the cyclomatic-complexity cap) as more fields are added.
-  const candidate: Record<string, unknown> = {
+  // Build the frontmatter data-driven so the function stays well under the
+  // cyclomatic-complexity cap as fields are added. The two presence rules mirror
+  // `toRulesyncSkill` exactly so the conversion is symmetric: most fields are
+  // included only when truthy, while `arguments`/`hooks`/`paths` and the resolved
+  // invocation flags are included whenever they are explicitly defined.
+  const truthyFields: Record<string, unknown> = {
     when_to_use: section.when_to_use,
     "allowed-tools": section["allowed-tools"],
     "disallowed-tools": section["disallowed-tools"],
     model: section.model,
     effort: section.effort,
     "argument-hint": section["argument-hint"],
-    arguments: section.arguments,
     context: section.context,
     agent: section.agent,
-    hooks: section.hooks,
     shell: section.shell,
+  };
+  const definedFields: Record<string, unknown> = {
+    arguments: section.arguments,
+    hooks: section.hooks,
     "disable-model-invocation": resolvedDisableModelInvocation,
     "user-invocable": resolvedUserInvocable,
     paths: section.paths,
@@ -100,7 +103,12 @@ function buildClaudecodeSkillFrontmatter({
     name: rulesyncFrontmatter.name,
     description: rulesyncFrontmatter.description,
   };
-  for (const [key, value] of Object.entries(candidate)) {
+  for (const [key, value] of Object.entries(truthyFields)) {
+    if (value) {
+      frontmatter[key] = value;
+    }
+  }
+  for (const [key, value] of Object.entries(definedFields)) {
     if (value !== undefined) {
       frontmatter[key] = value;
     }
