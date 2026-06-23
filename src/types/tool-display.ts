@@ -25,6 +25,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "copilotcli", label: "GitHub Copilot CLI", group: "ai" },
   { key: "goose", label: "Goose", group: "ai" },
   { key: "grokcli", label: "Grok CLI", group: "ai" },
+  { key: "hermesagent", label: "Hermes Agent", group: "ai" },
   { key: "cursor", label: "Cursor", group: "ai" },
   { key: "deepagents", label: "deepagents-cli", group: "ai" },
   { key: "factorydroid", label: "Factory Droid", group: "ai" },

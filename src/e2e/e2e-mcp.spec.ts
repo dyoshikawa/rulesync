@@ -471,6 +471,7 @@ describe("E2E: mcp (global mode)", () => {
     { target: "geminicli", outputPath: join(".gemini", "settings.json") },
     { target: "qwencode", outputPath: join(".qwen", "settings.json") },
     { target: "goose", outputPath: join(".config", "goose", "config.yaml") },
+    { target: "hermesagent", outputPath: join(".hermes", "config.yaml") },
     { target: "opencode", outputPath: join(".config", "opencode", "opencode.jsonc") },
     { target: "codexcli", outputPath: join(".codex", "config.toml") },
     { target: "grokcli", outputPath: join(".grok", "config.toml") },

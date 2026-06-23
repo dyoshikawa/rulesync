@@ -1,0 +1,203 @@
+import { join } from "node:path";
+
+import { load } from "js-yaml";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { isRecord } from "../../utils/type-guards.js";
+import { HermesagentMcp } from "./hermesagent-mcp.js";
+import { RulesyncMcp } from "./rulesync-mcp.js";
+
+const HERMES_DIR = ".hermes";
+const HERMES_FILE = "config.yaml";
+
+function getMcpServers(content: string): Record<string, Record<string, unknown>> {
+  const parsed = load(content);
+  if (!isRecord(parsed) || !isRecord(parsed.mcp_servers)) return {};
+  return parsed.mcp_servers as Record<string, Record<string, unknown>>;
+}
+
+describe("HermesagentMcp", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  describe("getSettablePaths", () => {
+    it("targets ~/.hermes/config.yaml", () => {
+      const paths = HermesagentMcp.getSettablePaths();
+      expect(paths.relativeDirPath).toBe(HERMES_DIR);
+      expect(paths.relativeFilePath).toBe(HERMES_FILE);
+    });
+  });
+
+  describe("isDeletable", () => {
+    it("is never deletable (shared config file)", () => {
+      const mcp = new HermesagentMcp({
+        relativeDirPath: HERMES_DIR,
+        relativeFilePath: HERMES_FILE,
+        fileContent: "",
+        validate: false,
+      });
+      expect(mcp.isDeletable()).toBe(false);
+    });
+  });
+
+  describe("global-only", () => {
+    it("fromRulesyncMcp throws without global", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+      await expect(HermesagentMcp.fromRulesyncMcp({ rulesyncMcp, global: false })).rejects.toThrow(
+        /global-only/,
+      );
+    });
+
+    it("fromFile throws without global", async () => {
+      await expect(HermesagentMcp.fromFile({ outputRoot: testDir, global: false })).rejects.toThrow(
+        /global-only/,
+      );
+    });
+  });
+
+  describe("fromRulesyncMcp", () => {
+    it("converts a stdio server to an mcp_servers entry following the MCP spec", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            fetch: {
+              command: "uvx",
+              args: ["mcp-server-fetch"],
+              env: { TOKEN: "x" },
+            },
+          },
+        }),
+      });
+
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const server = getMcpServers(mcp.getFileContent()).fetch;
+
+      expect(server).toMatchObject({
+        command: "uvx",
+        args: ["mcp-server-fetch"],
+        env: { TOKEN: "x" },
+      });
+    });
+
+    it("converts a remote http server preserving url and type", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            remote: {
+              type: "http",
+              url: "https://example.com/mcp",
+              headers: { Authorization: "Bearer x" },
+            },
+          },
+        }),
+      });
+
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const server = getMcpServers(mcp.getFileContent()).remote;
+
+      expect(server).toMatchObject({
+        type: "http",
+        url: "https://example.com/mcp",
+        headers: { Authorization: "Bearer x" },
+      });
+      expect(server?.command).toBeUndefined();
+    });
+
+    it("preserves other config.yaml keys when merging", async () => {
+      const dir = join(testDir, HERMES_DIR);
+      await ensureDir(dir);
+      await writeFileContent(join(dir, HERMES_FILE), "model: claude-opus\nterminal: bash\n");
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { fetch: { command: "uvx" } } }),
+      });
+
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const parsed = load(mcp.getFileContent());
+
+      expect(isRecord(parsed) && parsed.model).toBe("claude-opus");
+      expect(isRecord(parsed) && parsed.terminal).toBe("bash");
+      expect(getMcpServers(mcp.getFileContent()).fetch?.command).toBe("uvx");
+    });
+  });
+
+  describe("toRulesyncMcp round-trip", () => {
+    it("converts mcp_servers back to canonical servers", async () => {
+      const dir = join(testDir, HERMES_DIR);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, HERMES_FILE),
+        [
+          "mcp_servers:",
+          "  fetch:",
+          "    command: uvx",
+          "    args: [mcp-server-fetch]",
+          "  remote:",
+          "    type: http",
+          "    url: https://example.com/mcp",
+          "",
+        ].join("\n"),
+      );
+
+      const mcp = await HermesagentMcp.fromFile({ outputRoot: testDir, global: true });
+      const rulesync = mcp.toRulesyncMcp();
+      const servers = JSON.parse(rulesync.getFileContent()).mcpServers;
+
+      expect(servers.fetch).toMatchObject({
+        command: "uvx",
+        args: ["mcp-server-fetch"],
+      });
+      expect(servers.remote).toMatchObject({
+        type: "http",
+        url: "https://example.com/mcp",
+      });
+    });
+  });
+
+  describe("forDeletion", () => {
+    it("returns a non-deletable instance", () => {
+      const mcp = HermesagentMcp.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: HERMES_DIR,
+        relativeFilePath: HERMES_FILE,
+        global: true,
+      });
+      expect(mcp).toBeInstanceOf(HermesagentMcp);
+      expect(mcp.isDeletable()).toBe(false);
+    });
+  });
+});

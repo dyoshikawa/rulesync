@@ -35,6 +35,7 @@ describe("tool targets", () => {
         "geminicli",
         "goose",
         "grokcli",
+        "hermesagent",
         "junie",
         "kilo",
         "kiro",

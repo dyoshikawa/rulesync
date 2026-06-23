@@ -263,6 +263,7 @@ rulesync.local.jsonc
 **/.gemini/memories/
 **/.goosehints
 **/.goose/memories/
+**/.hermes.md
 **/.junie/AGENTS.md
 **/.junie/guidelines.md
 **/.junie/memories/
