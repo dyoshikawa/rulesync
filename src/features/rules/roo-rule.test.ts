@@ -199,6 +199,30 @@ describe("RooRule", () => {
       expect(rooRule.getFilePath()).toBe("/custom/base/.roo/rules/custom-base.md");
     });
 
+    it("should emit non-root rules to ~/.roo/rules in global mode", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "global-rule.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          description: "Global rule",
+          globs: [],
+        },
+        body: "# Global rule",
+      });
+
+      const rooRule = RooRule.fromRulesyncRule({
+        outputRoot: "/home/user",
+        rulesyncRule,
+        global: true,
+      });
+
+      expect(rooRule.getRelativeDirPath()).toBe(".roo/rules");
+      expect(rooRule.getFilePath()).toBe("/home/user/.roo/rules/global-rule.md");
+      expect(rooRule.isRoot()).toBe(false);
+    });
+
     it("should handle validation parameter", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -374,6 +398,16 @@ describe("RooRule", () => {
 
       expect(paths).toHaveProperty("nonRoot");
       expect(paths.nonRoot).toHaveProperty("relativeDirPath");
+    });
+
+    it("should return the same non-root directory in global mode (~/.roo/rules)", () => {
+      // Global scope reuses the project relative directory; only the output root
+      // (the home directory) differs, producing `~/.roo/rules/`.
+      const paths = RooRule.getSettablePaths({ global: true });
+
+      expect(paths.nonRoot).toEqual({
+        relativeDirPath: ".roo/rules",
+      });
     });
   });
 

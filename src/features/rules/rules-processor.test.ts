@@ -932,6 +932,7 @@ Content that would fail parsing`;
         "opencode",
         "pi",
         "qwencode",
+        "roo",
         "rovodev",
         "takt",
         "vibe",
@@ -976,12 +977,13 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("grokcli");
       expect(globalTargets).toContain("opencode");
       expect(globalTargets).toContain("pi");
+      expect(globalTargets).toContain("roo");
       expect(globalTargets).toContain("rovodev");
       expect(globalTargets).toContain("takt");
       expect(globalTargets).toContain("vibe");
       expect(globalTargets).toContain("devin");
       expect(globalTargets).toContain("zed");
-      expect(globalTargets.length).toBe(25);
+      expect(globalTargets.length).toBe(26);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

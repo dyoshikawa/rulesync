@@ -28,6 +28,11 @@ export type RooRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
  * Generates rule files for Roo Code's hierarchical rule system.
  * Supports plain Markdown without frontmatter, mode-specific rules,
  * and both directory-based and single-file configurations.
+ *
+ * - Project scope writes the non-root directory `.roo/rules/`.
+ * - Global scope writes the same non-root directory resolved under the home
+ *   directory (`~/.roo/rules/`), which Roo loads before workspace rules.
+ *   @see https://roocodeinc.github.io/Roo-Code/features/custom-instructions
  */
 export class RooRule extends ToolRule {
   static getSettablePaths(
@@ -36,6 +41,9 @@ export class RooRule extends ToolRule {
       excludeToolDir?: boolean;
     } = {},
   ): RooRuleSettablePaths {
+    // The relative directory is identical for project and global scope; global
+    // mode differs only by output root (the home directory), so `~/.roo/rules/`
+    // is produced without a separate branch here.
     return {
       nonRoot: {
         relativeDirPath: buildToolPath(ROO_DIR, "rules", _options.excludeToolDir),
