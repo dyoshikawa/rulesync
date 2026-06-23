@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { toolMcpFactories } from "./mcp-processor.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -13,15 +14,34 @@ import { RulesyncMcp } from "./rulesync-mcp.js";
  * `getMcpServers()`) must never leak those fields into its emitted config.
  *
  * Codex is the deliberate exception: it reads `envVars` directly to emit
- * `[mcp_servers.<name>.env]` from declared variable names, so it is excluded.
+ * `env_vars` under `[mcp_servers.<name>]`, so it is excluded.
+ *
+ * Several generators read-or-initialize their target file on disk, so writes are
+ * isolated to a per-test directory: `process.cwd()` is mocked to the test dir
+ * (project scope) and `getHomeDirectory()` is mocked to the same dir (global
+ * scope), per the testing guidelines.
  */
 
-// Field name / canary value pairs. A probe appearing in emitted output means the
-// corresponding rulesync-only field (or its value) leaked through.
+// `getHomeDirectory()` must be mocked so global-only tools (e.g. augmentcode)
+// resolve their config under the test directory instead of the real home dir.
+const { getHomeDirectoryMock } = vi.hoisted(() => {
+  return { getHomeDirectoryMock: vi.fn() };
+});
+vi.mock("../../utils/file.js", async () => {
+  const actual = await vi.importActual<typeof import("../../utils/file.js")>("../../utils/file.js");
+  return {
+    ...actual,
+    getHomeDirectory: getHomeDirectoryMock,
+  };
+});
+
+// Field-name / canary-value probes. A probe appearing in emitted output means
+// the corresponding rulesync-only field (or its value) leaked through.
 const LEAK_PROBES: ReadonlyArray<{ field: string; probe: string }> = [
-  { field: "targets", probe: "targets" },
+  { field: "targets (key)", probe: "targets" },
+  { field: "description (key)", probe: "description" },
   { field: "description (value)", probe: "RULESYNC_ONLY_DESCRIPTION" },
-  { field: "exposed", probe: "exposed" },
+  { field: "exposed (key)", probe: "exposed" },
   { field: "envVars (key)", probe: "envVars" },
   { field: "envVars (value)", probe: "RULESYNC_ENVVAR_CANARY" },
 ];
@@ -52,6 +72,21 @@ const nonCodexFactories = [...toolMcpFactories.entries()].filter(
 );
 
 describe("MCP field-stripping contract (non-codex generators)", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory({ home: true }));
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+    getHomeDirectoryMock.mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+    getHomeDirectoryMock.mockClear();
+  });
+
   it.each(nonCodexFactories)(
     "%s does not leak rulesync-only fields into emitted MCP config",
     async (target, factory) => {
@@ -59,6 +94,7 @@ describe("MCP field-stripping contract (non-codex generators)", () => {
       // Global-only MCP tools (e.g. augmentcode) require global mode to emit.
       const global = !factory.meta.supportsProject;
       const toolMcp = await factory.class.fromRulesyncMcp({
+        outputRoot: testDir,
         rulesyncMcp,
         validate: false,
         global,
@@ -72,6 +108,19 @@ describe("MCP field-stripping contract (non-codex generators)", () => {
 });
 
 describe("Cursor MCP source preservation vs emit stripping (#1659)", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
   it("keeps rulesync-only fields in the source but strips them from cursor output", async () => {
     const rulesyncMcp = buildRulesyncMcp();
 
@@ -86,7 +135,11 @@ describe("Cursor MCP source preservation vs emit stripping (#1659)", () => {
 
     // The cursor emit strips all rulesync-only fields, keeping only the real
     // MCP server config.
-    const cursorMcp = await CursorMcp.fromRulesyncMcp({ rulesyncMcp, validate: false });
+    const cursorMcp = await CursorMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp,
+      validate: false,
+    });
     const emitted = (cursorMcp.getJson().mcpServers as Record<string, Record<string, unknown>>)[
       "test-server"
     ];
