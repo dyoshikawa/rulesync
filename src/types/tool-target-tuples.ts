@@ -171,6 +171,7 @@ export const skillsProcessorToolTargetTuple = [
   "deepagents",
   "factorydroid",
   "geminicli",
+  "goose",
   "grokcli",
   "junie",
   "kilo",

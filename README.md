@@ -84,7 +84,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Gemini CLI ⚠️          |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | GitHub Copilot         |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |
 | GitHub Copilot CLI     |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |
-| Goose                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |        |  ✅   |     ✅      |
+| Goose                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Grok CLI               |  ✅   |        | ✅  |          |    ✅     |   ✅   |       |             |
 | Hermes Agent           |  ✅   |        | ✅  |          |           |        |       |             |
 | Cursor                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |

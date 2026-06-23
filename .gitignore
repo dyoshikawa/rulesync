@@ -306,6 +306,7 @@ rulesync.local.jsonc
 **/.deepagents/skills/
 **/.factory/skills/
 **/.gemini/skills/
+**/.goose/skills/
 **/.grok/skills/
 **/.junie/skills/
 **/.kilo/skills/
