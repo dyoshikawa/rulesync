@@ -14,7 +14,7 @@
     },
     "build": {
       "mode": "primary",
-      "variant": "medium",
+      "variant": "high",
       "tools": {
         "write": true,
         "edit": true,
