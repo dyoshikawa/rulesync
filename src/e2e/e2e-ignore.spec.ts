@@ -158,6 +158,7 @@ describe("E2E: ignore (import)", () => {
     { target: "augmentcode", sourcePath: ".augmentignore" },
     { target: "devin", sourcePath: ".devinignore" },
     { target: "vibe", sourcePath: ".vibeignore" },
+    { target: "warp", sourcePath: ".warpindexingignore" },
   ])("should import $target ignore", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
