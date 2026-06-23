@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { AIASSISTANT_RULES_DIR_PATH } from "../../constants/aiassistant-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -11,6 +11,12 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
 } from "./tool-rule.js";
+
+export type AiassistantRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+  nonRoot: {
+    relativeDirPath: string;
+  };
+};
 
 /**
  * Rule generator for JetBrains AI Assistant.
@@ -27,14 +33,6 @@ import {
  *
  * @see https://www.jetbrains.com/help/ai-assistant/configure-project-rules.html
  */
-export type AiassistantRuleParams = AiFileParams;
-
-export type AiassistantRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
-  nonRoot: {
-    relativeDirPath: string;
-  };
-};
-
 export class AiassistantRule extends ToolRule {
   static getSettablePaths(
     _options: {
