@@ -285,7 +285,7 @@ describe("HermesagentMcp", () => {
       expect(servers.fetch).toMatchObject({
         command: "uvx",
         args: ["mcp-server-fetch"],
-        timeout: 120,
+        networkTimeout: 120,
       });
       expect(servers.remote).toMatchObject({ url: "https://example.com/mcp" });
       // `enabled: false` maps back to the canonical `disabled: true`.
@@ -331,6 +331,26 @@ describe("HermesagentMcp", () => {
       expect(mcp).toBeInstanceOf(HermesagentMcp);
       expect(mcp.isDeletable()).toBe(false);
     });
+  });
+
+  it("converts Hermes timeout back to canonical networkTimeout", () => {
+    const mcp = new HermesagentMcp({
+      outputRoot: testDir,
+      relativeDirPath: ".hermes",
+      relativeFilePath: HERMES_FILE,
+      fileContent: `mcp_servers:
+  fetch:
+    command: uvx
+    timeout: 120
+`,
+      global: true,
+    });
+
+    const rulesync = mcp.toRulesyncMcp();
+    const servers = JSON.parse(rulesync.getFileContent()).mcpServers;
+
+    expect(servers.fetch.networkTimeout).toBe(120);
+    expect(servers.fetch.timeout).toBeUndefined();
   });
 
   it("merges generated MCP servers when existing Hermes config is loaded later", async () => {

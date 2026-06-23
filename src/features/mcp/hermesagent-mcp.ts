@@ -162,7 +162,7 @@ function convertFromHermesFormat(mcpServers: Record<string, unknown>): McpServer
     if (typeof config.url === "string") server.url = config.url;
     if (isPlainObject(config.headers)) server.headers = omitPrototypePollutionKeys(config.headers);
     if (config.enabled === false) server.disabled = true;
-    if (typeof config.timeout === "number") server.timeout = config.timeout;
+    if (typeof config.timeout === "number") server.networkTimeout = config.timeout;
 
     result[name] = server;
   }
