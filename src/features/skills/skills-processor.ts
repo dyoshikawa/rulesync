@@ -229,9 +229,10 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
   [
     "goose",
     {
-      // Goose discovers project skills under .goose/skills/ (each a SKILL.md
-      // directory). Skills are project-discovered only, so no global scope.
-      // https://block.github.io/goose/docs/guides/context-engineering/using-skills/
+      // Goose discovers skills under .goose/skills/ (each a SKILL.md directory).
+      // rulesync emits only this Goose-specific project path; the portable global
+      // location (~/.agents/skills/) is covered by the agentsskills target.
+      // https://block.github.io/goose/docs/mcp/skills-mcp/
       class: GooseSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
     },

@@ -31,9 +31,10 @@ describe("GooseSkill", () => {
       expect(paths.relativeDirPath).toBe(join(".goose", "skills"));
     });
 
-    it("should return .goose/skills as relativeDirPath for global mode", () => {
-      const paths = GooseSkill.getSettablePaths({ global: true });
-      expect(paths.relativeDirPath).toBe(join(".goose", "skills"));
+    it("should throw in global mode (Goose skills are project-only)", () => {
+      expect(() => GooseSkill.getSettablePaths({ global: true })).toThrow(
+        /does not support global mode/,
+      );
     });
   });
 

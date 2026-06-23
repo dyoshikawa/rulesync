@@ -73,8 +73,12 @@ export class GooseSkill extends ToolSkill {
     }
   }
 
-  static getSettablePaths(_options?: { global?: boolean }): ToolSkillSettablePaths {
-    // Goose skills are project-discovered, so only the project scope is emitted.
+  static getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths {
+    // rulesync emits only the Goose-specific project path; the portable global
+    // skills location is already served by the agentsskills target.
+    if (options?.global) {
+      throw new Error("GooseSkill does not support global mode.");
+    }
     return {
       relativeDirPath: GOOSE_SKILLS_DIR_PATH,
     };
