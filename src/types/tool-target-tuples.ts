@@ -86,6 +86,7 @@ export const mcpProcessorToolTargetTuple = [
   "junie",
   "opencode",
   "qwencode",
+  "reasonix",
   "roo",
   "rovodev",
   "vibe",

@@ -351,6 +351,7 @@ rulesync.local.jsonc
 **/.kiro/settings/mcp.json
 **/.junie/mcp/mcp.json
 **/.qwen/settings.json
+**/reasonix.toml
 **/.roo/mcp.json
 **/.vibe/config.toml
 **/.warp/.mcp.json
