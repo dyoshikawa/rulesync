@@ -10,7 +10,12 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
-import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import {
+  RulesyncSkill,
+  RulesyncSkillFrontmatter,
+  RulesyncSkillFrontmatterInput,
+  SkillFile,
+} from "./rulesync-skill.js";
 import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
 import {
   ToolSkill,
@@ -23,17 +28,94 @@ import {
 export const ClaudecodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
-  "allowed-tools": z.optional(z.array(z.string())),
+  // Additional context for when Claude should invoke the skill (trigger phrases,
+  // example requests). Appended to `description` in the skill listing.
+  when_to_use: z.optional(z.string()),
+  // Tools Claude may use without asking while the skill is active.
+  // The docs accept a space/comma-separated string or a YAML list.
+  "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
   // Removes the listed tools from the model while the skill is active.
   // Accepts the space/comma-separated string form or a YAML list, mirroring `allowed-tools`.
   "disallowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
   model: z.optional(z.string()),
+  // Effort level while the skill is active (low | medium | high | xhigh | max).
+  effort: z.optional(z.string()),
+  // Hint shown during autocomplete to indicate expected arguments.
+  "argument-hint": z.optional(z.string()),
+  // Named positional arguments for `$name` substitution; string or YAML list.
+  arguments: z.optional(z.union([z.string(), z.array(z.string())])),
+  // `fork` runs the skill in a forked subagent context.
+  context: z.optional(z.string()),
+  // Which subagent type to use when `context: fork` is set.
+  agent: z.optional(z.string()),
+  // Hooks scoped to the skill's lifecycle (free-form per the docs).
+  hooks: z.optional(z.looseObject({})),
+  // Shell for `!` command blocks in the skill (`bash` default or `powershell`).
+  shell: z.optional(z.string()),
   "disable-model-invocation": z.optional(z.boolean()),
   "user-invocable": z.optional(z.boolean()),
   paths: z.optional(z.union([z.string(), z.array(z.string())])),
 });
 
 export type ClaudecodeSkillFrontmatter = z.infer<typeof ClaudecodeSkillFrontmatterSchema>;
+
+/**
+ * Builds the Claude Code SKILL.md frontmatter from a rulesync skill, carrying
+ * the `claudecode:` section's fields through and folding in the resolved
+ * model-invocation / user-invocable flags. Extracted to keep
+ * `fromRulesyncSkill` under the cyclomatic-complexity cap.
+ */
+function buildClaudecodeSkillFrontmatter({
+  rulesyncFrontmatter,
+  resolvedDisableModelInvocation,
+  resolvedUserInvocable,
+}: {
+  rulesyncFrontmatter: RulesyncSkillFrontmatter;
+  resolvedDisableModelInvocation: boolean | undefined;
+  resolvedUserInvocable: boolean | undefined;
+}): ClaudecodeSkillFrontmatter {
+  const section = rulesyncFrontmatter.claudecode ?? {};
+  // Build the frontmatter data-driven so the function stays well under the
+  // cyclomatic-complexity cap as fields are added. The two presence rules mirror
+  // `toRulesyncSkill` exactly so the conversion is symmetric: most fields are
+  // included only when truthy, while `arguments`/`hooks`/`paths` and the resolved
+  // invocation flags are included whenever they are explicitly defined.
+  const truthyFields: Record<string, unknown> = {
+    when_to_use: section.when_to_use,
+    "allowed-tools": section["allowed-tools"],
+    "disallowed-tools": section["disallowed-tools"],
+    model: section.model,
+    effort: section.effort,
+    "argument-hint": section["argument-hint"],
+    context: section.context,
+    agent: section.agent,
+    shell: section.shell,
+  };
+  const definedFields: Record<string, unknown> = {
+    arguments: section.arguments,
+    hooks: section.hooks,
+    "disable-model-invocation": resolvedDisableModelInvocation,
+    "user-invocable": resolvedUserInvocable,
+    paths: section.paths,
+  };
+
+  const frontmatter: Record<string, unknown> = {
+    name: rulesyncFrontmatter.name,
+    description: rulesyncFrontmatter.description,
+  };
+  for (const [key, value] of Object.entries(truthyFields)) {
+    if (value) {
+      frontmatter[key] = value;
+    }
+  }
+  for (const [key, value] of Object.entries(definedFields)) {
+    if (value !== undefined) {
+      frontmatter[key] = value;
+    }
+  }
+
+  return frontmatter as ClaudecodeSkillFrontmatter;
+}
 
 export type ClaudecodeSkillParams = {
   outputRoot?: string;
@@ -126,11 +208,19 @@ export class ClaudecodeSkill extends ToolSkill {
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
     const claudecodeSection = {
+      ...(frontmatter.when_to_use && { when_to_use: frontmatter.when_to_use }),
       ...(frontmatter["allowed-tools"] && { "allowed-tools": frontmatter["allowed-tools"] }),
       ...(frontmatter["disallowed-tools"] && {
         "disallowed-tools": frontmatter["disallowed-tools"],
       }),
       ...(frontmatter.model && { model: frontmatter.model }),
+      ...(frontmatter.effort && { effort: frontmatter.effort }),
+      ...(frontmatter["argument-hint"] && { "argument-hint": frontmatter["argument-hint"] }),
+      ...(frontmatter.arguments !== undefined && { arguments: frontmatter.arguments }),
+      ...(frontmatter.context && { context: frontmatter.context }),
+      ...(frontmatter.agent && { agent: frontmatter.agent }),
+      ...(frontmatter.hooks !== undefined && { hooks: frontmatter.hooks }),
+      ...(frontmatter.shell && { shell: frontmatter.shell }),
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
@@ -178,28 +268,11 @@ export class ClaudecodeSkill extends ToolSkill {
       section: rulesyncFrontmatter.claudecode,
     });
 
-    const claudecodeFrontmatter: ClaudecodeSkillFrontmatter = {
-      name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
-      ...(rulesyncFrontmatter.claudecode?.["allowed-tools"] && {
-        "allowed-tools": rulesyncFrontmatter.claudecode["allowed-tools"],
-      }),
-      ...(rulesyncFrontmatter.claudecode?.["disallowed-tools"] && {
-        "disallowed-tools": rulesyncFrontmatter.claudecode["disallowed-tools"],
-      }),
-      ...(rulesyncFrontmatter.claudecode?.model && {
-        model: rulesyncFrontmatter.claudecode.model,
-      }),
-      ...(resolvedDisableModelInvocation !== undefined && {
-        "disable-model-invocation": resolvedDisableModelInvocation,
-      }),
-      ...(resolvedUserInvocable !== undefined && {
-        "user-invocable": resolvedUserInvocable,
-      }),
-      ...(rulesyncFrontmatter.claudecode?.paths !== undefined && {
-        paths: rulesyncFrontmatter.claudecode.paths,
-      }),
-    };
+    const claudecodeFrontmatter = buildClaudecodeSkillFrontmatter({
+      rulesyncFrontmatter,
+      resolvedDisableModelInvocation,
+      resolvedUserInvocable,
+    });
 
     const settablePaths = ClaudecodeSkill.getSettablePaths({ global });
     const relativeDirPath = rulesyncFrontmatter.claudecode?.["scheduled-task"]

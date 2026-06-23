@@ -22,9 +22,17 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   "user-invocable": z.optional(z.boolean()),
   claudecode: z.optional(
     z.looseObject({
-      "allowed-tools": z.optional(z.array(z.string())),
+      when_to_use: z.optional(z.string()),
+      "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
       "disallowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
       model: z.optional(z.string()),
+      effort: z.optional(z.string()),
+      "argument-hint": z.optional(z.string()),
+      arguments: z.optional(z.union([z.string(), z.array(z.string())])),
+      context: z.optional(z.string()),
+      agent: z.optional(z.string()),
+      hooks: z.optional(z.looseObject({})),
+      shell: z.optional(z.string()),
       "disable-model-invocation": z.optional(z.boolean()),
       "user-invocable": z.optional(z.boolean()),
       "scheduled-task": z.optional(z.boolean()),
@@ -196,9 +204,17 @@ export type RulesyncSkillFrontmatterInput = {
   "disable-model-invocation"?: boolean;
   "user-invocable"?: boolean;
   claudecode?: {
-    "allowed-tools"?: string[];
+    when_to_use?: string;
+    "allowed-tools"?: string | string[];
     "disallowed-tools"?: string | string[];
     model?: string;
+    effort?: string;
+    "argument-hint"?: string;
+    arguments?: string | string[];
+    context?: string;
+    agent?: string;
+    hooks?: Record<string, unknown>;
+    shell?: string;
     "disable-model-invocation"?: boolean;
     "user-invocable"?: boolean;
     "scheduled-task"?: boolean;
