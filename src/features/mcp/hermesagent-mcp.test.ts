@@ -101,7 +101,7 @@ describe("HermesagentMcp", () => {
       });
     });
 
-    it("converts a remote http server preserving url and type", async () => {
+    it("converts a remote server to url/headers, dropping the canonical-only type", async () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: ".rulesync",
         relativeFilePath: ".mcp.json",
@@ -124,11 +124,73 @@ describe("HermesagentMcp", () => {
       const server = getMcpServers(mcp.getFileContent()).remote;
 
       expect(server).toMatchObject({
-        type: "http",
         url: "https://example.com/mcp",
         headers: { Authorization: "Bearer x" },
       });
+      // Hermes infers the transport from the presence of `url`, so `type` and
+      // `command` are not emitted into the shared config.
+      expect(server?.type).toBeUndefined();
       expect(server?.command).toBeUndefined();
+    });
+
+    it("maps the canonical httpUrl alias to url", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { remote: { httpUrl: "https://example.com/mcp" } },
+        }),
+      });
+
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const server = getMcpServers(mcp.getFileContent()).remote;
+
+      expect(server?.url).toBe("https://example.com/mcp");
+      expect(server?.httpUrl).toBeUndefined();
+    });
+
+    it("folds an array-form command tail into args", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { fetch: { command: ["npx", "-y", "server"], args: ["--flag"] } },
+        }),
+      });
+
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const server = getMcpServers(mcp.getFileContent()).fetch;
+
+      expect(server?.command).toBe("npx");
+      expect(server?.args).toEqual(["-y", "server", "--flag"]);
+    });
+
+    it("translates a disabled server to enabled: false", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { fetch: { command: "uvx", disabled: true } },
+        }),
+      });
+
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const server = getMcpServers(mcp.getFileContent()).fetch;
+
+      expect(server?.enabled).toBe(false);
+      expect(server?.disabled).toBeUndefined();
     });
 
     it("preserves other config.yaml keys when merging", async () => {
@@ -167,8 +229,10 @@ describe("HermesagentMcp", () => {
           "    command: uvx",
           "    args: [mcp-server-fetch]",
           "  remote:",
-          "    type: http",
           "    url: https://example.com/mcp",
+          "  legacy:",
+          "    url: https://legacy.example.com/mcp",
+          "    enabled: false",
           "",
         ].join("\n"),
       );
@@ -181,10 +245,13 @@ describe("HermesagentMcp", () => {
         command: "uvx",
         args: ["mcp-server-fetch"],
       });
-      expect(servers.remote).toMatchObject({
-        type: "http",
-        url: "https://example.com/mcp",
+      expect(servers.remote).toMatchObject({ url: "https://example.com/mcp" });
+      // `enabled: false` maps back to the canonical `disabled: true`.
+      expect(servers.legacy).toMatchObject({
+        url: "https://legacy.example.com/mcp",
+        disabled: true,
       });
+      expect(servers.legacy.enabled).toBeUndefined();
     });
   });
 

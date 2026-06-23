@@ -11,7 +11,7 @@ import { McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -50,19 +50,62 @@ function parseHermesConfig(
 }
 
 /**
- * Converts rulesync canonical MCP servers into Hermes `mcp_servers:` entries.
+ * Resolves the canonical remote URL for a server (`url` or the `httpUrl` alias).
+ */
+function resolveHermesUrl(config: Record<string, unknown>): string | undefined {
+  return (
+    (typeof config.url === "string" ? config.url : undefined) ??
+    (typeof config.httpUrl === "string" ? config.httpUrl : undefined)
+  );
+}
+
+/**
+ * Converts a single rulesync canonical MCP server into a Hermes `mcp_servers:` entry.
  *
- * Hermes follows the MCP spec verbatim (command/args/env for stdio; url/type for
- * http/sse), which matches rulesync's canonical model, so this is a direct
- * passthrough that only filters out prototype-pollution keys and non-object
- * server configs.
+ * Hermes is close to the MCP spec but not identical: `command` must be a single
+ * executable string (an array's tail folds into `args`), a server is disabled
+ * via `enabled: false` (not the canonical `disabled: true`), and remote servers
+ * use `url`/`headers`. Only fields Hermes understands are emitted, so the shared
+ * `config.yaml` is not polluted with canonical-only aliases (`type`, `transport`,
+ * `httpUrl`, `networkTimeout`, tool-filter keys, ...).
+ */
+function convertServerToHermes(config: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+
+  const command = config.command;
+  const url = resolveHermesUrl(config);
+
+  if (command !== undefined) {
+    if (Array.isArray(command)) {
+      if (typeof command[0] === "string") out.command = command[0];
+      const rest = command.slice(1).filter((c): c is string => typeof c === "string");
+      const args = isStringArray(config.args) ? config.args : [];
+      if (rest.length > 0 || args.length > 0) out.args = [...rest, ...args];
+    } else if (typeof command === "string") {
+      out.command = command;
+      if (isStringArray(config.args)) out.args = config.args;
+    }
+    if (isRecord(config.env)) out.env = config.env;
+  } else if (url !== undefined) {
+    out.url = url;
+    if (isRecord(config.headers)) out.headers = config.headers;
+  }
+
+  // Hermes defaults a server to enabled, so only emit the flag when disabling.
+  if (config.disabled === true) out.enabled = false;
+
+  return out;
+}
+
+/**
+ * Converts rulesync canonical MCP servers into Hermes `mcp_servers:` entries.
  */
 function convertToHermesFormat(mcpServers: McpServers): Record<string, Record<string, unknown>> {
   const result: Record<string, Record<string, unknown>> = {};
 
   for (const [name, config] of Object.entries(mcpServers)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(name) || !isRecord(config)) continue;
-    result[name] = config;
+    result[name] = convertServerToHermes(config);
   }
 
   return result;
@@ -71,15 +114,24 @@ function convertToHermesFormat(mcpServers: McpServers): Record<string, Record<st
 /**
  * Converts Hermes `mcp_servers:` entries back into rulesync canonical MCP servers.
  *
- * Hermes uses the MCP spec verbatim, so import is a direct passthrough mirroring
- * the export above.
+ * Mirrors {@link convertToHermesFormat}: `enabled: false` maps back to the
+ * canonical `disabled: true`, and only recognized fields are carried over.
  */
 function convertFromHermesFormat(mcpServers: Record<string, unknown>): McpServers {
   const result: McpServers = {};
 
   for (const [name, config] of Object.entries(mcpServers)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(name) || !isRecord(config)) continue;
-    result[name] = config;
+
+    const server: Record<string, unknown> = {};
+    if (typeof config.command === "string") server.command = config.command;
+    if (isStringArray(config.args)) server.args = config.args;
+    if (isRecord(config.env)) server.env = config.env;
+    if (typeof config.url === "string") server.url = config.url;
+    if (isRecord(config.headers)) server.headers = config.headers;
+    if (config.enabled === false) server.disabled = true;
+
+    result[name] = server;
   }
 
   return result;
