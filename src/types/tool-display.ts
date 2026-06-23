@@ -44,6 +44,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "antigravity-ide", label: "Google Antigravity IDE", group: "ai" },
   { key: "antigravity-cli", label: "Google Antigravity CLI", group: "ai" },
   { key: "antigravity", label: "Google Antigravity ⚠️", group: "ai" },
+  { key: "aiassistant", label: "JetBrains AI Assistant", group: "ai" },
   { key: "junie", label: "JetBrains Junie", group: "ai" },
   { key: "augmentcode", label: "AugmentCode", group: "ai" },
   { key: "devin", label: "Devin Desktop", group: "ai" },

@@ -29,6 +29,7 @@ import { QwencodeSubagent } from "../subagents/qwencode-subagent.js";
 import { RovodevSubagent } from "../subagents/rovodev-subagent.js";
 import { SubagentsProcessor } from "../subagents/subagents-processor.js";
 import { AgentsMdRule } from "./agentsmd-rule.js";
+import { AiassistantRule } from "./aiassistant-rule.js";
 import { AmpRule } from "./amp-rule.js";
 import { AntigravityCliRule } from "./antigravity-cli-rule.js";
 import { AntigravityIdeRule } from "./antigravity-ide-rule.js";
@@ -260,6 +261,19 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
           subagents: { subagentClass: AgentsmdSubagent },
           skills: { skillClass: AgentsmdSkill },
         },
+      },
+    },
+  ],
+  [
+    "aiassistant",
+    {
+      class: AiassistantRule,
+      meta: {
+        extension: "md",
+        // JetBrains AI Assistant auto-discovers every `.md` in `.aiassistant/rules/`,
+        // so no reference section is injected into a root file (there is no root).
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
       },
     },
   ],

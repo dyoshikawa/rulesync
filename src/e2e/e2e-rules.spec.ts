@@ -23,6 +23,7 @@ describe("E2E: rules", () => {
   it.each([
     { target: "claudecode", outputPath: "CLAUDE.md" },
     { target: "cursor", outputPath: join(".cursor", "rules", "overview.mdc") },
+    { target: "aiassistant", outputPath: join(".aiassistant", "rules", "overview.md") },
     { target: "amp", outputPath: "AGENTS.md" },
     { target: "codexcli", outputPath: "AGENTS.md" },
     { target: "grokcli", outputPath: "AGENTS.md" },

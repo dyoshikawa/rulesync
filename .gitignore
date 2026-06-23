@@ -248,6 +248,7 @@ rulesync.local.jsonc
 **/.codexignore
 **/AGENTS.md
 **/.agents/memories/
+**/.aiassistant/rules/
 **/.agents/rules/
 **/.augment/rules/
 **/CLAUDE.md
@@ -374,12 +375,12 @@ rulesync.local.jsonc
 **/.cline/command-permissions.json
 **/.cursor/cli.json
 **/.gemini/policies/rulesync.toml
+**/.aiignore
 **/.geminiignore
 **/.augmentignore
 **/.clineignore
 **/.cursorignore
 **/.gooseignore
-**/.aiignore
 **/.kilocodeignore
 **/.kiroignore
 **/.qwenignore
