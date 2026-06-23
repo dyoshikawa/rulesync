@@ -48,6 +48,7 @@ import { FactorydroidRule } from "./factorydroid-rule.js";
 import { GeminiCliRule } from "./geminicli-rule.js";
 import { GooseRule } from "./goose-rule.js";
 import { GrokcliRule } from "./grokcli-rule.js";
+import { HermesagentRule } from "./hermesagent-rule.js";
 import { JunieRule } from "./junie-rule.js";
 import { KiloRule } from "./kilo-rule.js";
 import { KiroCliRule } from "./kiro-cli-rule.js";
@@ -484,6 +485,23 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       meta: {
         extension: "md",
         supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        foldsNonRootIntoRoot: true,
+      },
+    },
+  ],
+  [
+    "hermesagent",
+    {
+      // Hermes Agent auto-injects the project-root `.hermes.md` into its system
+      // prompt and reads only that single root file (no non-root rule directory,
+      // no user-level rules file), so non-root rules are folded into the single
+      // root `.hermes.md` below (same handling as grokcli / warp / deepagents).
+      // Rules are project-scope only.
+      class: HermesagentRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
         ruleDiscoveryMode: "auto",
         foldsNonRootIntoRoot: true,
       },

@@ -86,6 +86,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | GitHub Copilot CLI     |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |
 | Goose                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |        |  ✅   |     ✅      |
 | Grok CLI               |  ✅   |        | ✅  |          |    ✅     |   ✅   |       |             |
+| Hermes Agent           |  ✅   |        | ✅  |          |           |        |       |             |
 | Cursor                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | deepagents-cli         |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |
 | Factory Droid          |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |

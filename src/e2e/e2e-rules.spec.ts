@@ -26,6 +26,7 @@ describe("E2E: rules", () => {
     { target: "amp", outputPath: "AGENTS.md" },
     { target: "codexcli", outputPath: "AGENTS.md" },
     { target: "grokcli", outputPath: "AGENTS.md" },
+    { target: "hermesagent", outputPath: ".hermes.md" },
     { target: "copilot", outputPath: join(".github", "copilot-instructions.md") },
     { target: "opencode", outputPath: "AGENTS.md" },
     { target: "geminicli", outputPath: "GEMINI.md" },

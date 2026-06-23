@@ -24,6 +24,7 @@ import { FactorydroidMcp } from "./factorydroid-mcp.js";
 import { GeminiCliMcp } from "./geminicli-mcp.js";
 import { GooseMcp } from "./goose-mcp.js";
 import { GrokcliMcp } from "./grokcli-mcp.js";
+import { HermesagentMcp } from "./hermesagent-mcp.js";
 import { JunieMcp } from "./junie-mcp.js";
 import { KiloMcp } from "./kilo-mcp.js";
 import { KiroMcp } from "./kiro-mcp.js";
@@ -285,6 +286,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       class: GrokcliMcp,
       meta: {
         supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "hermesagent",
+    {
+      // Hermes Agent reads MCP servers from the `mcp_servers` key of the global
+      // user config `~/.hermes/config.yaml` (the HERMES_HOME directory); it has
+      // no project-scoped MCP location. Servers follow the MCP spec verbatim, so
+      // there are no per-server tool allow/deny lists.
+      class: HermesagentMcp,
+      meta: {
+        supportsProject: false,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
