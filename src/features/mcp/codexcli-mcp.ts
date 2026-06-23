@@ -207,7 +207,31 @@ export class CodexcliMcp extends ToolMcp {
       }
     }
 
-    configToml["mcp_servers"] = filteredMcpServers as smolToml.TomlTable;
+    // Preserve per-tool approval state (`[mcp_servers.<server>.tools.<tool>]`
+    // `approval_mode` decisions) that Codex's CLI writes when the user approves
+    // an MCP tool. rulesync does not model this nested `tools` table, so without
+    // re-merging it here a regenerate would wipe the user's saved approvals and
+    // re-introduce approval prompts (#1709). rulesync still fully owns every
+    // field it does emit (command/args/env/env_vars/enabled_tools/etc.).
+    const existingMcpServers = isRecord(configToml["mcp_servers"]) ? configToml["mcp_servers"] : {};
+    const mergedMcpServers = Object.fromEntries(
+      Object.entries(filteredMcpServers).map(([name, serverConfig]) => {
+        const existingServer = isRecord(existingMcpServers[name])
+          ? existingMcpServers[name]
+          : undefined;
+        const serverRecord = serverConfig as Record<string, unknown>;
+        if (
+          existingServer &&
+          isRecord(existingServer["tools"]) &&
+          !isRecord(serverRecord["tools"])
+        ) {
+          return [name, { ...serverRecord, tools: existingServer["tools"] }];
+        }
+        return [name, serverConfig];
+      }),
+    );
+
+    configToml["mcp_servers"] = mergedMcpServers as smolToml.TomlTable;
 
     return new CodexcliMcp({
       outputRoot,

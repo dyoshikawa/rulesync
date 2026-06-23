@@ -363,6 +363,54 @@ fontSize = 14
       expect(json.mcp_servers).toEqual(jsonData.mcpServers);
     });
 
+    it("should preserve per-tool approval_mode decisions on regenerate (#1709)", async () => {
+      // Codex's CLI writes nested `[mcp_servers.<server>.tools.<tool>]` tables
+      // with `approval_mode` when the user approves an MCP tool. rulesync does
+      // not model this, so a regenerate must not wipe these saved approvals.
+      const existingToml = `[mcp_servers.playwright]
+command = "npx"
+args = ["@playwright/mcp@latest"]
+
+[mcp_servers.playwright.tools.browser_navigate]
+approval_mode = "approve"
+
+[mcp_servers.playwright.tools.browser_click]
+approval_mode = "approve"
+`;
+      await ensureDir(join(testDir, ".codex"));
+      await writeFileContent(join(testDir, ".codex/config.toml"), existingToml);
+
+      const jsonData = {
+        mcpServers: {
+          playwright: {
+            command: "npx",
+            args: ["@playwright/mcp@latest"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const servers = codexcliMcp.getToml().mcp_servers as Record<string, Record<string, unknown>>;
+      // The rulesync-owned fields are present...
+      expect(servers.playwright?.command).toBe("npx");
+      expect(servers.playwright?.args).toEqual(["@playwright/mcp@latest"]);
+      // ...and the user's saved per-tool approval decisions survive.
+      expect(servers.playwright?.tools).toEqual({
+        browser_navigate: { approval_mode: "approve" },
+        browser_click: { approval_mode: "approve" },
+      });
+    });
+
     it("should create instance from RulesyncMcp with custom outputRoot", async () => {
       const jsonData = {
         mcpServers: {
