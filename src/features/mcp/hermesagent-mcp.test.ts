@@ -173,6 +173,25 @@ describe("HermesagentMcp", () => {
       expect(server?.args).toEqual(["-y", "server", "--flag"]);
     });
 
+    it("carries the timeout field through (from networkTimeout alias too)", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { fetch: { command: "uvx", networkTimeout: 120 } },
+        }),
+      });
+
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const server = getMcpServers(mcp.getFileContent()).fetch;
+
+      expect(server?.timeout).toBe(120);
+    });
+
     it("translates a disabled server to enabled: false", async () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: ".rulesync",
@@ -228,6 +247,7 @@ describe("HermesagentMcp", () => {
           "  fetch:",
           "    command: uvx",
           "    args: [mcp-server-fetch]",
+          "    timeout: 120",
           "  remote:",
           "    url: https://example.com/mcp",
           "  legacy:",
@@ -244,6 +264,7 @@ describe("HermesagentMcp", () => {
       expect(servers.fetch).toMatchObject({
         command: "uvx",
         args: ["mcp-server-fetch"],
+        timeout: 120,
       });
       expect(servers.remote).toMatchObject({ url: "https://example.com/mcp" });
       // `enabled: false` maps back to the canonical `disabled: true`.
