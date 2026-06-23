@@ -1029,6 +1029,7 @@ Second global content`;
         "claudecode-legacy",
         "cline",
         "codexcli",
+        "copilot",
         "copilotcli",
         "cursor",
         "deepagents",
@@ -1050,11 +1051,12 @@ Second global content`;
     it("should not include simulated targets", () => {
       const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
 
-      expect(toolTargets).not.toContain("copilot");
       expect(toolTargets).not.toContain("agentsmd");
       expect(toolTargets).not.toContain("roo");
       // factorydroid is now native and global-capable.
       expect(toolTargets).toContain("factorydroid");
+      // copilot is native (not simulated) and now global-capable via ~/.copilot/agents.
+      expect(toolTargets).toContain("copilot");
     });
 
     it("should be callable without instance", () => {

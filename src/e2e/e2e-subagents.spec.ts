@@ -445,6 +445,7 @@ describe("E2E: subagents (global mode)", () => {
     { target: "augmentcode", outputPath: join(".augment", "agents", "planner.md") },
     { target: "claudecode", outputPath: join(".claude", "agents", "planner.md") },
     { target: "codexcli", outputPath: join(".codex", "agents", "planner.toml") },
+    { target: "copilot", outputPath: join(".copilot", "agents", "planner.agent.md") },
     { target: "copilotcli", outputPath: join(".copilot", "agents", "planner.agent.md") },
     { target: "cursor", outputPath: join(".cursor", "agents", "planner.md") },
     { target: "geminicli", outputPath: join(".gemini", "agents", "planner.md") },
