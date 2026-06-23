@@ -227,13 +227,13 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
-  [
-    "goose",
-    {
-      class: GooseSkill,
-      meta: { supportsProject: false, supportsSimulated: true, supportsGlobal: true },
-    },
-  ],
+    [
+      "goose",
+      {
+        class: GooseSkill,
+        meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
+      },
+    ],
   [
     "hermesagent",
     {

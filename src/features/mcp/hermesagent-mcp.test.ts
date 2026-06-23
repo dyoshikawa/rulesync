@@ -332,4 +332,41 @@ describe("HermesagentMcp", () => {
       expect(mcp.isDeletable()).toBe(false);
     });
   });
+
+  it("merges generated MCP servers when existing Hermes config is loaded later", async () => {
+    const rulesyncMcp = new RulesyncMcp({
+      outputRoot: testDir,
+      relativeDirPath: ".",
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: {
+          "test-server": {
+            command: "echo",
+            args: ["hello"],
+            env: {},
+          },
+        },
+      }),
+    });
+
+    const mcp = await HermesagentMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp,
+      global: true,
+    });
+
+    mcp.setFileContent(`model: hermes-3
+mcp_servers:
+  existing-server:
+    command: existing
+  test-server:
+    command: stale
+`);
+
+    const config = mcp.getConfig();
+    expect(config.model).toBe("hermes-3");
+    expect(getMcpServers(mcp.getFileContent())["existing-server"]?.command).toBe("existing");
+    expect(getMcpServers(mcp.getFileContent())["test-server"]?.command).toBe("echo");
+    expect(getMcpServers(mcp.getFileContent())["test-server"]?.args).toEqual(["hello"]);
+  });
 });
