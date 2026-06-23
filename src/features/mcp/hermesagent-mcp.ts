@@ -60,6 +60,15 @@ function resolveHermesUrl(config: Record<string, unknown>): string | undefined {
 }
 
 /**
+ * Resolves the canonical timeout for a server (`timeout` or the `networkTimeout` alias).
+ */
+function resolveHermesTimeout(config: Record<string, unknown>): number | undefined {
+  if (typeof config.timeout === "number") return config.timeout;
+  if (typeof config.networkTimeout === "number") return config.networkTimeout;
+  return undefined;
+}
+
+/**
  * Converts a single rulesync canonical MCP server into a Hermes `mcp_servers:` entry.
  *
  * Hermes is close to the MCP spec but not identical: `command` must be a single
@@ -93,6 +102,9 @@ function convertServerToHermes(config: Record<string, unknown>): Record<string, 
 
   // Hermes defaults a server to enabled, so only emit the flag when disabling.
   if (config.disabled === true) out.enabled = false;
+
+  const timeout = resolveHermesTimeout(config);
+  if (timeout !== undefined) out.timeout = timeout;
 
   return out;
 }
@@ -130,6 +142,7 @@ function convertFromHermesFormat(mcpServers: Record<string, unknown>): McpServer
     if (typeof config.url === "string") server.url = config.url;
     if (isRecord(config.headers)) server.headers = config.headers;
     if (config.enabled === false) server.disabled = true;
+    if (typeof config.timeout === "number") server.timeout = config.timeout;
 
     result[name] = server;
   }
