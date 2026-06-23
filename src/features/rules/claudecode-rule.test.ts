@@ -130,7 +130,10 @@ describe("ClaudecodeRule (Modular Rules)", () => {
         relativeDirPath: ".claude",
         relativeFilePath: "CLAUDE.md",
       });
-      expect(paths).not.toHaveProperty("nonRoot");
+      // Global non-root rules go to ~/.claude/rules/*.md (Claude Code user-level rules).
+      expect(paths.nonRoot).toEqual({
+        relativeDirPath: ".claude/rules",
+      });
     });
 
     it("should not return alternativeRoots for global mode", () => {
@@ -491,6 +494,29 @@ Rules for TypeScript files.`;
       expect(claudecodeRule.getRelativeDirPath()).toBe(".claude");
       expect(claudecodeRule.getRelativeFilePath()).toBe("CLAUDE.md");
       expect(claudecodeRule.isRoot()).toBe(true);
+    });
+
+    it("should write a non-root rule to ~/.claude/rules when global=true", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "coding-style.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          description: "Global non-root rule",
+          globs: [],
+        },
+        body: "# Coding style\n\nApplies to every project.",
+      });
+
+      const claudecodeRule = ClaudecodeRule.fromRulesyncRule({
+        rulesyncRule,
+        global: true,
+      });
+
+      expect(claudecodeRule.getRelativeDirPath()).toBe(".claude/rules");
+      expect(claudecodeRule.getRelativeFilePath()).toBe("coding-style.md");
+      expect(claudecodeRule.isRoot()).toBe(false);
     });
   });
 

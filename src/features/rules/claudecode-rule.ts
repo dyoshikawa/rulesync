@@ -79,10 +79,16 @@ export class ClaudecodeRule extends ToolRule {
     excludeToolDir?: boolean;
   } = {}): ClaudecodeRuleSettablePaths | ClaudecodeRuleSettablePathsGlobal {
     if (global) {
+      // Claude Code reads user-scoped modular rules from `~/.claude/rules/*.md`
+      // (https://code.claude.com/docs/en/memory — "User-level rules"), so global
+      // non-root rules are generated there instead of being dropped.
       return {
         root: {
           relativeDirPath: buildToolPath(CLAUDECODE_DIR, ".", excludeToolDir),
           relativeFilePath: CLAUDECODE_RULE_FILE_NAME,
+        },
+        nonRoot: {
+          relativeDirPath: buildToolPath(CLAUDECODE_DIR, CLAUDECODE_RULES_DIR_NAME, excludeToolDir),
         },
       };
     }
