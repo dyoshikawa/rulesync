@@ -428,6 +428,7 @@ describe("IgnoreProcessor", () => {
     it("should return all supported tool targets", () => {
       const toolTargets = IgnoreProcessor.getToolTargets();
       const expectedTargets = [
+        "aiassistant",
         "antigravity-cli",
         "augmentcode",
         "claudecode",

@@ -28,6 +28,7 @@ describe("E2E: ignore", () => {
     { target: "kiro-cli", outputPath: KIRO_IGNORE_FILE_NAME, format: "plaintext" as const },
     { target: "kiro-ide", outputPath: KIRO_IGNORE_FILE_NAME, format: "plaintext" as const },
     { target: "junie", outputPath: ".aiignore", format: "plaintext" as const },
+    { target: "aiassistant", outputPath: ".aiignore", format: "plaintext" as const },
     { target: "augmentcode", outputPath: ".augmentignore", format: "plaintext" as const },
     { target: "devin", outputPath: ".devinignore", format: "plaintext" as const },
     {

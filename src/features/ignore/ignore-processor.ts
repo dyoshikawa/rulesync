@@ -9,6 +9,7 @@ import { ignoreProcessorToolTargetTuple } from "../../types/tool-target-tuples.j
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
+import { AiassistantIgnore } from "./aiassistant-ignore.js";
 import { AntigravityCliIgnore } from "./antigravity-cli-ignore.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
@@ -51,6 +52,7 @@ type ToolIgnoreFactory = {
 };
 
 export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnoreFactory>([
+  ["aiassistant", { class: AiassistantIgnore }],
   ["antigravity-cli", { class: AntigravityCliIgnore }],
   ["augmentcode", { class: AugmentcodeIgnore }],
   ["claudecode", { class: ClaudecodeIgnore }],

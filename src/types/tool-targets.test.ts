@@ -17,6 +17,7 @@ describe("tool targets", () => {
       // unique to skills, therefore lands last).
       const expectedTargets = [
         "agentsmd",
+        "aiassistant",
         "amp",
         "antigravity",
         "antigravity-cli",

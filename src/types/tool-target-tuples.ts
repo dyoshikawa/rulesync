@@ -4,6 +4,7 @@
 
 export const rulesProcessorToolTargetTuple = [
   "agentsmd",
+  "aiassistant",
   "amp",
   "antigravity",
   "antigravity-cli",
@@ -42,6 +43,7 @@ export const rulesProcessorToolTargetTuple = [
 ] as const;
 
 export const ignoreProcessorToolTargetTuple = [
+  "aiassistant",
   "antigravity-cli",
   "augmentcode",
   "claudecode",
