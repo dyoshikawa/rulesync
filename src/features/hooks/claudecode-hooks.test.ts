@@ -72,6 +72,69 @@ describe("ClaudecodeHooks", () => {
       expect(parsed.hooks.afterFileEdit).toBeUndefined();
     });
 
+    it("should support the current documented Claude Code hook events (#1628)", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          instructionsLoaded: [{ command: "a.sh" }],
+          userPromptExpansion: [{ command: "b.sh" }],
+          postToolUseFailure: [{ command: "c.sh" }],
+          postToolBatch: [{ command: "d.sh" }],
+          permissionDenied: [{ command: "e.sh" }],
+          subagentStart: [{ command: "f.sh" }],
+          taskCreated: [{ command: "g.sh" }],
+          taskCompleted: [{ command: "h.sh" }],
+          stopFailure: [{ command: "i.sh" }],
+          teammateIdle: [{ command: "j.sh" }],
+          configChange: [{ command: "k.sh" }],
+          cwdChanged: [{ command: "l.sh" }],
+          fileChanged: [{ command: "m.sh" }],
+          postCompact: [{ command: "n.sh" }],
+          elicitation: [{ command: "o.sh" }],
+          elicitationResult: [{ command: "p.sh" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(claudecodeHooks.getFileContent());
+      // Each canonical event is emitted under its documented PascalCase name.
+      for (const eventName of [
+        "InstructionsLoaded",
+        "UserPromptExpansion",
+        "PostToolUseFailure",
+        "PostToolBatch",
+        "PermissionDenied",
+        "SubagentStart",
+        "TaskCreated",
+        "TaskCompleted",
+        "StopFailure",
+        "TeammateIdle",
+        "ConfigChange",
+        "CwdChanged",
+        "FileChanged",
+        "PostCompact",
+        "Elicitation",
+        "ElicitationResult",
+      ]) {
+        expect(parsed.hooks[eventName], `missing ${eventName}`).toBeDefined();
+      }
+    });
+
     it("should only prefix dot-relative commands with $CLAUDE_PROJECT_DIR", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));

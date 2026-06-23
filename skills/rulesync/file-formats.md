@@ -139,12 +139,12 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 | `postToolUse`          |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     —      |  ✅  |       ✅        |       ✅        |   —   |     ✅      |  ✅   |
 | `preModelInvocation`   |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |       ✅        |       ✅        |   —   |      —      |   —   |
 | `postModelInvocation`  |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |       ✅        |       ✅        |   —   |      —      |   —   |
-| `postToolUseFailure`   |   ✅   |      —      |    —     |  —   |    —    |     ✅      |       —       |     —      |     —     |     ✅     |  —   |        —        |        —        |   —   |      —      |  ✅   |
+| `postToolUseFailure`   |   ✅   |     ✅      |    —     |  —   |    —    |     ✅      |       —       |     —      |     —     |     ✅     |  —   |        —        |        —        |   —   |      —      |  ✅   |
 | `stop`                 |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |       ✅        |       ✅        |   —   |     ✅      |  ✅   |
-| `subagentStart`        |   ✅   |      —      |    —     |  —   |    —    |     ✅      |       —       |     —      |    ✅     |     —      |  —   |        —        |        —        |   —   |      —      |  ✅   |
+| `subagentStart`        |   ✅   |     ✅      |    —     |  —   |    —    |     ✅      |       —       |     —      |    ✅     |     —      |  —   |        —        |        —        |   —   |      —      |  ✅   |
 | `subagentStop`         |   ✅   |     ✅      |    —     |  —   |   ✅    |     ✅      |      ✅       |     —      |    ✅     |     —      |  —   |        —        |        —        |   —   |      —      |  ✅   |
 | `preCompact`           |   ✅   |     ✅      |    —     |  —   |    —    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  —   |        —        |        —        |   —   |      —      |   —   |
-| `postCompact`          |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     —      |    ✅     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
+| `postCompact`          |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |    ✅     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
 | `afterFileEdit`        |   ✅   |      —      |    ✅    |  ✅  |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |  ✅   |
 | `beforeShellExecution` |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |  ✅   |
 | `afterShellExecution`  |   ✅   |      —      |    ✅    |  ✅  |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |  ✅   |      —      |  ✅   |
@@ -165,6 +165,19 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 | `workspaceOpen`        |   ✅   |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
 | `messageDisplay`       |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
 | `afterError`           |   —    |      —      |    —     |  —   |   ✅    |     ✅      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
+| `instructionsLoaded`   |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
+| `userPromptExpansion`  |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
+| `postToolBatch`        |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
+| `permissionDenied`     |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
+| `taskCreated`          |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
+| `taskCompleted`        |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
+| `stopFailure`          |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
+| `teammateIdle`         |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
+| `configChange`         |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
+| `cwdChanged`           |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
+| `fileChanged`          |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
+| `elicitation`          |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
+| `elicitationResult`    |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
 
 > **Note:** `worktreeCreate`, `worktreeRemove`, and `messageDisplay` are Claude Code-specific events and do not support the `matcher` field. Any matcher defined in the config is ignored for these events.
 

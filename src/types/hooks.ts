@@ -91,7 +91,19 @@ export type HookEvent =
   | "messageDisplay"
   | "todoCreated"
   | "todoCompleted"
-  | "stopFailure";
+  | "stopFailure"
+  | "instructionsLoaded"
+  | "userPromptExpansion"
+  | "postToolBatch"
+  | "permissionDenied"
+  | "taskCreated"
+  | "taskCompleted"
+  | "teammateIdle"
+  | "configChange"
+  | "cwdChanged"
+  | "fileChanged"
+  | "elicitation"
+  | "elicitationResult";
 
 /** Hook events supported by Cursor. */
 export const CURSOR_HOOK_EVENTS: readonly HookEvent[] = [
@@ -118,7 +130,12 @@ export const CURSOR_HOOK_EVENTS: readonly HookEvent[] = [
   "workspaceOpen",
 ];
 
-/** Hook events supported by Claude Code. */
+/**
+ * Hook events supported by Claude Code.
+ *
+ * Covers the full documented event surface.
+ * @see https://code.claude.com/docs/en/hooks#hook-events
+ */
 export const CLAUDE_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
   "sessionEnd",
@@ -134,6 +151,23 @@ export const CLAUDE_HOOK_EVENTS: readonly HookEvent[] = [
   "worktreeCreate",
   "worktreeRemove",
   "messageDisplay",
+  // Added to follow the current documented event surface.
+  "instructionsLoaded",
+  "userPromptExpansion",
+  "postToolUseFailure",
+  "postToolBatch",
+  "permissionDenied",
+  "subagentStart",
+  "taskCreated",
+  "taskCompleted",
+  "stopFailure",
+  "teammateIdle",
+  "configChange",
+  "cwdChanged",
+  "fileChanged",
+  "postCompact",
+  "elicitation",
+  "elicitationResult",
 ];
 
 /** Hook events supported by OpenCode. */
@@ -454,6 +488,22 @@ export const CANONICAL_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
   worktreeCreate: "WorktreeCreate",
   worktreeRemove: "WorktreeRemove",
   messageDisplay: "MessageDisplay",
+  instructionsLoaded: "InstructionsLoaded",
+  userPromptExpansion: "UserPromptExpansion",
+  postToolUseFailure: "PostToolUseFailure",
+  postToolBatch: "PostToolBatch",
+  permissionDenied: "PermissionDenied",
+  subagentStart: "SubagentStart",
+  taskCreated: "TaskCreated",
+  taskCompleted: "TaskCompleted",
+  stopFailure: "StopFailure",
+  teammateIdle: "TeammateIdle",
+  configChange: "ConfigChange",
+  cwdChanged: "CwdChanged",
+  fileChanged: "FileChanged",
+  postCompact: "PostCompact",
+  elicitation: "Elicitation",
+  elicitationResult: "ElicitationResult",
 };
 
 /**
