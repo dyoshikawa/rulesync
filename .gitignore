@@ -385,4 +385,5 @@ rulesync.local.jsonc
 **/.rooignore
 **/.devinignore
 **/.vibeignore
+**/.warpindexingignore
 !.rulesync/.aiignore

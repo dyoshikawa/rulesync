@@ -32,6 +32,7 @@ import {
   ToolIgnoreSettablePathsParams,
 } from "./tool-ignore.js";
 import { VibeIgnore } from "./vibe-ignore.js";
+import { WarpIgnore } from "./warp-ignore.js";
 import { ZedIgnore } from "./zed-ignore.js";
 
 export type IgnoreProcessorToolTarget = (typeof ignoreProcessorToolTargetTuple)[number];
@@ -67,6 +68,7 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
   ["roo", { class: RooIgnore }],
   ["devin", { class: DevinIgnore }],
   ["vibe", { class: VibeIgnore }],
+  ["warp", { class: WarpIgnore }],
   ["zed", { class: ZedIgnore }],
 ]);
 

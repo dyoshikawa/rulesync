@@ -445,6 +445,7 @@ describe("IgnoreProcessor", () => {
         "roo",
         "devin",
         "vibe",
+        "warp",
         "zed",
       ];
 

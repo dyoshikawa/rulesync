@@ -58,6 +58,7 @@ export const ignoreProcessorToolTargetTuple = [
   "roo",
   "devin",
   "vibe",
+  "warp",
   "zed",
 ] as const;
 
