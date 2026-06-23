@@ -24,6 +24,7 @@ import { DevinCommand } from "./devin-command.js";
 import { FactorydroidCommand } from "./factorydroid-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
 import { GooseCommand } from "./goose-command.js";
+import { HermesagentCommand } from "./hermesagent-command.js";
 import { JunieCommand } from "./junie-command.js";
 import { KiloCommand } from "./kilo-command.js";
 import { KiroCliCommand } from "./kiro-cli-command.js";
@@ -269,6 +270,13 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
       },
     },
   ],
+  [
+    "hermesagent" as CommandsProcessorToolTarget,
+    {
+      class: HermesagentCommand as unknown as ToolCommandFactory["class"],
+      meta: { supportsProject: false, supportsGlobal: true },
+    },
+  ] as [CommandsProcessorToolTarget, ToolCommandFactory],
   [
     "junie",
     {

@@ -61,8 +61,19 @@ export abstract class FeatureProcessor {
     const changedPaths: string[] = [];
     for (const aiFile of aiFiles) {
       const filePath = aiFile.getFilePath();
+      const existingFileContent = await readFileContentOrNull(filePath);
+
+      if (
+        existingFileContent !== null &&
+        filePath.endsWith(".hermes/config.yaml") &&
+        "setFileContent" in aiFile &&
+        typeof aiFile.setFileContent === "function"
+      ) {
+        aiFile.setFileContent(existingFileContent);
+      }
+
       const contentWithNewline = addTrailingNewline(aiFile.getFileContent());
-      const existingContent = await readFileContentOrNull(filePath);
+      const existingContent = existingFileContent;
 
       if (
         fileContentsEquivalent({

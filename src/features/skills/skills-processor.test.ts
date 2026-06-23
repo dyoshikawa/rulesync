@@ -869,7 +869,6 @@ Content that would fail parsing`;
           "deepagents",
           "factorydroid",
           "geminicli",
-          "goose",
           "grokcli",
           "junie",
           "kilo",
@@ -912,7 +911,6 @@ Content that would fail parsing`;
           "deepagents",
           "factorydroid",
           "geminicli",
-          "goose",
           "grokcli",
           "junie",
           "kilo",
@@ -954,7 +952,6 @@ Content that would fail parsing`;
           "deepagents",
           "factorydroid",
           "geminicli",
-          "goose",
           "grokcli",
           "junie",
           "kilo",
@@ -984,7 +981,7 @@ Content that would fail parsing`;
   describe("getToolTargetsSimulated", () => {
     it("should return simulated tool targets", () => {
       const targets = SkillsProcessor.getToolTargetsSimulated();
-      expect(new Set(targets)).toEqual(new Set(["agentsmd"]));
+      expect(new Set(targets)).toEqual(new Set(["agentsmd", "goose"]));
     });
   });
 
@@ -1007,6 +1004,8 @@ Content that would fail parsing`;
         "deepagents",
         "factorydroid",
         "geminicli",
+        "goose",
+        "hermesagent",
         "grokcli",
         "junie",
         "kilo",
@@ -1045,6 +1044,8 @@ Content that would fail parsing`;
         "deepagents",
         "factorydroid",
         "geminicli",
+        "goose",
+        "hermesagent",
         "grokcli",
         "junie",
         "kilo",

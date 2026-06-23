@@ -172,7 +172,7 @@ export class AgentsSkillsSkill extends ToolSkill {
       }),
     };
 
-    return new AgentsSkillsSkill({
+    return new this({
       outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
@@ -203,7 +203,7 @@ export class AgentsSkillsSkill extends ToolSkill {
       );
     }
 
-    return new AgentsSkillsSkill({
+    return new this({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
@@ -222,7 +222,7 @@ export class AgentsSkillsSkill extends ToolSkill {
     global = false,
   }: ToolSkillForDeletionParams): AgentsSkillsSkill {
     const settablePaths = AgentsSkillsSkill.getSettablePaths({ global });
-    return new AgentsSkillsSkill({
+    return new this({
       outputRoot,
       relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
       dirName,

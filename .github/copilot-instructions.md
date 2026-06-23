@@ -1,18 +1,3 @@
-Please also reference the following rules as needed. The list below is provided in TOON format, and `@` stands for the project root directory.
-
-rules[4]:
-  - path: @.github/instructions/coding-guidelines.instructions.md
-    description: "When you write any code, must follow these guidelines."
-    applyTo[1]: **/*.ts
-  - path: @.github/instructions/feature-change-guidelines.instructions.md
-    description: "When you add or change features, must follow these guidelines."
-  - path: @.github/instructions/github-actions-security.instructions.md
-    description: Guidelines to avoid GitHub Actions script injection vulnerabilities.
-    applyTo[1]: .github/workflows/*.yml
-  - path: @.github/instructions/testing-guidelines.instructions.md
-    description: "When you write tests, must follow these guidelines."
-    applyTo[2]: **/*.test.ts,src/e2e/**/*.spec.ts
-
 # Rulesync Project Overview
 
 This is Rulesync, a Node.js CLI tool that automatically generates configuration files for various AI coding tools from unified AI rule files. The project enables teams to maintain consistent AI coding assistant rules across multiple tools.

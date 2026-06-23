@@ -21,3 +21,30 @@ export const HERMESAGENT_GLOBAL_DIR = ".hermes";
 
 /** MCP servers and other settings live in `config.yaml` under `~/.hermes/`. */
 export const HERMESAGENT_MCP_FILE_NAME = "config.yaml";
+export const HERMESAGENT_SOUL_FILE_NAME = "SOUL.md";
+export const HERMESAGENT_CONFIG_FILE_NAME = "config.yaml";
+export const HERMESAGENT_SOUL_FILE_PATH = join(HERMESAGENT_GLOBAL_DIR, HERMESAGENT_SOUL_FILE_NAME);
+export const HERMESAGENT_CONFIG_FILE_PATH = join(
+  HERMESAGENT_GLOBAL_DIR,
+  HERMESAGENT_CONFIG_FILE_NAME,
+);
+export const HERMESAGENT_SKILLS_DIR_PATH = join(HERMESAGENT_GLOBAL_DIR, "skills");
+export const HERMESAGENT_RULESYNC_DIR_PATH = join(HERMESAGENT_GLOBAL_DIR, "rulesync");
+export const HERMESAGENT_RULESYNC_SUBAGENTS_DIR_PATH = join(
+  HERMESAGENT_RULESYNC_DIR_PATH,
+  "subagents",
+);
+export const HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH = join(
+  HERMESAGENT_GLOBAL_DIR,
+  "plugins",
+  "rulesync-subagents",
+);
+export const HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_MANIFEST_PATH = join(
+  HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH,
+  "plugin.yaml",
+);
+export const HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_INIT_PATH = join(
+  HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH,
+  "__init__.py",
+);
+import { join } from "node:path";
