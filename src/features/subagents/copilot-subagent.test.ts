@@ -39,6 +39,14 @@ Plan tasks`;
         relativeDirPath: ".github/agents",
       });
     });
+
+    it("returns the user-profile agents directory in global mode (~/.copilot/agents)", () => {
+      // Global agents resolve under the home directory via the harness's
+      // outputRoot, producing `~/.copilot/agents/`.
+      expect(CopilotSubagent.getSettablePaths({ global: true })).toEqual({
+        relativeDirPath: ".copilot/agents",
+      });
+    });
   });
 
   describe("fromRulesyncSubagent", () => {

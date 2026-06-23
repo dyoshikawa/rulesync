@@ -147,7 +147,10 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     "copilot",
     {
       class: CopilotSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
+      // VS Code Copilot custom agents support both project (.github/agents/) and
+      // user-profile/global (~/.copilot/agents/) scopes.
+      // Reference: https://code.visualstudio.com/docs/copilot/agents/custom-agents
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
     },
   ],
   [
