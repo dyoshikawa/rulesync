@@ -29,6 +29,7 @@ import { KiloMcp } from "./kilo-mcp.js";
 import { KiroMcp } from "./kiro-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { QwencodeMcp } from "./qwencode-mcp.js";
+import { ReasonixMcp } from "./reasonix-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
 import { RovodevMcp } from "./rovodev-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -383,6 +384,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         supportsGlobal: true,
         supportsEnabledTools: true,
         supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
+    "reasonix",
+    {
+      // Reasonix reads MCP servers as `[[plugins]]` array-of-tables entries from
+      // `./reasonix.toml` (project) / `~/.reasonix/config.toml` (global). Each
+      // entry carries a `name` plus the standard transport fields; it has no
+      // per-server tool allow/deny lists.
+      class: ReasonixMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
       },
     },
   ],

@@ -36,6 +36,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "takt", label: "Takt", group: "ai" },
   { key: "vibe", label: "Vibe Code", group: "ai" },
   { key: "qwencode", label: "Qwen Code", group: "ai" },
+  { key: "reasonix", label: "Reasonix", group: "ai" },
   { key: "kiro", label: "Kiro ⚠️", group: "ai" },
   { key: "kiro-cli", label: "Kiro CLI", group: "ai" },
   { key: "kiro-ide", label: "Kiro IDE", group: "ai" },

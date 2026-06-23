@@ -51,6 +51,7 @@ describe("tool targets", () => {
         "warp",
         "devin",
         "zed",
+        "reasonix",
         "agentsskills",
       ];
 

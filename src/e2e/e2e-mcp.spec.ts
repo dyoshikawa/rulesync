@@ -45,6 +45,7 @@ describe("E2E: mcp", () => {
     { target: "zed", outputPath: join(".zed", "settings.json") },
     { target: "devin", outputPath: join(".windsurf", "mcp_config.json") },
     { target: "vibe", outputPath: join(".vibe", "config.toml") },
+    { target: "reasonix", outputPath: "reasonix.toml" },
   ])("should generate $target mcp", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -190,6 +191,11 @@ describe("E2E: mcp", () => {
       outputPath: join(".vibe", "config.toml"),
       content: 'theme = "dark"\n',
     },
+    {
+      target: "reasonix",
+      outputPath: "reasonix.toml",
+      content: 'default_model = "deepseek"\n',
+    },
   ])(
     "should succeed in check mode when a $target mcp file is non-deletable",
     async ({ target, outputPath, content }) => {
@@ -294,6 +300,34 @@ describe("E2E: mcp", () => {
     expect(bash.allowlist).toEqual(["git *"]);
     expect(parsed.disabled_tools).toContain("write_file");
   });
+
+  it("should generate Reasonix MCP into reasonix.toml as [[plugins]] entries", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          mcpServers: {
+            "test-server": {
+              type: "stdio",
+              command: "echo",
+              args: ["hello"],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "reasonix", features: "mcp" });
+
+    const parsed = toTable(smolToml.parse(await readFileContent(join(testDir, "reasonix.toml"))));
+    expect(toTableArray(parsed.plugins)).toMatchObject([
+      { name: "test-server", type: "stdio", command: "echo", args: ["hello"] },
+    ]);
+  });
 });
 
 describe("E2E: mcp (import)", () => {
@@ -373,6 +407,29 @@ describe("E2E: mcp (import)", () => {
     );
 
     await runImport({ target: "vibe", features: "mcp" });
+
+    const importedContent = await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH));
+    expect(importedContent).toContain("test-server");
+    expect(importedContent).toContain("hello");
+  });
+
+  it("should import reasonix mcp from reasonix.toml", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, "reasonix.toml"),
+      [
+        'default_model = "deepseek"',
+        "",
+        "[[plugins]]",
+        'name = "test-server"',
+        'type = "stdio"',
+        'command = "echo"',
+        'args = ["hello"]',
+      ].join("\n"),
+    );
+
+    await runImport({ target: "reasonix", features: "mcp" });
 
     const importedContent = await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH));
     expect(importedContent).toContain("test-server");
