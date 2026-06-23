@@ -2100,7 +2100,7 @@ targets: ["copilot"]
       expect(nonRootRule).toBeDefined();
     });
 
-    it("should exclude non-root rules in global mode for claudecode (no global nonRoot support)", async () => {
+    it("should include non-root rules in global mode for claudecode (global nonRoot support)", async () => {
       await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
       await writeFileContent(
         join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
@@ -2124,6 +2124,44 @@ targets: ["claudecode"]
         logger,
         outputRoot: testDir,
         toolTarget: "claudecode",
+        global: true,
+      });
+
+      // Claude Code reads user-level rules from ~/.claude/rules/*.md, so global
+      // non-root rules are kept rather than dropped.
+      const result = await processor.loadRulesyncFiles();
+      expect(result).toHaveLength(2);
+      expect(result.some((r) => (r as RulesyncRule).getFrontmatter().root)).toBe(true);
+      expect(result.some((r) => !(r as RulesyncRule).getFrontmatter().root)).toBe(true);
+      expect(warnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining("non-root rulesync rules found, but it's in global mode"),
+      );
+    });
+
+    it("should exclude non-root rules in global mode for a target without global nonRoot support", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+        `---
+root: true
+targets: ["geminicli"]
+---
+# Root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "non-root.md"),
+        `---
+targets: ["geminicli"]
+---
+# Non-root`,
+      );
+
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "geminicli",
         global: true,
       });
 

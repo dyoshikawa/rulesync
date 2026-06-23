@@ -54,7 +54,15 @@ export type ToolRuleSettablePathsGlobal = {
     relativeFilePath: string;
   };
   alternativeRoots?: undefined;
-  nonRoot?: undefined;
+  /**
+   * Optional non-root rules directory for global scope. Most tools have no
+   * user-scoped modular-rules location and leave this unset, but tools that do
+   * (e.g. Claude Code's `~/.claude/rules/`) set it so global non-root rules are
+   * generated instead of being silently dropped.
+   */
+  nonRoot?: {
+    relativeDirPath: string;
+  };
 };
 
 type BuildToolRuleParamsParams = ToolRuleFromRulesyncRuleParams & {
