@@ -143,6 +143,140 @@ const mergeConfigs = (
   };
 };
 
+/**
+ * Resolve a single config value honouring precedence:
+ * CLI option > config-file value > default. The first defined value wins.
+ */
+function pick<T>({
+  cli,
+  file,
+  fallback,
+}: {
+  cli: T | undefined;
+  file: T | undefined;
+  fallback: T;
+}): T {
+  return cli ?? file ?? fallback;
+}
+
+/**
+ * Map the deprecated `baseDirs` alias onto `outputRoots`. If both are supplied,
+ * `outputRoots` wins; either way emit a one-shot deprecation warning so callers
+ * know to migrate. Returns the effective `outputRoots`.
+ */
+function applyDeprecatedBaseDirs({
+  outputRoots,
+  deprecatedBaseDirs,
+}: {
+  outputRoots: string[] | undefined;
+  deprecatedBaseDirs: string[] | undefined;
+}): string[] | undefined {
+  if (deprecatedBaseDirs === undefined) {
+    return outputRoots;
+  }
+  emitBaseDirsConfigFieldDeprecationWarning();
+  return outputRoots ?? deprecatedBaseDirs;
+}
+
+/**
+ * Re-validate `targets`/`features` mutual-exclusivity after the base and local
+ * config files have been merged. A base file and local file can each be valid
+ * in isolation yet merge into an invalid `{ targets: object, features: array }`
+ * state, so this throws with a message naming both files.
+ */
+function assertMergedTargetsFeaturesExclusive({
+  configByFile,
+  validatedConfigPath,
+  localConfigPath,
+}: {
+  configByFile: PartialConfigParams;
+  validatedConfigPath: string;
+  localConfigPath: string;
+}): void {
+  try {
+    assertTargetsFeaturesExclusive({
+      targets: configByFile.targets,
+      features: configByFile.features,
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `${detail} (detected after merging '${validatedConfigPath}' with '${localConfigPath}' — the two files combined produce the invalid combination; remove the conflicting field from one of them).`,
+      { cause: error },
+    );
+  }
+}
+
+/**
+ * Resolve the effective `global` flag. When an `inputRoot` is in play the user
+ * is decoupling source from output, so a config-file `global: true` is dropped
+ * (unless the caller also explicitly passes `global`); a warning is emitted in
+ * that case. Returns the resolved boolean `global`.
+ */
+function resolveGlobal({
+  logger,
+  resolvedInputRoot,
+  global,
+  configByFile,
+  validatedConfigPath,
+}: {
+  logger: Logger | undefined;
+  resolvedInputRoot: string | undefined;
+  global: boolean | undefined;
+  configByFile: PartialConfigParams;
+  validatedConfigPath: string;
+}): boolean {
+  if (resolvedInputRoot !== undefined && global === undefined && configByFile.global === true) {
+    warnWithFallback(
+      logger,
+      `Ignoring "global: true" from ${JSON.stringify(validatedConfigPath)} because ` +
+        `an inputRoot was configured; pass global=true (CLI: --global) to keep ` +
+        `user-scope output. Output will be project-scope (global=false).`,
+    );
+  }
+  const configGlobal = resolvedInputRoot !== undefined ? false : configByFile.global;
+  return pick({ cli: global, file: configGlobal, fallback: getDefaults().global });
+}
+
+/**
+ * Resolve `features`/`targets` while honouring the strict mutual-exclusivity
+ * rule enforced by `assertTargetsFeaturesExclusive`:
+ *
+ * - When the user provides `targets` in object form, `features` must stay
+ *   undefined (the per-target feature config lives inside the `targets`
+ *   object); skip the `features` default.
+ * - When the user provides `features` in object form without `targets`, leave
+ *   `targets` undefined so `Config.getTargets` can derive the target list from
+ *   the `features` object keys; skip the `targets` default.
+ * - Otherwise fall through to the array-form defaults.
+ */
+function resolveFeaturesAndTargets({
+  features,
+  targets,
+  configByFile,
+}: {
+  features: ConfigResolverResolveParams["features"];
+  targets: ConfigResolverResolveParams["targets"];
+  configByFile: PartialConfigParams;
+}): {
+  resolvedFeatures: ConfigParams["features"];
+  resolvedTargets: ConfigParams["targets"];
+} {
+  const userProvidedFeatures = features ?? configByFile.features;
+  const userProvidedTargets = targets ?? configByFile.targets;
+  const targetsIsObject = userProvidedTargets !== undefined && !Array.isArray(userProvidedTargets);
+  const featuresIsObject =
+    userProvidedFeatures !== undefined && !Array.isArray(userProvidedFeatures);
+  if (featuresIsObject) {
+    emitFeaturesObjectFormDeprecationWarning();
+  }
+  const resolvedFeatures =
+    userProvidedFeatures ?? (targetsIsObject ? undefined : getDefaults().features);
+  const resolvedTargets =
+    userProvidedTargets ?? (featuresIsObject ? undefined : getDefaults().targets);
+  return { resolvedFeatures, resolvedTargets };
+}
+
 // oxlint-disable-next-line no-extraneous-class
 export class ConfigResolver {
   public static async resolve(
@@ -170,12 +304,7 @@ export class ConfigResolver {
     // Map the deprecated programmatic `baseDirs` alias to `outputRoots`.
     // If both are supplied, `outputRoots` wins; either way emit a one-shot
     // deprecation warning so callers know to migrate.
-    if (deprecatedBaseDirs !== undefined) {
-      emitBaseDirsConfigFieldDeprecationWarning();
-      if (outputRoots === undefined) {
-        outputRoots = deprecatedBaseDirs;
-      }
-    }
+    outputRoots = applyDeprecatedBaseDirs({ outputRoots, deprecatedBaseDirs });
     // Capture cwd once at the entry point so the resolved config is
     // deterministic and independent of any later `process.chdir()` calls.
     const cwd = resolve(process.cwd());
@@ -219,18 +348,7 @@ export class ConfigResolver {
     // merge into an invalid `{ targets: object, features: array }` state.
     // Re-check after the merge and throw with a message that names both files
     // so the user knows where to look.
-    try {
-      assertTargetsFeaturesExclusive({
-        targets: configByFile.targets,
-        features: configByFile.features,
-      });
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      throw new Error(
-        `${detail} (detected after merging '${validatedConfigPath}' with '${localConfigPath}' — the two files combined produce the invalid combination; remove the conflicting field from one of them).`,
-        { cause: error },
-      );
-    }
+    assertMergedTargetsFeaturesExclusive({ configByFile, validatedConfigPath, localConfigPath });
 
     // When `inputRoot` is set (from CLI, programmatic args, or a config file)
     // the user is decoupling source from output, so "global: true" from the
@@ -243,74 +361,62 @@ export class ConfigResolver {
     // `configByFile.inputRoot`, the symmetric warning still fires so a user
     // moving from CLI flag to config-file form sees consistent behavior.
     const resolvedInputRoot = inputRoot ?? configByFile.inputRoot;
-    if (resolvedInputRoot !== undefined && global === undefined && configByFile.global === true) {
-      warnWithFallback(
-        logger,
-        `Ignoring "global: true" from ${JSON.stringify(validatedConfigPath)} because ` +
-          `an inputRoot was configured; pass global=true (CLI: --global) to keep ` +
-          `user-scope output. Output will be project-scope (global=false).`,
-      );
-    }
-    const configGlobal = resolvedInputRoot !== undefined ? false : configByFile.global;
-    const resolvedGlobal = global ?? configGlobal ?? getDefaults().global;
-    const resolvedSimulateCommands =
-      simulateCommands ?? configByFile.simulateCommands ?? getDefaults().simulateCommands;
-    const resolvedSimulateSubagents =
-      simulateSubagents ?? configByFile.simulateSubagents ?? getDefaults().simulateSubagents;
+    const resolvedGlobal = resolveGlobal({
+      logger,
+      resolvedInputRoot,
+      global,
+      configByFile,
+      validatedConfigPath,
+    });
 
-    const resolvedSimulateSkills =
-      simulateSkills ?? configByFile.simulateSkills ?? getDefaults().simulateSkills;
-    const resolvedGitignoreTargetsOnly =
-      gitignoreTargetsOnly ??
-      configByFile.gitignoreTargetsOnly ??
-      getDefaults().gitignoreTargetsOnly;
-
-    // Resolve features/targets while honouring the strict mutual-exclusivity
-    // rule enforced by `assertTargetsFeaturesExclusive`:
-    //
-    // - When the user provides `targets` in object form, `features` must
-    //   stay undefined (the per-target feature config lives inside the
-    //   `targets` object itself); skip the `features` default.
-    // - When the user provides `features` in object form without `targets`,
-    //   leave `targets` undefined so `Config.getTargets` can derive the
-    //   target list from the `features` object keys; skip the `targets`
-    //   default.
-    // - Otherwise fall through to the array-form defaults.
-    const userProvidedFeatures = features ?? configByFile.features;
-    const userProvidedTargets = targets ?? configByFile.targets;
-    const targetsIsObject =
-      userProvidedTargets !== undefined && !Array.isArray(userProvidedTargets);
-    const featuresIsObject =
-      userProvidedFeatures !== undefined && !Array.isArray(userProvidedFeatures);
-    if (featuresIsObject) {
-      emitFeaturesObjectFormDeprecationWarning();
-    }
-    const resolvedFeatures =
-      userProvidedFeatures ?? (targetsIsObject ? undefined : getDefaults().features);
-    const resolvedTargets =
-      userProvidedTargets ?? (featuresIsObject ? undefined : getDefaults().targets);
+    const { resolvedFeatures, resolvedTargets } = resolveFeaturesAndTargets({
+      features,
+      targets,
+      configByFile,
+    });
 
     const configParams = {
       targets: resolvedTargets,
       features: resolvedFeatures,
-      verbose: verbose ?? configByFile.verbose ?? getDefaults().verbose,
-      delete: isDelete ?? configByFile.delete ?? getDefaults().delete,
+      verbose: pick({ cli: verbose, file: configByFile.verbose, fallback: getDefaults().verbose }),
+      delete: pick({ cli: isDelete, file: configByFile.delete, fallback: getDefaults().delete }),
       outputRoots: getOutputRootsInLightOfGlobal({
-        outputRoots: outputRoots ?? configByFile.outputRoots ?? getDefaults().outputRoots,
+        outputRoots: pick({
+          cli: outputRoots,
+          file: configByFile.outputRoots,
+          fallback: getDefaults().outputRoots,
+        }),
         global: resolvedGlobal,
       }),
       global: resolvedGlobal,
-      silent: silent ?? configByFile.silent ?? getDefaults().silent,
-      simulateCommands: resolvedSimulateCommands,
-      simulateSubagents: resolvedSimulateSubagents,
-      simulateSkills: resolvedSimulateSkills,
-      gitignoreTargetsOnly: resolvedGitignoreTargetsOnly,
-      gitignoreDestination:
-        gitignoreDestination ??
-        configByFile.gitignoreDestination ??
-        getDefaults().gitignoreDestination,
-      dryRun: dryRun ?? configByFile.dryRun ?? getDefaults().dryRun,
-      check: check ?? configByFile.check ?? getDefaults().check,
+      silent: pick({ cli: silent, file: configByFile.silent, fallback: getDefaults().silent }),
+      simulateCommands: pick({
+        cli: simulateCommands,
+        file: configByFile.simulateCommands,
+        fallback: getDefaults().simulateCommands,
+      }),
+      simulateSubagents: pick({
+        cli: simulateSubagents,
+        file: configByFile.simulateSubagents,
+        fallback: getDefaults().simulateSubagents,
+      }),
+      simulateSkills: pick({
+        cli: simulateSkills,
+        file: configByFile.simulateSkills,
+        fallback: getDefaults().simulateSkills,
+      }),
+      gitignoreTargetsOnly: pick({
+        cli: gitignoreTargetsOnly,
+        file: configByFile.gitignoreTargetsOnly,
+        fallback: getDefaults().gitignoreTargetsOnly,
+      }),
+      gitignoreDestination: pick({
+        cli: gitignoreDestination,
+        file: configByFile.gitignoreDestination,
+        fallback: getDefaults().gitignoreDestination,
+      }),
+      dryRun: pick({ cli: dryRun, file: configByFile.dryRun, fallback: getDefaults().dryRun }),
+      check: pick({ cli: check, file: configByFile.check, fallback: getDefaults().check }),
       // Pass the fully-resolved absolute inputRoot so `Config.getInputRoot()`
       // is pure and never re-reads `process.cwd()` after construction. When
       // neither CLI nor config file supplied an inputRoot, fall back to the

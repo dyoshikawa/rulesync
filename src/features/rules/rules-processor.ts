@@ -831,74 +831,129 @@ export class RulesProcessor extends FeatureProcessor {
       this.foldNonRootRulesIntoRootRule(toolRules);
     }
 
+    this.applyLocalRootRules({ toolRules, localRootRules, factory });
+
+    this.appendSeparateConventionsRule({ toolRules, factory });
+
+    const extraFiles = await this.buildMcpInstructionFiles({ toolRules, meta });
+
+    this.applyRootRuleSections({ toolRules, meta });
+
+    return [...toolRules, ...extraFiles];
+  }
+
+  /**
+   * Handle localRoot rules (only in non-global mode and when enabled). Mutates
+   * `toolRules` in place.
+   */
+  private applyLocalRootRules({
+    toolRules,
+    localRootRules,
+    factory,
+  }: {
+    toolRules: ToolRule[];
+    localRootRules: RulesyncRule[];
+    factory: ToolRuleFactory;
+  }): void {
     const includeLocalRoot = resolveIncludeLocalRoot(this.featureOptions);
-
-    // Handle localRoot rules (only in non-global mode and when enabled)
-    if (localRootRules.length > 0 && !this.global && includeLocalRoot) {
-      const localRootRule = localRootRules[0];
-      if (localRootRule && factory.class.isTargetedByRulesyncRule(localRootRule)) {
-        this.handleLocalRootRule(toolRules, localRootRule, factory);
-      }
+    if (localRootRules.length === 0 || this.global || !includeLocalRoot) {
+      return;
     }
+    const localRootRule = localRootRules[0];
+    if (localRootRule && factory.class.isTargetedByRulesyncRule(localRootRule)) {
+      this.handleLocalRootRule(toolRules, localRootRule, factory);
+    }
+  }
 
+  /**
+   * For tools that create a separate conventions rule file (e.g., cursor, roo),
+   * push that rule onto `toolRules`. Mutates `toolRules` in place.
+   */
+  private appendSeparateConventionsRule({
+    toolRules,
+    factory,
+  }: {
+    toolRules: ToolRule[];
+    factory: ToolRuleFactory;
+  }): void {
+    const { meta } = factory;
     const isSimulated = this.simulateCommands || this.simulateSubagents || this.simulateSkills;
-
-    // For tools that create a separate conventions rule file (e.g., cursor, roo)
-    if (isSimulated && meta.createsSeparateConventionsRule && meta.additionalConventions) {
-      const conventionsContent = this.generateAdditionalConventionsSectionFromMeta(meta);
-      const settablePaths = factory.class.getSettablePaths();
-      const nonRootPath = "nonRoot" in settablePaths ? settablePaths.nonRoot : null;
-      if (nonRootPath) {
-        // Use .md extension - CursorRule.fromRulesyncRule will convert to .mdc
-        toolRules.push(
-          factory.class.fromRulesyncRule({
-            outputRoot: this.outputRoot,
-            rulesyncRule: new RulesyncRule({
-              outputRoot: this.outputRoot,
-              relativeDirPath: nonRootPath.relativeDirPath,
-              relativeFilePath: "additional-conventions.md",
-              frontmatter: {
-                root: false,
-                targets: [this.toolTarget],
-              },
-              body: conventionsContent,
-            }),
-            validate: true,
-            global: this.global,
-          }),
-        );
-      }
+    if (!isSimulated || !meta.createsSeparateConventionsRule || !meta.additionalConventions) {
+      return;
     }
 
-    // Non-root rules of some tools are not auto-loaded; the tool's MCP feature
-    // registers them in its shared config's `instructions` key. The root rule is
-    // auto-loaded and never registered. Project scope only.
-    const extraFiles: ToolFile[] = [];
-    if (meta.mcpInstructionsRegistrar && !this.global) {
-      const instructionPaths = toolRules
-        .filter((rule) => !rule.isRoot())
-        .map((rule) => toPosixPath(join(rule.getRelativeDirPath(), rule.getRelativeFilePath())));
-      if (instructionPaths.length > 0) {
-        extraFiles.push(
-          await meta.mcpInstructionsRegistrar.fromInstructions({
-            outputRoot: this.outputRoot,
-            instructions: instructionPaths,
-            validate: true,
-            global: this.global,
-          }),
-        );
-      }
+    const conventionsContent = this.generateAdditionalConventionsSectionFromMeta(meta);
+    const settablePaths = factory.class.getSettablePaths();
+    const nonRootPath = "nonRoot" in settablePaths ? settablePaths.nonRoot : null;
+    if (!nonRootPath) {
+      return;
     }
+    // Use .md extension - CursorRule.fromRulesyncRule will convert to .mdc
+    toolRules.push(
+      factory.class.fromRulesyncRule({
+        outputRoot: this.outputRoot,
+        rulesyncRule: new RulesyncRule({
+          outputRoot: this.outputRoot,
+          relativeDirPath: nonRootPath.relativeDirPath,
+          relativeFilePath: "additional-conventions.md",
+          frontmatter: {
+            root: false,
+            targets: [this.toolTarget],
+          },
+          body: conventionsContent,
+        }),
+        validate: true,
+        global: this.global,
+      }),
+    );
+  }
 
-    const rootRuleIndex = toolRules.findIndex((rule) => rule.isRoot());
-    if (rootRuleIndex === -1) {
-      return [...toolRules, ...extraFiles];
+  /**
+   * Non-root rules of some tools are not auto-loaded; the tool's MCP feature
+   * registers them in its shared config's `instructions` key. The root rule is
+   * auto-loaded and never registered. Project scope only.
+   */
+  private async buildMcpInstructionFiles({
+    toolRules,
+    meta,
+  }: {
+    toolRules: ToolRule[];
+    meta: ToolRuleFactory["meta"];
+  }): Promise<ToolFile[]> {
+    if (!meta.mcpInstructionsRegistrar || this.global) {
+      return [];
     }
+    const instructionPaths = toolRules
+      .filter((rule) => !rule.isRoot())
+      .map((rule) => toPosixPath(join(rule.getRelativeDirPath(), rule.getRelativeFilePath())));
+    if (instructionPaths.length === 0) {
+      return [];
+    }
+    return [
+      await meta.mcpInstructionsRegistrar.fromInstructions({
+        outputRoot: this.outputRoot,
+        instructions: instructionPaths,
+        validate: true,
+        global: this.global,
+      }),
+    ];
+  }
 
-    // For tools that don't create a separate conventions rule, prepend to the root rule
-    const rootRule = toolRules[rootRuleIndex];
+  /**
+   * For tools that don't create a separate conventions rule, prepend the
+   * reference and conventions sections to the root rule content. Mutates the
+   * root rule in place.
+   */
+  private applyRootRuleSections({
+    toolRules,
+    meta,
+  }: {
+    toolRules: ToolRule[];
+    meta: ToolRuleFactory["meta"];
+  }): void {
+    const rootRule = toolRules.find((rule) => rule.isRoot());
     if (!rootRule) {
-      return [...toolRules, ...extraFiles];
+      return;
     }
 
     // Generate reference section based on meta configuration
@@ -917,8 +972,6 @@ export class RulesProcessor extends FeatureProcessor {
     if (meta.mirrorsRootToAgentsMd && !this.global) {
       this.mirrorRootRuleToAgentsMd({ toolRules, rootRule, content: newContent });
     }
-
-    return [...toolRules, ...extraFiles];
   }
 
   /**

@@ -56,6 +56,87 @@ function canonicalTransport(config: Record<string, unknown>): string | undefined
 }
 
 /**
+ * Resolves the canonical remote URL for a server (`url` or the `httpUrl` alias).
+ */
+function resolveGooseUrl(config: Record<string, unknown>): string | undefined {
+  return (
+    (typeof config.url === "string" ? config.url : undefined) ??
+    (typeof config.httpUrl === "string" ? config.httpUrl : undefined)
+  );
+}
+
+/**
+ * Determines the Goose `type` for a server based on its command/url/transport.
+ */
+function resolveGooseType(config: Record<string, unknown>, url: string | undefined): string {
+  if (config.command !== undefined) {
+    return "stdio";
+  }
+  if (url !== undefined) {
+    return canonicalTransport(config) === "sse" ? "sse" : "streamable_http";
+  }
+  return canonicalTransport(config) === "builtin" ? "builtin" : "stdio";
+}
+
+/**
+ * Resolves the canonical timeout for a server (`timeout` or `networkTimeout`).
+ */
+function resolveGooseTimeout(config: Record<string, unknown>): number | undefined {
+  if (typeof config.timeout === "number") return config.timeout;
+  if (typeof config.networkTimeout === "number") return config.networkTimeout;
+  return undefined;
+}
+
+/**
+ * Populates the stdio-specific fields (`cmd`, `args`, `envs`) on a Goose ext.
+ */
+function applyGooseStdioFields(
+  ext: Record<string, unknown>,
+  config: Record<string, unknown>,
+): void {
+  const command = config.command;
+  // `command` may be a string or an array; Goose `cmd` is a single
+  // executable, so an array's tail is folded into `args`.
+  if (Array.isArray(command)) {
+    if (typeof command[0] === "string") ext.cmd = command[0];
+    const rest = command.slice(1).filter((c): c is string => typeof c === "string");
+    const args = isStringArray(config.args) ? config.args : [];
+    if (rest.length > 0 || args.length > 0) ext.args = [...rest, ...args];
+  } else if (typeof command === "string") {
+    ext.cmd = command;
+    if (isStringArray(config.args)) ext.args = config.args;
+  }
+  if (isRecord(config.env)) ext.envs = config.env;
+}
+
+/**
+ * Converts a single rulesync canonical MCP server into a Goose `extensions:` entry.
+ */
+function convertServerToGooseExtension(
+  name: string,
+  config: Record<string, unknown>,
+): Record<string, unknown> {
+  const url = resolveGooseUrl(config);
+  const gooseType = resolveGooseType(config, url);
+
+  const ext: Record<string, unknown> = { name, type: gooseType };
+
+  if (gooseType === "stdio") {
+    applyGooseStdioFields(ext, config);
+  } else if (gooseType === "sse" || gooseType === "streamable_http") {
+    if (url !== undefined) ext.uri = url;
+    if (isRecord(config.headers)) ext.headers = config.headers;
+  }
+
+  ext.enabled = config.disabled !== true;
+
+  const timeout = resolveGooseTimeout(config);
+  if (timeout !== undefined) ext.timeout = timeout;
+
+  return ext;
+}
+
+/**
  * Converts rulesync canonical MCP servers into Goose `extensions:` entries.
  *
  * Goose uses a non-standard schema: `name`, `type` (`stdio` | `streamable_http`
@@ -67,53 +148,7 @@ function convertToGooseFormat(mcpServers: McpServers): Record<string, Record<str
 
   for (const [name, config] of Object.entries(mcpServers)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(name) || !isRecord(config)) continue;
-
-    const command = config.command;
-    const url =
-      (typeof config.url === "string" ? config.url : undefined) ??
-      (typeof config.httpUrl === "string" ? config.httpUrl : undefined);
-    const transport = canonicalTransport(config);
-
-    let gooseType: string;
-    if (command !== undefined) {
-      gooseType = "stdio";
-    } else if (url !== undefined) {
-      gooseType = transport === "sse" ? "sse" : "streamable_http";
-    } else {
-      gooseType = transport === "builtin" ? "builtin" : "stdio";
-    }
-
-    const ext: Record<string, unknown> = { name, type: gooseType };
-
-    if (gooseType === "stdio") {
-      // `command` may be a string or an array; Goose `cmd` is a single
-      // executable, so an array's tail is folded into `args`.
-      if (Array.isArray(command)) {
-        if (typeof command[0] === "string") ext.cmd = command[0];
-        const rest = command.slice(1).filter((c): c is string => typeof c === "string");
-        const args = isStringArray(config.args) ? config.args : [];
-        if (rest.length > 0 || args.length > 0) ext.args = [...rest, ...args];
-      } else if (typeof command === "string") {
-        ext.cmd = command;
-        if (isStringArray(config.args)) ext.args = config.args;
-      }
-      if (isRecord(config.env)) ext.envs = config.env;
-    } else if (gooseType === "sse" || gooseType === "streamable_http") {
-      if (url !== undefined) ext.uri = url;
-      if (isRecord(config.headers)) ext.headers = config.headers;
-    }
-
-    ext.enabled = config.disabled !== true;
-
-    const timeout =
-      typeof config.timeout === "number"
-        ? config.timeout
-        : typeof config.networkTimeout === "number"
-          ? config.networkTimeout
-          : undefined;
-    if (timeout !== undefined) ext.timeout = timeout;
-
-    extensions[name] = ext;
+    extensions[name] = convertServerToGooseExtension(name, config);
   }
 
   return extensions;

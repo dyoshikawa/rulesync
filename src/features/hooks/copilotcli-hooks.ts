@@ -108,6 +108,114 @@ const CopilotCliHookEntrySchema = z.looseObject({
 
 type CopilotCliHookEntry = z.infer<typeof CopilotCliHookEntrySchema>;
 
+/** Filter the shared config hooks down to events the Copilot CLI supports. */
+function filterSupportedCopilotCliHooks(hooks: HooksConfig["hooks"]): HooksConfig["hooks"] {
+  const supported: Set<string> = new Set(COPILOTCLI_HOOK_EVENTS);
+  const sharedConfigHooks: HooksConfig["hooks"] = {};
+  for (const [event, defs] of Object.entries(hooks)) {
+    if (supported.has(event)) {
+      sharedConfigHooks[event] = defs;
+    }
+  }
+  return sharedConfigHooks;
+}
+
+/**
+ * Resolve the `matcher` part for an exported entry. Copilot CLI honors `matcher`
+ * only on preToolUse/postToolUse entries; on any other event a matcher would be
+ * silently dropped by the CLI, so we drop it here with a warning rather than
+ * emitting a dead field.
+ */
+function resolveExportMatcherPart({
+  matcher,
+  matcherSupported,
+  eventName,
+  logger,
+}: {
+  matcher: string | null | undefined;
+  matcherSupported: boolean;
+  eventName: string;
+  logger?: Logger;
+}): { matcher?: string } {
+  if (matcher === undefined || matcher === null || matcher === "") {
+    return {};
+  }
+  if (matcherSupported) {
+    return { matcher };
+  }
+  logger?.warn(
+    `Copilot CLI hook matchers are only honored on preToolUse/postToolUse; dropping matcher "${matcher}" on '${eventName}'.`,
+  );
+  return {};
+}
+
+/**
+ * Build the exported entries for a single canonical event. Returns an empty
+ * array when no entries are emitted (e.g. all prompt hooks were skipped).
+ */
+function buildCopilotCliEntriesForEvent({
+  eventName,
+  definitions,
+  canonicalSchemaKeys,
+  commandField,
+  logger,
+}: {
+  eventName: string;
+  definitions: HooksConfig["hooks"][string];
+  canonicalSchemaKeys: string[];
+  commandField: "bash" | "powershell";
+  logger?: Logger;
+}): CopilotCliHookEntry[] {
+  const matcherSupported = COPILOTCLI_MATCHER_EVENTS.has(eventName);
+  const entries: CopilotCliHookEntry[] = [];
+  for (const def of definitions) {
+    const hookType = def.type ?? "command";
+    const timeout = def.timeout;
+    const timeoutPart = timeout !== undefined && timeout !== null ? { timeoutSec: timeout } : {};
+    const matcherPart = resolveExportMatcherPart({
+      matcher: def.matcher,
+      matcherSupported,
+      eventName,
+      logger,
+    });
+    // Non-canonical fields (cwd, env, url, headers, allowedEnvVars, ...) pass
+    // through verbatim.
+    const rest = Object.fromEntries(
+      Object.entries(def).filter(([k]) => !canonicalSchemaKeys.includes(k)),
+    );
+
+    if (hookType === "prompt") {
+      // Copilot CLI only honors prompt hooks on sessionStart.
+      if (eventName !== "sessionStart") {
+        logger?.warn(
+          `Copilot CLI prompt hooks are only supported on sessionStart; skipping a prompt hook on '${eventName}'.`,
+        );
+        continue;
+      }
+      if (def.prompt === undefined || def.prompt === null) continue;
+      entries.push({ type: "prompt", prompt: def.prompt, ...rest });
+    } else if (hookType === "http") {
+      entries.push({
+        type: "http",
+        ...matcherPart,
+        ...(def.url !== undefined && def.url !== null && { url: def.url }),
+        ...timeoutPart,
+        ...rest,
+      });
+    } else {
+      const command = def.command;
+      entries.push({
+        type: "command",
+        ...matcherPart,
+        ...(command !== undefined && command !== null && { [commandField]: command }),
+        ...timeoutPart,
+        ...rest,
+      });
+    }
+  }
+  return entries;
+}
+
 function canonicalToCopilotCliHooks(
   config: HooksConfig,
   logger?: Logger,
@@ -115,78 +223,24 @@ function canonicalToCopilotCliHooks(
   const canonicalSchemaKeys = Object.keys(HookDefinitionSchema.shape);
   const isWindows = process.platform === "win32";
   const commandField = isWindows ? "powershell" : "bash";
-  const supported: Set<string> = new Set(COPILOTCLI_HOOK_EVENTS);
-  const sharedConfigHooks: HooksConfig["hooks"] = {};
-  for (const [event, defs] of Object.entries(config.hooks)) {
-    if (supported.has(event)) {
-      sharedConfigHooks[event] = defs;
-    }
-  }
   // `copilotcli` falls back to the shared `copilot.hooks` override key when no
   // `copilotcli.hooks` block is present, then lets `copilotcli.hooks` win on
   // conflicts.
   const effectiveHooks: HooksConfig["hooks"] = {
-    ...sharedConfigHooks,
+    ...filterSupportedCopilotCliHooks(config.hooks),
     ...config.copilot?.hooks,
     ...config.copilotcli?.hooks,
   };
   const out: Record<string, CopilotCliHookEntry[]> = {};
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
     const copilotEventName = CANONICAL_TO_COPILOTCLI_EVENT_NAMES[eventName] ?? eventName;
-    const matcherSupported = COPILOTCLI_MATCHER_EVENTS.has(eventName);
-    const entries: CopilotCliHookEntry[] = [];
-    for (const def of definitions) {
-      const hookType = def.type ?? "command";
-      const timeout = def.timeout;
-      const timeoutPart = timeout !== undefined && timeout !== null ? { timeoutSec: timeout } : {};
-      // Copilot CLI honors `matcher` only on preToolUse/postToolUse entries; on
-      // any other event a matcher would be silently dropped by the CLI, so we
-      // drop it here with a warning rather than emitting a dead field.
-      let matcherPart: { matcher?: string } = {};
-      if (def.matcher !== undefined && def.matcher !== null && def.matcher !== "") {
-        if (matcherSupported) {
-          matcherPart = { matcher: def.matcher };
-        } else {
-          logger?.warn(
-            `Copilot CLI hook matchers are only honored on preToolUse/postToolUse; dropping matcher "${def.matcher}" on '${eventName}'.`,
-          );
-        }
-      }
-      // Non-canonical fields (cwd, env, url, headers, allowedEnvVars, ...) pass
-      // through verbatim.
-      const rest = Object.fromEntries(
-        Object.entries(def).filter(([k]) => !canonicalSchemaKeys.includes(k)),
-      );
-
-      if (hookType === "prompt") {
-        // Copilot CLI only honors prompt hooks on sessionStart.
-        if (eventName !== "sessionStart") {
-          logger?.warn(
-            `Copilot CLI prompt hooks are only supported on sessionStart; skipping a prompt hook on '${eventName}'.`,
-          );
-          continue;
-        }
-        if (def.prompt === undefined || def.prompt === null) continue;
-        entries.push({ type: "prompt", prompt: def.prompt, ...rest });
-      } else if (hookType === "http") {
-        entries.push({
-          type: "http",
-          ...matcherPart,
-          ...(def.url !== undefined && def.url !== null && { url: def.url }),
-          ...timeoutPart,
-          ...rest,
-        });
-      } else {
-        const command = def.command;
-        entries.push({
-          type: "command",
-          ...matcherPart,
-          ...(command !== undefined && command !== null && { [commandField]: command }),
-          ...timeoutPart,
-          ...rest,
-        });
-      }
-    }
+    const entries = buildCopilotCliEntriesForEvent({
+      eventName,
+      definitions,
+      canonicalSchemaKeys,
+      commandField,
+      logger,
+    });
     if (entries.length > 0) {
       out[copilotEventName] = entries;
     }

@@ -9,6 +9,7 @@ import {
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { getLocalSkillDirNames } from "../features/skills/skills-utils.js";
+import type { GitHubFileEntry, ParsedSource } from "../types/fetch.js";
 import { formatError } from "../utils/error.js";
 import {
   checkPathTraversal,
@@ -91,19 +92,7 @@ export async function resolveAndFetchSources(params: {
   // Frozen mode: validate lockfile covers all declared sources.
   // Missing curated skills are fetched using locked refs.
   if (options.frozen) {
-    const missingKeys: string[] = [];
-
-    for (const source of sources) {
-      const locked = getLockedSource(lock, source.source);
-      if (!locked) {
-        missingKeys.push(source.source);
-      }
-    }
-    if (missingKeys.length > 0) {
-      throw new Error(
-        `Frozen install failed: lockfile is missing entries for: ${missingKeys.join(", ")}. Run 'rulesync install' to update the lockfile.`,
-      );
-    }
+    assertFrozenLockCoversSources({ lock, sources });
   }
 
   const originalLockJson = JSON.stringify(lock);
@@ -120,31 +109,17 @@ export async function resolveAndFetchSources(params: {
 
   for (const sourceEntry of sources) {
     try {
-      const transport = sourceEntry.transport ?? "github";
-      let result: { skillCount: number; fetchedSkillNames: string[]; updatedLock: SourcesLock };
-      if (transport === "git") {
-        result = await fetchSourceViaGit({
-          sourceEntry,
-          projectRoot,
-          lock,
-          localSkillNames,
-          alreadyFetchedSkillNames: allFetchedSkillNames,
-          updateSources: options.updateSources ?? false,
-          frozen: options.frozen ?? false,
-          logger,
-        });
-      } else {
-        result = await fetchSource({
-          sourceEntry,
-          client,
-          projectRoot,
-          lock,
-          localSkillNames,
-          alreadyFetchedSkillNames: allFetchedSkillNames,
-          updateSources: options.updateSources ?? false,
-          logger,
-        });
-      }
+      const result = await fetchSourceByTransport({
+        sourceEntry,
+        client,
+        projectRoot,
+        lock,
+        localSkillNames,
+        alreadyFetchedSkillNames: allFetchedSkillNames,
+        updateSources: options.updateSources ?? false,
+        frozen: options.frozen ?? false,
+        logger,
+      });
       const { skillCount, fetchedSkillNames, updatedLock } = result;
 
       lock = updatedLock;
@@ -162,17 +137,7 @@ export async function resolveAndFetchSources(params: {
     }
   }
 
-  // Prune stale lockfile entries whose keys are not in the current sources (immutable)
-  const sourceKeys = new Set(sources.map((s) => normalizeSourceKey(s.source)));
-  const prunedSources: typeof lock.sources = {};
-  for (const [key, value] of Object.entries(lock.sources)) {
-    if (sourceKeys.has(normalizeSourceKey(key))) {
-      prunedSources[key] = value;
-    } else {
-      logger.debug(`Pruned stale lockfile entry: ${key}`);
-    }
-  }
-  lock = { lockfileVersion: lock.lockfileVersion, sources: prunedSources };
+  lock = pruneStaleLockEntries({ lock, sources, logger });
 
   // Only write lockfile if it has changed (and not in frozen mode)
   if (!options.frozen && JSON.stringify(lock) !== originalLockJson) {
@@ -194,6 +159,103 @@ function logGitClientHints(params: { error: GitClientError; logger: Logger }): v
   } else {
     logger.info("Hint: Check your git credentials (SSH keys, credential helper, or access token).");
   }
+}
+
+/**
+ * Frozen mode: validate the lockfile covers every declared source. Throws with
+ * remediation guidance listing any uncovered source keys.
+ */
+function assertFrozenLockCoversSources(params: {
+  lock: SourcesLock;
+  sources: SourceEntry[];
+}): void {
+  const { lock, sources } = params;
+  const missingKeys: string[] = [];
+
+  for (const source of sources) {
+    const locked = getLockedSource(lock, source.source);
+    if (!locked) {
+      missingKeys.push(source.source);
+    }
+  }
+  if (missingKeys.length > 0) {
+    throw new Error(
+      `Frozen install failed: lockfile is missing entries for: ${missingKeys.join(", ")}. Run 'rulesync install' to update the lockfile.`,
+    );
+  }
+}
+
+/**
+ * Dispatch a single source to the transport-specific fetcher (git CLI vs.
+ * GitHub REST API), preserving the original default of "github".
+ */
+async function fetchSourceByTransport(params: {
+  sourceEntry: SourceEntry;
+  client: GitHubClient;
+  projectRoot: string;
+  lock: SourcesLock;
+  localSkillNames: Set<string>;
+  alreadyFetchedSkillNames: Set<string>;
+  updateSources: boolean;
+  frozen: boolean;
+  logger: Logger;
+}): Promise<{ skillCount: number; fetchedSkillNames: string[]; updatedLock: SourcesLock }> {
+  const {
+    sourceEntry,
+    client,
+    projectRoot,
+    lock,
+    localSkillNames,
+    alreadyFetchedSkillNames,
+    updateSources,
+    frozen,
+    logger,
+  } = params;
+  const transport = sourceEntry.transport ?? "github";
+  if (transport === "git") {
+    return fetchSourceViaGit({
+      sourceEntry,
+      projectRoot,
+      lock,
+      localSkillNames,
+      alreadyFetchedSkillNames,
+      updateSources,
+      frozen,
+      logger,
+    });
+  }
+  return fetchSource({
+    sourceEntry,
+    client,
+    projectRoot,
+    lock,
+    localSkillNames,
+    alreadyFetchedSkillNames,
+    updateSources,
+    logger,
+  });
+}
+
+/**
+ * Prune stale lockfile entries whose keys are not in the current sources
+ * (immutable — returns a fresh lock object).
+ */
+function pruneStaleLockEntries(params: {
+  lock: SourcesLock;
+  sources: SourceEntry[];
+  logger: Logger;
+}): SourcesLock {
+  const { lock, sources, logger } = params;
+  const sourceKeys = new Set(sources.map((s) => normalizeSourceKey(s.source)));
+  const prunedSources: typeof lock.sources = {};
+  for (const [key, value] of Object.entries(lock.sources)) {
+    if (sourceKeys.has(normalizeSourceKey(key))) {
+      prunedSources[key] = value;
+    } else {
+      logger.debug(`Pruned stale lockfile entry: ${key}`);
+    }
+  }
+  return { lockfileVersion: lock.lockfileVersion, sources: prunedSources };
 }
 
 /**
@@ -413,6 +475,290 @@ function groupRemoteFilesBySkillRoot(params: {
 // ---------------------------------------------------------------------------
 
 /**
+ * Resolve a GitHub source's ref to a commit SHA, preferring the locked SHA for
+ * deterministic fetches and otherwise resolving the declared ref or default
+ * branch. Returns the on-disk `ref` (SHA when freshly resolved, else locked
+ * ref), the resolved SHA, and the requested ref.
+ */
+async function resolveGithubFetchRef(params: {
+  parsed: ParsedSource;
+  locked: LockedSource | undefined;
+  updateSources: boolean;
+  sourceKey: string;
+  client: GitHubClient;
+  logger: Logger;
+}): Promise<{ ref: string; resolvedSha: string; requestedRef: string | undefined }> {
+  const { parsed, locked, updateSources, sourceKey, client, logger } = params;
+  if (locked && !updateSources) {
+    // Use the locked SHA for deterministic fetching
+    logger.debug(`Using locked ref for ${sourceKey}: ${locked.resolvedRef}`);
+    return {
+      ref: locked.resolvedRef,
+      resolvedSha: locked.resolvedRef,
+      requestedRef: locked.requestedRef,
+    };
+  }
+  // Resolve the ref (or default branch) to a SHA
+  const requestedRef = parsed.ref ?? (await client.getDefaultBranch(parsed.owner, parsed.repo));
+  const resolvedSha = await client.resolveRefToSha(parsed.owner, parsed.repo, requestedRef);
+  logger.debug(`Resolved ${sourceKey} ref "${requestedRef}" to SHA: ${resolvedSha}`);
+  return { ref: resolvedSha, resolvedSha, requestedRef };
+}
+
+/**
+ * Fallback path used when the skills directory has no subdirectories but does
+ * contain a single flat skill (root-level files). Fetches and writes that skill
+ * into `fetchedSkills`. Returns whether the fallback fired and the resulting
+ * remote skill names.
+ */
+async function fetchRootLevelFallbackSkill(params: {
+  entries: GitHubFileEntry[];
+  parsed: ParsedSource;
+  ref: string;
+  resolvedSha: string;
+  skillFilter: string[];
+  isWildcard: boolean;
+  curatedDir: string;
+  locked: LockedSource | undefined;
+  sourceKey: string;
+  localSkillNames: Set<string>;
+  alreadyFetchedSkillNames: Set<string>;
+  client: GitHubClient;
+  semaphore: Semaphore;
+  fetchedSkills: Record<string, LockedSkill>;
+  logger: Logger;
+}): Promise<{ handled: boolean; remoteSkillNames: string[] }> {
+  const {
+    entries,
+    parsed,
+    ref,
+    resolvedSha,
+    skillFilter,
+    isWildcard,
+    curatedDir,
+    locked,
+    sourceKey,
+    localSkillNames,
+    alreadyFetchedSkillNames,
+    client,
+    semaphore,
+    fetchedSkills,
+    logger,
+  } = params;
+
+  const rootFiles = entries.filter((entry) => entry.type === "file");
+  const rootSkillFiles: RemoteSkillFile[] = [];
+
+  for (const file of rootFiles) {
+    if (file.size > MAX_FILE_SIZE) {
+      logger.warn(
+        `Skipping file "${file.path}" (${(file.size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit).`,
+      );
+      continue;
+    }
+    const content = await withSemaphore(semaphore, () =>
+      client.getFileContent(parsed.owner, parsed.repo, file.path, ref),
+    );
+    rootSkillFiles.push({ relativePath: file.name, content });
+  }
+
+  const groupedRootFiles = groupRemoteFilesBySkillRoot({
+    remoteFiles: rootSkillFiles,
+    skillFilter,
+    isWildcard,
+  });
+  const [fallbackSkillName] = groupedRootFiles.keys();
+  if (fallbackSkillName === undefined) {
+    return { handled: false, remoteSkillNames: [] };
+  }
+
+  if (
+    !shouldSkipSkill({
+      skillName: fallbackSkillName,
+      sourceKey,
+      localSkillNames,
+      alreadyFetchedSkillNames,
+      logger,
+    })
+  ) {
+    fetchedSkills[fallbackSkillName] = await writeSkillAndComputeIntegrity({
+      skillName: fallbackSkillName,
+      files: groupedRootFiles.get(fallbackSkillName) ?? [],
+      curatedDir,
+      locked,
+      resolvedSha,
+      sourceKey,
+      logger,
+    });
+    logger.debug(`Fetched skill "${fallbackSkillName}" from ${sourceKey}`);
+  }
+
+  return { handled: true, remoteSkillNames: [fallbackSkillName] };
+}
+
+/**
+ * Recursively fetch and write a single skill directory's files via the GitHub
+ * REST API, returning its computed LockedSkill entry.
+ */
+async function fetchGithubSkillDir(params: {
+  skillDir: { name: string; path: string };
+  parsed: ParsedSource;
+  ref: string;
+  resolvedSha: string;
+  curatedDir: string;
+  locked: LockedSource | undefined;
+  sourceKey: string;
+  client: GitHubClient;
+  semaphore: Semaphore;
+  logger: Logger;
+}): Promise<LockedSkill> {
+  const {
+    skillDir,
+    parsed,
+    ref,
+    resolvedSha,
+    curatedDir,
+    locked,
+    sourceKey,
+    client,
+    semaphore,
+    logger,
+  } = params;
+
+  // Recursively fetch all files in this skill directory
+  const allFiles = await listDirectoryRecursive({
+    client,
+    owner: parsed.owner,
+    repo: parsed.repo,
+    path: skillDir.path,
+    ref,
+    semaphore,
+  });
+
+  // Filter out files exceeding MAX_FILE_SIZE
+  const files = allFiles.filter((file) => {
+    if (file.size > MAX_FILE_SIZE) {
+      logger.warn(
+        `Skipping file "${file.path}" (${(file.size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit).`,
+      );
+      return false;
+    }
+    return true;
+  });
+
+  // Fetch all file contents
+  const skillFiles: Array<{ relativePath: string; content: string }> = [];
+  for (const file of files) {
+    const relativeToSkill = file.path.substring(skillDir.path.length + 1);
+    const content = await withSemaphore(semaphore, () =>
+      client.getFileContent(parsed.owner, parsed.repo, file.path, ref),
+    );
+    skillFiles.push({ relativePath: relativeToSkill, content });
+  }
+
+  return writeSkillAndComputeIntegrity({
+    skillName: skillDir.name,
+    files: skillFiles,
+    curatedDir,
+    locked,
+    resolvedSha,
+    sourceKey,
+    logger,
+  });
+}
+
+/**
+ * List the remote skills directory and apply the root-level fallback. Returns a
+ * `notFound` sentinel when the directory 404s (so the caller can skip the
+ * source), otherwise the discovered skill subdirectories plus any fallback skill
+ * names already written into `fetchedSkills`.
+ */
+async function discoverGithubSkillDirs(params: {
+  parsed: ParsedSource;
+  ref: string;
+  resolvedSha: string;
+  skillFilter: string[];
+  isWildcard: boolean;
+  curatedDir: string;
+  locked: LockedSource | undefined;
+  sourceKey: string;
+  localSkillNames: Set<string>;
+  alreadyFetchedSkillNames: Set<string>;
+  client: GitHubClient;
+  semaphore: Semaphore;
+  fetchedSkills: Record<string, LockedSkill>;
+  logger: Logger;
+}): Promise<
+  | { status: "notFound" }
+  | {
+      status: "ok";
+      remoteSkillDirs: Array<{ name: string; path: string }>;
+      fallbackHandled: boolean;
+      remoteSkillNames: string[];
+    }
+> {
+  const {
+    parsed,
+    ref,
+    resolvedSha,
+    skillFilter,
+    isWildcard,
+    curatedDir,
+    locked,
+    sourceKey,
+    localSkillNames,
+    alreadyFetchedSkillNames,
+    client,
+    semaphore,
+    fetchedSkills,
+    logger,
+  } = params;
+
+  const skillsBasePath = parsed.path ?? "skills";
+  try {
+    const entries = await client.listDirectory(parsed.owner, parsed.repo, skillsBasePath, ref);
+    const remoteSkillDirs = entries
+      .filter((e) => e.type === "dir")
+      .map((e) => ({ name: e.name, path: e.path }));
+
+    if (remoteSkillDirs.length === 0 && !isWildcard && skillFilter.length === 1) {
+      const fallback = await fetchRootLevelFallbackSkill({
+        entries,
+        parsed,
+        ref,
+        resolvedSha,
+        skillFilter,
+        isWildcard,
+        curatedDir,
+        locked,
+        sourceKey,
+        localSkillNames,
+        alreadyFetchedSkillNames,
+        client,
+        semaphore,
+        fetchedSkills,
+        logger,
+      });
+      if (fallback.handled) {
+        return {
+          status: "ok",
+          remoteSkillDirs,
+          fallbackHandled: true,
+          remoteSkillNames: fallback.remoteSkillNames,
+        };
+      }
+    }
+
+    return { status: "ok", remoteSkillDirs, fallbackHandled: false, remoteSkillNames: [] };
+  } catch (error) {
+    if (error instanceof GitHubClientError && error.statusCode === 404) {
+      return { status: "notFound" };
+    }
+    throw error;
+  }
+}
+
+/**
  * Fetch skills from a single source entry via the GitHub REST API.
  */
 async function fetchSource(params: {
@@ -452,23 +798,14 @@ async function fetchSource(params: {
   const lockedSkillNames = locked ? getLockedSkillNames(locked) : [];
 
   // Resolve the ref to a commit SHA
-  let ref: string;
-  let resolvedSha: string;
-  let requestedRef: string | undefined;
-
-  if (locked && !updateSources) {
-    // Use the locked SHA for deterministic fetching
-    ref = locked.resolvedRef;
-    resolvedSha = locked.resolvedRef;
-    requestedRef = locked.requestedRef;
-    logger.debug(`Using locked ref for ${sourceKey}: ${resolvedSha}`);
-  } else {
-    // Resolve the ref (or default branch) to a SHA
-    requestedRef = parsed.ref ?? (await client.getDefaultBranch(parsed.owner, parsed.repo));
-    resolvedSha = await client.resolveRefToSha(parsed.owner, parsed.repo, requestedRef);
-    ref = resolvedSha;
-    logger.debug(`Resolved ${sourceKey} ref "${requestedRef}" to SHA: ${resolvedSha}`);
-  }
+  const { ref, resolvedSha, requestedRef } = await resolveGithubFetchRef({
+    parsed,
+    locked,
+    updateSources,
+    sourceKey,
+    client,
+    logger,
+  });
 
   const curatedDir = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
 
@@ -494,81 +831,33 @@ async function fetchSource(params: {
   // List the skills/ directory in the remote repo.
   // If a path is given in the source URL, it points directly to the skills directory.
   // Otherwise, look for "skills/" at the repo root.
-  const skillsBasePath = parsed.path ?? "skills";
-  let remoteSkillDirs: Array<{ name: string; path: string }>;
-  let remoteSkillNames: string[] = [];
-  let fallbackHandled = false;
-
-  try {
-    const entries = await client.listDirectory(parsed.owner, parsed.repo, skillsBasePath, ref);
-    remoteSkillDirs = entries
-      .filter((e) => e.type === "dir")
-      .map((e) => ({ name: e.name, path: e.path }));
-
-    if (remoteSkillDirs.length === 0 && !isWildcard && skillFilter.length === 1) {
-      const rootFiles = entries.filter((entry) => entry.type === "file");
-      const rootSkillFiles: RemoteSkillFile[] = [];
-
-      for (const file of rootFiles) {
-        if (file.size > MAX_FILE_SIZE) {
-          logger.warn(
-            `Skipping file "${file.path}" (${(file.size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit).`,
-          );
-          continue;
-        }
-        const content = await withSemaphore(semaphore, () =>
-          client.getFileContent(parsed.owner, parsed.repo, file.path, ref),
-        );
-        rootSkillFiles.push({ relativePath: file.name, content });
-      }
-
-      const groupedRootFiles = groupRemoteFilesBySkillRoot({
-        remoteFiles: rootSkillFiles,
-        skillFilter,
-        isWildcard,
-      });
-      const [fallbackSkillName] = groupedRootFiles.keys();
-      if (fallbackSkillName !== undefined) {
-        fallbackHandled = true;
-        remoteSkillNames = [fallbackSkillName];
-
-        if (
-          !shouldSkipSkill({
-            skillName: fallbackSkillName,
-            sourceKey,
-            localSkillNames,
-            alreadyFetchedSkillNames,
-            logger,
-          })
-        ) {
-          fetchedSkills[fallbackSkillName] = await writeSkillAndComputeIntegrity({
-            skillName: fallbackSkillName,
-            files: groupedRootFiles.get(fallbackSkillName) ?? [],
-            curatedDir,
-            locked,
-            resolvedSha,
-            sourceKey,
-            logger,
-          });
-          logger.debug(`Fetched skill "${fallbackSkillName}" from ${sourceKey}`);
-        }
-      }
-    }
-  } catch (error) {
-    if (error instanceof GitHubClientError && error.statusCode === 404) {
-      logger.warn(`No skills/ directory found in ${sourceKey}. Skipping.`);
-      return { skillCount: 0, fetchedSkillNames: [], updatedLock: lock };
-    }
-    throw error;
+  const discovery = await discoverGithubSkillDirs({
+    parsed,
+    ref,
+    resolvedSha,
+    skillFilter,
+    isWildcard,
+    curatedDir,
+    locked,
+    sourceKey,
+    localSkillNames,
+    alreadyFetchedSkillNames,
+    client,
+    semaphore,
+    fetchedSkills,
+    logger,
+  });
+  if (discovery.status === "notFound") {
+    logger.warn(`No skills/ directory found in ${sourceKey}. Skipping.`);
+    return { skillCount: 0, fetchedSkillNames: [], updatedLock: lock };
   }
+  const { remoteSkillDirs, fallbackHandled, remoteSkillNames: fallbackSkillNames } = discovery;
 
   // Filter skills by name
   const filteredDirs = isWildcard
     ? remoteSkillDirs
     : remoteSkillDirs.filter((d) => skillFilter.includes(d.name));
-  if (!fallbackHandled) {
-    remoteSkillNames = filteredDirs.map((d) => d.name);
-  }
+  const remoteSkillNames = fallbackHandled ? fallbackSkillNames : filteredDirs.map((d) => d.name);
 
   if (locked) {
     await cleanPreviousCuratedSkills({ curatedDir, lockedSkillNames, logger });
@@ -587,44 +876,16 @@ async function fetchSource(params: {
       continue;
     }
 
-    // Recursively fetch all files in this skill directory
-    const allFiles = await listDirectoryRecursive({
-      client,
-      owner: parsed.owner,
-      repo: parsed.repo,
-      path: skillDir.path,
+    fetchedSkills[skillDir.name] = await fetchGithubSkillDir({
+      skillDir,
+      parsed,
       ref,
-      semaphore,
-    });
-
-    // Filter out files exceeding MAX_FILE_SIZE
-    const files = allFiles.filter((file) => {
-      if (file.size > MAX_FILE_SIZE) {
-        logger.warn(
-          `Skipping file "${file.path}" (${(file.size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit).`,
-        );
-        return false;
-      }
-      return true;
-    });
-
-    // Fetch all file contents
-    const skillFiles: Array<{ relativePath: string; content: string }> = [];
-    for (const file of files) {
-      const relativeToSkill = file.path.substring(skillDir.path.length + 1);
-      const content = await withSemaphore(semaphore, () =>
-        client.getFileContent(parsed.owner, parsed.repo, file.path, ref),
-      );
-      skillFiles.push({ relativePath: relativeToSkill, content });
-    }
-
-    fetchedSkills[skillDir.name] = await writeSkillAndComputeIntegrity({
-      skillName: skillDir.name,
-      files: skillFiles,
+      resolvedSha,
       curatedDir,
       locked,
-      resolvedSha,
       sourceKey,
+      client,
+      semaphore,
       logger,
     });
     logger.debug(`Fetched skill "${skillDir.name}" from ${sourceKey}`);

@@ -1,5 +1,5 @@
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
-import { checkRulesyncDirExists, generate } from "../../lib/generate.js";
+import { checkRulesyncDirExists, generate, type GenerateResult } from "../../lib/generate.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import type { Logger } from "../../utils/logger.js";
 import { calculateTotalCount } from "../../utils/result.js";
@@ -55,9 +55,20 @@ function logFeatureResult(
   }
 }
 
-export async function generateCommand(logger: Logger, options: GenerateOptions): Promise<void> {
-  const { baseDir, outputRoots, ...rest } = options;
-
+/**
+ * Resolve the effective output roots from the canonical `--output-roots` and
+ * the deprecated `--base-dir` alias, emitting the relevant deprecation /
+ * override warnings as a side effect. Returns the resolved output-root list.
+ */
+function resolveOutputRoots({
+  logger,
+  baseDir,
+  outputRoots,
+}: {
+  logger: Logger;
+  baseDir: string[] | undefined;
+  outputRoots: string[] | undefined;
+}): string[] | undefined {
   // The deprecated `--base-dir` CLI flag is accepted as an alias of
   // `--output-roots`. Emit a deprecation warning whenever it is used so the
   // user sees a clear migration prompt at the call site. When both are
@@ -90,6 +101,68 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
     );
   }
 
+  return outputRootsResolved;
+}
+
+const FEATURE_DEBUG_MESSAGES: Record<string, string> = {
+  ignore: "Generating ignore files...",
+  mcp: "Generating MCP files...",
+  commands: "Generating command files...",
+  subagents: "Generating subagent files...",
+  skills: "Generating skill files...",
+  hooks: "Generating hooks...",
+  rules: "Generating rule files...",
+};
+
+// Order in which per-feature debug messages are emitted; matches the original
+// sequential `if (features.includes(...))` ladder.
+const FEATURE_DEBUG_ORDER = [
+  "ignore",
+  "mcp",
+  "commands",
+  "subagents",
+  "skills",
+  "hooks",
+  "rules",
+] as const;
+
+function logFeatureDebugMessages(logger: Logger, features: readonly string[]): void {
+  for (const feature of FEATURE_DEBUG_ORDER) {
+    if (features.includes(feature)) {
+      logger.debug(FEATURE_DEBUG_MESSAGES[feature] ?? "");
+    }
+  }
+}
+
+/**
+ * Build the human-readable per-feature summary fragments (e.g. "3 rules") for
+ * features that produced at least one file. Order matches the original
+ * sequential `if (count > 0) parts.push(...)` ladder.
+ */
+function buildSummaryParts(result: GenerateResult): string[] {
+  const summarySpecs: { count: number; label: string }[] = [
+    { count: result.rulesCount, label: "rules" },
+    { count: result.ignoreCount, label: "ignore files" },
+    { count: result.mcpCount, label: "MCP files" },
+    { count: result.commandsCount, label: "commands" },
+    { count: result.subagentsCount, label: "subagents" },
+    { count: result.skillsCount, label: "skills" },
+    { count: result.hooksCount, label: "hooks" },
+    { count: result.permissionsCount, label: "permissions" },
+  ];
+
+  const parts: string[] = [];
+  for (const { count, label } of summarySpecs) {
+    if (count > 0) parts.push(`${count} ${label}`);
+  }
+  return parts;
+}
+
+export async function generateCommand(logger: Logger, options: GenerateOptions): Promise<void> {
+  const { baseDir, outputRoots, ...rest } = options;
+
+  const outputRootsResolved = resolveOutputRoots({ logger, baseDir, outputRoots });
+
   const config = await ConfigResolver.resolve(
     { ...rest, outputRoots: outputRootsResolved },
     { logger },
@@ -113,27 +186,7 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
 
   const features = config.getFeatures();
 
-  if (features.includes("ignore")) {
-    logger.debug("Generating ignore files...");
-  }
-  if (features.includes("mcp")) {
-    logger.debug("Generating MCP files...");
-  }
-  if (features.includes("commands")) {
-    logger.debug("Generating command files...");
-  }
-  if (features.includes("subagents")) {
-    logger.debug("Generating subagent files...");
-  }
-  if (features.includes("skills")) {
-    logger.debug("Generating skill files...");
-  }
-  if (features.includes("hooks")) {
-    logger.debug("Generating hooks...");
-  }
-  if (features.includes("rules")) {
-    logger.debug("Generating rule files...");
-  }
+  logFeatureDebugMessages(logger, features);
 
   const result = await generate({ config, logger });
 
@@ -200,15 +253,7 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
     return;
   }
 
-  const parts = [];
-  if (result.rulesCount > 0) parts.push(`${result.rulesCount} rules`);
-  if (result.ignoreCount > 0) parts.push(`${result.ignoreCount} ignore files`);
-  if (result.mcpCount > 0) parts.push(`${result.mcpCount} MCP files`);
-  if (result.commandsCount > 0) parts.push(`${result.commandsCount} commands`);
-  if (result.subagentsCount > 0) parts.push(`${result.subagentsCount} subagents`);
-  if (result.skillsCount > 0) parts.push(`${result.skillsCount} skills`);
-  if (result.hooksCount > 0) parts.push(`${result.hooksCount} hooks`);
-  if (result.permissionsCount > 0) parts.push(`${result.permissionsCount} permissions`);
+  const parts = buildSummaryParts(result);
 
   if (isPreview) {
     logger.info(`${modePrefix} Would write ${totalGenerated} file(s) total (${parts.join(" + ")})`);

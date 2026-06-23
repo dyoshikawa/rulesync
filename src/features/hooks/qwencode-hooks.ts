@@ -108,6 +108,37 @@ const QwencodeMatcherEntrySchema = z.looseObject({
 });
 
 /**
+ * Convert a single parsed Qwen Code matcher group into canonical hook definitions.
+ */
+function qwencodeMatcherEntryToCanonical(
+  entry: z.infer<typeof QwencodeMatcherEntrySchema>,
+): HooksConfig["hooks"][string] {
+  const defs: HooksConfig["hooks"][string] = [];
+  const hooks = entry.hooks ?? [];
+  const sequential = entry.sequential === true;
+  for (const h of hooks) {
+    const command = h.command;
+    // Preserve the `http` transport (and its target URL) instead of
+    // collapsing every non-prompt hook to `command`.
+    const hookType =
+      h.type === "command" || h.type === "prompt" || h.type === "http" ? h.type : "command";
+    defs.push({
+      type: hookType,
+      ...(command !== undefined && command !== null && { command }),
+      ...(h.url !== undefined && h.url !== null && { url: h.url }),
+      ...(h.timeout !== undefined && h.timeout !== null && { timeout: h.timeout }),
+      ...(h.name !== undefined && h.name !== null && { name: h.name }),
+      ...(h.description !== undefined && h.description !== null && { description: h.description }),
+      ...(sequential && { sequential: true }),
+      ...(entry.matcher !== undefined &&
+        entry.matcher !== null &&
+        entry.matcher !== "" && { matcher: entry.matcher }),
+    });
+  }
+  return defs;
+}
+
+/**
  * Extract hooks from Qwen Code settings.json into canonical format.
  */
 function qwencodeHooksToCanonical(qwencodeHooks: unknown): HooksConfig["hooks"] {
@@ -122,29 +153,7 @@ function qwencodeHooksToCanonical(qwencodeHooks: unknown): HooksConfig["hooks"] 
     for (const rawEntry of matcherEntries) {
       const parseResult = QwencodeMatcherEntrySchema.safeParse(rawEntry);
       if (!parseResult.success) continue;
-      const entry = parseResult.data;
-      const hooks = entry.hooks ?? [];
-      const sequential = entry.sequential === true;
-      for (const h of hooks) {
-        const command = h.command;
-        // Preserve the `http` transport (and its target URL) instead of
-        // collapsing every non-prompt hook to `command`.
-        const hookType =
-          h.type === "command" || h.type === "prompt" || h.type === "http" ? h.type : "command";
-        defs.push({
-          type: hookType,
-          ...(command !== undefined && command !== null && { command }),
-          ...(h.url !== undefined && h.url !== null && { url: h.url }),
-          ...(h.timeout !== undefined && h.timeout !== null && { timeout: h.timeout }),
-          ...(h.name !== undefined && h.name !== null && { name: h.name }),
-          ...(h.description !== undefined &&
-            h.description !== null && { description: h.description }),
-          ...(sequential && { sequential: true }),
-          ...(entry.matcher !== undefined &&
-            entry.matcher !== null &&
-            entry.matcher !== "" && { matcher: entry.matcher }),
-        });
-      }
+      defs.push(...qwencodeMatcherEntryToCanonical(parseResult.data));
     }
     if (defs.length > 0) {
       canonical[eventName] = defs;

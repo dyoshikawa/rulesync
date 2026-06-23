@@ -103,6 +103,35 @@ const GeminiMatcherEntrySchema = z.looseObject({
 });
 
 /**
+ * Convert a single parsed Gemini CLI matcher group into canonical hook definitions.
+ */
+function geminiMatcherEntryToCanonical(
+  entry: z.infer<typeof GeminiMatcherEntrySchema>,
+): HooksConfig["hooks"][string] {
+  const defs: HooksConfig["hooks"][string] = [];
+  const hooks = entry.hooks ?? [];
+  for (const h of hooks) {
+    const cmd = h.command;
+    const command =
+      typeof cmd === "string" && cmd.startsWith("$GEMINI_PROJECT_DIR/")
+        ? cmd.replace(/^\$GEMINI_PROJECT_DIR\/?/, "./")
+        : cmd;
+    const hookType = h.type === "command" || h.type === "prompt" ? h.type : "command";
+    defs.push({
+      type: hookType,
+      ...(command !== undefined && command !== null && { command }),
+      ...(h.timeout !== undefined && h.timeout !== null && { timeout: h.timeout }),
+      ...(h.name !== undefined && h.name !== null && { name: h.name }),
+      ...(h.description !== undefined && h.description !== null && { description: h.description }),
+      ...(entry.matcher !== undefined &&
+        entry.matcher !== null &&
+        entry.matcher !== "" && { matcher: entry.matcher }),
+    });
+  }
+  return defs;
+}
+
+/**
  * Extract hooks from Gemini CLI settings.json into canonical format.
  */
 function geminiHooksToCanonical(geminiHooks: unknown): HooksConfig["hooks"] {
@@ -117,27 +146,7 @@ function geminiHooksToCanonical(geminiHooks: unknown): HooksConfig["hooks"] {
     for (const rawEntry of matcherEntries) {
       const parseResult = GeminiMatcherEntrySchema.safeParse(rawEntry);
       if (!parseResult.success) continue;
-      const entry = parseResult.data;
-      const hooks = entry.hooks ?? [];
-      for (const h of hooks) {
-        const cmd = h.command;
-        const command =
-          typeof cmd === "string" && cmd.startsWith("$GEMINI_PROJECT_DIR/")
-            ? cmd.replace(/^\$GEMINI_PROJECT_DIR\/?/, "./")
-            : cmd;
-        const hookType = h.type === "command" || h.type === "prompt" ? h.type : "command";
-        defs.push({
-          type: hookType,
-          ...(command !== undefined && command !== null && { command }),
-          ...(h.timeout !== undefined && h.timeout !== null && { timeout: h.timeout }),
-          ...(h.name !== undefined && h.name !== null && { name: h.name }),
-          ...(h.description !== undefined &&
-            h.description !== null && { description: h.description }),
-          ...(entry.matcher !== undefined &&
-            entry.matcher !== null &&
-            entry.matcher !== "" && { matcher: entry.matcher }),
-        });
-      }
+      defs.push(...geminiMatcherEntryToCanonical(parseResult.data));
     }
     if (defs.length > 0) {
       canonical[eventName] = defs;

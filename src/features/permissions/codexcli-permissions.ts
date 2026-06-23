@@ -222,6 +222,32 @@ export function createCodexcliBashRulesFile({
   });
 }
 
+function addCodexWebfetchRules({
+  rules,
+  domains,
+  logger,
+}: {
+  rules: Record<string, PermissionAction>;
+  domains: Record<string, "allow" | "deny">;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): void {
+  for (const [pattern, action] of Object.entries(rules)) {
+    if (action === "ask") {
+      logger?.warn(
+        `Codex CLI does not support "ask" for network domain permissions. Skipping webfetch rule: ${pattern}`,
+      );
+      continue;
+    }
+    if (pattern === GLOBAL_WILDCARD_DOMAIN && action === "deny") {
+      logger?.warn(
+        `Codex CLI rejects the global wildcard "${pattern}" in denied network domains at config load time. Skipping webfetch rule; unlisted domains are denied by default.`,
+      );
+      continue;
+    }
+    domains[pattern] = action;
+  }
+}
+
 function convertRulesyncToCodexProfile({
   config,
   logger,
@@ -236,26 +262,14 @@ function convertRulesyncToCodexProfile({
   const domains: Record<string, "allow" | "deny"> = {};
 
   for (const [toolName, rules] of Object.entries(config.permission)) {
-    if (toolName === "read") {
+    if (toolName === "read" || toolName === "edit" || toolName === "write") {
+      const mapAction = toolName === "read" ? mapReadAction : mapWriteAction;
       for (const [pattern, action] of Object.entries(rules)) {
         addFilesystemRule({
           filesystem,
           workspaceRootFilesystem,
           pattern,
-          access: mapReadAction(action),
-          logger,
-        });
-      }
-      continue;
-    }
-
-    if (toolName === "edit" || toolName === "write") {
-      for (const [pattern, action] of Object.entries(rules)) {
-        addFilesystemRule({
-          filesystem,
-          workspaceRootFilesystem,
-          pattern,
-          access: mapWriteAction(action),
+          access: mapAction(action),
           logger,
         });
       }
@@ -263,21 +277,7 @@ function convertRulesyncToCodexProfile({
     }
 
     if (toolName === "webfetch") {
-      for (const [pattern, action] of Object.entries(rules)) {
-        if (action === "ask") {
-          logger?.warn(
-            `Codex CLI does not support "ask" for network domain permissions. Skipping webfetch rule: ${pattern}`,
-          );
-          continue;
-        }
-        if (pattern === GLOBAL_WILDCARD_DOMAIN && action === "deny") {
-          logger?.warn(
-            `Codex CLI rejects the global wildcard "${pattern}" in denied network domains at config load time. Skipping webfetch rule; unlisted domains are denied by default.`,
-          );
-          continue;
-        }
-        domains[pattern] = action;
-      }
+      addCodexWebfetchRules({ rules, domains, logger });
       continue;
     }
 

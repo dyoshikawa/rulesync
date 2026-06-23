@@ -37,6 +37,84 @@ const ClineCommandPermissionsSchema = z.looseObject({
 
 type ClineCommandPermissions = z.infer<typeof ClineCommandPermissionsSchema>;
 
+type ClineTranslationResult = {
+  allow: string[];
+  deny: string[];
+  droppedCategories: string[];
+  translatedAskPatterns: string[];
+};
+
+/**
+ * Translate rulesync permission categories into Cline allow/deny command lists.
+ * Non-bash categories and `ask` rules are tracked separately so a single
+ * translation notice can be surfaced by the caller.
+ */
+function translateClinePermissions(
+  permission: PermissionsConfig["permission"],
+): ClineTranslationResult {
+  const allow: string[] = [];
+  const deny: string[] = [];
+  const droppedCategories: string[] = [];
+  const translatedAskPatterns: string[] = [];
+
+  for (const [category, rules] of Object.entries(permission)) {
+    if (category !== "bash") {
+      droppedCategories.push(category);
+      continue;
+    }
+    for (const [pattern, action] of Object.entries(rules)) {
+      if (action === "ask") {
+        // Cline has no `ask` semantics. Translate to `deny` for fail-closed safety so the
+        // protective intent of the rule is preserved instead of being silently dropped.
+        translatedAskPatterns.push(pattern);
+        deny.push(pattern);
+        continue;
+      }
+      if (action === "allow") {
+        allow.push(pattern);
+      } else if (action === "deny") {
+        deny.push(pattern);
+      }
+    }
+  }
+
+  return { allow, deny, droppedCategories, translatedAskPatterns };
+}
+
+/**
+ * Surface a single aggregated translation notice via `logger.warn` so that
+ * (a) CI gates that treat `error` lines as failures don't fail spuriously, matching the
+ * project convention used by every other permissions translator, and
+ * (b) the user still sees one prominent "WARNING" message describing the translation.
+ */
+function warnClineTranslationNotices({
+  droppedCategories,
+  translatedAskPatterns,
+  logger,
+}: {
+  droppedCategories: string[];
+  translatedAskPatterns: string[];
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): void {
+  if (droppedCategories.length === 0 && translatedAskPatterns.length === 0) {
+    return;
+  }
+  const parts: string[] = [];
+  if (droppedCategories.length > 0) {
+    parts.push(
+      `non-bash categories [${droppedCategories.join(", ")}] (Cline only enforces shell ` +
+        `commands; use the rulesync ignore feature for read/write restrictions)`,
+    );
+  }
+  if (translatedAskPatterns.length > 0) {
+    parts.push(
+      `'ask' rules for bash patterns [${translatedAskPatterns.join(", ")}] translated to ` +
+        `'deny' for fail-closed safety, since Cline lacks 'ask'`,
+    );
+  }
+  logger?.warn(`WARNING: Cline command permissions translation notice: ${parts.join("; ")}.`);
+}
+
 export class ClinePermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
     super({
@@ -110,53 +188,11 @@ export class ClinePermissions extends ToolPermissions {
     }
 
     const config = rulesyncPermissions.getJson();
-    const allow: string[] = [];
-    const deny: string[] = [];
+    const { allow, deny, droppedCategories, translatedAskPatterns } = translateClinePermissions(
+      config.permission,
+    );
 
-    // Translation notices are aggregated and surfaced via a single `logger.warn` per call so that
-    // (a) CI gates that treat `error` lines as failures don't fail spuriously, matching the
-    // project convention used by every other permissions translator, and
-    // (b) the user still sees one prominent "WARNING" message describing the translation.
-    const droppedCategories: string[] = [];
-    const translatedAskPatterns: string[] = [];
-
-    for (const [category, rules] of Object.entries(config.permission)) {
-      if (category !== "bash") {
-        droppedCategories.push(category);
-        continue;
-      }
-      for (const [pattern, action] of Object.entries(rules)) {
-        if (action === "ask") {
-          // Cline has no `ask` semantics. Translate to `deny` for fail-closed safety so the
-          // protective intent of the rule is preserved instead of being silently dropped.
-          translatedAskPatterns.push(pattern);
-          deny.push(pattern);
-          continue;
-        }
-        if (action === "allow") {
-          allow.push(pattern);
-        } else if (action === "deny") {
-          deny.push(pattern);
-        }
-      }
-    }
-
-    if (droppedCategories.length > 0 || translatedAskPatterns.length > 0) {
-      const parts: string[] = [];
-      if (droppedCategories.length > 0) {
-        parts.push(
-          `non-bash categories [${droppedCategories.join(", ")}] (Cline only enforces shell ` +
-            `commands; use the rulesync ignore feature for read/write restrictions)`,
-        );
-      }
-      if (translatedAskPatterns.length > 0) {
-        parts.push(
-          `'ask' rules for bash patterns [${translatedAskPatterns.join(", ")}] translated to ` +
-            `'deny' for fail-closed safety, since Cline lacks 'ask'`,
-        );
-      }
-      logger?.warn(`WARNING: Cline command permissions translation notice: ${parts.join("; ")}.`);
-    }
+    warnClineTranslationNotices({ droppedCategories, translatedAskPatterns, logger });
 
     const dedupedAllow = uniq(allow.toSorted());
     const dedupedDeny = uniq(deny.toSorted());

@@ -11,6 +11,7 @@
   },
 
   "rules": {
+    "complexity": ["error", { "max": 20 }],
     "eqeqeq": "error",
     "import/no-cycle": "error",
     "no-console": "error",

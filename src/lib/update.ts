@@ -297,6 +297,188 @@ export type UpdateOptions = {
 };
 
 /**
+ * Resolve the platform binary asset and the mandatory SHA256SUMS asset from a
+ * release, throwing with manual-download guidance when either is unavailable.
+ */
+function resolveUpdateAssets(release: GitHubRelease): {
+  assetName: string;
+  binaryAsset: GitHubReleaseAsset;
+  checksumAsset: GitHubReleaseAsset;
+} {
+  // Get platform-specific asset name
+  const assetName = getPlatformAssetName();
+  if (!assetName) {
+    throw new Error(
+      `Unsupported platform: ${os.platform()} ${os.arch()}. Please download manually from ${RELEASES_URL}`,
+    );
+  }
+
+  // Find the binary asset
+  const binaryAsset = findAsset(release, assetName);
+  if (!binaryAsset) {
+    throw new Error(
+      `Binary for ${assetName} not found in release. Please download manually from ${RELEASES_URL}`,
+    );
+  }
+
+  // Find the SHA256SUMS asset for verification (mandatory)
+  const checksumAsset = findAsset(release, "SHA256SUMS");
+  if (!checksumAsset) {
+    throw new Error(
+      `SHA256SUMS not found in release. Cannot verify download integrity. Please download manually from ${RELEASES_URL}`,
+    );
+  }
+
+  return { assetName, binaryAsset, checksumAsset };
+}
+
+/**
+ * Download the binary and SHA256SUMS into the temp directory, then verify the
+ * binary's checksum. Throws when the checksum entry is missing or mismatched.
+ */
+async function downloadAndVerifyBinary(params: {
+  tempDir: string;
+  assetName: string;
+  binaryAsset: GitHubReleaseAsset;
+  checksumAsset: GitHubReleaseAsset;
+}): Promise<string> {
+  const { tempDir, assetName, binaryAsset, checksumAsset } = params;
+  const tempBinaryPath = path.join(tempDir, assetName);
+
+  // Download the binary
+  await downloadFile(binaryAsset.browser_download_url, tempBinaryPath);
+
+  // Verify checksum (mandatory)
+  const checksumsPath = path.join(tempDir, "SHA256SUMS");
+  await downloadFile(checksumAsset.browser_download_url, checksumsPath);
+
+  const checksumsContent = await fs.promises.readFile(checksumsPath, "utf-8");
+  const checksums = parseSha256Sums(checksumsContent);
+  const expectedChecksum = checksums.get(assetName);
+
+  if (!expectedChecksum) {
+    throw new Error(
+      `Checksum entry for "${assetName}" not found in SHA256SUMS. Cannot verify download integrity.`,
+    );
+  }
+
+  const actualChecksum = await calculateSha256(tempBinaryPath);
+  if (actualChecksum !== expectedChecksum) {
+    throw new Error(
+      `Checksum verification failed. Expected: ${expectedChecksum}, Got: ${actualChecksum}. The download may be corrupted.`,
+    );
+  }
+
+  return tempBinaryPath;
+}
+
+/**
+ * Replace the running executable at `currentExePath` with the verified binary,
+ * preferring an atomic rename and falling back to a direct cross-filesystem copy.
+ */
+async function replaceCurrentBinary(params: {
+  tempBinaryPath: string;
+  currentExePath: string;
+  currentDir: string;
+}): Promise<void> {
+  const { tempBinaryPath, currentExePath, currentDir } = params;
+  // Attempt atomic replacement via rename (works when on the same filesystem)
+  const tempInPlace = path.join(currentDir, `.rulesync-update-${crypto.randomUUID()}`);
+  try {
+    await fs.promises.copyFile(tempBinaryPath, tempInPlace);
+    if (os.platform() !== "win32") {
+      await fs.promises.chmod(tempInPlace, 0o755);
+    }
+    await fs.promises.rename(tempInPlace, currentExePath);
+  } catch {
+    // Cleanup temp-in-place file on failure, then fall back to direct copy
+    try {
+      await fs.promises.unlink(tempInPlace);
+    } catch {
+      // Ignore cleanup errors
+    }
+    // Fallback: direct copy (non-atomic but works across filesystems)
+    await fs.promises.copyFile(tempBinaryPath, currentExePath);
+    if (os.platform() !== "win32") {
+      await fs.promises.chmod(currentExePath, 0o755);
+    }
+  }
+}
+
+/**
+ * Install the verified binary over the current executable, backing it up first
+ * and restoring from backup on failure. Returns whether the restore failed so
+ * the caller can preserve the temp directory for manual recovery.
+ */
+async function installVerifiedBinary(params: {
+  tempDir: string;
+  tempBinaryPath: string;
+  currentVersion: string;
+  latestVersion: string;
+}): Promise<{ message: string; restoreFailed: boolean }> {
+  const { tempDir, tempBinaryPath, currentVersion, latestVersion } = params;
+
+  // Resolve symlinks to get the real executable path
+  const currentExePath = await fs.promises.realpath(process.execPath);
+  const currentDir = path.dirname(currentExePath);
+
+  // Backup current binary to temp directory (not predictable path)
+  const backupPath = path.join(tempDir, "rulesync.backup");
+  try {
+    await fs.promises.copyFile(currentExePath, backupPath);
+  } catch (error) {
+    if (isPermissionError(error)) {
+      throw new UpdatePermissionError(
+        `Permission denied: Cannot read ${currentExePath}. Try running with sudo.`,
+      );
+    }
+    throw error;
+  }
+
+  try {
+    await replaceCurrentBinary({ tempBinaryPath, currentExePath, currentDir });
+    return {
+      message: `Successfully updated from ${currentVersion} to ${latestVersion}`,
+      restoreFailed: false,
+    };
+  } catch (error) {
+    // Restore from backup on failure
+    try {
+      await fs.promises.copyFile(backupPath, currentExePath);
+    } catch {
+      throw new RestoreFailedError(
+        new Error(
+          `Failed to replace binary and restore failed. Backup is preserved at: ${backupPath} (in ${tempDir}). ` +
+            `Please manually copy it to ${currentExePath}. Original error: ${error instanceof Error ? error.message : String(error)}`,
+          { cause: error },
+        ),
+      );
+    }
+    if (isPermissionError(error)) {
+      throw new UpdatePermissionError(
+        `Permission denied: Cannot write to ${path.dirname(currentExePath)}. Try running with sudo.`,
+      );
+    }
+    throw error;
+  }
+}
+
+/**
+ * Internal marker wrapping the error thrown when both the binary replacement
+ * and the backup restore fail. The caller unwraps it so the temp directory is
+ * preserved for manual recovery (mirrors the original inline `restoreFailed`
+ * flag behavior).
+ */
+class RestoreFailedError extends Error {
+  override readonly cause: Error;
+  constructor(cause: Error) {
+    super(cause.message);
+    this.name = "RestoreFailedError";
+    this.cause = cause;
+  }
+}
+
+/**
  * Perform the binary update
  */
 export async function performBinaryUpdate(
@@ -312,29 +494,7 @@ export async function performBinaryUpdate(
     return `Already at the latest version (${currentVersion})`;
   }
 
-  // Get platform-specific asset name
-  const assetName = getPlatformAssetName();
-  if (!assetName) {
-    throw new Error(
-      `Unsupported platform: ${os.platform()} ${os.arch()}. Please download manually from ${RELEASES_URL}`,
-    );
-  }
-
-  // Find the binary asset
-  const binaryAsset = findAsset(updateCheck.release, assetName);
-  if (!binaryAsset) {
-    throw new Error(
-      `Binary for ${assetName} not found in release. Please download manually from ${RELEASES_URL}`,
-    );
-  }
-
-  // Find the SHA256SUMS asset for verification (mandatory)
-  const checksumAsset = findAsset(updateCheck.release, "SHA256SUMS");
-  if (!checksumAsset) {
-    throw new Error(
-      `SHA256SUMS not found in release. Cannot verify download integrity. Please download manually from ${RELEASES_URL}`,
-    );
-  }
+  const { assetName, binaryAsset, checksumAsset } = resolveUpdateAssets(updateCheck.release);
 
   // Create temporary directory for download
   const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "rulesync-update-"));
@@ -346,92 +506,27 @@ export async function performBinaryUpdate(
       await fs.promises.chmod(tempDir, 0o700);
     }
 
-    const tempBinaryPath = path.join(tempDir, assetName);
+    const tempBinaryPath = await downloadAndVerifyBinary({
+      tempDir,
+      assetName,
+      binaryAsset,
+      checksumAsset,
+    });
 
-    // Download the binary
-    await downloadFile(binaryAsset.browser_download_url, tempBinaryPath);
-
-    // Verify checksum (mandatory)
-    const checksumsPath = path.join(tempDir, "SHA256SUMS");
-    await downloadFile(checksumAsset.browser_download_url, checksumsPath);
-
-    const checksumsContent = await fs.promises.readFile(checksumsPath, "utf-8");
-    const checksums = parseSha256Sums(checksumsContent);
-    const expectedChecksum = checksums.get(assetName);
-
-    if (!expectedChecksum) {
-      throw new Error(
-        `Checksum entry for "${assetName}" not found in SHA256SUMS. Cannot verify download integrity.`,
-      );
+    const installed = await installVerifiedBinary({
+      tempDir,
+      tempBinaryPath,
+      currentVersion,
+      latestVersion: updateCheck.latestVersion,
+    });
+    restoreFailed = installed.restoreFailed;
+    return installed.message;
+  } catch (error) {
+    if (error instanceof RestoreFailedError) {
+      restoreFailed = true;
+      throw error.cause;
     }
-
-    const actualChecksum = await calculateSha256(tempBinaryPath);
-    if (actualChecksum !== expectedChecksum) {
-      throw new Error(
-        `Checksum verification failed. Expected: ${expectedChecksum}, Got: ${actualChecksum}. The download may be corrupted.`,
-      );
-    }
-
-    // Resolve symlinks to get the real executable path
-    const currentExePath = await fs.promises.realpath(process.execPath);
-    const currentDir = path.dirname(currentExePath);
-
-    // Backup current binary to temp directory (not predictable path)
-    const backupPath = path.join(tempDir, "rulesync.backup");
-    try {
-      await fs.promises.copyFile(currentExePath, backupPath);
-    } catch (error) {
-      if (isPermissionError(error)) {
-        throw new UpdatePermissionError(
-          `Permission denied: Cannot read ${currentExePath}. Try running with sudo.`,
-        );
-      }
-      throw error;
-    }
-
-    try {
-      // Attempt atomic replacement via rename (works when on the same filesystem)
-      const tempInPlace = path.join(currentDir, `.rulesync-update-${crypto.randomUUID()}`);
-      try {
-        await fs.promises.copyFile(tempBinaryPath, tempInPlace);
-        if (os.platform() !== "win32") {
-          await fs.promises.chmod(tempInPlace, 0o755);
-        }
-        await fs.promises.rename(tempInPlace, currentExePath);
-      } catch {
-        // Cleanup temp-in-place file on failure, then fall back to direct copy
-        try {
-          await fs.promises.unlink(tempInPlace);
-        } catch {
-          // Ignore cleanup errors
-        }
-        // Fallback: direct copy (non-atomic but works across filesystems)
-        await fs.promises.copyFile(tempBinaryPath, currentExePath);
-        if (os.platform() !== "win32") {
-          await fs.promises.chmod(currentExePath, 0o755);
-        }
-      }
-
-      return `Successfully updated from ${currentVersion} to ${updateCheck.latestVersion}`;
-    } catch (error) {
-      // Restore from backup on failure
-      try {
-        await fs.promises.copyFile(backupPath, currentExePath);
-      } catch {
-        restoreFailed = true;
-        throw new Error(
-          `Failed to replace binary and restore failed. Backup is preserved at: ${backupPath} (in ${tempDir}). ` +
-            `Please manually copy it to ${currentExePath}. Original error: ${error instanceof Error ? error.message : String(error)}`,
-          { cause: error },
-        );
-      }
-      if (isPermissionError(error)) {
-        throw new UpdatePermissionError(
-          `Permission denied: Cannot write to ${path.dirname(currentExePath)}. Try running with sudo.`,
-        );
-      }
-      throw error;
-    }
+    throw error;
   } finally {
     // Skip cleanup if restore failed, so the backup is preserved for manual recovery
     if (!restoreFailed) {
