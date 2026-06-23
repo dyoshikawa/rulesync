@@ -280,7 +280,9 @@ function computeRootFileOwnership(params: {
     if ("root" in paths && paths.root) {
       register(paths.root.relativeDirPath, paths.root.relativeFilePath, target);
     }
-    // Alternative root files (fallback root locations) are also emitted/owned.
+    // Secondary/fallback root locations a target recognizes are attributed to
+    // it as well, so a shared collision at one of those paths is skipped for
+    // non-owning targets.
     if ("alternativeRoots" in paths && paths.alternativeRoots) {
       for (const alt of paths.alternativeRoots) {
         register(alt.relativeDirPath, alt.relativeFilePath, target);
@@ -290,6 +292,8 @@ function computeRootFileOwnership(params: {
     // subdirectory — to a project-root `./AGENTS.md` at generation time (project
     // scope only). That mirror is exactly the shared-collision path, so it must
     // be attributed to the target too, otherwise ownership/skip decisions invert.
+    // (For rovodev this overlaps its `alternativeRoots` today; the explicit
+    // block keeps ownership correct even if that alt root is ever removed.)
     if (!params.global && factory.meta.mirrorsRootToAgentsMd) {
       register(".", AGENTSMD_RULE_FILE_NAME, target);
     }
