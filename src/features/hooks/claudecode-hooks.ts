@@ -26,6 +26,13 @@ const CLAUDE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
   "worktreeCreate",
   "worktreeRemove",
   "messageDisplay",
+  // Documented as firing on every occurrence with no tool/argument matcher.
+  // @see https://code.claude.com/docs/en/hooks#hook-events
+  "postToolBatch",
+  "taskCreated",
+  "taskCompleted",
+  "teammateIdle",
+  "cwdChanged",
 ]);
 
 const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {

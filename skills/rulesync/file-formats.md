@@ -179,7 +179,7 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 | `elicitation`          |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
 | `elicitationResult`    |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
 
-> **Note:** `worktreeCreate`, `worktreeRemove`, and `messageDisplay` are Claude Code-specific events and do not support the `matcher` field. Any matcher defined in the config is ignored for these events.
+> **Note:** `worktreeCreate`, `worktreeRemove`, `messageDisplay`, `postToolBatch`, `taskCreated`, `taskCompleted`, `teammateIdle`, and `cwdChanged` are Claude Code events that do not support the `matcher` field (they fire on every occurrence). Any matcher defined in the config is ignored for these events.
 
 > **Note:** Rulesync implements OpenCode hooks as a plugin at `.opencode/plugins/rulesync-hooks.js` and Kilo hooks as a plugin at `.kilo/plugins/rulesync-hooks.js`, so importing from OpenCode/Kilo to rulesync is not supported. Both only support command-type hooks (not prompt-type).
 

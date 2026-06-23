@@ -135,6 +135,38 @@ describe("ClaudecodeHooks", () => {
       }
     });
 
+    it("omits the matcher for no-matcher events but keeps it for matcher events (#1628)", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          // No-matcher event: matcher must be dropped.
+          taskCreated: [{ matcher: "Bash", command: "a.sh" }],
+          // Matcher-supporting event: matcher must be preserved.
+          postToolUseFailure: [{ matcher: "Bash", command: "b.sh" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(claudecodeHooks.getFileContent());
+      expect(parsed.hooks.TaskCreated[0].matcher).toBeUndefined();
+      expect(parsed.hooks.PostToolUseFailure[0].matcher).toBe("Bash");
+    });
+
     it("should only prefix dot-relative commands with $CLAUDE_PROJECT_DIR", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
