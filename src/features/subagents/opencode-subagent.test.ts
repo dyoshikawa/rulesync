@@ -204,6 +204,35 @@ Assist with any tasks`,
     expect(result.success).toBe(true);
   });
 
+  it("should validate the documented field types but keep unknown fields (looseObject)", () => {
+    // Known fields are now typed explicitly (strict-schema pattern, #1658)...
+    expect(
+      OpenCodeSubagentFrontmatterSchema.safeParse({
+        description: "Agent",
+        temperature: 0.4,
+        top_p: 0.9,
+        model: "some-model",
+        tools: { read: true, write: false },
+      }).success,
+    ).toBe(true);
+    // ...a wrong type for a declared field is rejected...
+    expect(
+      OpenCodeSubagentFrontmatterSchema.safeParse({
+        description: "Agent",
+        temperature: "hot",
+      }).success,
+    ).toBe(false);
+    // ...while forward-compatible unknown fields still round-trip.
+    const loose = OpenCodeSubagentFrontmatterSchema.safeParse({
+      description: "Agent",
+      futureOpenCodeField: "kept",
+    });
+    expect(loose.success).toBe(true);
+    expect(loose.success && (loose.data as Record<string, unknown>).futureOpenCodeField).toBe(
+      "kept",
+    );
+  });
+
   it("should apply default mode 'subagent' when mode is omitted", async () => {
     const dirPath = join(testDir, ".opencode", "agents");
     const filePath = join(dirPath, "no-mode.md");
