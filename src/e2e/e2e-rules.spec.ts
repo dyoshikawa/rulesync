@@ -712,4 +712,37 @@ globs: ["src/**/*.ts"]
     expect(nonRootContent).toContain("Global Non-Root Rule");
     expect(nonRootContent).toContain("src/**/*.ts");
   });
+
+  it("should generate roo non-root rules into ~/.roo/rules in global mode", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    // Roo has no root memory file; every rule is a non-root file under the
+    // rules directory. In global mode that directory resolves to ~/.roo/rules/.
+    const nonRootRuleContent = `---
+targets: ["*"]
+description: "Global coding guidelines"
+globs: ["src/**/*"]
+---
+
+# Global Roo Rule
+`;
+    await writeFileContent(
+      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "coding-guidelines.md"),
+      nonRootRuleContent,
+    );
+
+    await runGenerate({
+      target: "roo",
+      features: "rules",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // Non-root rule -> ~/.roo/rules/*.md (plain Markdown, Roo reads no frontmatter)
+    const nonRootContent = await readFileContent(
+      join(homeDir, ".roo", "rules", "coding-guidelines.md"),
+    );
+    expect(nonRootContent).toContain("Global Roo Rule");
+  });
 });

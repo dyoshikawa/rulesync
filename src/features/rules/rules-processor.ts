@@ -606,10 +606,15 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       // Roo subagents are native now (aggregated into `.roomodes`), so no
       // simulated `additionalConventions.subagents` block is needed — mirrors
       // how native subagent tools like geminicli are wired.
+      //
+      // Roo also reads user-scope rules from `~/.roo/rules/` (loaded before
+      // workspace `.roo/rules/`), so global mode emits the same non-root
+      // directory under the home directory.
+      // @see https://roocodeinc.github.io/Roo-Code/features/custom-instructions
       class: RooRule,
       meta: {
         extension: "md",
-        supportsGlobal: false,
+        supportsGlobal: true,
         ruleDiscoveryMode: "auto",
       },
     },
