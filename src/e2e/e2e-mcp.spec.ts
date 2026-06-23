@@ -500,6 +500,7 @@ describe("E2E: mcp (global mode)", () => {
       outputPath: join(".codeium", "windsurf", "mcp_config.json"),
     },
     { target: "vibe", outputPath: join(".vibe", "config.toml") },
+    { target: "reasonix", outputPath: join(".reasonix", "config.toml") },
   ])("should generate $target mcp in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
