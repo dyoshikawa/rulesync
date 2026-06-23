@@ -28,6 +28,27 @@ import {
  * Filters shared hooks to KIRO_HOOK_EVENTS, merges config.kiro?.hooks,
  * then maps event names and emits Kiro CLI hook arrays.
  */
+/** Build the Kiro CLI hook entries for a single canonical event's definitions. */
+function buildKiroEntriesForEvent(definitions: HooksConfig["hooks"][string]): unknown[] {
+  const entries: unknown[] = [];
+  for (const def of definitions) {
+    if ((def.type ?? "command") !== "command") continue;
+    entries.push({
+      command: def.command,
+      ...(def.matcher !== undefined &&
+        def.matcher !== null &&
+        def.matcher !== "" && { matcher: def.matcher }),
+      ...(def.timeout !== undefined &&
+        def.timeout !== null &&
+        def.timeout > 0 && { timeout_ms: def.timeout }),
+      ...(def.name !== undefined && def.name !== null && { name: def.name }),
+      ...(def.description !== undefined &&
+        def.description !== null && { description: def.description }),
+    });
+  }
+  return entries;
+}
+
 function canonicalToKiroHooks(
   config: HooksConfig,
   overrideKey: "kiro" | "kiro-cli" = "kiro",
@@ -51,22 +72,7 @@ function canonicalToKiroHooks(
   const kiro: Record<string, unknown[]> = {};
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
     const kiroEventName = CANONICAL_TO_KIRO_EVENT_NAMES[eventName] ?? eventName;
-    const entries: unknown[] = [];
-    for (const def of definitions) {
-      if ((def.type ?? "command") !== "command") continue;
-      entries.push({
-        command: def.command,
-        ...(def.matcher !== undefined &&
-          def.matcher !== null &&
-          def.matcher !== "" && { matcher: def.matcher }),
-        ...(def.timeout !== undefined &&
-          def.timeout !== null &&
-          def.timeout > 0 && { timeout_ms: def.timeout }),
-        ...(def.name !== undefined && def.name !== null && { name: def.name }),
-        ...(def.description !== undefined &&
-          def.description !== null && { description: def.description }),
-      });
-    }
+    const entries = buildKiroEntriesForEvent(definitions);
     if (entries.length > 0) {
       if (kiro[kiroEventName]) {
         kiro[kiroEventName].push(...entries);

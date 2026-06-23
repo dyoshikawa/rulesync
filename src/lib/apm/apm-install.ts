@@ -79,39 +79,7 @@ export async function installApm(params: {
 
   const existingLock = await readApmLock(projectRoot);
   if (options.frozen) {
-    if (!existingLock) {
-      throw new Error(
-        "Frozen install failed: rulesync-apm.lock.yaml is missing. Run 'rulesync install --mode apm' to create it.",
-      );
-    }
-    const missing = manifest.dependencies.filter(
-      (dep) => !findApmLockDependency(existingLock, canonicalRepoUrl(dep)),
-    );
-    if (missing.length > 0) {
-      const names = missing.map((d) => d.gitUrl).join(", ");
-      throw new Error(
-        `Frozen install failed: rulesync-apm.lock.yaml is missing entries for: ${names}. Run 'rulesync install --mode apm' to update the lockfile.`,
-      );
-    }
-    // Detect manifest drift: when the user edited `ref` in apm.yml without
-    // re-running install, the locked ref no longer matches the declared one.
-    // In frozen mode we refuse rather than silently install the locked SHA.
-    const drifted = manifest.dependencies.filter((dep) => {
-      if (dep.ref === undefined) return false;
-      const locked = findApmLockDependency(existingLock, canonicalRepoUrl(dep));
-      return locked?.resolved_ref !== undefined && locked.resolved_ref !== dep.ref;
-    });
-    if (drifted.length > 0) {
-      const names = drifted
-        .map((d) => {
-          const locked = findApmLockDependency(existingLock, canonicalRepoUrl(d));
-          return `${d.gitUrl} (manifest=${d.ref}, lock=${locked?.resolved_ref})`;
-        })
-        .join(", ");
-      throw new Error(
-        `Frozen install failed: manifest ref does not match rulesync-apm.lock.yaml for: ${names}. Run 'rulesync install --mode apm' to update the lockfile.`,
-      );
-    }
+    assertFrozenLockCoversManifest({ existingLock, dependencies: manifest.dependencies });
   }
 
   const token = GitHubClient.resolveToken(options.token);
@@ -208,32 +176,7 @@ export async function installApm(params: {
   // path. Offending entries are skipped with a warn log rather than fatal so
   // that a single bad row cannot brick the install.
   if (existingLock) {
-    const newDeployedFiles = new Set(newLock.dependencies.flatMap((d) => d.deployed_files));
-    const toDelete: string[] = [];
-    for (const prev of existingLock.dependencies) {
-      for (const deployed of prev.deployed_files) {
-        if (!newDeployedFiles.has(deployed)) {
-          toDelete.push(deployed);
-        }
-      }
-    }
-    for (const relativePath of toDelete) {
-      if (posix.isAbsolute(relativePath) || relativePath.split(/[/\\]/).includes("..")) {
-        logger.warn(`Refusing to remove stale apm file with suspicious path: "${relativePath}".`);
-        continue;
-      }
-      try {
-        checkPathTraversal({ relativePath, intendedRootDir: projectRoot });
-      } catch {
-        logger.warn(`Refusing to remove stale apm file outside projectRoot: "${relativePath}".`);
-        continue;
-      }
-      const absolute = join(projectRoot, relativePath);
-      // `removeFile` is best-effort and swallows ENOENT, so missing files are
-      // a no-op. This keeps a corrupted partial-install from blowing up here.
-      await removeFile(absolute);
-      logger.debug(`Removed stale apm file: ${relativePath}`);
-    }
+    await removeStaleApmFiles({ existingLock, newLock, projectRoot, logger });
   }
 
   // Always rewrite the lockfile (except under --frozen, which is a verify-only
@@ -257,6 +200,93 @@ export async function installApm(params: {
     deployedFileCount: totalDeployed,
     failedDependencyCount: failedCount,
   };
+}
+
+/**
+ * Frozen-mode validation: the lockfile must exist, cover every manifest
+ * dependency, and not have drifted from any declared `ref`. Throws with
+ * remediation guidance on the first failing check (preserving the original
+ * order: missing-lock, missing-entries, then ref drift).
+ */
+function assertFrozenLockCoversManifest(params: {
+  existingLock: ApmLock | null;
+  dependencies: ApmDependency[];
+}): asserts params is { existingLock: ApmLock; dependencies: ApmDependency[] } {
+  const { existingLock, dependencies } = params;
+  if (!existingLock) {
+    throw new Error(
+      "Frozen install failed: rulesync-apm.lock.yaml is missing. Run 'rulesync install --mode apm' to create it.",
+    );
+  }
+  const missing = dependencies.filter(
+    (dep) => !findApmLockDependency(existingLock, canonicalRepoUrl(dep)),
+  );
+  if (missing.length > 0) {
+    const names = missing.map((d) => d.gitUrl).join(", ");
+    throw new Error(
+      `Frozen install failed: rulesync-apm.lock.yaml is missing entries for: ${names}. Run 'rulesync install --mode apm' to update the lockfile.`,
+    );
+  }
+  // Detect manifest drift: when the user edited `ref` in apm.yml without
+  // re-running install, the locked ref no longer matches the declared one.
+  // In frozen mode we refuse rather than silently install the locked SHA.
+  const drifted = dependencies.filter((dep) => {
+    if (dep.ref === undefined) return false;
+    const locked = findApmLockDependency(existingLock, canonicalRepoUrl(dep));
+    return locked?.resolved_ref !== undefined && locked.resolved_ref !== dep.ref;
+  });
+  if (drifted.length > 0) {
+    const names = drifted
+      .map((d) => {
+        const locked = findApmLockDependency(existingLock, canonicalRepoUrl(d));
+        return `${d.gitUrl} (manifest=${d.ref}, lock=${locked?.resolved_ref})`;
+      })
+      .join(", ");
+    throw new Error(
+      `Frozen install failed: manifest ref does not match rulesync-apm.lock.yaml for: ${names}. Run 'rulesync install --mode apm' to update the lockfile.`,
+    );
+  }
+}
+
+/**
+ * Remove files that a previous install deployed but that are no longer part of
+ * any current dependency's `deployed_files`. Each entry is path-traversal
+ * hardened (shape check + `checkPathTraversal`) and offending rows are skipped
+ * with a warn log rather than fatal.
+ */
+async function removeStaleApmFiles(params: {
+  existingLock: ApmLock;
+  newLock: ApmLock;
+  projectRoot: string;
+  logger: Logger;
+}): Promise<void> {
+  const { existingLock, newLock, projectRoot, logger } = params;
+  const newDeployedFiles = new Set(newLock.dependencies.flatMap((d) => d.deployed_files));
+  const toDelete: string[] = [];
+  for (const prev of existingLock.dependencies) {
+    for (const deployed of prev.deployed_files) {
+      if (!newDeployedFiles.has(deployed)) {
+        toDelete.push(deployed);
+      }
+    }
+  }
+  for (const relativePath of toDelete) {
+    if (posix.isAbsolute(relativePath) || relativePath.split(/[/\\]/).includes("..")) {
+      logger.warn(`Refusing to remove stale apm file with suspicious path: "${relativePath}".`);
+      continue;
+    }
+    try {
+      checkPathTraversal({ relativePath, intendedRootDir: projectRoot });
+    } catch {
+      logger.warn(`Refusing to remove stale apm file outside projectRoot: "${relativePath}".`);
+      continue;
+    }
+    const absolute = join(projectRoot, relativePath);
+    // `removeFile` is best-effort and swallows ENOENT, so missing files are
+    // a no-op. This keeps a corrupted partial-install from blowing up here.
+    await removeFile(absolute);
+    logger.debug(`Removed stale apm file: ${relativePath}`);
+  }
 }
 
 async function installDependency(params: {
@@ -305,73 +335,27 @@ async function installDependency(params: {
     });
     if (files.length === 0) continue;
 
-    for (const file of files) {
-      if (file.size > MAX_FILE_SIZE) {
-        logger.warn(
-          `Skipping "${file.path}" from ${repoUrl}: ${(file.size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`,
-        );
-        continue;
-      }
-      const relativeToBase = posix.relative(remoteBase, toPosixPath(file.path));
-      if (!relativeToBase || relativeToBase.startsWith("..") || posix.isAbsolute(relativeToBase)) {
-        logger.warn(
-          `Skipping "${file.path}" from ${repoUrl}: resolved outside of "${remoteBase}".`,
-        );
-        continue;
-      }
-      const deployRelative = toPosixPath(join(primitive.deployDir, relativeToBase));
-      checkPathTraversal({
-        relativePath: deployRelative,
-        intendedRootDir: projectRoot,
-      });
-      const content = await withSemaphore(semaphore, () =>
-        client.getFileContent(dep.owner, dep.repo, file.path, resolvedSha),
-      );
-      // The tree-listing size can lie (LFS pointers, filter-driver output),
-      // so enforce the cap on the fetched bytes as well.
-      const byteLength = Buffer.byteLength(content, "utf8");
-      if (byteLength > MAX_FILE_SIZE) {
-        logger.warn(
-          `Skipping "${file.path}" from ${repoUrl}: fetched ${(byteLength / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`,
-        );
-        continue;
-      }
-      deployed.push({ path: deployRelative, content });
-      if (!frozen) {
-        await writeFileContent(join(projectRoot, deployRelative), content);
-      }
-    }
+    await collectPrimitiveDeployments({
+      dep,
+      client,
+      semaphore,
+      projectRoot,
+      primitive,
+      remoteBase,
+      files,
+      resolvedSha,
+      repoUrl,
+      frozen,
+      deployed,
+      logger,
+    });
   }
 
   deployed.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const deployedFiles = deployed.map((d) => d.path);
   const contentHash = computeContentHash(deployed);
 
-  // Verify integrity against the lockfile when running frozen and the prior
-  // lock recorded a hash rulesync itself wrote. A mismatch means either the
-  // upstream content moved under the same SHA (unlikely with git) or someone
-  // tampered with the lockfile / deployed files. We do this *before* writing
-  // anything to disk under --frozen so that tampered bytes never hit the
-  // filesystem.
-  //
-  // If the recorded hash does not match the rulesync format (e.g. the
-  // lockfile was produced by the upstream `apm` CLI which writes a different
-  // shape), we skip the integrity check rather than fail — the commit SHA
-  // pin is still enforced, and this preserves interop for users migrating
-  // from `apm` to `rulesync install --mode apm`.
-  if (frozen && locked?.content_hash) {
-    if (RULESYNC_CONTENT_HASH_REGEX.test(locked.content_hash)) {
-      if (locked.content_hash !== contentHash) {
-        throw new Error(
-          `content_hash mismatch for ${repoUrl}: lock=${locked.content_hash} computed=${contentHash}. Refuse to trust the deployment under --frozen.`,
-        );
-      }
-    } else {
-      logger.debug(
-        `Skipping content_hash integrity check for ${repoUrl}: recorded hash "${locked.content_hash}" was not written by rulesync.`,
-      );
-    }
-  }
+  assertFrozenContentHashMatches({ frozen, locked, contentHash, repoUrl, logger });
 
   // Under --frozen we deferred all writes until after the hash check passed.
   if (frozen) {
@@ -396,6 +380,114 @@ async function installDependency(params: {
   logger.info(`Installed ${deployedFiles.length} file(s) from ${repoUrl}@${shortSha(resolvedSha)}`);
 
   return { lockEntry, deployedFiles };
+}
+
+/**
+ * Fetch and validate the files for a single primitive directory, appending the
+ * deployable (path, content) pairs to `deployed`. Oversized or out-of-bounds
+ * files are skipped with a warn log; under non-frozen mode bytes are written to
+ * disk as they are collected.
+ */
+async function collectPrimitiveDeployments(params: {
+  dep: ApmDependency;
+  client: GitHubClient;
+  semaphore: Semaphore;
+  projectRoot: string;
+  primitive: (typeof APM_PRIMITIVES)[number];
+  remoteBase: string;
+  files: GitHubFileEntry[];
+  resolvedSha: string;
+  repoUrl: string;
+  frozen: boolean;
+  deployed: Array<{ path: string; content: string }>;
+  logger: Logger;
+}): Promise<void> {
+  const {
+    dep,
+    client,
+    semaphore,
+    projectRoot,
+    primitive,
+    remoteBase,
+    files,
+    resolvedSha,
+    repoUrl,
+    frozen,
+    deployed,
+    logger,
+  } = params;
+
+  for (const file of files) {
+    if (file.size > MAX_FILE_SIZE) {
+      logger.warn(
+        `Skipping "${file.path}" from ${repoUrl}: ${(file.size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`,
+      );
+      continue;
+    }
+    const relativeToBase = posix.relative(remoteBase, toPosixPath(file.path));
+    if (!relativeToBase || relativeToBase.startsWith("..") || posix.isAbsolute(relativeToBase)) {
+      logger.warn(`Skipping "${file.path}" from ${repoUrl}: resolved outside of "${remoteBase}".`);
+      continue;
+    }
+    const deployRelative = toPosixPath(join(primitive.deployDir, relativeToBase));
+    checkPathTraversal({
+      relativePath: deployRelative,
+      intendedRootDir: projectRoot,
+    });
+    const content = await withSemaphore(semaphore, () =>
+      client.getFileContent(dep.owner, dep.repo, file.path, resolvedSha),
+    );
+    // The tree-listing size can lie (LFS pointers, filter-driver output),
+    // so enforce the cap on the fetched bytes as well.
+    const byteLength = Buffer.byteLength(content, "utf8");
+    if (byteLength > MAX_FILE_SIZE) {
+      logger.warn(
+        `Skipping "${file.path}" from ${repoUrl}: fetched ${(byteLength / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`,
+      );
+      continue;
+    }
+    deployed.push({ path: deployRelative, content });
+    if (!frozen) {
+      await writeFileContent(join(projectRoot, deployRelative), content);
+    }
+  }
+}
+
+/**
+ * Verify integrity against the lockfile when running frozen and the prior
+ * lock recorded a hash rulesync itself wrote. A mismatch means either the
+ * upstream content moved under the same SHA (unlikely with git) or someone
+ * tampered with the lockfile / deployed files. We do this *before* writing
+ * anything to disk under --frozen so that tampered bytes never hit the
+ * filesystem.
+ *
+ * If the recorded hash does not match the rulesync format (e.g. the
+ * lockfile was produced by the upstream `apm` CLI which writes a different
+ * shape), we skip the integrity check rather than fail — the commit SHA
+ * pin is still enforced, and this preserves interop for users migrating
+ * from `apm` to `rulesync install --mode apm`.
+ */
+function assertFrozenContentHashMatches(params: {
+  frozen: boolean;
+  locked: ApmLockDependency | undefined;
+  contentHash: string;
+  repoUrl: string;
+  logger: Logger;
+}): void {
+  const { frozen, locked, contentHash, repoUrl, logger } = params;
+  if (frozen && locked?.content_hash) {
+    if (RULESYNC_CONTENT_HASH_REGEX.test(locked.content_hash)) {
+      if (locked.content_hash !== contentHash) {
+        throw new Error(
+          `content_hash mismatch for ${repoUrl}: lock=${locked.content_hash} computed=${contentHash}. Refuse to trust the deployment under --frozen.`,
+        );
+      }
+    } else {
+      logger.debug(
+        `Skipping content_hash integrity check for ${repoUrl}: recorded hash "${locked.content_hash}" was not written by rulesync.`,
+      );
+    }
+  }
 }
 
 /**

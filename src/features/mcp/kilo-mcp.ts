@@ -166,6 +166,73 @@ function convertFromKiloFormat(
  * - disabled -> enabled (inverted)
  * - enabledTools/disabledTools -> top-level tools map (with server name prefix)
  */
+type McpServerConfig = McpServers[string];
+
+/**
+ * Collect a server's enabledTools/disabledTools into the shared top-level tools
+ * map, prefixing each tool name with the server name. Mutates `tools` in place.
+ */
+function collectKiloServerTools(
+  tools: Record<string, boolean>,
+  serverName: string,
+  serverConfig: McpServerConfig,
+): void {
+  if (serverConfig.enabledTools) {
+    for (const tool of serverConfig.enabledTools) {
+      tools[`${serverName}_${tool}`] = true;
+    }
+  }
+  if (serverConfig.disabledTools) {
+    for (const tool of serverConfig.disabledTools) {
+      tools[`${serverName}_${tool}`] = false;
+    }
+  }
+}
+
+/**
+ * Convert a single rulesync MCP server into its Kilo native form (local or remote).
+ */
+function convertServerToKiloFormat(serverConfig: McpServerConfig): KiloMcpServer {
+  const isRemote = serverConfig.type === "sse" || serverConfig.type === "http" || serverConfig.url;
+
+  if (isRemote) {
+    // `oauth` is Kilo-specific (object | false) and carried through via the
+    // rulesync MCP server's looseObject passthrough; it is not a declared
+    // field on McpServerSchema.
+    const oauth = (serverConfig as { oauth?: unknown }).oauth;
+    return {
+      type: "remote",
+      url: serverConfig.url ?? serverConfig.httpUrl ?? "",
+      enabled: serverConfig.disabled !== undefined ? !serverConfig.disabled : true,
+      ...(serverConfig.headers && { headers: serverConfig.headers }),
+      ...(serverConfig.timeout !== undefined && { timeout: serverConfig.timeout }),
+      ...(oauth !== undefined && { oauth: oauth as z.infer<typeof KiloMcpOAuthSchema> }),
+    };
+  }
+
+  // Build command array: merge command and args
+  const commandArray: string[] = [];
+  if (serverConfig.command) {
+    if (Array.isArray(serverConfig.command)) {
+      commandArray.push(...serverConfig.command);
+    } else {
+      commandArray.push(serverConfig.command);
+    }
+  }
+  if (serverConfig.args) {
+    commandArray.push(...serverConfig.args);
+  }
+
+  return {
+    type: "local",
+    command: commandArray,
+    enabled: serverConfig.disabled !== undefined ? !serverConfig.disabled : true,
+    ...(serverConfig.env && { environment: serverConfig.env }),
+    ...(serverConfig.cwd && { cwd: serverConfig.cwd }),
+    ...(serverConfig.timeout !== undefined && { timeout: serverConfig.timeout }),
+  };
+}
+
 function convertToKiloFormat(mcpServers: McpServers): {
   mcp: Record<string, KiloMcpServer>;
   tools: Record<string, boolean>;
@@ -174,59 +241,8 @@ function convertToKiloFormat(mcpServers: McpServers): {
 
   const mcp = Object.fromEntries(
     Object.entries(mcpServers).map(([serverName, serverConfig]) => {
-      const isRemote =
-        serverConfig.type === "sse" || serverConfig.type === "http" || serverConfig.url;
-
-      // Collect enabledTools/disabledTools into the top-level tools map
-      if (serverConfig.enabledTools) {
-        for (const tool of serverConfig.enabledTools) {
-          tools[`${serverName}_${tool}`] = true;
-        }
-      }
-      if (serverConfig.disabledTools) {
-        for (const tool of serverConfig.disabledTools) {
-          tools[`${serverName}_${tool}`] = false;
-        }
-      }
-
-      if (isRemote) {
-        // `oauth` is Kilo-specific (object | false) and carried through via the
-        // rulesync MCP server's looseObject passthrough; it is not a declared
-        // field on McpServerSchema.
-        const oauth = (serverConfig as { oauth?: unknown }).oauth;
-        const remoteServer: KiloMcpServer = {
-          type: "remote",
-          url: serverConfig.url ?? serverConfig.httpUrl ?? "",
-          enabled: serverConfig.disabled !== undefined ? !serverConfig.disabled : true,
-          ...(serverConfig.headers && { headers: serverConfig.headers }),
-          ...(serverConfig.timeout !== undefined && { timeout: serverConfig.timeout }),
-          ...(oauth !== undefined && { oauth: oauth as z.infer<typeof KiloMcpOAuthSchema> }),
-        };
-        return [serverName, remoteServer];
-      }
-
-      // Build command array: merge command and args
-      const commandArray: string[] = [];
-      if (serverConfig.command) {
-        if (Array.isArray(serverConfig.command)) {
-          commandArray.push(...serverConfig.command);
-        } else {
-          commandArray.push(serverConfig.command);
-        }
-      }
-      if (serverConfig.args) {
-        commandArray.push(...serverConfig.args);
-      }
-
-      const localServer: KiloMcpServer = {
-        type: "local",
-        command: commandArray,
-        enabled: serverConfig.disabled !== undefined ? !serverConfig.disabled : true,
-        ...(serverConfig.env && { environment: serverConfig.env }),
-        ...(serverConfig.cwd && { cwd: serverConfig.cwd }),
-        ...(serverConfig.timeout !== undefined && { timeout: serverConfig.timeout }),
-      };
-      return [serverName, localServer];
+      collectKiloServerTools(tools, serverName, serverConfig);
+      return [serverName, convertServerToKiloFormat(serverConfig)];
     }),
   );
 

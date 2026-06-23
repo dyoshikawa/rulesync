@@ -6,7 +6,12 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
-import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import {
+  RulesyncSkill,
+  RulesyncSkillFrontmatter,
+  RulesyncSkillFrontmatterInput,
+  SkillFile,
+} from "./rulesync-skill.js";
 import { resolveUserInvocable } from "./skills-utils.js";
 import {
   ToolSkill,
@@ -38,6 +43,70 @@ export type VibeSkillParams = {
   validate?: boolean;
   global?: boolean;
 };
+
+/** Resolve the top-level `license` field, if present as a string. */
+function resolveTopLevelLicense(looseTopLevel: Record<string, unknown>): string | undefined {
+  return typeof looseTopLevel.license === "string" ? looseTopLevel.license : undefined;
+}
+
+/** Resolve the top-level `compatibility` field (string or object), if present. */
+function resolveTopLevelCompatibility(
+  looseTopLevel: Record<string, unknown>,
+): string | Record<string, unknown> | undefined {
+  const value = looseTopLevel.compatibility;
+  if (typeof value === "string" || (typeof value === "object" && value !== null)) {
+    return value as string | Record<string, unknown>;
+  }
+  return undefined;
+}
+
+/** Resolve the top-level `metadata` field (object), if present. */
+function resolveTopLevelMetadata(
+  looseTopLevel: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  const value = looseTopLevel.metadata;
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+/**
+ * Build the Vibe frontmatter from a rulesync skill frontmatter, preferring the
+ * dedicated `vibe` section over any loosely-typed top-level fields.
+ */
+function buildVibeFrontmatter(rulesyncFrontmatter: RulesyncSkillFrontmatter): VibeSkillFrontmatter {
+  const vibeSection = rulesyncFrontmatter.vibe;
+
+  const looseTopLevel = rulesyncFrontmatter as Record<string, unknown>;
+  const topLevelLicense = resolveTopLevelLicense(looseTopLevel);
+  const topLevelCompatibility = resolveTopLevelCompatibility(looseTopLevel);
+  const topLevelMetadata = resolveTopLevelMetadata(looseTopLevel);
+
+  const resolvedUserInvocable = resolveUserInvocable({
+    rootFrontmatter: rulesyncFrontmatter,
+    section: vibeSection,
+  });
+
+  return {
+    name: rulesyncFrontmatter.name,
+    description: rulesyncFrontmatter.description,
+    ...(vibeSection?.license !== undefined || topLevelLicense !== undefined
+      ? { license: vibeSection?.license ?? topLevelLicense }
+      : {}),
+    ...(vibeSection?.compatibility !== undefined || topLevelCompatibility !== undefined
+      ? { compatibility: vibeSection?.compatibility ?? topLevelCompatibility }
+      : {}),
+    ...(vibeSection?.metadata !== undefined || topLevelMetadata !== undefined
+      ? { metadata: vibeSection?.metadata ?? topLevelMetadata }
+      : {}),
+    ...(resolvedUserInvocable !== undefined && {
+      "user-invocable": resolvedUserInvocable,
+    }),
+    ...(vibeSection?.["allowed-tools"] !== undefined && {
+      "allowed-tools": vibeSection["allowed-tools"],
+    }),
+  };
+}
 
 export class VibeSkill extends ToolSkill {
   constructor({
@@ -147,45 +216,8 @@ export class VibeSkill extends ToolSkill {
   }: ToolSkillFromRulesyncSkillParams): VibeSkill {
     const settablePaths = VibeSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
-    const vibeSection = rulesyncFrontmatter.vibe;
 
-    const looseTopLevel = rulesyncFrontmatter as Record<string, unknown>;
-    const topLevelLicense =
-      typeof looseTopLevel.license === "string" ? looseTopLevel.license : undefined;
-    const topLevelCompatibility =
-      typeof looseTopLevel.compatibility === "string" ||
-      (typeof looseTopLevel.compatibility === "object" && looseTopLevel.compatibility !== null)
-        ? (looseTopLevel.compatibility as string | Record<string, unknown>)
-        : undefined;
-    const topLevelMetadata =
-      typeof looseTopLevel.metadata === "object" && looseTopLevel.metadata !== null
-        ? (looseTopLevel.metadata as Record<string, unknown>)
-        : undefined;
-
-    const resolvedUserInvocable = resolveUserInvocable({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: vibeSection,
-    });
-
-    const vibeFrontmatter: VibeSkillFrontmatter = {
-      name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
-      ...(vibeSection?.license !== undefined || topLevelLicense !== undefined
-        ? { license: vibeSection?.license ?? topLevelLicense }
-        : {}),
-      ...(vibeSection?.compatibility !== undefined || topLevelCompatibility !== undefined
-        ? { compatibility: vibeSection?.compatibility ?? topLevelCompatibility }
-        : {}),
-      ...(vibeSection?.metadata !== undefined || topLevelMetadata !== undefined
-        ? { metadata: vibeSection?.metadata ?? topLevelMetadata }
-        : {}),
-      ...(resolvedUserInvocable !== undefined && {
-        "user-invocable": resolvedUserInvocable,
-      }),
-      ...(vibeSection?.["allowed-tools"] !== undefined && {
-        "allowed-tools": vibeSection["allowed-tools"],
-      }),
-    };
+    const vibeFrontmatter = buildVibeFrontmatter(rulesyncFrontmatter);
 
     return new VibeSkill({
       outputRoot,

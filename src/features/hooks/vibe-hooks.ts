@@ -121,6 +121,41 @@ function canonicalToVibeHooks(
  * Reverse {@link canonicalToVibeHooks}: parse the flat `[[hooks]]` array back
  * into a canonical event → definition[] record.
  */
+/** Convert one raw `[[hooks]]` entry to a canonical definition, or null to skip. */
+function vibeEntryToCanonicalDef(
+  raw: unknown,
+): { canonicalEvent: string; def: HookDefinition } | null {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+  const entry = raw as Record<string, unknown>;
+  const vibeEvent = typeof entry.type === "string" ? entry.type : undefined;
+  if (vibeEvent === undefined) {
+    return null;
+  }
+  const canonicalEvent = VIBE_TO_CANONICAL_EVENT_NAMES[vibeEvent] ?? vibeEvent;
+  const def: HookDefinition = { type: "command" };
+  if (typeof entry.command === "string") {
+    def.command = entry.command;
+  }
+  if (typeof entry.match === "string" && entry.match !== "" && entry.match !== "*") {
+    def.matcher = entry.match;
+  }
+  if (typeof entry.timeout === "number") {
+    def.timeout = entry.timeout;
+  }
+  if (typeof entry.name === "string") {
+    def.name = entry.name;
+  }
+  if (typeof entry.description === "string") {
+    def.description = entry.description;
+  }
+  if (typeof entry.strict === "boolean") {
+    (def as Record<string, unknown>).strict = entry.strict;
+  }
+  return { canonicalEvent, def };
+}
+
 function vibeHooksToCanonical(parsed: unknown): HooksConfig["hooks"] {
   const canonical: HooksConfig["hooks"] = {};
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -131,37 +166,13 @@ function vibeHooksToCanonical(parsed: unknown): HooksConfig["hooks"] {
     return canonical;
   }
   for (const raw of rawHooks) {
-    if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    const result = vibeEntryToCanonicalDef(raw);
+    if (result === null) {
       continue;
     }
-    const entry = raw as Record<string, unknown>;
-    const vibeEvent = typeof entry.type === "string" ? entry.type : undefined;
-    if (vibeEvent === undefined) {
-      continue;
-    }
-    const canonicalEvent = VIBE_TO_CANONICAL_EVENT_NAMES[vibeEvent] ?? vibeEvent;
-    const def: HookDefinition = { type: "command" };
-    if (typeof entry.command === "string") {
-      def.command = entry.command;
-    }
-    if (typeof entry.match === "string" && entry.match !== "" && entry.match !== "*") {
-      def.matcher = entry.match;
-    }
-    if (typeof entry.timeout === "number") {
-      def.timeout = entry.timeout;
-    }
-    if (typeof entry.name === "string") {
-      def.name = entry.name;
-    }
-    if (typeof entry.description === "string") {
-      def.description = entry.description;
-    }
-    if (typeof entry.strict === "boolean") {
-      (def as Record<string, unknown>).strict = entry.strict;
-    }
-    const list = canonical[canonicalEvent] ?? [];
-    list.push(def);
-    canonical[canonicalEvent] = list;
+    const list = canonical[result.canonicalEvent] ?? [];
+    list.push(result.def);
+    canonical[result.canonicalEvent] = list;
   }
   return canonical;
 }
