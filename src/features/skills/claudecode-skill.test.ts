@@ -308,6 +308,55 @@ describe("ClaudecodeSkill", () => {
       expect(rulesyncFrontmatter.claudecode).toEqual({ model: "opus" });
     });
 
+    it("should round-trip the extended Claude Code skill frontmatter fields", () => {
+      const frontmatter: ClaudecodeSkillFrontmatter = {
+        name: "extended-skill",
+        description: "Skill with extended fields",
+        when_to_use: "When the user asks to review a PR",
+        "allowed-tools": "Read Write Bash",
+        effort: "high",
+        "argument-hint": "[pr-number]",
+        arguments: ["pr_number"],
+        context: "fork",
+        agent: "code-reviewer",
+        hooks: { PreToolUse: [{ matcher: "Bash" }] },
+        shell: "bash",
+      };
+
+      const skill = new ClaudecodeSkill({
+        dirName: "extended-skill",
+        frontmatter,
+        body: "Extended body",
+      });
+
+      const rulesyncFrontmatter = skill.toRulesyncSkill().getFrontmatter();
+      expect(rulesyncFrontmatter.claudecode).toEqual({
+        when_to_use: "When the user asks to review a PR",
+        "allowed-tools": "Read Write Bash",
+        effort: "high",
+        "argument-hint": "[pr-number]",
+        arguments: ["pr_number"],
+        context: "fork",
+        agent: "code-reviewer",
+        hooks: { PreToolUse: [{ matcher: "Bash" }] },
+        shell: "bash",
+      });
+
+      // round-trip back to a ClaudecodeSkill preserves every extended field
+      const roundTripped = ClaudecodeSkill.fromRulesyncSkill({
+        rulesyncSkill: skill.toRulesyncSkill(),
+      }).getFrontmatter();
+      expect(roundTripped.when_to_use).toBe("When the user asks to review a PR");
+      expect(roundTripped["allowed-tools"]).toBe("Read Write Bash");
+      expect(roundTripped.effort).toBe("high");
+      expect(roundTripped["argument-hint"]).toBe("[pr-number]");
+      expect(roundTripped.arguments).toEqual(["pr_number"]);
+      expect(roundTripped.context).toBe("fork");
+      expect(roundTripped.agent).toBe("code-reviewer");
+      expect(roundTripped.hooks).toEqual({ PreToolUse: [{ matcher: "Bash" }] });
+      expect(roundTripped.shell).toBe("bash");
+    });
+
     it("should convert to RulesyncSkill with both model and allowed-tools", () => {
       const frontmatter: ClaudecodeSkillFrontmatter = {
         name: "full-skill",
@@ -1191,14 +1240,25 @@ Global skill content.`;
     });
 
     it("should reject invalid allowed-tools type", () => {
+      // `allowed-tools` accepts a string or a string array (per the Claude Code
+      // skills docs), so a number is the invalid case that must still be rejected.
       const invalidFrontmatter = {
         name: "test-skill",
         description: "Test description",
-        "allowed-tools": "not-an-array",
+        "allowed-tools": 123,
       };
 
       const result = ClaudecodeSkillFrontmatterSchema.safeParse(invalidFrontmatter);
       expect(result.success).toBe(false);
+    });
+
+    it("should accept allowed-tools as a space-separated string", () => {
+      const result = ClaudecodeSkillFrontmatterSchema.safeParse({
+        name: "test-skill",
+        description: "Test description",
+        "allowed-tools": "Read Write Bash",
+      });
+      expect(result.success).toBe(true);
     });
 
     it("should validate frontmatter with model field", () => {

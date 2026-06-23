@@ -577,11 +577,13 @@ This has leading and trailing whitespace.
     });
 
     it("should reject invalid claudecode configuration", () => {
+      // `allowed-tools` accepts a string or a string array, so a number is the
+      // invalid case that must still be rejected.
       const frontmatter = {
         name: "test-skill",
         description: "Test",
         claudecode: {
-          "allowed-tools": "not-array",
+          "allowed-tools": 123,
         },
       };
 

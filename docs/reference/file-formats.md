@@ -408,13 +408,24 @@ disable-model-invocation: true
 user-invocable: false
 claudecode: # for claudecode-specific parameters
   model: sonnet # opus, sonnet, haiku, or any string
-  allowed-tools:
+  when_to_use: When the user asks to review a PR # (optional) extra trigger context appended to description
+  allowed-tools: # (optional) tools usable without asking; accepts a string or a list
     - "Bash"
     - "Read"
     - "Write"
     - "Grep"
   disallowed-tools: # (optional) removes these tools while the skill is active (string or list)
     - "WebFetch"
+  effort: high # (optional) effort while active: low | medium | high | xhigh | max
+  argument-hint: "[pr-number]" # (optional) autocomplete hint for expected arguments
+  arguments: # (optional) named positional arguments for $name substitution (string or list)
+    - "pr_number"
+  context: fork # (optional) set to "fork" to run the skill in a forked subagent context
+  agent: code-reviewer # (optional) subagent type to use when context: fork
+  shell: bash # (optional) shell for ! command blocks: bash (default) or powershell
+  hooks: # (optional) hooks scoped to the skill's lifecycle (free-form per the Claude Code docs)
+    PreToolUse:
+      - matcher: "Bash"
   disable-model-invocation: true # (optional) disable model invocation for this skill
   user-invocable: false # (optional) hide from the / menu while keeping model access
   scheduled-task: true # (optional) emit to .claude/scheduled-tasks/<name>/SKILL.md instead of .claude/skills/<name>/SKILL.md
