@@ -436,6 +436,63 @@ globs: ["src/**/*"]
     expect(stderr).toBe("");
     expect(stdout).toContain("All files are up to date.");
   });
+
+  it("should attribute rovodev's mirrored ./AGENTS.md so a non-owning target passes check (#1981 #2)", async () => {
+    const testDir = getTestDir();
+
+    const rootRuleContent = `---
+root: true
+targets: ["*"]
+description: "Root rule"
+---
+
+# Root Rule
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      rootRuleContent,
+    );
+
+    await writeFileContent(
+      join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          targets: {
+            codexcli: ["rules"],
+            rovodev: ["rules"],
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    // rovodev is last in config order and mirrors its root rule to the project
+    // root ./AGENTS.md, so that mirrored file ends up on disk with rovodev's
+    // content (an "Additional Conventions" preamble codexcli never emits).
+    await runGenerate({
+      target: "codexcli,rovodev",
+      features: "rules",
+      env: { NODE_ENV: "e2e" },
+    });
+
+    const agentsMd = await readFileContent(join(testDir, "AGENTS.md"));
+    expect(agentsMd).toContain("Additional Conventions");
+
+    // Check codexcli only. Even though codexcli's own root output is ./AGENTS.md,
+    // rovodev owns the on-disk mirror, so the file is skipped and the check
+    // passes. Without crediting the mirror to rovodev, codexcli would be treated
+    // as the owner and fail on the content mismatch.
+    const { stdout, stderr } = await runGenerate({
+      target: "codexcli",
+      features: "rules",
+      check: true,
+      env: { NODE_ENV: "e2e" },
+    });
+
+    expect(stderr).toBe("");
+    expect(stdout).toContain("All files are up to date.");
+  });
 });
 
 describe("E2E: rules (import)", () => {

@@ -152,7 +152,18 @@ const CONFLICTING_TARGET_PAIRS: Array<[string, string]> = [
  * Legacy targets that should NOT be included in wildcard (*) expansion.
  * These targets must be explicitly specified.
  */
-const LEGACY_TARGETS = ["augmentcode-legacy", "claudecode-legacy", "antigravity"] as const;
+export const LEGACY_TARGETS = ["augmentcode-legacy", "claudecode-legacy", "antigravity"] as const;
+
+/**
+ * Expand the wildcard target (`*`) to every non-legacy tool target. Legacy
+ * targets are excluded because they must be requested explicitly. Shared by
+ * `Config.getTargets()` and `extractConfigFileTargets()` so the two never drift.
+ */
+export function expandWildcardTargets(): ToolTarget[] {
+  return ALL_TOOL_TARGETS.filter(
+    (target) => !LEGACY_TARGETS.includes(target as (typeof LEGACY_TARGETS)[number]),
+  );
+}
 
 /**
  * Validates that the user-authored config does not double-define the
@@ -422,11 +433,7 @@ export class Config {
     }
 
     if (arrayTargets.includes("*")) {
-      // Exclude legacy targets from wildcard expansion
-      // Legacy targets must be explicitly specified
-      return ALL_TOOL_TARGETS.filter(
-        (target) => !LEGACY_TARGETS.includes(target as (typeof LEGACY_TARGETS)[number]),
-      );
+      return expandWildcardTargets();
     }
 
     return arrayTargets.filter((target): target is ToolTarget => target !== "*");

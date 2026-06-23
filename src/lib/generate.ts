@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { intersection } from "es-toolkit";
 
 import { Config } from "../config/config.js";
+import { AGENTSMD_RULE_FILE_NAME } from "../constants/agentsmd-paths.js";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
@@ -249,18 +250,52 @@ export async function generate(params: {
   };
 }
 
+// Maps every root-rule file path a target actually emits to that target, so
+// `generate --check` can skip root files a (CLI-selected) target does not own.
+//
+// Ownership is "last target in config order wins": the loop iterates the config
+// file's full target list and `Map.set` overwrites, so the final writer in
+// config order owns a shared path — consistent with generation write order,
+// where the last target's content is what ends up on disk.
+//
+// Note: a single ownership decision is applied uniformly across all output
+// roots (paths are output-root-relative). Multi-output-root `--check` would
+// need per-output-root keying; that is out of scope here.
 function computeRootFileOwnership(params: {
   targets: ToolTarget[];
   global: boolean;
 }): Map<string, ToolTarget> {
   const ownerByPath = new Map<string, ToolTarget>();
+  const register = (
+    relativeDirPath: string,
+    relativeFilePath: string,
+    target: ToolTarget,
+  ): void => {
+    ownerByPath.set(toPosixPath(join(relativeDirPath, relativeFilePath)), target);
+  };
   for (const target of params.targets) {
     const factory = RulesProcessor.getFactory(target);
     if (!factory) continue;
     const paths = factory.class.getSettablePaths({ global: params.global });
     if ("root" in paths && paths.root) {
-      const rootPath = toPosixPath(join(paths.root.relativeDirPath, paths.root.relativeFilePath));
-      ownerByPath.set(rootPath, target);
+      register(paths.root.relativeDirPath, paths.root.relativeFilePath, target);
+    }
+    // Secondary/fallback root locations a target recognizes are attributed to
+    // it as well, so a shared collision at one of those paths is skipped for
+    // non-owning targets.
+    if ("alternativeRoots" in paths && paths.alternativeRoots) {
+      for (const alt of paths.alternativeRoots) {
+        register(alt.relativeDirPath, alt.relativeFilePath, target);
+      }
+    }
+    // Some targets (e.g. rovodev) mirror their primary root — which lives in a
+    // subdirectory — to a project-root `./AGENTS.md` at generation time (project
+    // scope only). That mirror is exactly the shared-collision path, so it must
+    // be attributed to the target too, otherwise ownership/skip decisions invert.
+    // (For rovodev this overlaps its `alternativeRoots` today; the explicit
+    // block keeps ownership correct even if that alt root is ever removed.)
+    if (!params.global && factory.meta.mirrorsRootToAgentsMd) {
+      register(".", AGENTSMD_RULE_FILE_NAME, target);
     }
   }
   return ownerByPath;

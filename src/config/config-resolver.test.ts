@@ -158,6 +158,44 @@ describe("config-resolver", () => {
     });
   });
 
+  describe("config file targets (getConfigFileTargets)", () => {
+    it("expands wildcard targets ['*'] to the full non-legacy target list", async () => {
+      // Regression for #1981 / #1894: a `targets: ["*"]` config must not collapse
+      // to an empty config-file target list, otherwise root-file ownership in
+      // `generate --check` is computed against no targets and the bug reproduces.
+      const configContent = JSON.stringify({ outputRoots: ["./"], targets: ["*"] });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      const configFileTargets = config.getConfigFileTargets();
+      expect(configFileTargets.length).toBeGreaterThan(1);
+      expect(configFileTargets).toContain("claudecode");
+      expect(configFileTargets).toContain("codexcli");
+      // Legacy targets are excluded from wildcard expansion (must be explicit).
+      expect(configFileTargets).not.toContain("claudecode-legacy");
+      expect(configFileTargets).not.toContain("antigravity");
+    });
+
+    it("keeps the full config-file target list even when CLI -t selects one target", async () => {
+      const configContent = JSON.stringify({ outputRoots: ["./"], targets: ["*"] });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+        targets: ["codexcli"],
+      });
+
+      // CLI -t narrows the generated targets, but config-file ownership must
+      // still see every target the config lists.
+      expect(config.getTargets()).toEqual(["codexcli"]);
+      expect(config.getConfigFileTargets().length).toBeGreaterThan(1);
+      expect(config.getConfigFileTargets()).toContain("claudecode");
+    });
+  });
+
   describe("base directory resolution", () => {
     it("should load configured outputRoots from file", async () => {
       const configContent = JSON.stringify({
