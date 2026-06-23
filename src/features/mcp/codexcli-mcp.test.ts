@@ -411,6 +411,40 @@ approval_mode = "approve"
       });
     });
 
+    it("does not clobber a rulesync-emitted tools value with the preserved approval table", async () => {
+      // When rulesync itself supplies a `tools` value, rulesync owns it: the
+      // preserved approval table must NOT override it.
+      const existingToml = `[mcp_servers.srv]
+command = "node"
+
+[mcp_servers.srv.tools.some_tool]
+approval_mode = "approve"
+`;
+      await ensureDir(join(testDir, ".codex"));
+      await writeFileContent(join(testDir, ".codex/config.toml"), existingToml);
+
+      const jsonData = {
+        mcpServers: {
+          srv: { command: "node", tools: ["explicit_tool"] },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const servers = codexcliMcp.getToml().mcp_servers as Record<string, Record<string, unknown>>;
+      // rulesync's `tools` value wins; the existing approval table is not restored.
+      expect(servers.srv?.tools).toEqual(["explicit_tool"]);
+    });
+
     it("should create instance from RulesyncMcp with custom outputRoot", async () => {
       const jsonData = {
         mcpServers: {

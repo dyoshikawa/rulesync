@@ -211,8 +211,12 @@ export class CodexcliMcp extends ToolMcp {
     // `approval_mode` decisions) that Codex's CLI writes when the user approves
     // an MCP tool. rulesync does not model this nested `tools` table, so without
     // re-merging it here a regenerate would wipe the user's saved approvals and
-    // re-introduce approval prompts (#1709). rulesync still fully owns every
-    // field it does emit (command/args/env/env_vars/enabled_tools/etc.).
+    // re-introduce approval prompts (#1709). It is the only user/CLI-written
+    // nested state Codex persists under a server that rulesync does not own.
+    // rulesync still fully owns every field it does emit, including `tools` when
+    // it is supplied as a rulesync value: the existing table is only restored
+    // when rulesync emits no `tools` key at all, so a rulesync-owned `tools`
+    // (e.g. an array) is never clobbered by the preserved approval table.
     const existingMcpServers = isRecord(configToml["mcp_servers"]) ? configToml["mcp_servers"] : {};
     const mergedMcpServers = Object.fromEntries(
       Object.entries(filteredMcpServers).map(([name, serverConfig]) => {
@@ -220,11 +224,7 @@ export class CodexcliMcp extends ToolMcp {
           ? existingMcpServers[name]
           : undefined;
         const serverRecord = serverConfig as Record<string, unknown>;
-        if (
-          existingServer &&
-          isRecord(existingServer["tools"]) &&
-          !isRecord(serverRecord["tools"])
-        ) {
+        if (existingServer && isRecord(existingServer["tools"]) && !("tools" in serverRecord)) {
           return [name, { ...serverRecord, tools: existingServer["tools"] }];
         }
         return [name, serverConfig];
