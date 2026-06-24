@@ -58,10 +58,6 @@ export function getGhLockPath(projectRoot: string): string {
   return join(projectRoot, GH_LOCKFILE_FILE_NAME);
 }
 
-export async function ghLockExists(projectRoot: string): Promise<boolean> {
-  return fileExists(getGhLockPath(projectRoot));
-}
-
 /**
  * Create an empty gh lockfile structure. When `existingLock` is provided,
  * top-level looseObject extras are carried forward so unknown fields (added

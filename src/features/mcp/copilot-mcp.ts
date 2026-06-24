@@ -14,8 +14,6 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
-export type CopilotMcpParams = ToolMcpParams;
-
 type CopilotMcpConfig = {
   servers?: McpServers;
 };

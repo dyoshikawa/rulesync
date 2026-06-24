@@ -13,13 +13,10 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   type ToolRuleFromRulesyncRuleParams,
-  ToolRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
   buildToolPath,
 } from "./tool-rule.js";
-
-export type OpenCodeRuleParams = ToolRuleParams;
 
 export type OpenCodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
   root: {

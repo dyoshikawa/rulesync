@@ -14,13 +14,10 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
-  ToolRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
   buildToolPath,
 } from "./tool-rule.js";
-
-export type KiroRuleParams = ToolRuleParams;
 
 export type KiroRuleSettablePaths =
   | Pick<ToolRuleSettablePaths, "nonRoot">

@@ -7,8 +7,6 @@ import { ToolFile } from "../../types/tool-file.js";
 import type { Logger } from "../../utils/logger.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
-export type ToolPermissionsParams = AiFileParams;
-
 export type ToolPermissionsFromRulesyncPermissionsParams = Omit<
   AiFileParams,
   "fileContent" | "relativeFilePath" | "relativeDirPath"

@@ -7,11 +7,8 @@ import {
   ToolIgnoreForDeletionParams,
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
-  ToolIgnoreParams,
   ToolIgnoreSettablePaths,
 } from "./tool-ignore.js";
-
-export type VibeIgnoreParams = ToolIgnoreParams;
 
 export class VibeIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {

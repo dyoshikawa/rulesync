@@ -5,7 +5,7 @@ import {
   JUNIE_LEGACY_RULE_FILE_NAME,
   JUNIE_RULE_FILE_NAME,
 } from "../../constants/junie-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -17,8 +17,6 @@ import {
   ToolRuleSettablePathsGlobal,
   buildToolPath,
 } from "./tool-rule.js";
-
-export type JunieRuleParams = AiFileParams;
 
 export type JunieRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
   root: {

@@ -9,12 +9,9 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
-  ToolRuleParams,
   ToolRuleSettablePaths,
   buildToolPath,
 } from "./tool-rule.js";
-
-export type RooRuleParams = ToolRuleParams;
 
 export type RooRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
   nonRoot: {

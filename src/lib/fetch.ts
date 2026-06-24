@@ -782,6 +782,3 @@ export function formatFetchSummary(summary: FetchSummary): string {
 
   return lines.join("\n");
 }
-
-// Legacy export for backward compatibility during migration
-export { fetchFiles as fetchFromGitHub };

@@ -32,7 +32,6 @@ import {
  * ({ serverUrl | url, headers }), and may carry an optional `disabledTools`
  * array.
  */
-export type DevinMcpParams = ToolMcpParams;
 
 export class DevinMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
