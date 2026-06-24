@@ -19,6 +19,7 @@ import { CursorPermissions } from "./cursor-permissions.js";
 import { FactorydroidPermissions } from "./factorydroid-permissions.js";
 import { GeminicliPermissions } from "./geminicli-permissions.js";
 import { GoosePermissions } from "./goose-permissions.js";
+import { GrokcliPermissions } from "./grokcli-permissions.js";
 import { KiloPermissions } from "./kilo-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
@@ -192,6 +193,20 @@ export const toolPermissionsFactories = new Map<
         // Goose persists per-tool permission overrides only in the global user
         // `~/.config/goose/permission.yaml`; there is no project-scoped Goose
         // permission file (mirrors the Rovodev adapter).
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "grokcli",
+    {
+      class: GrokcliPermissions,
+      meta: {
+        // Grok gates tools with the coarse `[ui] permission_mode` toggle in the
+        // global `~/.grok/config.toml`; there is no project-scoped permission
+        // surface, so it is global-only (mirrors Goose).
         supportsProject: false,
         supportsGlobal: true,
         supportsImport: true,

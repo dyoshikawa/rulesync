@@ -20,6 +20,13 @@ export const GROKCLI_DIR = ".grok";
 /** MCP servers and other settings live in `config.toml` under `.grok/`. */
 export const GROKCLI_MCP_FILE_NAME = "config.toml";
 
+/**
+ * Shared Grok CLI config file (`config.toml`). MCP servers, the `[ui]`
+ * permission mode, and other settings all live here; permissions reuse the same
+ * file name as MCP since Grok consolidates everything into one config.
+ */
+export const GROKCLI_CONFIG_FILE_NAME = "config.toml";
+
 /** Skills directory under `.grok/` (project: `./.grok/skills`, global: `~/.grok/skills`). */
 export const GROKCLI_SKILLS_DIR_PATH = join(GROKCLI_DIR, "skills");
 

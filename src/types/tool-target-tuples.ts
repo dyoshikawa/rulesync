@@ -228,6 +228,7 @@ export const permissionsProcessorToolTargetTuple = [
   "factorydroid",
   "geminicli",
   "goose",
+  "grokcli",
   "kilo",
   "kiro",
   "kiro-cli",
