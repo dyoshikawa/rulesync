@@ -7,8 +7,11 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
-import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
-import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import {
+  omitPrototypePollutionKeys,
+  PROTOTYPE_POLLUTION_KEYS,
+} from "../../utils/prototype-pollution.js";
+import { isPlainObject, isRecord, isStringArray } from "../../utils/type-guards.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -40,7 +43,9 @@ function parseGooseConfig(
   if (parsed === undefined || parsed === null) {
     return {};
   }
-  if (!isRecord(parsed)) {
+  // `isPlainObject` (not `isRecord`) rejects class instances for
+  // prototype-pollution hardening; a YAML mapping always parses to a plain object.
+  if (!isPlainObject(parsed)) {
     throw new Error(`Failed to parse Goose config at ${configPath}: expected a YAML mapping`);
   }
   return parsed;
@@ -106,7 +111,7 @@ function applyGooseStdioFields(
     ext.cmd = command;
     if (isStringArray(config.args)) ext.args = config.args;
   }
-  if (isRecord(config.env)) ext.envs = config.env;
+  if (isPlainObject(config.env)) ext.envs = omitPrototypePollutionKeys(config.env);
 }
 
 /**
@@ -125,7 +130,7 @@ function convertServerToGooseExtension(
     applyGooseStdioFields(ext, config);
   } else if (gooseType === "sse" || gooseType === "streamable_http") {
     if (url !== undefined) ext.uri = url;
-    if (isRecord(config.headers)) ext.headers = config.headers;
+    if (isPlainObject(config.headers)) ext.headers = omitPrototypePollutionKeys(config.headers);
   }
 
   ext.enabled = config.disabled !== true;
@@ -182,9 +187,9 @@ function convertFromGooseFormat(extensions: Record<string, unknown>): McpServers
 
     if (typeof ext.cmd === "string") server.command = ext.cmd;
     if (isStringArray(ext.args)) server.args = ext.args;
-    if (isRecord(ext.envs)) server.env = ext.envs;
+    if (isPlainObject(ext.envs)) server.env = omitPrototypePollutionKeys(ext.envs);
     if (typeof ext.uri === "string") server.url = ext.uri;
-    if (isRecord(ext.headers)) server.headers = ext.headers;
+    if (isPlainObject(ext.headers)) server.headers = omitPrototypePollutionKeys(ext.headers);
     if (ext.enabled === false) server.disabled = true;
     if (typeof ext.timeout === "number") server.timeout = ext.timeout;
 

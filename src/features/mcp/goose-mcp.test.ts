@@ -104,6 +104,27 @@ describe("GooseMcp", () => {
       });
     });
 
+    it("strips prototype-pollution keys from a server's env table", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        // Authored as raw JSON text so `__proto__`/`constructor`/`prototype`
+        // land as own enumerable keys (an object literal would set the prototype).
+        fileContent:
+          '{"mcpServers":{"fetch":{"command":"uvx",' +
+          '"env":{"__proto__":"polluted","constructor":"polluted","prototype":"polluted","TOKEN":"safe"}}}}',
+      });
+
+      const mcp = await GooseMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const ext = getExtensions(mcp.getFileContent()).fetch;
+
+      expect(ext?.envs).toEqual({ TOKEN: "safe" });
+    });
+
     it("converts a remote http server to a streamable_http extension", async () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: ".rulesync",

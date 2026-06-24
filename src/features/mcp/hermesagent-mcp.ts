@@ -10,8 +10,11 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
-import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
-import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import {
+  omitPrototypePollutionKeys,
+  PROTOTYPE_POLLUTION_KEYS,
+} from "../../utils/prototype-pollution.js";
+import { isPlainObject, isRecord, isStringArray } from "../../utils/type-guards.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -43,7 +46,9 @@ function parseHermesConfig(
   if (parsed === undefined || parsed === null) {
     return {};
   }
-  if (!isRecord(parsed)) {
+  // `isPlainObject` (not `isRecord`) rejects class instances for
+  // prototype-pollution hardening; a YAML mapping always parses to a plain object.
+  if (!isPlainObject(parsed)) {
     throw new Error(`Failed to parse Hermes config at ${configPath}: expected a YAML mapping`);
   }
   return parsed;
@@ -94,10 +99,10 @@ function convertServerToHermes(config: Record<string, unknown>): Record<string, 
       out.command = command;
       if (isStringArray(config.args)) out.args = config.args;
     }
-    if (isRecord(config.env)) out.env = config.env;
+    if (isPlainObject(config.env)) out.env = omitPrototypePollutionKeys(config.env);
   } else if (url !== undefined) {
     out.url = url;
-    if (isRecord(config.headers)) out.headers = config.headers;
+    if (isPlainObject(config.headers)) out.headers = omitPrototypePollutionKeys(config.headers);
   }
 
   // Hermes defaults a server to enabled, so only emit the flag when disabling.
@@ -138,9 +143,9 @@ function convertFromHermesFormat(mcpServers: Record<string, unknown>): McpServer
     const server: Record<string, unknown> = {};
     if (typeof config.command === "string") server.command = config.command;
     if (isStringArray(config.args)) server.args = config.args;
-    if (isRecord(config.env)) server.env = config.env;
+    if (isPlainObject(config.env)) server.env = omitPrototypePollutionKeys(config.env);
     if (typeof config.url === "string") server.url = config.url;
-    if (isRecord(config.headers)) server.headers = config.headers;
+    if (isPlainObject(config.headers)) server.headers = omitPrototypePollutionKeys(config.headers);
     if (config.enabled === false) server.disabled = true;
     if (typeof config.timeout === "number") server.timeout = config.timeout;
 
