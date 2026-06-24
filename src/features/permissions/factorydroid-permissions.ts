@@ -57,7 +57,11 @@ type FactorydroidSettingsJson = {
  * the user can still approve), rather than being silently dropped. On **export**
  * there is no canonical `block` to emit one from, so rulesync never writes
  * `commandBlocklist`; an existing one on disk is preserved verbatim as an
- * unmanaged key.
+ * unmanaged key. (A consequence of the lossy collapse: importing a
+ * `commandBlocklist` and re-exporting it to a *fresh* config writes it back as
+ * `commandDenylist`, not `commandBlocklist` — the hard-block tier is not
+ * reconstructed. Re-running over the original file keeps it intact via the
+ * verbatim preservation above.)
  */
 export class FactorydroidPermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
