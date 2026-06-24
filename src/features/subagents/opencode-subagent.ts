@@ -190,9 +190,9 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
    * Imports agents defined inline in `opencode.json` / `opencode.jsonc` under
    * the top-level `agent` key (in addition to the Markdown files under
    * `.opencode/agents/`). Each entry's `prompt` becomes the subagent body
-   * (a `{ file }` reference is resolved against `outputRoot`); the remaining
-   * fields (`description` / `mode` / `model` / `tools` / `permission` / ...)
-   * map to the frontmatter.
+   * (a `"{file:./path}"` reference is resolved relative to the config file's
+   * location); the remaining fields (`description` / `mode` / `model` /
+   * `tools` / `permission` / ...) map to the frontmatter.
    *
    * Import-only: invoked by the subagents processor when loading tool files for
    * conversion to rulesync, never for orphan deletion.
