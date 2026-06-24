@@ -10,6 +10,7 @@ import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { asOpencodeEntries, readOpencodeConfig } from "../opencode-config.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -171,6 +172,62 @@ export class OpenCodeCommand extends ToolCommand {
       rulesyncCommand,
       toolTarget: "opencode",
     });
+  }
+
+  /**
+   * Imports commands defined inline in `opencode.json` / `opencode.jsonc` under
+   * the top-level `command` key (in addition to the Markdown files under
+   * `.opencode/commands/`). Each entry's `template` becomes the command body,
+   * while `description` / `agent` / `model` / `subtask` map to the frontmatter.
+   *
+   * Import-only: this is invoked by the commands processor when loading tool
+   * files for conversion to rulesync, never for orphan deletion.
+   *
+   * @see https://opencode.ai/docs/commands/#json
+   */
+  static async loadAdditionalImportFiles({
+    outputRoot = process.cwd(),
+    global = false,
+  }: {
+    outputRoot?: string;
+    global?: boolean;
+  } = {}): Promise<OpenCodeCommand[]> {
+    const config = await readOpencodeConfig({ outputRoot, global });
+    const commandEntries = asOpencodeEntries(config.command);
+    if (!commandEntries) {
+      return [];
+    }
+
+    const paths = this.getSettablePaths({ global });
+    const commands: OpenCodeCommand[] = [];
+
+    for (const [name, rawEntry] of Object.entries(commandEntries)) {
+      const entry = asOpencodeEntries(rawEntry);
+      if (!entry) {
+        continue;
+      }
+
+      const body = typeof entry.template === "string" ? entry.template : "";
+      const frontmatter: OpenCodeCommandFrontmatter = {
+        ...(typeof entry.description === "string" && { description: entry.description }),
+        ...(typeof entry.agent === "string" && { agent: entry.agent }),
+        ...(typeof entry.model === "string" && { model: entry.model }),
+        ...(typeof entry.subtask === "boolean" && { subtask: entry.subtask }),
+      };
+
+      commands.push(
+        new OpenCodeCommand({
+          outputRoot,
+          frontmatter,
+          body,
+          relativeDirPath: paths.relativeDirPath,
+          relativeFilePath: `${name}.md`,
+          validate: false,
+        }),
+      );
+    }
+
+    return commands;
   }
 
   static forDeletion({

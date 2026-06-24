@@ -68,6 +68,16 @@ type ToolSubagentFactory = {
     fromFile(params: ToolSubagentFromFileParams): Promise<ToolSubagent>;
     forDeletion(params: ToolSubagentForDeletionParams): ToolSubagent;
     getSettablePaths(options?: { global?: boolean }): ToolSubagentSettablePaths;
+    /**
+     * Optional import-only hook: load extra subagents that are not discoverable
+     * as standalone files (e.g. OpenCode agents defined inline in
+     * `opencode.json`). Invoked by {@link loadToolFiles} for the import
+     * direction only, never for orphan deletion.
+     */
+    loadAdditionalImportFiles?(params: {
+      outputRoot: string;
+      global: boolean;
+    }): Promise<ToolSubagent[]>;
   };
   meta: {
     /** Whether the tool supports simulated subagents (embedded in rules) */
@@ -586,6 +596,28 @@ export class SubagentsProcessor extends FeatureProcessor {
         deduped.push(subagent);
       }
       toolSubagents.push(...deduped);
+    }
+
+    // Import-only: merge in subagents defined outside the standalone-file layout
+    // (e.g. OpenCode's inline `agent` block in `opencode.json`). A standalone
+    // Markdown file with the same relative path takes precedence.
+    if (!forDeletion && factory.class.loadAdditionalImportFiles) {
+      const additionalSubagents = await factory.class.loadAdditionalImportFiles({
+        outputRoot: this.outputRoot,
+        global: this.global,
+      });
+      for (const subagent of additionalSubagents) {
+        const key = subagent.getRelativeFilePath();
+        if (seenRelativeFilePaths.has(key)) {
+          this.logger.warn(
+            `Duplicate ${this.toolTarget} subagent "${key}" defined inline; ` +
+              `keeping the standalone file and ignoring the inline copy.`,
+          );
+          continue;
+        }
+        seenRelativeFilePaths.add(key);
+        toolSubagents.push(subagent);
+      }
     }
 
     this.logger.debug(

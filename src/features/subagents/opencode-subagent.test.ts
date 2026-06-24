@@ -294,4 +294,77 @@ Body content`,
       expect((subagent as unknown as { global: boolean }).global).toBe(true);
     });
   });
+
+  describe("loadAdditionalImportFiles", () => {
+    it("imports inline agents from opencode.json", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          agent: {
+            reviewer: {
+              description: "Reviews code",
+              mode: "subagent",
+              model: "anthropic/claude-3-5-sonnet-20241022",
+              prompt: "You are a careful code reviewer.",
+              temperature: 0.2,
+            },
+          },
+        }),
+      );
+
+      const subagents = await OpenCodeSubagent.loadAdditionalImportFiles({ outputRoot: testDir });
+
+      expect(subagents).toHaveLength(1);
+      const [subagent] = subagents;
+      expect(subagent).toBeInstanceOf(OpenCodeSubagent);
+      expect(subagent?.getRelativeFilePath()).toBe("reviewer.md");
+      expect(subagent?.getBody()).toBe("You are a careful code reviewer.");
+      const frontmatter = subagent?.getFrontmatter() as Record<string, unknown>;
+      expect(frontmatter.description).toBe("Reviews code");
+      expect(frontmatter.mode).toBe("subagent");
+      expect(frontmatter.model).toBe("anthropic/claude-3-5-sonnet-20241022");
+      expect(frontmatter.temperature).toBe(0.2);
+      expect(frontmatter.prompt).toBeUndefined();
+    });
+
+    it("resolves a prompt { file } reference against outputRoot", async () => {
+      await writeFileContent(join(testDir, "prompts", "agent.md"), "Prompt from file");
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          agent: { helper: { description: "Helper", prompt: { file: "prompts/agent.md" } } },
+        }),
+      );
+
+      const [subagent] = await OpenCodeSubagent.loadAdditionalImportFiles({ outputRoot: testDir });
+
+      expect(subagent?.getBody()).toBe("Prompt from file");
+    });
+
+    it("defaults the mode and round-trips into a RulesyncSubagent", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ agent: { plain: { description: "Plain", prompt: "Do work" } } }),
+      );
+
+      const [subagent] = await OpenCodeSubagent.loadAdditionalImportFiles({ outputRoot: testDir });
+      expect(subagent).toBeDefined();
+      expect((subagent?.getFrontmatter() as Record<string, unknown>)?.mode).toBe("subagent");
+
+      const rulesyncSubagent = subagent?.toRulesyncSubagent();
+      expect(rulesyncSubagent).toBeInstanceOf(RulesyncSubagent);
+      expect(rulesyncSubagent?.getBody()).toBe("Do work");
+      expect(rulesyncSubagent?.getRelativeFilePath()).toBe("plain.md");
+    });
+
+    it("returns an empty array when there is no agent block or config", async () => {
+      expect(await OpenCodeSubagent.loadAdditionalImportFiles({ outputRoot: testDir })).toEqual([]);
+
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ command: { foo: { template: "x" } } }),
+      );
+      expect(await OpenCodeSubagent.loadAdditionalImportFiles({ outputRoot: testDir })).toEqual([]);
+    });
+  });
 });

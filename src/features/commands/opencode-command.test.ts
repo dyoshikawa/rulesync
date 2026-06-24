@@ -148,4 +148,81 @@ describe("OpenCodeCommand", () => {
       expect(command.getBody()).toBe("Check @src/components/Button.tsx");
     });
   });
+
+  describe("loadAdditionalImportFiles", () => {
+    it("imports inline commands from opencode.json", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          command: {
+            test: {
+              template: "Run the full suite for $ARGUMENTS",
+              description: "Run tests",
+              agent: "build",
+              model: "anthropic/claude-3-5-sonnet-20241022",
+              subtask: true,
+            },
+          },
+        }),
+      );
+
+      const commands = await OpenCodeCommand.loadAdditionalImportFiles({ outputRoot: testDir });
+
+      expect(commands).toHaveLength(1);
+      const [command] = commands;
+      expect(command).toBeInstanceOf(OpenCodeCommand);
+      expect(command?.getRelativeFilePath()).toBe("test.md");
+      expect(command?.getBody()).toBe("Run the full suite for $ARGUMENTS");
+      expect(command?.getFrontmatter()).toEqual({
+        description: "Run tests",
+        agent: "build",
+        model: "anthropic/claude-3-5-sonnet-20241022",
+        subtask: true,
+      });
+    });
+
+    it("prefers opencode.jsonc over opencode.json", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.jsonc"),
+        '{\n  // inline command\n  "command": { "fromJsonc": { "template": "jsonc body" } }\n}',
+      );
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ command: { fromJson: { template: "json body" } } }),
+      );
+
+      const commands = await OpenCodeCommand.loadAdditionalImportFiles({ outputRoot: testDir });
+
+      expect(commands).toHaveLength(1);
+      expect(commands[0]?.getRelativeFilePath()).toBe("fromJsonc.md");
+      expect(commands[0]?.getBody()).toBe("jsonc body");
+    });
+
+    it("returns an empty array when there is no command block", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ mcp: {}, agent: { foo: { prompt: "x" } } }),
+      );
+
+      expect(await OpenCodeCommand.loadAdditionalImportFiles({ outputRoot: testDir })).toEqual([]);
+    });
+
+    it("returns an empty array when no config file exists", async () => {
+      expect(await OpenCodeCommand.loadAdditionalImportFiles({ outputRoot: testDir })).toEqual([]);
+    });
+
+    it("round-trips an imported inline command into a RulesyncCommand", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ command: { deploy: { template: "Deploy now", description: "Deploy" } } }),
+      );
+
+      const [command] = await OpenCodeCommand.loadAdditionalImportFiles({ outputRoot: testDir });
+      const rulesyncCommand = command?.toRulesyncCommand();
+
+      expect(rulesyncCommand).toBeInstanceOf(RulesyncCommand);
+      expect(rulesyncCommand?.getBody()).toBe("Deploy now");
+      expect(rulesyncCommand?.getRelativeFilePath()).toBe("deploy.md");
+    });
+  });
 });
