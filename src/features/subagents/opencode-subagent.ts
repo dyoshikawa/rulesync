@@ -9,9 +9,14 @@ import {
 import { ValidationResult } from "../../types/ai-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
+import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
-import { asOpencodeEntries, readOpencodeConfig } from "../opencode-config.js";
+import {
+  asOpencodeEntries,
+  getOpencodeConfigDir,
+  readOpencodeConfig,
+  resolveOpencodeFileTemplate,
+} from "../opencode-config.js";
 import { OpenCodeStyleSubagent, OpenCodeStyleSubagentParams } from "./opencode-style-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
@@ -56,30 +61,23 @@ export type OpenCodeSubagentParams = Omit<OpenCodeStyleSubagentParams, "frontmat
 
 /**
  * Resolves an OpenCode agent's `prompt` (from `opencode.json`) into the
- * subagent body. A plain string is used verbatim; a `{ file: "..." }` reference
- * is read relative to `outputRoot` (empty string when unreadable); anything else
- * yields an empty body.
+ * subagent body. OpenCode lets the prompt be a plain string or a
+ * `"{file:./path}"` reference resolved relative to the config file's location
+ * (`configDir`); a non-string prompt yields an empty body.
+ *
+ * @see https://opencode.ai/docs/agents/
  */
 async function resolveOpenCodeAgentPrompt({
   prompt,
-  outputRoot,
+  configDir,
 }: {
   prompt: unknown;
-  outputRoot: string;
+  configDir: string;
 }): Promise<string> {
-  if (typeof prompt === "string") {
-    return prompt;
+  if (typeof prompt !== "string") {
+    return "";
   }
-  if (
-    prompt !== null &&
-    typeof prompt === "object" &&
-    !Array.isArray(prompt) &&
-    typeof (prompt as { file?: unknown }).file === "string"
-  ) {
-    const fileRef = (prompt as { file: string }).file;
-    return (await readFileContentOrNull(join(outputRoot, fileRef))) ?? "";
-  }
-  return "";
+  return resolveOpencodeFileTemplate({ value: prompt, configDir });
 }
 
 export class OpenCodeSubagent extends OpenCodeStyleSubagent {
@@ -215,6 +213,7 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
     }
 
     const paths = this.getSettablePaths({ global });
+    const configDir = getOpencodeConfigDir({ outputRoot, global });
     const subagents: OpenCodeSubagent[] = [];
 
     for (const [name, rawEntry] of Object.entries(agentEntries)) {
@@ -224,7 +223,7 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
       }
 
       const { prompt, ...frontmatterFields } = entry;
-      const body = await resolveOpenCodeAgentPrompt({ prompt, outputRoot });
+      const body = await resolveOpenCodeAgentPrompt({ prompt, configDir });
 
       const parseResult = OpenCodeSubagentFrontmatterSchema.safeParse(frontmatterFields);
       if (!parseResult.success) {

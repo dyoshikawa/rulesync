@@ -4,7 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "../utils/file.js";
-import { asOpencodeEntries, readOpencodeConfig } from "./opencode-config.js";
+import {
+  asOpencodeEntries,
+  getOpencodeConfigDir,
+  readOpencodeConfig,
+  resolveOpencodeFileTemplate,
+} from "./opencode-config.js";
 
 describe("opencode-config", () => {
   let testDir: string;
@@ -52,6 +57,39 @@ describe("opencode-config", () => {
       expect(asOpencodeEntries([1, 2])).toBeNull();
       expect(asOpencodeEntries("str")).toBeNull();
       expect(asOpencodeEntries(undefined)).toBeNull();
+    });
+  });
+
+  describe("getOpencodeConfigDir", () => {
+    it("uses the project root in project mode and ~/.config/opencode in global mode", () => {
+      expect(getOpencodeConfigDir({ outputRoot: testDir })).toBe(testDir);
+      expect(getOpencodeConfigDir({ outputRoot: testDir, global: true })).toBe(
+        join(testDir, ".config", "opencode"),
+      );
+    });
+  });
+
+  describe("resolveOpencodeFileTemplate", () => {
+    it("resolves a whole-value {file:./path} reference relative to configDir", async () => {
+      await writeFileContent(join(testDir, "prompts", "p.txt"), "file body");
+      expect(
+        await resolveOpencodeFileTemplate({
+          value: "{file:./prompts/p.txt}",
+          configDir: testDir,
+        }),
+      ).toBe("file body");
+    });
+
+    it("returns the value unchanged when it is not a file reference", async () => {
+      expect(await resolveOpencodeFileTemplate({ value: "plain prompt", configDir: testDir })).toBe(
+        "plain prompt",
+      );
+    });
+
+    it("preserves the literal value when the referenced file is unreadable", async () => {
+      expect(
+        await resolveOpencodeFileTemplate({ value: "{file:./nope.txt}", configDir: testDir }),
+      ).toBe("{file:./nope.txt}");
     });
   });
 });

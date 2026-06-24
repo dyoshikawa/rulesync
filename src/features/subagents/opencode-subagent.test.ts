@@ -327,18 +327,29 @@ Body content`,
       expect(frontmatter.prompt).toBeUndefined();
     });
 
-    it("resolves a prompt { file } reference against outputRoot", async () => {
-      await writeFileContent(join(testDir, "prompts", "agent.md"), "Prompt from file");
+    it("resolves a {file:./path} prompt reference relative to the config dir", async () => {
+      await writeFileContent(join(testDir, "prompts", "agent.txt"), "Prompt from file");
       await writeFileContent(
         join(testDir, "opencode.json"),
         JSON.stringify({
-          agent: { helper: { description: "Helper", prompt: { file: "prompts/agent.md" } } },
+          agent: { helper: { description: "Helper", prompt: "{file:./prompts/agent.txt}" } },
         }),
       );
 
       const [subagent] = await OpenCodeSubagent.loadAdditionalImportFiles({ outputRoot: testDir });
 
       expect(subagent?.getBody()).toBe("Prompt from file");
+    });
+
+    it("keeps the literal {file:...} value when the referenced file is missing", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ agent: { helper: { prompt: "{file:./missing.txt}" } } }),
+      );
+
+      const [subagent] = await OpenCodeSubagent.loadAdditionalImportFiles({ outputRoot: testDir });
+
+      expect(subagent?.getBody()).toBe("{file:./missing.txt}");
     });
 
     it("defaults the mode and round-trips into a RulesyncSubagent", async () => {
