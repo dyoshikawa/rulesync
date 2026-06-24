@@ -281,6 +281,15 @@ export class HermesagentSubagent extends AiFile {
     return { success: true, error: null };
   }
 
+  setFileContent(newFileContent: string): void {
+    if (this.getRelativeFilePath() === basename(HERMESAGENT_CONFIG_FILE_PATH)) {
+      super.setFileContent(getEnabledPluginConfigContent(newFileContent));
+      return;
+    }
+
+    super.setFileContent(newFileContent);
+  }
+
   getFileContent(): string {
     if (
       this.getRelativeFilePath() === basename(HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_MANIFEST_PATH)

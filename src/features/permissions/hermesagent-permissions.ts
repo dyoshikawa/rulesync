@@ -3,7 +3,7 @@ import {
   HERMESAGENT_GLOBAL_DIR,
 } from "../../constants/hermesagent-paths.js";
 import { type AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { parseHermesConfig, stringifyHermesConfig } from "../hermes-config.js";
+import { mergeHermesConfig, parseHermesConfig, stringifyHermesConfig } from "../hermes-config.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -31,6 +31,10 @@ export class HermesagentPermissions extends ToolPermissions {
     return { success: true, error: null };
   }
 
+  setFileContent(fileContent: string): void {
+    this.fileContent = mergeHermesConfig(fileContent, parseHermesConfig(this.fileContent));
+  }
+
   toRulesyncPermissions(): RulesyncPermissions {
     const config = parseHermesConfig(this.getFileContent());
     const permissions =
@@ -49,9 +53,11 @@ export class HermesagentPermissions extends ToolPermissions {
     rulesyncPermissions,
   }: ToolPermissionsFromRulesyncPermissionsParams): HermesagentPermissions {
     const permissions = rulesyncPermissions.getJson();
-    const commandAllowlist = Object.entries(permissions.permission ?? {})
-      .filter(([, value]) => value.allow?.length)
-      .flatMap(([command]) => command);
+    const commandAllowlist = Object.entries(permissions.permission ?? {}).flatMap(([, patterns]) =>
+      Object.entries(patterns)
+        .filter(([, action]) => action === "allow")
+        .map(([command]) => command),
+    );
 
     return new HermesagentPermissions({
       outputRoot,

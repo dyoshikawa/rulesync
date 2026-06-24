@@ -29,7 +29,7 @@ export class HermesagentHooks extends ToolHooks {
   }
 
   setFileContent(fileContent: string): void {
-    this.fileContent = mergeHermesConfig(this.fileContent, parseHermesConfig(fileContent));
+    this.fileContent = mergeHermesConfig(fileContent, parseHermesConfig(this.fileContent));
   }
 
   toRulesyncHooks(): RulesyncHooks {

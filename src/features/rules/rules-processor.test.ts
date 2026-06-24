@@ -1002,10 +1002,9 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("geminicli");
       expect(globalTargets).toContain("junie");
       expect(globalTargets).toContain("kilo");
-    expect(globalTargets).toContain("goose");
-    expect(globalTargets).toContain("grokcli");
-    expect(globalTargets).toContain("hermesagent");
-    expect(globalTargets).toContain("opencode");
+      expect(globalTargets).toContain("goose");
+      expect(globalTargets).toContain("grokcli");
+      expect(globalTargets).toContain("opencode");
       expect(globalTargets).toContain("pi");
       expect(globalTargets).toContain("roo");
       expect(globalTargets).toContain("rovodev");
@@ -1016,10 +1015,11 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("kiro");
       expect(globalTargets).toContain("kiro-cli");
       expect(globalTargets).toContain("kiro-ide");
-    expect(globalTargets.length).toBe(30);
+      expect(globalTargets.length).toBe(29);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
+      expect(globalTargets).not.toContain("hermesagent");
       expect(globalTargets).not.toContain("warp");
     });
   });

@@ -494,8 +494,9 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       class: HermesagentRule,
       meta: {
         extension: "md",
-        supportsGlobal: true,
-        ruleDiscoveryMode: "toon",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
+        foldsNonRootIntoRoot: true,
       },
     },
   ],

@@ -6,6 +6,7 @@ import {
   HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH,
 } from "../../constants/hermesagent-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { parseHermesConfig } from "../hermes-config.js";
 import { HermesagentSubagent } from "./hermesagent-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 
@@ -78,5 +79,30 @@ describe("HermesagentSubagent", () => {
     expect(HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH).toBe(
       `${HERMESAGENT_GLOBAL_DIR}/plugins/rulesync-subagents`,
     );
+  });
+
+  test("preserves existing Hermes config when enabling subagents plugin", () => {
+    const files = HermesagentSubagent.fromRulesyncSubagents({
+      rulesyncSubagents: [],
+    });
+    const config = files.find((file) => file.getRelativeFilePath() === "config.yaml");
+
+    config?.setFileContent(`model: hermes-3
+mcp_servers:
+  docs:
+    url: https://example.com/mcp
+plugins:
+  enabled:
+    - existing-plugin
+`);
+
+    const parsed = parseHermesConfig(config?.getFileContent() ?? "");
+    expect(parsed.model).toBe("hermes-3");
+    expect(parsed.mcp_servers).toEqual({
+      docs: { url: "https://example.com/mcp" },
+    });
+    expect(parsed.plugins).toEqual({
+      enabled: ["existing-plugin", "rulesync-subagents"],
+    });
   });
 });
