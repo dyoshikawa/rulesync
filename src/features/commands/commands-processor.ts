@@ -54,6 +54,16 @@ type ToolCommandFactory = {
     fromFile(params: ToolCommandFromFileParams): Promise<ToolCommand>;
     forDeletion(params: ToolCommandForDeletionParams): ToolCommand;
     getSettablePaths(options?: { global?: boolean }): ToolCommandSettablePaths;
+    /**
+     * Optional import-only hook: load extra commands that are not discoverable
+     * as standalone files (e.g. OpenCode commands defined inline in
+     * `opencode.json`). Invoked by {@link loadToolFiles} for the import
+     * direction only, never for orphan deletion.
+     */
+    loadAdditionalImportFiles?(params: {
+      outputRoot: string;
+      global: boolean;
+    }): Promise<ToolCommand[]>;
   };
   meta: {
     /** File extension for the command file */
@@ -607,6 +617,29 @@ export class CommandsProcessor extends FeatureProcessor {
         }),
       ),
     );
+
+    // Import-only: merge in commands defined outside the standalone-file layout
+    // (e.g. OpenCode's inline `command` block in `opencode.json`). A standalone
+    // Markdown file with the same relative path takes precedence.
+    if (factory.class.loadAdditionalImportFiles) {
+      const seen = new Set(toolCommands.map((command) => command.getRelativeFilePath()));
+      const additionalCommands = await factory.class.loadAdditionalImportFiles({
+        outputRoot: this.outputRoot,
+        global: this.global,
+      });
+      for (const command of additionalCommands) {
+        const key = command.getRelativeFilePath();
+        if (seen.has(key)) {
+          this.logger.warn(
+            `Duplicate ${this.toolTarget} command "${key}" defined inline; ` +
+              `keeping the standalone file and ignoring the inline copy.`,
+          );
+          continue;
+        }
+        seen.add(key);
+        toolCommands.push(command);
+      }
+    }
 
     this.logger.debug(
       `Successfully loaded ${toolCommands.length} ${paths.relativeDirPath} commands`,

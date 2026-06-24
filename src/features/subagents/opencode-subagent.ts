@@ -11,6 +11,12 @@ import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  asOpencodeEntries,
+  getOpencodeConfigDir,
+  readOpencodeConfig,
+  resolveOpencodeFileTemplate,
+} from "../opencode-config.js";
 import { OpenCodeStyleSubagent, OpenCodeStyleSubagentParams } from "./opencode-style-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
@@ -52,6 +58,27 @@ export type OpenCodeSubagentFrontmatter = z.infer<typeof OpenCodeSubagentFrontma
 export type OpenCodeSubagentParams = Omit<OpenCodeStyleSubagentParams, "frontmatter"> & {
   frontmatter: OpenCodeSubagentFrontmatter;
 };
+
+/**
+ * Resolves an OpenCode agent's `prompt` (from `opencode.json`) into the
+ * subagent body. OpenCode lets the prompt be a plain string or a
+ * `"{file:./path}"` reference resolved relative to the config file's location
+ * (`configDir`); a non-string prompt yields an empty body.
+ *
+ * @see https://opencode.ai/docs/agents/
+ */
+async function resolveOpenCodeAgentPrompt({
+  prompt,
+  configDir,
+}: {
+  prompt: unknown;
+  configDir: string;
+}): Promise<string> {
+  if (typeof prompt !== "string") {
+    return "";
+  }
+  return resolveOpencodeFileTemplate({ value: prompt, configDir });
+}
 
 export class OpenCodeSubagent extends OpenCodeStyleSubagent {
   declare protected readonly frontmatter: OpenCodeSubagentFrontmatter;
@@ -157,6 +184,68 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
       rulesyncSubagent,
       toolTarget: "opencode",
     });
+  }
+
+  /**
+   * Imports agents defined inline in `opencode.json` / `opencode.jsonc` under
+   * the top-level `agent` key (in addition to the Markdown files under
+   * `.opencode/agents/`). Each entry's `prompt` becomes the subagent body
+   * (a `"{file:./path}"` reference is resolved relative to the config file's
+   * location); the remaining fields (`description` / `mode` / `model` /
+   * `tools` / `permission` / ...) map to the frontmatter.
+   *
+   * Import-only: invoked by the subagents processor when loading tool files for
+   * conversion to rulesync, never for orphan deletion.
+   *
+   * @see https://opencode.ai/docs/agents/#json
+   */
+  static async loadAdditionalImportFiles({
+    outputRoot = process.cwd(),
+    global = false,
+  }: {
+    outputRoot?: string;
+    global?: boolean;
+  } = {}): Promise<OpenCodeSubagent[]> {
+    const config = await readOpencodeConfig({ outputRoot, global });
+    const agentEntries = asOpencodeEntries(config.agent);
+    if (!agentEntries) {
+      return [];
+    }
+
+    const paths = this.getSettablePaths({ global });
+    const configDir = getOpencodeConfigDir({ outputRoot, global });
+    const subagents: OpenCodeSubagent[] = [];
+
+    for (const [name, rawEntry] of Object.entries(agentEntries)) {
+      const entry = asOpencodeEntries(rawEntry);
+      if (!entry) {
+        continue;
+      }
+
+      const { prompt, ...frontmatterFields } = entry;
+      const body = await resolveOpenCodeAgentPrompt({ prompt, configDir });
+
+      const parseResult = OpenCodeSubagentFrontmatterSchema.safeParse(frontmatterFields);
+      if (!parseResult.success) {
+        continue;
+      }
+      const frontmatter = parseResult.data;
+
+      subagents.push(
+        new OpenCodeSubagent({
+          outputRoot,
+          frontmatter,
+          body,
+          relativeDirPath: paths.relativeDirPath,
+          relativeFilePath: `${name}.md`,
+          fileContent: stringifyFrontmatter(body, frontmatter),
+          validate: false,
+          global,
+        }),
+      );
+    }
+
+    return subagents;
   }
 
   static async fromFile({
