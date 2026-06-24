@@ -550,7 +550,9 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       class: KiroRule,
       meta: {
         extension: "md",
-        supportsGlobal: false,
+        // Global steering lives under `~/.kiro/steering/` (root rule as
+        // `product.md`), per the `KIRO_HOME` layout.
+        supportsGlobal: true,
         ruleDiscoveryMode: "toon",
       },
     },
@@ -561,7 +563,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       class: KiroCliRule,
       meta: {
         extension: "md",
-        supportsGlobal: false,
+        supportsGlobal: true,
         ruleDiscoveryMode: "toon",
       },
     },
@@ -572,7 +574,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       class: KiroIdeRule,
       meta: {
         extension: "md",
-        supportsGlobal: false,
+        supportsGlobal: true,
         ruleDiscoveryMode: "toon",
       },
     },
@@ -1523,7 +1525,18 @@ As this project's AI coding tool, you must follow the additional conventions bel
         }
 
         const modularRootRelative = settablePaths.nonRoot.relativeDirPath;
-        const nonRootPathsForImport =
+
+        // When the root file lives in the same directory as the non-root files
+        // (e.g. Kiro's global steering, where the root is `~/.kiro/steering/
+        // product.md` alongside the non-root `~/.kiro/steering/*.md`), the
+        // non-root glob also matches the root file. Exclude it here so the root
+        // rule is not imported a second time as a non-root rule.
+        const rootFileNameInSameDir =
+          settablePaths.root?.relativeDirPath === settablePaths.nonRoot.relativeDirPath
+            ? settablePaths.root?.relativeFilePath
+            : undefined;
+
+        const nonRootPathsForImport = (
           factory.class === RovodevRule
             ? nonRootFilePaths.filter((filePath) => {
                 const relativeFilePath = relative(nonRootOutputRoot, filePath);
@@ -1535,7 +1548,12 @@ As this project's AI coding tool, you must follow the additional conventions bel
                 }
                 return ok;
               })
-            : nonRootFilePaths;
+            : nonRootFilePaths
+        ).filter(
+          (filePath) =>
+            rootFileNameInSameDir === undefined ||
+            relative(nonRootOutputRoot, filePath) !== rootFileNameInSameDir,
+        );
 
         return await Promise.all(
           nonRootPathsForImport.map((filePath) => {

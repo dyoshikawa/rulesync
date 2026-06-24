@@ -29,9 +29,9 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Vibe Code              | vibe            | ✅ 🌏 |   ✅   |  ✅ 🌏   |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
 | Qwen Code              | qwencode        | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
 | Reasonix               | reasonix        |       |        |  ✅ 🌏   |          |           |        |       |             |
-| Kiro ⚠️                | kiro            |  ✅   |   ✅   |    ✅    |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
-| Kiro CLI               | kiro-cli        |  ✅   |   ✅   |    ✅    |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
-| Kiro IDE               | kiro-ide        |  ✅   |   ✅   |    ✅    |    ✅    |    ✅     |   ✅   |       |     ✅      |
+| Kiro ⚠️                | kiro            | ✅ 🌏 |   ✅   |  ✅ 🌏   |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
+| Kiro CLI               | kiro-cli        | ✅ 🌏 |   ✅   |  ✅ 🌏   |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
+| Kiro IDE               | kiro-ide        | ✅ 🌏 |   ✅   |  ✅ 🌏   |    ✅    |    ✅     |   ✅   |       |     ✅      |
 | Google Antigravity IDE | antigravity-ide | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |     ✅      |
 | Google Antigravity CLI | antigravity-cli | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |          |           | ✅ 🌏  | ✅ 🌏 |     🌏      |
 | Google Antigravity ⚠️  | antigravity     |  ✅   |        |          |    ✅    |           | ✅ 🌏  |       |             |

@@ -332,20 +332,23 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       class: KiroMcp,
       meta: {
         supportsProject: true,
-        supportsGlobal: false,
+        // Kiro reads global MCP from `~/.kiro/settings/mcp.json` (same relative
+        // path as the project file), per the `KIRO_HOME` layout.
+        supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
       },
     },
   ],
   [
-    // Kiro IDE and CLI share the same `.kiro/settings/mcp.json` MCP config.
+    // Kiro IDE and CLI share the same `.kiro/settings/mcp.json` MCP config
+    // (project) and `~/.kiro/settings/mcp.json` (global).
     "kiro-cli",
     {
       class: KiroMcp,
       meta: {
         supportsProject: true,
-        supportsGlobal: false,
+        supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
       },
@@ -357,7 +360,7 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       class: KiroMcp,
       meta: {
         supportsProject: true,
-        supportsGlobal: false,
+        supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
       },

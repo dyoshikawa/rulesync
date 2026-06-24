@@ -1,6 +1,10 @@
 import { join } from "node:path";
 
-import { KIRO_DIR } from "../../constants/kiro-paths.js";
+import {
+  KIRO_DIR,
+  KIRO_GLOBAL_ROOT_STEERING_FILE_NAME,
+  KIRO_STEERING_DIR_NAME,
+} from "../../constants/kiro-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
@@ -12,12 +16,15 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
   ToolRuleSettablePaths,
+  ToolRuleSettablePathsGlobal,
   buildToolPath,
 } from "./tool-rule.js";
 
 export type KiroRuleParams = ToolRuleParams;
 
-export type KiroRuleSettablePaths = Pick<ToolRuleSettablePaths, "nonRoot">;
+export type KiroRuleSettablePaths =
+  | Pick<ToolRuleSettablePaths, "nonRoot">
+  | ToolRuleSettablePathsGlobal;
 
 /**
  * Steering `inclusion` frontmatter that Kiro reads at the top of each
@@ -102,14 +109,31 @@ export function deriveKiroInclusion({
  */
 export class KiroRule extends ToolRule {
   static getSettablePaths(
-    _options: {
+    options: {
       global?: boolean;
       excludeToolDir?: boolean;
     } = {},
   ): KiroRuleSettablePaths {
+    const steeringDirPath = buildToolPath(KIRO_DIR, KIRO_STEERING_DIR_NAME, options.excludeToolDir);
+
+    // In global scope Kiro does not read `~/AGENTS.md`, so the root rule is
+    // written alongside the non-root steering files as
+    // `~/.kiro/steering/product.md` instead of the project-scope root `AGENTS.md`.
+    if (options.global) {
+      return {
+        root: {
+          relativeDirPath: steeringDirPath,
+          relativeFilePath: KIRO_GLOBAL_ROOT_STEERING_FILE_NAME,
+        },
+        nonRoot: {
+          relativeDirPath: steeringDirPath,
+        },
+      };
+    }
+
     return {
       nonRoot: {
-        relativeDirPath: buildToolPath(KIRO_DIR, "steering", _options.excludeToolDir),
+        relativeDirPath: steeringDirPath,
       },
     };
   }
@@ -118,8 +142,14 @@ export class KiroRule extends ToolRule {
     outputRoot = process.cwd(),
     relativeFilePath,
     validate = true,
+    global = false,
   }: ToolRuleFromFileParams): Promise<KiroRule> {
-    const relativeDirPath = this.getSettablePaths().nonRoot.relativeDirPath;
+    const paths = this.getSettablePaths({ global });
+    // In global scope the root steering file (`product.md`) lives in the same
+    // directory as the non-root files; treat it as the root rule on import.
+    const isRoot = "root" in paths && relativeFilePath === paths.root.relativeFilePath;
+    const relativeDirPath =
+      paths.nonRoot?.relativeDirPath ?? buildToolPath(KIRO_DIR, KIRO_STEERING_DIR_NAME);
     const fileContent = await readFileContent(join(outputRoot, relativeDirPath, relativeFilePath));
 
     return new KiroRule({
@@ -128,7 +158,7 @@ export class KiroRule extends ToolRule {
       relativeFilePath: relativeFilePath,
       fileContent,
       validate,
-      root: false,
+      root: isRoot,
     });
   }
 
@@ -136,12 +166,15 @@ export class KiroRule extends ToolRule {
     outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
+    global = false,
   }: ToolRuleFromRulesyncRuleParams): KiroRule {
+    const paths = this.getSettablePaths({ global });
     const params = this.buildToolRuleParamsDefault({
       outputRoot,
       rulesyncRule,
       validate,
-      nonRootPath: this.getSettablePaths().nonRoot,
+      ...("root" in paths && { rootPath: paths.root }),
+      nonRootPath: paths.nonRoot,
     });
 
     // The root overview index stays plain (Kiro always-loads a frontmatter-less
