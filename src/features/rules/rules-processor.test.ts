@@ -834,6 +834,32 @@ Content that would fail parsing`;
       expect(filePaths).not.toContain("CLAUDE.local.md");
     });
 
+    it("should not double-import the kiro global root steering file (product.md)", async () => {
+      // In global scope the kiro root (product.md) lives in the same dir as the
+      // non-root steering files, so the non-root glob would otherwise re-import it.
+      const steeringDir = join(testDir, ".kiro", "steering");
+      await ensureDir(steeringDir);
+      await writeFileContent(join(steeringDir, "product.md"), "Root overview");
+      await writeFileContent(
+        join(steeringDir, "tech.md"),
+        "---\ninclusion: fileMatch\nfileMatchPattern: '**/*.ts'\n---\nTS steering",
+      );
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "kiro",
+        global: true,
+      });
+
+      const files = await processor.loadToolFiles();
+      const filePaths = files.map((f) => f.getRelativeFilePath());
+
+      expect(filePaths.filter((p) => p === "product.md")).toHaveLength(1);
+      expect(filePaths).toContain("tech.md");
+      expect(filePaths).toHaveLength(2);
+    });
+
     it("should include AGENTS.local.md for deletion for rovodev", async () => {
       await ensureDir(join(testDir, ".rovodev"));
       await writeFileContent(join(testDir, ".rovodev", "AGENTS.md"), "# Root");
