@@ -18,7 +18,6 @@ export type PermissionAction = z.infer<typeof PermissionActionSchema>;
  * { "*": "ask", "git *": "allow", "rm *": "deny" }
  */
 export const PermissionRulesSchema = z.record(z.string(), PermissionActionSchema);
-export type PermissionRules = z.infer<typeof PermissionRulesSchema>;
 
 /**
  * Permissions configuration.
@@ -43,4 +42,3 @@ export const RulesyncPermissionsFileSchema = z.looseObject({
   $schema: z.optional(z.string()),
   ...PermissionsConfigSchema.shape,
 });
-export type RulesyncPermissionsFile = z.infer<typeof RulesyncPermissionsFileSchema>;

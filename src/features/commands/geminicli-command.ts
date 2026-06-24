@@ -66,11 +66,6 @@ function translateGeminiBodyToRulesync(body: string): string {
 
 export type GeminiCliCommandFrontmatter = z.infer<typeof GeminiCliCommandFrontmatterSchema>;
 
-export type GeminiCliCommandParams = {
-  frontmatter: GeminiCliCommandFrontmatter;
-  body: string;
-} & AiFileParams;
-
 export class GeminiCliCommand extends ToolCommand {
   private readonly frontmatter: GeminiCliCommandFrontmatter;
   private readonly body: string;

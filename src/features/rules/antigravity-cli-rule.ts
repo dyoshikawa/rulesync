@@ -13,13 +13,10 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
-  ToolRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
   buildToolPath,
 } from "./tool-rule.js";
-
-export type AntigravityCliRuleParams = ToolRuleParams;
 
 export type AntigravityCliRuleSettablePaths = ToolRuleSettablePaths & {
   root: {

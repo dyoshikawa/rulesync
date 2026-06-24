@@ -8,11 +8,8 @@ import {
   ToolIgnoreForDeletionParams,
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
-  ToolIgnoreParams,
   ToolIgnoreSettablePaths,
 } from "./tool-ignore.js";
-
-export type AugmentcodeIgnoreParams = ToolIgnoreParams;
 
 /**
  * AugmentCode Ignore implementation

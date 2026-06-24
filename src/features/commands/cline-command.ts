@@ -4,7 +4,7 @@ import {
   CLINE_COMMANDS_DIR_PATH,
   CLINE_COMMANDS_GLOBAL_DIR_PATH,
 } from "../../constants/cline-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
@@ -15,8 +15,6 @@ import {
   ToolCommandFromRulesyncCommandParams,
   ToolCommandSettablePaths,
 } from "./tool-command.js";
-
-export type ClineCommandParams = AiFileParams;
 
 export class ClineCommand extends ToolCommand {
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolCommandSettablePaths {

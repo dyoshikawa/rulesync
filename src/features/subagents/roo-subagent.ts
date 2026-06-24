@@ -52,8 +52,6 @@ export const RooModesFileSchema = z.looseObject({
   customModes: z.array(RooModeSchema),
 });
 
-export type RooModesFile = z.infer<typeof RooModesFileSchema>;
-
 export type RooSubagentParams = {
   modes: RooMode[];
 } & Omit<AiFileParams, "fileContent">;

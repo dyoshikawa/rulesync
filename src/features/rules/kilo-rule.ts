@@ -14,13 +14,10 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   type ToolRuleFromRulesyncRuleParams,
-  ToolRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
   buildToolPath,
 } from "./tool-rule.js";
-
-export type KiloRuleParams = ToolRuleParams;
 
 export type KiloRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
   root: {

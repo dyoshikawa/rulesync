@@ -14,7 +14,6 @@ export type ConflictStrategy = z.infer<typeof ConflictStrategySchema>;
  * GitHub file type from API response
  */
 export const GitHubFileTypeSchema = z.enum(["file", "dir", "symlink", "submodule"]);
-export type GitHubFileType = z.infer<typeof GitHubFileTypeSchema>;
 
 /**
  * GitHub file/directory entry from contents API

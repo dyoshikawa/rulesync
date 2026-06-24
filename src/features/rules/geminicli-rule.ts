@@ -12,13 +12,10 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
-  ToolRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
   buildToolPath,
 } from "./tool-rule.js";
-
-export type GeminiCliRuleParams = ToolRuleParams;
 
 export type GeminiCliRuleSettablePaths = ToolRuleSettablePaths & {
   root: {

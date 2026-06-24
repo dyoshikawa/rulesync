@@ -70,10 +70,6 @@ export function getApmLockPath(projectRoot: string): string {
   return join(projectRoot, APM_LOCKFILE_FILE_NAME);
 }
 
-export async function apmLockExists(projectRoot: string): Promise<boolean> {
-  return fileExists(getApmLockPath(projectRoot));
-}
-
 /**
  * Create an empty lockfile structure. `apm_version` is set to the rulesync
  * compatibility-marker string so downstream tooling can tell this lockfile

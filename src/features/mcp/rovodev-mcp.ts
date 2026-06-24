@@ -41,7 +41,6 @@ function parseRovodevMcpJson(
  * Same shape as Cursor: { mcpServers: { ... } }. See Rovodev MCP docs.
  * Project-level MCP is not supported; use --global when generating.
  */
-export type RovodevMcpParams = ToolMcpParams;
 
 export class RovodevMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;

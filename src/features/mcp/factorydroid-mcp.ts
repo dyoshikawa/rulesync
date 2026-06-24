@@ -16,8 +16,6 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
-export type FactorydroidMcpParams = ToolMcpParams;
-
 export class FactorydroidMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
 

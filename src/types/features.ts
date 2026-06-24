@@ -32,12 +32,6 @@ export type GitignoreDestination = z.infer<typeof GitignoreDestinationSchema>;
 // Each tool/feature is responsible for parsing and validating its own keys.
 export type FeatureOptions = Record<string, unknown>;
 
-// Value of a single feature in the per-feature object form:
-// - true: enable with default options
-// - false: disable
-// - object: enable with the given options
-export type FeatureValue = boolean | FeatureOptions | GitignoreDestination;
-
 // Schema for features - supports both array and per-target object formats
 // Array format: ["rules", "ignore", ...] or ["*"]
 // Object format (array per target): { "copilot": ["commands"], "agentsmd": ["rules", "mcp"] }
@@ -84,14 +78,6 @@ export type PerTargetFeaturesValue = Array<FeatureWithWildcard> | PerFeatureConf
 export type PerTargetFeatures = Partial<Record<ToolTarget, PerTargetFeaturesValue>>;
 
 export type RulesyncFeatures = Array<FeatureWithWildcard> | PerTargetFeatures;
-
-/**
- * Type guard: returns true when a per-target features value uses the
- * per-feature object form rather than the array form.
- */
-export const isPerFeatureConfig = (value: PerTargetFeaturesValue): value is PerFeatureConfig => {
-  return !Array.isArray(value);
-};
 
 /**
  * Returns true if a per-feature value enables the feature.

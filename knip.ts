@@ -2,7 +2,9 @@ import { type KnipConfig } from "knip";
 
 const config: KnipConfig = {
   entry: [
-    "src/cli/index.ts",
+    // `src/cli/index.ts` is auto-detected from the package.json `bin` field, so it
+    // does not need to be listed here. The library entry and the test files are kept
+    // explicit because they are not covered by an enabled plugin's defaults.
     "src/index.ts",
     "src/**/*.test.ts",
     // Standalone task runners under scripts/ (executed via tsx) and their colocated
@@ -12,30 +14,9 @@ const config: KnipConfig = {
     "scripts/**/*.ts",
   ],
   project: ["src/**/*.ts", "scripts/**/*.ts"],
-  ignore: [
-    // Build output and node_modules
-    "dist/**",
-    "node_modules/**",
-    // Temporary files during testing
-    "**/test-temp/**",
-    // Configuration files
-    "tsconfig.json",
-    "vitest.config.ts",
-    ".oxfmtrc.json",
-    ".rulesync/**",
-    "docs/**",
-  ],
   ignoreDependencies: [
     // Dependencies used only in configuration files
     "@secretlint/secretlint-rule-preset-recommend",
-    // Used only in TypeScript configuration
-    "typescript",
-    "@types/node",
-    "@types/js-yaml",
-    // lint-staged is used in git hooks
-    "lint-staged",
-    // Used in docs site
-    "vitepress",
     // Optional peer dependencies of `xsschema` (a transitive dependency via
     // `fastmcp`). They are not imported from our source, so knip reports them as
     // unused, but `xsschema` resolves them through dynamic `import()` and the
@@ -45,9 +26,6 @@ const config: KnipConfig = {
     "sury",
     "@valibot/to-json-schema",
   ],
-  typescript: {
-    config: "tsconfig.json",
-  },
   includeEntryExports: true,
 };
 

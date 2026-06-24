@@ -1,9 +1,9 @@
 import { join } from "node:path";
 
-import { dump, load } from "js-yaml";
+import { load } from "js-yaml";
 import { optional, z } from "zod/mini";
 
-import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
+import { fileExists, readFileContent } from "../../utils/file.js";
 
 export const APM_MANIFEST_FILE_NAME = "apm.yml";
 
@@ -107,19 +107,6 @@ export async function readApmManifest(projectRoot: string): Promise<ApmManifest>
   const path = getApmManifestPath(projectRoot);
   const content = await readFileContent(path);
   return parseApmManifest(content);
-}
-
-/**
- * Write an `apm.yml` back to disk. Only used by tests today — the install
- * command itself does not mutate the manifest.
- */
-export async function writeApmManifest(params: {
-  projectRoot: string;
-  manifest: { name?: string; version?: string; dependencies?: unknown[] };
-}): Promise<void> {
-  const path = getApmManifestPath(params.projectRoot);
-  const content = dump(params.manifest, { lineWidth: -1 });
-  await writeFileContent(path, content);
 }
 
 function normalizeDependency(
