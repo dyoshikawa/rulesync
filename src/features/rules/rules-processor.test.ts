@@ -929,6 +929,9 @@ Content that would fail parsing`;
         "grokcli",
         "junie",
         "kilo",
+        "kiro",
+        "kiro-cli",
+        "kiro-ide",
         "opencode",
         "pi",
         "qwencode",
@@ -983,7 +986,10 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("vibe");
       expect(globalTargets).toContain("devin");
       expect(globalTargets).toContain("zed");
-      expect(globalTargets.length).toBe(26);
+      expect(globalTargets).toContain("kiro");
+      expect(globalTargets).toContain("kiro-cli");
+      expect(globalTargets).toContain("kiro-ide");
+      expect(globalTargets.length).toBe(29);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

@@ -502,6 +502,9 @@ describe("E2E: mcp (global mode)", () => {
     },
     { target: "vibe", outputPath: join(".vibe", "config.toml") },
     { target: "reasonix", outputPath: join(".reasonix", "config.toml") },
+    { target: "kiro", outputPath: join(".kiro", "settings", "mcp.json") },
+    { target: "kiro-cli", outputPath: join(".kiro", "settings", "mcp.json") },
+    { target: "kiro-ide", outputPath: join(".kiro", "settings", "mcp.json") },
   ])("should generate $target mcp in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

@@ -550,7 +550,9 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       class: KiroRule,
       meta: {
         extension: "md",
-        supportsGlobal: false,
+        // Global steering lives under `~/.kiro/steering/` (root rule as
+        // `product.md`), per the `KIRO_HOME` layout.
+        supportsGlobal: true,
         ruleDiscoveryMode: "toon",
       },
     },
@@ -561,7 +563,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       class: KiroCliRule,
       meta: {
         extension: "md",
-        supportsGlobal: false,
+        supportsGlobal: true,
         ruleDiscoveryMode: "toon",
       },
     },
@@ -572,7 +574,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       class: KiroIdeRule,
       meta: {
         extension: "md",
-        supportsGlobal: false,
+        supportsGlobal: true,
         ruleDiscoveryMode: "toon",
       },
     },

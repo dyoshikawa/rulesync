@@ -644,6 +644,9 @@ describe("E2E: rules (global mode)", () => {
     },
     { target: "junie", outputPath: join(".junie", "AGENTS.md") },
     { target: "qwencode", outputPath: join(".qwen", "QWEN.md") },
+    { target: "kiro", outputPath: join(".kiro", "steering", "product.md") },
+    { target: "kiro-cli", outputPath: join(".kiro", "steering", "product.md") },
+    { target: "kiro-ide", outputPath: join(".kiro", "steering", "product.md") },
   ])("should generate $target rules in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

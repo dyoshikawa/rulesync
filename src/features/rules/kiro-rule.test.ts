@@ -992,4 +992,57 @@ describe("KiroRule", () => {
       }
     });
   });
+
+  describe("global scope", () => {
+    it("getSettablePaths returns only the steering non-root dir in project mode", () => {
+      const paths = KiroRule.getSettablePaths();
+      expect(paths).toEqual({ nonRoot: { relativeDirPath: ".kiro/steering" } });
+      expect("root" in paths).toBe(false);
+    });
+
+    it("getSettablePaths returns a product.md root under steering in global mode", () => {
+      const paths = KiroRule.getSettablePaths({ global: true });
+      expect(paths).toEqual({
+        root: { relativeDirPath: ".kiro/steering", relativeFilePath: "product.md" },
+        nonRoot: { relativeDirPath: ".kiro/steering" },
+      });
+    });
+
+    it("fromRulesyncRule writes the root rule to steering/product.md in global mode", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "overview.md",
+        frontmatter: { root: true, targets: ["kiro"], description: "Root", globs: [] },
+        body: "Root steering body",
+      });
+
+      const kiroRule = KiroRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule,
+        global: true,
+      });
+
+      expect(kiroRule.getRelativeDirPath()).toBe(".kiro/steering");
+      expect(kiroRule.getRelativeFilePath()).toBe("product.md");
+      expect(kiroRule.isRoot()).toBe(true);
+      // The root steering file stays plain (no inclusion frontmatter).
+      expect(kiroRule.getFileContent()).toContain("Root steering body");
+      expect(kiroRule.getFileContent()).not.toContain("inclusion:");
+    });
+
+    it("fromFile treats steering/product.md as the root rule in global mode", async () => {
+      const steeringDir = join(testDir, ".kiro", "steering");
+      await ensureDir(steeringDir);
+      await writeFileContent(join(steeringDir, "product.md"), "Root overview");
+
+      const kiroRule = await KiroRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "product.md",
+        global: true,
+      });
+
+      expect(kiroRule.getRelativeFilePath()).toBe("product.md");
+      expect(kiroRule.isRoot()).toBe(true);
+    });
+  });
 });
