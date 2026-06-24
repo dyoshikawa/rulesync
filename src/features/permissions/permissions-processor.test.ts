@@ -111,6 +111,7 @@ describe("PermissionsProcessor", () => {
         "factorydroid",
         "geminicli",
         "goose",
+        "grokcli",
         "kilo",
         "opencode",
         "qwencode",

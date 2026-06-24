@@ -1465,6 +1465,48 @@ describe("E2E: permissions (global mode)", () => {
     const smartApprove = toTable(root.smart_approve);
     expect(smartApprove.always_allow).toEqual(["developer__shell"]);
   });
+
+  it("should generate grokcli permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "*": "allow", "rm *": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    // Pre-seed config.toml with an existing [mcp_servers] table to verify the
+    // non-destructive merge into ~/.grok/config.toml.
+    await writeFileContent(
+      join(homeDir, ".grok", "config.toml"),
+      ["[mcp_servers.example]", 'command = "echo"', "", "[ui]", 'theme = "dark"'].join("\n"),
+    );
+
+    await runGenerate({
+      target: "grokcli",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // Grok gates tools with the coarse `[ui] permission_mode` toggle in the
+    // global ~/.grok/config.toml. A `deny` rule collapses the lossy mapping to
+    // `ask`. Permissions are global-scope only, so there is no project-mode
+    // equivalent.
+    const content = await readFileContent(join(homeDir, ".grok", "config.toml"));
+    expect(content).toContain('permission_mode = "ask"');
+    // The existing MCP server config and other [ui] keys are preserved.
+    expect(content).toContain("[mcp_servers.example]");
+    expect(content).toContain('theme = "dark"');
+  });
 });
 
 type AugmentEntry = {
