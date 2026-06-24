@@ -239,6 +239,39 @@ describe("GooseMcp", () => {
         disabled: true,
       });
     });
+
+    it("strips prototype-pollution keys from an extension's envs/headers on import", async () => {
+      const dir = join(testDir, GOOSE_DIR);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, GOOSE_FILE),
+        [
+          "extensions:",
+          "  fetch:",
+          "    name: fetch",
+          "    type: stdio",
+          "    cmd: uvx",
+          "    envs:",
+          "      __proto__: polluted",
+          "      constructor: polluted",
+          "      TOKEN: safe",
+          "  remote:",
+          "    name: remote",
+          "    type: streamable_http",
+          "    uri: https://example.com/mcp",
+          "    headers:",
+          "      __proto__: polluted",
+          "      Authorization: Bearer safe",
+          "",
+        ].join("\n"),
+      );
+
+      const mcp = await GooseMcp.fromFile({ outputRoot: testDir, global: true });
+      const servers = JSON.parse(mcp.toRulesyncMcp().getFileContent()).mcpServers;
+
+      expect(servers.fetch.env).toEqual({ TOKEN: "safe" });
+      expect(servers.remote.headers).toEqual({ Authorization: "Bearer safe" });
+    });
   });
 
   describe("forDeletion", () => {
