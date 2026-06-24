@@ -47,7 +47,7 @@ describe("AmpPermissions", () => {
   });
 
   describe("fromRulesyncPermissions", () => {
-    it("maps deny rules to amp.tools.disable, skipping allow/ask", async () => {
+    it("keeps whole-tool deny in amp.tools.disable and emits allow/ask as amp.permissions", async () => {
       const rulesyncPermissions = makeRulesyncPermissions(testDir, {
         edit_file: { "*": "deny" },
         read_file: { "*": "allow" },
@@ -60,7 +60,58 @@ describe("AmpPermissions", () => {
       });
       const json = JSON.parse(instance.getFileContent());
 
+      // Whole-tool deny stays on the legacy disable surface.
       expect(json["amp.tools.disable"]).toEqual(["edit_file"]);
+      // allow/ask are no longer dropped: they become amp.permissions entries.
+      expect(json["amp.permissions"]).toEqual([
+        { tool: "read_file", action: "allow" },
+        { tool: "web", action: "ask" },
+      ]);
+    });
+
+    it("emits an argument-specific deny as a reject entry with matches.cmd", async () => {
+      const rulesyncPermissions = makeRulesyncPermissions(testDir, {
+        bash: { "*": "deny", "git *": "deny" },
+      });
+
+      const instance = await AmpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+      const json = JSON.parse(instance.getFileContent());
+
+      // The whole-tool deny stays in disable; the argument-specific deny becomes reject.
+      expect(json["amp.tools.disable"]).toEqual(["bash"]);
+      expect(json["amp.permissions"]).toEqual([
+        { tool: "bash", action: "reject", matches: { cmd: "git *" } },
+      ]);
+    });
+
+    it("orders amp.permissions specific-before-catch-all and reject<ask<allow per tool", async () => {
+      const rulesyncPermissions = makeRulesyncPermissions(testDir, {
+        bash: {
+          "*": "allow",
+          "rm *": "deny",
+          "sudo *": "ask",
+          "git *": "allow",
+        },
+      });
+
+      const instance = await AmpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+      const json = JSON.parse(instance.getFileContent());
+
+      expect(json["amp.tools.disable"]).toEqual([]);
+      // Entries with matches.cmd come first (sorted reject<ask<allow then cmd),
+      // and the catch-all allow comes last.
+      expect(json["amp.permissions"]).toEqual([
+        { tool: "bash", action: "reject", matches: { cmd: "rm *" } },
+        { tool: "bash", action: "ask", matches: { cmd: "sudo *" } },
+        { tool: "bash", action: "allow", matches: { cmd: "git *" } },
+        { tool: "bash", action: "allow" },
+      ]);
     });
 
     it("preserves builtin: prefixes and the * glob verbatim, sorted and deduped", async () => {
@@ -111,6 +162,56 @@ describe("AmpPermissions", () => {
 
       expect(instance.getRelativeFilePath()).toBe("settings.jsonc");
     });
+
+    it("preserves a pre-existing delegate entry, placing it after generated entries", async () => {
+      await writeFileContent(
+        join(testDir, ".amp", "settings.json"),
+        JSON.stringify({
+          "amp.permissions": [
+            { tool: "bash", action: "delegate", matches: { cmd: "deploy *" } },
+            // A user-authored allow that rulesync owns and should regenerate (wholesale-replace).
+            { tool: "bash", action: "allow", matches: { cmd: "stale *" } },
+          ],
+        }),
+      );
+      const rulesyncPermissions = makeRulesyncPermissions(testDir, {
+        bash: { "git *": "allow" },
+      });
+
+      const instance = await AmpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+      const json = JSON.parse(instance.getFileContent());
+
+      expect(json["amp.permissions"]).toEqual([
+        // Regenerated rulesync entry first.
+        { tool: "bash", action: "allow", matches: { cmd: "git *" } },
+        // Pre-existing delegate survives, placed after generated entries.
+        { tool: "bash", action: "delegate", matches: { cmd: "deploy *" } },
+      ]);
+    });
+
+    it("removes amp.permissions when nothing is generated and no delegate is preserved", async () => {
+      await writeFileContent(
+        join(testDir, ".amp", "settings.json"),
+        JSON.stringify({
+          "amp.permissions": [{ tool: "bash", action: "allow", matches: { cmd: "old *" } }],
+        }),
+      );
+      const rulesyncPermissions = makeRulesyncPermissions(testDir, {
+        edit_file: { "*": "deny" },
+      });
+
+      const instance = await AmpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+      const json = JSON.parse(instance.getFileContent());
+
+      expect(json["amp.tools.disable"]).toEqual(["edit_file"]);
+      expect("amp.permissions" in json).toBe(false);
+    });
   });
 
   describe("fromFile", () => {
@@ -139,6 +240,90 @@ describe("AmpPermissions", () => {
       expect(config.permission.edit_file).toEqual({ "*": "deny" });
       expect(config.permission["builtin:Bash"]).toEqual({ "*": "deny" });
       expect(config.permission["*"]).toEqual({ "*": "deny" });
+    });
+
+    it("imports amp.permissions entries back into canonical actions", async () => {
+      await writeFileContent(
+        join(testDir, ".amp", "settings.json"),
+        JSON.stringify({
+          "amp.permissions": [
+            { tool: "read_file", action: "allow" },
+            { tool: "web", action: "ask" },
+            { tool: "bash", action: "reject", matches: { cmd: "rm *" } },
+            { tool: "bash", action: "allow", matches: { cmd: "git *" } },
+          ],
+        }),
+      );
+
+      const instance = await AmpPermissions.fromFile({ outputRoot: testDir });
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+
+      expect(config.permission.read_file).toEqual({ "*": "allow" });
+      expect(config.permission.web).toEqual({ "*": "ask" });
+      expect(config.permission.bash).toEqual({ "rm *": "deny", "git *": "allow" });
+    });
+
+    it("skips delegate entries on import (no canonical equivalent)", async () => {
+      await writeFileContent(
+        join(testDir, ".amp", "settings.json"),
+        JSON.stringify({
+          "amp.permissions": [
+            { tool: "bash", action: "delegate", matches: { cmd: "deploy *" } },
+            { tool: "bash", action: "allow", matches: { cmd: "git *" } },
+          ],
+        }),
+      );
+
+      const instance = await AmpPermissions.fromFile({ outputRoot: testDir });
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+
+      expect(config.permission.bash).toEqual({ "git *": "allow" });
+    });
+
+    it("merges both sources and lets deny/reject win on conflict (fail-closed)", async () => {
+      await writeFileContent(
+        join(testDir, ".amp", "settings.json"),
+        JSON.stringify({
+          "amp.tools.disable": ["bash"],
+          // amp.permissions has a catch-all allow for the same tool+pattern.
+          "amp.permissions": [{ tool: "bash", action: "allow" }],
+        }),
+      );
+
+      const instance = await AmpPermissions.fromFile({ outputRoot: testDir });
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+
+      // disable → bash:{"*":"deny"}; the allow on the same key loses to deny.
+      expect(config.permission.bash).toEqual({ "*": "deny" });
+    });
+  });
+
+  describe("round-trip", () => {
+    it("round-trips allow/ask/reject and whole-tool deny through Amp and back", async () => {
+      const original = {
+        bash: { "*": "deny", "git *": "allow", "rm *": "deny", "sudo *": "ask" },
+        read_file: { "*": "allow" },
+        web: { "*": "ask" },
+      };
+      const rulesyncPermissions = makeRulesyncPermissions(testDir, original);
+
+      const exported = await AmpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+      // Re-read the generated settings file shape into a fresh instance.
+      await writeFileContent(join(testDir, ".amp", "settings.json"), exported.getFileContent());
+      const reimported = await AmpPermissions.fromFile({ outputRoot: testDir });
+      const config = JSON.parse(reimported.toRulesyncPermissions().getFileContent());
+
+      expect(config.permission.bash).toEqual({
+        "*": "deny",
+        "git *": "allow",
+        "rm *": "deny",
+        "sudo *": "ask",
+      });
+      expect(config.permission.read_file).toEqual({ "*": "allow" });
+      expect(config.permission.web).toEqual({ "*": "ask" });
     });
   });
 
@@ -183,6 +368,28 @@ describe("AmpPermissions", () => {
         relativeDirPath: ".amp",
         relativeFilePath: "settings.json",
         fileContent: JSON.stringify({ "amp.tools.disable": ["edit_file"] }),
+      });
+      expect(instance.validate().success).toBe(true);
+    });
+
+    it("rejects a non-array amp.permissions", () => {
+      const instance = new AmpPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".amp",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ "amp.permissions": "nope" }),
+      });
+      expect(instance.validate().success).toBe(false);
+    });
+
+    it("accepts a valid amp.permissions array", () => {
+      const instance = new AmpPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".amp",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          "amp.permissions": [{ tool: "bash", action: "allow" }],
+        }),
       });
       expect(instance.validate().success).toBe(true);
     });
