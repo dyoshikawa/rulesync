@@ -29,6 +29,7 @@ import {
 type FactorydroidSettingsJson = {
   commandAllowlist?: string[];
   commandDenylist?: string[];
+  commandBlocklist?: string[];
   [key: string]: unknown;
 };
 
@@ -47,6 +48,20 @@ type FactorydroidSettingsJson = {
  * rules are intentionally dropped. The allow/deny lists only model shell
  * commands, so categories other than `bash` cannot be represented and are
  * skipped (with a warning when they carry `deny` rules, to surface the gap).
+ *
+ * Factory Droid also has a stronger `commandBlocklist` tier — commands that can
+ * never run, not even under full autonomy. rulesync's canonical action model
+ * has only `allow | ask | deny`, with no equivalent of a hard block that can
+ * never be approved. So on **import** a `commandBlocklist` entry is collapsed
+ * onto canonical `deny` (lossy: the never-runs guarantee is weakened to a deny
+ * the user can still approve), rather than being silently dropped. On **export**
+ * there is no canonical `block` to emit one from, so rulesync never writes
+ * `commandBlocklist`; an existing one on disk is preserved verbatim as an
+ * unmanaged key. (A consequence of the lossy collapse: importing a
+ * `commandBlocklist` and re-exporting it to a *fresh* config writes it back as
+ * `commandDenylist`, not `commandBlocklist` — the hard-block tier is not
+ * reconstructed. Re-running over the original file keeps it intact via the
+ * verbatim preservation above.)
  */
 export class FactorydroidPermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
@@ -157,6 +172,7 @@ export class FactorydroidPermissions extends ToolPermissions {
     const config = convertFactorydroidToRulesyncPermissions({
       allow: Array.isArray(settings.commandAllowlist) ? settings.commandAllowlist : [],
       deny: Array.isArray(settings.commandDenylist) ? settings.commandDenylist : [],
+      block: Array.isArray(settings.commandBlocklist) ? settings.commandBlocklist : [],
     });
 
     return this.toRulesyncPermissionsDefault({
@@ -229,15 +245,21 @@ function convertRulesyncToFactorydroidPermissions({
 }
 
 /**
- * Convert Factory Droid allow/deny command lists back to rulesync config under
- * the `bash` category.
+ * Convert Factory Droid allow/deny/block command lists back to rulesync config
+ * under the `bash` category.
+ *
+ * `commandBlocklist` (hard block) has no canonical equivalent, so it collapses
+ * onto `deny` — lossy (a deny can still be approved), but preferable to dropping
+ * the rule entirely.
  */
 function convertFactorydroidToRulesyncPermissions({
   allow,
   deny,
+  block,
 }: {
   allow: string[];
   deny: string[];
+  block: string[];
 }): PermissionsConfig {
   const bash: Record<string, PermissionAction> = {};
 
@@ -246,6 +268,11 @@ function convertFactorydroidToRulesyncPermissions({
   }
   // Denylist wins when a command appears in both lists.
   for (const pattern of deny) {
+    bash[pattern] = "deny";
+  }
+  // A hard-block command outranks everything, so apply it last; it collapses
+  // onto `deny` since the canonical model has no hard-block action.
+  for (const pattern of block) {
     bash[pattern] = "deny";
   }
 

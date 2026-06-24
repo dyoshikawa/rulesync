@@ -119,6 +119,29 @@ describe("FactorydroidPermissions", () => {
       expect(json.commandAllowlist).toEqual(["git *"]);
     });
 
+    it("should preserve an existing commandBlocklist verbatim (no canonical block action)", async () => {
+      const settingsDir = join(testDir, ".factory");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({ commandBlocklist: ["curl *"] }),
+      );
+
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: { bash: { "git *": "allow" } },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(instance.getFileContent());
+      // rulesync owns only allow/deny lists; the hard-block tier is untouched.
+      expect(json.commandBlocklist).toEqual(["curl *"]);
+      expect(json.commandAllowlist).toEqual(["git *"]);
+    });
+
     it("should warn and skip non-bash categories carrying deny rules", async () => {
       const mockLogger = createMockLogger();
       const rulesyncPermissions = buildRulesyncPermissions({
@@ -168,6 +191,38 @@ describe("FactorydroidPermissions", () => {
         fileContent: JSON.stringify({
           commandAllowlist: ["rm -rf *"],
           commandDenylist: ["rm -rf *"],
+        }),
+      });
+
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+      expect(config.permission.bash["rm -rf *"]).toBe("deny");
+    });
+
+    it("should collapse commandBlocklist (hard block) onto deny", () => {
+      const instance = new FactorydroidPermissions({
+        relativeDirPath: ".factory",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          commandAllowlist: ["git *"],
+          commandBlocklist: ["curl *", "wget *"],
+        }),
+      });
+
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+      expect(config.permission.bash).toEqual({
+        "git *": "allow",
+        "curl *": "deny",
+        "wget *": "deny",
+      });
+    });
+
+    it("should let a hard-block command outrank an allowlist entry", () => {
+      const instance = new FactorydroidPermissions({
+        relativeDirPath: ".factory",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          commandAllowlist: ["rm -rf *"],
+          commandBlocklist: ["rm -rf *"],
         }),
       });
 
