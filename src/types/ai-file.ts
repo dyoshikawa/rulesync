@@ -118,6 +118,10 @@ export abstract class AiFile {
     this.fileContent = newFileContent;
   }
 
+  shouldMergeExistingFileContent(): boolean {
+    return false;
+  }
+
   /**
    * Returns whether this file can be deleted by rulesync.
    * Override in subclasses that should not be deleted (e.g., user-managed config files).

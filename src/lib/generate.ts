@@ -105,45 +105,6 @@ async function processDirFeatureGeneration(params: {
   return { count: totalCount, paths: allPaths, hasDiff };
 }
 
-function mergeDuplicateAiFiles(toolFiles: AiFile[]): AiFile[] {
-  const merged = new Map<string, AiFile>();
-
-  for (const [index, toolFile] of toolFiles.entries()) {
-    const filePath =
-      "getRelativeDirPath" in toolFile &&
-      typeof toolFile.getRelativeDirPath === "function" &&
-      "getRelativeFilePath" in toolFile &&
-      typeof toolFile.getRelativeFilePath === "function"
-        ? join(toolFile.getRelativeDirPath(), toolFile.getRelativeFilePath())
-        : `__generated_entry_${index}`;
-    const existingToolFile = merged.get(filePath);
-
-    if (existingToolFile) {
-      if (
-        "getFileContent" in existingToolFile &&
-        typeof existingToolFile.getFileContent === "function" &&
-        "setFileContent" in toolFile &&
-        typeof toolFile.setFileContent === "function"
-      ) {
-        toolFile.setFileContent(existingToolFile.getFileContent());
-      } else if (
-        "getFileContent" in toolFile &&
-        typeof toolFile.getFileContent === "function" &&
-        "setFileContent" in existingToolFile &&
-        typeof (existingToolFile as { setFileContent?: unknown }).setFileContent === "function"
-      ) {
-        (existingToolFile as { setFileContent: (fileContent: string) => void }).setFileContent(
-          toolFile.getFileContent(),
-        );
-        continue;
-      }
-    }
-    merged.set(filePath, toolFile);
-  }
-
-  return Array.from(merged.values());
-}
-
 // Handle special case for empty rulesync files
 async function processEmptyFeatureGeneration(params: {
   config: Config;
@@ -185,7 +146,6 @@ async function processFeatureWithRulesyncFiles(params: {
     return processEmptyFeatureGeneration({ config, processor, skipFilePaths });
   }
   let toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-  toolFiles = mergeDuplicateAiFiles(toolFiles);
   return processFeatureGeneration({ config, processor, toolFiles, skipFilePaths });
 }
 

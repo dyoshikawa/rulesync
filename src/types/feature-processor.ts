@@ -65,9 +65,9 @@ export abstract class FeatureProcessor {
 
       if (
         existingFileContent !== null &&
-        filePath.endsWith(".hermes/config.yaml") &&
-        "setFileContent" in aiFile &&
-        typeof aiFile.setFileContent === "function"
+        "shouldMergeExistingFileContent" in aiFile &&
+        typeof aiFile.shouldMergeExistingFileContent === "function" &&
+        aiFile.shouldMergeExistingFileContent()
       ) {
         aiFile.setFileContent(existingFileContent);
       }

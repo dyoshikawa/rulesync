@@ -3,6 +3,7 @@ import { basename, dirname, join } from "node:path";
 import { HERMESAGENT_SKILLS_DIR_PATH } from "../../constants/hermesagent-paths.js";
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { type AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { ToolCommand, type ToolCommandFromRulesyncCommandParams } from "./tool-command.js";
 
@@ -18,15 +19,12 @@ function commandSlug(relativeFilePath: string): string {
 
 function commandSkillContent(rulesyncCommand: RulesyncCommand): string {
   const slug = commandSlug(rulesyncCommand.getRelativeFilePath());
-  return [
-    "---",
-    `name: ${slug}`,
-    `description: ${slug} command`,
-    "---",
-    "",
-    rulesyncCommand.getFileContent().trim(),
-    "",
-  ].join("\n");
+  const description = rulesyncCommand.getFrontmatter().description ?? `${slug} command`;
+
+  return stringifyFrontmatter(rulesyncCommand.getBody().trim(), {
+    name: slug,
+    description,
+  });
 }
 
 export class HermesagentCommand extends ToolCommand {
@@ -36,7 +34,7 @@ export class HermesagentCommand extends ToolCommand {
     return !targets || targets.includes("*") || targets.includes("hermesagent");
   }
 
-  static getSettablePaths({ slug = "command" }: { slug?: string } = {}) {
+  static getSettablePaths({ slug = "command" }: { slug?: string; global?: boolean } = {}) {
     return {
       relativeDirPath: join(HERMESAGENT_SKILLS_DIR_PATH, slug),
       relativeFilePath: SKILL_FILE_NAME,
@@ -58,11 +56,15 @@ export class HermesagentCommand extends ToolCommand {
 
   toRulesyncCommand(): RulesyncCommand {
     const slug = basename(dirname(this.getRelativePathFromCwd()));
+    const { frontmatter, body } = parseFrontmatter(this.getFileContent(), this.getFilePath());
+    const description =
+      typeof frontmatter.description === "string" ? frontmatter.description : undefined;
+
     return new RulesyncCommand({
       relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
       relativeFilePath: `${slug}.md`,
-      frontmatter: {},
-      body: this.getFileContent(),
+      frontmatter: { description },
+      body: body.trimStart(),
     } as ConstructorParameters<typeof RulesyncCommand>[0]);
   }
 

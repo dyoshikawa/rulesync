@@ -31,6 +31,10 @@ export class HermesagentPermissions extends ToolPermissions {
     return { success: true, error: null };
   }
 
+  shouldMergeExistingFileContent(): boolean {
+    return true;
+  }
+
   setFileContent(fileContent: string): void {
     this.fileContent = mergeHermesConfig(fileContent, parseHermesConfig(this.fileContent));
   }

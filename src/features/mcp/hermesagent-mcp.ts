@@ -200,6 +200,10 @@ export class HermesagentMcp extends ToolMcp {
     return this.config;
   }
 
+  override shouldMergeExistingFileContent(): boolean {
+    return true;
+  }
+
   override setFileContent(fileContent: string): void {
     const config = parseHermesConfig(fileContent, this.relativeDirPath, this.relativeFilePath);
     const mcpServers = isRecord(this.config.mcp_servers) ? this.config.mcp_servers : {};

@@ -239,17 +239,16 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     },
   ],
   [
-    "hermesagent" as SubagentsProcessorToolTarget,
+    "hermesagent",
     {
-      class: HermesagentSubagent as unknown as ToolSubagentFactory["class"],
+      class: HermesagentSubagent,
       meta: {
-        supportsProject: false,
         supportsGlobal: true,
         supportsSimulated: false,
         filePattern: "*.json",
       },
     },
-  ] as unknown as [SubagentsProcessorToolTarget, ToolSubagentFactory],
+  ],
   [
     "grokcli",
     {

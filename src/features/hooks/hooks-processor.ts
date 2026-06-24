@@ -261,12 +261,15 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     },
   ],
   [
-    "hermesagent" as HooksProcessorToolTarget,
+    "hermesagent",
     {
-      class: HermesagentHooks as unknown as ToolHooksFactory["class"],
-      meta: { supportsProject: false, supportsGlobal: true },
+      class: HermesagentHooks,
+      meta: { supportsProject: false, supportsGlobal: true, supportsImport: true },
+      supportedEvents: CLAUDE_HOOK_EVENTS,
+      supportedHookTypes: ["command", "prompt", "http"],
+      supportsMatcher: true,
     },
-  ] as [HooksProcessorToolTarget, ToolHooksFactory],
+  ],
   [
     "deepagents",
     {

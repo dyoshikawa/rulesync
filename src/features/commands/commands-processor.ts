@@ -271,12 +271,18 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     },
   ],
   [
-    "hermesagent" as CommandsProcessorToolTarget,
+    "hermesagent",
     {
-      class: HermesagentCommand as unknown as ToolCommandFactory["class"],
-      meta: { supportsProject: false, supportsGlobal: true },
+      class: HermesagentCommand,
+      meta: {
+        extension: "md",
+        supportsProject: false,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
+      },
     },
-  ] as [CommandsProcessorToolTarget, ToolCommandFactory],
+  ],
   [
     "junie",
     {

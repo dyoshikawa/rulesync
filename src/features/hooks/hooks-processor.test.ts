@@ -563,6 +563,7 @@ describe("HooksProcessor", () => {
         "factorydroid",
         "geminicli",
         "goose",
+        "hermesagent",
         "deepagents",
         "devin",
         "augmentcode",

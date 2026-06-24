@@ -10,32 +10,19 @@ import {
   HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_MANIFEST_PATH,
 } from "../../constants/hermesagent-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import { AiFile, type ValidationResult } from "../../types/ai-file.js";
+import { type ValidationResult } from "../../types/ai-file.js";
 import { parseHermesConfig, stringifyHermesConfig } from "../hermes-config.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
-
-type ToolSubagentFromRulesyncSubagentParams = {
-  rulesyncSubagent: RulesyncSubagent;
-  outputRoot?: string;
-};
+import {
+  ToolSubagent,
+  type ToolSubagentForDeletionParams,
+  type ToolSubagentFromFileParams,
+  type ToolSubagentFromRulesyncSubagentParams,
+} from "./tool-subagent.js";
 
 type ToolSubagentsFromRulesyncSubagentsParams = {
   rulesyncSubagents: RulesyncSubagent[];
   outputRoot?: string;
-};
-
-type ToolSubagentFromFileParams = {
-  global?: boolean;
-  outputRoot?: string;
-  relativeFilePath: string;
-  validate?: boolean;
-};
-
-type ToolSubagentForDeletionParams = {
-  global?: boolean;
-  outputRoot?: string;
-  relativeDirPath: string;
-  relativeFilePath: string;
 };
 
 function subagentSlug(relativeFilePath: string): string {
@@ -162,7 +149,7 @@ function getSubagentSpec(rulesyncSubagent: RulesyncSubagent): Record<string, unk
   };
 }
 
-export class HermesagentSubagent extends AiFile {
+export class HermesagentSubagent extends ToolSubagent {
   static forDeletion({
     global = false,
     outputRoot,
@@ -207,7 +194,11 @@ export class HermesagentSubagent extends AiFile {
   }: ToolSubagentsFromRulesyncSubagentsParams): HermesagentSubagent[] {
     return [
       ...rulesyncSubagents.map((rulesyncSubagent) =>
-        HermesagentSubagent.fromRulesyncSubagent({ rulesyncSubagent, outputRoot }),
+        HermesagentSubagent.fromRulesyncSubagent({
+          relativeDirPath: HERMESAGENT_RULESYNC_SUBAGENTS_DIR_PATH,
+          rulesyncSubagent,
+          outputRoot,
+        }),
       ),
       new HermesagentSubagent({
         relativeDirPath: HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH,
@@ -279,6 +270,10 @@ export class HermesagentSubagent extends AiFile {
 
   validate(): ValidationResult {
     return { success: true, error: null };
+  }
+
+  shouldMergeExistingFileContent(): boolean {
+    return this.getRelativeFilePath() === basename(HERMESAGENT_CONFIG_FILE_PATH);
   }
 
   setFileContent(newFileContent: string): void {
