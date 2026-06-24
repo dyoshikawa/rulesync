@@ -63,9 +63,10 @@ describe("AmpPermissions", () => {
       // Whole-tool deny stays on the legacy disable surface.
       expect(json["amp.tools.disable"]).toEqual(["edit_file"]);
       // allow/ask are no longer dropped: they become amp.permissions entries.
+      // Ordering is globally fail-closed (ask before allow).
       expect(json["amp.permissions"]).toEqual([
-        { tool: "read_file", action: "allow" },
         { tool: "web", action: "ask" },
+        { tool: "read_file", action: "allow" },
       ]);
     });
 
@@ -111,6 +112,27 @@ describe("AmpPermissions", () => {
         { tool: "bash", action: "ask", matches: { cmd: "sudo *" } },
         { tool: "bash", action: "allow", matches: { cmd: "git *" } },
         { tool: "bash", action: "allow" },
+      ]);
+    });
+
+    it("emits every reject before any allow so a glob-tool allow cannot shadow a specific reject", async () => {
+      // `mcp__*` is a glob tool whose catch-all allow would, under Amp's
+      // first-match-wins, shadow the specific `mcp__github` reject if emitted
+      // first. Global fail-closed ordering puts all rejects ahead.
+      const rulesyncPermissions = makeRulesyncPermissions(testDir, {
+        "mcp__*": { "*": "allow" },
+        mcp__github: { "deploy *": "deny" },
+      });
+
+      const instance = await AmpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+      const json = JSON.parse(instance.getFileContent());
+
+      expect(json["amp.permissions"]).toEqual([
+        { tool: "mcp__github", action: "reject", matches: { cmd: "deploy *" } },
+        { tool: "mcp__*", action: "allow" },
       ]);
     });
 

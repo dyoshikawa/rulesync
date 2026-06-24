@@ -381,23 +381,32 @@ function convertRulesyncToAmp(config: PermissionsConfig): {
 
 /**
  * Stable, deterministic ordering for generated `amp.permissions` entries.
- * Order: tool name, then specific (has `matches.cmd`) before catch-all, then
- * fail-closed action priority (`reject` < `ask` < `allow`), then `cmd`.
+ * Order: fail-closed action priority (`reject` < `ask` < `allow`) FIRST — so the
+ * ordering is globally fail-closed even across glob tool names — then specific
+ * (has `matches.cmd`) before catch-all, then tool name, then `cmd`.
  */
 function sortAmpPermissions(entries: AmpPermissionEntry[]): AmpPermissionEntry[] {
   const decorated = entries.map((entry, index) => ({ entry, index }));
   decorated.sort((a, b) => {
-    const at = a.entry.tool;
-    const bt = b.entry.tool;
-    if (at !== bt) return at < bt ? -1 : 1;
+    // Action priority is the PRIMARY key so the ordering is fail-closed
+    // *globally*, not just within one tool string. Amp tool names can be globs
+    // (`*`, `mcp__*`), so a catch-all `allow` on a glob tool (e.g. `mcp__*`)
+    // could otherwise be emitted before — and, under first-match-wins, shadow —
+    // a more specific `reject` on a concrete tool (e.g. `mcp__github`). Emitting
+    // every `reject` before every `ask` before every `allow` guarantees no
+    // allow can shadow a deny regardless of tool-glob matching.
+    const ap = ACTION_PRIORITY[a.entry.action as AmpManagedAction] ?? 0;
+    const bp = ACTION_PRIORITY[b.entry.action as AmpManagedAction] ?? 0;
+    if (ap !== bp) return ap - bp;
 
+    // Within the same action, specific (with `matches.cmd`) before catch-all.
     const aHasCmd = a.entry.matches?.cmd !== undefined ? 0 : 1;
     const bHasCmd = b.entry.matches?.cmd !== undefined ? 0 : 1;
     if (aHasCmd !== bHasCmd) return aHasCmd - bHasCmd;
 
-    const ap = ACTION_PRIORITY[a.entry.action as AmpManagedAction] ?? 0;
-    const bp = ACTION_PRIORITY[b.entry.action as AmpManagedAction] ?? 0;
-    if (ap !== bp) return ap - bp;
+    const at = a.entry.tool;
+    const bt = b.entry.tool;
+    if (at !== bt) return at < bt ? -1 : 1;
 
     const ac = a.entry.matches?.cmd ?? "";
     const bc = b.entry.matches?.cmd ?? "";
