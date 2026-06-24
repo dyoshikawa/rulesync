@@ -104,6 +104,27 @@ describe("GooseMcp", () => {
       });
     });
 
+    it("strips prototype-pollution keys from a server's env table", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        // Authored as raw JSON text so `__proto__`/`constructor`/`prototype`
+        // land as own enumerable keys (an object literal would set the prototype).
+        fileContent:
+          '{"mcpServers":{"fetch":{"command":"uvx",' +
+          '"env":{"__proto__":"polluted","constructor":"polluted","prototype":"polluted","TOKEN":"safe"}}}}',
+      });
+
+      const mcp = await GooseMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const ext = getExtensions(mcp.getFileContent()).fetch;
+
+      expect(ext?.envs).toEqual({ TOKEN: "safe" });
+    });
+
     it("converts a remote http server to a streamable_http extension", async () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: ".rulesync",
@@ -217,6 +238,39 @@ describe("GooseMcp", () => {
         url: "https://example.com/mcp",
         disabled: true,
       });
+    });
+
+    it("strips prototype-pollution keys from an extension's envs/headers on import", async () => {
+      const dir = join(testDir, GOOSE_DIR);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, GOOSE_FILE),
+        [
+          "extensions:",
+          "  fetch:",
+          "    name: fetch",
+          "    type: stdio",
+          "    cmd: uvx",
+          "    envs:",
+          "      __proto__: polluted",
+          "      constructor: polluted",
+          "      TOKEN: safe",
+          "  remote:",
+          "    name: remote",
+          "    type: streamable_http",
+          "    uri: https://example.com/mcp",
+          "    headers:",
+          "      __proto__: polluted",
+          "      Authorization: Bearer safe",
+          "",
+        ].join("\n"),
+      );
+
+      const mcp = await GooseMcp.fromFile({ outputRoot: testDir, global: true });
+      const servers = JSON.parse(mcp.toRulesyncMcp().getFileContent()).mcpServers;
+
+      expect(servers.fetch.env).toEqual({ TOKEN: "safe" });
+      expect(servers.remote.headers).toEqual({ Authorization: "Bearer safe" });
     });
   });
 

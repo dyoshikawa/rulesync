@@ -101,6 +101,27 @@ describe("HermesagentMcp", () => {
       });
     });
 
+    it("strips prototype-pollution keys from a server's env table", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        // Authored as raw JSON text so `__proto__`/`constructor`/`prototype`
+        // land as own enumerable keys (an object literal would set the prototype).
+        fileContent:
+          '{"mcpServers":{"fetch":{"command":"uvx",' +
+          '"env":{"__proto__":"polluted","constructor":"polluted","prototype":"polluted","TOKEN":"safe"}}}}',
+      });
+
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const server = getMcpServers(mcp.getFileContent()).fetch;
+
+      expect(server?.env).toEqual({ TOKEN: "safe" });
+    });
+
     it("converts a remote server to url/headers, dropping the canonical-only type", async () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: ".rulesync",
@@ -273,6 +294,29 @@ describe("HermesagentMcp", () => {
         disabled: true,
       });
       expect(servers.legacy.enabled).toBeUndefined();
+    });
+
+    it("strips prototype-pollution keys from a server's headers on import", async () => {
+      const dir = join(testDir, HERMES_DIR);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, HERMES_FILE),
+        [
+          "mcp_servers:",
+          "  remote:",
+          "    url: https://example.com/mcp",
+          "    headers:",
+          "      __proto__: polluted",
+          "      constructor: polluted",
+          "      Authorization: Bearer safe",
+          "",
+        ].join("\n"),
+      );
+
+      const mcp = await HermesagentMcp.fromFile({ outputRoot: testDir, global: true });
+      const servers = JSON.parse(mcp.toRulesyncMcp().getFileContent()).mcpServers;
+
+      expect(servers.remote.headers).toEqual({ Authorization: "Bearer safe" });
     });
   });
 

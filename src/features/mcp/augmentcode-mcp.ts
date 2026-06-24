@@ -8,7 +8,7 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isPlainObject } from "../../utils/type-guards.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -37,7 +37,9 @@ function parseAugmentcodeSettings(
       { cause: error },
     );
   }
-  if (!isRecord(parsed)) {
+  // `isPlainObject` (not `isRecord`) rejects class instances for
+  // prototype-pollution hardening; `JSON.parse` always yields a plain object.
+  if (!isPlainObject(parsed)) {
     throw new Error(
       `Failed to parse AugmentCode settings at ${configPath}: expected a JSON object`,
     );

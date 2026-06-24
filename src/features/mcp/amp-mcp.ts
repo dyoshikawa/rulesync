@@ -11,7 +11,7 @@ import {
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isPlainObject, isRecord } from "../../utils/type-guards.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -35,7 +35,9 @@ function parseAmpSettingsJsonc(fileContent: string): Record<string, unknown> {
     throw new Error(`Failed to parse Amp settings: ${details}`);
   }
 
-  if (!isRecord(parsed)) {
+  // `isPlainObject` (not `isRecord`) rejects class instances for
+  // prototype-pollution hardening; the JSONC parser always yields a plain object.
+  if (!isPlainObject(parsed)) {
     throw new Error("Amp settings must be a JSON object");
   }
 
