@@ -94,6 +94,7 @@ describe("PermissionsProcessor", () => {
         "kiro-ide",
         "opencode",
         "qwencode",
+        "takt",
         "vibe",
         "zed",
       ]);
@@ -116,6 +117,7 @@ describe("PermissionsProcessor", () => {
         "opencode",
         "qwencode",
         "rovodev",
+        "takt",
         "vibe",
         "warp",
         "zed",
@@ -140,6 +142,7 @@ describe("PermissionsProcessor", () => {
         "kiro-ide",
         "opencode",
         "qwencode",
+        "takt",
         "vibe",
         "zed",
       ]);

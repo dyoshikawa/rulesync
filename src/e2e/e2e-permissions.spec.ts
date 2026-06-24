@@ -471,6 +471,61 @@ describe("E2E: permissions", () => {
     expect(parsed.disabled_tools).toContain("write_file");
   });
 
+  it("should generate takt permissions into .takt/config.yaml", async () => {
+    const testDir = getTestDir();
+
+    // Pre-seed config.yaml with an active provider and unrelated keys to verify
+    // the non-destructive merge and that the mode is written under the active
+    // provider profile.
+    await writeFileContent(
+      join(testDir, ".takt", "config.yaml"),
+      ["provider: codex", "model: gpt-5", "provider_profiles:", "  codex: {}"].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "*": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "takt", features: "permissions" });
+
+    const parsed = toTable(load(await readFileContent(join(testDir, ".takt", "config.yaml"))));
+    // Active provider preserved; only-bash allow collapses to the `full` mode.
+    expect(parsed.provider).toBe("codex");
+    expect(parsed.model).toBe("gpt-5");
+    const profiles = toTable(parsed.provider_profiles);
+    expect(toTable(profiles.codex).default_permission_mode).toBe("full");
+  });
+
+  it("should import takt permissions into .rulesync/permissions.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".takt", "config.yaml"),
+      [
+        "provider: claude",
+        "provider_profiles:",
+        "  claude:",
+        "    default_permission_mode: edit",
+      ].join("\n"),
+    );
+
+    await runImport({ target: "takt", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    // `edit` mode imports back to an `edit` allow catch-all.
+    expect(content.permission.edit["*"]).toBe("allow");
+  });
+
   it("should remove denied Kiro web tools from existing allowedTools", async () => {
     const testDir = getTestDir();
 
@@ -1506,6 +1561,47 @@ describe("E2E: permissions (global mode)", () => {
     // The existing MCP server config and other [ui] keys are preserved.
     expect(content).toContain("[mcp_servers.example]");
     expect(content).toContain('theme = "dark"');
+  });
+
+  it("should generate takt permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "*": "allow", "rm *": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    // Pre-seed config.yaml with unrelated user settings to verify the
+    // non-destructive merge into ~/.takt/config.yaml.
+    await writeFileContent(
+      join(homeDir, ".takt", "config.yaml"),
+      ["provider: claude", "model: claude-sonnet"].join("\n"),
+    );
+
+    await runGenerate({
+      target: "takt",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // Takt gates tools with the coarse `default_permission_mode` under
+    // `provider_profiles.<provider>` in the global ~/.takt/config.yaml. A `deny`
+    // rule collapses the lossy mapping to `readonly`.
+    const parsed = toTable(load(await readFileContent(join(homeDir, ".takt", "config.yaml"))));
+    const profiles = toTable(parsed.provider_profiles);
+    expect(toTable(profiles.claude).default_permission_mode).toBe("readonly");
+    // Unrelated user settings preserved by the non-destructive merge.
+    expect(parsed.model).toBe("claude-sonnet");
   });
 });
 
