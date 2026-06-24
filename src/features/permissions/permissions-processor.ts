@@ -26,6 +26,7 @@ import { OpencodePermissions } from "./opencode-permissions.js";
 import { QwencodePermissions } from "./qwencode-permissions.js";
 import { RovodevPermissions } from "./rovodev-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { TaktPermissions } from "./takt-permissions.js";
 import type {
   ToolPermissionsForDeletionParams,
   ToolPermissionsFromFileParams,
@@ -290,6 +291,21 @@ export const toolPermissionsFactories = new Map<
         // project-scoped Rovo Dev permissions file (mirrors the Rovodev MCP
         // adapter).
         supportsProject: false,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "takt",
+    {
+      class: TaktPermissions,
+      meta: {
+        // Takt gates tools with the coarse `default_permission_mode`
+        // (readonly < edit < full) under `provider_profiles.<provider>` in the
+        // shared config: `.takt/config.yaml` (project) and
+        // `~/.takt/config.yaml` (global).
+        supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,
       },

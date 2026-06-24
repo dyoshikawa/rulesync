@@ -9,3 +9,11 @@ export const TAKT_SKILLS_DIR_PATH = join(TAKT_FACETS_DIR_PATH, "knowledge");
 export const TAKT_SUBAGENTS_DIR_PATH = join(TAKT_FACETS_DIR_PATH, "personas");
 export const TAKT_OUTPUT_CONTRACTS_DIR_PATH = join(TAKT_FACETS_DIR_PATH, "output-contracts");
 export const TAKT_RULE_OVERVIEW_FILE_NAME = "overview.md";
+
+/**
+ * Takt's shared config file. Lives at `.takt/config.yaml` (project) and
+ * `~/.takt/config.yaml` (global); it holds the active provider, provider
+ * profiles (including permission modes), and other Takt settings.
+ * @see https://github.com/nrslib/takt/blob/main/docs/configuration.md
+ */
+export const TAKT_CONFIG_FILE_NAME = "config.yaml";
