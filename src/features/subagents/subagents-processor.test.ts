@@ -1019,7 +1019,7 @@ Second global content`;
   });
 
   describe("getToolTargets with global: true", () => {
-    it("should return claudecode, codexcli, copilotcli, cursor, geminicli, kilo, opencode, and rovodev as global-supported targets", () => {
+    it("should return claudecode, codexcli, copilotcli, cursor, kilo, opencode, and rovodev as global-supported targets", () => {
       const toolTargets = SubagentsProcessor.getToolTargets({ global: true });
 
       expect(Array.isArray(toolTargets)).toBe(true);
@@ -1035,7 +1035,6 @@ Second global content`;
         "deepagents",
         "devin",
         "factorydroid",
-        "geminicli",
         "goose",
         "hermesagent",
         "grokcli",
@@ -1088,7 +1087,6 @@ Second global content`;
           "deepagents",
           "devin",
           "factorydroid",
-          "geminicli",
           "goose",
           "hermesagent",
           "grokcli",
@@ -1237,7 +1235,6 @@ Test agent content`;
         "copilot",
         "cursor",
         "codexcli",
-        "geminicli",
         "roo",
       ];
 

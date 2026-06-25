@@ -243,8 +243,8 @@ export const gitignoreCommand = async (
     "💡 If you're using Google Antigravity, note that rules, workflows, and skills won't load if they're gitignored.",
   );
   logger.info("   You can add the following to .git/info/exclude instead:");
-  logger.info("   **/.agent/rules/");
-  logger.info("   **/.agent/workflows/");
-  logger.info("   **/.agent/skills/");
+  logger.info("   **/.agents/rules/");
+  logger.info("   **/.agents/workflows/");
+  logger.info("   **/.agents/skills/");
   logger.info("   For more details: https://github.com/dyoshikawa/rulesync/issues/981");
 };

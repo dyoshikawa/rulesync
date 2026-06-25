@@ -30,25 +30,13 @@ import {
   PartialConfigParams,
   RequiredConfigParams,
 } from "./config.js";
-import {
-  emitAntigravityAliasDeprecationWarning,
-  emitBaseDirsConfigFieldDeprecationWarning,
-  emitFeaturesObjectFormDeprecationWarning,
-} from "./deprecation-warnings.js";
 
 /**
  * CLI-resolvable params exclude `sources` — sources are config-file-only.
- *
- * `baseDirs` is a deprecated alias for `outputRoots` accepted at the resolver
- * boundary for backward compatibility. When provided, the resolver emits a
- * one-shot deprecation warning and maps it to `outputRoots`. If both are
- * present, `outputRoots` wins. Will be removed in a future major release.
  */
 export type ConfigResolverResolveParams = Partial<
   Omit<ConfigParams, "sources"> & {
     configPath: string;
-    /** @deprecated Use `outputRoots` instead. */
-    baseDirs: string[];
   }
 >;
 
@@ -90,17 +78,7 @@ const loadConfigFromFile = async (filePath: string): Promise<PartialConfigParams
   // Parse with ConfigFileSchema to allow $schema property, then extract config params
   const parsed: ConfigFile = ConfigFileSchema.parse(jsonData);
   // Exclude $schema from config params
-  const { $schema: _schema, baseDirs: deprecatedBaseDirs, ...configParams } = parsed;
-  // Map the deprecated `baseDirs` field to the canonical `outputRoots`.
-  // If both are present, `outputRoots` wins (consistent with the precedence
-  // rule documented at the resolver boundary). Either way, emit a one-shot
-  // deprecation warning so users know to migrate.
-  if (deprecatedBaseDirs !== undefined) {
-    emitBaseDirsConfigFieldDeprecationWarning();
-    if (configParams.outputRoots === undefined) {
-      configParams.outputRoots = deprecatedBaseDirs;
-    }
-  }
+  const { $schema: _schema, ...configParams } = parsed;
   // Enforce mutual-exclusivity between object-form `targets` and
   // `features` on the user-authored file (before defaults are merged).
   assertTargetsFeaturesExclusive({
@@ -109,13 +87,6 @@ const loadConfigFromFile = async (filePath: string): Promise<PartialConfigParams
   });
   return configParams;
 };
-
-// Re-exported from `./deprecation-warnings.js` so existing test code that
-// imports the helpers from this module keeps working. The helper itself
-// lives in a separate module so `Config` (in `./config.js`) can also invoke
-// it without creating a circular import on the resolver.
-export { resetDeprecationWarningForTests } from "./deprecation-warnings.js";
-export { emitBaseDirsConfigFieldDeprecationWarning, emitFeaturesObjectFormDeprecationWarning };
 
 const mergeConfigs = (
   baseConfig: PartialConfigParams,
@@ -157,25 +128,6 @@ function pick<T>({
   fallback: T;
 }): T {
   return cli ?? file ?? fallback;
-}
-
-/**
- * Map the deprecated `baseDirs` alias onto `outputRoots`. If both are supplied,
- * `outputRoots` wins; either way emit a one-shot deprecation warning so callers
- * know to migrate. Returns the effective `outputRoots`.
- */
-function applyDeprecatedBaseDirs({
-  outputRoots,
-  deprecatedBaseDirs,
-}: {
-  outputRoots: string[] | undefined;
-  deprecatedBaseDirs: string[] | undefined;
-}): string[] | undefined {
-  if (deprecatedBaseDirs === undefined) {
-    return outputRoots;
-  }
-  emitBaseDirsConfigFieldDeprecationWarning();
-  return outputRoots ?? deprecatedBaseDirs;
 }
 
 /**
@@ -245,9 +197,6 @@ function resolveGlobal({
  * - When the user provides `targets` in object form, `features` must stay
  *   undefined (the per-target feature config lives inside the `targets`
  *   object); skip the `features` default.
- * - When the user provides `features` in object form without `targets`, leave
- *   `targets` undefined so `Config.getTargets` can derive the target list from
- *   the `features` object keys; skip the `targets` default.
  * - Otherwise fall through to the array-form defaults.
  */
 function resolveFeaturesAndTargets({
@@ -265,15 +214,9 @@ function resolveFeaturesAndTargets({
   const userProvidedFeatures = features ?? configByFile.features;
   const userProvidedTargets = targets ?? configByFile.targets;
   const targetsIsObject = userProvidedTargets !== undefined && !Array.isArray(userProvidedTargets);
-  const featuresIsObject =
-    userProvidedFeatures !== undefined && !Array.isArray(userProvidedFeatures);
-  if (featuresIsObject) {
-    emitFeaturesObjectFormDeprecationWarning();
-  }
   const resolvedFeatures =
     userProvidedFeatures ?? (targetsIsObject ? undefined : getDefaults().features);
-  const resolvedTargets =
-    userProvidedTargets ?? (featuresIsObject ? undefined : getDefaults().targets);
+  const resolvedTargets = userProvidedTargets ?? getDefaults().targets;
   return { resolvedFeatures, resolvedTargets };
 }
 
@@ -286,7 +229,6 @@ export class ConfigResolver {
       verbose,
       delete: isDelete,
       outputRoots,
-      baseDirs: deprecatedBaseDirs,
       configPath = getDefaults().configPath,
       global,
       silent,
@@ -301,10 +243,6 @@ export class ConfigResolver {
     }: ConfigResolverResolveParams,
     { logger }: { logger?: Logger } = {},
   ): Promise<Config> {
-    // Map the deprecated programmatic `baseDirs` alias to `outputRoots`.
-    // If both are supplied, `outputRoots` wins; either way emit a one-shot
-    // deprecation warning so callers know to migrate.
-    outputRoots = applyDeprecatedBaseDirs({ outputRoots, deprecatedBaseDirs });
     // Capture cwd once at the entry point so the resolved config is
     // deterministic and independent of any later `process.chdir()` calls.
     const cwd = resolve(process.cwd());
@@ -426,12 +364,6 @@ export class ConfigResolver {
       configFileTargets: extractConfigFileTargets(configByFile.targets),
     };
     const config = new Config(configParams);
-    // The legacy `antigravity` target is never produced by wildcard expansion
-    // (it lives in LEGACY_TARGETS), so its presence here means the user
-    // explicitly selected it. Warn that it is now an alias for `antigravity-ide`.
-    if (config.getTargets().includes("antigravity")) {
-      emitAntigravityAliasDeprecationWarning();
-    }
     return config;
   }
 }

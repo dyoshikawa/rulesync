@@ -274,21 +274,6 @@ export const DEEPAGENTS_HOOK_EVENTS: readonly HookEvent[] = [
   "notification",
 ];
 
-/** Hook events supported by Gemini CLI. */
-export const GEMINICLI_HOOK_EVENTS: readonly HookEvent[] = [
-  "sessionStart",
-  "sessionEnd",
-  "beforeSubmitPrompt",
-  "stop",
-  "beforeAgentResponse",
-  "afterAgentResponse",
-  "beforeToolSelection",
-  "preToolUse",
-  "postToolUse",
-  "preCompact",
-  "notification",
-];
-
 /** Hook events supported by Codex CLI. */
 export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -375,7 +360,7 @@ export const AUGMENTCODE_HOOK_EVENTS: readonly HookEvent[] = [
  * `before_tool` ← `preToolUse`, `after_tool` ← `postToolUse`, and
  * `post_agent_turn` ← `stop` (fires after every assistant turn that ends
  * without pending tool calls — the closest canonical equivalent to a
- * "turn end"/"stop" event, matching how codexcli/copilot/geminicli map their
+ * "turn end"/"stop" event, matching how codexcli/copilot map their
  * stop events). Only the tool events (`before_tool`/`after_tool`) carry the
  * `match` tool-name matcher (fnmatch glob or `re:` regex) and the `strict`
  * flag; `post_agent_turn` carries neither. Only `type: "command"` hooks are
@@ -406,9 +391,9 @@ export const JUNIE_HOOK_EVENTS: readonly HookEvent[] = [
  * Hook events supported by Qwen Code.
  *
  * Qwen Code documents a Claude-style PascalCase hooks surface under the `hooks`
- * key of `.qwen/settings.json`. Its event set DIFFERS from Gemini CLI's
- * (`BeforeAgent`/`AfterTool`/...), so qwencode defines its own constant instead
- * of reusing {@link GEMINICLI_HOOK_EVENTS}. The Qwen-specific events
+ * key of `.qwen/settings.json`. Its event set differs from the Gemini-lineage
+ * set (`BeforeAgent`/`AfterTool`/...), so qwencode defines its own constant.
+ * The Qwen-specific events
  * `TodoCreated`, `TodoCompleted`, and `StopFailure` map to the canonical
  * `todoCreated`, `todoCompleted`, and `stopFailure` events respectively.
  * @see https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/hooks.md
@@ -447,7 +432,6 @@ export const HooksConfigSchema = z.looseObject({
   opencode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   kilo: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   factorydroid: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
-  geminicli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   codexcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   goose: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   deepagents: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -673,30 +657,6 @@ export const CANONICAL_TO_COPILOTCLI_EVENT_NAMES: Record<string, string> = {
 /** Map GitHub Copilot CLI event names back to canonical camelCase. */
 export const COPILOTCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_COPILOTCLI_EVENT_NAMES).map(([k, v]) => [v, k]),
-);
-
-/**
- * Map canonical camelCase event names to Gemini CLI PascalCase.
- */
-export const CANONICAL_TO_GEMINICLI_EVENT_NAMES: Record<string, string> = {
-  sessionStart: "SessionStart",
-  sessionEnd: "SessionEnd",
-  beforeSubmitPrompt: "BeforeAgent",
-  stop: "AfterAgent",
-  beforeAgentResponse: "BeforeModel",
-  afterAgentResponse: "AfterModel",
-  beforeToolSelection: "BeforeToolSelection",
-  preToolUse: "BeforeTool",
-  postToolUse: "AfterTool",
-  preCompact: "PreCompress",
-  notification: "Notification",
-};
-
-/**
- * Map Gemini CLI PascalCase event names to canonical camelCase.
- */
-export const GEMINICLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_GEMINICLI_EVENT_NAMES).map(([k, v]) => [v, k]),
 );
 
 /**

@@ -481,7 +481,7 @@ describe("HooksProcessor", () => {
   });
 
   describe("getToolTargets", () => {
-    it("should return cursor, claudecode, copilot, copilotcli, opencode, kilo, factorydroid, geminicli, and kiro for project mode", () => {
+    it("should return cursor, claudecode, copilot, copilotcli, opencode, kilo, factorydroid, and kiro for project mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: false });
       expect(targets).toEqual([
         "antigravity-cli",
@@ -494,7 +494,6 @@ describe("HooksProcessor", () => {
         "kilo",
         "opencode",
         "factorydroid",
-        "geminicli",
         "goose",
         "kiro",
         "kiro-cli",
@@ -505,7 +504,7 @@ describe("HooksProcessor", () => {
       ]);
     });
 
-    it("should return cursor, claudecode, copilotcli, opencode, kilo, factorydroid, and geminicli for global mode", () => {
+    it("should return cursor, claudecode, copilotcli, opencode, kilo, and factorydroid for global mode", () => {
       const targets = HooksProcessor.getToolTargets({ global: true });
       expect(targets).toEqual([
         "antigravity-cli",
@@ -517,7 +516,6 @@ describe("HooksProcessor", () => {
         "kilo",
         "opencode",
         "factorydroid",
-        "geminicli",
         "goose",
         "hermesagent",
         "deepagents",
@@ -540,7 +538,6 @@ describe("HooksProcessor", () => {
         "copilot",
         "copilotcli",
         "factorydroid",
-        "geminicli",
         "goose",
         "kiro",
         "kiro-cli",
@@ -561,7 +558,6 @@ describe("HooksProcessor", () => {
         "codexcli",
         "copilotcli",
         "factorydroid",
-        "geminicli",
         "goose",
         "hermesagent",
         "deepagents",

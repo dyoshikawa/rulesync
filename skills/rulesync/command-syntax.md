@@ -19,7 +19,6 @@ The table below shows how each placeholder is translated for the supported tools
 | ----------------- | ---------------------- | --------------------------- |
 | Claude Code       | pass-through           | pass-through                |
 | Codex CLI[^codex] | pass-through (literal) | pass-through (literal)      |
-| Gemini CLI        | `{{args}}`             | `!{cmd}`                    |
 | Pi                | pass-through           | pass-through (literal)[^pi] |
 | Other tools[^1]   | pass-through (literal) | pass-through (literal)      |
 
@@ -29,7 +28,7 @@ The table below shows how each placeholder is translated for the supported tools
 
 [^pi]: Pi natively expands `$ARGUMENTS` (along with `$1`, `$2`, `$@`), so `$ARGUMENTS` is a real pass-through there. rulesync still emits `` !`cmd` `` verbatim for Pi, but does not assume Pi expands inline shell snippets — treat that placeholder as literal text on Pi's side.
 
-The translation also runs in reverse when you import an existing tool command file via `rulesync import`, so e.g. a Gemini CLI command containing `{{args}}` becomes `$ARGUMENTS` in the generated `.rulesync/commands/*.md`.
+The translation also runs in reverse when you import an existing tool command file via `rulesync import`, so a tool-native placeholder is rewritten back to the universal form in the generated `.rulesync/commands/*.md`.
 
 ## Example
 
@@ -37,7 +36,7 @@ Given the following rulesync command:
 
 ```md
 ---
-targets: ["geminicli"]
+targets: ["claudecode"]
 description: "Summarize git diff"
 ---
 
@@ -47,42 +46,10 @@ Summarize the diff:
 Focus on $ARGUMENTS.
 ```
 
-rulesync generates `.gemini/commands/summarize.toml`:
-
-```toml
-description = "Summarize git diff"
-prompt = """
-Summarize the diff:
-!{git diff}
-
-Focus on {{args}}.
-"""
-```
+rulesync generates `.claude/commands/summarize.md`, passing the placeholders through verbatim because Claude Code already understands the universal form.
 
 ## Notes
 
-- If you author a command with explicit tool-specific syntax (e.g. you write `{{args}}` directly in a rulesync command body), rulesync does **not** re-translate the already-tool-native form. Stick to the universal placeholders to keep commands portable across tools.
-- The translation is purely textual and is applied to the entire body. It does not skip fenced or inline code blocks, so ` ```js\n$ARGUMENTS\n``` ` in a rulesync body will still be rewritten when generating Gemini CLI output. There is **no escape syntax** for the universal placeholders — backslashes are not consumed by the regex, so `\$ARGUMENTS` becomes `\{{args}}`, not a literal `$ARGUMENTS`. If you need a literal `$ARGUMENTS` or `` !`cmd` `` in the emitted Gemini CLI prompt, your options are:
-  1. Hand-author the Gemini-native body via the per-tool `geminicli.prompt` override (see below) — this skips translation entirely for Gemini CLI.
-  2. Drop `geminicli` from the command's `targets:` so no Gemini CLI file is generated.
-
-- The shell expansion regex matches a single backtick-delimited segment without embedded backticks or newlines (`` !`...` ``). Multi-line shell snippets are not supported, and a backtick inside the command body is not allowed — for that case, hand-author the Gemini-native form via `geminicli.prompt`.
-- Gemini CLI accepts both `{{args}}` and `{{ args }}` (with whitespace). rulesync canonicalizes the imported form to `$ARGUMENTS`.
-- The reverse rewrite (Gemini CLI → rulesync, on import) is **not** symmetric with the forward direction: a rulesync body that already contains Gemini-native forms (`{{args}}`, `!{cmd}`) is preserved on export, but a Gemini CLI file containing those forms is always rewritten back to the universal syntax on import. In practice this is what users want, but it does mean that an import will canonicalize away any literal `{{args}}` / `!{cmd}` text that you intended as documentation.
-
-### Per-tool override (Gemini CLI)
-
-If you need to bypass the translation entirely — for example, to embed a literal backtick inside a Gemini-native shell expansion — you can author the prompt directly in the `geminicli` section of the rulesync frontmatter:
-
-```md
----
-targets: ["geminicli"]
-description: "Hand-authored prompt"
-geminicli:
-  prompt: "Run !{echo `hello`}."
----
-
-Body content here is ignored only for the Gemini CLI output when geminicli.prompt is set.
-```
-
-When `geminicli.prompt` is present, rulesync uses it verbatim as the Gemini CLI command body and skips the universal-syntax translation entirely. Note that this override is **scoped to the Gemini CLI output only**: if `targets:` lists other tools (e.g. `["geminicli", "claudecode"]`), the rulesync command body is still used as the source for those other tools — `geminicli.prompt` does not replace the body for them.
+- If you author a command with explicit tool-specific syntax (e.g. you write a tool-native placeholder directly in a rulesync command body), rulesync does **not** re-translate the already-tool-native form. Stick to the universal placeholders to keep commands portable across tools.
+- The translation is purely textual and is applied to the entire body. It does not skip fenced or inline code blocks, so ` ```js\n$ARGUMENTS\n``` ` in a rulesync body will still be rewritten when generating tool output. There is **no escape syntax** for the universal placeholders — backslashes are not consumed by the regex, so `\$ARGUMENTS` is rewritten alongside the placeholder rather than producing a literal `$ARGUMENTS`.
+- The shell expansion regex matches a single backtick-delimited segment without embedded backticks or newlines (`` !`...` ``). Multi-line shell snippets are not supported, and a backtick inside the command body is not allowed.

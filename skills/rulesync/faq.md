@@ -18,7 +18,7 @@ According to [the documentation](https://code.claude.com/docs/en/settings), this
 
 Google Antigravity has a known limitation where it won't load rules, workflows, and skills if the `.agents/rules/`, `.agents/workflows/`, and `.agents/skills/` directories are listed in `.gitignore`, even with "Agent Gitignore Access" enabled.
 
-> **Note:** Antigravity 2.0 uses the plural `.agents/` directory by default (the `antigravity-ide` and `antigravity-cli` targets). The singular `.agent/` directory is the Antigravity 1.x layout, still read for backward compatibility by the deprecated `antigravity` alias target; apply the same workaround to those paths if you target the alias.
+> **Note:** Antigravity 2.0 uses the plural `.agents/` directory by default (the `antigravity-ide` and `antigravity-cli` targets).
 
 **Workaround:** Instead of adding these directories to `.gitignore`, add them to `.git/info/exclude`:
 

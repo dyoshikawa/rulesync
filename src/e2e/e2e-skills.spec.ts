@@ -40,10 +40,6 @@ describe("E2E: skills", () => {
       outputPath: join(".goose", "skills", "test-skill", "SKILL.md"),
     },
     {
-      target: "geminicli",
-      outputPath: join(".gemini", "skills", "test-skill", "SKILL.md"),
-    },
-    {
       target: "qwencode",
       outputPath: join(".qwen", "skills", "test-skill", "SKILL.md"),
     },
@@ -86,10 +82,6 @@ describe("E2E: skills", () => {
     {
       target: "kiro",
       outputPath: join(".kiro", "skills", "test-skill", "SKILL.md"),
-    },
-    {
-      target: "antigravity",
-      outputPath: join(".agent", "skills", "test-skill", "SKILL.md"),
     },
     {
       target: "antigravity-ide",
@@ -193,7 +185,6 @@ This is the test skill body content.
     { target: "claudecode", orphanPath: join(".claude", "skills", "orphan-skill", "SKILL.md") },
     { target: "cursor", orphanPath: join(".cursor", "skills", "orphan-skill", "SKILL.md") },
     { target: "codexcli", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
-    { target: "geminicli", orphanPath: join(".gemini", "skills", "orphan-skill", "SKILL.md") },
     { target: "copilot", orphanPath: join(".github", "skills", "orphan-skill", "SKILL.md") },
     { target: "deepagents", orphanPath: join(".deepagents", "skills", "orphan-skill", "SKILL.md") },
     { target: "cline", orphanPath: join(".cline", "skills", "orphan-skill", "SKILL.md") },
@@ -203,7 +194,6 @@ This is the test skill body content.
     { target: "devin", orphanPath: join(".devin", "skills", "orphan-skill", "SKILL.md") },
     { target: "warp", orphanPath: join(".warp", "skills", "orphan-skill", "SKILL.md") },
     { target: "kiro", orphanPath: join(".kiro", "skills", "orphan-skill", "SKILL.md") },
-    { target: "antigravity", orphanPath: join(".agent", "skills", "orphan-skill", "SKILL.md") },
     {
       target: "antigravity-ide",
       orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md"),
@@ -255,7 +245,6 @@ describe("E2E: skills (import)", () => {
     { target: "claudecode", sourcePath: join(".claude", "skills", "test-skill", "SKILL.md") },
     { target: "cursor", sourcePath: join(".cursor", "skills", "test-skill", "SKILL.md") },
     { target: "codexcli", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
-    { target: "geminicli", sourcePath: join(".gemini", "skills", "test-skill", "SKILL.md") },
     { target: "copilot", sourcePath: join(".github", "skills", "test-skill", "SKILL.md") },
     { target: "opencode", sourcePath: join(".opencode", "skill", "test-skill", "SKILL.md") },
     { target: "deepagents", sourcePath: join(".deepagents", "skills", "test-skill", "SKILL.md") },
@@ -266,7 +255,6 @@ describe("E2E: skills (import)", () => {
     { target: "devin", sourcePath: join(".devin", "skills", "test-skill", "SKILL.md") },
     { target: "warp", sourcePath: join(".warp", "skills", "test-skill", "SKILL.md") },
     { target: "kiro", sourcePath: join(".kiro", "skills", "test-skill", "SKILL.md") },
-    { target: "antigravity", sourcePath: join(".agent", "skills", "test-skill", "SKILL.md") },
     { target: "antigravity-ide", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "antigravity-cli", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "junie", sourcePath: join(".junie", "skills", "test-skill", "SKILL.md") },
@@ -361,10 +349,6 @@ describe("E2E: skills (global mode)", () => {
       outputPath: join(".grok", "skills", "test-skill", "SKILL.md"),
     },
     {
-      target: "geminicli",
-      outputPath: join(".gemini", "skills", "test-skill", "SKILL.md"),
-    },
-    {
       target: "qwencode",
       outputPath: join(".qwen", "skills", "test-skill", "SKILL.md"),
     },
@@ -395,10 +379,6 @@ describe("E2E: skills (global mode)", () => {
     {
       target: "warp",
       outputPath: join(".warp", "skills", "test-skill", "SKILL.md"),
-    },
-    {
-      target: "antigravity",
-      outputPath: join(".gemini", "antigravity", "skills", "test-skill", "SKILL.md"),
     },
     {
       target: "antigravity-ide",
@@ -550,10 +530,6 @@ This is the scheduled task body content.
     {
       target: "cursor",
       excludedPath: join(".cursor", "skills", "weekly-review", "SKILL.md"),
-    },
-    {
-      target: "geminicli",
-      excludedPath: join(".gemini", "skills", "weekly-review", "SKILL.md"),
     },
     {
       target: "copilot",

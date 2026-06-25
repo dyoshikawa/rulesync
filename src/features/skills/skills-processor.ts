@@ -17,7 +17,6 @@ import { AiassistantSkill } from "./aiassistant-skill.js";
 import { AmpSkill } from "./amp-skill.js";
 import { AntigravityCliSkill } from "./antigravity-cli-skill.js";
 import { AntigravityIdeSkill } from "./antigravity-ide-skill.js";
-import { AntigravitySkill } from "./antigravity-skill.js";
 import { AugmentcodeSkill } from "./augmentcode-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
 import { ClineSkill } from "./cline-skill.js";
@@ -28,7 +27,6 @@ import { CursorSkill } from "./cursor-skill.js";
 import { DeepagentsSkill } from "./deepagents-skill.js";
 import { DevinSkill } from "./devin-skill.js";
 import { FactorydroidSkill } from "./factorydroid-skill.js";
-import { GeminiCliSkill } from "./geminicli-skill.js";
 import { GooseSkill } from "./goose-skill.js";
 import { GrokcliSkill } from "./grokcli-skill.js";
 import { HermesagentSkill } from "./hermesagent-skill.js";
@@ -133,13 +131,6 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     },
   ],
   [
-    "antigravity",
-    {
-      class: AntigravitySkill,
-      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
-    },
-  ],
-  [
     "antigravity-cli",
     {
       class: AntigravityCliSkill,
@@ -229,13 +220,6 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // (project) and ~/.factory/skills/ (global).
       // https://docs.factory.ai/cli/configuration/skills
       class: FactorydroidSkill,
-      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
-    },
-  ],
-  [
-    "geminicli",
-    {
-      class: GeminiCliSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

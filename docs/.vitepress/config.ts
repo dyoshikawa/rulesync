@@ -94,10 +94,6 @@ export default defineConfig({
             link: "/guide/declarative-sources",
           },
           { text: "Official Skills", link: "/guide/official-skills" },
-          {
-            text: "Gemini CLI → Antigravity CLI",
-            link: "/guide/geminicli-to-antigravity-cli",
-          },
           { text: "Dry Run", link: "/guide/dry-run" },
           { text: "Case Studies", link: "/guide/case-studies" },
         ],

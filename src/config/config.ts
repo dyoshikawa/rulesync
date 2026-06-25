@@ -11,7 +11,6 @@ import {
   GitignoreDestinationSchema,
   isFeatureValueEnabled,
   PerFeatureConfig,
-  PerTargetFeatures,
   PerTargetFeaturesValue,
   RulesyncFeatures,
   RulesyncFeaturesSchema,
@@ -27,7 +26,6 @@ import {
   ToolTargets,
 } from "../types/tool-targets.js";
 import { hasControlCharacters } from "../utils/validation.js";
-import { emitGetBaseDirsDeprecationWarning } from "./deprecation-warnings.js";
 
 export const GITIGNORE_DESTINATION_KEY = "gitignoreDestination";
 
@@ -116,16 +114,9 @@ export type PartialConfigParams = Omit<InferredPartialConfigParams, "targets" | 
 };
 
 // Schema for config file that includes $schema property for editor support.
-//
-// The deprecated alias `baseDirs` is accepted here for backward compatibility
-// — it maps to `outputRoots` at load time (see `loadConfigFromFile` in
-// `./config-resolver.ts`). The deprecation warning fires once per process.
-// Will be removed in a future major release.
 export const ConfigFileSchema = z.object({
   $schema: optional(z.string()),
   ...z.partial(ConfigParamsSchema).shape,
-  /** @deprecated Use `outputRoots` instead. */
-  baseDirs: optional(z.array(z.string())),
 });
 type InferredConfigFile = z.infer<typeof ConfigFileSchema>;
 export type ConfigFile = Omit<InferredConfigFile, "targets" | "features"> & {
@@ -152,7 +143,7 @@ const CONFLICTING_TARGET_PAIRS: Array<[string, string]> = [
  * Legacy targets that should NOT be included in wildcard (*) expansion.
  * These targets must be explicitly specified.
  */
-export const LEGACY_TARGETS = ["augmentcode-legacy", "claudecode-legacy", "antigravity"] as const;
+export const LEGACY_TARGETS = ["augmentcode-legacy", "claudecode-legacy"] as const;
 
 /**
  * Expand the wildcard target (`*`) to every non-legacy tool target. Legacy
@@ -167,11 +158,10 @@ export function expandWildcardTargets(): ToolTarget[] {
 
 /**
  * Validates that the user-authored config does not double-define the
- * target set in both `targets` and `features` object forms.
+ * target set by combining the object form of `targets` with `features`.
  *
- * Rules:
- * - If `targets` is in object form, `features` must be omitted.
- * - If `features` is in object form, `targets` must be omitted.
+ * Rule: if `targets` is in object form, `features` must be omitted (the
+ * per-target feature config lives inside the `targets` object).
  *
  * This is called on *user-authored* config (a file load or an explicit
  * programmatic construction) before defaults are merged in — the defaults
@@ -187,18 +177,11 @@ export const assertTargetsFeaturesExclusive = ({
   features?: RulesyncFeatures;
 }): void => {
   const targetsIsObject = targets !== undefined && !Array.isArray(targets);
-  const featuresIsObject = features !== undefined && !Array.isArray(features);
 
   if (targetsIsObject && features !== undefined) {
     throw new Error(
       "Invalid config: when 'targets' is in object form, 'features' must be omitted. " +
         "Declare per-target features inside the 'targets' object instead.",
-    );
-  }
-  if (featuresIsObject && targets !== undefined) {
-    throw new Error(
-      "Invalid config: when 'features' is in object form, 'targets' must be omitted. " +
-        "Migrate to the 'targets' object form, e.g. `targets: { claudecode: [...] }`.",
     );
   }
 };
@@ -389,16 +372,6 @@ export class Config {
   }
 
   /**
-   * @deprecated Use {@link Config.getOutputRoots} instead. This alias remains
-   * for backward compatibility and will be removed in a future major release.
-   * Calling it emits a one-shot deprecation warning per process.
-   */
-  public getBaseDirs(): string[] {
-    emitGetBaseDirsDeprecationWarning();
-    return this.outputRoots;
-  }
-
-  /**
    * Filter an arbitrary string-key list down to the known `ToolTarget` set,
    * skipping `*` (which is only meaningful as an array element, not a key).
    */
@@ -424,14 +397,6 @@ export class Config {
     // object form was handled above).
     const arrayTargets: RulesyncTargets = Array.isArray(this.targets) ? this.targets : [];
 
-    // Object form on `features` (legacy / deprecated path): derive the
-    // target list from the `features` object keys. `assertTargetsFeaturesExclusive`
-    // guarantees that when `features` is an object, the user cannot also have
-    // provided `targets`, so there is no intersection to compute here.
-    if (!Array.isArray(this.features)) {
-      return Config.filterValidToolTargets(Object.keys(this.features));
-    }
-
     if (arrayTargets.includes("*")) {
       return expandWildcardTargets();
     }
@@ -455,19 +420,6 @@ export class Config {
         return Config.normalizeTargetFeatures(value);
       }
       return Config.collectAllFeatures(Object.values(this.targets));
-    }
-
-    // Legacy object form on `features` (deprecated).
-    if (!Array.isArray(this.features)) {
-      const perTargetFeatures: PerTargetFeatures = this.features;
-      if (target) {
-        const targetFeatures = perTargetFeatures[target];
-        if (!targetFeatures) {
-          return [];
-        }
-        return Config.normalizeTargetFeatures(targetFeatures);
-      }
-      return Config.collectAllFeatures(Object.values(perTargetFeatures));
     }
 
     // Array format - traditional behavior
@@ -530,11 +482,7 @@ export class Config {
    * feature is not enabled for the given target.
    */
   public getFeatureOptions(target: ToolTarget, feature: Feature): FeatureOptions | undefined {
-    const value = isRulesyncConfigTargetsObject(this.targets)
-      ? this.targets[target]
-      : !Array.isArray(this.features)
-        ? this.features[target]
-        : undefined;
+    const value = isRulesyncConfigTargetsObject(this.targets) ? this.targets[target] : undefined;
     if (!value || Array.isArray(value)) {
       return undefined;
     }
@@ -583,15 +531,7 @@ export class Config {
    * Check if per-target features configuration is being used.
    */
   public hasPerTargetFeatures(): boolean {
-    return isRulesyncConfigTargetsObject(this.targets) || !Array.isArray(this.features);
-  }
-
-  /**
-   * Returns true if the deprecated object form under `features` is in use.
-   * Callers can use this to emit a migration warning.
-   */
-  public hasDeprecatedFeaturesObjectForm(): boolean {
-    return !Array.isArray(this.features);
+    return isRulesyncConfigTargetsObject(this.targets);
   }
 
   public getVerbose(): boolean {

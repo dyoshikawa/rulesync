@@ -30,13 +30,6 @@ export type GenerateOptions = BaseOptions & {
   features?: Feature[];
   outputRoots?: string[];
   /**
-   * @deprecated Use `outputRoots` instead. Accepted as a backward-compatible
-   * alias for the programmatic API; emits a one-shot deprecation warning when
-   * provided. When both `outputRoots` and `baseDirs` are supplied,
-   * `outputRoots` wins. Will be removed in a future major release.
-   */
-  baseDirs?: string[];
-  /**
    * Directory containing the `.rulesync/` source files. Defaults to the
    * current working directory at config-construction time. When set, output
    * is still written to each `outputRoots` entry; only the input source root

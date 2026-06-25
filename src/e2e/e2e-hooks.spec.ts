@@ -14,9 +14,8 @@ import {
 /**
  * Verify that a parsed hooks config preserves the canonical command paths
  * configured in the rulesync source. Event-name casing/mapping varies per tool
- * (e.g. claudecode uses PascalCase `Stop`, geminicli maps `stop` to
- * `AfterAgent`), so checking command paths inside the serialized hooks block
- * is the most tool-agnostic assertion.
+ * (e.g. claudecode uses PascalCase `Stop`), so checking command paths inside
+ * the serialized hooks block is the most tool-agnostic assertion.
  */
 function assertHookCommandsPreserved(parsed: { hooks?: unknown }): void {
   expect(parsed.hooks).toBeDefined();
@@ -33,7 +32,6 @@ describe("E2E: hooks", () => {
     { target: "cursor", outputPath: join(".cursor", "hooks.json") },
     { target: "opencode", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
     { target: "codexcli", outputPath: join(".codex", "hooks.json") },
-    { target: "geminicli", outputPath: join(".gemini", "settings.json") },
     { target: "qwencode", outputPath: join(".qwen", "settings.json") },
     {
       target: "goose",
@@ -134,7 +132,7 @@ describe("E2E: hooks", () => {
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
       } else {
-        // codexcli, geminicli, factorydroid, goose: event-name casing/mapping
+        // codexcli, factorydroid, goose: event-name casing/mapping
         // varies per tool, so verify the configured hook command paths are preserved.
         assertHookCommandsPreserved(parsed);
       }
@@ -254,7 +252,7 @@ describe("E2E: hooks", () => {
   });
 
   it.each([
-    // claudecode, geminicli, kiro use shared config files (isDeletable=false) — excluded.
+    // claudecode, kiro use shared config files (isDeletable=false) — excluded.
     // factorydroid now writes a dedicated .factory/hooks.json (isDeletable=true).
     { target: "cursor", orphanPath: join(".cursor", "hooks.json") },
     { target: "opencode", orphanPath: join(".opencode", "plugins", "rulesync-hooks.js") },
@@ -368,17 +366,6 @@ describe("E2E: hooks (import)", () => {
       },
     },
     {
-      target: "geminicli",
-      sourcePath: join(".gemini", "settings.json"),
-      sourceContent: {
-        hooks: {
-          sessionStart: [
-            { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
-          ],
-        },
-      },
-    },
-    {
       target: "factorydroid",
       sourcePath: join(".factory", "hooks.json"),
       sourceContent: {
@@ -481,7 +468,6 @@ describe("E2E: hooks (global mode)", () => {
   it.each([
     { target: "claudecode", outputPath: join(".claude", "settings.json") },
     { target: "codexcli", outputPath: join(".codex", "hooks.json") },
-    { target: "geminicli", outputPath: join(".gemini", "settings.json") },
     { target: "qwencode", outputPath: join(".qwen", "settings.json") },
     {
       target: "goose",

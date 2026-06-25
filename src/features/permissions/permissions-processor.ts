@@ -17,7 +17,6 @@ import { ClinePermissions } from "./cline-permissions.js";
 import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
 import { CursorPermissions } from "./cursor-permissions.js";
 import { FactorydroidPermissions } from "./factorydroid-permissions.js";
-import { GeminicliPermissions } from "./geminicli-permissions.js";
 import { GoosePermissions } from "./goose-permissions.js";
 import { GrokcliPermissions } from "./grokcli-permissions.js";
 import { HermesagentPermissions } from "./hermesagent-permissions.js";
@@ -170,17 +169,6 @@ export const toolPermissionsFactories = new Map<
         // `commandAllowlist`/`commandDenylist` in the shared settings file:
         // `.factory/settings.json` (project) and `~/.factory/settings.json`
         // (global).
-        supportsProject: true,
-        supportsGlobal: true,
-        supportsImport: true,
-      },
-    },
-  ],
-  [
-    "geminicli",
-    {
-      class: GeminicliPermissions,
-      meta: {
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,

@@ -13,7 +13,6 @@ import { AugmentcodePermissions } from "./augmentcode-permissions.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { ClinePermissions } from "./cline-permissions.js";
 import { CodexcliPermissions } from "./codexcli-permissions.js";
-import { GeminicliPermissions } from "./geminicli-permissions.js";
 import { KiloPermissions } from "./kilo-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
@@ -87,7 +86,6 @@ describe("PermissionsProcessor", () => {
         "codexcli",
         "cursor",
         "factorydroid",
-        "geminicli",
         "kilo",
         "kiro",
         "kiro-cli",
@@ -110,7 +108,6 @@ describe("PermissionsProcessor", () => {
         "codexcli",
         "cursor",
         "factorydroid",
-        "geminicli",
         "goose",
         "grokcli",
         "hermesagent",
@@ -136,7 +133,6 @@ describe("PermissionsProcessor", () => {
         "codexcli",
         "cursor",
         "factorydroid",
-        "geminicli",
         "kilo",
         "kiro",
         "kiro-cli",
@@ -303,26 +299,6 @@ default_permissions = "rulesync"
 
       expect(files).toHaveLength(1);
       expect(files[0]).toBeInstanceOf(CodexcliPermissions);
-    });
-
-    it("should load Gemini CLI .gemini/policies/rulesync.toml", async () => {
-      const policyDir = join(testDir, ".gemini", "policies");
-      await ensureDir(policyDir);
-      await writeFileContent(
-        join(policyDir, "rulesync.toml"),
-        '[[rule]]\ntoolName = "run_shell_command"\ndecision = "allow"\ncommandPrefix = "git status"\npriority = 100\n',
-      );
-
-      const processor = new PermissionsProcessor({
-        logger,
-        outputRoot: testDir,
-        toolTarget: "geminicli",
-      });
-
-      const files = await processor.loadToolFiles();
-
-      expect(files).toHaveLength(1);
-      expect(files[0]).toBeInstanceOf(GeminicliPermissions);
     });
 
     it("should load AugmentCode .augment/settings.json", async () => {

@@ -21,7 +21,6 @@ import { CursorMcp } from "./cursor-mcp.js";
 import { DeepagentsMcp } from "./deepagents-mcp.js";
 import { DevinMcp } from "./devin-mcp.js";
 import { FactorydroidMcp } from "./factorydroid-mcp.js";
-import { GeminiCliMcp } from "./geminicli-mcp.js";
 import { GooseMcp } from "./goose-mcp.js";
 import { GrokcliMcp } from "./grokcli-mcp.js";
 import { HermesagentMcp } from "./hermesagent-mcp.js";
@@ -241,18 +240,6 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     "factorydroid",
     {
       class: FactorydroidMcp,
-      meta: {
-        supportsProject: true,
-        supportsGlobal: true,
-        supportsEnabledTools: false,
-        supportsDisabledTools: false,
-      },
-    },
-  ],
-  [
-    "geminicli",
-    {
-      class: GeminiCliMcp,
       meta: {
         supportsProject: true,
         supportsGlobal: true,

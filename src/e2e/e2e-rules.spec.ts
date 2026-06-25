@@ -30,7 +30,6 @@ describe("E2E: rules", () => {
     { target: "hermesagent", outputPath: ".hermes.md" },
     { target: "copilot", outputPath: join(".github", "copilot-instructions.md") },
     { target: "opencode", outputPath: "AGENTS.md" },
-    { target: "geminicli", outputPath: "GEMINI.md" },
     { target: "antigravity-cli", outputPath: "AGENTS.md" },
     { target: "antigravity-ide", outputPath: "AGENTS.md" },
     { target: "goose", outputPath: ".goosehints" },
@@ -81,7 +80,6 @@ This is a test rule for E2E testing.
     { target: "kiro", outputPath: join(".kiro", "steering", "overview.md") },
     { target: "kiro-cli", outputPath: join(".kiro", "steering", "overview.md") },
     { target: "kiro-ide", outputPath: join(".kiro", "steering", "overview.md") },
-    { target: "antigravity", outputPath: join(".agent", "rules", "overview.md") },
     { target: "antigravity-ide", outputPath: join(".agents", "rules", "overview.md") },
     { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },
     { target: "devin", outputPath: join(".devin", "rules", "overview.md") },
@@ -554,7 +552,6 @@ describe("E2E: rules (import)", () => {
       importedFileName: "copilot-instructions.md",
     },
     { target: "opencode", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
-    { target: "geminicli", sourcePath: "GEMINI.md", importedFileName: "overview.md" },
     { target: "goose", sourcePath: ".goosehints", importedFileName: "overview.md" },
     {
       target: "copilotcli",
@@ -610,11 +607,6 @@ describe("E2E: rules (import)", () => {
       importedFileName: "overview.md",
     },
     {
-      target: "antigravity",
-      sourcePath: join(".agent", "rules", "overview.md"),
-      importedFileName: "overview.md",
-    },
-    {
       target: "antigravity-ide",
       sourcePath: join(".agents", "rules", "overview.md"),
       importedFileName: "overview.md",
@@ -663,7 +655,6 @@ describe("E2E: rules (global mode)", () => {
     { target: "grokcli", outputPath: join(".grok", "AGENTS.md") },
     { target: "amp", outputPath: join(".config", "amp", "AGENTS.md") },
     { target: "cline", outputPath: join(".agents", "AGENTS.md") },
-    { target: "geminicli", outputPath: join(".gemini", "GEMINI.md") },
     { target: "antigravity-ide", outputPath: join(".gemini", "GEMINI.md") },
     { target: "antigravity-cli", outputPath: join(".gemini", "GEMINI.md") },
     { target: "goose", outputPath: join(".config", "goose", ".goosehints") },

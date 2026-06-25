@@ -18,14 +18,12 @@ describe("E2E: commands", () => {
     { target: "claudecode", outputPath: join(".claude", "commands", "review-pr.md") },
     { target: "cursor", outputPath: join(".cursor", "commands", "review-pr.md") },
     { target: "augmentcode", outputPath: join(".augment", "commands", "review-pr.md") },
-    { target: "geminicli", outputPath: join(".gemini", "commands", "review-pr.toml") },
     { target: "copilot", outputPath: join(".github", "prompts", "review-pr.prompt.md") },
     { target: "opencode", outputPath: join(".opencode", "commands", "review-pr.md") },
     { target: "cline", outputPath: join(".clinerules", "workflows", "review-pr.md") },
     { target: "kilo", outputPath: join(".kilo", "commands", "review-pr.md") },
     { target: "roo", outputPath: join(".roo", "commands", "review-pr.md") },
     { target: "kiro", outputPath: join(".kiro", "prompts", "review-pr.md") },
-    { target: "antigravity", outputPath: join(".agent", "workflows", "review-pr.md") },
     { target: "antigravity-ide", outputPath: join(".agents", "workflows", "review-pr.md") },
     { target: "junie", outputPath: join(".junie", "commands", "review-pr.md") },
     { target: "takt", outputPath: join(".takt", "facets", "instructions", "review-pr.md") },
@@ -54,12 +52,7 @@ Check the PR diff and provide feedback.
 
     // Verify that the expected output file was generated
     const generatedContent = await readFileContent(join(testDir, outputPath));
-    if (target === "geminicli") {
-      // Gemini CLI uses TOML format
-      expect(generatedContent).toContain('description = "Review a pull request"');
-    } else {
-      expect(generatedContent).toContain("Check the PR diff and provide feedback.");
-    }
+    expect(generatedContent).toContain("Check the PR diff and provide feedback.");
   });
 
   it.each([{ target: "agentsmd", outputPath: join(".agents", "commands", "review-pr.md") }])(
@@ -89,14 +82,12 @@ Check the PR diff and provide feedback.
     { target: "claudecode", orphanPath: join(".claude", "commands", "orphan.md") },
     { target: "cursor", orphanPath: join(".cursor", "commands", "orphan.md") },
     { target: "augmentcode", orphanPath: join(".augment", "commands", "orphan.md") },
-    { target: "geminicli", orphanPath: join(".gemini", "commands", "orphan.toml") },
     { target: "copilot", orphanPath: join(".github", "prompts", "orphan.prompt.md") },
     { target: "opencode", orphanPath: join(".opencode", "commands", "orphan.md") },
     { target: "cline", orphanPath: join(".clinerules", "workflows", "orphan.md") },
     { target: "kilo", orphanPath: join(".kilo", "commands", "orphan.md") },
     { target: "roo", orphanPath: join(".roo", "commands", "orphan.md") },
     { target: "kiro", orphanPath: join(".kiro", "prompts", "orphan.md") },
-    { target: "antigravity", orphanPath: join(".agent", "workflows", "orphan.md") },
     { target: "antigravity-ide", orphanPath: join(".agents", "workflows", "orphan.md") },
     { target: "junie", orphanPath: join(".junie", "commands", "orphan.md") },
     { target: "pi", orphanPath: join(".pi", "prompts", "orphan.md") },
@@ -144,7 +135,6 @@ describe("E2E: commands (import)", () => {
     { target: "kilo", sourcePath: join(".kilo", "commands", "review-pr.md") },
     { target: "roo", sourcePath: join(".roo", "commands", "review-pr.md") },
     { target: "kiro", sourcePath: join(".kiro", "prompts", "review-pr.md") },
-    { target: "antigravity", sourcePath: join(".agent", "workflows", "review-pr.md") },
     { target: "antigravity-ide", sourcePath: join(".agents", "workflows", "review-pr.md") },
     { target: "junie", sourcePath: join(".junie", "commands", "review-pr.md") },
     { target: "pi", sourcePath: join(".pi", "prompts", "review-pr.md") },
@@ -192,7 +182,6 @@ describe("E2E: commands (global mode)", () => {
     { target: "cursor", outputPath: join(".cursor", "commands", "review-pr.md") },
     { target: "augmentcode", outputPath: join(".augment", "commands", "review-pr.md") },
     { target: "opencode", outputPath: join(".config", "opencode", "commands", "review-pr.md") },
-    { target: "geminicli", outputPath: join(".gemini", "commands", "review-pr.toml") },
     { target: "codexcli", outputPath: join(".codex", "prompts", "review-pr.md") },
     { target: "cline", outputPath: join("Documents", "Cline", "Workflows", "review-pr.md") },
     { target: "kilo", outputPath: join(".config", "kilo", "commands", "review-pr.md") },
@@ -243,12 +232,7 @@ Check the PR diff and provide feedback.
 
     // Verify that the expected output file was generated
     const generatedContent = await readFileContent(join(homeDir, outputPath));
-    if (target === "geminicli") {
-      // Gemini CLI uses TOML format
-      expect(generatedContent).toContain('description = "Review a pull request"');
-    } else {
-      expect(generatedContent).toContain("Check the PR diff and provide feedback.");
-    }
+    expect(generatedContent).toContain("Check the PR diff and provide feedback.");
   });
 
   it("should ignore non-root commands in global mode", async () => {

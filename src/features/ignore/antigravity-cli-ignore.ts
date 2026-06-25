@@ -14,8 +14,8 @@ import { ToolIgnore } from "./tool-ignore.js";
 /**
  * Antigravity CLI is the successor to Gemini CLI and is built on the same
  * engine, so it reads the project-root `.geminiignore` file (same conventions as
- * `.gitignore`) to exclude files and directories from the agent's context. This
- * mirrors {@link GeminiCliIgnore}; the two targets emit the same file.
+ * `.gitignore`) to exclude files and directories from the agent's context,
+ * reusing the `.geminiignore` conventions from the Gemini-CLI lineage.
  */
 export class AntigravityCliIgnore extends ToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {

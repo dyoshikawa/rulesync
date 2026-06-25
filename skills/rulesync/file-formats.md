@@ -103,11 +103,6 @@ Example:
     "hooks": {
       "afterError": [{ "command": ".rulesync/hooks/report-error.sh" }]
     }
-  },
-  "geminicli": {
-    "hooks": {
-      "beforeToolSelection": [{ "command": ".rulesync/hooks/before-tool.sh" }]
-    }
   }
 }
 ```
@@ -116,7 +111,7 @@ Example:
 
 - `version`: Schema version (currently `1`).
 - `hooks`: Map of canonical event names to an array of hook entries. These are dispatched to every tool that supports the given event.
-- `cursor.hooks`, `claudecode.hooks`, `opencode.hooks`, `kilo.hooks`, `copilot.hooks`, `copilotcli.hooks`, `factorydroid.hooks`, `geminicli.hooks`, `codexcli.hooks`, `goose.hooks`, `deepagents.hooks`, `kiro.hooks`, `qwencode.hooks`: Tool-specific **override keys**. Entries under these keys are emitted only for the corresponding tool, so tool-only events (e.g. `afterFileEdit` for Cursor/OpenCode/Kilo, `worktreeCreate` for Claude Code, `afterError` for Copilot/Copilot CLI) can coexist with shared ones without leaking to other tools. `copilotcli.hooks` falls back to `copilot.hooks`, which in turn falls back to the shared `hooks` block.
+- `cursor.hooks`, `claudecode.hooks`, `opencode.hooks`, `kilo.hooks`, `copilot.hooks`, `copilotcli.hooks`, `factorydroid.hooks`, `codexcli.hooks`, `goose.hooks`, `deepagents.hooks`, `kiro.hooks`, `qwencode.hooks`: Tool-specific **override keys**. Entries under these keys are emitted only for the corresponding tool, so tool-only events (e.g. `afterFileEdit` for Cursor/OpenCode/Kilo, `worktreeCreate` for Claude Code, `afterError` for Copilot/Copilot CLI) can coexist with shared ones without leaking to other tools. `copilotcli.hooks` falls back to `copilot.hooks`, which in turn falls back to the shared `hooks` block.
 
 **Hook entry keys:**
 
@@ -358,8 +353,6 @@ Based on the user's instruction, create a plan while analyzing the related files
 
 Attention, again, you are just the planner, so though you can read any files and run any commands for analysis, please don't write any code.
 ```
-
-> **Gemini CLI note (as of 2026-04-01):** Subagents are generated to `.gemini/agents/`. To enable the agents feature, set `"experimental": { "enableAgents": true }` in your `.gemini/settings.json`.
 
 > **Qwen Code note:** Subagents are emitted as Markdown + YAML frontmatter under `.qwen/agents/` (project) and `~/.qwen/agents/` (user/global, via `--global`); the body is the subagent's system prompt. Besides the shared `name`/`description`, the `qwencode:` block accepts these optional fields (all preserved on round-trip): `model`, `approvalMode` (`default` | `plan` | `auto-edit` | `yolo` | `bubble`), `tools` (allowlist), `disallowedTools` (denylist), `maxTurns`, `color`, `mcpServers` (per-agent MCP overrides), and `hooks` (per-agent hook registrations). See the [Qwen Code sub-agents docs](https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/sub-agents.md).
 
@@ -727,8 +720,7 @@ credentials/
 
 Most tools get a dedicated ignore file (for example `.cursorignore`,
 `.geminiignore`, `.clineignore`). Antigravity CLI is built on the same engine
-as Gemini CLI, so it shares the `.geminiignore` file (enabling either target
-writes it). Claude Code is the exception: it does not
+as Gemini CLI, so it reads the project-root `.geminiignore` file. Claude Code is the exception: it does not
 read a separate ignore file, so Rulesync writes the deny list into Claude
 Code's settings file as `permissions.deny` entries (`Read(<pattern>)`).
 
@@ -833,19 +825,6 @@ Codex's built-in `:workspace` baseline grants read access to the whole filesyste
 Rulesync always emits `":minimal" = "read"` in the generated filesystem table. This enables `include_platform_defaults()` ([FileSystemSpecialPath::Minimal](https://github.com/openai/codex/pull/13434)), which provides the platform/runtime read access needed for basic sandboxed command execution on macOS, Linux, and Windows. `:minimal` is the only special path treated as a non-user-managed fixed baseline: it is always emitted and is never imported into Rulesync's own permission model. The other special paths `:root`, `:tmpdir`, and `:slash_tmp` are user-managed access rules that are imported into the Rulesync model and re-emitted from it like any ordinary filesystem entry (`:root = "deny"` becomes a read/edit deny, `:tmpdir = "write"` becomes an edit allow, and so on). Because they round-trip through `.rulesync/permissions.json` rather than relying on an existing `.codex/config.toml`, a restrictive value such as `:root = "deny"` survives a fresh-clone `rulesync generate` with no pre-existing Codex config.
 
 `network.mode`, `network.unix_sockets`, and `description` have no equivalent in Rulesync's canonical permissions model and are not generated. If an existing `.codex/config.toml` already contains these fields on the `rulesync` profile, Rulesync preserves them on regeneration. Note that `filesystem`, `network.enabled`, `network.domains`, and `extends` are always managed by Rulesync (derived from `edit`/`write`/`webfetch` rules), so hand-authored values in those fields will be replaced on regeneration.
-
-For Gemini CLI, this generates a Policy Engine file at `.gemini/policies/rulesync.toml` (project mode) or `~/.gemini/policies/rulesync.toml` (global mode). Gemini CLI auto-discovers any `*.toml` file under the `policies/` directory, so no `settings.json` modification is required. **Only `--global` output is effective:** Gemini CLI's Policy Engine documents the Workspace tier (project-level `.gemini/policies/`) as **non-functional** — policies placed there have no effect, and only the User tier (`~/.gemini/policies/`, written with `--global`) is honored. Rulesync still emits the project-scope file but logs a warning that it is inert; generate with `--global` for an effective policy.
-
-- `allow` / `deny` / `ask` rules are converted into Policy Engine `decision` values `allow` / `deny` / `ask_user`
-- Rule `priority` is assigned per decision so that `deny` (999) beats `ask_user` (500) beats `allow` (1) in the engine's first-match ordering. This matches intuitive allow-with-narrow-deny authoring (e.g. `bash: { "git *": "allow", "git push --force *": "deny" }`) without relying on array order. The values stay within the Policy Engine's documented `0`–`999` per-rule priority range, with `deny` at the top of the band so a hand-authored rule in a sibling `.toml` under `policies/` is unlikely to outrank a rulesync-managed deny by accident.
-- `bash` rules are generated with `toolName = "run_shell_command"`. When the pattern ends with a trailing ` *` (or has no glob metacharacters), the rule uses `commandPrefix` with the trailing ` *` stripped, so `"git *"` and `"git"` both serialize as `commandPrefix = "git"`. The reverse import canonicalizes these to `"<prefix> *"`.
-- When a `bash` pattern contains interior glob metacharacters (anything other than a trailing ` *`, e.g. `"rm -rf /tmp/*"`), rulesync emits `argsPattern` with a `"command":"` JSON-anchor instead of `commandPrefix`, because Gemini CLI treats `commandPrefix` as a literal string prefix.
-- Non-`bash` rules are generated with `toolName` + `argsPattern`. The pattern is anchored at both ends of the JSON string value (leading `"` and trailing `\"`) so a match cannot leak across JSON fields. Glob translation: `*` → `[^/\"]*` (single segment), `**` → `[^\"]*` (cross segment but still inside the string), `?` → `[^/\"]` (single non-separator character). Glob character classes (e.g. `[abc]`) are emitted as regex literals (the brackets themselves become `\[` / `\]`), because a translated class such as `[^a]` or `[!-~]` can bypass the JSON-boundary guard.
-- Patterns that contain an unescaped `"` or `\` are skipped with a warning, because smol-toml escaping would let the pattern hijack the surrounding regex anchor and silently disable deny rules.
-- Empty patterns (`""`) are skipped with a warning, since they would match every invocation on `bash` and never match anything on other tools.
-- `bash` patterns `*` and `**` are skipped when paired with `allow` or `deny`, because either would silently grant or revoke permission for every shell command. They are still honored with `ask` (interactive prompt on every invocation).
-- Imported policy rules whose `toolName` maps to a reserved JavaScript object key (`__proto__`, `constructor`, `prototype`) are skipped with a warning to prevent prototype pollution when round-tripping untrusted TOML.
-- Tool categories are mapped as: `bash` → `run_shell_command`, `read` → `read_file`, `edit` → `replace`, `write` → `write_file`, `webfetch` → `web_fetch`
 
 For Kiro, this generates tool permission settings in `.kiro/agents/default.json` (project mode):
 

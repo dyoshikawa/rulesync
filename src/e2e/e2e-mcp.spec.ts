@@ -26,7 +26,6 @@ describe("E2E: mcp", () => {
     { target: "amp", outputPath: join(".amp", "settings.json") },
     { target: "claudecode", outputPath: ".mcp.json" },
     { target: "cursor", outputPath: join(".cursor", "mcp.json") },
-    { target: "geminicli", outputPath: join(".gemini", "settings.json") },
     { target: "qwencode", outputPath: join(".qwen", "settings.json") },
     { target: "codexcli", outputPath: join(".codex", "config.toml") },
     { target: "grokcli", outputPath: join(".grok", "config.toml") },
@@ -108,7 +107,7 @@ describe("E2E: mcp", () => {
   });
 
   it.each([
-    // amp, geminicli, codexcli, grokcli, opencode, kilo use merged config files (isDeletable=false) — excluded
+    // amp, codexcli, grokcli, opencode, kilo use merged config files (isDeletable=false) — excluded
     { target: "claudecode", orphanPath: ".mcp.json" },
     { target: "cursor", orphanPath: join(".cursor", "mcp.json") },
     { target: "copilot", orphanPath: join(".vscode", "mcp.json") },
@@ -160,11 +159,6 @@ describe("E2E: mcp", () => {
       target: "amp",
       outputPath: join(".amp", "settings.json"),
       content: JSON.stringify({ "amp.dangerouslyAllowAll": false, "amp.mcpServers": {} }, null, 2),
-    },
-    {
-      target: "geminicli",
-      outputPath: join(".gemini", "settings.json"),
-      content: JSON.stringify({ theme: "dark", mcpServers: {} }, null, 2),
     },
     {
       target: "codexcli",
@@ -468,7 +462,6 @@ describe("E2E: mcp (global mode)", () => {
     { target: "augmentcode", outputPath: join(".augment", "settings.json") },
     { target: "claudecode", outputPath: ".claude.json" },
     { target: "cursor", outputPath: join(".cursor", "mcp.json") },
-    { target: "geminicli", outputPath: join(".gemini", "settings.json") },
     { target: "qwencode", outputPath: join(".qwen", "settings.json") },
     { target: "goose", outputPath: join(".config", "goose", "config.yaml") },
     { target: "hermesagent", outputPath: join(".hermes", "config.yaml") },

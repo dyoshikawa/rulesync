@@ -222,11 +222,6 @@ const main = async () => {
       "Output root directories to generate files into (comma-separated for multiple paths)",
       parseCommaSeparatedList,
     )
-    .option(
-      "-b, --base-dir <paths>",
-      "[Deprecated] Use --output-roots instead. Output root directories (comma-separated for multiple paths)",
-      parseCommaSeparatedList,
-    )
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
     .option("-c, --config <path>", "Path to configuration file")

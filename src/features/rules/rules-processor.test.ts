@@ -708,7 +708,6 @@ describe("RulesProcessor", () => {
         "copilot",
         "cursor",
         "codexcli",
-        "geminicli",
         "junie",
         "kiro",
         "opencode",
@@ -950,7 +949,6 @@ Content that would fail parsing`;
         "copilotcli",
         "deepagents",
         "factorydroid",
-        "geminicli",
         "goose",
         "grokcli",
         "junie",
@@ -999,7 +997,6 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("copilotcli");
       expect(globalTargets).toContain("deepagents");
       expect(globalTargets).toContain("factorydroid");
-      expect(globalTargets).toContain("geminicli");
       expect(globalTargets).toContain("junie");
       expect(globalTargets).toContain("kilo");
       expect(globalTargets).toContain("goose");
@@ -1015,7 +1012,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("kiro");
       expect(globalTargets).toContain("kiro-cli");
       expect(globalTargets).toContain("kiro-ide");
-      expect(globalTargets.length).toBe(29);
+      expect(globalTargets.length).toBe(28);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
@@ -2167,41 +2164,6 @@ targets: ["claudecode"]
       expect(result.some((r) => (r as RulesyncRule).getFrontmatter().root)).toBe(true);
       expect(result.some((r) => !(r as RulesyncRule).getFrontmatter().root)).toBe(true);
       expect(warnSpy).not.toHaveBeenCalledWith(
-        expect.stringContaining("non-root rulesync rules found, but it's in global mode"),
-      );
-    });
-
-    it("should exclude non-root rules in global mode for a target without global nonRoot support", async () => {
-      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
-      await writeFileContent(
-        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
-        `---
-root: true
-targets: ["geminicli"]
----
-# Root`,
-      );
-      await writeFileContent(
-        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "non-root.md"),
-        `---
-targets: ["geminicli"]
----
-# Non-root`,
-      );
-
-      const warnSpy = vi.spyOn(logger, "warn");
-
-      const processor = new RulesProcessor({
-        logger,
-        outputRoot: testDir,
-        toolTarget: "geminicli",
-        global: true,
-      });
-
-      const result = await processor.loadRulesyncFiles();
-      expect(result).toHaveLength(1);
-      expect((result[0] as RulesyncRule).getFrontmatter().root).toBe(true);
-      expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("non-root rulesync rules found, but it's in global mode"),
       );
     });

@@ -10,7 +10,6 @@ import { ClaudecodeCommand } from "./claudecode-command.js";
 import { ClineCommand } from "./cline-command.js";
 import { CommandsProcessor, CommandsProcessorToolTarget } from "./commands-processor.js";
 import { CursorCommand } from "./cursor-command.js";
-import { GeminiCliCommand } from "./geminicli-command.js";
 import { JunieCommand } from "./junie-command.js";
 import { KiloCommand } from "./kilo-command.js";
 import { OpenCodeCommand } from "./opencode-command.js";
@@ -40,11 +39,6 @@ vi.mock("../../utils/file.js", async (importOriginal) => {
 vi.mock("./rulesync-command.js");
 vi.mock("./claudecode-command.js", () => ({
   ClaudecodeCommand: vi.fn().mockImplementation(function (config) {
-    return { ...config, isDeletable: () => true };
-  }),
-}));
-vi.mock("./geminicli-command.js", () => ({
-  GeminiCliCommand: vi.fn().mockImplementation(function (config) {
     return { ...config, isDeletable: () => true };
   }),
 }));
@@ -123,19 +117,6 @@ vi.mocked(JunieCommand).getSettablePaths = vi.fn().mockImplementation((_options 
   relativeDirPath: join(".junie", "commands"),
 }));
 vi.mocked(JunieCommand).forDeletion = vi.fn().mockImplementation((params) => ({
-  ...params,
-  isDeletable: () => true,
-  getRelativeFilePath: () => params.relativeFilePath,
-}));
-
-// Set up static methods after mocking
-vi.mocked(GeminiCliCommand).fromFile = vi.fn();
-vi.mocked(GeminiCliCommand).fromRulesyncCommand = vi.fn();
-vi.mocked(GeminiCliCommand).isTargetedByRulesyncCommand = vi.fn().mockReturnValue(true);
-vi.mocked(GeminiCliCommand).getSettablePaths = vi
-  .fn()
-  .mockReturnValue({ relativeDirPath: join(".gemini", "commands") });
-vi.mocked(GeminiCliCommand).forDeletion = vi.fn().mockImplementation((params) => ({
   ...params,
   isDeletable: () => true,
   getRelativeFilePath: () => params.relativeFilePath,
@@ -351,40 +332,6 @@ describe("CommandsProcessor", () => {
         rulesyncCommand: mockRulesyncCommand,
         global: true,
       });
-    });
-
-    it("should convert rulesync commands to geminicli commands", async () => {
-      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "geminicli" });
-
-      const mockRulesyncCommand = new RulesyncCommand({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
-        relativeFilePath: "test.md",
-        fileContent: "test content",
-        frontmatter: {
-          targets: ["geminicli"],
-          description: "test description",
-        },
-        body: "test content",
-      });
-
-      const mockGeminiCliCommand = new GeminiCliCommand({
-        outputRoot: testDir,
-        relativeDirPath: join(".gemini", "commands"),
-        relativeFilePath: "test.md",
-        fileContent: `description = "test description"\nprompt = """\nconverted content\n"""`,
-      });
-
-      vi.mocked(GeminiCliCommand.fromRulesyncCommand).mockReturnValue(mockGeminiCliCommand);
-
-      const result = await processor.convertRulesyncFilesToToolFiles([mockRulesyncCommand]);
-
-      expect(GeminiCliCommand.fromRulesyncCommand).toHaveBeenCalledWith({
-        outputRoot: expect.any(String),
-        rulesyncCommand: mockRulesyncCommand,
-        global: false,
-      });
-      expect(result).toEqual([mockGeminiCliCommand]);
     });
 
     it("should convert rulesync commands to roo commands", async () => {
@@ -884,25 +831,6 @@ describe("CommandsProcessor", () => {
       expect(result).toEqual([mockCommand]);
     });
 
-    it("should load geminicli commands with correct parameters", async () => {
-      processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "geminicli" });
-
-      const mockPaths = [join(testDir, ".gemini", "commands", "test.toml")];
-      const mockCommand = new GeminiCliCommand({
-        outputRoot: testDir,
-        relativeDirPath: join(".gemini", "commands"),
-        relativeFilePath: "test.toml",
-        fileContent: `description = "test description"\nprompt = """\ncontent\n"""`,
-      });
-
-      mockFindFilesByGlobs.mockResolvedValue(mockPaths);
-      vi.mocked(GeminiCliCommand.fromFile).mockResolvedValue(mockCommand);
-
-      const result = await processor.loadToolFiles();
-
-      expect(result).toEqual([mockCommand]);
-    });
-
     it("should load roo commands with correct parameters", async () => {
       processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "roo" });
 
@@ -1134,7 +1062,6 @@ describe("CommandsProcessor", () => {
       const targets = CommandsProcessor.getToolTargets();
       expect(new Set(targets)).toEqual(
         new Set([
-          "antigravity",
           "antigravity-ide",
           "augmentcode",
           "claudecode",
@@ -1143,7 +1070,6 @@ describe("CommandsProcessor", () => {
           "copilot",
           "cursor",
           "factorydroid",
-          "geminicli",
           "goose",
           "junie",
           "kilo",
@@ -1165,7 +1091,6 @@ describe("CommandsProcessor", () => {
       expect(new Set(targets)).toEqual(
         new Set([
           "agentsmd",
-          "antigravity",
           "antigravity-ide",
           "augmentcode",
           "claudecode",
@@ -1174,7 +1099,6 @@ describe("CommandsProcessor", () => {
           "copilot",
           "cursor",
           "factorydroid",
-          "geminicli",
           "goose",
           "junie",
           "kilo",
@@ -1205,7 +1129,6 @@ describe("CommandsProcessor", () => {
           "codexcli",
           "cursor",
           "factorydroid",
-          "geminicli",
           "goose",
           "hermesagent",
           "junie",
@@ -1243,7 +1166,6 @@ describe("CommandsProcessor", () => {
         "claudecode",
         "claudecode-legacy",
         "cline",
-        "geminicli",
         "junie",
         "kilo",
         "roo",

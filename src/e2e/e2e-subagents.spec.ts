@@ -28,10 +28,6 @@ describe("E2E: subagents", () => {
       outputPath: join(".cursor", "agents", "planner.md"),
     },
     {
-      target: "geminicli",
-      outputPath: join(".gemini", "agents", "planner.md"),
-    },
-    {
       target: "grokcli",
       outputPath: join(".grok", "agents", "planner.md"),
     },
@@ -241,7 +237,6 @@ You are a subagent-only helper.
   it.each([
     { target: "claudecode", orphanPath: join(".claude", "agents", "orphan.md") },
     { target: "cursor", orphanPath: join(".cursor", "agents", "orphan.md") },
-    { target: "geminicli", orphanPath: join(".gemini", "agents", "orphan.md") },
     { target: "grokcli", orphanPath: join(".grok", "agents", "orphan.md") },
     { target: "codexcli", orphanPath: join(".codex", "agents", "orphan.toml") },
     { target: "copilot", orphanPath: join(".github", "agents", "orphan.md") },
@@ -289,7 +284,6 @@ describe("E2E: subagents (import)", () => {
   it.each([
     { target: "claudecode", sourcePath: join(".claude", "agents", "planner.md") },
     { target: "cursor", sourcePath: join(".cursor", "agents", "planner.md") },
-    { target: "geminicli", sourcePath: join(".gemini", "agents", "planner.md") },
     { target: "copilot", sourcePath: join(".github", "agents", "planner.md") },
     { target: "opencode", sourcePath: join(".opencode", "agents", "planner.md") },
     { target: "deepagents", sourcePath: join(".deepagents", "agents", "planner", "AGENTS.md") },
@@ -448,7 +442,6 @@ describe("E2E: subagents (global mode)", () => {
     { target: "copilot", outputPath: join(".copilot", "agents", "planner.agent.md") },
     { target: "copilotcli", outputPath: join(".copilot", "agents", "planner.agent.md") },
     { target: "cursor", outputPath: join(".cursor", "agents", "planner.md") },
-    { target: "geminicli", outputPath: join(".gemini", "agents", "planner.md") },
     { target: "grokcli", outputPath: join(".grok", "agents", "planner.md") },
     { target: "qwencode", outputPath: join(".qwen", "agents", "planner.md") },
     { target: "junie", outputPath: join(".junie", "agents", "planner.md") },

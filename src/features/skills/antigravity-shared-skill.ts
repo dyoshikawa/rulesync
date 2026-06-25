@@ -42,8 +42,7 @@ export type AntigravitySharedSkillParams = {
  * global skills tree (`~/.gemini/<subdir>/skills/`) and which rulesync target
  * name they answer to; each concrete subclass supplies those via
  * {@link AntigravitySharedSkill.getGlobalSubdir} and
- * {@link AntigravitySharedSkill.getToolTarget}. The singular `.agent/skills/`
- * tree is handled separately by the deprecated `antigravity` alias.
+ * {@link AntigravitySharedSkill.getToolTarget}.
  */
 export class AntigravitySharedSkill extends ToolSkill {
   constructor({

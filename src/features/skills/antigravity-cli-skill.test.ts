@@ -296,23 +296,6 @@ Missing description field.`;
       expect(AntigravityCliSkill.isTargetedByRulesyncSkill(rulesyncSkill)).toBe(false);
     });
 
-    it("should return false when targets includes the deprecated 'antigravity' alias only", () => {
-      const rulesyncSkill = new RulesyncSkill({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-        dirName: "antigravity-alias-skill",
-        frontmatter: {
-          name: "Antigravity Alias Skill",
-          description: "Skill for the deprecated antigravity alias",
-          targets: ["antigravity"],
-        },
-        body: "Test body",
-        validate: true,
-      });
-
-      expect(AntigravityCliSkill.isTargetedByRulesyncSkill(rulesyncSkill)).toBe(false);
-    });
-
     it("should return false when targets includes 'antigravity-ide' only", () => {
       const rulesyncSkill = new RulesyncSkill({
         outputRoot: testDir,

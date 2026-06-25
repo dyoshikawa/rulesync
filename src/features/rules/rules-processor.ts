@@ -24,7 +24,6 @@ import { RovodevSkill } from "../skills/rovodev-skill.js";
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { SkillsProcessor } from "../skills/skills-processor.js";
 import { AgentsmdSubagent } from "../subagents/agentsmd-subagent.js";
-import { GeminiCliSubagent } from "../subagents/geminicli-subagent.js";
 import { QwencodeSubagent } from "../subagents/qwencode-subagent.js";
 import { RovodevSubagent } from "../subagents/rovodev-subagent.js";
 import { SubagentsProcessor } from "../subagents/subagents-processor.js";
@@ -33,7 +32,6 @@ import { AiassistantRule } from "./aiassistant-rule.js";
 import { AmpRule } from "./amp-rule.js";
 import { AntigravityCliRule } from "./antigravity-cli-rule.js";
 import { AntigravityIdeRule } from "./antigravity-ide-rule.js";
-import { AntigravityRule } from "./antigravity-rule.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
 import { AugmentcodeRule } from "./augmentcode-rule.js";
 import { ClaudecodeLegacyRule } from "./claudecode-legacy-rule.js";
@@ -46,7 +44,6 @@ import { CursorRule } from "./cursor-rule.js";
 import { DeepagentsRule } from "./deepagents-rule.js";
 import { DevinRule } from "./devin-rule.js";
 import { FactorydroidRule } from "./factorydroid-rule.js";
-import { GeminiCliRule } from "./geminicli-rule.js";
 import { GooseRule } from "./goose-rule.js";
 import { GrokcliRule } from "./grokcli-rule.js";
 import { HermesagentRule } from "./hermesagent-rule.js";
@@ -292,17 +289,6 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     },
   ],
   [
-    "antigravity",
-    {
-      class: AntigravityRule,
-      meta: {
-        extension: "md",
-        supportsGlobal: false,
-        ruleDiscoveryMode: "auto",
-      },
-    },
-  ],
-  [
     "antigravity-cli",
     {
       class: AntigravityCliRule,
@@ -455,25 +441,11 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       meta: {
         // Factory Droid commands, subagents (custom droids), and skills are all
         // native now, so no simulated additionalConventions are needed (mirrors
-        // how native tools like geminicli are wired). Non-root rules are still
+        // how native tools like claudecode are wired). Non-root rules are still
         // referenced via TOON.
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
-      },
-    },
-  ],
-  [
-    "geminicli",
-    {
-      class: GeminiCliRule,
-      meta: {
-        extension: "md",
-        supportsGlobal: true,
-        ruleDiscoveryMode: "toon",
-        additionalConventions: {
-          subagents: { subagentClass: GeminiCliSubagent },
-        },
       },
     },
   ],
@@ -618,7 +590,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // to the non-root rules (mirrors how cursor/antigravity are wired).
         ruleDiscoveryMode: "auto",
         // Qwen Code subagents are native (Markdown + YAML frontmatter under
-        // `.qwen/agents/`), so this mirrors how geminicli is wired.
+        // `.qwen/agents/`), so this mirrors how claudecode is wired.
         additionalConventions: {
           subagents: { subagentClass: QwencodeSubagent },
         },
@@ -641,7 +613,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     {
       // Roo subagents are native now (aggregated into `.roomodes`), so no
       // simulated `additionalConventions.subagents` block is needed — mirrors
-      // how native subagent tools like geminicli are wired.
+      // how native subagent tools like claudecode are wired.
       //
       // Roo also reads user-scope rules from `~/.roo/rules/` (loaded before
       // workspace `.roo/rules/`), so global mode emits the same non-root

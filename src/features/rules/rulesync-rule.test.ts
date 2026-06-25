@@ -482,7 +482,7 @@ Claude Code-specific rule body`;
       const ruleContent = `---
 root: false
 targets:
-  - antigravity
+  - antigravity-ide
 description: Antigravity rule
 antigravity:
   trigger: "glob"

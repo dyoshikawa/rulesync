@@ -76,7 +76,6 @@ describe("gitignoreCommand", () => {
       expect(content).toContain("**/.clinerules/workflows/");
       expect(content).toContain("**/CLAUDE.md");
       expect(content).toContain("**/.opencode/agents/");
-      expect(content).toContain("**/.gemini/memories/");
       expect(content).toContain("**/.roo/rules/");
       expect(content).toContain("**/.kilo/skills/");
       expect(content).toContain("**/.kilo/rules/");
@@ -295,9 +294,9 @@ dist/`;
       expect(mockLogger.info).toHaveBeenCalledWith(
         "   You can add the following to .git/info/exclude instead:",
       );
-      expect(mockLogger.info).toHaveBeenCalledWith("   **/.agent/rules/");
-      expect(mockLogger.info).toHaveBeenCalledWith("   **/.agent/workflows/");
-      expect(mockLogger.info).toHaveBeenCalledWith("   **/.agent/skills/");
+      expect(mockLogger.info).toHaveBeenCalledWith("   **/.agents/rules/");
+      expect(mockLogger.info).toHaveBeenCalledWith("   **/.agents/workflows/");
+      expect(mockLogger.info).toHaveBeenCalledWith("   **/.agents/skills/");
       expect(mockLogger.info).toHaveBeenCalledWith(
         "   For more details: https://github.com/dyoshikawa/rulesync/issues/981",
       );

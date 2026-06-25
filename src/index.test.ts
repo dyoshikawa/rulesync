@@ -159,18 +159,6 @@ describe("generate", () => {
     );
   });
 
-  it("should accept the deprecated `baseDirs` alias and forward it to the resolver", async () => {
-    // The deprecated `baseDirs` alias is declared on `GenerateOptions` so TS
-    // callers can pass it without a compile error. The resolver itself is
-    // responsible for emitting the one-shot deprecation warning and mapping
-    // the value to `outputRoots`; here we only assert the value is forwarded.
-    await generate({ baseDirs: ["/legacy-a", "/legacy-b"] });
-
-    expect(ConfigResolver.resolve).toHaveBeenCalledWith(
-      expect.objectContaining({ baseDirs: ["/legacy-a", "/legacy-b"] }),
-    );
-  });
-
   it("should mention the input root path in the not-found error", async () => {
     const inputRootMock = "/some/input-root";
     vi.mocked(ConfigResolver.resolve).mockResolvedValue({
