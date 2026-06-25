@@ -42,8 +42,7 @@ export class HermesagentCommand extends ToolCommand {
   }
 
   constructor({ slug, ...params }: HermesagentCommandParams) {
-    const resolvedSlug =
-      slug ?? basename(dirname(params.relativeDirPath)) ?? commandSlug(params.relativeFilePath);
+    const resolvedSlug = slug ?? basename(dirname(params.relativeDirPath));
     super({
       ...params,
       ...HermesagentCommand.getSettablePaths({ slug: resolvedSlug }),

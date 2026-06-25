@@ -633,4 +633,40 @@ describe("E2E: hooks (global mode)", () => {
     const configContent = await readFileContent(join(homeDir, ".vibe", "config.toml"));
     expect(configContent).toContain("enable_experimental_hooks = true");
   });
+
+  it("should generate hermesagent hooks in home directory", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    // Hermes Agent has no project-scoped hooks location; hooks are merged under
+    // the `hooks.rulesync` key of the shared global ~/.hermes/config.yaml (YAML,
+    // global only).
+    const hooksContent = JSON.stringify(
+      {
+        version: 1,
+        root: true,
+        hooks: {
+          sessionStart: [{ type: "command", command: ".rulesync/hooks/session-start.sh" }],
+          stop: [{ command: ".rulesync/hooks/audit.sh" }],
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
+
+    await runGenerate({
+      target: "hermesagent",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // The config is YAML; assert the canonical hook command paths survive
+    // generation under the nested `hooks.rulesync` block.
+    const generatedContent = await readFileContent(join(homeDir, ".hermes", "config.yaml"));
+    expect(generatedContent).toContain("rulesync");
+    expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
+    expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+  });
 });
