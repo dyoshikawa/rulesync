@@ -60,7 +60,10 @@ export const SourceEntrySchema = z.object({
 export type SourceEntry = z.infer<typeof SourceEntrySchema>;
 
 export const ConfigParamsSchema = z.object({
-  outputRoots: z.array(z.string()),
+  outputRoots: z.union([
+    z.array(z.string()),
+    z.record(z.string(), z.union([z.string(), z.array(z.string())])),
+  ]),
   targets: RulesyncConfigTargetsSchema,
   features: RulesyncFeaturesSchema,
   verbose: z.boolean(),
@@ -100,7 +103,9 @@ export const ConfigParamsSchema = z.object({
 // `assertTargetsOrFeaturesProvided`. Programmatic callers constructing
 // `Config` directly must respect these invariants.
 type InferredConfigParams = z.infer<typeof ConfigParamsSchema>;
+export type OutputRoots = string[] | Partial<Record<ToolTarget, string | string[]>>;
 export type ConfigParams = Omit<InferredConfigParams, "targets" | "features"> & {
+  outputRoots: OutputRoots;
   targets?: RulesyncConfigTargets;
   features?: RulesyncFeatures;
   configFileTargets?: ToolTarget[];
@@ -109,6 +114,7 @@ export type ConfigParams = Omit<InferredConfigParams, "targets" | "features"> & 
 export const PartialConfigParamsSchema = z.partial(ConfigParamsSchema);
 type InferredPartialConfigParams = z.infer<typeof PartialConfigParamsSchema>;
 export type PartialConfigParams = Omit<InferredPartialConfigParams, "targets" | "features"> & {
+  outputRoots?: OutputRoots;
   targets?: RulesyncConfigTargets;
   features?: RulesyncFeatures;
 };
@@ -120,6 +126,7 @@ export const ConfigFileSchema = z.object({
 });
 type InferredConfigFile = z.infer<typeof ConfigFileSchema>;
 export type ConfigFile = Omit<InferredConfigFile, "targets" | "features"> & {
+  outputRoots?: OutputRoots;
   targets?: RulesyncConfigTargets;
   features?: RulesyncFeatures;
 };
@@ -127,6 +134,7 @@ export type ConfigFile = Omit<InferredConfigFile, "targets" | "features"> & {
 export const RequiredConfigParamsSchema = z.required(ConfigParamsSchema);
 type InferredRequiredConfigParams = z.infer<typeof RequiredConfigParamsSchema>;
 export type RequiredConfigParams = Omit<InferredRequiredConfigParams, "targets" | "features"> & {
+  outputRoots: OutputRoots;
   targets?: RulesyncConfigTargets;
   features?: RulesyncFeatures;
 };
@@ -208,7 +216,7 @@ const assertTargetsOrFeaturesProvided = ({
 };
 
 export class Config {
-  private readonly outputRoots: string[];
+  private readonly outputRoots: OutputRoots;
   private readonly targets: RulesyncConfigTargets;
   private readonly features: RulesyncFeatures;
   /**
@@ -275,6 +283,7 @@ export class Config {
     // Reject unknown keys in the object form of `targets`. Array-form values
     // are already validated at the Zod schema level.
     this.validateObjectFormTargetKeys(resolvedTargets);
+    this.validateObjectFormOutputRootKeys(outputRoots);
 
     // Validate conflicting targets (accepts array and object forms)
     this.validateConflictingTargets(resolvedTargets);
@@ -347,6 +356,18 @@ export class Config {
     }
   }
 
+  private validateObjectFormOutputRootKeys(outputRoots: OutputRoots): void {
+    if (Array.isArray(outputRoots)) return;
+    const validTargets = new Set<string>(ALL_TOOL_TARGETS);
+    for (const key of Object.keys(outputRoots)) {
+      if (!validTargets.has(key)) {
+        throw new Error(
+          `Unknown outputRoots target '${key}'. Valid targets: ${ALL_TOOL_TARGETS.join(", ")}.`,
+        );
+      }
+    }
+  }
+
   private validateConflictingTargets(targets: RulesyncConfigTargets): void {
     // Wildcard (*) doesn't include legacy targets, so conflicts can only
     // occur when both sides of a conflicting pair are explicitly present.
@@ -367,8 +388,25 @@ export class Config {
     }
   }
 
-  public getOutputRoots(): string[] {
-    return this.outputRoots;
+  public getOutputRoots(): string[];
+  public getOutputRoots(target: ToolTarget): string[];
+  public getOutputRoots(target?: ToolTarget): string[] {
+    if (Array.isArray(this.outputRoots)) {
+      return this.outputRoots;
+    }
+
+    if (target) {
+      const targetOutputRoots = this.outputRoots[target];
+      if (targetOutputRoots === undefined) return [];
+      return Array.isArray(targetOutputRoots) ? targetOutputRoots : [targetOutputRoots];
+    }
+
+    const allRoots: string[] = [];
+    for (const value of Object.values(this.outputRoots)) {
+      if (value === undefined) continue;
+      allRoots.push(...(Array.isArray(value) ? value : [value]));
+    }
+    return [...new Set(allRoots)];
   }
 
   /**
