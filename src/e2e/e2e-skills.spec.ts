@@ -432,6 +432,11 @@ describe("E2E: skills (global mode)", () => {
       target: "vibe",
       outputPath: join(".vibe", "skills", "test-skill", "SKILL.md"),
     },
+    {
+      // Hermes Agent reads skills from ~/.hermes/skills/ (global only).
+      target: "hermesagent",
+      outputPath: join(".hermes", "skills", "test-skill", "SKILL.md"),
+    },
   ])("should generate $target skills in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

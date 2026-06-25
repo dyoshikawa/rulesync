@@ -1603,6 +1603,54 @@ describe("E2E: permissions (global mode)", () => {
     // Unrelated user settings preserved by the non-destructive merge.
     expect(parsed.model).toBe("claude-sonnet");
   });
+
+  it("should generate hermesagent permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git status *": "allow", "rm -rf *": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    // Pre-seed config.yaml with unrelated user settings to verify the
+    // non-destructive merge into ~/.hermes/config.yaml.
+    await writeFileContent(
+      join(homeDir, ".hermes", "config.yaml"),
+      ["model: hermes-large", "terminal: tmux"].join("\n"),
+    );
+
+    await runGenerate({
+      target: "hermesagent",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // Hermes Agent has no project-scoped permissions location; permissions are
+    // merged into the shared global ~/.hermes/config.yaml. Allow rules are also
+    // surfaced as a flat `command_allowlist`, and the canonical map is preserved
+    // under `permissions.rulesync` for round-tripping.
+    const parsed = toTable(load(await readFileContent(join(homeDir, ".hermes", "config.yaml"))));
+    expect(parsed.command_allowlist).toEqual(["git status *"]);
+    const permissions = toTable(parsed.permissions);
+    const rulesyncProfile = toTable(permissions.rulesync);
+    const permissionMap = toTable(rulesyncProfile.permission);
+    const bash = toTable(permissionMap.bash);
+    expect(bash["git status *"]).toBe("allow");
+    expect(bash["rm -rf *"]).toBe("deny");
+    // Unrelated user settings preserved by the non-destructive merge.
+    expect(parsed.model).toBe("hermes-large");
+    expect(parsed.terminal).toBe("tmux");
+  });
 });
 
 type AugmentEntry = {

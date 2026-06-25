@@ -1,20 +1,18 @@
 import { join } from "node:path";
 
-import { dump, load } from "js-yaml";
-
 import {
+  HERMESAGENT_CONFIG_FILE_NAME,
   HERMESAGENT_GLOBAL_DIR,
-  HERMESAGENT_MCP_FILE_NAME,
 } from "../../constants/hermesagent-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import {
   omitPrototypePollutionKeys,
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
 import { isPlainObject, isRecord, isStringArray } from "../../utils/type-guards.js";
+import { parseHermesConfig, stringifyHermesConfig } from "../hermes-config.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -27,32 +25,6 @@ import {
 
 const HERMESAGENT_GLOBAL_ONLY_MESSAGE =
   "Hermes Agent MCP is global-only; use --global to sync ~/.hermes/config.yaml";
-
-function parseHermesConfig(
-  fileContent: string,
-  relativeDirPath: string,
-  relativeFilePath: string,
-): Record<string, unknown> {
-  const configPath = join(relativeDirPath, relativeFilePath);
-  let parsed: unknown;
-  try {
-    parsed = load(fileContent);
-  } catch (error) {
-    throw new Error(`Failed to parse Hermes config at ${configPath}: ${formatError(error)}`, {
-      cause: error,
-    });
-  }
-  // An empty config.yaml parses to undefined/null; treat it as an empty object.
-  if (parsed === undefined || parsed === null) {
-    return {};
-  }
-  // `isPlainObject` (not `isRecord`) rejects class instances for
-  // prototype-pollution hardening; a YAML mapping always parses to a plain object.
-  if (!isPlainObject(parsed)) {
-    throw new Error(`Failed to parse Hermes config at ${configPath}: expected a YAML mapping`);
-  }
-  return parsed;
-}
 
 /**
  * Resolves the canonical remote URL for a server (`url` or the `httpUrl` alias).
@@ -185,15 +157,7 @@ export class HermesagentMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    if (this.fileContent !== undefined) {
-      this.config = parseHermesConfig(
-        this.fileContent,
-        this.relativeDirPath,
-        this.relativeFilePath,
-      );
-    } else {
-      this.config = {};
-    }
+    this.config = this.fileContent !== undefined ? parseHermesConfig(this.fileContent) : {};
   }
 
   getConfig(): Record<string, unknown> {
@@ -205,7 +169,7 @@ export class HermesagentMcp extends ToolMcp {
   }
 
   override setFileContent(fileContent: string): void {
-    const config = parseHermesConfig(fileContent, this.relativeDirPath, this.relativeFilePath);
+    const config = parseHermesConfig(fileContent);
     const mcpServers = isRecord(this.config.mcp_servers) ? this.config.mcp_servers : {};
     const merged = mergeHermesMcpServers(
       config,
@@ -213,7 +177,7 @@ export class HermesagentMcp extends ToolMcp {
     );
 
     this.config = merged;
-    super.setFileContent(dump(merged));
+    super.setFileContent(stringifyHermesConfig(merged));
   }
 
   override isDeletable(): boolean {
@@ -225,7 +189,7 @@ export class HermesagentMcp extends ToolMcp {
   static getSettablePaths(_options?: { global?: boolean }): ToolMcpSettablePaths {
     return {
       relativeDirPath: HERMESAGENT_GLOBAL_DIR,
-      relativeFilePath: HERMESAGENT_MCP_FILE_NAME,
+      relativeFilePath: HERMESAGENT_CONFIG_FILE_NAME,
     };
   }
 
@@ -266,7 +230,7 @@ export class HermesagentMcp extends ToolMcp {
       join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       "",
     );
-    const config = parseHermesConfig(fileContent, paths.relativeDirPath, paths.relativeFilePath);
+    const config = parseHermesConfig(fileContent);
 
     // Merge the `mcp_servers:` block into the shared config, preserving other
     // keys (model, terminal, ...).
@@ -279,7 +243,7 @@ export class HermesagentMcp extends ToolMcp {
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: dump(merged),
+      fileContent: stringifyHermesConfig(merged),
       validate,
       global,
     });

@@ -145,7 +145,7 @@ async function processFeatureWithRulesyncFiles(params: {
   if (rulesyncFiles.length === 0) {
     return processEmptyFeatureGeneration({ config, processor, skipFilePaths });
   }
-  let toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+  const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
   return processFeatureGeneration({ config, processor, toolFiles, skipFilePaths });
 }
 

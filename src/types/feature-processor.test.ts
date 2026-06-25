@@ -23,6 +23,8 @@ function createMockFile(filePath: string): AiFile {
     getFilePath: () => filePath,
     getFileContent: () => "content",
     getRelativePathFromCwd: () => filePath,
+    // Declared on the AiFile base class; defaults to false for non-merging files.
+    shouldMergeExistingFileContent: () => false,
   } as AiFile;
 }
 

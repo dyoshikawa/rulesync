@@ -470,6 +470,13 @@ describe("E2E: subagents (global mode)", () => {
       target: "goose",
       outputPath: join(".config", "goose", "recipes", "subagents", "planner.yaml"),
     },
+    {
+      // Hermes Agent has no project-scoped subagent location; subagents are
+      // emitted as JSON specs under ~/.hermes/rulesync/subagents/<slug>.json,
+      // discovered by the generated rulesync-subagents plugin (global only).
+      target: "hermesagent",
+      outputPath: join(".hermes", "rulesync", "subagents", "planner.json"),
+    },
   ])("should generate $target subagents in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

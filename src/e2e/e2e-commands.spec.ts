@@ -213,6 +213,9 @@ describe("E2E: commands (global mode)", () => {
     { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
     { target: "goose", outputPath: join(".config", "goose", "recipes", "review-pr.yaml") },
     { target: "qwencode", outputPath: join(".qwen", "commands", "review-pr.md") },
+    // Hermes Agent has no project-scoped command location; commands are emitted
+    // as Hermes skills under ~/.hermes/skills/<slug>/SKILL.md (global only).
+    { target: "hermesagent", outputPath: join(".hermes", "skills", "review-pr", "SKILL.md") },
   ])("should generate $target commands in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

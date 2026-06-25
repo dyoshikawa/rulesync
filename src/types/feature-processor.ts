@@ -63,12 +63,7 @@ export abstract class FeatureProcessor {
       const filePath = aiFile.getFilePath();
       const existingFileContent = await readFileContentOrNull(filePath);
 
-      if (
-        existingFileContent !== null &&
-        "shouldMergeExistingFileContent" in aiFile &&
-        typeof aiFile.shouldMergeExistingFileContent === "function" &&
-        aiFile.shouldMergeExistingFileContent()
-      ) {
+      if (existingFileContent !== null && aiFile.shouldMergeExistingFileContent()) {
         aiFile.setFileContent(existingFileContent);
       }
 
