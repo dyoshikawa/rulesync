@@ -22,7 +22,6 @@ import { CursorSubagent } from "./cursor-subagent.js";
 import { DeepagentsSubagent } from "./deepagents-subagent.js";
 import { DevinSubagent } from "./devin-subagent.js";
 import { FactorydroidSubagent } from "./factorydroid-subagent.js";
-import { GeminiCliSubagent } from "./geminicli-subagent.js";
 import { GooseSubagent } from "./goose-subagent.js";
 import { GrokcliSubagent } from "./grokcli-subagent.js";
 import { HermesagentSubagent } from "./hermesagent-subagent.js";
@@ -221,13 +220,6 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // .factory/droids/ (project) and ~/.factory/droids/ (global).
       // https://docs.factory.ai/cli/configuration/custom-droids
       class: FactorydroidSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
-    },
-  ],
-  [
-    "geminicli",
-    {
-      class: GeminiCliSubagent,
       meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
     },
   ],

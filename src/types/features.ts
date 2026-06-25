@@ -1,7 +1,5 @@
 import { z } from "zod/mini";
 
-import type { ToolTarget } from "./tool-targets.js";
-
 export const ALL_FEATURES = [
   "rules",
   "ignore",
@@ -53,10 +51,7 @@ export const PerTargetFeaturesValueSchema = z.union([
   z.array(z.enum(ALL_FEATURES_WITH_WILDCARD)),
   PerFeatureConfigSchema,
 ]);
-export const RulesyncFeaturesSchema = z.union([
-  z.array(z.enum(ALL_FEATURES_WITH_WILDCARD)),
-  z.record(z.string(), PerTargetFeaturesValueSchema),
-]);
+export const RulesyncFeaturesSchema = z.array(z.enum(ALL_FEATURES_WITH_WILDCARD));
 
 // zod's `z.record(K, V)` infers `Record<K, V>` (non-partial), but at runtime
 // missing keys are perfectly valid. We surface that to TS by wrapping the
@@ -71,13 +66,7 @@ export type PerFeatureConfig = Partial<z.infer<typeof PerFeatureConfigSchema>>;
 // per-feature object form.
 export type PerTargetFeaturesValue = Array<FeatureWithWildcard> | PerFeatureConfig;
 
-// Per-target features configuration - maps target to its features.
-// Uses `ToolTarget` as key to enforce compile-time safety for target names.
-// The Zod schema infers `Record<string, ...>`, but this is overridden via
-// the `ConfigParams` type alias (see config.ts) so TS catches typos.
-export type PerTargetFeatures = Partial<Record<ToolTarget, PerTargetFeaturesValue>>;
-
-export type RulesyncFeatures = Array<FeatureWithWildcard> | PerTargetFeatures;
+export type RulesyncFeatures = Array<FeatureWithWildcard>;
 
 /**
  * Returns true if a per-feature value enables the feature.

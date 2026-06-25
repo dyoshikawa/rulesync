@@ -4,30 +4,7 @@ import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import type { Logger } from "../../utils/logger.js";
 import { calculateTotalCount } from "../../utils/result.js";
 
-export type GenerateOptions = ConfigResolverResolveParams & {
-  // Commander maps `--base-dir <paths>` to `baseDir` (camelCase, singular)
-  // while the resolver canonical field is `outputRoots` (plural). The CLI
-  // flag is a deprecated alias retained for backward compatibility — accept
-  // the CLI shape here and normalize at the command boundary, emitting a
-  // one-shot deprecation warning when it is used.
-  baseDir?: string[];
-};
-
-/**
- * Compares two output-root lists as sets — order-insensitive and
- * duplicate-insensitive. Used to decide whether `--base-dir` and
- * `--output-roots` actually differ. Identical sets like `["a", "b"]` vs
- * `["b", "a"]` should NOT trigger the override warning.
- */
-function sameDirSets(a: readonly string[], b: readonly string[]): boolean {
-  const aSet = new Set(a);
-  const bSet = new Set(b);
-  if (aSet.size !== bSet.size) return false;
-  for (const v of aSet) {
-    if (!bSet.has(v)) return false;
-  }
-  return true;
-}
+export type GenerateOptions = ConfigResolverResolveParams;
 
 /**
  * Log feature generation result with appropriate prefix based on dry run mode.
@@ -53,55 +30,6 @@ function logFeatureResult(
       logger.info(`    ${p}`);
     }
   }
-}
-
-/**
- * Resolve the effective output roots from the canonical `--output-roots` and
- * the deprecated `--base-dir` alias, emitting the relevant deprecation /
- * override warnings as a side effect. Returns the resolved output-root list.
- */
-function resolveOutputRoots({
-  logger,
-  baseDir,
-  outputRoots,
-}: {
-  logger: Logger;
-  baseDir: string[] | undefined;
-  outputRoots: string[] | undefined;
-}): string[] | undefined {
-  // The deprecated `--base-dir` CLI flag is accepted as an alias of
-  // `--output-roots`. Emit a deprecation warning whenever it is used so the
-  // user sees a clear migration prompt at the call site. When both are
-  // supplied with non-empty, differing values, prefer `--output-roots` but
-  // also surface the override to the user. Identical (set-equal, order-
-  // insensitive) or empty inputs are silently merged.
-  if (baseDir !== undefined) {
-    logger.warn(
-      "--base-dir is deprecated; use --output-roots instead. " +
-        "It will be removed in a future major release.",
-    );
-  }
-  // Treat `outputRoots: []` as "not provided" so a programmatic caller
-  // passing an empty array does not silently win over a non-empty `baseDir`.
-  // Without this, `outputRoots ?? baseDir` would resolve to `[]` and override
-  // the deprecated alias even when the alias carried real values.
-  const outputRootsResolved =
-    outputRoots !== undefined && outputRoots.length > 0 ? outputRoots : baseDir;
-  if (
-    baseDir !== undefined &&
-    outputRoots !== undefined &&
-    baseDir.length > 0 &&
-    outputRoots.length > 0 &&
-    !sameDirSets(outputRoots, baseDir)
-  ) {
-    logger.warn(
-      `Both '--output-roots' and '--base-dir' were provided with differing ` +
-        `values; using '--output-roots' (${JSON.stringify(outputRoots)}) and ` +
-        `ignoring '--base-dir' (${JSON.stringify(baseDir)}).`,
-    );
-  }
-
-  return outputRootsResolved;
 }
 
 const FEATURE_DEBUG_MESSAGES: Record<string, string> = {
@@ -159,14 +87,7 @@ function buildSummaryParts(result: GenerateResult): string[] {
 }
 
 export async function generateCommand(logger: Logger, options: GenerateOptions): Promise<void> {
-  const { baseDir, outputRoots, ...rest } = options;
-
-  const outputRootsResolved = resolveOutputRoots({ logger, baseDir, outputRoots });
-
-  const config = await ConfigResolver.resolve(
-    { ...rest, outputRoots: outputRootsResolved },
-    { logger },
-  );
+  const config = await ConfigResolver.resolve(options, { logger });
 
   const check = config.getCheck();
 

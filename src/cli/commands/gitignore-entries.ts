@@ -1,4 +1,3 @@
-import { GITIGNORE_DESTINATION_KEY } from "../../config/config.js";
 import {
   CLAUDECODE_DIR,
   CLAUDECODE_LOCAL_RULE_FILE_NAME,
@@ -9,10 +8,9 @@ import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rules
 import {
   ALL_FEATURES_WITH_WILDCARD,
   type Feature,
-  isFeatureValueEnabled,
   type RulesyncFeatures,
 } from "../../types/features.js";
-import { ALL_TOOL_TARGETS_WITH_WILDCARD, type ToolTarget } from "../../types/tool-targets.js";
+import { ALL_TOOL_TARGETS_WITH_WILDCARD } from "../../types/tool-targets.js";
 import type { Logger } from "../../utils/logger.js";
 import {
   deriveAllGitignoreEntries,
@@ -156,46 +154,15 @@ const getSelectedGitignoreEntryTargets = (
   return targets.filter((candidate) => selectedTargets.includes(candidate));
 };
 
-const isFeatureSelectedForTarget = (
+const isFeatureSelected = (
   feature: Feature | "general",
-  target: ToolTarget | "common",
   features: RulesyncFeatures | undefined,
 ): boolean => {
   if (feature === "general") return true;
   if (!features) return true;
-
-  if (Array.isArray(features)) {
-    if (features.length === 0) return true;
-    if (features.includes("*")) return true;
-    return features.includes(feature);
-  }
-
-  // Object format: per-target features
-  // NOTE: Unlike Config.getFeatures(target) which returns [] for missing keys,
-  // gitignore intentionally treats missing keys as "no restriction" (include all features).
-  // This is because gitignore filtering is additive — users specify which targets to restrict,
-  // and unmentioned targets should default to including all their entries.
-  if (target === "common") return true;
-  const targetFeatures = features[target];
-  if (!targetFeatures) return true;
-  if (Array.isArray(targetFeatures)) {
-    if (targetFeatures.includes("*")) return true;
-    return targetFeatures.includes(feature);
-  }
-  // Per-feature object form: feature is enabled when its value is truthy
-  // (true or an options object). A wildcard "*" key enables all features.
-  if (isFeatureValueEnabled(targetFeatures["*"])) return true;
-  return isFeatureValueEnabled(targetFeatures[feature]);
-};
-
-const isFeatureSelected = (
-  feature: Feature | "general",
-  target: GitignoreEntryTag["target"],
-  features: RulesyncFeatures | undefined,
-): boolean => {
-  return normalizeGitignoreEntryTargets(target).some((candidate) =>
-    isFeatureSelectedForTarget(feature, candidate, features),
-  );
+  if (features.length === 0) return true;
+  if (features.includes("*")) return true;
+  return features.includes(feature);
 };
 
 const warnInvalidTargets = (targets: ReadonlyArray<string>, logger?: Logger): void => {
@@ -212,31 +179,12 @@ const warnInvalidTargets = (targets: ReadonlyArray<string>, logger?: Logger): vo
 const warnInvalidFeatures = (features: RulesyncFeatures, logger?: Logger): void => {
   const validFeatures = new Set<string>(ALL_FEATURES_WITH_WILDCARD);
   const warned = new Set<string>();
-  const warnOnce = (feature: string): void => {
+  for (const feature of features) {
     if (!validFeatures.has(feature) && !warned.has(feature)) {
       warned.add(feature);
       logger?.warn(
         `Unknown feature '${feature}'. Valid features: ${ALL_FEATURES_WITH_WILDCARD.join(", ")}`,
       );
-    }
-  };
-  if (Array.isArray(features)) {
-    for (const feature of features) {
-      warnOnce(feature);
-    }
-  } else {
-    for (const targetFeatures of Object.values(features)) {
-      if (!targetFeatures) continue;
-      if (Array.isArray(targetFeatures)) {
-        for (const feature of targetFeatures) {
-          warnOnce(feature);
-        }
-      } else {
-        for (const feature of Object.keys(targetFeatures)) {
-          if (feature === GITIGNORE_DESTINATION_KEY) continue;
-          warnOnce(feature);
-        }
-      }
     }
   }
 };
@@ -265,7 +213,7 @@ export const resolveGitignoreEntries = (
   for (const tag of GITIGNORE_ENTRY_REGISTRY) {
     if (!isTargetSelected(tag.target, targets)) continue;
     const selectedTagTargets = getSelectedGitignoreEntryTargets(tag.target, targets);
-    if (!isFeatureSelected(tag.feature, selectedTagTargets, features)) continue;
+    if (!isFeatureSelected(tag.feature, features)) continue;
     if (seen.has(tag.entry)) continue;
     seen.add(tag.entry);
     result.push({

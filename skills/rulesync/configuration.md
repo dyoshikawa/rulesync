@@ -25,23 +25,14 @@ Example:
   "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
 
   // List of tools to generate configurations for. You can specify "*" to generate all tools.
-  "targets": ["cursor", "claudecode", "geminicli", "opencode", "codexcli"],
+  "targets": ["cursor", "claudecode", "opencode", "codexcli"],
 
   // Features to generate. You can specify "*" to generate all features.
   "features": ["rules", "ignore", "mcp", "commands", "subagents", "hooks"],
 
-  // Alternatively, you can use object format to specify features per target:
-  // "features": {
-  //   "claudecode": ["rules", "commands"],
-  //   "cursor": ["rules", "mcp"],
-  // },
-
   // Output root directories to generate files into.
   // Basically, you can specify `["."]` only.
   // However, for example, if your project is a monorepo and you have to launch the AI agent at each package directory, you can specify multiple output roots.
-  //
-  // The legacy field name `baseDirs` is still accepted as a deprecated alias
-  // and will be removed in a future major release. Migrate to `outputRoots`.
   "outputRoots": ["."],
 
   // Delete existing files before generating
@@ -160,39 +151,6 @@ Priority is **more specific wins**:
 2. tool level
 3. root level
 4. default (`"gitignore"`)
-
-### Deprecated: object form under `features`
-
-Earlier versions of Rulesync accepted per-target configuration under the
-top-level `features` field, paired with a `targets` array. That form is
-still parsed for backward compatibility but emits a deprecation warning;
-new configs should use the `targets` object form shown above.
-
-> **⚠️ Breaking change in v8.0.0:** mixing `targets` (array) with
-> `features` (object) is no longer accepted — the config loader throws.
-> If your config previously looked like
-> `targets: ["claudecode"], features: { claudecode: {...} }`, migrate to
-> the `targets` object form (recommended) or drop the `targets` array and
-> keep only the `features` object (deprecated path). The migration is
-> mechanical — see the example below.
-
-```jsonc
-// ⚠️  Deprecated — still works, logs a warning
-{
-  "features": {
-    "claudecode": { "rules": true, "ignore": { "fileMode": "local" } },
-  },
-}
-```
-
-To silence the deprecation warning (for example, in CI pipelines that
-intentionally run on the deprecated form until the migration is scheduled),
-set the `RULESYNC_SILENT_DEPRECATION` environment variable to any truthy
-value:
-
-```bash
-RULESYNC_SILENT_DEPRECATION=1 npx rulesync generate
-```
 
 The current per-feature options are:
 

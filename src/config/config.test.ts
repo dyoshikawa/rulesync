@@ -1,11 +1,10 @@
 import { isAbsolute, resolve } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { ALL_FEATURES } from "../types/features.js";
 import { ALL_TOOL_TARGETS } from "../types/tool-targets.js";
 import { assertTargetsFeaturesExclusive, Config, type ConfigParams } from "./config.js";
-import { resetDeprecationWarningForTests } from "./deprecation-warnings.js";
 
 describe("Config", () => {
   const defaultConfig: ConfigParams = {
@@ -89,7 +88,7 @@ describe("Config", () => {
       const targets = config.getTargets();
 
       const expectedTargets = ALL_TOOL_TARGETS.filter(
-        (t) => t !== "claudecode-legacy" && t !== "augmentcode-legacy" && t !== "antigravity",
+        (t) => t !== "claudecode-legacy" && t !== "augmentcode-legacy",
       );
 
       expect(targets).toEqual(expectedTargets);
@@ -131,210 +130,6 @@ describe("Config", () => {
     it("should default to false when silent is not specified", () => {
       const config = createConfig({});
       expect(config.getSilent()).toBe(false);
-    });
-  });
-
-  describe("per-target features configuration", () => {
-    it("should return all features when using array format with wildcard", () => {
-      const config = createConfig({ features: ["*"] });
-      const features = config.getFeatures();
-
-      expect(features).toContain("rules");
-      expect(features).toContain("ignore");
-      expect(features).toContain("mcp");
-      expect(features).toContain("commands");
-      expect(features).toContain("subagents");
-      expect(features).toContain("skills");
-      expect(features).toContain("hooks");
-    });
-
-    it("should return target-specific features when using object format", () => {
-      const config = createConfig({
-        features: {
-          copilot: ["commands"],
-          agentsmd: ["rules", "mcp"],
-        },
-      });
-
-      expect(config.getFeatures("copilot")).toEqual(["commands"]);
-      expect(config.getFeatures("agentsmd")).toEqual(["rules", "mcp"]);
-    });
-
-    it("should return empty array for target not in per-target features", () => {
-      const config = createConfig({
-        features: {
-          copilot: ["commands"],
-        },
-      });
-
-      expect(config.getFeatures("cursor")).toEqual([]);
-    });
-
-    it("should handle wildcard in per-target features", () => {
-      const config = createConfig({
-        features: {
-          copilot: ["*"],
-          agentsmd: ["rules"],
-        },
-      });
-
-      const copilotFeatures = config.getFeatures("copilot");
-      expect(copilotFeatures).toContain("rules");
-      expect(copilotFeatures).toContain("ignore");
-      expect(copilotFeatures).toContain("mcp");
-      expect(copilotFeatures).toContain("commands");
-      expect(copilotFeatures).toContain("subagents");
-      expect(copilotFeatures).toContain("skills");
-      expect(copilotFeatures).toContain("hooks");
-
-      expect(config.getFeatures("agentsmd")).toEqual(["rules"]);
-    });
-
-    it("should collect all unique features when calling getFeatures() without target in object mode", () => {
-      const config = createConfig({
-        features: {
-          copilot: ["commands", "rules"],
-          agentsmd: ["rules", "mcp"],
-        },
-      });
-
-      const features = config.getFeatures();
-      expect(features).toContain("commands");
-      expect(features).toContain("rules");
-      expect(features).toContain("mcp");
-      expect(features).not.toContain("*");
-    });
-
-    it("should return all features when per-target has wildcard and getFeatures() is called without target", () => {
-      const config = createConfig({
-        features: {
-          copilot: ["commands"],
-          agentsmd: ["*"],
-        },
-      });
-
-      const features = config.getFeatures();
-      expect(features).toContain("rules");
-      expect(features).toContain("ignore");
-      expect(features).toContain("mcp");
-      expect(features).toContain("commands");
-      expect(features).toContain("subagents");
-      expect(features).toContain("skills");
-      expect(features).toContain("hooks");
-    });
-
-    it("should correctly identify per-target features configuration", () => {
-      const arrayConfig = createConfig({ features: ["rules", "commands"] });
-      expect(arrayConfig.hasPerTargetFeatures()).toBe(false);
-
-      const objectConfig = createConfig({
-        features: {
-          copilot: ["commands"],
-        },
-      });
-      expect(objectConfig.hasPerTargetFeatures()).toBe(true);
-    });
-  });
-
-  describe("per-feature options object form", () => {
-    it("should treat truthy per-feature values as enabled features", () => {
-      const config = createConfig({
-        features: {
-          claudecode: {
-            rules: true,
-            ignore: { fileMode: "local" },
-            mcp: false,
-          },
-        },
-      });
-
-      const features = config.getFeatures("claudecode");
-      expect(features).toContain("rules");
-      expect(features).toContain("ignore");
-      expect(features).not.toContain("mcp");
-    });
-
-    it("should expose per-feature options via getFeatureOptions", () => {
-      const config = createConfig({
-        features: {
-          claudecode: {
-            ignore: { fileMode: "local" },
-          },
-        },
-      });
-
-      expect(config.getFeatureOptions("claudecode", "ignore")).toEqual({
-        fileMode: "local",
-      });
-    });
-
-    it("should return undefined for getFeatureOptions when feature is enabled with bare boolean", () => {
-      const config = createConfig({
-        features: {
-          claudecode: { ignore: true },
-        },
-      });
-
-      expect(config.getFeatureOptions("claudecode", "ignore")).toBeUndefined();
-    });
-
-    it("should return undefined for getFeatureOptions when features is array form", () => {
-      const config = createConfig({
-        targets: ["claudecode"],
-        features: ["ignore"],
-      });
-
-      expect(config.getFeatureOptions("claudecode", "ignore")).toBeUndefined();
-    });
-
-    it("should expand wildcard inside per-feature object form", () => {
-      const config = createConfig({
-        features: {
-          claudecode: { "*": true },
-        },
-      });
-
-      const features = config.getFeatures("claudecode");
-      expect(features).toContain("rules");
-      expect(features).toContain("ignore");
-      expect(features).toContain("mcp");
-      expect(features).toContain("commands");
-      expect(features).toContain("subagents");
-      expect(features).toContain("skills");
-      expect(features).toContain("hooks");
-      expect(features).toContain("permissions");
-      expect(features).toHaveLength(ALL_FEATURES.length);
-    });
-
-    it("should return undefined for getFeatureOptions when wildcard enables all features", () => {
-      const config = createConfig({
-        features: {
-          claudecode: { "*": true },
-        },
-      });
-
-      // Wildcard `true` is a boolean, not an options object, so individual
-      // features should not inherit options from it.
-      expect(config.getFeatureOptions("claudecode", "ignore")).toBeUndefined();
-      expect(config.getFeatureOptions("claudecode", "rules")).toBeUndefined();
-    });
-
-    it("should return specific options even when wildcard is also present", () => {
-      const config = createConfig({
-        features: {
-          claudecode: {
-            "*": true,
-            ignore: { fileMode: "local" },
-          },
-        },
-      });
-
-      // Explicitly provided options should still be returned
-      expect(config.getFeatureOptions("claudecode", "ignore")).toEqual({
-        fileMode: "local",
-      });
-      // Other features enabled via wildcard have no options
-      expect(config.getFeatureOptions("claudecode", "rules")).toBeUndefined();
     });
   });
 
@@ -492,7 +287,6 @@ describe("Config", () => {
         targets: { claudecode: ["rules"] },
       });
       expect(config.hasPerTargetFeatures()).toBe(true);
-      expect(config.hasDeprecatedFeaturesObjectForm()).toBe(false);
     });
 
     it("should detect conflicting targets within the object form keys", () => {
@@ -549,36 +343,10 @@ describe("Config", () => {
       ).toThrow(/when 'targets' is in object form, 'features' must be omitted/);
     });
 
-    it("rejects object-form targets combined with object-form features", () => {
-      expect(() =>
-        assertTargetsFeaturesExclusive({
-          targets: { claudecode: ["rules"] },
-          features: { claudecode: ["rules"] },
-        }),
-      ).toThrow(/when 'targets' is in object form, 'features' must be omitted/);
-    });
-
-    it("rejects object-form features combined with array-form targets", () => {
-      expect(() =>
-        assertTargetsFeaturesExclusive({
-          targets: ["claudecode"],
-          features: { claudecode: ["rules"] },
-        }),
-      ).toThrow(/when 'features' is in object form, 'targets' must be omitted/);
-    });
-
     it("accepts object-form targets alone", () => {
       expect(() =>
         assertTargetsFeaturesExclusive({
           targets: { claudecode: ["rules"] },
-        }),
-      ).not.toThrow();
-    });
-
-    it("accepts object-form features alone (still supported, deprecated)", () => {
-      expect(() =>
-        assertTargetsFeaturesExclusive({
-          features: { claudecode: ["rules"] },
         }),
       ).not.toThrow();
     });
@@ -645,59 +413,6 @@ describe("Config", () => {
       const parent = resolve(originalCwd, "..");
       process.chdir(parent);
       expect(config.getInputRoot()).toBe(expected);
-    });
-  });
-
-  describe("getBaseDirs (deprecated alias for getOutputRoots)", () => {
-    let warnSpy: ReturnType<typeof vi.spyOn>;
-
-    beforeEach(() => {
-      resetDeprecationWarningForTests();
-      warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    });
-
-    afterEach(() => {
-      warnSpy.mockRestore();
-      delete process.env.RULESYNC_SILENT_DEPRECATION;
-    });
-
-    it("returns the same array as getOutputRoots()", () => {
-      const config = createConfig({ outputRoots: ["./out-a", "./out-b"] });
-      expect(config.getBaseDirs()).toEqual(config.getOutputRoots());
-      expect(config.getBaseDirs()).toEqual(["./out-a", "./out-b"]);
-    });
-
-    it("emits the deprecation warning the first time it is called per process", () => {
-      const config = createConfig({ outputRoots: ["./out"] });
-      config.getBaseDirs();
-      config.getBaseDirs();
-      config.getBaseDirs();
-
-      const deprecationCalls = warnSpy.mock.calls.filter((call: unknown[]) =>
-        String(call[0]).includes("DEPRECATED: Config.getBaseDirs()"),
-      );
-      expect(deprecationCalls).toHaveLength(1);
-    });
-
-    it("does not emit the warning when getOutputRoots() is called instead", () => {
-      const config = createConfig({ outputRoots: ["./out"] });
-      config.getOutputRoots();
-
-      const deprecationCalls = warnSpy.mock.calls.filter((call: unknown[]) =>
-        String(call[0]).includes("DEPRECATED: Config.getBaseDirs()"),
-      );
-      expect(deprecationCalls).toHaveLength(0);
-    });
-
-    it("suppresses the warning when RULESYNC_SILENT_DEPRECATION is set", () => {
-      process.env.RULESYNC_SILENT_DEPRECATION = "1";
-      const config = createConfig({ outputRoots: ["./out"] });
-      config.getBaseDirs();
-
-      const deprecationCalls = warnSpy.mock.calls.filter((call: unknown[]) =>
-        String(call[0]).includes("DEPRECATED: Config.getBaseDirs()"),
-      );
-      expect(deprecationCalls).toHaveLength(0);
     });
   });
 });

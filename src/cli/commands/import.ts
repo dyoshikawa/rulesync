@@ -12,14 +12,9 @@ import { calculateTotalCount } from "../../utils/result.js";
 // still see the warning because `ConfigResolver.resolve` reads `configByFile`
 // regardless of this `Omit`. That residual warning is actionable — it tells
 // the user their config-file `inputRoot` is being ignored during `import`.
-//
-// The deprecated `baseDirs` programmatic alias is also excluded so that the
-// CLI's import options never expose a deprecated field — `outputRoots` is the
-// only canonical name imports were ever supposed to omit, and `baseDirs` is
-// exclusively a backwards-compat input on the resolver boundary.
 export type ImportOptions = Omit<
   ConfigResolverResolveParams,
-  "delete" | "outputRoots" | "baseDirs" | "inputRoot"
+  "delete" | "outputRoots" | "inputRoot"
 >;
 
 export async function importCommand(logger: Logger, options: ImportOptions): Promise<void> {

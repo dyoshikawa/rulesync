@@ -40,10 +40,6 @@ describe("E2E: skills", () => {
       outputPath: join(".goose", "skills", "test-skill", "SKILL.md"),
     },
     {
-      target: "geminicli",
-      outputPath: join(".gemini", "skills", "test-skill", "SKILL.md"),
-    },
-    {
       target: "qwencode",
       outputPath: join(".qwen", "skills", "test-skill", "SKILL.md"),
     },
@@ -193,7 +189,6 @@ This is the test skill body content.
     { target: "claudecode", orphanPath: join(".claude", "skills", "orphan-skill", "SKILL.md") },
     { target: "cursor", orphanPath: join(".cursor", "skills", "orphan-skill", "SKILL.md") },
     { target: "codexcli", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
-    { target: "geminicli", orphanPath: join(".gemini", "skills", "orphan-skill", "SKILL.md") },
     { target: "copilot", orphanPath: join(".github", "skills", "orphan-skill", "SKILL.md") },
     { target: "deepagents", orphanPath: join(".deepagents", "skills", "orphan-skill", "SKILL.md") },
     { target: "cline", orphanPath: join(".cline", "skills", "orphan-skill", "SKILL.md") },
@@ -255,7 +250,6 @@ describe("E2E: skills (import)", () => {
     { target: "claudecode", sourcePath: join(".claude", "skills", "test-skill", "SKILL.md") },
     { target: "cursor", sourcePath: join(".cursor", "skills", "test-skill", "SKILL.md") },
     { target: "codexcli", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
-    { target: "geminicli", sourcePath: join(".gemini", "skills", "test-skill", "SKILL.md") },
     { target: "copilot", sourcePath: join(".github", "skills", "test-skill", "SKILL.md") },
     { target: "opencode", sourcePath: join(".opencode", "skill", "test-skill", "SKILL.md") },
     { target: "deepagents", sourcePath: join(".deepagents", "skills", "test-skill", "SKILL.md") },
@@ -359,10 +353,6 @@ describe("E2E: skills (global mode)", () => {
     {
       target: "grokcli",
       outputPath: join(".grok", "skills", "test-skill", "SKILL.md"),
-    },
-    {
-      target: "geminicli",
-      outputPath: join(".gemini", "skills", "test-skill", "SKILL.md"),
     },
     {
       target: "qwencode",
@@ -550,10 +540,6 @@ This is the scheduled task body content.
     {
       target: "cursor",
       excludedPath: join(".cursor", "skills", "weekly-review", "SKILL.md"),
-    },
-    {
-      target: "geminicli",
-      excludedPath: join(".gemini", "skills", "weekly-review", "SKILL.md"),
     },
     {
       target: "copilot",

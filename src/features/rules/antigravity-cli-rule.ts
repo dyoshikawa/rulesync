@@ -33,7 +33,7 @@ export type AntigravityCliRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  *
  * The CLI reads the same plain-markdown context files as Gemini CLI — a root
  * context file plus non-root memory files in `.agents/rules/` — so this class
- * mirrors {@link GeminiCliRule} but points at the new `.agents/` tree.
+ * follows that same plain-markdown approach but points at the new `.agents/` tree.
  *
  * - Project scope: root `AGENTS.md` (the cross-tool standard, matching
  *   `antigravity-ide`); non-root `.agents/rules/*.md`.

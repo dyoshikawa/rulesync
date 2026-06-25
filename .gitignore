@@ -213,9 +213,6 @@ config-schema.json
 permissions-schema.json
 mcp-schema.json
 
-**/.agent/rules/
-**/.agent/skills/
-**/.agent/workflows/
 **/.playwright/
 **/.playwright-cli/
 docs/.vitepress/dist
@@ -260,8 +257,6 @@ rulesync.local.jsonc
 **/.cursor/rules/
 **/.deepagents/AGENTS.md
 **/.factory/rules/
-**/GEMINI.md
-**/.gemini/memories/
 **/.goosehints
 **/.hermes.md
 **/.junie/AGENTS.md
@@ -287,7 +282,6 @@ rulesync.local.jsonc
 **/.github/prompts/
 **/.cursor/commands/
 **/.factory/commands/
-**/.gemini/commands/
 **/.goose/recipes/
 **/.junie/commands/
 **/.kilo/commands/
@@ -305,7 +299,6 @@ rulesync.local.jsonc
 **/.cursor/skills/
 **/.deepagents/skills/
 **/.factory/skills/
-**/.gemini/skills/
 **/.goose/skills/
 **/.grok/skills/
 **/.junie/skills/
@@ -330,7 +323,6 @@ rulesync.local.jsonc
 **/.deepagents/agents/
 **/.devin/agents/
 **/.factory/droids/
-**/.gemini/agents/
 **/.goose/recipes/subagents/
 **/.hermes/rulesync/subagents/
 **/.grok/agents/
@@ -374,7 +366,6 @@ rulesync.local.jsonc
 **/.vibe/hooks.toml
 **/.cline/command-permissions.json
 **/.cursor/cli.json
-**/.gemini/policies/rulesync.toml
 **/.aiignore
 **/.geminiignore
 **/.augmentignore

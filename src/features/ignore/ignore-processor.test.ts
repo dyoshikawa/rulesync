@@ -14,7 +14,6 @@ import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
 import { CursorIgnore } from "./cursor-ignore.js";
 import { DevinIgnore } from "./devin-ignore.js";
-import { GeminiCliIgnore } from "./geminicli-ignore.js";
 import { IgnoreProcessor } from "./ignore-processor.js";
 import { JunieIgnore } from "./junie-ignore.js";
 import { KiroIgnore } from "./kiro-ignore.js";
@@ -83,7 +82,6 @@ describe("IgnoreProcessor", () => {
         "claudecode-legacy",
         "cline",
         "cursor",
-        "geminicli",
         "junie",
         "kiro",
         "qwencode",
@@ -220,20 +218,6 @@ describe("IgnoreProcessor", () => {
       expect(ignores[0]).toBeInstanceOf(CursorIgnore);
     });
 
-    it("should load GeminiCliIgnore for geminicli target", async () => {
-      await writeFileContent(join(testDir, ".geminiignore"), "*.log\nnode_modules/");
-
-      const processor = new IgnoreProcessor({
-        logger,
-        outputRoot: testDir,
-        toolTarget: "geminicli",
-      });
-
-      const ignores = await processor.loadToolIgnores();
-      expect(ignores).toHaveLength(1);
-      expect(ignores[0]).toBeInstanceOf(GeminiCliIgnore);
-    });
-
     it("should load JunieIgnore for junie target", async () => {
       await writeFileContent(join(testDir, ".aiignore"), "*.log\nnode_modules/");
 
@@ -320,7 +304,6 @@ describe("IgnoreProcessor", () => {
         "augmentcode",
         "cline",
         "cursor",
-        "geminicli",
         "junie",
         "kiro",
         "qwencode",
@@ -435,7 +418,6 @@ describe("IgnoreProcessor", () => {
         "claudecode-legacy",
         "cline",
         "cursor",
-        "geminicli",
         "goose",
         "junie",
         "kilo",

@@ -20,7 +20,6 @@ const logger = createMockLogger();
 // lands in the user-owned `.amp/settings.{json,jsonc}`, which is not gitignored.
 const TARGETS_WITHOUT_GITIGNORE_ENTRIES = new Set([
   "agentsskills",
-  "antigravity",
   "augmentcode-legacy",
   "claudecode-legacy",
 ]);
@@ -201,7 +200,7 @@ describe("filterGitignoreEntries", () => {
       // non-root rules under .agents/rules/.
       expect(result).toContain("**/AGENTS.md");
       expect(result).toContain("**/.agents/rules/");
-      // GEMINI.md (a geminicli-only entry) must NOT be included for this target.
+      // GEMINI.md must NOT be included for this target.
       expect(result).not.toContain("**/GEMINI.md");
     });
 
@@ -212,7 +211,7 @@ describe("filterGitignoreEntries", () => {
       // antigravity-ide), not GEMINI.md, plus non-root rules under .agents/rules/.
       expect(result).toContain("**/AGENTS.md");
       expect(result).toContain("**/.agents/rules/");
-      // The project root is no longer GEMINI.md (that is a geminicli-only entry).
+      // The project root is AGENTS.md, not GEMINI.md.
       expect(result).not.toContain("**/GEMINI.md");
     });
 
@@ -303,124 +302,6 @@ describe("filterGitignoreEntries", () => {
     });
   });
 
-  describe("features as object format (per-target)", () => {
-    it("should apply per-target feature filtering", () => {
-      const result = filterGitignoreEntries({
-        features: {
-          claudecode: ["rules"],
-          copilot: ["commands"],
-        },
-      });
-
-      // claudecode rules
-      expect(result).toContain("**/CLAUDE.md");
-      expect(result).toContain("**/.claude/rules/");
-
-      // copilot commands
-      expect(result).toContain("**/.github/prompts/");
-
-      // Shared copilot/copilotcli rule entries stay included because copilotcli
-      // is not restricted in this per-target feature map.
-      expect(result).toContain("**/.github/copilot-instructions.md");
-
-      // claudecode commands should NOT be included
-      expect(result).not.toContain("**/.claude/commands/");
-
-      // Targets not in the object should include all features
-      expect(result).toContain("**/.cursor/rules/");
-      expect(result).toContain("**/.cursorignore");
-    });
-
-    it("should support wildcard in per-target features", () => {
-      const result = filterGitignoreEntries({
-        features: {
-          claudecode: ["*"],
-          copilot: ["rules"],
-        },
-      });
-
-      // claudecode all features
-      expect(result).toContain("**/CLAUDE.md");
-      expect(result).toContain("**/.claude/commands/");
-      expect(result).toContain("**/.mcp.json");
-
-      // copilot rules only
-      expect(result).toContain("**/.github/copilot-instructions.md");
-      expect(result).not.toContain("**/.github/prompts/");
-    });
-
-    it("should combine with target filtering", () => {
-      const result = filterGitignoreEntries({
-        targets: ["claudecode", "copilot"],
-        features: {
-          claudecode: ["rules"],
-          copilot: ["commands"],
-        },
-      });
-
-      expect(result).toContain("**/CLAUDE.md");
-      expect(result).not.toContain("**/.claude/commands/");
-      expect(result).toContain("**/.github/prompts/");
-      expect(result).not.toContain("**/.github/copilot-instructions.md");
-      expect(result).not.toContain("**/.cursor/");
-    });
-
-    it("should include shared entries when copilotcli enables matching features", () => {
-      const result = filterGitignoreEntries({
-        features: {
-          copilot: ["commands"],
-          copilotcli: ["rules"],
-        },
-      });
-
-      expect(result).toContain("**/.github/copilot-instructions.md");
-      expect(result).toContain("**/.github/instructions/");
-      expect(result).toContain("**/.github/prompts/");
-    });
-  });
-
-  describe("features as per-feature object format (per-target)", () => {
-    it("should apply per-feature object form filtering", () => {
-      const result = filterGitignoreEntries({
-        features: {
-          claudecode: {
-            rules: true,
-            mcp: { someOption: true },
-            commands: false,
-          },
-        },
-      });
-
-      // claudecode rules enabled (boolean true)
-      expect(result).toContain("**/CLAUDE.md");
-      expect(result).toContain("**/.claude/rules/");
-
-      // claudecode mcp enabled (via options object)
-      expect(result).toContain("**/.mcp.json");
-
-      // claudecode commands disabled (boolean false)
-      expect(result).not.toContain("**/.claude/commands/");
-    });
-
-    it("should support wildcard in per-feature object form", () => {
-      const result = filterGitignoreEntries({
-        features: {
-          claudecode: { "*": true },
-          copilot: { rules: true },
-        },
-      });
-
-      // claudecode all features
-      expect(result).toContain("**/CLAUDE.md");
-      expect(result).toContain("**/.claude/commands/");
-      expect(result).toContain("**/.mcp.json");
-
-      // copilot rules only
-      expect(result).toContain("**/.github/copilot-instructions.md");
-      expect(result).not.toContain("**/.github/prompts/");
-    });
-  });
-
   describe("validation warnings", () => {
     let warnSpy: ReturnType<typeof vi.spyOn>;
 
@@ -458,44 +339,9 @@ describe("filterGitignoreEntries", () => {
       );
     });
 
-    it("should warn when an invalid feature is provided (object format)", () => {
-      filterGitignoreEntries({
-        logger,
-        features: { claudecode: ["rules", "unknown-feat" as any] },
-      });
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Unknown feature 'unknown-feat'"),
-      );
-    });
-
     it("should not warn for valid features", () => {
       filterGitignoreEntries({ logger, features: ["rules", "commands", "*"] });
       expect(warnSpy).not.toHaveBeenCalled();
-    });
-
-    it("should deduplicate warnings for the same invalid feature across targets (object format)", () => {
-      filterGitignoreEntries({
-        logger,
-        features: {
-          claudecode: ["bogus" as any],
-          copilot: ["bogus" as any],
-        },
-      });
-      expect(warnSpy).toHaveBeenCalledTimes(1);
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Unknown feature 'bogus'"));
-    });
-
-    it("should warn when an invalid feature key is provided (per-feature object format)", () => {
-      filterGitignoreEntries({
-        logger,
-        features: {
-          claudecode: { rules: true, "unknown-feat": true } as any,
-        },
-      });
-      expect(warnSpy).toHaveBeenCalledTimes(1);
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Unknown feature 'unknown-feat'"),
-      );
     });
   });
 

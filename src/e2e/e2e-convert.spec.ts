@@ -258,19 +258,6 @@ const scenarios: ConvertScenario[] = [
   // --- ignore ---
   {
     feature: "ignore",
-    from: "cursor",
-    to: "geminicli",
-    setup: async (dir) => {
-      await writeFileContent(join(dir, ".cursorignore"), "tmp/\ncredentials/\n*.secret\n");
-    },
-    verify: async (dir) => {
-      const content = await readFileContent(join(dir, ".geminiignore"));
-      expect(content).toContain("tmp/");
-      expect(content).toContain("credentials/");
-    },
-  },
-  {
-    feature: "ignore",
     from: "roo",
     to: "cursor",
     setup: async (dir) => {

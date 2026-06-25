@@ -40,8 +40,8 @@ describe("importCommand", () => {
     mockLogger = createMockLogger();
 
     // Setup processor mocks with default return values
-    vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode", "roo", "geminicli"]);
-    vi.mocked(IgnoreProcessor.getToolTargets).mockReturnValue(["claudecode", "roo", "geminicli"]);
+    vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode", "roo"]);
+    vi.mocked(IgnoreProcessor.getToolTargets).mockReturnValue(["claudecode", "roo"]);
     vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode", "roo"]);

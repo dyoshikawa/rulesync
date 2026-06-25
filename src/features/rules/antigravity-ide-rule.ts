@@ -50,17 +50,14 @@ export type AntigravityIdeRuleSettablePaths = {
 /**
  * Rule generator for the Google Antigravity IDE (Antigravity 2.0).
  *
- * This is the v2 successor of {@link AntigravityRule}; it reuses the same
- * trigger-strategy frontmatter logic but defaults to the new plural
- * `.agents/rules/` directory and adds global scope (`~/.gemini/GEMINI.md`).
+ * It reuses the same trigger-strategy frontmatter logic (see
+ * `antigravity-rule.ts`) but defaults to the new plural `.agents/rules/`
+ * directory and adds global scope (`~/.gemini/GEMINI.md`).
  *
  * - Project scope: every rule is placed as a non-root file in
  *   `.agents/rules/` with Antigravity trigger frontmatter.
  * - Global scope: a single plain `~/.gemini/GEMINI.md` root file (shared with
  *   the Antigravity CLI), without frontmatter.
- *
- * Back-compat reads of the singular `.agent/` tree are handled by the
- * deprecated `antigravity` alias target (see {@link AntigravityRule}).
  */
 export class AntigravityIdeRule extends ToolRule {
   private readonly frontmatter: AntigravityRuleFrontmatter;

@@ -12,7 +12,6 @@ import { formatError } from "../../utils/error.js";
 import { checkPathTraversal, findFilesByGlobs } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "./agentsmd-command.js";
-import { AntigravityCommand } from "./antigravity-command.js";
 import { AntigravityIdeCommand } from "./antigravity-ide-command.js";
 import { AugmentcodeCommand } from "./augmentcode-command.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
@@ -22,7 +21,6 @@ import { CopilotCommand } from "./copilot-command.js";
 import { CursorCommand } from "./cursor-command.js";
 import { DevinCommand } from "./devin-command.js";
 import { FactorydroidCommand } from "./factorydroid-command.js";
-import { GeminiCliCommand } from "./geminicli-command.js";
 import { GooseCommand } from "./goose-command.js";
 import { HermesagentCommand } from "./hermesagent-command.js";
 import { JunieCommand } from "./junie-command.js";
@@ -104,19 +102,6 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsProject: true,
         supportsGlobal: false,
         isSimulated: true,
-        supportsSubdirectory: false,
-      },
-    },
-  ],
-  [
-    "antigravity",
-    {
-      class: AntigravityCommand,
-      meta: {
-        extension: "md",
-        supportsProject: true,
-        supportsGlobal: false,
-        isSimulated: false,
         supportsSubdirectory: false,
       },
     },
@@ -238,19 +223,6 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: false,
-      },
-    },
-  ],
-  [
-    "geminicli",
-    {
-      class: GeminiCliCommand,
-      meta: {
-        extension: "toml",
-        supportsProject: true,
-        supportsGlobal: true,
-        isSimulated: false,
-        supportsSubdirectory: true,
       },
     },
   ],

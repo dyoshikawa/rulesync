@@ -148,35 +148,6 @@ describe("E2E: permissions", () => {
     expect(rulesContent).toContain('decision = "forbidden"');
   });
 
-  it("should generate geminicli permissions into .gemini/policies/rulesync.toml", async () => {
-    const testDir = getTestDir();
-
-    await writeFileContent(
-      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
-      JSON.stringify(
-        {
-          permission: {
-            bash: { "git *": "allow", "rm *": "deny" },
-            read: { "src/**": "allow" },
-            webfetch: { "example.com": "deny" },
-          },
-        },
-        null,
-        2,
-      ),
-    );
-
-    await runGenerate({ target: "geminicli", features: "permissions" });
-
-    const policyContent = await readFileContent(
-      join(testDir, ".gemini", "policies", "rulesync.toml"),
-    );
-    expect(policyContent).toContain('toolName = "run_shell_command"');
-    expect(policyContent).toContain('commandPrefix = "git"');
-    expect(policyContent).toContain('decision = "deny"');
-    expect(policyContent).toContain('toolName = "web_fetch"');
-  });
-
   it("should generate cursor permissions into .cursor/cli.json", async () => {
     const testDir = getTestDir();
 
@@ -688,50 +659,6 @@ enabled = true
     expect(content.permission.webfetch["example.com"]).toBe("deny");
   });
 
-  it("should import geminicli permissions into .rulesync/permissions.json", async () => {
-    const testDir = getTestDir();
-
-    await writeFileContent(
-      join(testDir, ".gemini", "policies", "rulesync.toml"),
-      [
-        "[[rule]]",
-        'toolName = "run_shell_command"',
-        'decision = "allow"',
-        'commandPrefix = "git"',
-        "priority = 100",
-        "",
-        "[[rule]]",
-        'toolName = "read_file"',
-        'decision = "allow"',
-        'argsPattern = "src/.*"',
-        "priority = 100",
-        "",
-        "[[rule]]",
-        'toolName = "run_shell_command"',
-        'decision = "deny"',
-        'commandPrefix = "rm"',
-        "priority = 100",
-        "",
-        "[[rule]]",
-        'toolName = "web_fetch"',
-        'decision = "deny"',
-        'argsPattern = "example\\\\.com"',
-        "priority = 100",
-        "",
-      ].join("\n"),
-    );
-
-    await runImport({ target: "geminicli", features: "permissions" });
-
-    const content = JSON.parse(
-      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
-    );
-    expect(content.permission.bash["git *"]).toBe("allow");
-    expect(content.permission.read["src/**"]).toBe("allow");
-    expect(content.permission.bash["rm *"]).toBe("deny");
-    expect(content.permission.webfetch["example.com"]).toBe("deny");
-  });
-
   it("should import kilo permissions into .rulesync/permissions.json", async () => {
     const testDir = getTestDir();
 
@@ -1035,41 +962,6 @@ describe("E2E: permissions (global mode)", () => {
     const rulesContent = await readFileContent(join(homeDir, ".codex", "rules", "rulesync.rules"));
     expect(rulesContent).toContain('pattern = ["pnpm", "lint"]');
     expect(rulesContent).toContain('decision = "allow"');
-  });
-
-  it("should generate geminicli permissions in home directory with --global", async () => {
-    const projectDir = getProjectDir();
-    const homeDir = getHomeDir();
-
-    await writeFileContent(
-      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
-      JSON.stringify(
-        {
-          permission: {
-            bash: { "git status *": "allow" },
-            read: { "src/**": "deny" },
-          },
-        },
-        null,
-        2,
-      ),
-    );
-
-    await runGenerate({
-      target: "geminicli",
-      features: "permissions",
-      global: true,
-      env: { HOME_DIR: homeDir },
-    });
-
-    const policyContent = await readFileContent(
-      join(homeDir, ".gemini", "policies", "rulesync.toml"),
-    );
-    expect(policyContent).toContain('toolName = "run_shell_command"');
-    expect(policyContent).toContain('commandPrefix = "git status"');
-    expect(policyContent).toContain('decision = "allow"');
-    expect(policyContent).toContain('toolName = "read_file"');
-    expect(policyContent).toContain('decision = "deny"');
   });
 
   it("should generate cursor permissions in home directory with --global", async () => {

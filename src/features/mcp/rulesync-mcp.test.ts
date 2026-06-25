@@ -989,7 +989,7 @@ describe("RulesyncMcp", () => {
   describe("getMcpServers field stripping", () => {
     it("should strip codex-specific envVars from getMcpServers output", () => {
       // envVars is codex-only; it must NOT leak into other tools' generated
-      // configs (claudecode, opencode, kilo, geminicli, etc.) which all
+      // configs (claudecode, opencode, kilo, etc.) which all
       // consume getMcpServers(). The codex generator reads envVars directly
       // from getJson() instead.
       const rulesyncMcp = new RulesyncMcp({
