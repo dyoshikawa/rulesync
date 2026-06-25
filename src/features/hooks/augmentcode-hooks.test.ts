@@ -338,7 +338,7 @@ describe("AugmentcodeHooks", () => {
         join(testDir, ".augment", "settings.json"),
         JSON.stringify({ hooks: { PreToolUse: [{ hooks: [{ command: "base.sh" }] }] } }),
       );
-      // The local overrides file replaces the top-level `hooks` key.
+      // The `hooks` object combines across tiers, so the base event survives.
       await writeFileContent(
         join(testDir, ".augment", "settings.local.json"),
         JSON.stringify({ hooks: { Stop: [{ hooks: [{ command: "local.sh" }] }] } }),
@@ -349,9 +349,10 @@ describe("AugmentcodeHooks", () => {
         validate: false,
       });
       const parsed = JSON.parse(augmentcodeHooks.getFileContent());
-      // Local override wins: the whole `hooks` block comes from settings.local.json.
+      // Combined: the local Stop event is added without dropping the base
+      // PreToolUse event.
       expect(parsed.hooks.Stop).toBeDefined();
-      expect(parsed.hooks.PreToolUse).toBeUndefined();
+      expect(parsed.hooks.PreToolUse).toBeDefined();
     });
 
     it("should leave import unchanged when settings.local.json is absent", async () => {

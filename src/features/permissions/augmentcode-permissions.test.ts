@@ -782,7 +782,8 @@ describe("AugmentcodePermissions", () => {
           ],
         }),
       );
-      // The local overrides file replaces the top-level `toolPermissions` key.
+      // toolPermissions is combined across tiers (local-first), so the base
+      // entry is preserved rather than replaced.
       await writeFileContent(
         join(settingsDir, "settings.local.json"),
         JSON.stringify({
@@ -801,9 +802,9 @@ describe("AugmentcodePermissions", () => {
         validate: false,
       });
       const config = instance.toRulesyncPermissions().getJson();
-      // Local override wins: the `^rm .*$` deny from settings.local.json is imported,
-      // and the base `^git .*$` allow (replaced by the shallow merge) is gone.
-      expect(config.permission.bash).toEqual({ "rm *": "deny" });
+      // Combined import: the local `^rm .*$` deny AND the base `^git .*$` allow
+      // are both present (a base deny would not be silently dropped).
+      expect(config.permission.bash).toEqual({ "rm *": "deny", "git *": "allow" });
     });
 
     it("should leave import unchanged when settings.local.json is absent", async () => {

@@ -52,7 +52,7 @@ describe("readAugmentcodeSettingsWithLocalOverlay", () => {
     expect(content).toBe('{"hooks":{}}');
   });
 
-  it("shallow-merges settings.local.json over settings.json (local wins)", async () => {
+  it("combines settings.local.json over settings.json (lists concatenate local-first)", async () => {
     await writeSettings("settings.json", {
       toolPermissions: ["base"],
       recommendedMarketplaces: ["keep"],
@@ -68,10 +68,33 @@ describe("readAugmentcodeSettingsWithLocalOverlay", () => {
     });
 
     expect(JSON.parse(content)).toEqual({
-      // Local wins for overlapping keys.
-      toolPermissions: ["local"],
+      // Lists are combined across tiers, local-first (Auggie evaluates
+      // higher-precedence rules first), so base entries are not dropped.
+      toolPermissions: ["local", "base"],
       // Base-only keys are preserved.
       recommendedMarketplaces: ["keep"],
+    });
+  });
+
+  it("replaces mcpServers/plugins wholesale (higher-precedence wins)", async () => {
+    await writeSettings("settings.json", {
+      mcpServers: { a: { command: "base" }, b: { command: "base" } },
+    });
+    await writeSettings("settings.local.json", {
+      mcpServers: { a: { command: "local" } },
+    });
+
+    const content = await readAugmentcodeSettingsWithLocalOverlay({
+      outputRoot: testDir,
+      relativeDirPath: ".augment",
+      baseFileName: "settings.json",
+      baseFallbackContent: "{}",
+      includeLocalOverlay: true,
+    });
+
+    // mcpServers replaces wholesale, not deep-merged.
+    expect(JSON.parse(content)).toEqual({
+      mcpServers: { a: { command: "local" } },
     });
   });
 

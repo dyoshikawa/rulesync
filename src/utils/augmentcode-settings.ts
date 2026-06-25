@@ -3,12 +3,53 @@ import { join } from "node:path";
 import { AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME } from "../constants/augmentcode-paths.js";
 import { formatError } from "./error.js";
 import { readFileContentOrNull } from "./file.js";
+import { isPrototypePollutionKey } from "./prototype-pollution.js";
 import { isPlainObject } from "./type-guards.js";
 
 /**
+ * Top-level keys AugmentCode *replaces* (higher-precedence wins wholesale)
+ * rather than combining across tiers. Everything else combines.
+ *
+ * @see https://docs.augmentcode.com/cli/config
+ */
+const AUGMENTCODE_REPLACE_KEYS: ReadonlySet<string> = new Set(["mcpServers", "plugins"]);
+
+/**
+ * Combine a base settings object with a higher-precedence (local) one following
+ * AugmentCode's documented layering: simple values take the local override,
+ * `mcpServers` / `plugins` are replaced wholesale, and every other object/list
+ * is combined across tiers — objects recurse, arrays concatenate **local-first**
+ * (Auggie evaluates higher-precedence rules first under first-match logic). This
+ * preserves base entries (e.g. committed `toolPermissions` denies) instead of
+ * dropping them when local defines the same top-level key.
+ */
+function combineAugmentSettings(
+  base: Record<string, unknown>,
+  local: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...base };
+  for (const [key, localValue] of Object.entries(local)) {
+    if (isPrototypePollutionKey(key)) continue;
+
+    const baseValue = result[key];
+    if (AUGMENTCODE_REPLACE_KEYS.has(key)) {
+      result[key] = localValue;
+    } else if (Array.isArray(localValue) && Array.isArray(baseValue)) {
+      result[key] = [...localValue, ...baseValue];
+    } else if (isPlainObject(localValue) && isPlainObject(baseValue)) {
+      result[key] = combineAugmentSettings(baseValue, localValue);
+    } else {
+      result[key] = localValue;
+    }
+  }
+  return result;
+}
+
+/**
  * Read the base `.augment/settings.json` content and, when a project-scope
- * `.augment/settings.local.json` overrides file exists, shallow-merge it ON TOP
- * of the base settings (local wins) before returning the merged JSON string.
+ * `.augment/settings.local.json` overrides file exists, combine it ON TOP of the
+ * base settings (per AugmentCode's documented layering) before returning the
+ * merged JSON string.
  *
  * Auggie CLI 0.16.0+ evaluates a layered settings model in which
  * `<workspace>/.augment/settings.local.json` (a gitignored, machine-specific
@@ -23,9 +64,11 @@ import { isPlainObject } from "./type-guards.js";
  * absent the base content is returned unchanged.
  *
  * Both files are parsed with the same `isPlainObject` guard the adapters use
- * (rejecting class instances for prototype-pollution hardening); a top-level
- * shallow merge is sufficient because the canonical model only consumes the
- * top-level `toolPermissions` / `hooks` / `mcpServers` keys.
+ * (rejecting class instances for prototype-pollution hardening). The merge
+ * follows AugmentCode's documented semantics: `mcpServers` / `plugins` replace
+ * wholesale, while other objects/lists (notably `toolPermissions` and `hooks`)
+ * are combined across tiers so base entries — e.g. committed `deny` rules — are
+ * preserved rather than dropped when local defines the same key.
  *
  * @see https://docs.augmentcode.com/cli/config
  */
@@ -84,7 +127,8 @@ export async function readAugmentcodeSettingsWithLocalOverlay({
   }
   const baseObject = isPlainObject(baseParsed) ? baseParsed : {};
 
-  // Shallow merge: local-scope keys win over base-scope keys.
-  const merged = { ...baseObject, ...localParsed };
+  // Combine per AugmentCode's documented layering (local wins for scalars,
+  // mcpServers/plugins replace, other objects/lists combine local-first).
+  const merged = combineAugmentSettings(baseObject, localParsed);
   return JSON.stringify(merged, null, 2);
 }
