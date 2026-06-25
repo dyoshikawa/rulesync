@@ -324,8 +324,8 @@ async function generateRulesCore(params: {
       })
     : new Map<string, ToolTarget>();
 
-  for (const outputRoot of config.getOutputRoots()) {
-    for (const toolTarget of toolTargets) {
+  for (const toolTarget of toolTargets) {
+    for (const outputRoot of config.getOutputRoots(toolTarget)) {
       // Check if rules feature is enabled for this specific target
       if (!config.getFeatures(toolTarget).includes("rules")) {
         continue;
@@ -400,7 +400,7 @@ async function generateIgnoreCore(params: {
       continue;
     }
 
-    for (const outputRoot of config.getOutputRoots()) {
+    for (const outputRoot of config.getOutputRoots(toolTarget)) {
       try {
         const processor = new IgnoreProcessor({
           // Pass `outputRoot` verbatim. The legacy
@@ -453,8 +453,8 @@ async function generateMcpCore(params: {
     logger,
   });
 
-  for (const outputRoot of config.getOutputRoots()) {
-    for (const toolTarget of toolTargets) {
+  for (const toolTarget of toolTargets) {
+    for (const outputRoot of config.getOutputRoots(toolTarget)) {
       // Check if mcp feature is enabled for this specific target
       if (!config.getFeatures(toolTarget).includes("mcp")) {
         continue;
@@ -504,8 +504,8 @@ async function generateCommandsCore(params: {
     logger,
   });
 
-  for (const outputRoot of config.getOutputRoots()) {
-    for (const toolTarget of toolTargets) {
+  for (const toolTarget of toolTargets) {
+    for (const outputRoot of config.getOutputRoots(toolTarget)) {
       // Check if commands feature is enabled for this specific target
       if (!config.getFeatures(toolTarget).includes("commands")) {
         continue;
@@ -560,8 +560,8 @@ async function generateSubagentsCore(params: {
     logger,
   });
 
-  for (const outputRoot of config.getOutputRoots()) {
-    for (const toolTarget of toolTargets) {
+  for (const toolTarget of toolTargets) {
+    for (const outputRoot of config.getOutputRoots(toolTarget)) {
       // Check if subagents feature is enabled for this specific target
       if (!config.getFeatures(toolTarget).includes("subagents")) {
         continue;
@@ -612,8 +612,8 @@ async function generateSkillsCore(params: {
     logger,
   });
 
-  for (const outputRoot of config.getOutputRoots()) {
-    for (const toolTarget of toolTargets) {
+  for (const toolTarget of toolTargets) {
+    for (const outputRoot of config.getOutputRoots(toolTarget)) {
       // Check if skills feature is enabled for this specific target
       if (!config.getFeatures(toolTarget).includes("skills")) {
         continue;
@@ -672,8 +672,8 @@ async function generateHooksCore(params: {
     logger,
   });
 
-  for (const outputRoot of config.getOutputRoots()) {
-    for (const toolTarget of toolTargets) {
+  for (const toolTarget of toolTargets) {
+    for (const outputRoot of config.getOutputRoots(toolTarget)) {
       // Check if hooks feature is enabled for this specific target
       if (!config.getFeatures(toolTarget).includes("hooks")) {
         continue;
@@ -720,8 +720,8 @@ async function generatePermissionsCore(params: {
   const allPaths: string[] = [];
   let hasDiff = false;
 
-  for (const outputRoot of config.getOutputRoots()) {
-    for (const toolTarget of intersection(config.getTargets(), supportedPermissionsTargets)) {
+  for (const toolTarget of intersection(config.getTargets(), supportedPermissionsTargets)) {
+    for (const outputRoot of config.getOutputRoots(toolTarget)) {
       if (!config.getFeatures(toolTarget).includes("permissions")) {
         continue;
       }
