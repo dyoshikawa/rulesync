@@ -84,10 +84,6 @@ describe("E2E: skills", () => {
       outputPath: join(".kiro", "skills", "test-skill", "SKILL.md"),
     },
     {
-      target: "antigravity",
-      outputPath: join(".agent", "skills", "test-skill", "SKILL.md"),
-    },
-    {
       target: "antigravity-ide",
       outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
     },
@@ -198,7 +194,6 @@ This is the test skill body content.
     { target: "devin", orphanPath: join(".devin", "skills", "orphan-skill", "SKILL.md") },
     { target: "warp", orphanPath: join(".warp", "skills", "orphan-skill", "SKILL.md") },
     { target: "kiro", orphanPath: join(".kiro", "skills", "orphan-skill", "SKILL.md") },
-    { target: "antigravity", orphanPath: join(".agent", "skills", "orphan-skill", "SKILL.md") },
     {
       target: "antigravity-ide",
       orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md"),
@@ -260,7 +255,6 @@ describe("E2E: skills (import)", () => {
     { target: "devin", sourcePath: join(".devin", "skills", "test-skill", "SKILL.md") },
     { target: "warp", sourcePath: join(".warp", "skills", "test-skill", "SKILL.md") },
     { target: "kiro", sourcePath: join(".kiro", "skills", "test-skill", "SKILL.md") },
-    { target: "antigravity", sourcePath: join(".agent", "skills", "test-skill", "SKILL.md") },
     { target: "antigravity-ide", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "antigravity-cli", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "junie", sourcePath: join(".junie", "skills", "test-skill", "SKILL.md") },
@@ -385,10 +379,6 @@ describe("E2E: skills (global mode)", () => {
     {
       target: "warp",
       outputPath: join(".warp", "skills", "test-skill", "SKILL.md"),
-    },
-    {
-      target: "antigravity",
-      outputPath: join(".gemini", "antigravity", "skills", "test-skill", "SKILL.md"),
     },
     {
       target: "antigravity-ide",

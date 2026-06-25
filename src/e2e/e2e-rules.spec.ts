@@ -80,7 +80,6 @@ This is a test rule for E2E testing.
     { target: "kiro", outputPath: join(".kiro", "steering", "overview.md") },
     { target: "kiro-cli", outputPath: join(".kiro", "steering", "overview.md") },
     { target: "kiro-ide", outputPath: join(".kiro", "steering", "overview.md") },
-    { target: "antigravity", outputPath: join(".agent", "rules", "overview.md") },
     { target: "antigravity-ide", outputPath: join(".agents", "rules", "overview.md") },
     { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },
     { target: "devin", outputPath: join(".devin", "rules", "overview.md") },
@@ -605,11 +604,6 @@ describe("E2E: rules (import)", () => {
     {
       target: "kiro-ide",
       sourcePath: join(".kiro", "steering", "overview.md"),
-      importedFileName: "overview.md",
-    },
-    {
-      target: "antigravity",
-      sourcePath: join(".agent", "rules", "overview.md"),
       importedFileName: "overview.md",
     },
     {
