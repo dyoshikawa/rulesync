@@ -160,6 +160,7 @@ export const subagentsProcessorToolTargetTuple = [
 export const skillsProcessorToolTargetTuple = [
   "agentsmd",
   "agentsskills",
+  "aiassistant",
   "amp",
   "antigravity",
   "antigravity-cli",

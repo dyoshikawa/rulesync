@@ -112,6 +112,10 @@ describe("E2E: skills", () => {
       outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
     },
     {
+      target: "aiassistant",
+      outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
+    },
+    {
       target: "amp",
       outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
     },
@@ -211,6 +215,7 @@ This is the test skill body content.
     { target: "junie", orphanPath: join(".junie", "skills", "orphan-skill", "SKILL.md") },
     { target: "replit", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
     { target: "agentsskills", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
+    { target: "aiassistant", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
     { target: "pi", orphanPath: join(".pi", "skills", "orphan-skill", "SKILL.md") },
     { target: "zed", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
     { target: "factorydroid", orphanPath: join(".factory", "skills", "orphan-skill", "SKILL.md") },
@@ -265,6 +270,7 @@ describe("E2E: skills (import)", () => {
     { target: "antigravity-ide", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "antigravity-cli", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "junie", sourcePath: join(".junie", "skills", "test-skill", "SKILL.md") },
+    { target: "aiassistant", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "replit", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "pi", sourcePath: join(".pi", "skills", "test-skill", "SKILL.md") },
     { target: "zed", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
