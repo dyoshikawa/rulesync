@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { GOOSE_DIR, GOOSE_GLOBAL_DIR, GOOSE_RULE_FILE_NAME } from "../../constants/goose-paths.js";
+import { GOOSE_GLOBAL_DIR, GOOSE_RULE_FILE_NAME } from "../../constants/goose-paths.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -9,30 +9,43 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
-  ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
-  buildToolPath,
 } from "./tool-rule.js";
 
 export type GooseRuleParams = ToolRuleParams;
 
-export type GooseRuleSettablePaths = ToolRuleSettablePaths & {
+export type GooseRuleSettablePaths = {
   root: {
     relativeDirPath: string;
     relativeFilePath: string;
   };
+  nonRoot?: undefined;
 };
 
 export type GooseRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
 
 /**
- * Represents a rule file for Goose
- * Goose uses plain markdown files (.goosehints) without frontmatter
+ * Represents a rule file for Goose.
+ *
+ * Goose loads instruction context only from the `.goosehints` / `AGENTS.md`
+ * family (the configured `CONTEXT_FILE_NAMES`), discovered by walking from the
+ * working directory up to the repository root plus any nested directories Goose
+ * touches during a session. The separate `.goose/memories/` tree is the Memory
+ * extension's storage and is NOT auto-loaded as session context.
+ * (Verified against the official docs:
+ * https://block.github.io/goose/docs/guides/context-engineering/using-goosehints/)
+ *
+ * rulesync's topic-based non-root rules have no project subdirectory to map onto,
+ * so writing them under `.goose/memories/` made them effectively invisible to
+ * Goose. Their bodies are instead folded into the single root `.goosehints` by
+ * the RulesProcessor (there is no separate non-root output location — `nonRoot`
+ * is `undefined`). This mirrors the grokcli, warp, and deepagents targets.
+ *
+ * Goose uses plain markdown files (.goosehints) without frontmatter.
  */
 export class GooseRule extends ToolRule {
   static getSettablePaths({
     global,
-    excludeToolDir,
   }: {
     global?: boolean;
     excludeToolDir?: boolean;
@@ -50,50 +63,27 @@ export class GooseRule extends ToolRule {
         relativeDirPath: ".",
         relativeFilePath: GOOSE_RULE_FILE_NAME,
       },
-      nonRoot: {
-        relativeDirPath: buildToolPath(GOOSE_DIR, "memories", excludeToolDir),
-      },
     };
   }
 
   static async fromFile({
     outputRoot = process.cwd(),
-    relativeFilePath,
+    relativeFilePath: _relativeFilePath,
     validate = true,
     global = false,
   }: ToolRuleFromFileParams): Promise<GooseRule> {
     const paths = this.getSettablePaths({ global });
-    const isRoot = relativeFilePath === paths.root.relativeFilePath;
+    const fileContent = await readFileContent(
+      join(outputRoot, paths.root.relativeDirPath, paths.root.relativeFilePath),
+    );
 
-    if (isRoot) {
-      const relativePath = paths.root.relativeFilePath;
-      const fileContent = await readFileContent(
-        join(outputRoot, paths.root.relativeDirPath, relativePath),
-      );
-
-      return new GooseRule({
-        outputRoot,
-        relativeDirPath: paths.root.relativeDirPath,
-        relativeFilePath: paths.root.relativeFilePath,
-        fileContent,
-        validate,
-        root: true,
-      });
-    }
-
-    if (!paths.nonRoot) {
-      throw new Error(`nonRoot path is not set for ${relativeFilePath}`);
-    }
-
-    const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(join(outputRoot, relativePath));
     return new GooseRule({
       outputRoot,
-      relativeDirPath: paths.nonRoot.relativeDirPath,
-      relativeFilePath,
+      relativeDirPath: paths.root.relativeDirPath,
+      relativeFilePath: paths.root.relativeFilePath,
       fileContent,
       validate,
-      root: false,
+      root: true,
     });
   }
 
@@ -104,15 +94,16 @@ export class GooseRule extends ToolRule {
     global = false,
   }: ToolRuleFromRulesyncRuleParams): GooseRule {
     const paths = this.getSettablePaths({ global });
-    return new GooseRule(
-      this.buildToolRuleParamsDefault({
-        outputRoot,
-        rulesyncRule,
-        validate,
-        rootPath: paths.root,
-        nonRootPath: paths.nonRoot,
-      }),
-    );
+    const isRoot = rulesyncRule.getFrontmatter().root ?? false;
+
+    return new GooseRule({
+      outputRoot,
+      relativeDirPath: paths.root.relativeDirPath,
+      relativeFilePath: paths.root.relativeFilePath,
+      fileContent: rulesyncRule.getBody(),
+      validate,
+      root: isRoot,
+    });
   }
 
   toRulesyncRule(): RulesyncRule {
@@ -132,7 +123,9 @@ export class GooseRule extends ToolRule {
     global = false,
   }: ToolRuleForDeletionParams): GooseRule {
     const paths = this.getSettablePaths({ global });
-    const isRoot = relativeFilePath === paths.root.relativeFilePath;
+    const isRoot =
+      relativeFilePath === paths.root.relativeFilePath &&
+      (relativeDirPath === "." || relativeDirPath === paths.root.relativeDirPath);
 
     return new GooseRule({
       outputRoot,

@@ -28,16 +28,16 @@ describe("GooseRule", () => {
   describe("constructor", () => {
     it("should create a GooseRule with basic parameters", () => {
       const params: GooseRuleParams = {
-        relativeDirPath: ".goose",
-        relativeFilePath: "test-rule.md",
+        relativeDirPath: ".",
+        relativeFilePath: ".goosehints",
         fileContent: "# Test Goose Rule\n\nThis is a test goose rule.",
       };
 
       const gooseRule = new GooseRule(params);
 
       expect(gooseRule).toBeInstanceOf(GooseRule);
-      expect(gooseRule.getRelativeDirPath()).toBe(".goose");
-      expect(gooseRule.getRelativeFilePath()).toBe("test-rule.md");
+      expect(gooseRule.getRelativeDirPath()).toBe(".");
+      expect(gooseRule.getRelativeFilePath()).toBe(".goosehints");
       expect(gooseRule.getFileContent()).toBe("# Test Goose Rule\n\nThis is a test goose rule.");
       expect(gooseRule.isRoot()).toBe(false);
     });
@@ -56,23 +56,10 @@ describe("GooseRule", () => {
       expect(gooseRule.getRelativeFilePath()).toBe(".goosehints");
     });
 
-    it("should create a GooseRule with root parameter set to false", () => {
-      const params: GooseRuleParams = {
-        relativeDirPath: ".goose/memories",
-        relativeFilePath: "memory.md",
-        fileContent: "# Memory Rule\n\nThis is a memory rule.",
-        root: false,
-      };
-
-      const gooseRule = new GooseRule(params);
-
-      expect(gooseRule.isRoot()).toBe(false);
-    });
-
     it("should default root to false when not provided", () => {
       const params: GooseRuleParams = {
-        relativeDirPath: ".goose",
-        relativeFilePath: "test.md",
+        relativeDirPath: ".",
+        relativeFilePath: ".goosehints",
         fileContent: "# Test\n\nContent",
       };
 
@@ -84,21 +71,21 @@ describe("GooseRule", () => {
     it("should create a GooseRule with custom outputRoot", () => {
       const params: GooseRuleParams = {
         outputRoot: "/custom/path",
-        relativeDirPath: ".goose",
-        relativeFilePath: "custom.md",
+        relativeDirPath: ".",
+        relativeFilePath: ".goosehints",
         fileContent: "# Custom Rule",
       };
 
       const gooseRule = new GooseRule(params);
 
-      expect(gooseRule.getFilePath()).toBe("/custom/path/.goose/custom.md");
+      expect(gooseRule.getFilePath()).toBe("/custom/path/.goosehints");
     });
 
     it("should pass all parameters to parent ToolRule", () => {
       const params: GooseRuleParams = {
         outputRoot: testDir,
-        relativeDirPath: ".goose/memories",
-        relativeFilePath: "test.md",
+        relativeDirPath: ".",
+        relativeFilePath: ".goosehints",
         fileContent: "# Test Content",
         validate: false,
         root: true,
@@ -107,8 +94,8 @@ describe("GooseRule", () => {
       const gooseRule = new GooseRule(params);
 
       expect(gooseRule.getOutputRoot()).toBe(testDir);
-      expect(gooseRule.getRelativeDirPath()).toBe(".goose/memories");
-      expect(gooseRule.getRelativeFilePath()).toBe("test.md");
+      expect(gooseRule.getRelativeDirPath()).toBe(".");
+      expect(gooseRule.getRelativeFilePath()).toBe(".goosehints");
       expect(gooseRule.getFileContent()).toBe("# Test Content");
       expect(gooseRule.isRoot()).toBe(true);
     });
@@ -131,22 +118,19 @@ describe("GooseRule", () => {
       expect(gooseRule.getFilePath()).toBe(join(testDir, ".goosehints"));
     });
 
-    it("should create GooseRule from memory file in .goose/memories", async () => {
-      const memoryContent = "# Memory File\n\nThis is a memory file.";
-      const memoriesDir = join(testDir, ".goose/memories");
-      await ensureDir(memoriesDir);
-      await writeFileContent(join(memoriesDir, "test-memory.md"), memoryContent);
+    it("should always read the root .goosehints regardless of the requested file", async () => {
+      const gooseContent = "# Root Goose Hints";
+      await writeFileContent(join(testDir, ".goosehints"), gooseContent);
 
       const gooseRule = await GooseRule.fromFile({
         outputRoot: testDir,
-        relativeFilePath: "test-memory.md",
+        relativeFilePath: "memory.md",
       });
 
-      expect(gooseRule.isRoot()).toBe(false);
-      expect(gooseRule.getRelativeDirPath()).toBe(".goose/memories");
-      expect(gooseRule.getRelativeFilePath()).toBe("test-memory.md");
-      expect(gooseRule.getFileContent()).toBe(memoryContent);
-      expect(gooseRule.getFilePath()).toBe(join(testDir, ".goose/memories/test-memory.md"));
+      expect(gooseRule.isRoot()).toBe(true);
+      expect(gooseRule.getRelativeDirPath()).toBe(".");
+      expect(gooseRule.getRelativeFilePath()).toBe(".goosehints");
+      expect(gooseRule.getFileContent()).toBe(gooseContent);
     });
 
     it("should use default outputRoot (process.cwd()) when not provided", async () => {
@@ -174,11 +158,11 @@ describe("GooseRule", () => {
       expect(gooseRule).toBeInstanceOf(GooseRule);
     });
 
-    it("should throw error when file does not exist", async () => {
+    it("should throw error when root file does not exist", async () => {
       await expect(
         GooseRule.fromFile({
           outputRoot: testDir,
-          relativeFilePath: "nonexistent.md",
+          relativeFilePath: ".goosehints",
         }),
       ).rejects.toThrow();
     });
@@ -196,6 +180,23 @@ describe("GooseRule", () => {
       expect(gooseRule.isRoot()).toBe(true);
       expect(gooseRule.getRelativeDirPath()).toBe(join(".config", "goose"));
       expect(gooseRule.getRelativeFilePath()).toBe(".goosehints");
+    });
+
+    it("should read the global root .goosehints regardless of the requested file", async () => {
+      const globalDir = join(testDir, ".config", "goose");
+      await ensureDir(globalDir);
+      const gooseContent = "# Global Goose Hints";
+      await writeFileContent(join(globalDir, ".goosehints"), gooseContent);
+
+      const gooseRule = await GooseRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "memory.md",
+        global: true,
+      });
+
+      expect(gooseRule.isRoot()).toBe(true);
+      expect(gooseRule.getRelativeDirPath()).toBe(join(".config", "goose"));
+      expect(gooseRule.getFileContent()).toBe(gooseContent);
     });
   });
 
@@ -225,13 +226,13 @@ describe("GooseRule", () => {
       expect(gooseRule.isRoot()).toBe(true);
     });
 
-    it("should create GooseRule from RulesyncRule for memory file", () => {
+    it("should write a non-root rule to the root .goosehints (folded)", () => {
       const frontmatter: RulesyncRuleFrontmatterInput = {
         description: "Test memory rule",
       };
 
       const rulesyncRule = new RulesyncRule({
-        relativeDirPath: ".goose/memories",
+        relativeDirPath: ".rulesync/rules",
         relativeFilePath: "memory.md",
         frontmatter,
         body: "# Memory Rule\n\nMemory content",
@@ -242,11 +243,14 @@ describe("GooseRule", () => {
         rulesyncRule,
       });
 
+      // Non-root rules share the root path so the RulesProcessor folds their
+      // bodies into the single .goosehints.
       expect(gooseRule).toBeInstanceOf(GooseRule);
       expect(gooseRule.getOutputRoot()).toBe(testDir);
-      expect(gooseRule.getRelativeDirPath()).toBe(".goose/memories");
-      expect(gooseRule.getRelativeFilePath()).toBe("memory.md");
+      expect(gooseRule.getRelativeDirPath()).toBe(".");
+      expect(gooseRule.getRelativeFilePath()).toBe(".goosehints");
       expect(gooseRule.isRoot()).toBe(false);
+      expect(gooseRule.getFileContent()).toBe("# Memory Rule\n\nMemory content");
     });
 
     it("should use default outputRoot (process.cwd()) when not provided", () => {
@@ -312,14 +316,37 @@ describe("GooseRule", () => {
       expect(gooseRule).toBeInstanceOf(GooseRule);
       expect(gooseRule.isRoot()).toBe(true);
       expect(gooseRule.getRelativeDirPath()).toBe(join(".config", "goose"));
+      expect(gooseRule.getRelativeFilePath()).toBe(".goosehints");
+    });
+
+    it("should write a non-root rule to the global root path (folded)", () => {
+      const frontmatter: RulesyncRuleFrontmatterInput = {
+        description: "Global memory rule",
+      };
+
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "memory.md",
+        frontmatter,
+        body: "# Memory",
+      });
+
+      const gooseRule = GooseRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule,
+        global: true,
+      });
+
+      expect(gooseRule.getRelativeDirPath()).toBe(join(".config", "goose"));
+      expect(gooseRule.getRelativeFilePath()).toBe(".goosehints");
     });
   });
 
   describe("toRulesyncRule", () => {
-    it("should convert GooseRule to RulesyncRule", () => {
+    it("should convert non-root GooseRule to RulesyncRule", () => {
       const gooseRule = new GooseRule({
-        relativeDirPath: ".goose/memories",
-        relativeFilePath: "test.md",
+        relativeDirPath: ".",
+        relativeFilePath: ".goosehints",
         fileContent: "# Test Rule\n\nTest content",
       });
 
@@ -327,7 +354,6 @@ describe("GooseRule", () => {
 
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
-      expect(rulesyncRule.getRelativeFilePath()).toBe("test.md");
       expect(rulesyncRule.getBody()).toBe("# Test Rule\n\nTest content");
     });
 
@@ -351,8 +377,8 @@ describe("GooseRule", () => {
   describe("validate", () => {
     it("should always return success true", () => {
       const gooseRule = new GooseRule({
-        relativeDirPath: ".goose",
-        relativeFilePath: "test.md",
+        relativeDirPath: ".",
+        relativeFilePath: ".goosehints",
         fileContent: "# Test",
       });
 
@@ -364,8 +390,8 @@ describe("GooseRule", () => {
 
     it("should return success true even with empty content", () => {
       const gooseRule = new GooseRule({
-        relativeDirPath: ".goose",
-        relativeFilePath: "empty.md",
+        relativeDirPath: ".",
+        relativeFilePath: ".goosehints",
         fileContent: "",
       });
 
@@ -390,38 +416,8 @@ describe("GooseRule", () => {
     });
   });
 
-  describe("file path handling", () => {
-    it("should correctly identify .goosehints as root file in fromFile", async () => {
-      const content = "# Root File";
-      await writeFileContent(join(testDir, ".goosehints"), content);
-
-      const gooseRule = await GooseRule.fromFile({
-        outputRoot: testDir,
-        relativeFilePath: ".goosehints",
-      });
-
-      expect(gooseRule.isRoot()).toBe(true);
-      expect(gooseRule.getRelativeDirPath()).toBe(".");
-    });
-
-    it("should correctly handle non-root files in fromFile", async () => {
-      const content = "# Memory File";
-      const memoriesDir = join(testDir, ".goose/memories");
-      await ensureDir(memoriesDir);
-      await writeFileContent(join(memoriesDir, "memory.md"), content);
-
-      const gooseRule = await GooseRule.fromFile({
-        outputRoot: testDir,
-        relativeFilePath: "memory.md",
-      });
-
-      expect(gooseRule.isRoot()).toBe(false);
-      expect(gooseRule.getRelativeDirPath()).toBe(".goose/memories");
-    });
-  });
-
   describe("getSettablePaths", () => {
-    it("should return correct paths for root and nonRoot", () => {
+    it("should return a root-only project path (non-root folds into root)", () => {
       const paths = GooseRule.getSettablePaths();
 
       expect(paths.root).toEqual({
@@ -429,9 +425,7 @@ describe("GooseRule", () => {
         relativeFilePath: ".goosehints",
       });
 
-      expect(paths.nonRoot).toEqual({
-        relativeDirPath: ".goose/memories",
-      });
+      expect(paths.nonRoot).toBeUndefined();
     });
 
     it("should return correct paths for global mode", () => {
@@ -443,16 +437,6 @@ describe("GooseRule", () => {
       });
 
       expect(paths.nonRoot).toBeUndefined();
-    });
-
-    it("should have consistent paths structure", () => {
-      const paths = GooseRule.getSettablePaths();
-
-      expect(paths).toHaveProperty("root");
-      expect(paths).toHaveProperty("nonRoot");
-      expect(paths.root).toHaveProperty("relativeDirPath");
-      expect(paths.root).toHaveProperty("relativeFilePath");
-      expect(paths.nonRoot).toHaveProperty("relativeDirPath");
     });
   });
 
@@ -469,7 +453,7 @@ describe("GooseRule", () => {
       expect(gooseRule.getFileContent()).toBe("");
     });
 
-    it("should create a GooseRule for deletion of non-root file", () => {
+    it("should create a non-root deletion stub when path does not match root", () => {
       const gooseRule = GooseRule.forDeletion({
         outputRoot: testDir,
         relativeDirPath: ".goose/memories",
@@ -486,7 +470,7 @@ describe("GooseRule", () => {
     it("should return true for rules targeting goose", () => {
       const rulesyncRule = new RulesyncRule({
         outputRoot: testDir,
-        relativeDirPath: ".goose/memories",
+        relativeDirPath: ".rulesync/rules",
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["goose"],
@@ -500,7 +484,7 @@ describe("GooseRule", () => {
     it("should return true for rules targeting all tools (*)", () => {
       const rulesyncRule = new RulesyncRule({
         outputRoot: testDir,
-        relativeDirPath: ".goose/memories",
+        relativeDirPath: ".rulesync/rules",
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["*"],
@@ -514,7 +498,7 @@ describe("GooseRule", () => {
     it("should return false for rules not targeting goose", () => {
       const rulesyncRule = new RulesyncRule({
         outputRoot: testDir,
-        relativeDirPath: ".goose/memories",
+        relativeDirPath: ".rulesync/rules",
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["cursor", "copilot"],
@@ -528,7 +512,7 @@ describe("GooseRule", () => {
     it("should return false for empty targets", () => {
       const rulesyncRule = new RulesyncRule({
         outputRoot: testDir,
-        relativeDirPath: ".goose/memories",
+        relativeDirPath: ".rulesync/rules",
         relativeFilePath: "test.md",
         frontmatter: {
           targets: [],
@@ -542,7 +526,7 @@ describe("GooseRule", () => {
     it("should handle mixed targets including goose", () => {
       const rulesyncRule = new RulesyncRule({
         outputRoot: testDir,
-        relativeDirPath: ".goose/memories",
+        relativeDirPath: ".rulesync/rules",
         relativeFilePath: "test.md",
         frontmatter: {
           targets: ["cursor", "goose", "copilot"],
@@ -556,7 +540,7 @@ describe("GooseRule", () => {
     it("should handle undefined targets in frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
         outputRoot: testDir,
-        relativeDirPath: ".goose/memories",
+        relativeDirPath: ".rulesync/rules",
         relativeFilePath: "test.md",
         frontmatter: {},
         body: "Test content",
@@ -570,16 +554,16 @@ describe("GooseRule", () => {
     it("should inherit all ToolRule functionality", () => {
       const gooseRule = new GooseRule({
         outputRoot: testDir,
-        relativeDirPath: ".goose",
-        relativeFilePath: "integration.md",
+        relativeDirPath: ".",
+        relativeFilePath: ".goosehints",
         fileContent: "# Integration Test",
       });
 
       expect(gooseRule.getOutputRoot()).toBe(testDir);
-      expect(gooseRule.getRelativeDirPath()).toBe(".goose");
-      expect(gooseRule.getRelativeFilePath()).toBe("integration.md");
+      expect(gooseRule.getRelativeDirPath()).toBe(".");
+      expect(gooseRule.getRelativeFilePath()).toBe(".goosehints");
       expect(gooseRule.getFileContent()).toBe("# Integration Test");
-      expect(gooseRule.getFilePath()).toBe(join(testDir, ".goose/integration.md"));
+      expect(gooseRule.getFilePath()).toBe(join(testDir, ".goosehints"));
     });
   });
 });
