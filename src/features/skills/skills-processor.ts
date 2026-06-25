@@ -13,6 +13,7 @@ import { directoryExists, findFilesByGlobs } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSkill } from "./agentsmd-skill.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
+import { AiassistantSkill } from "./aiassistant-skill.js";
 import { AmpSkill } from "./amp-skill.js";
 import { AntigravityCliSkill } from "./antigravity-cli-skill.js";
 import { AntigravityIdeSkill } from "./antigravity-ide-skill.js";
@@ -109,6 +110,17 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // location in addition to project `.agents/skills/`. https://agentskills.io/specification
       class: AgentsSkillsSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "aiassistant",
+    {
+      // JetBrains AI Assistant 2026.1 auto-discovers committable project skills
+      // from `.agents/skills/<name>/SKILL.md` (the Agent Skills standard). IDE-level
+      // skill storage is internal, so only the project scope is supported.
+      // https://www.jetbrains.com/help/ai-assistant/agent-skills.html
+      class: AiassistantSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
     },
   ],
   [

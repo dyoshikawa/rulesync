@@ -854,6 +854,7 @@ Content that would fail parsing`;
       expect(new Set(targets)).toEqual(
         new Set([
           "agentsskills",
+          "aiassistant",
           "amp",
           "antigravity",
           "antigravity-cli",
@@ -897,6 +898,7 @@ Content that would fail parsing`;
         new Set([
           "agentsmd",
           "agentsskills",
+          "aiassistant",
           "amp",
           "antigravity",
           "antigravity-cli",
@@ -939,6 +941,7 @@ Content that would fail parsing`;
       expect(new Set(targets)).toEqual(
         new Set([
           "agentsskills",
+          "aiassistant",
           "amp",
           "antigravity",
           "antigravity-cli",
