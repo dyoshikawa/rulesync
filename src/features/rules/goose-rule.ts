@@ -9,12 +9,13 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
+  ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
 } from "./tool-rule.js";
 
 export type GooseRuleParams = ToolRuleParams;
 
-export type GooseRuleSettablePaths = {
+export type GooseRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
   root: {
     relativeDirPath: string;
     relativeFilePath: string;
@@ -48,7 +49,6 @@ export class GooseRule extends ToolRule {
     global,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): GooseRuleSettablePaths | GooseRuleSettablePathsGlobal {
     if (global) {
       return {
