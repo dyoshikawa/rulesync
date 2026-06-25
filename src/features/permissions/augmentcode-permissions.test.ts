@@ -766,6 +766,143 @@ describe("AugmentcodePermissions", () => {
     });
   });
 
+  describe("settings.local.json import overlay", () => {
+    it("should overlay settings.local.json over settings.json on import (local wins)", async () => {
+      const settingsDir = join(testDir, ".augment");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({
+          toolPermissions: [
+            {
+              toolName: "launch-process",
+              shellInputRegex: "^git .*$",
+              permission: { type: "allow" },
+            },
+          ],
+        }),
+      );
+      // toolPermissions is combined across tiers (local-first), so the base
+      // entry is preserved rather than replaced.
+      await writeFileContent(
+        join(settingsDir, "settings.local.json"),
+        JSON.stringify({
+          toolPermissions: [
+            {
+              toolName: "launch-process",
+              shellInputRegex: "^rm .*$",
+              permission: { type: "deny" },
+            },
+          ],
+        }),
+      );
+
+      const instance = await AugmentcodePermissions.fromFile({
+        outputRoot: testDir,
+        validate: false,
+      });
+      const config = instance.toRulesyncPermissions().getJson();
+      // Combined import: the local `^rm .*$` deny AND the base `^git .*$` allow
+      // are both present (a base deny would not be silently dropped).
+      expect(config.permission.bash).toEqual({ "rm *": "deny", "git *": "allow" });
+    });
+
+    it("should leave import unchanged when settings.local.json is absent", async () => {
+      const settingsDir = join(testDir, ".augment");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({
+          toolPermissions: [
+            {
+              toolName: "launch-process",
+              shellInputRegex: "^git .*$",
+              permission: { type: "allow" },
+            },
+          ],
+        }),
+      );
+
+      const instance = await AugmentcodePermissions.fromFile({
+        outputRoot: testDir,
+        validate: false,
+      });
+      const config = instance.toRulesyncPermissions().getJson();
+      expect(config.permission.bash).toEqual({ "git *": "allow" });
+    });
+
+    it("should NOT overlay settings.local.json in global mode (project-only file)", async () => {
+      const settingsDir = join(testDir, ".augment");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({
+          toolPermissions: [
+            {
+              toolName: "launch-process",
+              shellInputRegex: "^git .*$",
+              permission: { type: "allow" },
+            },
+          ],
+        }),
+      );
+      await writeFileContent(
+        join(settingsDir, "settings.local.json"),
+        JSON.stringify({
+          toolPermissions: [
+            {
+              toolName: "launch-process",
+              shellInputRegex: "^rm .*$",
+              permission: { type: "deny" },
+            },
+          ],
+        }),
+      );
+
+      const instance = await AugmentcodePermissions.fromFile({
+        outputRoot: testDir,
+        validate: false,
+        global: true,
+      });
+      const config = instance.toRulesyncPermissions().getJson();
+      // Global mode ignores the project-only settings.local.json overlay.
+      expect(config.permission.bash).toEqual({ "git *": "allow" });
+    });
+  });
+
+  describe("recommendedMarketplaces preservation guard", () => {
+    it("should preserve an existing recommendedMarketplaces key verbatim on regenerate", async () => {
+      // Auggie CLI 0.20.0 added a `recommendedMarketplaces` key in
+      // `.augment/settings.json`. Regenerating permissions must preserve it
+      // verbatim via the `{...settings}` spread merge.
+      const settingsDir = join(testDir, ".augment");
+      await ensureDir(settingsDir);
+      const recommendedMarketplaces = [
+        { name: "official", url: "https://marketplace.augmentcode.com" },
+      ];
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({ recommendedMarketplaces, toolPermissions: [] }),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+        }),
+      });
+
+      const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.recommendedMarketplaces).toEqual(recommendedMarketplaces);
+    });
+  });
+
   describe("validate()", () => {
     it("should succeed for well-formed AugmentCode settings JSON", () => {
       const instance = new AugmentcodePermissions({

@@ -11,8 +11,9 @@ import {
   AUGMENTCODE_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_AUGMENTCODE_EVENT_NAMES,
 } from "../../types/hooks.js";
+import { readAugmentcodeSettingsWithLocalOverlay } from "../../utils/augmentcode-settings.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readOrInitializeFileContent } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
@@ -81,8 +82,18 @@ export class AugmentcodeHooks extends ToolHooks {
     global = false,
   }: ToolHooksFromFileParams): Promise<AugmentcodeHooks> {
     const paths = AugmentcodeHooks.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? '{"hooks":{}}';
+    // On import, overlay the project-scope `.augment/settings.local.json`
+    // (gitignored, machine-specific overrides) ON TOP OF `settings.json` so
+    // user-local hook overrides are picked up. The overlay is project-only
+    // (no global `~/.augment/settings.local.json` is documented), so it is
+    // skipped in global mode.
+    const fileContent = await readAugmentcodeSettingsWithLocalOverlay({
+      outputRoot,
+      relativeDirPath: paths.relativeDirPath,
+      baseFileName: paths.relativeFilePath,
+      baseFallbackContent: '{"hooks":{}}',
+      includeLocalOverlay: !global,
+    });
     return new AugmentcodeHooks({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,

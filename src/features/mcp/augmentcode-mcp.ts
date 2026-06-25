@@ -100,6 +100,11 @@ export class AugmentcodeMcp extends ToolMcp {
     if (!global) {
       throw new Error(AUGMENTCODE_GLOBAL_ONLY_MESSAGE);
     }
+    // No `settings.local.json` overlay here: AugmentCode MCP is global-only
+    // (this method throws above for project mode), and the layered
+    // `settings.local.json` overrides file exists ONLY at the project
+    // (workspace) level — there is no global `~/.augment/settings.local.json`.
+    // So there is nothing to overlay in the only mode this import path supports.
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? "{}";

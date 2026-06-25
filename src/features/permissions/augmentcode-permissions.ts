@@ -8,6 +8,7 @@ import {
 } from "../../constants/augmentcode-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
+import { readAugmentcodeSettingsWithLocalOverlay } from "../../utils/augmentcode-settings.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { ConsoleLogger, type Logger } from "../../utils/logger.js";
@@ -274,8 +275,18 @@ export class AugmentcodePermissions extends ToolPermissions {
     global = false,
   }: ToolPermissionsFromFileParams): Promise<AugmentcodePermissions> {
     const paths = AugmentcodePermissions.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? '{"toolPermissions":[]}';
+    // On import, overlay the project-scope `.augment/settings.local.json`
+    // (gitignored, machine-specific overrides) ON TOP OF `settings.json` so
+    // user-local permission overrides are picked up. The overlay is project-only
+    // (no global `~/.augment/settings.local.json` is documented), so it is
+    // skipped in global mode.
+    const fileContent = await readAugmentcodeSettingsWithLocalOverlay({
+      outputRoot,
+      relativeDirPath: paths.relativeDirPath,
+      baseFileName: paths.relativeFilePath,
+      baseFallbackContent: '{"toolPermissions":[]}',
+      includeLocalOverlay: !global,
+    });
     return new AugmentcodePermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,

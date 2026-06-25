@@ -331,6 +331,66 @@ describe("AugmentcodeHooks", () => {
       const parsed = JSON.parse(augmentcodeHooks.getFileContent());
       expect(parsed.hooks).toEqual({});
     });
+
+    it("should overlay settings.local.json over settings.json on import (local wins)", async () => {
+      await ensureDir(join(testDir, ".augment"));
+      await writeFileContent(
+        join(testDir, ".augment", "settings.json"),
+        JSON.stringify({ hooks: { PreToolUse: [{ hooks: [{ command: "base.sh" }] }] } }),
+      );
+      // The `hooks` object combines across tiers, so the base event survives.
+      await writeFileContent(
+        join(testDir, ".augment", "settings.local.json"),
+        JSON.stringify({ hooks: { Stop: [{ hooks: [{ command: "local.sh" }] }] } }),
+      );
+
+      const augmentcodeHooks = await AugmentcodeHooks.fromFile({
+        outputRoot: testDir,
+        validate: false,
+      });
+      const parsed = JSON.parse(augmentcodeHooks.getFileContent());
+      // Combined: the local Stop event is added without dropping the base
+      // PreToolUse event.
+      expect(parsed.hooks.Stop).toBeDefined();
+      expect(parsed.hooks.PreToolUse).toBeDefined();
+    });
+
+    it("should leave import unchanged when settings.local.json is absent", async () => {
+      await ensureDir(join(testDir, ".augment"));
+      await writeFileContent(
+        join(testDir, ".augment", "settings.json"),
+        JSON.stringify({ hooks: { PreToolUse: [{ hooks: [{ command: "base.sh" }] }] } }),
+      );
+
+      const augmentcodeHooks = await AugmentcodeHooks.fromFile({
+        outputRoot: testDir,
+        validate: false,
+      });
+      const parsed = JSON.parse(augmentcodeHooks.getFileContent());
+      expect(parsed.hooks.PreToolUse).toBeDefined();
+    });
+
+    it("should NOT overlay settings.local.json in global mode (project-only file)", async () => {
+      await ensureDir(join(testDir, ".augment"));
+      await writeFileContent(
+        join(testDir, ".augment", "settings.json"),
+        JSON.stringify({ hooks: { PreToolUse: [{ hooks: [{ command: "base.sh" }] }] } }),
+      );
+      await writeFileContent(
+        join(testDir, ".augment", "settings.local.json"),
+        JSON.stringify({ hooks: { Stop: [{ hooks: [{ command: "local.sh" }] }] } }),
+      );
+
+      const augmentcodeHooks = await AugmentcodeHooks.fromFile({
+        outputRoot: testDir,
+        validate: false,
+        global: true,
+      });
+      const parsed = JSON.parse(augmentcodeHooks.getFileContent());
+      // Global mode ignores the project-only settings.local.json overlay.
+      expect(parsed.hooks.PreToolUse).toBeDefined();
+      expect(parsed.hooks.Stop).toBeUndefined();
+    });
   });
 
   describe("isDeletable", () => {
