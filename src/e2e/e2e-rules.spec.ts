@@ -151,6 +151,45 @@ globs: ["src/**/*"]
     expect(await fileExists(join(testDir, ".agents", "memories", "detail.md"))).toBe(false);
   });
 
+  it("should fold goose non-root rules into the root .goosehints", async () => {
+    const testDir = getTestDir();
+
+    const rootRuleContent = `---
+root: true
+targets: ["goose"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Goose Root Rule
+`;
+    const nonRootRuleContent = `---
+targets: ["goose"]
+description: "Detail rule"
+globs: ["src/**/*"]
+---
+
+# Goose Detail Rule
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      rootRuleContent,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "detail.md"),
+      nonRootRuleContent,
+    );
+
+    await runGenerate({ target: "goose", features: "rules" });
+
+    // Both bodies land in the single root .goosehints; the inert
+    // .goose/memories tree (which Goose never loads as context) is not emitted.
+    const rootContent = await readFileContent(join(testDir, ".goosehints"));
+    expect(rootContent).toContain("Goose Root Rule");
+    expect(rootContent).toContain("Goose Detail Rule");
+    expect(await fileExists(join(testDir, ".goose", "memories", "detail.md"))).toBe(false);
+  });
+
   it("should generate qwencode non-root rules into .qwen/rules with paths frontmatter", async () => {
     const testDir = getTestDir();
 

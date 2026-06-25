@@ -480,11 +480,18 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
   [
     "goose",
     {
+      // Goose reads the `.goosehints` / `AGENTS.md` instruction-file family
+      // natively (working dir up to the repo root plus nested directories it
+      // touches) but never the `.goose/memories/` tree, which belongs to the
+      // separate Memory extension and is not auto-loaded as session context.
+      // Non-root rules are therefore folded into the single root `.goosehints`
+      // below (same handling as grokcli / warp / deepagents).
       class: GooseRule,
       meta: {
         extension: "md",
         supportsGlobal: true,
-        ruleDiscoveryMode: "toon",
+        ruleDiscoveryMode: "auto",
+        foldsNonRootIntoRoot: true,
       },
     },
   ],

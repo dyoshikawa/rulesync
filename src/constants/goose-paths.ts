@@ -15,7 +15,16 @@ export const GOOSE_HOOKS_FILE_NAME = "hooks.json";
 // containing a SKILL.md with `name`+`description` frontmatter. rulesync emits
 // only this Goose-specific project path; Goose's portable global skills location
 // (`~/.agents/skills/`) is already served by the agentsskills target.
+//
+// Upstream now recommends `.agents/skills/` (project) and `~/.agents/skills/`
+// (global) as the standard, discovering `.goose/skills/` (and `.claude/skills/`)
+// only "for backward compatibility". We deliberately keep this legacy
+// project path: it is still discovered by current Goose, the recommended
+// `.agents/skills/` location is already the canonical Goose skill target via
+// `agentsskills`, and migrating the dedicated `goose` target would only
+// duplicate that output. See the agentsskills target for the recommended path.
 // @see https://block.github.io/goose/docs/mcp/skills-mcp/
+// @see https://block.github.io/goose/docs/guides/context-engineering/using-skills/
 export const GOOSE_SKILLS_DIR_PATH = join(GOOSE_DIR, "skills");
 
 // Recipes are reusable YAML workflow files. Goose discovers project recipes in
