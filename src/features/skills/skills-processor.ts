@@ -30,6 +30,7 @@ import { FactorydroidSkill } from "./factorydroid-skill.js";
 import { GeminiCliSkill } from "./geminicli-skill.js";
 import { GooseSkill } from "./goose-skill.js";
 import { GrokcliSkill } from "./grokcli-skill.js";
+import { HermesagentSkill } from "./hermesagent-skill.js";
 import { JunieSkill } from "./junie-skill.js";
 import { KiloSkill } from "./kilo-skill.js";
 import { KiroCliSkill } from "./kiro-cli-skill.js";
@@ -229,12 +230,15 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
   [
     "goose",
     {
-      // Goose discovers skills under .goose/skills/ (each a SKILL.md directory).
-      // rulesync emits only this Goose-specific project path; the portable global
-      // location (~/.agents/skills/) is covered by the agentsskills target.
-      // https://block.github.io/goose/docs/mcp/skills-mcp/
       class: GooseSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
+    },
+  ],
+  [
+    "hermesagent",
+    {
+      class: HermesagentSkill,
+      meta: { supportsProject: false, supportsSimulated: false, supportsGlobal: true },
     },
   ],
   [

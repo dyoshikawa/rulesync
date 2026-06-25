@@ -333,6 +333,7 @@ rulesync.local.jsonc
 **/.factory/droids/
 **/.gemini/agents/
 **/.goose/recipes/subagents/
+**/.hermes/rulesync/subagents/
 **/.grok/agents/
 **/.junie/agents/
 **/.kiro/agents/

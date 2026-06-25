@@ -20,6 +20,7 @@ import { FactorydroidPermissions } from "./factorydroid-permissions.js";
 import { GeminicliPermissions } from "./geminicli-permissions.js";
 import { GoosePermissions } from "./goose-permissions.js";
 import { GrokcliPermissions } from "./grokcli-permissions.js";
+import { HermesagentPermissions } from "./hermesagent-permissions.js";
 import { KiloPermissions } from "./kilo-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
@@ -208,6 +209,17 @@ export const toolPermissionsFactories = new Map<
         // Grok gates tools with the coarse `[ui] permission_mode` toggle in the
         // global `~/.grok/config.toml`; there is no project-scoped permission
         // surface, so it is global-only (mirrors Goose).
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "hermesagent",
+    {
+      class: HermesagentPermissions,
+      meta: {
         supportsProject: false,
         supportsGlobal: true,
         supportsImport: true,

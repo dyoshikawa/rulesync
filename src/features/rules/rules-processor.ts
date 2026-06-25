@@ -489,6 +489,18 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     },
   ],
   [
+    "hermesagent",
+    {
+      class: HermesagentRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
+        foldsNonRootIntoRoot: true,
+      },
+    },
+  ],
+  [
     "grokcli",
     {
       // Grok Build reads the AGENTS.md instruction-file family natively
@@ -499,23 +511,6 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       meta: {
         extension: "md",
         supportsGlobal: true,
-        ruleDiscoveryMode: "auto",
-        foldsNonRootIntoRoot: true,
-      },
-    },
-  ],
-  [
-    "hermesagent",
-    {
-      // Hermes Agent auto-injects the project-root `.hermes.md` into its system
-      // prompt and reads only that single root file (no non-root rule directory,
-      // no user-level rules file), so non-root rules are folded into the single
-      // root `.hermes.md` below (same handling as grokcli / warp / deepagents).
-      // Rules are project-scope only.
-      class: HermesagentRule,
-      meta: {
-        extension: "md",
-        supportsGlobal: false,
         ruleDiscoveryMode: "auto",
         foldsNonRootIntoRoot: true,
       },

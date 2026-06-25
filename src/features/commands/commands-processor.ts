@@ -24,6 +24,7 @@ import { DevinCommand } from "./devin-command.js";
 import { FactorydroidCommand } from "./factorydroid-command.js";
 import { GeminiCliCommand } from "./geminicli-command.js";
 import { GooseCommand } from "./goose-command.js";
+import { HermesagentCommand } from "./hermesagent-command.js";
 import { JunieCommand } from "./junie-command.js";
 import { KiloCommand } from "./kilo-command.js";
 import { KiroCliCommand } from "./kiro-cli-command.js";
@@ -266,6 +267,19 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         // subagent sub-recipes live in `.goose/recipes/subagents/` and must not
         // be picked up by the command importer.
         supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "hermesagent",
+    {
+      class: HermesagentCommand,
+      meta: {
+        extension: "md",
+        supportsProject: false,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
       },
     },
   ],

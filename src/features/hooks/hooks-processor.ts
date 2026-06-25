@@ -41,6 +41,7 @@ import { DEVIN_HOOK_EVENTS, DevinHooks } from "./devin-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
 import { GeminicliHooks } from "./geminicli-hooks.js";
 import { GooseHooks } from "./goose-hooks.js";
+import { HermesagentHooks } from "./hermesagent-hooks.js";
 import { JunieHooks } from "./junie-hooks.js";
 import { KiloHooks } from "./kilo-hooks.js";
 import { KiroCliHooks } from "./kiro-cli-hooks.js";
@@ -256,6 +257,16 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       },
       supportedEvents: GOOSE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "hermesagent",
+    {
+      class: HermesagentHooks,
+      meta: { supportsProject: false, supportsGlobal: true, supportsImport: true },
+      supportedEvents: CLAUDE_HOOK_EVENTS,
+      supportedHookTypes: ["command", "prompt", "http"],
       supportsMatcher: true,
     },
   ],
@@ -508,7 +519,7 @@ export class HooksProcessor extends FeatureProcessor {
 
     const config = rulesyncHooks.getJson();
     const sharedHooks = config.hooks;
-    const overrideHooks = config[this.toolTarget]?.hooks ?? {};
+    const overrideHooks = (config[this.toolTarget] as { hooks?: unknown } | undefined)?.hooks ?? {};
     const effectiveHooks = { ...sharedHooks, ...overrideHooks };
 
     // Warn about unsupported events
@@ -528,8 +539,9 @@ export class HooksProcessor extends FeatureProcessor {
       const supportedHookTypes: Set<string> = new Set(factory.supportedHookTypes);
       const unsupportedTypeToEvents = new Map<string, Set<string>>();
       for (const [event, defs] of Object.entries(effectiveHooks)) {
-        for (const def of defs) {
-          const hookType = def.type ?? "command";
+        for (const def of defs as unknown[]) {
+          const hookDef = def as { type?: string };
+          const hookType = hookDef.type ?? "command";
           if (!supportedHookTypes.has(hookType)) {
             const events = unsupportedTypeToEvents.get(hookType) ?? new Set<string>();
             events.add(event);
@@ -549,8 +561,9 @@ export class HooksProcessor extends FeatureProcessor {
     if (!factory.supportsMatcher) {
       const eventsWithMatcher = new Set<string>();
       for (const [event, defs] of Object.entries(effectiveHooks)) {
-        for (const def of defs) {
-          if (def.matcher) {
+        for (const def of defs as unknown[]) {
+          const hookDef = def as { matcher?: unknown };
+          if (hookDef.matcher) {
             eventsWithMatcher.add(event);
           }
         }

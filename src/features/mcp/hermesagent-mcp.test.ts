@@ -285,7 +285,7 @@ describe("HermesagentMcp", () => {
       expect(servers.fetch).toMatchObject({
         command: "uvx",
         args: ["mcp-server-fetch"],
-        timeout: 120,
+        networkTimeout: 120,
       });
       expect(servers.remote).toMatchObject({ url: "https://example.com/mcp" });
       // `enabled: false` maps back to the canonical `disabled: true`.
@@ -331,5 +331,62 @@ describe("HermesagentMcp", () => {
       expect(mcp).toBeInstanceOf(HermesagentMcp);
       expect(mcp.isDeletable()).toBe(false);
     });
+  });
+
+  it("converts Hermes timeout back to canonical networkTimeout", () => {
+    const mcp = new HermesagentMcp({
+      outputRoot: testDir,
+      relativeDirPath: ".hermes",
+      relativeFilePath: HERMES_FILE,
+      fileContent: `mcp_servers:
+  fetch:
+    command: uvx
+    timeout: 120
+`,
+      global: true,
+    });
+
+    const rulesync = mcp.toRulesyncMcp();
+    const servers = JSON.parse(rulesync.getFileContent()).mcpServers;
+
+    expect(servers.fetch.networkTimeout).toBe(120);
+    expect(servers.fetch.timeout).toBeUndefined();
+  });
+
+  it("merges generated MCP servers when existing Hermes config is loaded later", async () => {
+    const rulesyncMcp = new RulesyncMcp({
+      outputRoot: testDir,
+      relativeDirPath: ".",
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: {
+          "test-server": {
+            command: "echo",
+            args: ["hello"],
+            env: {},
+          },
+        },
+      }),
+    });
+
+    const mcp = await HermesagentMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp,
+      global: true,
+    });
+
+    mcp.setFileContent(`model: hermes-3
+mcp_servers:
+  existing-server:
+    command: existing
+  test-server:
+    command: stale
+`);
+
+    const config = mcp.getConfig();
+    expect(config.model).toBe("hermes-3");
+    expect(getMcpServers(mcp.getFileContent())["existing-server"]?.command).toBe("existing");
+    expect(getMcpServers(mcp.getFileContent())["test-server"]?.command).toBe("echo");
+    expect(getMcpServers(mcp.getFileContent())["test-server"]?.args).toEqual(["hello"]);
   });
 });

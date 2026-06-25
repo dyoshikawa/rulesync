@@ -25,6 +25,7 @@ import { FactorydroidSubagent } from "./factorydroid-subagent.js";
 import { GeminiCliSubagent } from "./geminicli-subagent.js";
 import { GooseSubagent } from "./goose-subagent.js";
 import { GrokcliSubagent } from "./grokcli-subagent.js";
+import { HermesagentSubagent } from "./hermesagent-subagent.js";
 import { JunieSubagent } from "./junie-subagent.js";
 import { KiloSubagent } from "./kilo-subagent.js";
 import { KiroCliSubagent } from "./kiro-cli-subagent.js";
@@ -64,7 +65,7 @@ type ToolSubagentFactory = {
       outputRoot?: string;
       rulesyncSubagents: RulesyncSubagent[];
       global?: boolean;
-    }): ToolSubagent;
+    }): ToolSubagent | ToolSubagent[];
     fromFile(params: ToolSubagentFromFileParams): Promise<ToolSubagent>;
     forDeletion(params: ToolSubagentForDeletionParams): ToolSubagent;
     getSettablePaths(options?: { global?: boolean }): ToolSubagentSettablePaths;
@@ -235,6 +236,17 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     {
       class: GooseSubagent,
       meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.yaml" },
+    },
+  ],
+  [
+    "hermesagent",
+    {
+      class: HermesagentSubagent,
+      meta: {
+        supportsGlobal: true,
+        supportsSimulated: false,
+        filePattern: "*.json",
+      },
     },
   ],
   [
@@ -414,13 +426,13 @@ export class SubagentsProcessor extends FeatureProcessor {
       if (targeted.length === 0) {
         return [];
       }
-      return [
-        factory.class.fromRulesyncSubagents({
-          outputRoot: this.outputRoot,
-          rulesyncSubagents: targeted,
-          global: this.global,
-        }),
-      ];
+      const toolSubagents = factory.class.fromRulesyncSubagents({
+        outputRoot: this.outputRoot,
+        rulesyncSubagents: targeted,
+        global: this.global,
+      });
+
+      return Array.isArray(toolSubagents) ? toolSubagents : [toolSubagents];
     }
 
     return targeted.map((rulesyncSubagent) =>

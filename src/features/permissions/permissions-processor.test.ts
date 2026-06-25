@@ -113,6 +113,7 @@ describe("PermissionsProcessor", () => {
         "geminicli",
         "goose",
         "grokcli",
+        "hermesagent",
         "kilo",
         "opencode",
         "qwencode",

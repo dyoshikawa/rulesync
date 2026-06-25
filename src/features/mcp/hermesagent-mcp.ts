@@ -128,6 +128,21 @@ function convertToHermesFormat(mcpServers: McpServers): Record<string, Record<st
   return result;
 }
 
+function mergeHermesMcpServers(
+  config: Record<string, unknown>,
+  mcpServers: Record<string, Record<string, unknown>>,
+): Record<string, unknown> {
+  const existingMcpServers = isRecord(config.mcp_servers) ? config.mcp_servers : {};
+
+  return {
+    ...config,
+    mcp_servers: {
+      ...existingMcpServers,
+      ...mcpServers,
+    },
+  };
+}
+
 /**
  * Converts Hermes `mcp_servers:` entries back into rulesync canonical MCP servers.
  *
@@ -147,7 +162,7 @@ function convertFromHermesFormat(mcpServers: Record<string, unknown>): McpServer
     if (typeof config.url === "string") server.url = config.url;
     if (isPlainObject(config.headers)) server.headers = omitPrototypePollutionKeys(config.headers);
     if (config.enabled === false) server.disabled = true;
-    if (typeof config.timeout === "number") server.timeout = config.timeout;
+    if (typeof config.timeout === "number") server.networkTimeout = config.timeout;
 
     result[name] = server;
   }
@@ -166,7 +181,7 @@ function convertFromHermesFormat(mcpServers: Record<string, unknown>): McpServer
  * the file is never deleted.
  */
 export class HermesagentMcp extends ToolMcp {
-  private readonly config: Record<string, unknown>;
+  private config: Record<string, unknown>;
 
   constructor(params: ToolMcpParams) {
     super(params);
@@ -183,6 +198,22 @@ export class HermesagentMcp extends ToolMcp {
 
   getConfig(): Record<string, unknown> {
     return this.config;
+  }
+
+  override shouldMergeExistingFileContent(): boolean {
+    return true;
+  }
+
+  override setFileContent(fileContent: string): void {
+    const config = parseHermesConfig(fileContent, this.relativeDirPath, this.relativeFilePath);
+    const mcpServers = isRecord(this.config.mcp_servers) ? this.config.mcp_servers : {};
+    const merged = mergeHermesMcpServers(
+      config,
+      mcpServers as Record<string, Record<string, unknown>>,
+    );
+
+    this.config = merged;
+    super.setFileContent(dump(merged));
   }
 
   override isDeletable(): boolean {
@@ -239,10 +270,10 @@ export class HermesagentMcp extends ToolMcp {
 
     // Merge the `mcp_servers:` block into the shared config, preserving other
     // keys (model, terminal, ...).
-    const merged = {
-      ...config,
-      mcp_servers: convertToHermesFormat(rulesyncMcp.getMcpServers()),
-    };
+    const merged = mergeHermesMcpServers(
+      config,
+      convertToHermesFormat(rulesyncMcp.getMcpServers()),
+    );
 
     return new HermesagentMcp({
       outputRoot,

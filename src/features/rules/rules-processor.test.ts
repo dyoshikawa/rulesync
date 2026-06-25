@@ -1019,6 +1019,7 @@ Content that would fail parsing`;
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
+      expect(globalTargets).not.toContain("hermesagent");
       expect(globalTargets).not.toContain("warp");
     });
   });
