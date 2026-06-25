@@ -51,6 +51,8 @@ This is a dry run command for release. It will summarize the changes since the l
      - Internal refactoring without API changes
      - Dependency updates (unless they cause breaking changes)
 
+   **Important**: Whenever the changes include any feature removal or a change in the behavior of an existing feature, do not hesitate to choose a MAJOR version bump. Prioritize protecting users from unexpected breakage over keeping the version number low.
+
 5. Output the final recommendation in the following format:
 
    ```
