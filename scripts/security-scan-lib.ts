@@ -73,9 +73,9 @@ export const validateEnv = (): ValidatedEnv => {
   };
 };
 
-export const getToonFiles = ({ dir }: { dir: string }): string[] => {
+export const getXmlFiles = ({ dir }: { dir: string }): string[] => {
   return readdirSync(dir)
-    .filter((file) => file.endsWith(".toon"))
+    .filter((file) => file.endsWith(".xml"))
     .map((file) => join(dir, file));
 };
 
@@ -84,19 +84,19 @@ export type OpenRouterClient = { chat: { send: (...args: any[]) => Promise<any> 
 
 export const runSecurityScan = async ({
   client,
-  toonContent,
+  content: scanContent,
   model,
   prompt,
 }: {
   client: OpenRouterClient;
-  toonContent: string;
+  content: string;
   model: string;
   prompt: string;
 }): Promise<SecurityScanResult> => {
   const response = await client.chat.send({
     chatGenerationParams: {
       model,
-      messages: [{ role: "user", content: `${prompt}\n\n${toonContent}` }],
+      messages: [{ role: "user", content: `${prompt}\n\n${scanContent}` }],
       responseFormat: {
         type: "json_schema" as const,
         jsonSchema: {

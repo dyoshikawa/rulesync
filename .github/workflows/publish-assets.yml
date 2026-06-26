@@ -67,11 +67,11 @@ jobs:
       - name: Generate JSON Schemas
         run: pnpm generate:schema
 
-      - name: Generate repomix TOON variants
-        run: bun scripts/generate-repomix-toon.ts
+      - name: Generate repomix XML variants
+        run: bun scripts/generate-repomix-xml.ts
 
-      - name: Bundle TOON files into zip
-        run: zip repomix-toon.zip repomix-output-*.toon
+      - name: Bundle XML files into zip
+        run: zip repomix-xml.zip repomix-output-*.xml
 
       - name: Determine tag name
         id: tag
@@ -148,7 +148,7 @@ jobs:
             dist-bun/rulesync-darwin-x64
             dist-bun/rulesync-windows-x64.exe
             dist-bun/SHA256SUMS
-            repomix-toon.zip
+            repomix-xml.zip
             config-schema.json
             permissions-schema.json
             mcp-schema.json

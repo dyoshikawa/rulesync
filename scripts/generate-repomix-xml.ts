@@ -1,7 +1,6 @@
-import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-import { encode } from "@toon-format/toon";
 import { runCli } from "repomix";
 
 type Variant = {
@@ -57,15 +56,14 @@ async function generateVariants(): Promise<void> {
   const variants = buildVariants();
 
   for (const variant of variants) {
-    const jsonPath = join(baseDir, `${variant.name}.json`);
-    const toonPath = join(baseDir, `${variant.name}.toon`);
+    const xmlPath = join(baseDir, `${variant.name}.xml`);
 
     // oxlint-disable-next-line no-console
-    console.log(`Generating ${variant.name}.json...`);
+    console.log(`Generating ${variant.name}.xml...`);
 
     const result = await runCli(["."], baseDir, {
-      output: jsonPath,
-      style: "json",
+      output: xmlPath,
+      style: "xml",
       include: variant.include?.join(","),
       ignore: variant.ignore?.join(","),
     });
@@ -78,14 +76,7 @@ async function generateVariants(): Promise<void> {
     }
 
     // oxlint-disable-next-line no-console
-    console.log(`Converting to ${variant.name}.toon...`);
-    const jsonContent = readFileSync(jsonPath, "utf-8");
-    const jsonData: unknown = JSON.parse(jsonContent);
-    const toonContent = encode(jsonData);
-    writeFileSync(toonPath, toonContent);
-
-    // oxlint-disable-next-line no-console
-    console.log(`  Done: ${toonPath}\n`);
+    console.log(`  Done: ${xmlPath}\n`);
   }
 
   // oxlint-disable-next-line no-console
