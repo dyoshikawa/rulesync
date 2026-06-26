@@ -155,7 +155,7 @@ async function deleteMcpFile(): Promise<{
 /**
  * Schema for MCP-related tool parameters
  */
-export const mcpToolSchemas = {
+const mcpToolSchemas = {
   getMcpFile: z.object({}),
   putMcpFile: z.object({
     content: z.string(),

@@ -154,7 +154,7 @@ function buildSuccessResponse(params: {
   };
 }
 
-export const generateToolSchemas = {
+const generateToolSchemas = {
   executeGenerate: generateOptionsSchema,
 };
 

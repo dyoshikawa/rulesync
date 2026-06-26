@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { AGENTSMD_SKILLS_DIR_PATH } from "./agentsmd-paths.js";
 
-export const AIASSISTANT_DIR = ".aiassistant";
+const AIASSISTANT_DIR = ".aiassistant";
 export const AIASSISTANT_RULES_DIR_PATH = join(AIASSISTANT_DIR, "rules");
 // JetBrains AI Assistant shares the JetBrains-wide `.aiignore` filename (the
 // same file Junie uses) at the project root.

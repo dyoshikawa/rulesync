@@ -17,7 +17,7 @@ import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
 import { ensureDir, fileExists, writeFileContent } from "../utils/file.js";
 
-export type InitFileResult = {
+type InitFileResult = {
   created: boolean;
   path: string;
 };

@@ -22,7 +22,7 @@ import {
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
 // Devin "workflows" are the command surface for Cascade. Files are Markdown with
 // optional YAML frontmatter; only `description` is documented (no other required fields).
-export const DevinCommandFrontmatterSchema = z.looseObject({
+const DevinCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
 });
 

@@ -28,7 +28,7 @@ import {
 } from "./tool-subagent.js";
 
 /** Default `mode` applied to OpenCode subagents (single source of truth). */
-export const OPENCODE_DEFAULT_MODE = "subagent";
+const OPENCODE_DEFAULT_MODE = "subagent";
 
 /**
  * Explicit OpenCode subagent frontmatter schema.

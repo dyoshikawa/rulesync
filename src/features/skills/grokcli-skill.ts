@@ -16,7 +16,7 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const GrokcliSkillFrontmatterSchema = z.looseObject({
+const GrokcliSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
 });

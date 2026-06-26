@@ -28,7 +28,7 @@ import {
  * Frontmatter schema for Claude Code modular rules
  * @see https://code.claude.com/docs/en/memory#modular-rules-with-clauderules
  */
-export const ClaudecodeRuleFrontmatterSchema = z.object({
+const ClaudecodeRuleFrontmatterSchema = z.object({
   paths: z.optional(z.array(z.string())),
 });
 

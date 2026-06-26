@@ -16,7 +16,7 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const GooseSkillFrontmatterSchema = z.looseObject({
+const GooseSkillFrontmatterSchema = z.looseObject({
   // Goose SKILL.md documents only `name` and `description` as required fields.
   // https://block.github.io/goose/docs/guides/context-engineering/using-skills/
   // Any additional fields (e.g. `metadata`) pass through via z.looseObject.

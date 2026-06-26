@@ -37,7 +37,7 @@ const RECIPE_VERSION = "1.0.0";
  *
  * @see https://block.github.io/goose/docs/guides/recipes/sub-recipes/
  */
-export const GooseSubagentRecipeSchema = z.looseObject({
+const GooseSubagentRecipeSchema = z.looseObject({
   version: z.optional(z.string()),
   title: z.optional(z.string()),
   description: z.optional(z.string()),

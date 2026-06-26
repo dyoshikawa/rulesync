@@ -17,7 +17,7 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const ZedSkillFrontmatterSchema = z.looseObject({
+const ZedSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
   "disable-model-invocation": z.optional(z.boolean()),

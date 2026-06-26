@@ -31,7 +31,7 @@ import {
  * - Project file:  `.windsurf/hooks.json`
  * - Global file:   `~/.codeium/windsurf/hooks.json`
  */
-export const DEVIN_HOOK_EVENT_NAMES = [
+const DEVIN_HOOK_EVENT_NAMES = [
   "pre_read_code",
   "post_read_code",
   "pre_write_code",
@@ -46,7 +46,7 @@ export const DEVIN_HOOK_EVENT_NAMES = [
   "post_setup_worktree",
 ] as const;
 
-export type DevinHookEventName = (typeof DEVIN_HOOK_EVENT_NAMES)[number];
+type DevinHookEventName = (typeof DEVIN_HOOK_EVENT_NAMES)[number];
 
 /**
  * Map canonical camelCase event names to Devin event names.
@@ -84,7 +84,7 @@ export type DevinHookEventName = (typeof DEVIN_HOOK_EVENT_NAMES)[number];
  * Canonical events that have no Devin equivalent (e.g. sessionStart, stop)
  * are dropped with a logged warning during export.
  */
-export const CANONICAL_TO_DEVIN_EVENT_NAMES: Record<string, DevinHookEventName> = {
+const CANONICAL_TO_DEVIN_EVENT_NAMES: Record<string, DevinHookEventName> = {
   beforeReadFile: "pre_read_code",
   beforeTabFileRead: "post_read_code",
   afterTabFileEdit: "pre_write_code",
@@ -102,7 +102,7 @@ export const CANONICAL_TO_DEVIN_EVENT_NAMES: Record<string, DevinHookEventName> 
 /**
  * Map Devin event names back to canonical camelCase event names.
  */
-export const DEVIN_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+const DEVIN_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_DEVIN_EVENT_NAMES).map(([k, v]) => [v, k]),
 );
 

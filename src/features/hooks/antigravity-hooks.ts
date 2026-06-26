@@ -104,7 +104,7 @@ type AntigravityOverrideKey = "antigravity-ide" | "antigravity-cli";
  * override key (`antigravity-ide` / `antigravity-cli`) they read from the
  * rulesync hooks config.
  */
-export class AntigravityHooks extends ToolHooks {
+class AntigravityHooks extends ToolHooks {
   constructor(params: AiFileParams) {
     super({
       ...params,

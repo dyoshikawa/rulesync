@@ -212,7 +212,7 @@ async function deleteCommand({ relativePathFromCwd }: { relativePathFromCwd: str
 /**
  * Schema for command-related tool parameters
  */
-export const commandToolSchemas = {
+const commandToolSchemas = {
   listCommands: z.object({}),
   getCommand: z.object({
     relativePathFromCwd: z.string(),

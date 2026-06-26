@@ -16,7 +16,7 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const AgentsSkillsSkillFrontmatterSchema = z.looseObject({
+const AgentsSkillsSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
   // Optional Agent Skills standard frontmatter. https://agentskills.io/specification

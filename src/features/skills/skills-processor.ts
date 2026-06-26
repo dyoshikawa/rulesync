@@ -393,12 +393,10 @@ const skillsProcessorToolTargetsProject: ToolTarget[] = allToolTargetKeys.filter
   return factory?.meta.supportsProject ?? true;
 });
 
-export const skillsProcessorToolTargetsSimulated: ToolTarget[] = allToolTargetKeys.filter(
-  (target) => {
-    const factory = toolSkillFactories.get(target);
-    return factory?.meta.supportsSimulated ?? false;
-  },
-);
+const skillsProcessorToolTargetsSimulated: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolSkillFactories.get(target);
+  return factory?.meta.supportsSimulated ?? false;
+});
 
 export const skillsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
   const factory = toolSkillFactories.get(target);

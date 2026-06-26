@@ -17,7 +17,7 @@ export type PermissionAction = z.infer<typeof PermissionActionSchema>;
  * @example
  * { "*": "ask", "git *": "allow", "rm *": "deny" }
  */
-export const PermissionRulesSchema = z.record(z.string(), PermissionActionSchema);
+const PermissionRulesSchema = z.record(z.string(), PermissionActionSchema);
 
 /**
  * Permissions configuration.
@@ -30,7 +30,7 @@ export const PermissionRulesSchema = z.record(z.string(), PermissionActionSchema
  *   "edit": { "*": "deny", "src/**": "allow" }
  * }
  */
-export const PermissionsConfigSchema = z.looseObject({
+const PermissionsConfigSchema = z.looseObject({
   permission: z.record(z.string(), PermissionRulesSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;

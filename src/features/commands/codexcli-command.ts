@@ -18,7 +18,7 @@ import {
 
 // looseObject preserves unknown keys during parsing so future Codex frontmatter
 // additions survive a round trip. https://developers.openai.com/codex/custom-prompts
-export const CodexcliCommandFrontmatterSchema = z.looseObject({
+const CodexcliCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   "argument-hint": z.optional(z.string()),
 });

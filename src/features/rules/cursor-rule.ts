@@ -20,7 +20,7 @@ import {
   buildToolPath,
 } from "./tool-rule.js";
 
-export const CursorRuleFrontmatterSchema = z.object({
+const CursorRuleFrontmatterSchema = z.object({
   description: z.optional(z.string()),
   globs: z.optional(z.string()),
   alwaysApply: z.optional(z.boolean()),

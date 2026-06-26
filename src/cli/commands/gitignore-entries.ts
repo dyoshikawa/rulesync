@@ -18,8 +18,6 @@ import {
   type GitignoreEntryTarget,
 } from "./gitignore-derive.js";
 
-export type { GitignoreEntryTag, GitignoreEntryTarget };
-
 const normalizeGitignoreEntryTargets = (
   target: GitignoreEntryTag["target"],
 ): ReadonlyArray<GitignoreEntryTarget> => {

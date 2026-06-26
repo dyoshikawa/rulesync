@@ -30,7 +30,7 @@ export const RulesyncCommandFrontmatterSchema = z.looseObject({
 });
 
 // Input type allows targets to be omitted (will use default value)
-export type RulesyncCommandFrontmatterInput = z.input<typeof RulesyncCommandFrontmatterSchema> &
+type RulesyncCommandFrontmatterInput = z.input<typeof RulesyncCommandFrontmatterSchema> &
   Partial<Record<ToolTarget, Record<string, unknown>>>;
 // Output type has targets always present after parsing
 export type RulesyncCommandFrontmatter = z.infer<typeof RulesyncCommandFrontmatterSchema> &
