@@ -45,7 +45,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/cli/index.ts src/index.ts --format cjs,esm --dts --clean",
+    "build": "tsdown",
     "check": "pnpm run fmt:check && pnpm run oxlint && pnpm run typecheck",
     "check:gitignore": "pnpm run dev gitignore && git diff --exit-code .gitignore .gitattributes",
     "check:supported-tools": "tsx scripts/generate-supported-tools-tables.ts && git diff --exit-code README.md docs/reference/supported-tools.md",
@@ -120,7 +120,7 @@
     "simple-git": "3.36.0",
     "simple-git-hooks": "2.13.1",
     "sort-package-json": "4.0.0",
-    "tsup": "8.5.1",
+    "tsdown": "0.22.3",
     "tsx": "4.22.4",
     "typescript": "6.0.3",
     "vite": "8.0.16",
