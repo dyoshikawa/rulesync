@@ -460,6 +460,17 @@ describe("runSecurityScan", () => {
 
     expect(result).toEqual(scanResult);
     expect(mockClient.chat.send).toHaveBeenCalledOnce();
+    // Lock in the OpenRouter SDK request shape (chatRequest/appTitle), which
+    // the SDK validates at call time and silently breaks the scan if wrong.
+    const sendArg = vi.mocked(mockClient.chat.send).mock.calls[0]?.[0];
+    expect(sendArg).toMatchObject({
+      chatRequest: {
+        model: "test-model",
+        messages: [{ role: "user", content: "analyze this\n\nsome code" }],
+        stream: false,
+      },
+      appTitle: "rulesync security-scan",
+    });
   });
 
   it("should throw when no content returned", async () => {
