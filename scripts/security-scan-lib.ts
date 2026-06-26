@@ -94,7 +94,7 @@ export const runSecurityScan = async ({
   prompt: string;
 }): Promise<SecurityScanResult> => {
   const response = await client.chat.send({
-    chatGenerationParams: {
+    chatRequest: {
       model,
       messages: [{ role: "user", content: `${prompt}\n\n${scanContent}` }],
       responseFormat: {
@@ -108,7 +108,7 @@ export const runSecurityScan = async ({
       stream: false as const,
     },
     httpReferer: "https://github.com/dyoshikawa/rulesync",
-    xTitle: "rulesync security-scan",
+    appTitle: "rulesync security-scan",
   });
 
   const content = response.choices?.[0]?.message?.content;
@@ -163,13 +163,13 @@ export const generateOverallSummary = async ({
   const input = buildSummaryInput({ results });
 
   const response = await client.chat.send({
-    chatGenerationParams: {
+    chatRequest: {
       model,
       messages: [{ role: "user", content: `${OVERALL_SUMMARY_PROMPT}\n\n${input}` }],
       stream: false as const,
     },
     httpReferer: "https://github.com/dyoshikawa/rulesync",
-    xTitle: "rulesync security-scan",
+    appTitle: "rulesync security-scan",
   });
 
   const content = response.choices?.[0]?.message?.content;
