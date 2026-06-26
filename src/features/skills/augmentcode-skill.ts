@@ -23,7 +23,7 @@ import {
 // is a subdirectory containing a SKILL.md file with `name`/`description`
 // required. looseObject preserves any Agent Skills extras.
 // See https://docs.augmentcode.com/cli/skills
-export const AugmentcodeSkillFrontmatterSchema = z.looseObject({
+const AugmentcodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
 });

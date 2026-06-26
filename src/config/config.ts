@@ -19,7 +19,6 @@ import {
   ALL_TOOL_TARGETS,
   isRulesyncConfigTargetsObject,
   RulesyncConfigTargets,
-  RulesyncConfigTargetsObject,
   RulesyncConfigTargetsSchema,
   RulesyncTargets,
   ToolTarget,
@@ -27,13 +26,13 @@ import {
 } from "../types/tool-targets.js";
 import { hasControlCharacters } from "../utils/validation.js";
 
-export const GITIGNORE_DESTINATION_KEY = "gitignoreDestination";
+const GITIGNORE_DESTINATION_KEY = "gitignoreDestination";
 
 /**
  * Schema for a single source entry in the sources array.
  * Declares an external repository from which skills can be fetched.
  */
-export const SourceEntrySchema = z.object({
+const SourceEntrySchema = z.object({
   source: z.string().check(minLength(1, "source must be a non-empty string")),
   skills: optional(z.array(z.string())),
   transport: optional(z.enum(["github", "git"])),
@@ -59,7 +58,7 @@ export const SourceEntrySchema = z.object({
 });
 export type SourceEntry = z.infer<typeof SourceEntrySchema>;
 
-export const ConfigParamsSchema = z.object({
+const ConfigParamsSchema = z.object({
   outputRoots: z.array(z.string()),
   targets: RulesyncConfigTargetsSchema,
   features: RulesyncFeaturesSchema,
@@ -106,7 +105,7 @@ export type ConfigParams = Omit<InferredConfigParams, "targets" | "features"> & 
   configFileTargets?: ToolTarget[];
 };
 
-export const PartialConfigParamsSchema = z.partial(ConfigParamsSchema);
+const PartialConfigParamsSchema = z.partial(ConfigParamsSchema);
 type InferredPartialConfigParams = z.infer<typeof PartialConfigParamsSchema>;
 export type PartialConfigParams = Omit<InferredPartialConfigParams, "targets" | "features"> & {
   targets?: RulesyncConfigTargets;
@@ -124,7 +123,7 @@ export type ConfigFile = Omit<InferredConfigFile, "targets" | "features"> & {
   features?: RulesyncFeatures;
 };
 
-export const RequiredConfigParamsSchema = z.required(ConfigParamsSchema);
+const RequiredConfigParamsSchema = z.required(ConfigParamsSchema);
 type InferredRequiredConfigParams = z.infer<typeof RequiredConfigParamsSchema>;
 export type RequiredConfigParams = Omit<InferredRequiredConfigParams, "targets" | "features"> & {
   targets?: RulesyncConfigTargets;
@@ -143,7 +142,7 @@ const CONFLICTING_TARGET_PAIRS: Array<[string, string]> = [
  * Legacy targets that should NOT be included in wildcard (*) expansion.
  * These targets must be explicitly specified.
  */
-export const LEGACY_TARGETS = ["augmentcode-legacy", "claudecode-legacy"] as const;
+const LEGACY_TARGETS = ["augmentcode-legacy", "claudecode-legacy"] as const;
 
 /**
  * Expand the wildcard target (`*`) to every non-legacy tool target. Legacy
@@ -599,7 +598,3 @@ export class Config {
     return this.dryRun || this.check;
   }
 }
-
-// Exported for use by callers that need to reference the object form
-// explicitly (e.g., docs generators, type-narrowing outside this module).
-export type { RulesyncConfigTargetsObject };

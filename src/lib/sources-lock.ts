@@ -13,7 +13,7 @@ export const LOCKFILE_VERSION = 1;
 /**
  * Schema for a single locked skill entry with content integrity.
  */
-export const LockedSkillSchema = z.object({
+const LockedSkillSchema = z.object({
   integrity: z.string(),
 });
 export type LockedSkill = z.infer<typeof LockedSkillSchema>;
@@ -21,7 +21,7 @@ export type LockedSkill = z.infer<typeof LockedSkillSchema>;
 /**
  * Schema for a single locked source entry.
  */
-export const LockedSourceSchema = z.object({
+const LockedSourceSchema = z.object({
   requestedRef: optional(z.string()),
   resolvedRef: z
     .string()
@@ -34,7 +34,7 @@ export type LockedSource = z.infer<typeof LockedSourceSchema>;
 /**
  * Schema for the full lockfile (current version).
  */
-export const SourcesLockSchema = z.object({
+const SourcesLockSchema = z.object({
   lockfileVersion: z.number(),
   sources: z.record(z.string(), LockedSourceSchema),
 });

@@ -36,7 +36,7 @@ const RooModeGroupSchema = z.union([z.string(), z.tuple([z.string(), z.looseObje
  * A single custom mode inside the `customModes` array of `.roomodes`.
  * @see https://roocodeinc.github.io/Roo-Code/features/custom-modes
  */
-export const RooModeSchema = z.looseObject({
+const RooModeSchema = z.looseObject({
   slug: z.string(),
   name: z.string(),
   description: z.optional(z.string()),
@@ -48,7 +48,7 @@ export const RooModeSchema = z.looseObject({
 
 export type RooMode = z.infer<typeof RooModeSchema>;
 
-export const RooModesFileSchema = z.looseObject({
+const RooModesFileSchema = z.looseObject({
   customModes: z.array(RooModeSchema),
 });
 

@@ -490,12 +490,12 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
 // Derive tool target arrays from factory metadata
 const allToolTargetKeys = [...toolMcpFactories.keys()];
 
-export const mcpProcessorToolTargets: ToolTarget[] = allToolTargetKeys.filter((target) => {
+const mcpProcessorToolTargets: ToolTarget[] = allToolTargetKeys.filter((target) => {
   const factory = toolMcpFactories.get(target);
   return factory?.meta.supportsProject ?? false;
 });
 
-export const mcpProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
+const mcpProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
   const factory = toolMcpFactories.get(target);
   return factory?.meta.supportsGlobal ?? false;
 });

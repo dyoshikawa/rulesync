@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-export const GOOSE_DIR = ".goose";
+const GOOSE_DIR = ".goose";
 export const GOOSE_GLOBAL_DIR = join(".config", "goose");
 export const GOOSE_RULE_FILE_NAME = ".goosehints";
 export const GOOSE_IGNORE_FILE_NAME = ".gooseignore";

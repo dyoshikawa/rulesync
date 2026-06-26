@@ -11,7 +11,7 @@ import { fileExists, readFileContent, writeFileContent } from "../../utils/file.
  * apm-mode lockfile (`rulesync-apm.lock.yaml`) so the three install modes
  * never fight over the same file.
  */
-export const GH_LOCKFILE_FILE_NAME = "rulesync-gh.lock.yaml";
+const GH_LOCKFILE_FILE_NAME = "rulesync-gh.lock.yaml";
 export const GH_LOCKFILE_VERSION = "1" as const;
 
 /**
@@ -29,7 +29,7 @@ const ScopeSchema = z.enum(["project", "user"]);
  * skill from one source under one (agent, scope) pair — matching the gh CLI
  * model where `gh skill install` deploys exactly one skill at a time.
  */
-export const GhLockInstallationSchema = z.looseObject({
+const GhLockInstallationSchema = z.looseObject({
   source: z.string(),
   owner: z.string(),
   repo: z.string(),
@@ -47,7 +47,7 @@ export const GhLockInstallationSchema = z.looseObject({
 });
 export type GhLockInstallation = z.infer<typeof GhLockInstallationSchema>;
 
-export const GhLockSchema = z.looseObject({
+const GhLockSchema = z.looseObject({
   lockfile_version: z.literal("1"),
   generated_at: z.string(),
   installations: z.array(GhLockInstallationSchema),

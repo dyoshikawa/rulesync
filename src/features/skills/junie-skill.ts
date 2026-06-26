@@ -16,7 +16,7 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const JunieSkillFrontmatterSchema = z.looseObject({
+const JunieSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
 });

@@ -11,7 +11,7 @@ import { fileExists, readFileContent, writeFileContent } from "../../utils/file.
  * two tools do not fight over the same file: the schema is still the apm v1
  * lockfile format, but rulesync only reads/writes its own file.
  */
-export const APM_LOCKFILE_FILE_NAME = "rulesync-apm.lock.yaml";
+const APM_LOCKFILE_FILE_NAME = "rulesync-apm.lock.yaml";
 export const APM_LOCKFILE_VERSION = "1" as const;
 
 /**
@@ -29,7 +29,7 @@ export const RULESYNC_CONTENT_HASH_REGEX = /^sha256:[0-9a-f]{64}$/;
  * verbatim so that rulesync does not strip them out when re-writing a
  * lockfile produced by `apm` itself.
  */
-export const ApmLockDependencySchema = z.looseObject({
+const ApmLockDependencySchema = z.looseObject({
   repo_url: z.string(),
   resolved_commit: optional(
     z
@@ -57,7 +57,7 @@ export const ApmLockDependencySchema = z.looseObject({
 });
 export type ApmLockDependency = z.infer<typeof ApmLockDependencySchema>;
 
-export const ApmLockSchema = z.looseObject({
+const ApmLockSchema = z.looseObject({
   lockfile_version: z.literal("1"),
   generated_at: z.string(),
   apm_version: z.string(),

@@ -17,7 +17,7 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const CursorSkillFrontmatterSchema = z.looseObject({
+const CursorSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
   // Optional Cursor SKILL.md frontmatter. https://cursor.com/docs/skills

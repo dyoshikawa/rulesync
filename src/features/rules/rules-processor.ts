@@ -721,7 +721,7 @@ const allToolTargetKeys = [...toolRuleFactories.keys()];
 
 const rulesProcessorToolTargets: ToolTarget[] = allToolTargetKeys;
 
-export const rulesProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
+const rulesProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
   const factory = toolRuleFactories.get(target);
   return factory?.meta.supportsGlobal ?? false;
 });

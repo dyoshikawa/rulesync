@@ -76,7 +76,7 @@ export type DevinRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
  * @param globs - Comma-separated globs string (e.g., "*.ts,*.js") or array of globs
  * @returns Array of glob patterns
  */
-export function parseGlobsString(globs: string | string[] | undefined): string[] {
+function parseGlobsString(globs: string | string[] | undefined): string[] {
   if (!globs) {
     return [];
   }
@@ -106,7 +106,7 @@ function stringifyGlobs(globs: string[] | undefined): string | undefined {
  * frontmatter block. `globs` may be stored as an array there but is normalized
  * to a comma-separated string for the Devin rule file.
  */
-export type StoredDevin =
+type StoredDevin =
   | (Omit<DevinRuleFrontmatter, "globs"> & { globs?: string | string[] })
   | undefined;
 
@@ -114,7 +114,7 @@ export type StoredDevin =
  * Normalizes a StoredDevin value to DevinRuleFrontmatter format by
  * converting globs from array to string if needed.
  */
-export function normalizeStoredDevin(stored: StoredDevin): DevinRuleFrontmatter | undefined {
+function normalizeStoredDevin(stored: StoredDevin): DevinRuleFrontmatter | undefined {
   if (!stored) {
     return undefined;
   }
@@ -269,7 +269,7 @@ const inferenceStrategy: TriggerStrategy = {
  *
  * DO NOT reorder without understanding the matching logic.
  */
-export const STRATEGIES: TriggerStrategy[] = [
+const STRATEGIES: TriggerStrategy[] = [
   globStrategy,
   manualStrategy,
   alwaysOnStrategy,

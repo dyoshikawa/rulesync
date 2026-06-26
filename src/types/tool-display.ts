@@ -6,7 +6,7 @@ import type { ToolTarget } from "./tool-targets.js";
 // across the per-feature factories. Support cells are derived from getToolTargets;
 // only these labels are hand-maintained. Legacy alias targets are intentionally
 // omitted (hidden from the tables).
-export type ToolDisplayGroup = "ai" | "standard";
+type ToolDisplayGroup = "ai" | "standard";
 
 export type ToolDisplayEntry = {
   readonly key: ToolTarget;

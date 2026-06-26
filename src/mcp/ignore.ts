@@ -108,7 +108,7 @@ async function deleteIgnoreFile(): Promise<{
 /**
  * Schema for ignore-related tool parameters
  */
-export const ignoreToolSchemas = {
+const ignoreToolSchemas = {
   getIgnoreFile: z.object({}),
   putIgnoreFile: z.object({
     content: z.string(),

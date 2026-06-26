@@ -36,7 +36,7 @@ export type ClaudecodeIgnoreParams = ToolIgnoreParams;
  * see issue #1094 for the move to shared `settings.json` and #1374 for the
  * follow-up that added this opt-out.
  */
-export type ClaudecodeIgnoreFileMode = "shared" | "local";
+type ClaudecodeIgnoreFileMode = "shared" | "local";
 
 const DEFAULT_FILE_MODE: ClaudecodeIgnoreFileMode = "shared";
 

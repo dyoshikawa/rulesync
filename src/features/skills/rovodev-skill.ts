@@ -19,7 +19,7 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const RovodevSkillFrontmatterSchema = z.looseObject({
+const RovodevSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
   // Optional Agent Skills frontmatter that Rovo Dev documents besides name/description.

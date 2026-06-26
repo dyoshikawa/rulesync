@@ -19,7 +19,7 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const DevinSkillFrontmatterSchema = z.looseObject({
+const DevinSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
 });

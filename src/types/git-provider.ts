@@ -5,6 +5,6 @@ import { z } from "zod/mini";
  */
 export const ALL_GIT_PROVIDERS = ["github", "gitlab"] as const;
 
-export const GitProviderSchema = z.enum(ALL_GIT_PROVIDERS);
+const GitProviderSchema = z.enum(ALL_GIT_PROVIDERS);
 
 export type GitProvider = z.infer<typeof GitProviderSchema>;

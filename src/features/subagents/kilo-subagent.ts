@@ -19,7 +19,7 @@ import {
 } from "./tool-subagent.js";
 
 /** Default `mode` applied to Kilo subagents (single source of truth). */
-export const KILO_DEFAULT_MODE = "all";
+const KILO_DEFAULT_MODE = "all";
 
 export const KiloSubagentFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),

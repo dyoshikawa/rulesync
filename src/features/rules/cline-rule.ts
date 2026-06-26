@@ -49,7 +49,7 @@ export type ClineRuleFrontmatter = z.infer<typeof ClineRuleFrontmatterSchema>;
  * These rules carry YAML frontmatter, so the body and frontmatter are passed
  * separately instead of a combined `fileContent`.
  */
-export type ClineRuleNonRootParams = Omit<ToolRuleParams, "fileContent"> & {
+type ClineRuleNonRootParams = Omit<ToolRuleParams, "fileContent"> & {
   frontmatter: ClineRuleFrontmatter;
   body: string;
 };
@@ -59,7 +59,7 @@ export type ClineRuleNonRootParams = Omit<ToolRuleParams, "fileContent"> & {
  * `AGENTS.md` / global `~/.agents/AGENTS.md`) is plain Markdown without
  * frontmatter, so `fileContent` is passed directly.
  */
-export type ClineRuleRootParams = ToolRuleParams;
+type ClineRuleRootParams = ToolRuleParams;
 
 export type ClineRuleParams = ClineRuleNonRootParams | ClineRuleRootParams;
 

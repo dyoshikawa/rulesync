@@ -32,7 +32,7 @@ import {
  * Uses `z.looseObject()` so forward-compatible fields added upstream are
  * preserved on round-trip.
  */
-export const QwencodeRuleFrontmatterSchema = z.looseObject({
+const QwencodeRuleFrontmatterSchema = z.looseObject({
   paths: z.optional(z.union([z.array(z.string()), z.string()])),
   description: z.optional(z.string()),
 });
@@ -44,7 +44,7 @@ export type QwencodeRuleFrontmatter = z.infer<typeof QwencodeRuleFrontmatterSche
  * These rules carry YAML frontmatter, so the body and frontmatter are passed
  * separately instead of a combined `fileContent`.
  */
-export type QwencodeRuleNonRootParams = Omit<ToolRuleParams, "fileContent"> & {
+type QwencodeRuleNonRootParams = Omit<ToolRuleParams, "fileContent"> & {
   frontmatter: QwencodeRuleFrontmatter;
   body: string;
 };
@@ -54,7 +54,7 @@ export type QwencodeRuleNonRootParams = Omit<ToolRuleParams, "fileContent"> & {
  * The root memory file is plain Markdown without frontmatter, so `fileContent`
  * is passed directly (mirroring the original behavior).
  */
-export type QwencodeRuleRootParams = ToolRuleParams;
+type QwencodeRuleRootParams = ToolRuleParams;
 
 export type QwencodeRuleParams = QwencodeRuleNonRootParams | QwencodeRuleRootParams;
 

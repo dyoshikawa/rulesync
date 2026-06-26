@@ -359,12 +359,10 @@ export const subagentsProcessorToolTargetsSimulated: ToolTarget[] = allToolTarge
   },
 );
 
-export const subagentsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter(
-  (target) => {
-    const factory = toolSubagentFactories.get(target);
-    return factory?.meta.supportsGlobal ?? false;
-  },
-);
+const subagentsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolSubagentFactories.get(target);
+  return factory?.meta.supportsGlobal ?? false;
+});
 
 export class SubagentsProcessor extends FeatureProcessor {
   private readonly toolTarget: SubagentsProcessorToolTarget;

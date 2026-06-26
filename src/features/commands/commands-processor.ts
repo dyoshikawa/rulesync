@@ -433,12 +433,10 @@ const commandsProcessorToolTargetsSimulated: ToolTarget[] = allToolTargetKeys.fi
   return factory?.meta.isSimulated ?? false;
 });
 
-export const commandsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter(
-  (target) => {
-    const factory = toolCommandFactories.get(target);
-    return factory?.meta.supportsGlobal ?? false;
-  },
-);
+const commandsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolCommandFactories.get(target);
+  return factory?.meta.supportsGlobal ?? false;
+});
 
 export class CommandsProcessor extends FeatureProcessor {
   private readonly toolTarget: CommandsProcessorToolTarget;

@@ -24,7 +24,7 @@ export type JsonOutput = {
 /**
  * Error structure for JSON output
  */
-export type JsonError = {
+type JsonError = {
   /** Error code for programmatic handling */
   code: string;
   /** Human-readable error message */
