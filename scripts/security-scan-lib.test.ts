@@ -11,7 +11,7 @@ import {
   countHighSeverityVulnerabilities,
   formatEmailBody,
   generateOverallSummary,
-  getToonFiles,
+  getXmlFiles,
   runSecurityScan,
   sendEmail,
   validateEnv,
@@ -87,7 +87,7 @@ describe("validateEnv", () => {
   });
 });
 
-describe("getToonFiles", () => {
+describe("getXmlFiles", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
@@ -99,21 +99,21 @@ describe("getToonFiles", () => {
     await cleanup();
   });
 
-  it("should return only .toon files", () => {
-    writeFileSync(join(testDir, "a.toon"), "toon-a");
-    writeFileSync(join(testDir, "b.toon"), "toon-b");
-    writeFileSync(join(testDir, "c.txt"), "not-toon");
-    writeFileSync(join(testDir, "d.ts"), "not-toon");
+  it("should return only .xml files", () => {
+    writeFileSync(join(testDir, "a.xml"), "xml-a");
+    writeFileSync(join(testDir, "b.xml"), "xml-b");
+    writeFileSync(join(testDir, "c.txt"), "not-xml");
+    writeFileSync(join(testDir, "d.ts"), "not-xml");
 
-    const files = getToonFiles({ dir: testDir });
+    const files = getXmlFiles({ dir: testDir });
     expect(files).toHaveLength(2);
-    expect(files.every((f) => f.endsWith(".toon"))).toBe(true);
+    expect(files.every((f) => f.endsWith(".xml"))).toBe(true);
   });
 
-  it("should return empty array when no .toon files exist", () => {
-    writeFileSync(join(testDir, "a.txt"), "not-toon");
+  it("should return empty array when no .xml files exist", () => {
+    writeFileSync(join(testDir, "a.txt"), "not-xml");
 
-    const files = getToonFiles({ dir: testDir });
+    const files = getXmlFiles({ dir: testDir });
     expect(files).toHaveLength(0);
   });
 });
@@ -179,7 +179,7 @@ describe("SecurityScanResultSchema", () => {
 describe("formatEmailBody", () => {
   it("should include only high and critical vulnerabilities", () => {
     const results = new Map<string, SecurityScanResult>();
-    results.set("app.toon", {
+    results.set("app.xml", {
       vulnerabilities: [
         {
           severity: "critical",
@@ -199,7 +199,7 @@ describe("formatEmailBody", () => {
 
     const body = formatEmailBody({ results });
     expect(body).toContain("# Security Scan Report");
-    expect(body).toContain("## app.toon");
+    expect(body).toContain("## app.xml");
     expect(body).toContain("Critical issue found");
     expect(body).toContain("[critical] src/exec.ts L10");
     expect(body).toContain("Reason: Remote code execution via unsanitized input");
@@ -208,9 +208,9 @@ describe("formatEmailBody", () => {
     expect(body).toContain("Found 1 vulnerability (high+)");
   });
 
-  it("should exclude toon sections with only low and medium vulnerabilities", () => {
+  it("should exclude xml sections with only low and medium vulnerabilities", () => {
     const results = new Map<string, SecurityScanResult>();
-    results.set("b.toon", {
+    results.set("b.xml", {
       vulnerabilities: [
         {
           severity: "low",
@@ -229,7 +229,7 @@ describe("formatEmailBody", () => {
     });
 
     const body = formatEmailBody({ results });
-    expect(body).not.toContain("## b.toon");
+    expect(body).not.toContain("## b.xml");
     expect(body).not.toContain("Minor issues");
     expect(body).not.toContain("[low]");
     expect(body).not.toContain("[medium]");
@@ -237,11 +237,11 @@ describe("formatEmailBody", () => {
 
   it("should format multiple files with mixed severities", () => {
     const results = new Map<string, SecurityScanResult>();
-    results.set("a.toon", {
+    results.set("a.xml", {
       vulnerabilities: [],
       summary: "Clean",
     });
-    results.set("b.toon", {
+    results.set("b.xml", {
       vulnerabilities: [
         {
           severity: "high",
@@ -260,8 +260,8 @@ describe("formatEmailBody", () => {
     });
 
     const body = formatEmailBody({ results });
-    expect(body).not.toContain("## a.toon");
-    expect(body).toContain("## b.toon");
+    expect(body).not.toContain("## a.xml");
+    expect(body).toContain("## b.xml");
     expect(body).toContain("[high] src/db.ts L42");
     expect(body).not.toContain("[low]");
   });
@@ -275,7 +275,7 @@ describe("formatEmailBody", () => {
 
   it("should prepend the AI summary when provided", () => {
     const results = new Map<string, SecurityScanResult>();
-    results.set("app.toon", {
+    results.set("app.xml", {
       vulnerabilities: [
         { severity: "high", reason: "SQL injection", filePath: "src/db.ts", line: "L42" },
       ],
@@ -286,12 +286,12 @@ describe("formatEmailBody", () => {
     expect(body).toContain("## AI Summary");
     expect(body).toContain("Overall the codebase is risky.");
     // Summary must appear before the per-file sections.
-    expect(body.indexOf("## AI Summary")).toBeLessThan(body.indexOf("## app.toon"));
+    expect(body.indexOf("## AI Summary")).toBeLessThan(body.indexOf("## app.xml"));
   });
 
   it("should not render an AI Summary section for empty or whitespace summary", () => {
     const results = new Map<string, SecurityScanResult>();
-    results.set("app.toon", {
+    results.set("app.xml", {
       vulnerabilities: [
         { severity: "high", reason: "SQL injection", filePath: "src/db.ts", line: "L42" },
       ],
@@ -306,7 +306,7 @@ describe("formatEmailBody", () => {
 describe("buildSummaryInput", () => {
   it("should serialize files with their vulnerabilities", () => {
     const results = new Map<string, SecurityScanResult>();
-    results.set("app.toon", {
+    results.set("app.xml", {
       vulnerabilities: [
         { severity: "high", reason: "SQL injection", filePath: "src/db.ts", line: "L42" },
       ],
@@ -314,20 +314,20 @@ describe("buildSummaryInput", () => {
     });
 
     const input = buildSummaryInput({ results });
-    expect(input).toContain("File: app.toon");
+    expect(input).toContain("File: app.xml");
     expect(input).toContain("Summary: Issues found");
     expect(input).toContain("- [high] src/db.ts L42: SQL injection");
   });
 
   it("should mark files with no vulnerabilities", () => {
     const results = new Map<string, SecurityScanResult>();
-    results.set("clean.toon", {
+    results.set("clean.xml", {
       vulnerabilities: [],
       summary: "Clean",
     });
 
     const input = buildSummaryInput({ results });
-    expect(input).toContain("File: clean.toon");
+    expect(input).toContain("File: clean.xml");
     expect(input).toContain("- No vulnerabilities found");
   });
 });
@@ -335,7 +335,7 @@ describe("buildSummaryInput", () => {
 describe("generateOverallSummary", () => {
   it("should return the trimmed summary text from OpenRouter", async () => {
     const results = new Map<string, SecurityScanResult>();
-    results.set("app.toon", {
+    results.set("app.xml", {
       vulnerabilities: [
         { severity: "critical", reason: "RCE", filePath: "src/exec.ts", line: "L10" },
       ],
@@ -362,7 +362,7 @@ describe("generateOverallSummary", () => {
 
   it("should throw when no content returned", async () => {
     const results = new Map<string, SecurityScanResult>();
-    results.set("app.toon", { vulnerabilities: [], summary: "Clean" });
+    results.set("app.xml", { vulnerabilities: [], summary: "Clean" });
 
     const mockClient: OpenRouterClient = {
       chat: {
@@ -379,7 +379,7 @@ describe("generateOverallSummary", () => {
 describe("countHighSeverityVulnerabilities", () => {
   it("should count only high and critical vulnerabilities", () => {
     const results = new Map<string, SecurityScanResult>();
-    results.set("app.toon", {
+    results.set("app.xml", {
       vulnerabilities: [
         { severity: "critical", reason: "RCE", filePath: "a.ts", line: "L1" },
         { severity: "high", reason: "SQLi", filePath: "b.ts", line: "L2" },
@@ -394,7 +394,7 @@ describe("countHighSeverityVulnerabilities", () => {
 
   it("should return 0 when no high severity vulnerabilities exist", () => {
     const results = new Map<string, SecurityScanResult>();
-    results.set("app.toon", {
+    results.set("app.xml", {
       vulnerabilities: [
         { severity: "low", reason: "Info", filePath: "a.ts", line: "L1" },
         { severity: "medium", reason: "XSS", filePath: "b.ts", line: "L2" },
@@ -407,11 +407,11 @@ describe("countHighSeverityVulnerabilities", () => {
 
   it("should count across multiple files", () => {
     const results = new Map<string, SecurityScanResult>();
-    results.set("a.toon", {
+    results.set("a.xml", {
       vulnerabilities: [{ severity: "high", reason: "SQLi", filePath: "a.ts", line: "L1" }],
       summary: "A",
     });
-    results.set("b.toon", {
+    results.set("b.xml", {
       vulnerabilities: [
         { severity: "critical", reason: "RCE", filePath: "b.ts", line: "L1" },
         { severity: "low", reason: "Info", filePath: "c.ts", line: "L2" },
@@ -453,7 +453,7 @@ describe("runSecurityScan", () => {
 
     const result = await runSecurityScan({
       client: mockClient,
-      toonContent: "some code",
+      content: "some code",
       model: "test-model",
       prompt: "analyze this",
     });
@@ -474,7 +474,7 @@ describe("runSecurityScan", () => {
     await expect(
       runSecurityScan({
         client: mockClient,
-        toonContent: "some code",
+        content: "some code",
         model: "test-model",
         prompt: "analyze this",
       }),
@@ -493,7 +493,7 @@ describe("runSecurityScan", () => {
     await expect(
       runSecurityScan({
         client: mockClient,
-        toonContent: "some code",
+        content: "some code",
         model: "test-model",
         prompt: "analyze this",
       }),
@@ -512,7 +512,7 @@ describe("runSecurityScan", () => {
     await expect(
       runSecurityScan({
         client: mockClient,
-        toonContent: "some code",
+        content: "some code",
         model: "test-model",
         prompt: "analyze this",
       }),
@@ -531,7 +531,7 @@ describe("runSecurityScan", () => {
     await expect(
       runSecurityScan({
         client: mockClient,
-        toonContent: "some code",
+        content: "some code",
         model: "test-model",
         prompt: "analyze this",
       }),

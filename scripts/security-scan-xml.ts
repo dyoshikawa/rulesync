@@ -11,34 +11,18 @@ import {
   countHighSeverityVulnerabilities,
   formatEmailBody,
   generateOverallSummary,
-  getToonFiles,
+  getXmlFiles,
   runSecurityScan,
   sendEmail,
   validateEnv,
 } from "./security-scan-lib.js";
 
-const TOON_FORMAT_DESCRIPTION = `\
-## About TOON Format
+const XML_FORMAT_DESCRIPTION = `\
+## About the Input Format
 
-The content below is encoded in TOON (Token-Oriented Object Notation), a compact data format \
-designed for LLM prompts. Here is a quick reference for reading TOON:
-
-- Key-value pairs use colon separation: \`name: Alice\`
-- Primitive arrays use bracket notation for length: \`colors[3]: red,green,blue\`
-- Tabular arrays declare fields in braces, then list rows:
-  \`\`\`
-  users[2]{id,name,role}:
-    1,Alice,admin
-    2,Bob,user
-  \`\`\`
-- Nesting is represented by indentation (similar to YAML):
-  \`\`\`
-  user:
-    id: 1
-    profile:
-      age: 30
-  \`\`\`
-- Strings are unquoted unless they contain special characters, match boolean/null keywords, or resemble numbers.
+The content below is a repomix XML packed representation of a codebase. The files are wrapped in \
+\`<file path="...">\` elements whose \`path\` attribute is the file path and whose text content is \
+the file source. Line numbers may be prefixed to each line.
 
 ## Response Format
 
@@ -59,30 +43,30 @@ const main = async (): Promise<void> => {
     resendFromEmail,
     securityScanRecipient,
   } = env;
-  const prompt = `${TOON_FORMAT_DESCRIPTION}\n${securityScanPrompt}`;
+  const prompt = `${XML_FORMAT_DESCRIPTION}\n${securityScanPrompt}`;
 
   const client = new OpenRouter({ apiKey: openrouterApiKey });
 
   const baseDir = process.cwd();
-  const toonFiles = getToonFiles({ dir: baseDir });
+  const xmlFiles = getXmlFiles({ dir: baseDir });
 
-  if (toonFiles.length === 0) {
-    console.log("No toon files found to scan. Skipping.");
+  if (xmlFiles.length === 0) {
+    console.log("No xml files found to scan. Skipping.");
     return;
   }
 
-  console.log(`Found ${toonFiles.length} toon files to scan`);
+  console.log(`Found ${xmlFiles.length} xml files to scan`);
 
   const results = new Map<string, SecurityScanResult>();
   const errors: string[] = [];
 
-  for (const toonPath of toonFiles) {
-    const filename = basename(toonPath);
+  for (const xmlPath of xmlFiles) {
+    const filename = basename(xmlPath);
     console.log(`Scanning ${filename}...`);
 
     try {
-      const toonContent = readFileSync(toonPath, "utf-8");
-      const scanResult = await runSecurityScan({ client, toonContent, model, prompt });
+      const content = readFileSync(xmlPath, "utf-8");
+      const scanResult = await runSecurityScan({ client, content, model, prompt });
 
       results.set(filename, scanResult);
       console.log(`  Found ${scanResult.vulnerabilities.length} vulnerabilities`);
@@ -103,7 +87,7 @@ const main = async (): Promise<void> => {
     console.warn(`${errors.length} file(s) failed to scan`);
   }
 
-  // Filter results to only include toon files with high+ severity vulnerabilities
+  // Filter results to only include xml files with high+ severity vulnerabilities
   const highSeverityResults = new Map<string, SecurityScanResult>();
   for (const [filename, result] of results.entries()) {
     const hasHighSeverity = result.vulnerabilities.some(
