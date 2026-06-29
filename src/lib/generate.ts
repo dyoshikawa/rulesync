@@ -310,14 +310,9 @@ export async function generate(params: {
 }): Promise<GenerateResult> {
   const { config, logger } = params;
 
-  // Captured when the skills step runs so the rules step (which dependsOn skills)
-  // can read the generated skill list. Kept in the step graph rather than run up
-  // front so its ordering and any future shared-file writes stay governed by
-  // resolveExecutionOrder.
+  // Captured by the skills step so the rules step can read the generated skills.
   let skillsResult: Awaited<ReturnType<typeof generateSkillsCore>> | undefined;
 
-  // Write order for shared files is encoded in writesSharedFile / dependsOn and
-  // enforced by resolveExecutionOrder, so this array can be reordered freely.
   const steps: GenerationStep[] = [
     {
       id: "ignore",
@@ -326,7 +321,7 @@ export async function generate(params: {
     },
     {
       id: "mcp",
-      writesSharedFile: ["mcp-instructions-config"],
+      writesSharedFile: ["kilo-opencode-config"],
       run: () => generateMcpCore({ config, logger }),
     },
     { id: "commands", run: () => generateCommandsCore({ config, logger }) },
@@ -338,17 +333,22 @@ export async function generate(params: {
         return skillsResult;
       },
     },
-    { id: "hooks", run: () => generateHooksCore({ config, logger }) },
     {
-      id: "permissions",
+      id: "hooks",
       writesSharedFile: ["claude-settings"],
       dependsOn: ["ignore"],
+      run: () => generateHooksCore({ config, logger }),
+    },
+    {
+      id: "permissions",
+      writesSharedFile: ["claude-settings", "kilo-opencode-config"],
+      dependsOn: ["ignore", "hooks", "mcp"],
       run: () => generatePermissionsCore({ config, logger }),
     },
     {
       id: "rules",
-      writesSharedFile: ["mcp-instructions-config"],
-      dependsOn: ["mcp", "skills"],
+      writesSharedFile: ["kilo-opencode-config"],
+      dependsOn: ["mcp", "skills", "permissions"],
       run: () => generateRulesCore({ config, logger, skills: skillsResult?.skills }),
     },
   ];

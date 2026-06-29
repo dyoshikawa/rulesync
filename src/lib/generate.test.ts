@@ -1113,6 +1113,29 @@ describe("resolveExecutionOrder", () => {
     ).not.toThrow();
   });
 
+  it("throws when one of three writers is not ordered against the others", () => {
+    expect(() =>
+      resolveExecutionOrder([
+        step("ignore", { writesSharedFile: ["claude-settings"] }),
+        step("hooks", { writesSharedFile: ["claude-settings"], dependsOn: ["ignore"] }),
+        step("permissions", { writesSharedFile: ["claude-settings"], dependsOn: ["ignore"] }),
+      ]),
+    ).toThrow(/both write the shared file 'claude-settings'/);
+  });
+
+  it("does not throw when all three writers are totally ordered", () => {
+    expect(() =>
+      resolveExecutionOrder([
+        step("ignore", { writesSharedFile: ["claude-settings"] }),
+        step("hooks", { writesSharedFile: ["claude-settings"], dependsOn: ["ignore"] }),
+        step("permissions", {
+          writesSharedFile: ["claude-settings"],
+          dependsOn: ["ignore", "hooks"],
+        }),
+      ]),
+    ).not.toThrow();
+  });
+
   it("throws on an unknown dependency", () => {
     expect(() => resolveExecutionOrder([step("rules", { dependsOn: ["mcp"] })])).toThrow(
       /unknown step 'mcp'/,
