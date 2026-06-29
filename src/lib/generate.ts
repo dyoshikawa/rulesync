@@ -352,6 +352,8 @@ export async function generate(params: {
         "augmentcode-settings",
         "hermesagent-config",
         "kiro-agent-config",
+        "codexcli-config",
+        "vibe-config",
       ],
       dependsOn: ["ignore", "mcp"],
       run: () => generateHooksCore({ config, logger }),
