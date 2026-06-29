@@ -12,7 +12,7 @@ import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { fileExists, readFileContentOrNull } from "../utils/file.js";
-import { checkRulesyncDirExists, generate } from "./generate.js";
+import { checkRulesyncDirExists, generate, resolveExecutionOrder } from "./generate.js";
 
 const logger = createMockLogger();
 
@@ -1060,5 +1060,60 @@ describe("generate", () => {
         "Target 'cursor' does not support the feature 'mcp'. Skipping.",
       );
     });
+  });
+});
+
+const executionStep = (
+  id: string,
+  opts: { writesSharedFile?: string[]; dependsOn?: string[] } = {},
+) =>
+  ({
+    id,
+    ...opts,
+    run: async () => ({ count: 0, paths: [], hasDiff: false }),
+  }) as never;
+
+describe("resolveExecutionOrder", () => {
+  const step = executionStep;
+
+  it("orders a dependent step after its dependency regardless of array order", () => {
+    const ordered = resolveExecutionOrder([
+      step("rules", { writesSharedFile: ["f"], dependsOn: ["mcp"] }),
+      step("mcp", { writesSharedFile: ["f"] }),
+    ]);
+    expect(ordered.map((s) => s.id)).toEqual(["mcp", "rules"]);
+  });
+
+  it("throws when two steps write the same shared file without a declared order", () => {
+    expect(() =>
+      resolveExecutionOrder([
+        step("ignore", { writesSharedFile: ["claude-settings"] }),
+        step("permissions", { writesSharedFile: ["claude-settings"] }),
+      ]),
+    ).toThrow(/both write the shared file 'claude-settings'/);
+  });
+
+  it("does not throw when shared-file writers are ordered by dependsOn", () => {
+    expect(() =>
+      resolveExecutionOrder([
+        step("ignore", { writesSharedFile: ["claude-settings"] }),
+        step("permissions", {
+          writesSharedFile: ["claude-settings"],
+          dependsOn: ["ignore"],
+        }),
+      ]),
+    ).not.toThrow();
+  });
+
+  it("throws on an unknown dependency", () => {
+    expect(() => resolveExecutionOrder([step("rules", { dependsOn: ["mcp"] })])).toThrow(
+      /unknown step 'mcp'/,
+    );
+  });
+
+  it("throws on a cyclic dependency", () => {
+    expect(() =>
+      resolveExecutionOrder([step("a", { dependsOn: ["b"] }), step("b", { dependsOn: ["a"] })]),
+    ).toThrow(/cyclic/);
   });
 });

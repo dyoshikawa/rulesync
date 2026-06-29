@@ -188,6 +188,116 @@ export async function checkRulesyncDirExists(params: { inputRoot: string }): Pro
   return fileExists(join(params.inputRoot, RULESYNC_RELATIVE_DIR_PATH));
 }
 
+type GenerationStepId =
+  | "ignore"
+  | "mcp"
+  | "commands"
+  | "subagents"
+  | "skills"
+  | "hooks"
+  | "permissions"
+  | "rules";
+
+type GenerationStep = {
+  id: GenerationStepId;
+  /** Tokens for on-disk files this step read-modify-writes and shares with other steps. */
+  writesSharedFile?: string[];
+  /** Step ids that must run before this one (they write a shared file this step then reads). */
+  dependsOn?: GenerationStepId[];
+  run: () => Promise<FeatureGenerateResult>;
+};
+
+function dependsOnReachable(
+  byId: Map<GenerationStepId, GenerationStep>,
+  from: GenerationStepId,
+  target: GenerationStepId,
+): boolean {
+  const seen = new Set<GenerationStepId>();
+  const stack = [from];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (current === undefined || seen.has(current)) continue;
+    seen.add(current);
+    if (current === target) return true;
+    for (const dep of byId.get(current)?.dependsOn ?? []) {
+      stack.push(dep);
+    }
+  }
+  return false;
+}
+
+function assertSharedFilesOrdered(
+  steps: GenerationStep[],
+  byId: Map<GenerationStepId, GenerationStep>,
+): void {
+  const writersByFile = new Map<string, GenerationStepId[]>();
+  for (const step of steps) {
+    for (const file of step.writesSharedFile ?? []) {
+      writersByFile.set(file, [...(writersByFile.get(file) ?? []), step.id]);
+    }
+  }
+  for (const [file, writers] of writersByFile) {
+    for (let i = 0; i < writers.length; i++) {
+      for (let j = i + 1; j < writers.length; j++) {
+        const a = writers[i]!;
+        const b = writers[j]!;
+        if (!dependsOnReachable(byId, a, b) && !dependsOnReachable(byId, b, a)) {
+          throw new Error(
+            `Generation steps '${a}' and '${b}' both write the shared file '${file}' ` +
+              `but neither declares a 'dependsOn' the other. Add a 'dependsOn' so the ` +
+              `read-modify-write order is fixed; otherwise one step silently drops the ` +
+              `other's keys.`,
+          );
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Topologically sort generation steps and reject ordering hazards: a shared file
+ * with two writers not ordered by `dependsOn` (a silent data-loss trap), an
+ * unknown dependency, or a cycle. Reordering `steps` stays safe as a result.
+ *
+ * @throws Error if a shared file has unordered writers, a dependency is unknown,
+ *   or the dependency graph contains a cycle.
+ */
+export function resolveExecutionOrder(steps: GenerationStep[]): GenerationStep[] {
+  const byId = new Map(steps.map((step) => [step.id, step]));
+
+  assertSharedFilesOrdered(steps, byId);
+
+  const indegree = new Map<GenerationStepId, number>(steps.map((step) => [step.id, 0]));
+  const dependents = new Map<GenerationStepId, GenerationStepId[]>();
+  for (const step of steps) {
+    for (const dep of step.dependsOn ?? []) {
+      if (!byId.has(dep)) {
+        throw new Error(`Generation step '${step.id}' depends on unknown step '${dep}'.`);
+      }
+      indegree.set(step.id, (indegree.get(step.id) ?? 0) + 1);
+      dependents.set(dep, [...(dependents.get(dep) ?? []), step.id]);
+    }
+  }
+
+  const ready = steps.filter((step) => (indegree.get(step.id) ?? 0) === 0).map((step) => step.id);
+  const ordered: GenerationStep[] = [];
+  while (ready.length > 0) {
+    const id = ready.shift()!;
+    ordered.push(byId.get(id)!);
+    for (const dependent of dependents.get(id) ?? []) {
+      const next = (indegree.get(dependent) ?? 0) - 1;
+      indegree.set(dependent, next);
+      if (next === 0) ready.push(dependent);
+    }
+  }
+
+  if (ordered.length !== steps.length) {
+    throw new Error("Generation steps contain a cyclic 'dependsOn' dependency.");
+  }
+
+  return ordered;
+}
+
 /**
  * Generate configuration files for AI tools.
  * @throws Error if generation fails
@@ -198,53 +308,74 @@ export async function generate(params: {
 }): Promise<GenerateResult> {
   const { config, logger } = params;
 
-  const ignoreResult = await generateIgnoreCore({ config, logger });
-  // NOTE: For Kilo, MCP MUST run before Rules. Both features merge into the
-  // shared `kilo.jsonc` (mcp writes the `mcp`/`tools` keys, rules writes the
-  // `instructions` key). Each reads the existing file from disk and preserves
-  // the other's keys, so running mcp first lets the rules write see the freshly
-  // written `mcp` block. Reordering or parallelizing these calls would drop one
-  // of the two keys.
-  const mcpResult = await generateMcpCore({ config, logger });
-
-  const commandsResult = await generateCommandsCore({ config, logger });
-  const subagentsResult = await generateSubagentsCore({ config, logger });
+  // Generated up front because its result feeds the rules step below.
   const skillsResult = await generateSkillsCore({ config, logger });
-  const hooksResult = await generateHooksCore({ config, logger });
-  // NOTE: Permissions MUST run after ignore. Both features write to `.claude/settings.json`
-  // (ignore writes Read deny entries, permissions merges all permission arrays).
-  // Permissions reads the file written by ignore and preserves non-managed entries.
-  // Changing this order or parallelizing these calls will cause data loss.
-  const permissionsResult = await generatePermissionsCore({ config, logger });
-  const rulesResult = await generateRulesCore({ config, logger, skills: skillsResult.skills });
 
-  const hasDiff =
-    ignoreResult.hasDiff ||
-    mcpResult.hasDiff ||
-    commandsResult.hasDiff ||
-    subagentsResult.hasDiff ||
-    skillsResult.hasDiff ||
-    hooksResult.hasDiff ||
-    permissionsResult.hasDiff ||
-    rulesResult.hasDiff;
+  // Write order for shared files is encoded in writesSharedFile / dependsOn and
+  // enforced by resolveExecutionOrder, so this array can be reordered freely.
+  const steps: GenerationStep[] = [
+    {
+      id: "ignore",
+      writesSharedFile: ["claude-settings"],
+      run: () => generateIgnoreCore({ config, logger }),
+    },
+    {
+      id: "mcp",
+      writesSharedFile: ["mcp-instructions-config"],
+      run: () => generateMcpCore({ config, logger }),
+    },
+    { id: "commands", run: () => generateCommandsCore({ config, logger }) },
+    { id: "subagents", run: () => generateSubagentsCore({ config, logger }) },
+    { id: "skills", run: async () => skillsResult },
+    { id: "hooks", run: () => generateHooksCore({ config, logger }) },
+    {
+      id: "permissions",
+      writesSharedFile: ["claude-settings"],
+      dependsOn: ["ignore"],
+      run: () => generatePermissionsCore({ config, logger }),
+    },
+    {
+      id: "rules",
+      writesSharedFile: ["mcp-instructions-config"],
+      dependsOn: ["mcp"],
+      run: () => generateRulesCore({ config, logger, skills: skillsResult.skills }),
+    },
+  ];
+
+  const orderedSteps = resolveExecutionOrder(steps);
+
+  const resultsById = new Map<GenerationStepId, FeatureGenerateResult>();
+  for (const step of orderedSteps) {
+    resultsById.set(step.id, await step.run());
+  }
+
+  const get = (id: GenerationStepId): FeatureGenerateResult => {
+    const result = resultsById.get(id);
+    if (!result) {
+      throw new Error(`Missing generation result for step '${id}'.`);
+    }
+    return result;
+  };
+
+  const hasDiff = orderedSteps.some((step) => get(step.id).hasDiff);
 
   return {
-    rulesCount: rulesResult.count,
-    rulesPaths: rulesResult.paths,
-    ignoreCount: ignoreResult.count,
-    ignorePaths: ignoreResult.paths,
-    mcpCount: mcpResult.count,
-    mcpPaths: mcpResult.paths,
-    commandsCount: commandsResult.count,
-    commandsPaths: commandsResult.paths,
-    subagentsCount: subagentsResult.count,
-    subagentsPaths: subagentsResult.paths,
+    rulesCount: get("rules").count,
+    rulesPaths: get("rules").paths,
+    ignoreCount: get("ignore").count,
+    ignorePaths: get("ignore").paths,
+    mcpCount: get("mcp").count,
+    mcpPaths: get("mcp").paths,
+    commandsCount: get("commands").count,
+    commandsPaths: get("commands").paths,
+    subagentsCount: get("subagents").count,
+    subagentsPaths: get("subagents").paths,
     skillsCount: skillsResult.count,
     skillsPaths: skillsResult.paths,
-    hooksCount: hooksResult.count,
-    hooksPaths: hooksResult.paths,
-    permissionsCount: permissionsResult.count,
-    permissionsPaths: permissionsResult.paths,
+    hooksCount: get("hooks").count,
+    hooksPaths: get("hooks").paths,
+    permissionsCount: get("permissions").count,
+    permissionsPaths: get("permissions").paths,
     skills: skillsResult.skills,
     hasDiff,
   };
