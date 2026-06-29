@@ -267,26 +267,28 @@ export function resolveExecutionOrder(steps: GenerationStep[]): GenerationStep[]
 
   assertSharedFilesOrdered(steps, byId);
 
-  const indegree = new Map<GenerationStepId, number>(steps.map((step) => [step.id, 0]));
+  const unresolvedDeps = new Map<GenerationStepId, number>(steps.map((step) => [step.id, 0]));
   const dependents = new Map<GenerationStepId, GenerationStepId[]>();
   for (const step of steps) {
     for (const dep of step.dependsOn ?? []) {
       if (!byId.has(dep)) {
         throw new Error(`Generation step '${step.id}' depends on unknown step '${dep}'.`);
       }
-      indegree.set(step.id, (indegree.get(step.id) ?? 0) + 1);
+      unresolvedDeps.set(step.id, (unresolvedDeps.get(step.id) ?? 0) + 1);
       dependents.set(dep, [...(dependents.get(dep) ?? []), step.id]);
     }
   }
 
-  const ready = steps.filter((step) => (indegree.get(step.id) ?? 0) === 0).map((step) => step.id);
+  const ready = steps
+    .filter((step) => (unresolvedDeps.get(step.id) ?? 0) === 0)
+    .map((step) => step.id);
   const ordered: GenerationStep[] = [];
   while (ready.length > 0) {
     const id = ready.shift()!;
     ordered.push(byId.get(id)!);
     for (const dependent of dependents.get(id) ?? []) {
-      const next = (indegree.get(dependent) ?? 0) - 1;
-      indegree.set(dependent, next);
+      const next = (unresolvedDeps.get(dependent) ?? 0) - 1;
+      unresolvedDeps.set(dependent, next);
       if (next === 0) ready.push(dependent);
     }
   }
