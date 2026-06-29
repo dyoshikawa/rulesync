@@ -316,12 +316,13 @@ export async function generate(params: {
   const steps: GenerationStep[] = [
     {
       id: "ignore",
-      writesSharedFile: ["claude-settings"],
+      writesSharedFile: ["claude-settings", "zed-settings"],
       run: () => generateIgnoreCore({ config, logger }),
     },
     {
       id: "mcp",
-      writesSharedFile: ["kilo-opencode-config"],
+      writesSharedFile: ["kilo-opencode-config", "zed-settings"],
+      dependsOn: ["ignore"],
       run: () => generateMcpCore({ config, logger }),
     },
     { id: "commands", run: () => generateCommandsCore({ config, logger }) },
@@ -341,7 +342,7 @@ export async function generate(params: {
     },
     {
       id: "permissions",
-      writesSharedFile: ["claude-settings", "kilo-opencode-config"],
+      writesSharedFile: ["claude-settings", "kilo-opencode-config", "zed-settings"],
       dependsOn: ["ignore", "hooks", "mcp"],
       run: () => generatePermissionsCore({ config, logger }),
     },
