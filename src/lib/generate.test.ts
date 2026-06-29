@@ -1084,6 +1084,14 @@ describe("resolveExecutionOrder", () => {
     expect(ordered.map((s) => s.id)).toEqual(["mcp", "rules"]);
   });
 
+  it("orders a value-only dependency (no shared file) before its dependent", () => {
+    const ordered = resolveExecutionOrder([
+      step("rules", { dependsOn: ["skills"] }),
+      step("skills"),
+    ]);
+    expect(ordered.map((s) => s.id)).toEqual(["skills", "rules"]);
+  });
+
   it("throws when two steps write the same shared file without a declared order", () => {
     expect(() =>
       resolveExecutionOrder([

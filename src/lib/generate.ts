@@ -310,8 +310,11 @@ export async function generate(params: {
 }): Promise<GenerateResult> {
   const { config, logger } = params;
 
-  // Generated up front because its result feeds the rules step below.
-  const skillsResult = await generateSkillsCore({ config, logger });
+  // Captured when the skills step runs so the rules step (which dependsOn skills)
+  // can read the generated skill list. Kept in the step graph rather than run up
+  // front so its ordering and any future shared-file writes stay governed by
+  // resolveExecutionOrder.
+  let skillsResult: Awaited<ReturnType<typeof generateSkillsCore>> | undefined;
 
   // Write order for shared files is encoded in writesSharedFile / dependsOn and
   // enforced by resolveExecutionOrder, so this array can be reordered freely.
@@ -328,7 +331,13 @@ export async function generate(params: {
     },
     { id: "commands", run: () => generateCommandsCore({ config, logger }) },
     { id: "subagents", run: () => generateSubagentsCore({ config, logger }) },
-    { id: "skills", run: async () => skillsResult },
+    {
+      id: "skills",
+      run: async () => {
+        skillsResult = await generateSkillsCore({ config, logger });
+        return skillsResult;
+      },
+    },
     { id: "hooks", run: () => generateHooksCore({ config, logger }) },
     {
       id: "permissions",
@@ -339,8 +348,8 @@ export async function generate(params: {
     {
       id: "rules",
       writesSharedFile: ["mcp-instructions-config"],
-      dependsOn: ["mcp"],
-      run: () => generateRulesCore({ config, logger, skills: skillsResult.skills }),
+      dependsOn: ["mcp", "skills"],
+      run: () => generateRulesCore({ config, logger, skills: skillsResult?.skills }),
     },
   ];
 
@@ -349,6 +358,10 @@ export async function generate(params: {
   const resultsById = new Map<GenerationStepId, FeatureGenerateResult>();
   for (const step of orderedSteps) {
     resultsById.set(step.id, await step.run());
+  }
+
+  if (!skillsResult) {
+    throw new Error("Skills generation step did not run.");
   }
 
   const get = (id: GenerationStepId): FeatureGenerateResult => {
