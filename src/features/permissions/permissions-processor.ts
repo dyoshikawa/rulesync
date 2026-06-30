@@ -20,6 +20,7 @@ import { FactorydroidPermissions } from "./factorydroid-permissions.js";
 import { GoosePermissions } from "./goose-permissions.js";
 import { GrokcliPermissions } from "./grokcli-permissions.js";
 import { HermesagentPermissions } from "./hermesagent-permissions.js";
+import { JuniePermissions } from "./junie-permissions.js";
 import { KiloPermissions } from "./kilo-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
@@ -209,6 +210,19 @@ export const toolPermissionsFactories = new Map<
       class: HermesagentPermissions,
       meta: {
         supportsProject: false,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "junie",
+    {
+      class: JuniePermissions,
+      meta: {
+        // Junie reads the Action Allowlist from both the project
+        // `.junie/allowlist.json` and the user `~/.junie/allowlist.json`.
+        supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,
       },

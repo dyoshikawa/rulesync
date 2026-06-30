@@ -148,6 +148,39 @@ describe("E2E: permissions", () => {
     expect(rulesContent).toContain('decision = "forbidden"');
   });
 
+  it("should generate junie permissions into .junie/allowlist.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git ": "allow", "rm *": "deny" },
+            edit: { "src/**": "allow" },
+            read: { "/etc/**": "deny" },
+            mcp: { search: "ask" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "junie", features: "permissions" });
+
+    const content = JSON.parse(await readFileContent(join(testDir, ".junie", "allowlist.json")));
+    // Literal patterns become `prefix`; glob patterns become `pattern`.
+    expect(content.rules.executables).toEqual([
+      { prefix: "git ", action: "allow" },
+      { pattern: "rm *", action: "deny" },
+    ]);
+    expect(content.rules.fileEditing).toEqual([{ pattern: "src/**", action: "allow" }]);
+    expect(content.rules.readOutsideProject).toEqual([{ pattern: "/etc/**", action: "deny" }]);
+    expect(content.rules.mcpTools).toEqual([{ prefix: "search", action: "ask" }]);
+    expect(content.defaultBehavior).toBe("ask");
+  });
+
   it("should generate cursor permissions into .cursor/cli.json", async () => {
     const testDir = getTestDir();
 
