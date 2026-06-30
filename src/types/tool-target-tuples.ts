@@ -97,6 +97,7 @@ export const mcpProcessorToolTargetTuple = [
 
 export const commandsProcessorToolTargetTuple = [
   "agentsmd",
+  "antigravity-cli",
   "antigravity-ide",
   "augmentcode",
   "claudecode",
