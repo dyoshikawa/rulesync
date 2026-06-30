@@ -146,15 +146,18 @@ export class DevinHooks extends ToolHooks {
         filePath,
         JSON.stringify({}, null, 2),
       );
-      let settings: Record<string, unknown>;
+      let parsedSettings: unknown;
       try {
-        settings = JSON.parse(existingContent);
+        parsedSettings = JSON.parse(existingContent);
       } catch (error) {
         throw new Error(
           `Failed to parse existing Devin config at ${filePath}: ${formatError(error)}`,
           { cause: error },
         );
       }
+      // Guard against a non-object existing config (array/primitive) so the spread
+      // below can't inject stray keys, mirroring the mcp/permissions adapters.
+      const settings = isRecord(parsedSettings) ? parsedSettings : {};
       const merged = { ...settings, hooks: devinHooks };
       fileContent = JSON.stringify(merged, null, 2);
     } else {

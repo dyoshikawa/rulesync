@@ -172,6 +172,29 @@ describe("DevinPermissions", () => {
       expect(parsed.permission.webfetch["domain:npmjs.org"]).toBe("ask");
     });
 
+    it("should skip prototype-pollution keys when importing", () => {
+      const perms = new DevinPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".devin",
+        relativeFilePath: "config.json",
+        fileContent: JSON.stringify({
+          permissions: {
+            allow: ["Read(src/**)"],
+            deny: ["__proto__", "Exec(__proto__)", "constructor", "Write(constructor)"],
+            ask: [],
+          },
+        }),
+        validate: false,
+      });
+
+      const parsed = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      // The legitimate entry survives; the pollution entries are dropped.
+      expect(parsed.permission.read["src/**"]).toBe("allow");
+      // Object.prototype must not have been mutated.
+      expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+      expect(Object.prototype).not.toHaveProperty("__proto__", "deny");
+    });
+
     it("should round-trip a permissions config", async () => {
       const config = {
         permission: {

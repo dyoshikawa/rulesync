@@ -11,6 +11,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -317,6 +318,13 @@ function convertDevinToRulesyncPermissions(params: {
   const processEntries = (entries: string[], action: PermissionAction): void => {
     for (const entry of entries) {
       const { scope, pattern } = parseDevinPermissionEntry(entry);
+      // `scope` and `pattern` come from the parsed Devin config. Skip raw
+      // prototype-pollution keys before they reach `toCanonicalCategory` (which
+      // would otherwise resolve `__proto__`/`constructor` to a non-string via the
+      // lookup object) or get used as bracket-notation object keys.
+      if (isPrototypePollutionKey(scope) || isPrototypePollutionKey(pattern)) {
+        continue;
+      }
       const canonical = toCanonicalCategory(scope);
       (permission[canonical] ??= {})[pattern] = action;
     }
