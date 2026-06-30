@@ -41,6 +41,7 @@ describe("E2E: hooks", () => {
     { target: "copilotcli", outputPath: join(".github", "hooks", "copilotcli-hooks.json") },
     { target: "factorydroid", outputPath: join(".factory", "hooks.json") },
     { target: "kiro", outputPath: join(".kiro", "agents", "default.json") },
+    { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
     { target: "antigravity-ide", outputPath: join(".agents", "hooks.json") },
     { target: "antigravity-cli", outputPath: join(".agents", "hooks.json") },
     { target: "augmentcode", outputPath: join(".augment", "settings.json") },
@@ -129,6 +130,17 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks).toBeDefined();
         expect(parsed.hooks.SessionStart).toBeDefined();
         expect(parsed.hooks.Stop).toBeDefined();
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "kiro-ide") {
+        // Kiro IDE emits a `{ version: "v1", hooks: [...] }` envelope with one
+        // entry per hook. Canonical `sessionStart` → `SessionStart`,
+        // `stop` → `Stop` (PascalCase triggers). See
+        // CANONICAL_TO_KIRO_IDE_EVENT_NAMES in src/types/hooks.ts.
+        expect(parsed.version).toBe("v1");
+        const triggers = (parsed.hooks as Array<{ trigger: string }>).map((h) => h.trigger);
+        expect(triggers).toContain("SessionStart");
+        expect(triggers).toContain("Stop");
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
       } else {
@@ -481,6 +493,7 @@ describe("E2E: hooks (global mode)", () => {
     { target: "antigravity-ide", outputPath: join(".gemini", "config", "hooks.json") },
     { target: "antigravity-cli", outputPath: join(".gemini", "config", "hooks.json") },
     { target: "augmentcode", outputPath: join(".augment", "settings.json") },
+    { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
   ])("should generate $target hooks in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

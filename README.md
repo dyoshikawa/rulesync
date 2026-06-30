@@ -100,7 +100,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Reasonix               |       |        | ✅  |          |           |        |       |             |
 | Kiro ⚠️                |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Kiro CLI               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
-| Kiro IDE               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |
+| Kiro IDE               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Google Antigravity IDE |  ✅   |        | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |
 | Google Antigravity CLI |  ✅   |   ✅   | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |
 | JetBrains AI Assistant |  ✅   |   ✅   |     |          |           |   ✅   |       |             |
@@ -130,7 +130,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 ### Deprecation notes
 
 - **Google Antigravity (`antigravity-ide` / `antigravity-cli`)** — Antigravity 2.0 splits into two products with separate global config trees: the desktop **`antigravity-ide`** and the **`antigravity-cli`** (`agy`). For project-scope rules, **both `antigravity-ide` and `antigravity-cli`** emit the root rule as a plain cross-tool **`AGENTS.md`** at the project root (the Gemini-lineage discovery order is `AGENTS.md`, `CONTEXT.md`, `GEMINI.md`; the IDE has read `AGENTS.md` since v1.20.3) and non-root rules under `.agents/rules/`.
-- **Kiro (`kiro`)** — Kiro's IDE and CLI use diverging config formats (IDE: Markdown subagents `.kiro/agents/*.md` and `.kiro/hooks/*.kiro.hook`; CLI: JSON agent-config subagents `.kiro/agents/*.json` and hooks in `.kiro/agents/default.json`), so `kiro` is split into **`kiro-cli`** and **`kiro-ide`**. The legacy `kiro` target remains as a **deprecated alias** with its current behavior unchanged. The two targets share every surface except **subagents** (Markdown vs JSON); Kiro IDE multi-file `.kiro.hook` hooks are not yet supported, so use `kiro-cli` for agent hooks.
+- **Kiro (`kiro`)** — Kiro's IDE and CLI use diverging config formats (IDE: Markdown subagents `.kiro/agents/*.md` and structured JSON hooks `.kiro/hooks/*.json`; CLI: JSON agent-config subagents `.kiro/agents/*.json` and hooks in `.kiro/agents/default.json`), so `kiro` is split into **`kiro-cli`** and **`kiro-ide`**. The legacy `kiro` target remains as a **deprecated alias** with its current behavior unchanged. The two targets share every surface except **subagents** (Markdown vs JSON) and **hooks**; Kiro IDE hooks are emitted as a single `.kiro/hooks/rulesync.json` (`{ "version": "v1", "hooks": [ ... ] }`) in project (`.kiro/hooks/`) and global (`~/.kiro/hooks/`) scope, while the CLI uses `.kiro/agents/default.json`. Global skills (`~/.kiro/skills/`) and global Kiro IDE subagents (`~/.kiro/agents/`) are supported too.
 
 Some features accept per-feature options (e.g., Claude Code's `ignore` feature supports `fileMode: "local"` to write to `settings.local.json` instead of `settings.json`). See [Configuration > Per-feature options](https://dyoshikawa.github.io/rulesync/guide/configuration#per-feature-options) for details.
 

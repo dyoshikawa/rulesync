@@ -45,6 +45,22 @@ describe("KiroIdeSubagent", () => {
     expect(KiroIdeSubagent.getSettablePaths().relativeDirPath).toBe(join(".kiro", "agents"));
   });
 
+  it("returns the .kiro/agents path in global mode (~/.kiro/agents)", () => {
+    // Kiro IDE loads global custom agents from `~/.kiro/agents/`; the relative
+    // path is shared with the project scope and rooted at the home dir.
+    expect(KiroIdeSubagent.getSettablePaths({ global: true }).relativeDirPath).toBe(
+      join(".kiro", "agents"),
+    );
+
+    const subagent = KiroIdeSubagent.fromRulesyncSubagent({
+      relativeDirPath: KiroIdeSubagent.getSettablePaths({ global: true }).relativeDirPath,
+      rulesyncSubagent: buildRulesyncSubagent(),
+      global: true,
+    }) as KiroIdeSubagent;
+    expect(subagent.getRelativeDirPath()).toBe(join(".kiro", "agents"));
+    expect(subagent.getRelativeFilePath()).toBe("planner.md");
+  });
+
   it("generates a Markdown subagent with frontmatter and body", () => {
     const subagent = KiroIdeSubagent.fromRulesyncSubagent({
       relativeDirPath: KiroIdeSubagent.getSettablePaths().relativeDirPath,

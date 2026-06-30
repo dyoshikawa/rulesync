@@ -17,6 +17,7 @@ import {
   JUNIE_HOOK_EVENTS,
   KILO_HOOK_EVENTS,
   KIRO_HOOK_EVENTS,
+  KIRO_IDE_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
   QWENCODE_HOOK_EVENTS,
   VIBE_HOOK_EVENTS,
@@ -45,6 +46,7 @@ import { JunieHooks } from "./junie-hooks.js";
 import { KiloHooks } from "./kilo-hooks.js";
 import { KiroCliHooks } from "./kiro-cli-hooks.js";
 import { KiroHooks } from "./kiro-hooks.js";
+import { KiroIdeHooks } from "./kiro-ide-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { QwencodeHooks } from "./qwencode-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -286,10 +288,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     },
   ],
   [
-    // The Kiro CLI uses the same `.kiro/agents/default.json` agent-hook format.
-    // (Kiro IDE hooks use multi-file `.kiro/hooks/*.kiro.hook`, which the
-    // single-file hooks architecture does not yet emit, so `kiro-ide` does not
-    // register a hooks adapter.)
+    // The Kiro CLI uses the same `.kiro/agents/default.json` agent-hook format
+    // as the legacy `kiro` alias. (Kiro IDE hooks use the structured
+    // `.kiro/hooks/*.json` v1 format — see the `kiro-ide` entry below.)
     "kiro-cli",
     {
       class: KiroCliHooks,
@@ -300,6 +301,26 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       },
       supportedEvents: KIRO_HOOK_EVENTS,
       supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    // Kiro IDE 1.0 reads structured JSON hooks from `.kiro/hooks/` (workspace)
+    // and `~/.kiro/hooks/` (user). A single file may declare multiple hooks in
+    // its `hooks` array, so rulesync emits all hooks into one `rulesync.json`
+    // file ({ "version": "v1", "hooks": [ ... ] }). The IDE supports both
+    // `agent` (prompt) and `command` actions.
+    // Reference: https://kiro.dev/docs/hooks/
+    "kiro-ide",
+    {
+      class: KiroIdeHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: KIRO_IDE_HOOK_EVENTS,
+      supportedHookTypes: ["command", "prompt"],
       supportsMatcher: true,
     },
   ],
