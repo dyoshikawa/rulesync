@@ -104,7 +104,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Google Antigravity IDE |  ✅   |        | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |
 | Google Antigravity CLI |  ✅   |   ✅   | ✅  |          |           |   ✅   |  ✅   |     ✅      |
 | JetBrains AI Assistant |  ✅   |   ✅   |     |          |           |   ✅   |       |             |
-| JetBrains Junie        |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |
+| JetBrains Junie        |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | AugmentCode            |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Devin Desktop          |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |
 | Warp                   |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |     ✅      |

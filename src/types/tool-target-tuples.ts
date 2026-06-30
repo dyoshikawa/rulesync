@@ -224,6 +224,7 @@ export const permissionsProcessorToolTargetTuple = [
   "goose",
   "grokcli",
   "hermesagent",
+  "junie",
   "kilo",
   "kiro",
   "kiro-cli",
