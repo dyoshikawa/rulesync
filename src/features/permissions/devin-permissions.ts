@@ -167,6 +167,7 @@ export class DevinPermissions extends ToolPermissions {
     outputRoot = process.cwd(),
     rulesyncPermissions,
     global = false,
+    validate = true,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<DevinPermissions> {
     const paths = DevinPermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
@@ -219,7 +220,7 @@ export class DevinPermissions extends ToolPermissions {
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent: JSON.stringify(merged, null, 2),
-      validate: true,
+      validate,
     });
   }
 

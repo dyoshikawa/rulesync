@@ -40,7 +40,7 @@ describe("DevinMcp", () => {
       expect(paths.relativeFilePath).toBe("config.json");
     });
 
-    it("should return the codeium global paths when global is true", () => {
+    it("should return the global ~/.config/devin paths when global is true", () => {
       const paths = DevinMcp.getSettablePaths({ global: true });
 
       expect(paths.relativeDirPath).toBe(join(".config", "devin"));
@@ -227,7 +227,7 @@ describe("DevinMcp", () => {
       expect(devinMcp.getJson()).toEqual({ mcpServers: {} });
     });
 
-    it("should create instance from global file at the codeium path", async () => {
+    it("should create instance from global file at the ~/.config/devin path", async () => {
       const globalDir = join(testDir, ".config", "devin");
       await ensureDir(globalDir);
 
@@ -360,7 +360,7 @@ describe("DevinMcp", () => {
       expect(json.mcpServers.pal.args).toEqual(["pal-mcp-server"]);
     });
 
-    it("should write mcpServers from RulesyncMcp in global mode at the codeium path", async () => {
+    it("should write mcpServers from RulesyncMcp in global mode at the ~/.config/devin path", async () => {
       const jsonData = {
         mcpServers: {
           "global-server": {
@@ -547,7 +547,7 @@ describe("DevinMcp", () => {
       expect(devinMcp.isDeletable()).toBe(false);
     });
 
-    it("should create minimal instance for deletion at the global codeium path", () => {
+    it("should create minimal instance for deletion at the global ~/.config/devin path", () => {
       const devinMcp = DevinMcp.forDeletion({
         outputRoot: testDir,
         relativeDirPath: join(".config", "devin"),
