@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 
+import { load } from "js-yaml";
 import * as smolToml from "smol-toml";
 import { describe, expect, it } from "vitest";
 
@@ -222,6 +223,11 @@ describe("E2E: mcp", () => {
       outputPath: "reasonix.toml",
       content: 'default_model = "deepseek"\n',
     },
+    {
+      target: "takt",
+      outputPath: join(".takt", "config.yaml"),
+      content: "provider: claude\n",
+    },
   ])(
     "should succeed in check mode when a $target mcp file is non-deletable",
     async ({ target, outputPath, content }) => {
@@ -325,6 +331,41 @@ describe("E2E: mcp", () => {
     expect(bash.permission).toBe("ask");
     expect(bash.allowlist).toEqual(["git *"]);
     expect(parsed.disabled_tools).toContain("write_file");
+  });
+
+  it("should generate Takt MCP transport allowlist into .takt/config.yaml", async () => {
+    const testDir = getTestDir();
+
+    // Pre-seed an unrelated key so the in-place merge can be asserted.
+    await writeFileContent(join(testDir, ".takt", "config.yaml"), "provider: claude\n");
+
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          mcpServers: {
+            "test-server": { type: "stdio", command: "echo", args: ["hello"] },
+            "remote-server": { type: "http", url: "https://example.com/mcp" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "takt", features: "mcp" });
+
+    const parsed = toTable(
+      load(await readFileContent(join(testDir, ".takt", "config.yaml"))) as Record<string, unknown>,
+    );
+    // The default-deny transport allowlist reflects the servers' transports.
+    expect(toTable(parsed.workflow_mcp_servers)).toEqual({ stdio: true, sse: false, http: true });
+    // The unrelated key is preserved by the in-place merge.
+    expect(parsed.provider).toBe("claude");
+    // Server definitions are NOT representable in config.yaml and are not written.
+    const raw = await readFileContent(join(testDir, ".takt", "config.yaml"));
+    expect(raw).not.toContain("test-server");
+    expect(raw).not.toContain("remote-server");
   });
 
   it("should generate Reasonix MCP into reasonix.toml as [[plugins]] entries", async () => {
@@ -564,6 +605,37 @@ describe("E2E: mcp (global mode)", () => {
     // Verify that the expected output file was generated and contains the server
     const generatedContent = await readFileContent(join(homeDir, outputPath));
     expect(generatedContent).toContain("test-server");
+  });
+
+  it("should generate Takt MCP transport allowlist into ~/.takt/config.yaml (global)", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          root: true,
+          mcpServers: {
+            "test-server": { type: "sse", url: "https://example.com/sse" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "takt",
+      features: "mcp",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const parsed = toTable(
+      load(await readFileContent(join(homeDir, ".takt", "config.yaml"))) as Record<string, unknown>,
+    );
+    expect(toTable(parsed.workflow_mcp_servers)).toEqual({ stdio: false, sse: true, http: false });
   });
 
   it("should preserve legacy ~/.claude/.claude.json when writing to recommended path (global)", async () => {

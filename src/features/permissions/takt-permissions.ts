@@ -1,13 +1,13 @@
 import { join } from "node:path";
 
-import { dump, load } from "js-yaml";
+import { dump } from "js-yaml";
 
 import { TAKT_CONFIG_FILE_NAME, TAKT_DIR } from "../../constants/takt-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionsConfig } from "../../types/permissions.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { isPlainObject } from "../../utils/type-guards.js";
+import { parseTaktConfig } from "../shared/takt-config.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -189,35 +189,6 @@ export class TaktPermissions extends ToolPermissions {
       global,
     });
   }
-}
-
-/**
- * Parse a Takt `config.yaml` into a plain object, treating an empty file as `{}`.
- */
-function parseTaktConfig(
-  fileContent: string,
-  relativeDirPath: string,
-  relativeFilePath: string,
-): Record<string, unknown> {
-  const configPath = join(relativeDirPath, relativeFilePath);
-  let parsed: unknown;
-  try {
-    parsed = fileContent.trim() === "" ? {} : load(fileContent);
-  } catch (error) {
-    throw new Error(`Failed to parse Takt config at ${configPath}: ${formatError(error)}`, {
-      cause: error,
-    });
-  }
-  // An empty config.yaml parses to undefined/null; treat it as an empty object.
-  if (parsed === undefined || parsed === null) {
-    return {};
-  }
-  // `isPlainObject` (not `isRecord`) rejects class instances for
-  // prototype-pollution hardening; a YAML mapping always parses to a plain object.
-  if (!isPlainObject(parsed)) {
-    throw new Error(`Failed to parse Takt config at ${configPath}: expected a YAML mapping`);
-  }
-  return parsed;
 }
 
 /**

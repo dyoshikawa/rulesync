@@ -17,3 +17,12 @@ export const TAKT_RULE_OVERVIEW_FILE_NAME = "overview.md";
  * @see https://github.com/nrslib/takt/blob/main/docs/configuration.md
  */
 export const TAKT_CONFIG_FILE_NAME = "config.yaml";
+
+/**
+ * Top-level key in Takt's `config.yaml` holding the workflow MCP transport
+ * allowlist (`stdio` / `sse` / `http` booleans). Takt is default-deny: a
+ * transport must be explicitly enabled here before any workflow-defined MCP
+ * server using it is permitted to run.
+ * @see https://github.com/nrslib/takt/blob/main/docs/configuration.md
+ */
+export const TAKT_WORKFLOW_MCP_SERVERS_KEY = "workflow_mcp_servers";

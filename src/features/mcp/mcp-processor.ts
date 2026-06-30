@@ -33,6 +33,7 @@ import { ReasonixMcp } from "./reasonix-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
 import { RovodevMcp } from "./rovodev-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
+import { TaktMcp } from "./takt-mcp.js";
 import {
   ToolMcp,
   ToolMcpForDeletionParams,
@@ -431,6 +432,25 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       class: RovodevMcp,
       meta: {
         supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "takt",
+    {
+      // Takt has no project/global registry of MCP server *definitions* — those
+      // live per-step in workflow YAML. `.takt/config.yaml` (project) /
+      // `~/.takt/config.yaml` (global) only hold the default-deny transport
+      // allowlist `workflow_mcp_servers: { stdio, sse, http }`. TaktMcp emits
+      // that allowlist (derived from the rulesync servers' transports); the
+      // concrete server map is intentionally not representable here.
+      // https://github.com/nrslib/takt/blob/main/docs/configuration.md
+      class: TaktMcp,
+      meta: {
+        supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
