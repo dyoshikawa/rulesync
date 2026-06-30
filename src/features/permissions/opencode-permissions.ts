@@ -28,7 +28,13 @@ const OpencodePermissionSchema = z.union([
 ]);
 
 const OpencodePermissionsConfigSchema = z.looseObject({
-  permission: z.optional(z.record(z.string(), OpencodePermissionSchema)),
+  // OpenCode accepts either a per-tool object OR a bare top-level string that
+  // applies uniformly to every tool (e.g. `"permission": "allow"`).
+  // See https://opencode.ai/docs/permissions/ ("You can also set all
+  // permissions at once").
+  permission: z.optional(
+    z.union([z.enum(["allow", "ask", "deny"]), z.record(z.string(), OpencodePermissionSchema)]),
+  ),
 });
 
 type OpencodePermissionsConfig = z.infer<typeof OpencodePermissionsConfigSchema>;
@@ -168,6 +174,14 @@ export class OpencodePermissions extends ToolPermissions {
   ): PermissionsConfig["permission"] {
     if (!permission) {
       return {};
+    }
+
+    // Top-level uniform string form (`"permission": "allow"`): OpenCode applies
+    // it to every tool. The canonical rulesync model represents "all tools /
+    // all inputs" with the wildcard tool key `"*"` and the wildcard glob `"*"`,
+    // matching how OpenCode's own object syntax uses `"*"` as the all-tools key.
+    if (typeof permission === "string") {
+      return { "*": { "*": permission } };
     }
 
     return Object.fromEntries(
