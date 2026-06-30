@@ -34,6 +34,9 @@ jobs:
         with:
           experimental: true
 
+      - name: Setup Takumi Guard npm registry
+        uses: flatt-security/setup-takumi-guard-npm@b32fa78ac6c5507152b0470604b0b546fa2b8521 # v1
+
       - name: Install dependencies
         run: bun install
 
@@ -104,6 +107,9 @@ jobs:
         uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v2
         with:
           experimental: true
+
+      - name: Setup Takumi Guard npm registry
+        uses: flatt-security/setup-takumi-guard-npm@b32fa78ac6c5507152b0470604b0b546fa2b8521 # v1
 
       - name: Install dependencies
         run: pnpm install --ignore-scripts
