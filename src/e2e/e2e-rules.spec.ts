@@ -670,7 +670,7 @@ describe("E2E: rules (global mode)", () => {
     { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },
     {
       target: "devin",
-      outputPath: join(".codeium", "windsurf", "memories", "global_rules.md"),
+      outputPath: join(".config", "devin", "AGENTS.md"),
     },
     { target: "junie", outputPath: join(".junie", "AGENTS.md") },
     { target: "qwencode", outputPath: join(".qwen", "QWEN.md") },

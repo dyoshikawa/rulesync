@@ -22,42 +22,44 @@ describe("DevinHooks", () => {
     vi.restoreAllMocks();
   });
 
-  describe("getSettablePaths", () => {
-    it("should return .devin and hooks.json for project mode", () => {
-      const paths = DevinHooks.getSettablePaths();
-      expect(paths).toEqual({ relativeDirPath: ".windsurf", relativeFilePath: "hooks.json" });
+  const makeRulesyncHooks = (config: unknown): RulesyncHooks =>
+    new RulesyncHooks({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: "hooks.json",
+      fileContent: JSON.stringify(config),
+      validate: false,
     });
 
-    it("should return .codeium/windsurf and hooks.json for global mode", () => {
+  describe("getSettablePaths", () => {
+    it("should return .devin and hooks.v1.json for project mode", () => {
+      const paths = DevinHooks.getSettablePaths();
+      expect(paths).toEqual({ relativeDirPath: ".devin", relativeFilePath: "hooks.v1.json" });
+    });
+
+    it("should return .config/devin and config.json for global mode", () => {
       const paths = DevinHooks.getSettablePaths({ global: true });
       expect(paths).toEqual({
-        relativeDirPath: join(".codeium", "windsurf"),
-        relativeFilePath: "hooks.json",
+        relativeDirPath: join(".config", "devin"),
+        relativeFilePath: "config.json",
       });
     });
   });
 
   describe("fromRulesyncHooks", () => {
-    it("should produce a top-level hooks-keyed object mapping canonical events to Devin events", async () => {
+    it("should produce a top-level event map (no wrapper key) for project mode", async () => {
       const config = {
         version: 1,
         hooks: {
-          beforeReadFile: [{ command: "python3 /p/read.py", show_output: true }],
-          afterFileEdit: [{ command: "python3 /p/write.py" }],
-          beforeShellExecution: [{ command: "audit.sh", working_directory: "/tmp" }],
-          beforeMCPExecution: [{ command: "mcp-pre.sh" }],
-          beforeSubmitPrompt: [{ command: "prompt.sh" }],
-          afterAgentResponse: [{ command: "response.sh" }],
-          worktreeCreate: [{ command: "setup.sh" }],
+          preToolUse: [{ matcher: "exec", command: "./scripts/check.sh", timeout: 10 }],
+          postToolUse: [{ command: "./scripts/after.sh" }],
+          beforeSubmitPrompt: [{ command: "./scripts/prompt.sh" }],
+          stop: [{ command: "./scripts/stop.sh" }],
+          sessionStart: [{ command: "./scripts/start.sh" }],
+          permissionRequest: [{ matcher: "exec", prompt: "Allow?", type: "prompt" }],
         },
       };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
-      });
+      const rulesyncHooks = makeRulesyncHooks(config);
 
       const devinHooks = await DevinHooks.fromRulesyncHooks({
         outputRoot: testDir,
@@ -66,139 +68,66 @@ describe("DevinHooks", () => {
       });
 
       const parsed = JSON.parse(devinHooks.getFileContent());
-      expect(Object.keys(parsed)).toEqual(["hooks"]);
-      expect(parsed.hooks.pre_read_code).toEqual([
-        { command: "python3 /p/read.py", show_output: true },
-      ]);
-      expect(parsed.hooks.post_write_code).toEqual([{ command: "python3 /p/write.py" }]);
-      expect(parsed.hooks.pre_run_command).toEqual([
-        { command: "audit.sh", working_directory: "/tmp" },
-      ]);
-      expect(parsed.hooks.pre_mcp_tool_use).toEqual([{ command: "mcp-pre.sh" }]);
-      expect(parsed.hooks.pre_user_prompt).toEqual([{ command: "prompt.sh" }]);
-      expect(parsed.hooks.post_cascade_response).toEqual([{ command: "response.sh" }]);
-      expect(parsed.hooks.post_setup_worktree).toEqual([{ command: "setup.sh" }]);
-    });
-
-    it("should not invent type, matcher, or timeout fields", async () => {
-      const config = {
-        version: 1,
-        hooks: {
-          beforeReadFile: [
-            {
-              type: "command",
-              command: "read.sh",
-              matcher: "Edit",
-              timeout: 30,
-              show_output: false,
-            },
-          ],
+      // No "hooks" wrapper key — events are at the top level.
+      expect(parsed.hooks).toBeUndefined();
+      expect(parsed.PreToolUse).toEqual([
+        {
+          matcher: "exec",
+          hooks: [{ type: "command", command: "./scripts/check.sh", timeout: 10 }],
         },
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
-      });
-
-      const devinHooks = await DevinHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      });
-
-      const parsed = JSON.parse(devinHooks.getFileContent());
-      const hook = parsed.hooks.pre_read_code[0];
-      expect(hook).toEqual({ command: "read.sh", show_output: false });
-      expect(hook).not.toHaveProperty("type");
-      expect(hook).not.toHaveProperty("matcher");
-      expect(hook).not.toHaveProperty("timeout");
-    });
-
-    it("should preserve the powershell field", async () => {
-      const config = {
-        version: 1,
-        hooks: {
-          afterShellExecution: [
-            { command: "echo unix", powershell: "Write-Host win", show_output: true },
-          ],
-        },
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
-      });
-
-      const devinHooks = await DevinHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      });
-
-      const parsed = JSON.parse(devinHooks.getFileContent());
-      expect(parsed.hooks.post_run_command).toEqual([
-        { command: "echo unix", powershell: "Write-Host win", show_output: true },
+      ]);
+      expect(parsed.PostToolUse).toEqual([
+        { hooks: [{ type: "command", command: "./scripts/after.sh" }] },
+      ]);
+      // Matcher-less events carry no matcher key.
+      expect(parsed.UserPromptSubmit).toEqual([
+        { hooks: [{ type: "command", command: "./scripts/prompt.sh" }] },
+      ]);
+      expect(parsed.Stop).toEqual([{ hooks: [{ type: "command", command: "./scripts/stop.sh" }] }]);
+      expect(parsed.SessionStart).toEqual([
+        { hooks: [{ type: "command", command: "./scripts/start.sh" }] },
+      ]);
+      expect(parsed.PermissionRequest).toEqual([
+        { matcher: "exec", hooks: [{ type: "prompt", prompt: "Allow?" }] },
       ]);
     });
 
-    it("should drop canonical events without a Devin equivalent and warn", async () => {
-      const warn = vi.fn();
+    it("should drop canonical events without a Devin equivalent", async () => {
       const config = {
         version: 1,
         hooks: {
-          sessionStart: [{ command: "start.sh" }],
-          stop: [{ command: "stop.sh" }],
+          // Not in the Devin native event set.
           beforeReadFile: [{ command: "read.sh" }],
+          afterFileEdit: [{ command: "edit.sh" }],
+          preToolUse: [{ command: "tool.sh" }],
         },
       };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
-      });
+      const rulesyncHooks = makeRulesyncHooks(config);
 
       const devinHooks = await DevinHooks.fromRulesyncHooks({
         outputRoot: testDir,
         rulesyncHooks,
         validate: false,
-        logger: { warn } as never,
       });
 
       const parsed = JSON.parse(devinHooks.getFileContent());
-      expect(parsed.hooks.pre_read_code).toBeDefined();
-      expect(Object.keys(parsed.hooks)).toEqual(["pre_read_code"]);
-      // sessionStart and stop are filtered out before reaching the converter,
-      // so no per-event warning is emitted, but they never appear in output.
-      expect(parsed.hooks).not.toHaveProperty("session_start");
+      expect(Object.keys(parsed)).toEqual(["PreToolUse"]);
     });
 
     it("should merge config.devin.hooks on top of shared hooks", async () => {
       const config = {
         version: 1,
         hooks: {
-          beforeReadFile: [{ command: "shared-read.sh" }],
+          preToolUse: [{ command: "shared.sh" }],
         },
         devin: {
           hooks: {
-            beforeReadFile: [{ command: "override-read.sh" }],
-            afterFileEdit: [{ command: "override-write.sh" }],
+            preToolUse: [{ command: "override.sh" }],
+            stop: [{ command: "override-stop.sh" }],
           },
         },
       };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
-      });
+      const rulesyncHooks = makeRulesyncHooks(config);
 
       const devinHooks = await DevinHooks.fromRulesyncHooks({
         outputRoot: testDir,
@@ -207,22 +136,23 @@ describe("DevinHooks", () => {
       });
 
       const parsed = JSON.parse(devinHooks.getFileContent());
-      expect(parsed.hooks.pre_read_code).toEqual([{ command: "override-read.sh" }]);
-      expect(parsed.hooks.post_write_code).toEqual([{ command: "override-write.sh" }]);
+      expect(parsed.PreToolUse).toEqual([{ hooks: [{ type: "command", command: "override.sh" }] }]);
+      expect(parsed.Stop).toEqual([{ hooks: [{ type: "command", command: "override-stop.sh" }] }]);
     });
 
-    it("should write to the global path when global is true", async () => {
+    it("should write hooks under the hooks key of config.json in global mode, preserving siblings", async () => {
+      const dir = join(testDir, ".config", "devin");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "config.json"),
+        JSON.stringify({ mcpServers: { a: { command: "x" } }, permissions: { deny: ["Exec"] } }),
+      );
+
       const config = {
         version: 1,
-        hooks: { beforeReadFile: [{ command: "read.sh" }] },
+        hooks: { preToolUse: [{ command: "g.sh" }] },
       };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
-      });
+      const rulesyncHooks = makeRulesyncHooks(config);
 
       const devinHooks = await DevinHooks.fromRulesyncHooks({
         outputRoot: testDir,
@@ -231,140 +161,103 @@ describe("DevinHooks", () => {
         global: true,
       });
 
-      expect(devinHooks.getRelativeDirPath()).toBe(join(".codeium", "windsurf"));
-      expect(devinHooks.getRelativeFilePath()).toBe("hooks.json");
+      expect(devinHooks.getRelativeDirPath()).toBe(join(".config", "devin"));
+      expect(devinHooks.getRelativeFilePath()).toBe("config.json");
+      const parsed = JSON.parse(devinHooks.getFileContent());
+      expect(parsed.hooks.PreToolUse).toEqual([{ hooks: [{ type: "command", command: "g.sh" }] }]);
+      // Sibling keys from MCP / permissions features are preserved.
+      expect(parsed.mcpServers).toEqual({ a: { command: "x" } });
+      expect(parsed.permissions).toEqual({ deny: ["Exec"] });
     });
   });
 
   describe("fromFile", () => {
-    it("should parse an existing project hooks.json", async () => {
-      const dir = join(testDir, ".windsurf");
+    it("should parse an existing project hooks.v1.json (top-level events)", async () => {
+      const dir = join(testDir, ".devin");
       await ensureDir(dir);
-      const content = JSON.stringify({
-        hooks: {
-          pre_read_code: [{ command: "python3 /p/s.py", show_output: true }],
-        },
-      });
-      await writeFileContent(join(dir, "hooks.json"), content);
+      await writeFileContent(
+        join(dir, "hooks.v1.json"),
+        JSON.stringify({
+          PreToolUse: [{ matcher: "exec", hooks: [{ type: "command", command: "s.sh" }] }],
+        }),
+      );
 
       const devinHooks = await DevinHooks.fromFile({ outputRoot: testDir });
-
       const parsed = JSON.parse(devinHooks.getFileContent());
-      expect(parsed.hooks.pre_read_code).toEqual([
-        { command: "python3 /p/s.py", show_output: true },
-      ]);
+      expect(parsed.PreToolUse).toBeDefined();
     });
 
-    it("should fall back to an empty hooks object when the file is missing", async () => {
+    it("should fall back to an empty object when the file is missing", async () => {
       const devinHooks = await DevinHooks.fromFile({ outputRoot: testDir });
-      const parsed = JSON.parse(devinHooks.getFileContent());
-      expect(parsed).toEqual({ hooks: {} });
+      expect(JSON.parse(devinHooks.getFileContent())).toEqual({});
     });
 
-    it("should read from the global path when global is true", async () => {
-      const dir = join(testDir, ".codeium", "windsurf");
+    it("should read config.json in global mode", async () => {
+      const dir = join(testDir, ".config", "devin");
       await ensureDir(dir);
-      const content = JSON.stringify({
-        hooks: { post_setup_worktree: [{ command: "setup.sh" }] },
-      });
-      await writeFileContent(join(dir, "hooks.json"), content);
+      await writeFileContent(
+        join(dir, "config.json"),
+        JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: "command", command: "stop.sh" }] }] } }),
+      );
 
       const devinHooks = await DevinHooks.fromFile({ outputRoot: testDir, global: true });
-
-      const parsed = JSON.parse(devinHooks.getFileContent());
-      expect(parsed.hooks.post_setup_worktree).toEqual([{ command: "setup.sh" }]);
-      expect(devinHooks.getRelativeDirPath()).toBe(join(".codeium", "windsurf"));
+      expect(devinHooks.getRelativeFilePath()).toBe("config.json");
     });
   });
 
   describe("toRulesyncHooks", () => {
-    it("should map Devin events back to canonical event names", () => {
+    it("should map Devin events back to canonical names from a project hooks.v1.json", () => {
       const fileContent = JSON.stringify({
-        hooks: {
-          pre_read_code: [{ command: "read.sh", show_output: true }],
-          post_write_code: [{ command: "write.sh" }],
-          pre_run_command: [{ command: "cmd.sh", working_directory: "/tmp" }],
-          post_mcp_tool_use: [{ command: "mcp.sh" }],
-          pre_user_prompt: [{ command: "prompt.sh" }],
-          post_cascade_response_with_transcript: [{ command: "transcript.sh" }],
-          post_setup_worktree: [{ command: "setup.sh" }],
-        },
+        PreToolUse: [{ matcher: "exec", hooks: [{ type: "command", command: "tool.sh" }] }],
+        Stop: [{ hooks: [{ type: "command", command: "stop.sh" }] }],
       });
       const devinHooks = new DevinHooks({
         outputRoot: testDir,
-        relativeDirPath: ".windsurf",
-        relativeFilePath: "hooks.json",
-        fileContent,
-        validate: false,
-      });
-
-      const rulesyncHooks = devinHooks.toRulesyncHooks();
-      const parsed = JSON.parse(rulesyncHooks.getFileContent());
-
-      expect(parsed.version).toBe(1);
-      expect(parsed.hooks.beforeReadFile).toEqual([
-        { type: "command", command: "read.sh", show_output: true },
-      ]);
-      expect(parsed.hooks.afterFileEdit).toEqual([{ type: "command", command: "write.sh" }]);
-      expect(parsed.hooks.beforeShellExecution).toEqual([
-        { type: "command", command: "cmd.sh", working_directory: "/tmp" },
-      ]);
-      expect(parsed.hooks.afterMCPExecution).toEqual([{ type: "command", command: "mcp.sh" }]);
-      expect(parsed.hooks.beforeSubmitPrompt).toEqual([{ type: "command", command: "prompt.sh" }]);
-      expect(parsed.hooks.beforeAgentResponse).toEqual([
-        { type: "command", command: "transcript.sh" },
-      ]);
-      expect(parsed.hooks.worktreeCreate).toEqual([{ type: "command", command: "setup.sh" }]);
-    });
-
-    it("should drop unknown Devin events instead of passing them through", () => {
-      const fileContent = JSON.stringify({
-        hooks: {
-          pre_read_code: [{ command: "read.sh" }],
-          // Not one of the documented 12 events; must not survive import,
-          // otherwise it would be silently dropped on the next generate.
-          some_future_event: [{ command: "future.sh" }],
-        },
-      });
-      const devinHooks = new DevinHooks({
-        outputRoot: testDir,
-        relativeDirPath: ".windsurf",
-        relativeFilePath: "hooks.json",
+        relativeDirPath: ".devin",
+        relativeFilePath: "hooks.v1.json",
         fileContent,
         validate: false,
       });
 
       const parsed = JSON.parse(devinHooks.toRulesyncHooks().getFileContent());
+      expect(parsed.version).toBe(1);
+      expect(parsed.hooks.preToolUse).toEqual([
+        { type: "command", command: "tool.sh", matcher: "exec" },
+      ]);
+      expect(parsed.hooks.stop).toEqual([{ type: "command", command: "stop.sh" }]);
+    });
 
-      expect(parsed.hooks.beforeReadFile).toBeDefined();
-      expect(parsed.hooks.some_future_event).toBeUndefined();
+    it("should read hooks from under the hooks key for a global config.json", () => {
+      const fileContent = JSON.stringify({
+        mcpServers: {},
+        hooks: { Stop: [{ hooks: [{ type: "command", command: "stop.sh" }] }] },
+      });
+      const devinHooks = new DevinHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".config", "devin"),
+        relativeFilePath: "config.json",
+        fileContent,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(devinHooks.toRulesyncHooks().getFileContent());
+      expect(parsed.hooks.stop).toEqual([{ type: "command", command: "stop.sh" }]);
     });
 
     it("should round-trip mappable events through fromRulesyncHooks and back", async () => {
       const config = {
         version: 1,
         hooks: {
-          beforeReadFile: [{ type: "command", command: "read.sh", show_output: true }],
-          afterFileEdit: [{ type: "command", command: "write.sh" }],
-          beforeShellExecution: [{ type: "command", command: "cmd.sh", working_directory: "/tmp" }],
-          beforeMCPExecution: [{ type: "command", command: "mcp.sh" }],
-          afterMCPExecution: [{ type: "command", command: "mcp-post.sh" }],
+          preToolUse: [{ type: "command", command: "tool.sh", matcher: "exec" }],
+          postToolUse: [{ type: "command", command: "after.sh" }],
           beforeSubmitPrompt: [{ type: "command", command: "prompt.sh" }],
-          afterAgentResponse: [{ type: "command", command: "response.sh" }],
-          beforeAgentResponse: [{ type: "command", command: "transcript.sh" }],
-          beforeTabFileRead: [{ type: "command", command: "tab-read.sh" }],
-          afterTabFileEdit: [{ type: "command", command: "tab-edit.sh" }],
-          afterShellExecution: [{ type: "command", command: "shell-post.sh" }],
-          worktreeCreate: [{ type: "command", command: "setup.sh" }],
+          stop: [{ type: "command", command: "stop.sh" }],
+          sessionStart: [{ type: "command", command: "start.sh" }],
+          sessionEnd: [{ type: "command", command: "end.sh" }],
+          permissionRequest: [{ type: "command", command: "perm.sh", matcher: "exec" }],
         },
       };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
-      });
+      const rulesyncHooks = makeRulesyncHooks(config);
 
       const devinHooks = await DevinHooks.fromRulesyncHooks({
         outputRoot: testDir,
@@ -372,17 +265,15 @@ describe("DevinHooks", () => {
         validate: false,
       });
 
-      const back = devinHooks.toRulesyncHooks();
-      const parsed = JSON.parse(back.getFileContent());
-
+      const parsed = JSON.parse(devinHooks.toRulesyncHooks().getFileContent());
       expect(parsed.hooks).toEqual(config.hooks);
     });
 
     it("should throw on invalid JSON content", () => {
       const devinHooks = new DevinHooks({
         outputRoot: testDir,
-        relativeDirPath: ".windsurf",
-        relativeFilePath: "hooks.json",
+        relativeDirPath: ".devin",
+        relativeFilePath: "hooks.v1.json",
         fileContent: "{ not json",
         validate: false,
       });
@@ -391,27 +282,23 @@ describe("DevinHooks", () => {
     });
   });
 
-  describe("forDeletion", () => {
-    it("should create a minimal instance with an empty hooks object", () => {
+  describe("isDeletable / forDeletion", () => {
+    it("should treat the project hooks.v1.json as deletable", () => {
       const devinHooks = DevinHooks.forDeletion({
         outputRoot: testDir,
-        relativeDirPath: ".windsurf",
-        relativeFilePath: "hooks.json",
+        relativeDirPath: ".devin",
+        relativeFilePath: "hooks.v1.json",
       });
-
-      expect(devinHooks).toBeInstanceOf(DevinHooks);
-      expect(devinHooks.getRelativeDirPath()).toBe(".windsurf");
-      expect(devinHooks.getRelativeFilePath()).toBe("hooks.json");
-      expect(JSON.parse(devinHooks.getFileContent())).toEqual({ hooks: {} });
+      expect(devinHooks.isDeletable()).toBe(true);
     });
 
-    it("should default outputRoot to process.cwd()", () => {
+    it("should never delete the shared global config.json", () => {
       const devinHooks = DevinHooks.forDeletion({
-        relativeDirPath: ".windsurf",
-        relativeFilePath: "hooks.json",
+        outputRoot: testDir,
+        relativeDirPath: join(".config", "devin"),
+        relativeFilePath: "config.json",
       });
-
-      expect(devinHooks.getOutputRoot()).toBe(testDir);
+      expect(devinHooks.isDeletable()).toBe(false);
     });
   });
 });

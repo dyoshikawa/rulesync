@@ -95,6 +95,37 @@ describe("E2E: permissions", () => {
     expect(content["amp.tools.disable"]).toEqual(["builtin:Bash", "edit_file"]);
   });
 
+  it("should generate devin permissions into .devin/config.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            read: { "src/**": "allow" },
+            write: { "*.lock": "deny" },
+            bash: { git: "allow", "rm *": "deny", "*": "ask" },
+            webfetch: { "https://api.github.com/*": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "devin", features: "permissions" });
+
+    const content = JSON.parse(await readFileContent(join(testDir, ".devin", "config.json")));
+    // Canonical categories map to Devin scope matchers; `*` collapses to the bare scope.
+    expect(content.permissions.allow).toContain("Read(src/**)");
+    expect(content.permissions.allow).toContain("Exec(git)");
+    expect(content.permissions.allow).toContain("Fetch(https://api.github.com/*)");
+    expect(content.permissions.deny).toContain("Write(*.lock)");
+    expect(content.permissions.deny).toContain("Exec(rm *)");
+    expect(content.permissions.ask).toContain("Exec");
+  });
+
   it("should generate codexcli permissions into .codex/config.toml", async () => {
     const testDir = getTestDir();
 

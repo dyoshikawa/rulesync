@@ -58,8 +58,8 @@ This is a test rule.`);
     it("should emit a plain body without frontmatter for root (global) rules", () => {
       const devinRule = new DevinRule({
         frontmatter: {},
-        relativeDirPath: join(".codeium", "windsurf", "memories"),
-        relativeFilePath: "global_rules.md",
+        relativeDirPath: join(".config", "devin"),
+        relativeFilePath: "AGENTS.md",
         body: "# Global\n\nPlain body.",
         root: true,
       });
@@ -104,13 +104,13 @@ This is a test rule.`);
       expect(nonRoot.relativeDirPath).toBe(join(".devin", "rules"));
     });
 
-    it("should return global root path under .codeium/windsurf/memories/global_rules.md", () => {
+    it("should return global root path under .config/devin/AGENTS.md", () => {
       const paths = DevinRule.getSettablePaths({ global: true });
 
       expect("nonRoot" in paths).toBe(false);
       const root = (paths as { root: { relativeDirPath: string; relativeFilePath: string } }).root;
-      expect(root.relativeDirPath).toBe(join(".codeium", "windsurf", "memories"));
-      expect(root.relativeFilePath).toBe("global_rules.md");
+      expect(root.relativeDirPath).toBe(join(".config", "devin"));
+      expect(root.relativeFilePath).toBe("AGENTS.md");
     });
 
     it("should exclude the tool dir for project scope when requested", () => {
@@ -177,20 +177,20 @@ This is a test rule.`);
     });
 
     it("should parse the global plain-markdown file as a root rule", async () => {
-      const memoriesDir = join(testDir, ".codeium", "windsurf", "memories");
+      const memoriesDir = join(testDir, ".config", "devin");
       await ensureDir(memoriesDir);
       const content = "# Global Rules\n\nNo frontmatter here.";
-      await writeFileContent(join(memoriesDir, "global_rules.md"), content);
+      await writeFileContent(join(memoriesDir, "AGENTS.md"), content);
 
       const devinRule = await DevinRule.fromFile({
         outputRoot: testDir,
-        relativeFilePath: "global_rules.md",
+        relativeFilePath: "AGENTS.md",
         global: true,
       });
 
       expect(devinRule.isRoot()).toBe(true);
-      expect(devinRule.getRelativeDirPath()).toBe(join(".codeium", "windsurf", "memories"));
-      expect(devinRule.getRelativeFilePath()).toBe("global_rules.md");
+      expect(devinRule.getRelativeDirPath()).toBe(join(".config", "devin"));
+      expect(devinRule.getRelativeFilePath()).toBe("AGENTS.md");
       expect(devinRule.getBody().trim()).toBe(content);
       expect(devinRule.getFileContent()).not.toContain("trigger:");
     });
@@ -364,7 +364,7 @@ This is a test rule.`);
   });
 
   describe("fromRulesyncRule - global scope", () => {
-    it("should produce a plain root global_rules.md without frontmatter", () => {
+    it("should produce a plain root AGENTS.md without frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "overview.md",
@@ -378,8 +378,8 @@ This is a test rule.`);
 
       const devinRule = DevinRule.fromRulesyncRule({ rulesyncRule, global: true });
 
-      expect(devinRule.getRelativeDirPath()).toBe(join(".codeium", "windsurf", "memories"));
-      expect(devinRule.getRelativeFilePath()).toBe("global_rules.md");
+      expect(devinRule.getRelativeDirPath()).toBe(join(".config", "devin"));
+      expect(devinRule.getRelativeFilePath()).toBe("AGENTS.md");
       expect(devinRule.isRoot()).toBe(true);
       expect(devinRule.getFileContent().trim()).toBe("# Global Overview\n\nPlain body.");
       expect(devinRule.getFileContent()).not.toContain("trigger:");
@@ -570,8 +570,8 @@ This is a test rule.`);
     it("should mark the instance as root for global deletion", () => {
       const devinRule = DevinRule.forDeletion({
         outputRoot: testDir,
-        relativeDirPath: join(".codeium", "windsurf", "memories"),
-        relativeFilePath: "global_rules.md",
+        relativeDirPath: join(".config", "devin"),
+        relativeFilePath: "AGENTS.md",
         global: true,
       });
 

@@ -350,7 +350,6 @@ rulesync.local.jsonc
 **/.roo/mcp.json
 **/.vibe/config.toml
 **/.warp/.mcp.json
-**/.windsurf/mcp_config.json
 **/.agents/hooks.json
 **/.cursor/hooks.json
 **/.codex/hooks.json
@@ -361,7 +360,7 @@ rulesync.local.jsonc
 **/.factory/hooks.json
 **/.agents/plugins/rulesync/hooks/hooks.json
 **/.kiro/agents/default.json
-**/.windsurf/hooks.json
+**/.devin/hooks.v1.json
 **/.augment/settings.json
 **/.vibe/hooks.toml
 **/.cline/command-permissions.json

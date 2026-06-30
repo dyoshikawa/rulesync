@@ -16,6 +16,7 @@ import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { ClinePermissions } from "./cline-permissions.js";
 import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
 import { CursorPermissions } from "./cursor-permissions.js";
+import { DevinPermissions } from "./devin-permissions.js";
 import { FactorydroidPermissions } from "./factorydroid-permissions.js";
 import { GoosePermissions } from "./goose-permissions.js";
 import { GrokcliPermissions } from "./grokcli-permissions.js";
@@ -155,6 +156,20 @@ export const toolPermissionsFactories = new Map<
     {
       class: CursorPermissions,
       meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "devin",
+    {
+      class: DevinPermissions,
+      meta: {
+        // Devin Local maps permissions onto the `permissions` block (allow/deny/
+        // ask scope matchers) in the shared config file: `.devin/config.json`
+        // (project) and `~/.config/devin/config.json` (global).
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,

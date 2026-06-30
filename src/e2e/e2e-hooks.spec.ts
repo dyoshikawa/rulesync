@@ -225,14 +225,14 @@ describe("E2E: hooks", () => {
   it("should generate devin hooks", async () => {
     const testDir = getTestDir();
 
-    // Devin supports file/command/MCP lifecycle events but not sessionStart/stop,
-    // so this dedicated case uses devin-supported canonical events.
+    // Devin Local uses Claude-style lifecycle events. The standalone
+    // .devin/hooks.v1.json holds the event map directly (no wrapper key).
     const hooksContent = JSON.stringify(
       {
         version: 1,
         hooks: {
-          beforeShellExecution: [{ command: ".rulesync/hooks/pre-run.sh" }],
-          afterFileEdit: [{ command: ".rulesync/hooks/post-edit.sh" }],
+          preToolUse: [{ matcher: "exec", command: ".rulesync/hooks/pre-run.sh" }],
+          stop: [{ command: ".rulesync/hooks/on-stop.sh" }],
         },
       },
       null,
@@ -242,13 +242,14 @@ describe("E2E: hooks", () => {
 
     await runGenerate({ target: "devin", features: "hooks" });
 
-    const generatedContent = await readFileContent(join(testDir, ".windsurf", "hooks.json"));
+    const generatedContent = await readFileContent(join(testDir, ".devin", "hooks.v1.json"));
     const parsed = JSON.parse(generatedContent);
-    // Devin maps beforeShellExecution → pre_run_command and afterFileEdit → post_write_code.
-    expect(parsed.hooks.pre_run_command).toBeDefined();
-    expect(parsed.hooks.post_write_code).toBeDefined();
-    expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/pre-run.sh");
-    expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/post-edit.sh");
+    // Events live at the top level (no "hooks" wrapper key).
+    expect(parsed.hooks).toBeUndefined();
+    expect(parsed.PreToolUse).toBeDefined();
+    expect(parsed.Stop).toBeDefined();
+    expect(JSON.stringify(parsed)).toContain(".rulesync/hooks/pre-run.sh");
+    expect(JSON.stringify(parsed)).toContain(".rulesync/hooks/on-stop.sh");
   });
 
   it.each([
@@ -408,17 +409,15 @@ describe("E2E: hooks (import)", () => {
       expectedEvent: "preToolUse",
     },
     {
-      // Devin hooks.json maps each Devin event name to a flat array of
-      // command/powershell hook objects. `pre_run_command` round-trips to the
-      // canonical `beforeShellExecution` event.
+      // Devin Local's standalone .devin/hooks.v1.json holds the Claude-style
+      // event map directly (no wrapper key). PreToolUse round-trips to the
+      // canonical `preToolUse` event.
       target: "devin",
-      sourcePath: join(".windsurf", "hooks.json"),
+      sourcePath: join(".devin", "hooks.v1.json"),
       sourceContent: {
-        hooks: {
-          pre_run_command: [{ command: "echo session started" }],
-        },
+        PreToolUse: [{ matcher: "exec", hooks: [{ type: "command", command: "echo pre tool" }] }],
       },
-      expectedEvent: "beforeShellExecution",
+      expectedEvent: "preToolUse",
     },
     {
       // AugmentCode stores hooks under the `hooks` key of the shared settings
@@ -553,15 +552,15 @@ describe("E2E: hooks (global mode)", () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
 
-    // Devin does not support sessionStart/stop, so this dedicated global case
-    // uses devin-supported canonical events.
+    // In global mode Devin hooks live under the `hooks` key of
+    // ~/.config/devin/config.json (shared with mcp/permissions).
     const hooksContent = JSON.stringify(
       {
         version: 1,
         root: true,
         hooks: {
-          beforeShellExecution: [{ command: ".rulesync/hooks/pre-run.sh" }],
-          afterFileEdit: [{ command: ".rulesync/hooks/post-edit.sh" }],
+          preToolUse: [{ matcher: "exec", command: ".rulesync/hooks/pre-run.sh" }],
+          stop: [{ command: ".rulesync/hooks/on-stop.sh" }],
         },
       },
       null,
@@ -577,13 +576,13 @@ describe("E2E: hooks (global mode)", () => {
     });
 
     const generatedContent = await readFileContent(
-      join(homeDir, ".codeium", "windsurf", "hooks.json"),
+      join(homeDir, ".config", "devin", "config.json"),
     );
     const parsed = JSON.parse(generatedContent);
-    expect(parsed.hooks.pre_run_command).toBeDefined();
-    expect(parsed.hooks.post_write_code).toBeDefined();
+    expect(parsed.hooks.PreToolUse).toBeDefined();
+    expect(parsed.hooks.Stop).toBeDefined();
     expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/pre-run.sh");
-    expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/post-edit.sh");
+    expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/on-stop.sh");
   });
 
   it("should generate vibe hooks in home directory", async () => {

@@ -170,6 +170,31 @@ export const CLAUDE_HOOK_EVENTS: readonly HookEvent[] = [
   "elicitationResult",
 ];
 
+/**
+ * Hook events supported by Devin Local (native `.devin/` hooks).
+ *
+ * Devin Local adopts a Claude-Code-style lifecycle hooks surface. It documents
+ * seven events: `PreToolUse`, `PostToolUse`, `PermissionRequest`,
+ * `UserPromptSubmit`, `Stop`, `SessionStart`, and `SessionEnd`. The
+ * tool/permission events (`PreToolUse`/`PostToolUse`/`PermissionRequest`) carry
+ * a `matcher` (regex against `tool_name`); the session/turn events do not.
+ *
+ * Hooks live in `.devin/hooks.v1.json` (project, standalone — the hooks object
+ * is the entire file) or under the `"hooks"` key of `.devin/config.json` /
+ * `~/.config/devin/config.json`.
+ *
+ * @see https://docs.devin.ai/cli/extensibility/hooks/overview
+ */
+export const DEVIN_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "preToolUse",
+  "postToolUse",
+  "beforeSubmitPrompt",
+  "stop",
+  "permissionRequest",
+];
+
 /** Hook events supported by OpenCode. */
 export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -505,6 +530,30 @@ export const CANONICAL_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
  */
 export const CLAUDE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_CLAUDE_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to Devin Local PascalCase.
+ *
+ * Devin Local reuses the same Claude-style PascalCase event names for the
+ * subset of events it supports.
+ * @see https://docs.devin.ai/cli/extensibility/hooks/overview
+ */
+export const CANONICAL_TO_DEVIN_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  stop: "Stop",
+  permissionRequest: "PermissionRequest",
+};
+
+/**
+ * Map Devin Local PascalCase event names to canonical camelCase.
+ */
+export const DEVIN_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_DEVIN_EVENT_NAMES).map(([k, v]) => [v, k]),
 );
 
 /**

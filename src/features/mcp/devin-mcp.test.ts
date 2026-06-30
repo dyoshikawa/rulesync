@@ -29,22 +29,22 @@ describe("DevinMcp", () => {
     it("should return project paths by default", () => {
       const paths = DevinMcp.getSettablePaths();
 
-      expect(paths.relativeDirPath).toBe(".windsurf");
-      expect(paths.relativeFilePath).toBe("mcp_config.json");
+      expect(paths.relativeDirPath).toBe(".devin");
+      expect(paths.relativeFilePath).toBe("config.json");
     });
 
     it("should return project paths when global is false", () => {
       const paths = DevinMcp.getSettablePaths({ global: false });
 
-      expect(paths.relativeDirPath).toBe(".windsurf");
-      expect(paths.relativeFilePath).toBe("mcp_config.json");
+      expect(paths.relativeDirPath).toBe(".devin");
+      expect(paths.relativeFilePath).toBe("config.json");
     });
 
     it("should return the codeium global paths when global is true", () => {
       const paths = DevinMcp.getSettablePaths({ global: true });
 
-      expect(paths.relativeDirPath).toBe(join(".codeium", "windsurf"));
-      expect(paths.relativeFilePath).toBe("mcp_config.json");
+      expect(paths.relativeDirPath).toBe(join(".config", "devin"));
+      expect(paths.relativeFilePath).toBe("config.json");
     });
   });
 
@@ -60,14 +60,14 @@ describe("DevinMcp", () => {
       });
 
       const devinMcp = new DevinMcp({
-        relativeDirPath: ".windsurf",
-        relativeFilePath: "mcp_config.json",
+        relativeDirPath: ".devin",
+        relativeFilePath: "config.json",
         fileContent: validJsonContent,
       });
 
       expect(devinMcp).toBeInstanceOf(DevinMcp);
-      expect(devinMcp.getRelativeDirPath()).toBe(".windsurf");
-      expect(devinMcp.getRelativeFilePath()).toBe("mcp_config.json");
+      expect(devinMcp.getRelativeDirPath()).toBe(".devin");
+      expect(devinMcp.getRelativeFilePath()).toBe("config.json");
       expect(devinMcp.getFileContent()).toBe(validJsonContent);
     });
 
@@ -76,12 +76,12 @@ describe("DevinMcp", () => {
 
       const devinMcp = new DevinMcp({
         outputRoot: "/custom/path",
-        relativeDirPath: ".windsurf",
-        relativeFilePath: "mcp_config.json",
+        relativeDirPath: ".devin",
+        relativeFilePath: "config.json",
         fileContent: validJsonContent,
       });
 
-      expect(devinMcp.getFilePath()).toBe("/custom/path/.windsurf/mcp_config.json");
+      expect(devinMcp.getFilePath()).toBe("/custom/path/.devin/config.json");
     });
 
     it("should parse JSON content correctly", () => {
@@ -99,8 +99,8 @@ describe("DevinMcp", () => {
       const validJsonContent = JSON.stringify(jsonData);
 
       const devinMcp = new DevinMcp({
-        relativeDirPath: ".windsurf",
-        relativeFilePath: "mcp_config.json",
+        relativeDirPath: ".devin",
+        relativeFilePath: "config.json",
         fileContent: validJsonContent,
       });
 
@@ -111,8 +111,8 @@ describe("DevinMcp", () => {
       const emptyJsonContent = JSON.stringify({});
 
       const devinMcp = new DevinMcp({
-        relativeDirPath: ".windsurf",
-        relativeFilePath: "mcp_config.json",
+        relativeDirPath: ".devin",
+        relativeFilePath: "config.json",
         fileContent: emptyJsonContent,
       });
 
@@ -124,8 +124,8 @@ describe("DevinMcp", () => {
 
       expect(() => {
         const _instance = new DevinMcp({
-          relativeDirPath: ".windsurf",
-          relativeFilePath: "mcp_config.json",
+          relativeDirPath: ".devin",
+          relativeFilePath: "config.json",
           fileContent: validJsonContent,
         });
       }).not.toThrow();
@@ -136,8 +136,8 @@ describe("DevinMcp", () => {
 
       expect(() => {
         const _instance = new DevinMcp({
-          relativeDirPath: ".windsurf",
-          relativeFilePath: "mcp_config.json",
+          relativeDirPath: ".devin",
+          relativeFilePath: "config.json",
           fileContent: validJsonContent,
           validate: false,
         });
@@ -149,8 +149,8 @@ describe("DevinMcp", () => {
 
       expect(() => {
         const _instance = new DevinMcp({
-          relativeDirPath: ".windsurf",
-          relativeFilePath: "mcp_config.json",
+          relativeDirPath: ".devin",
+          relativeFilePath: "config.json",
           fileContent: invalidJsonContent,
         });
       }).toThrow();
@@ -159,7 +159,7 @@ describe("DevinMcp", () => {
 
   describe("fromFile", () => {
     it("should create instance from project file with default parameters", async () => {
-      const devinDir = join(testDir, ".windsurf");
+      const devinDir = join(testDir, ".devin");
       await ensureDir(devinDir);
 
       const jsonData = {
@@ -170,7 +170,7 @@ describe("DevinMcp", () => {
           },
         },
       };
-      await writeFileContent(join(devinDir, "mcp_config.json"), JSON.stringify(jsonData, null, 2));
+      await writeFileContent(join(devinDir, "config.json"), JSON.stringify(jsonData, null, 2));
 
       const devinMcp = await DevinMcp.fromFile({
         outputRoot: testDir,
@@ -178,7 +178,7 @@ describe("DevinMcp", () => {
 
       expect(devinMcp).toBeInstanceOf(DevinMcp);
       expect(devinMcp.getJson()).toEqual(jsonData);
-      expect(devinMcp.getFilePath()).toBe(join(testDir, ".windsurf", "mcp_config.json"));
+      expect(devinMcp.getFilePath()).toBe(join(testDir, ".devin", "config.json"));
     });
 
     it("should initialize empty mcpServers if project file does not exist", async () => {
@@ -188,12 +188,12 @@ describe("DevinMcp", () => {
 
       expect(devinMcp).toBeInstanceOf(DevinMcp);
       expect(devinMcp.getJson()).toEqual({ mcpServers: {} });
-      expect(devinMcp.getFilePath()).toBe(join(testDir, ".windsurf", "mcp_config.json"));
+      expect(devinMcp.getFilePath()).toBe(join(testDir, ".devin", "config.json"));
     });
 
     it("should create instance from custom outputRoot", async () => {
       const customDir = join(testDir, "custom");
-      const devinDir = join(customDir, ".windsurf");
+      const devinDir = join(customDir, ".devin");
       await ensureDir(devinDir);
 
       const jsonData = {
@@ -204,20 +204,20 @@ describe("DevinMcp", () => {
           },
         },
       };
-      await writeFileContent(join(devinDir, "mcp_config.json"), JSON.stringify(jsonData));
+      await writeFileContent(join(devinDir, "config.json"), JSON.stringify(jsonData));
 
       const devinMcp = await DevinMcp.fromFile({
         outputRoot: customDir,
       });
 
-      expect(devinMcp.getFilePath()).toBe(join(customDir, ".windsurf", "mcp_config.json"));
+      expect(devinMcp.getFilePath()).toBe(join(customDir, ".devin", "config.json"));
       expect(devinMcp.getJson()).toEqual(jsonData);
     });
 
     it("should skip validation when validate is false", async () => {
-      const devinDir = join(testDir, ".windsurf");
+      const devinDir = join(testDir, ".devin");
       await ensureDir(devinDir);
-      await writeFileContent(join(devinDir, "mcp_config.json"), JSON.stringify({ mcpServers: {} }));
+      await writeFileContent(join(devinDir, "config.json"), JSON.stringify({ mcpServers: {} }));
 
       const devinMcp = await DevinMcp.fromFile({
         outputRoot: testDir,
@@ -228,7 +228,7 @@ describe("DevinMcp", () => {
     });
 
     it("should create instance from global file at the codeium path", async () => {
-      const globalDir = join(testDir, ".codeium", "windsurf");
+      const globalDir = join(testDir, ".config", "devin");
       await ensureDir(globalDir);
 
       const jsonData = {
@@ -239,7 +239,7 @@ describe("DevinMcp", () => {
           },
         },
       };
-      await writeFileContent(join(globalDir, "mcp_config.json"), JSON.stringify(jsonData, null, 2));
+      await writeFileContent(join(globalDir, "config.json"), JSON.stringify(jsonData, null, 2));
 
       const devinMcp = await DevinMcp.fromFile({
         outputRoot: testDir,
@@ -248,8 +248,8 @@ describe("DevinMcp", () => {
 
       expect(devinMcp).toBeInstanceOf(DevinMcp);
       expect(devinMcp.getJson()).toEqual(jsonData);
-      expect(devinMcp.getFilePath()).toBe(join(testDir, ".codeium", "windsurf", "mcp_config.json"));
-      expect(devinMcp.getRelativeDirPath()).toBe(join(".codeium", "windsurf"));
+      expect(devinMcp.getFilePath()).toBe(join(testDir, ".config", "devin", "config.json"));
+      expect(devinMcp.getRelativeDirPath()).toBe(join(".config", "devin"));
     });
 
     it("should initialize empty global config if it does not exist", async () => {
@@ -259,11 +259,11 @@ describe("DevinMcp", () => {
       });
 
       expect(devinMcp.getJson()).toEqual({ mcpServers: {} });
-      expect(devinMcp.getFilePath()).toBe(join(testDir, ".codeium", "windsurf", "mcp_config.json"));
+      expect(devinMcp.getFilePath()).toBe(join(testDir, ".config", "devin", "config.json"));
     });
 
     it("should preserve non-mcpServers properties in global mode", async () => {
-      const globalDir = join(testDir, ".codeium", "windsurf");
+      const globalDir = join(testDir, ".config", "devin");
       await ensureDir(globalDir);
       const existing = {
         mcpServers: {
@@ -274,7 +274,7 @@ describe("DevinMcp", () => {
         },
         otherSetting: { value: 42 },
       };
-      await writeFileContent(join(globalDir, "mcp_config.json"), JSON.stringify(existing, null, 2));
+      await writeFileContent(join(globalDir, "config.json"), JSON.stringify(existing, null, 2));
 
       const devinMcp = await DevinMcp.fromFile({
         outputRoot: testDir,
@@ -292,9 +292,9 @@ describe("DevinMcp", () => {
     });
 
     it("should throw error for malformed JSON in existing file", async () => {
-      const devinDir = join(testDir, ".windsurf");
+      const devinDir = join(testDir, ".devin");
       await ensureDir(devinDir);
-      await writeFileContent(join(devinDir, "mcp_config.json"), "{ invalid json }");
+      await writeFileContent(join(devinDir, "config.json"), "{ invalid json }");
 
       await expect(
         DevinMcp.fromFile({
@@ -327,8 +327,8 @@ describe("DevinMcp", () => {
 
       expect(devinMcp).toBeInstanceOf(DevinMcp);
       expect(devinMcp.getJson()).toEqual(jsonData);
-      expect(devinMcp.getRelativeDirPath()).toBe(".windsurf");
-      expect(devinMcp.getRelativeFilePath()).toBe("mcp_config.json");
+      expect(devinMcp.getRelativeDirPath()).toBe(".devin");
+      expect(devinMcp.getRelativeFilePath()).toBe("config.json");
     });
 
     it("should strip codex-only envVars from devin output", async () => {
@@ -382,12 +382,12 @@ describe("DevinMcp", () => {
       });
 
       expect(devinMcp.getJson()).toEqual(jsonData);
-      expect(devinMcp.getRelativeDirPath()).toBe(join(".codeium", "windsurf"));
-      expect(devinMcp.getFilePath()).toBe(join(testDir, ".codeium", "windsurf", "mcp_config.json"));
+      expect(devinMcp.getRelativeDirPath()).toBe(join(".config", "devin"));
+      expect(devinMcp.getFilePath()).toBe(join(testDir, ".config", "devin", "config.json"));
     });
 
     it("should preserve existing non-mcpServers properties when updating", async () => {
-      const devinDir = join(testDir, ".windsurf");
+      const devinDir = join(testDir, ".devin");
       await ensureDir(devinDir);
       const existing = {
         mcpServers: {
@@ -395,7 +395,7 @@ describe("DevinMcp", () => {
         },
         someOtherKey: "keep-me",
       };
-      await writeFileContent(join(devinDir, "mcp_config.json"), JSON.stringify(existing, null, 2));
+      await writeFileContent(join(devinDir, "config.json"), JSON.stringify(existing, null, 2));
 
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -446,8 +446,8 @@ describe("DevinMcp", () => {
         },
       };
       const devinMcp = new DevinMcp({
-        relativeDirPath: ".windsurf",
-        relativeFilePath: "mcp_config.json",
+        relativeDirPath: ".devin",
+        relativeFilePath: "config.json",
         fileContent: JSON.stringify(jsonData),
       });
 
@@ -480,8 +480,8 @@ describe("DevinMcp", () => {
         version: "2.0.0",
       };
       const devinMcp = new DevinMcp({
-        relativeDirPath: ".windsurf",
-        relativeFilePath: "mcp_config.json",
+        relativeDirPath: ".devin",
+        relativeFilePath: "config.json",
         fileContent: JSON.stringify(jsonData),
       });
 
@@ -503,8 +503,8 @@ describe("DevinMcp", () => {
 
     it("should handle empty mcpServers object when converting", () => {
       const devinMcp = new DevinMcp({
-        relativeDirPath: ".windsurf",
-        relativeFilePath: "mcp_config.json",
+        relativeDirPath: ".devin",
+        relativeFilePath: "config.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
 
@@ -520,8 +520,8 @@ describe("DevinMcp", () => {
   describe("validate", () => {
     it("should always return success", () => {
       const devinMcp = new DevinMcp({
-        relativeDirPath: ".windsurf",
-        relativeFilePath: "mcp_config.json",
+        relativeDirPath: ".devin",
+        relativeFilePath: "config.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
         validate: false,
       });
@@ -537,33 +537,33 @@ describe("DevinMcp", () => {
     it("should create minimal instance for deletion (project)", () => {
       const devinMcp = DevinMcp.forDeletion({
         outputRoot: testDir,
-        relativeDirPath: ".windsurf",
-        relativeFilePath: "mcp_config.json",
+        relativeDirPath: ".devin",
+        relativeFilePath: "config.json",
       });
 
       expect(devinMcp).toBeInstanceOf(DevinMcp);
       expect(devinMcp.getJson()).toEqual({});
-      expect(devinMcp.getFilePath()).toBe(join(testDir, ".windsurf", "mcp_config.json"));
-      expect(devinMcp.isDeletable()).toBe(true);
+      expect(devinMcp.getFilePath()).toBe(join(testDir, ".devin", "config.json"));
+      expect(devinMcp.isDeletable()).toBe(false);
     });
 
     it("should create minimal instance for deletion at the global codeium path", () => {
       const devinMcp = DevinMcp.forDeletion({
         outputRoot: testDir,
-        relativeDirPath: join(".codeium", "windsurf"),
-        relativeFilePath: "mcp_config.json",
+        relativeDirPath: join(".config", "devin"),
+        relativeFilePath: "config.json",
         global: true,
       });
 
       expect(devinMcp.getJson()).toEqual({});
-      expect(devinMcp.getFilePath()).toBe(join(testDir, ".codeium", "windsurf", "mcp_config.json"));
-      expect(devinMcp.getRelativeDirPath()).toBe(join(".codeium", "windsurf"));
+      expect(devinMcp.getFilePath()).toBe(join(testDir, ".config", "devin", "config.json"));
+      expect(devinMcp.getRelativeDirPath()).toBe(join(".config", "devin"));
     });
   });
 
   describe("integration", () => {
     it("should handle complete workflow: fromFile -> toRulesyncMcp -> fromRulesyncMcp", async () => {
-      const devinDir = join(testDir, ".windsurf");
+      const devinDir = join(testDir, ".devin");
       await ensureDir(devinDir);
 
       const originalJsonData = {
@@ -578,7 +578,7 @@ describe("DevinMcp", () => {
         },
       };
       await writeFileContent(
-        join(devinDir, "mcp_config.json"),
+        join(devinDir, "config.json"),
         JSON.stringify(originalJsonData, null, 2),
       );
 
@@ -592,7 +592,7 @@ describe("DevinMcp", () => {
       });
 
       expect(newDevinMcp.getJson()).toEqual(originalJsonData);
-      expect(newDevinMcp.getFilePath()).toBe(join(testDir, ".windsurf", "mcp_config.json"));
+      expect(newDevinMcp.getFilePath()).toBe(join(testDir, ".devin", "config.json"));
     });
   });
 });
