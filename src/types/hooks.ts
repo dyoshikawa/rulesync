@@ -353,6 +353,26 @@ export const KIRO_HOOK_EVENTS: readonly HookEvent[] = [
 ];
 
 /**
+ * Hook events supported by the Kiro IDE (`.kiro/hooks/*.json` v1).
+ *
+ * Kiro IDE 1.0 exposes PascalCase triggers. rulesync maps the canonical
+ * lifecycle events that have a clean 1:1 IDE equivalent: `SessionStart`,
+ * `Stop`, `UserPromptSubmit`, `PreToolUse`, and `PostToolUse`. The IDE also
+ * documents file-event (`PostFileCreate`/`PostFileSave`/`PostFileDelete`) and
+ * spec-task (`PreTaskExec`/`PostTaskExec`) triggers that have no canonical
+ * equivalent; those can still be emitted verbatim via a `kiro-ide` override
+ * block (unknown event keys pass through unchanged).
+ * @see https://kiro.dev/docs/hooks/types/
+ */
+export const KIRO_IDE_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "beforeSubmitPrompt",
+  "preToolUse",
+  "postToolUse",
+  "stop",
+];
+
+/**
  * Hook events supported by Google Antigravity (both the IDE and the CLI).
  *
  * Antigravity exposes a Claude-style hooks surface covering the five
@@ -472,6 +492,7 @@ export const HooksConfigSchema = z.looseObject({
   deepagents: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   kiro: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "kiro-cli": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  "kiro-ide": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   devin: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   augmentcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "antigravity-ide": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -813,6 +834,29 @@ export const CANONICAL_TO_KIRO_EVENT_NAMES: Record<string, string> = {
  */
 export const KIRO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_KIRO_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to Kiro IDE PascalCase triggers.
+ *
+ * Only the canonical lifecycle events with a clean IDE equivalent are mapped.
+ * Unknown keys (e.g. IDE-only `PostFileSave`/`PreTaskExec` set via a `kiro-ide`
+ * override) pass through unchanged.
+ * @see https://kiro.dev/docs/hooks/types/
+ */
+export const CANONICAL_TO_KIRO_IDE_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  stop: "Stop",
+};
+
+/**
+ * Map Kiro IDE PascalCase trigger names to canonical camelCase.
+ */
+export const KIRO_IDE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_KIRO_IDE_EVENT_NAMES).map(([k, v]) => [v, k]),
 );
 
 /**

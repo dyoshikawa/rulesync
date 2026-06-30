@@ -8,9 +8,8 @@ import { KiroHooks } from "./kiro-hooks.js";
  * the tool-specific override key to `kiro-cli` (so `kiro-cli.hooks` overrides in
  * the rulesync hooks config are honored, rather than the legacy `kiro.hooks`).
  *
- * (The Kiro IDE uses multi-file `.kiro/hooks/*.kiro.hook` hooks, which the
- * single-file hooks pipeline does not emit yet, so `kiro-ide` has no hooks
- * adapter.)
+ * (The Kiro IDE uses the structured `.kiro/hooks/*.json` v1 format instead; see
+ * {@link import("./kiro-ide-hooks.js").KiroIdeHooks}.)
  */
 export class KiroCliHooks extends KiroHooks {
   protected static getOverrideKey(): "kiro" | "kiro-cli" {

@@ -270,10 +270,12 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     },
   ],
   [
+    // Kiro IDE loads custom agents from `.kiro/agents/` (workspace) and
+    // `~/.kiro/agents/` (global). https://kiro.dev/docs/chat/subagents/
     "kiro-ide",
     {
       class: KiroIdeSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
     },
   ],
   [

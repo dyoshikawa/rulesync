@@ -1039,6 +1039,7 @@ Second global content`;
         "hermesagent",
         "grokcli",
         "junie",
+        "kiro-ide",
         "kilo",
         "opencode",
         "qwencode",

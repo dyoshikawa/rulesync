@@ -70,10 +70,11 @@ export class KiroSkill extends ToolSkill {
     }
   }
 
-  static getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths {
-    if (options?.global) {
-      throw new Error("KiroSkill does not support global mode.");
-    }
+  static getSettablePaths(_options?: { global?: boolean }): ToolSkillSettablePaths {
+    // Kiro reads skills from `.kiro/skills/` (workspace) and `~/.kiro/skills/`
+    // (global). Both scopes share the same relative path; the home-directory
+    // root is applied by the generate pipeline in global mode.
+    // https://kiro.dev/docs/skills/
     return {
       relativeDirPath: KIRO_SKILLS_DIR_PATH,
     };

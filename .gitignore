@@ -360,6 +360,7 @@ rulesync.local.jsonc
 **/.factory/hooks.json
 **/.agents/plugins/rulesync/hooks/hooks.json
 **/.kiro/agents/default.json
+**/.kiro/hooks/rulesync.json
 **/.devin/hooks.v1.json
 **/.augment/settings.json
 **/.vibe/hooks.toml

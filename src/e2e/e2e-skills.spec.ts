@@ -417,6 +417,15 @@ describe("E2E: skills (global mode)", () => {
       target: "hermesagent",
       outputPath: join(".hermes", "skills", "test-skill", "SKILL.md"),
     },
+    {
+      // Kiro reads global skills from ~/.kiro/skills/.
+      target: "kiro-cli",
+      outputPath: join(".kiro", "skills", "test-skill", "SKILL.md"),
+    },
+    {
+      target: "kiro-ide",
+      outputPath: join(".kiro", "skills", "test-skill", "SKILL.md"),
+    },
   ])("should generate $target skills in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

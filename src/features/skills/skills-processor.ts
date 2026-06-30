@@ -269,17 +269,19 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     },
   ],
   [
+    // Kiro reads skills from `.kiro/skills/` (project) and `~/.kiro/skills/`
+    // (global). https://kiro.dev/docs/skills/
     "kiro-cli",
     {
       class: KiroCliSkill,
-      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
   [
     "kiro-ide",
     {
       class: KiroIdeSkill,
-      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
   [

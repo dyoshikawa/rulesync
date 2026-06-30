@@ -205,6 +205,7 @@ export const hooksProcessorToolTargetTuple = [
   "deepagents",
   "kiro",
   "kiro-cli",
+  "kiro-ide",
   "devin",
   "augmentcode",
   "junie",
