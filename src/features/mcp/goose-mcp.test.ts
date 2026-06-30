@@ -152,7 +152,10 @@ describe("GooseMcp", () => {
       expect(Object.keys(parsed.mcpServers)).toEqual(["local"]);
       expect(warn).toHaveBeenCalledTimes(2);
       expect(warn).toHaveBeenCalledWith(expect.stringContaining("stdio-only"));
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining("remote"));
+      // Assert on the resolved Goose server type rather than the server name, so
+      // the test stays meaningful even if the sample server names change.
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("(streamable_http)"));
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("(sse)"));
     });
 
     it("strips prototype-pollution keys from a server's env in project mode", async () => {

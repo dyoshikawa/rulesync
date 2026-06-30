@@ -119,6 +119,7 @@ describe("E2E: mcp", () => {
     { target: "kiro", orphanPath: join(".kiro", "settings", "mcp.json") },
     { target: "junie", orphanPath: join(".junie", "mcp", "mcp.json") },
     { target: "devin", orphanPath: join(".windsurf", "mcp_config.json") },
+    { target: "goose", orphanPath: join(".agents", "plugins", "rulesync", ".mcp.json") },
   ])(
     "should fail in check mode when delete would remove an orphan $target mcp file",
     async ({ target, orphanPath }) => {
