@@ -38,7 +38,7 @@ import {
  * (`sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`,
  * `postToolUse`, `postToolUseFailure`, `agentStop`, `subagentStart`,
  * `subagentStop`, `errorOccurred`, `preCompact`, `permissionRequest`,
- * `notification`). Each entry supports three hook types:
+ * `notification`, `preMcpToolCall`). Each entry supports three hook types:
  *
  * - `command` — the `bash` / `powershell` command-field shape with optional
  *   `timeoutSec`, plus optional `cwd` / `env`.
