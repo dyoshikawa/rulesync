@@ -94,7 +94,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Kilo Code              |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Roo Code               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |             |
 | Rovodev (Atlassian)    |  ✅   |        | ✅  |          |    ✅     |   ✅   |       |     ✅      |
-| Takt                   |  ✅   |        |     |    ✅    |    ✅     |   ✅   |       |     ✅      |
+| Takt                   |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |
 | Vibe Code              |  ✅   |   ✅   | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |
 | Qwen Code              |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Reasonix               |       |        | ✅  |          |           |        |       |             |
