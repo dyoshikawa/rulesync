@@ -28,6 +28,7 @@ export const DERIVED_PATHS_NOT_GITIGNORED: ReadonlySet<string> = new Set([
   "**/.antigravity/settings.json",
   "**/.claude/settings.json",
   "**/.claude/settings.local.json",
+  "**/.devin/config.json",
   "**/.factory/settings.json",
   "**/.gemini/settings.json",
   "**/.zed/settings.json",

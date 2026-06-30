@@ -1,9 +1,9 @@
 import { join } from "node:path";
 
 import {
-  CODEIUM_WINDSURF_DIR,
-  DEVIN_MCP_FILE_NAME,
-  WINDSURF_DIR,
+  DEVIN_CONFIG_FILE_NAME,
+  DEVIN_DIR,
+  DEVIN_GLOBAL_CONFIG_DIR_PATH,
 } from "../../constants/devin-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
@@ -19,18 +19,20 @@ import {
 } from "./tool-mcp.js";
 
 /**
- * MCP generator for Devin (Cascade).
+ * MCP generator for Devin Local (native `.devin/` configuration).
  *
- * Devin reads file-based MCP configuration from:
- * - Project scope: `.windsurf/mcp_config.json`
- * - Global scope: `~/.codeium/windsurf/mcp_config.json`
+ * Devin reads MCP servers from the `mcpServers` key of its native config file:
+ * - Project scope: `.devin/config.json`
+ * - Global scope: `~/.config/devin/config.json`
  *
- * The official docs document only the global path; the project path mirrors
- * the same `mcp_config.json` filename so both scopes fit the processor
- * framework cleanly. The top-level key is `mcpServers`; each server is a
- * stdio entry ({ command, args, env }) or a remote entry
- * ({ serverUrl | url, headers }), and may carry an optional `disabledTools`
- * array.
+ * The config file is shared with the permissions feature (`permissions` key)
+ * and, in global mode, the hooks feature (`hooks` key), so reads and writes
+ * merge into the existing JSON rather than overwriting it, and the file is
+ * never deleted. Each server is a stdio entry ({ command, args, env }) or a
+ * remote entry ({ serverUrl | url, headers }), and may carry an optional
+ * `disabledTools` array.
+ *
+ * @see https://docs.devin.ai/cli/extensibility/configuration
  */
 
 export class DevinMcp extends ToolMcp {
@@ -63,19 +65,27 @@ export class DevinMcp extends ToolMcp {
     }
   }
 
+  /**
+   * config.json may carry the permissions/hooks features' keys, so it is never
+   * deleted; only the managed `mcpServers` key is rewritten.
+   */
+  override isDeletable(): boolean {
+    return false;
+  }
+
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolMcpSettablePaths {
-    // Devin MCP uses different directories for project and global modes:
-    // - Project mode: .windsurf/mcp_config.json
-    // - Global mode: .codeium/windsurf/mcp_config.json (under the home dir)
+    // Devin Local reads MCP servers from the native config file:
+    // - Project mode: .devin/config.json
+    // - Global mode: ~/.config/devin/config.json (under the home dir)
     if (global) {
       return {
-        relativeDirPath: CODEIUM_WINDSURF_DIR,
-        relativeFilePath: DEVIN_MCP_FILE_NAME,
+        relativeDirPath: DEVIN_GLOBAL_CONFIG_DIR_PATH,
+        relativeFilePath: DEVIN_CONFIG_FILE_NAME,
       };
     }
     return {
-      relativeDirPath: WINDSURF_DIR,
-      relativeFilePath: DEVIN_MCP_FILE_NAME,
+      relativeDirPath: DEVIN_DIR,
+      relativeFilePath: DEVIN_CONFIG_FILE_NAME,
     };
   }
 

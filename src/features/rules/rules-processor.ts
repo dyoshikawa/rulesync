@@ -691,13 +691,12 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       class: DevinRule,
       meta: {
         extension: "md",
-        // Project rules live under `.devin/rules/*.md` (preferred since the Devin
-        // Desktop rebrand; `.devin/rules/*.md` is the legacy fallback); global
-        // rules are a single plain `~/.codeium/windsurf/memories/global_rules.md` file.
+        // Project rules live under `.devin/rules/*.md`; global always-on rules
+        // are a single plain `~/.config/devin/AGENTS.md` file.
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
-        // No additionalConventions.skills needed: Devin Cascade auto-discovers
-        // skills from .devin/skills/ and ~/.codeium/windsurf/skills/ directories.
+        // No additionalConventions.skills needed: Devin auto-discovers skills
+        // from .devin/skills/ and ~/.codeium/windsurf/skills/ directories.
       },
     },
   ],

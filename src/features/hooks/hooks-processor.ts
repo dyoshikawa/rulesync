@@ -11,6 +11,7 @@ import {
   COPILOTCLI_HOOK_EVENTS,
   CURSOR_HOOK_EVENTS,
   DEEPAGENTS_HOOK_EVENTS,
+  DEVIN_HOOK_EVENTS,
   FACTORYDROID_HOOK_EVENTS,
   GOOSE_HOOK_EVENTS,
   JUNIE_HOOK_EVENTS,
@@ -36,7 +37,7 @@ import { CopilotHooks } from "./copilot-hooks.js";
 import { CopilotcliHooks } from "./copilotcli-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { DeepagentsHooks } from "./deepagents-hooks.js";
-import { DEVIN_HOOK_EVENTS, DevinHooks } from "./devin-hooks.js";
+import { DevinHooks } from "./devin-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
 import { GooseHooks } from "./goose-hooks.js";
 import { HermesagentHooks } from "./hermesagent-hooks.js";
@@ -307,16 +308,17 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     {
       class: DevinHooks,
       meta: {
-        // Devin Cascade Hooks (GA) live in `.windsurf/hooks.json` (project)
-        // and `~/.codeium/windsurf/hooks.json` (global). Each event maps to a
-        // flat array of command/powershell hook objects with no matcher.
+        // Devin Local hooks live in the standalone `.devin/hooks.v1.json`
+        // (project) and under the `hooks` key of `~/.config/devin/config.json`
+        // (global). Each event maps to Claude-style
+        // `{ matcher?, hooks: [{ type, command|prompt, timeout? }] }` groups.
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,
       },
       supportedEvents: DEVIN_HOOK_EVENTS,
-      supportedHookTypes: ["command"],
-      supportsMatcher: false,
+      supportedHookTypes: ["command", "prompt"],
+      supportsMatcher: true,
     },
   ],
   [

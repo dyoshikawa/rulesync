@@ -43,7 +43,7 @@ describe("E2E: mcp", () => {
     { target: "antigravity-cli", outputPath: join(".agents", "mcp_config.json") },
     { target: "warp", outputPath: join(".warp", ".mcp.json") },
     { target: "zed", outputPath: join(".zed", "settings.json") },
-    { target: "devin", outputPath: join(".windsurf", "mcp_config.json") },
+    { target: "devin", outputPath: join(".devin", "config.json") },
     { target: "vibe", outputPath: join(".vibe", "config.toml") },
     { target: "reasonix", outputPath: "reasonix.toml" },
   ])("should generate $target mcp", async ({ target, outputPath }) => {
@@ -107,8 +107,39 @@ describe("E2E: mcp", () => {
     expect(content["amp.tools.disable"]).toEqual(["edit_file"]);
   });
 
+  it("should co-locate devin mcp and permissions in a single .devin/config.json", async () => {
+    const testDir = getTestDir();
+
+    // Setup: both an MCP source and a permissions source, no pre-existing Devin config.
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          mcpServers: {
+            "test-server": { type: "stdio", command: "echo", args: ["hello"], env: {} },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({ permission: { bash: { "rm *": "deny" } } }, null, 2),
+    );
+
+    // Execute: generate both features together for Devin. Whichever runs second
+    // must read-modify-write the shared config.json without dropping the other's key.
+    await runGenerate({ target: "devin", features: "mcp,permissions" });
+
+    const content = JSON.parse(await readFileContent(join(testDir, ".devin", "config.json")));
+    expect(content.mcpServers).toHaveProperty("test-server");
+    expect(content.permissions.deny).toContain("Exec(rm *)");
+  });
+
   it.each([
-    // amp, codexcli, grokcli, opencode, kilo use merged config files (isDeletable=false) — excluded
+    // amp, codexcli, grokcli, opencode, kilo, devin use merged config files
+    // (isDeletable=false) — excluded
     { target: "claudecode", orphanPath: ".mcp.json" },
     { target: "cursor", orphanPath: join(".cursor", "mcp.json") },
     { target: "copilot", orphanPath: join(".vscode", "mcp.json") },
@@ -118,7 +149,6 @@ describe("E2E: mcp", () => {
     { target: "roo", orphanPath: join(".roo", "mcp.json") },
     { target: "kiro", orphanPath: join(".kiro", "settings", "mcp.json") },
     { target: "junie", orphanPath: join(".junie", "mcp", "mcp.json") },
-    { target: "devin", orphanPath: join(".windsurf", "mcp_config.json") },
     { target: "goose", orphanPath: join(".agents", "plugins", "rulesync", ".mcp.json") },
   ])(
     "should fail in check mode when delete would remove an orphan $target mcp file",
@@ -360,7 +390,7 @@ describe("E2E: mcp (import)", () => {
     { target: "antigravity-ide", sourcePath: join(".agents", "mcp_config.json") },
     { target: "antigravity-cli", sourcePath: join(".agents", "mcp_config.json") },
     { target: "warp", sourcePath: join(".warp", ".mcp.json") },
-    { target: "devin", sourcePath: join(".windsurf", "mcp_config.json") },
+    { target: "devin", sourcePath: join(".devin", "config.json") },
   ])("should import $target mcp", async ({ target, sourcePath, sourceContent }) => {
     const testDir = getTestDir();
 
@@ -493,7 +523,7 @@ describe("E2E: mcp (global mode)", () => {
     { target: "zed", outputPath: join(".config", "zed", "settings.json") },
     {
       target: "devin",
-      outputPath: join(".codeium", "windsurf", "mcp_config.json"),
+      outputPath: join(".config", "devin", "config.json"),
     },
     { target: "vibe", outputPath: join(".vibe", "config.toml") },
     { target: "reasonix", outputPath: join(".reasonix", "config.toml") },
