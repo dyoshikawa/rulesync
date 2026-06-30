@@ -34,7 +34,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Google Antigravity IDE | antigravity-ide | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |     ✅      |
 | Google Antigravity CLI | antigravity-cli | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |          |           | ✅ 🌏  | ✅ 🌏 |     🌏      |
 | JetBrains AI Assistant | aiassistant     |  ✅   |   ✅   |          |          |           |   ✅   |       |             |
-| JetBrains Junie        | junie           | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  🌏   |             |
+| JetBrains Junie        | junie           | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  🌏   |    ✅ 🌏    |
 | AugmentCode            | augmentcode     | ✅ 🌏 |   ✅   |    🌏    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
 | Devin Desktop          | devin           | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |
 | Warp                   | warp            |  ✅   |   ✅   |  ✅ 🌏   |          |           | ✅ 🌏  |       |     🌏      |

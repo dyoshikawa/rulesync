@@ -365,6 +365,7 @@ rulesync.local.jsonc
 **/.vibe/hooks.toml
 **/.cline/command-permissions.json
 **/.cursor/cli.json
+**/.junie/allowlist.json
 **/.aiignore
 **/.geminiignore
 **/.augmentignore

@@ -68,12 +68,23 @@ describe("Junie CLI event naming", () => {
     // Verified against https://junie.jetbrains.com/docs/junie-cli-hooks.html
     expect(CANONICAL_TO_JUNIE_EVENT_NAMES.sessionStart).toBe("SessionStart");
     expect(CANONICAL_TO_JUNIE_EVENT_NAMES.beforeSubmitPrompt).toBe("UserPromptSubmit");
+    expect(CANONICAL_TO_JUNIE_EVENT_NAMES.preToolUse).toBe("PreToolUse");
     expect(CANONICAL_TO_JUNIE_EVENT_NAMES.stop).toBe("Stop");
+    expect(CANONICAL_TO_JUNIE_EVENT_NAMES.stopFailure).toBe("StopFailure");
+    expect(CANONICAL_TO_JUNIE_EVENT_NAMES.permissionRequest).toBe("PermissionRequest");
     expect(CANONICAL_TO_JUNIE_EVENT_NAMES.sessionEnd).toBe("SessionEnd");
   });
 
-  it("should support the SessionStart, UserPromptSubmit, Stop, and SessionEnd events", () => {
-    expect(JUNIE_HOOK_EVENTS).toEqual(["sessionStart", "beforeSubmitPrompt", "stop", "sessionEnd"]);
+  it("should support the seven documented Junie CLI hook events", () => {
+    expect(JUNIE_HOOK_EVENTS).toEqual([
+      "sessionStart",
+      "beforeSubmitPrompt",
+      "preToolUse",
+      "stop",
+      "stopFailure",
+      "permissionRequest",
+      "sessionEnd",
+    ]);
   });
 
   it("should round-trip every Junie event name back to canonical", () => {

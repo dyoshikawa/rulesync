@@ -26,6 +26,9 @@ export const CopilotcliSkillFrontmatterSchema = z.looseObject({
   // Pre-approved tools the agent may run without per-use confirmation.
   // https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-skills
   "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+  // Hint shown for the skill's expected arguments. Added in Copilot CLI v1.0.62
+  // (2026-06-13). https://github.com/github/copilot-cli/blob/main/changelog.md
+  "argument-hint": z.optional(z.string()),
 });
 
 export type CopilotcliSkillFrontmatter = z.infer<typeof CopilotcliSkillFrontmatterSchema>;
@@ -129,6 +132,9 @@ export class CopilotcliSkill extends ToolSkill {
       ...(frontmatter["allowed-tools"] !== undefined && {
         "allowed-tools": frontmatter["allowed-tools"],
       }),
+      ...(frontmatter["argument-hint"] !== undefined && {
+        "argument-hint": frontmatter["argument-hint"],
+      }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -166,6 +172,9 @@ export class CopilotcliSkill extends ToolSkill {
       }),
       ...(rulesyncFrontmatter.copilotcli?.["allowed-tools"] !== undefined && {
         "allowed-tools": rulesyncFrontmatter.copilotcli["allowed-tools"],
+      }),
+      ...(rulesyncFrontmatter.copilotcli?.["argument-hint"] !== undefined && {
+        "argument-hint": rulesyncFrontmatter.copilotcli["argument-hint"],
       }),
     };
 

@@ -215,7 +215,11 @@ export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
  * `sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`,
  * `postToolUse`, `postToolUseFailure`, `agentStop`, `subagentStart`,
  * `subagentStop`, `errorOccurred`, `preCompact`, `permissionRequest`,
- * `notification`.
+ * `notification`, `preMcpToolCall` ← `beforeMCPExecution`.
+ *
+ * `preMcpToolCall` (canonical `beforeMCPExecution`) was added in Copilot CLI
+ * v1.0.51 (2026-05-20) for hook providers to control outgoing MCP request
+ * metadata. https://github.com/github/copilot-cli/blob/main/changelog.md
  *
  * @see https://docs.github.com/en/copilot/reference/hooks-configuration
  */
@@ -233,6 +237,7 @@ export const COPILOTCLI_HOOK_EVENTS: readonly HookEvent[] = [
   "preCompact",
   "permissionRequest",
   "notification",
+  "beforeMCPExecution",
 ];
 
 /**
@@ -372,18 +377,23 @@ export const VIBE_HOOK_EVENTS: readonly HookEvent[] = ["preToolUse", "postToolUs
 /**
  * Hook events supported by JetBrains Junie CLI.
  *
- * Junie CLI exposes four lifecycle events under the `"hooks"` key of
- * `~/.junie/config.json`: `SessionStart`, `UserPromptSubmit`, `Stop`, and
- * `SessionEnd`. Matchers apply only to `SessionStart` / `SessionEnd`
- * (e.g. `startup` / `resume`); `UserPromptSubmit` and `Stop` are
- * matcher-less. Only `type: "command"` hooks are supported. Project-local
- * hooks are ignored for safety.
+ * Junie CLI exposes seven lifecycle events under the `"hooks"` key of
+ * `~/.junie/config.json`: `SessionStart`, `UserPromptSubmit`, `PreToolUse`,
+ * `Stop`, `StopFailure`, `PermissionRequest`, and `SessionEnd`. Matchers apply
+ * to `SessionStart` (source), `PreToolUse` (tool name), `StopFailure` (error
+ * type), `PermissionRequest` (tool name), and `SessionEnd` (reason);
+ * `UserPromptSubmit` and `Stop` are matcher-less and always run. Only
+ * `type: "command"` hooks are supported. Project-local hooks are ignored for
+ * safety.
  * @see https://junie.jetbrains.com/docs/junie-cli-hooks.html
  */
 export const JUNIE_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
   "beforeSubmitPrompt",
+  "preToolUse",
   "stop",
+  "stopFailure",
+  "permissionRequest",
   "sessionEnd",
 ];
 
@@ -652,6 +662,9 @@ export const CANONICAL_TO_COPILOTCLI_EVENT_NAMES: Record<string, string> = {
   preCompact: "preCompact",
   permissionRequest: "permissionRequest",
   notification: "notification",
+  // Added in Copilot CLI v1.0.51 (2026-05-20). The canonical MCP pre-call event
+  // maps to the CLI's `preMcpToolCall` hook.
+  beforeMCPExecution: "preMcpToolCall",
 };
 
 /** Map GitHub Copilot CLI event names back to canonical camelCase. */
@@ -760,7 +773,10 @@ export const KIRO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.from
 export const CANONICAL_TO_JUNIE_EVENT_NAMES: Record<string, string> = {
   sessionStart: "SessionStart",
   beforeSubmitPrompt: "UserPromptSubmit",
+  preToolUse: "PreToolUse",
   stop: "Stop",
+  stopFailure: "StopFailure",
+  permissionRequest: "PermissionRequest",
   sessionEnd: "SessionEnd",
 };
 
