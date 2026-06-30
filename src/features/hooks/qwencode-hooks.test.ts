@@ -235,6 +235,116 @@ describe("QwencodeHooks", () => {
       expect(parsed.hooks.PreToolUse[0].hooks[0].url).toBe("https://example.com/hook");
     });
 
+    it("should emit command-only per-hook fields (async/env/shell/statusMessage)", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              preToolUse: [
+                {
+                  type: "command",
+                  command: "echo cmd",
+                  matcher: "Edit",
+                  async: true,
+                  env: { FOO: "bar" },
+                  shell: "bash",
+                  statusMessage: "Running...",
+                },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const qwencodeHooks = await QwencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const hook = JSON.parse(qwencodeHooks.getFileContent()).hooks.PreToolUse[0].hooks[0];
+      expect(hook.async).toBe(true);
+      expect(hook.env).toEqual({ FOO: "bar" });
+      expect(hook.shell).toBe("bash");
+      expect(hook.statusMessage).toBe("Running...");
+      // Http-only fields must never leak onto command hooks.
+      expect(hook.headers).toBeUndefined();
+      expect(hook.allowedEnvVars).toBeUndefined();
+      expect(hook.once).toBeUndefined();
+    });
+
+    it("should emit http-only per-hook fields (headers/allowedEnvVars/once/statusMessage)", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              preToolUse: [
+                {
+                  type: "http",
+                  url: "https://example.com/hook",
+                  matcher: "Edit",
+                  headers: { Authorization: "Bearer ${HOOK_API_KEY}" },
+                  allowedEnvVars: ["HOOK_API_KEY"],
+                  once: true,
+                  statusMessage: "Calling remote...",
+                },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const qwencodeHooks = await QwencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const hook = JSON.parse(qwencodeHooks.getFileContent()).hooks.PreToolUse[0].hooks[0];
+      expect(hook.headers).toEqual({ Authorization: "Bearer ${HOOK_API_KEY}" });
+      expect(hook.allowedEnvVars).toEqual(["HOOK_API_KEY"]);
+      expect(hook.once).toBe(true);
+      expect(hook.statusMessage).toBe("Calling remote...");
+      // Command-only fields must never leak onto http hooks.
+      expect(hook.async).toBeUndefined();
+      expect(hook.env).toBeUndefined();
+      expect(hook.shell).toBeUndefined();
+    });
+
+    it("should not emit command-only fields onto http hooks or http-only fields onto command hooks", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              preToolUse: [
+                // Command hook authored with http-only fields -> dropped on emit.
+                { type: "command", command: "echo cmd", matcher: "Edit", once: true },
+                // Http hook authored with command-only fields -> dropped on emit.
+                {
+                  type: "http",
+                  url: "https://example.com/hook",
+                  matcher: "Edit",
+                  async: true,
+                },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const qwencodeHooks = await QwencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const hooks = JSON.parse(qwencodeHooks.getFileContent()).hooks.PreToolUse[0].hooks;
+      const commandHook = hooks.find((h: { type: string }) => h.type === "command");
+      const httpHook = hooks.find((h: { type: string }) => h.type === "http");
+      expect(commandHook.once).toBeUndefined();
+      expect(httpHook.async).toBeUndefined();
+    });
+
     it("should emit group-level sequential and top-level disableAllHooks", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({
@@ -366,6 +476,108 @@ describe("QwencodeHooks", () => {
         url: "https://example.com/hook",
         matcher: "Edit",
       });
+    });
+
+    it("should import command-only per-hook fields (async/env/shell/statusMessage)", () => {
+      const qwencodeHooks = new QwencodeHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              PreToolUse: [
+                {
+                  matcher: "Edit",
+                  hooks: [
+                    {
+                      type: "command",
+                      command: "echo cmd",
+                      async: true,
+                      env: { FOO: "bar" },
+                      shell: "bash",
+                      statusMessage: "Running...",
+                    },
+                  ],
+                },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const parsed = qwencodeHooks.toRulesyncHooks().getJson();
+      expect(parsed.hooks.preToolUse?.[0]).toEqual({
+        type: "command",
+        command: "echo cmd",
+        statusMessage: "Running...",
+        async: true,
+        env: { FOO: "bar" },
+        shell: "bash",
+        matcher: "Edit",
+      });
+    });
+
+    it("should import http-only per-hook fields (headers/allowedEnvVars/once/statusMessage)", () => {
+      const qwencodeHooks = new QwencodeHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              PreToolUse: [
+                {
+                  matcher: "Edit",
+                  hooks: [
+                    {
+                      type: "http",
+                      url: "https://example.com/hook",
+                      headers: { Authorization: "Bearer ${HOOK_API_KEY}" },
+                      allowedEnvVars: ["HOOK_API_KEY"],
+                      once: true,
+                      statusMessage: "Calling remote...",
+                    },
+                  ],
+                },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const parsed = qwencodeHooks.toRulesyncHooks().getJson();
+      expect(parsed.hooks.preToolUse?.[0]).toEqual({
+        type: "http",
+        url: "https://example.com/hook",
+        statusMessage: "Calling remote...",
+        headers: { Authorization: "Bearer ${HOOK_API_KEY}" },
+        allowedEnvVars: ["HOOK_API_KEY"],
+        once: true,
+        matcher: "Edit",
+      });
+    });
+
+    it("should not import command-only fields onto http hooks or http-only fields onto command hooks", () => {
+      const qwencodeHooks = new QwencodeHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              PreToolUse: [
+                {
+                  matcher: "Edit",
+                  hooks: [
+                    // http hook carrying a command-only field upstream rejects.
+                    { type: "http", url: "https://example.com/hook", async: true },
+                    // command hook carrying an http-only field upstream rejects.
+                    { type: "command", command: "echo cmd", once: true },
+                  ],
+                },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const parsed = qwencodeHooks.toRulesyncHooks().getJson();
+      const httpDef = parsed.hooks.preToolUse?.find((d) => d.type === "http");
+      const commandDef = parsed.hooks.preToolUse?.find((d) => d.type === "command");
+      expect(httpDef?.async).toBeUndefined();
+      expect(commandDef?.once).toBeUndefined();
     });
 
     it("should round-trip group-level sequential and top-level disableAllHooks", () => {

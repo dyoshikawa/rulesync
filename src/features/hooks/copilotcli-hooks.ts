@@ -108,6 +108,21 @@ const CopilotCliHookEntrySchema = z.looseObject({
 
 type CopilotCliHookEntry = z.infer<typeof CopilotCliHookEntrySchema>;
 
+/**
+ * Keep only the entries whose value is neither `undefined` nor `null`. Used to
+ * assemble exported entries without one conditional spread per optional field
+ * (which would otherwise exceed the lint complexity budget).
+ */
+function definedPart<T extends Record<string, unknown>>(obj: T): Partial<T> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined && value !== null) {
+      result[key] = value;
+    }
+  }
+  return result as Partial<T>;
+}
+
 /** Filter the shared config hooks down to events the Copilot CLI supports. */
 function filterSupportedCopilotCliHooks(hooks: HooksConfig["hooks"]): HooksConfig["hooks"] {
   const supported: Set<string> = new Set(COPILOTCLI_HOOK_EVENTS);
@@ -195,19 +210,26 @@ function buildCopilotCliEntriesForEvent({
       if (def.prompt === undefined || def.prompt === null) continue;
       entries.push({ type: "prompt", prompt: def.prompt, ...rest });
     } else if (hookType === "http") {
+      // `url`, `headers`, and `allowedEnvVars` are canonical fields Copilot CLI
+      // supports natively on http hooks, so emit them explicitly rather than via
+      // the non-canonical passthrough.
       entries.push({
         type: "http",
         ...matcherPart,
-        ...(def.url !== undefined && def.url !== null && { url: def.url }),
+        ...definedPart({
+          url: def.url,
+          headers: def.headers,
+          allowedEnvVars: def.allowedEnvVars,
+        }),
         ...timeoutPart,
         ...rest,
       });
     } else {
-      const command = def.command;
+      // `env` is a canonical field Copilot CLI supports natively on command hooks.
       entries.push({
         type: "command",
         ...matcherPart,
-        ...(command !== undefined && command !== null && { [commandField]: command }),
+        ...definedPart({ [commandField]: def.command, env: def.env }),
         ...timeoutPart,
         ...rest,
       });
