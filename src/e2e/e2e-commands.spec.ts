@@ -25,6 +25,7 @@ describe("E2E: commands", () => {
     { target: "roo", outputPath: join(".roo", "commands", "review-pr.md") },
     { target: "kiro", outputPath: join(".kiro", "prompts", "review-pr.md") },
     { target: "antigravity-ide", outputPath: join(".agents", "workflows", "review-pr.md") },
+    { target: "antigravity-cli", outputPath: join(".agents", "workflows", "review-pr.md") },
     { target: "junie", outputPath: join(".junie", "commands", "review-pr.md") },
     { target: "takt", outputPath: join(".takt", "facets", "instructions", "review-pr.md") },
     { target: "pi", outputPath: join(".pi", "prompts", "review-pr.md") },
@@ -89,6 +90,7 @@ Check the PR diff and provide feedback.
     { target: "roo", orphanPath: join(".roo", "commands", "orphan.md") },
     { target: "kiro", orphanPath: join(".kiro", "prompts", "orphan.md") },
     { target: "antigravity-ide", orphanPath: join(".agents", "workflows", "orphan.md") },
+    { target: "antigravity-cli", orphanPath: join(".agents", "workflows", "orphan.md") },
     { target: "junie", orphanPath: join(".junie", "commands", "orphan.md") },
     { target: "pi", orphanPath: join(".pi", "prompts", "orphan.md") },
     { target: "devin", orphanPath: join(".devin", "workflows", "orphan.md") },
@@ -136,6 +138,7 @@ describe("E2E: commands (import)", () => {
     { target: "roo", sourcePath: join(".roo", "commands", "review-pr.md") },
     { target: "kiro", sourcePath: join(".kiro", "prompts", "review-pr.md") },
     { target: "antigravity-ide", sourcePath: join(".agents", "workflows", "review-pr.md") },
+    { target: "antigravity-cli", sourcePath: join(".agents", "workflows", "review-pr.md") },
     { target: "junie", sourcePath: join(".junie", "commands", "review-pr.md") },
     { target: "pi", sourcePath: join(".pi", "prompts", "review-pr.md") },
     { target: "devin", sourcePath: join(".devin", "workflows", "review-pr.md") },
@@ -189,6 +192,10 @@ describe("E2E: commands (global mode)", () => {
     {
       target: "antigravity-ide",
       outputPath: join(".gemini", "antigravity", "global_workflows", "review-pr.md"),
+    },
+    {
+      target: "antigravity-cli",
+      outputPath: join(".gemini", "antigravity-cli", "global_workflows", "review-pr.md"),
     },
     {
       target: "takt",

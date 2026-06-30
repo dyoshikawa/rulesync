@@ -12,6 +12,7 @@ import { formatError } from "../../utils/error.js";
 import { checkPathTraversal, findFilesByGlobs } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "./agentsmd-command.js";
+import { AntigravityCliCommand } from "./antigravity-cli-command.js";
 import { AntigravityIdeCommand } from "./antigravity-ide-command.js";
 import { AugmentcodeCommand } from "./augmentcode-command.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
@@ -102,6 +103,22 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsProject: true,
         supportsGlobal: false,
         isSimulated: true,
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "antigravity-cli",
+    {
+      class: AntigravityCliCommand,
+      meta: {
+        // The Antigravity CLI (`agy`) reads workflow slash commands from the
+        // shared `.agents/workflows/` directory (project) and its own
+        // `~/.gemini/antigravity-cli/global_workflows/` tree (global).
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
         supportsSubdirectory: false,
       },
     },

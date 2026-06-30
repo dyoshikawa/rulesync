@@ -1062,6 +1062,7 @@ describe("CommandsProcessor", () => {
       const targets = CommandsProcessor.getToolTargets();
       expect(new Set(targets)).toEqual(
         new Set([
+          "antigravity-cli",
           "antigravity-ide",
           "augmentcode",
           "claudecode",
@@ -1091,6 +1092,7 @@ describe("CommandsProcessor", () => {
       expect(new Set(targets)).toEqual(
         new Set([
           "agentsmd",
+          "antigravity-cli",
           "antigravity-ide",
           "augmentcode",
           "claudecode",
@@ -1121,6 +1123,7 @@ describe("CommandsProcessor", () => {
       const targets = CommandsProcessor.getToolTargets({ global: true });
       expect(new Set(targets)).toEqual(
         new Set([
+          "antigravity-cli",
           "antigravity-ide",
           "augmentcode",
           "claudecode",

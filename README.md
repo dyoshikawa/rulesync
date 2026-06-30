@@ -102,7 +102,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Kiro CLI               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Kiro IDE               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |
 | Google Antigravity IDE |  ✅   |        | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |
-| Google Antigravity CLI |  ✅   |   ✅   | ✅  |          |           |   ✅   |  ✅   |     ✅      |
+| Google Antigravity CLI |  ✅   |   ✅   | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |
 | JetBrains AI Assistant |  ✅   |   ✅   |     |          |           |   ✅   |       |             |
 | JetBrains Junie        |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | AugmentCode            |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |

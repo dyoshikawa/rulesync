@@ -1,6 +1,7 @@
 import { ANTIGRAVITY_DIR } from "./antigravity-paths.js";
 
 export {
+  ANTIGRAVITY_CLI_GLOBAL_WORKFLOWS_DIR_PATH,
   ANTIGRAVITY_CLI_PERMISSIONS_DIR_PATH,
   ANTIGRAVITY_CLI_PERMISSIONS_FILE_NAME,
   // The CLI's global subdirectory is the same `.gemini/antigravity-cli` path the
@@ -11,6 +12,7 @@ export {
   ANTIGRAVITY_GLOBAL_CONFIG_SUBDIR,
   ANTIGRAVITY_IGNORE_FILE_NAME,
   ANTIGRAVITY_SKILLS_DIR_PATH,
+  ANTIGRAVITY_WORKFLOWS_DIR_PATH,
 } from "./antigravity-paths.js";
 
 export const ANTIGRAVITY_AGENTS_DIR = ANTIGRAVITY_DIR;
