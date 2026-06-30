@@ -341,6 +341,7 @@ rulesync.local.jsonc
 **/.cursor/mcp.json
 **/.deepagents/.mcp.json
 **/.factory/mcp.json
+**/.agents/plugins/rulesync/.mcp.json
 **/.grok/config.toml
 **/.kiro/settings/mcp.json
 **/.junie/mcp/mcp.json
