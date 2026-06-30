@@ -28,7 +28,11 @@ export const OpenCodeSkillFrontmatterSchema = z.looseObject({
   // `name`, `description`, `license`, `compatibility`, and `metadata`.
   // See https://opencode.ai/docs/skills.md
   license: z.optional(z.string()),
-  compatibility: z.optional(z.looseObject({})),
+  // OpenCode documents `compatibility` as a free-form string (e.g.
+  // `compatibility: opencode`, see https://opencode.ai/docs/skills/ ). The
+  // object form is also tolerated for backward compatibility with skills that
+  // model it as a per-tool version-constraint map.
+  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
   metadata: z.optional(z.looseObject({})),
   // `allowed-tools` is NOT recognized by OpenCode (it is an Anthropic-spec
   // field that OpenCode silently ignores). It is kept as an optional
@@ -37,6 +41,21 @@ export const OpenCodeSkillFrontmatterSchema = z.looseObject({
 });
 
 export type OpenCodeSkillFrontmatter = z.infer<typeof OpenCodeSkillFrontmatterSchema>;
+
+/**
+ * Reads a top-level `compatibility` value from rulesync frontmatter, accepting
+ * both the documented string form (e.g. `compatibility: opencode`) and the
+ * legacy object form. Returns `undefined` for any other shape.
+ */
+function readTopLevelCompatibility(value: unknown): string | Record<string, unknown> | undefined {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "object" && value !== null) {
+    return value as Record<string, unknown>;
+  }
+  return undefined;
+}
 
 export type OpenCodeSkillParams = {
   outputRoot?: string;
@@ -168,10 +187,7 @@ export class OpenCodeSkill extends ToolSkill {
     const looseTopLevel = rulesyncFrontmatter as Record<string, unknown>;
     const topLevelLicense =
       typeof looseTopLevel.license === "string" ? looseTopLevel.license : undefined;
-    const topLevelCompatibility =
-      typeof looseTopLevel.compatibility === "object" && looseTopLevel.compatibility !== null
-        ? (looseTopLevel.compatibility as Record<string, unknown>)
-        : undefined;
+    const topLevelCompatibility = readTopLevelCompatibility(looseTopLevel.compatibility);
     const topLevelMetadata =
       typeof looseTopLevel.metadata === "object" && looseTopLevel.metadata !== null
         ? (looseTopLevel.metadata as Record<string, unknown>)

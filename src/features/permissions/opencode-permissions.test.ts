@@ -70,6 +70,17 @@ describe("OpencodePermissions", () => {
     expect(json.permission.bash["git *"]).toBe("allow");
   });
 
+  it("should import the top-level uniform string permission form (issue #2066)", async () => {
+    await writeFileContent(join(testDir, "opencode.json"), JSON.stringify({ permission: "allow" }));
+
+    const instance = await OpencodePermissions.fromFile({ outputRoot: testDir });
+
+    expect(instance.getJson().permission).toBe("allow");
+
+    const rulesync = instance.toRulesyncPermissions().getJson();
+    expect(rulesync.permission).toEqual({ "*": { "*": "allow" } });
+  });
+
   it("should support global mode file resolution", async () => {
     await ensureDir(join(testDir, ".config", "opencode"));
     await writeFileContent(

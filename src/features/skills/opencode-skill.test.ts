@@ -145,6 +145,26 @@ describe("OpenCodeSkill", () => {
       });
     });
 
+    it("should carry a string compatibility into the opencode section (issue #2066)", () => {
+      const skill = new OpenCodeSkill({
+        outputRoot: testDir,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "Test description",
+          compatibility: "opencode",
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+
+      expect(rulesyncSkill.getFrontmatter().opencode).toEqual({
+        compatibility: "opencode",
+      });
+    });
+
     it("should not attach an opencode section when no optional fields exist", () => {
       const skill = new OpenCodeSkill({
         outputRoot: testDir,
@@ -268,6 +288,27 @@ describe("OpenCodeSkill", () => {
       expect(frontmatter.metadata).toEqual({ author: "top-level" });
     });
 
+    it("should emit a string compatibility from the opencode section (issue #2066)", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "Test skill description",
+          opencode: {
+            compatibility: "opencode",
+          },
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      const skill = OpenCodeSkill.fromRulesyncSkill({ rulesyncSkill, global: false });
+
+      expect(skill.getFrontmatter().compatibility).toBe("opencode");
+    });
+
     it("should prefer the opencode section over top-level values", () => {
       const rulesyncSkill = new RulesyncSkill({
         outputRoot: testDir,
@@ -352,6 +393,36 @@ Body content.`;
         license: "MIT",
         compatibility: { opencode: ">=1.0.0" },
         metadata: { author: "rulesync" },
+      });
+    });
+
+    it("should import the documented `compatibility: opencode` string form (issue #2066)", async () => {
+      const skillDir = join(testDir, ".opencode", "skills", "git-release");
+      await ensureDir(skillDir);
+      const skillContent = `---
+name: git-release
+description: Create consistent releases and changelogs
+license: MIT
+compatibility: opencode
+metadata:
+  audience: maintainers
+---
+
+Body content.`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      const skill = await OpenCodeSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "git-release",
+      });
+
+      const frontmatter = skill.getFrontmatter();
+      expect(frontmatter.compatibility).toBe("opencode");
+
+      expect(skill.toRulesyncSkill().getFrontmatter().opencode).toEqual({
+        license: "MIT",
+        compatibility: "opencode",
+        metadata: { audience: "maintainers" },
       });
     });
   });
