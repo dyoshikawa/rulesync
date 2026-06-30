@@ -11,6 +11,7 @@ import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { CodexcliConfigToml, CodexcliHooks } from "./codexcli-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { HooksProcessor } from "./hooks-processor.js";
+import { KiroIdeHooks } from "./kiro-ide-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import { ToolHooks } from "./tool-hooks.js";
 
@@ -287,6 +288,43 @@ describe("HooksProcessor", () => {
       const parsed = JSON.parse(content);
       expect(parsed.hooks.SessionStart).toBeDefined();
       expect(Array.isArray(parsed.hooks.SessionStart)).toBe(true);
+    });
+
+    it("should not warn about kiro-ide override-block IDE-only triggers (passthrough)", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          sessionStart: [{ type: "command", command: "echo start" }],
+        },
+        "kiro-ide": {
+          hooks: {
+            // IDE-only trigger supplied via the override block; it is emitted
+            // verbatim and must NOT be reported as a skipped/unsupported event.
+            PostFileSave: [{ type: "command", command: "echo saved" }],
+          },
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "kiro-ide" });
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+      expect(toolFiles[0]).toBeInstanceOf(KiroIdeHooks);
+
+      // The passthrough trigger is emitted...
+      const parsed = JSON.parse((toolFiles[0] as KiroIdeHooks).getFileContent());
+      const triggers = parsed.hooks.map((h: { trigger: string }) => h.trigger);
+      expect(triggers).toContain("PostFileSave");
+      // ...and no "skipped" warning mentions it.
+      const skippedWarnings = logger.warn.mock.calls
+        .map((c) => String(c[0]))
+        .filter((m) => m.includes("Skipped hook event"));
+      expect(skippedWarnings.join("\n")).not.toContain("PostFileSave");
     });
 
     it("should convert rulesync hooks to Codex CLI hooks and include auxiliary config.toml", async () => {

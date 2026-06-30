@@ -13,6 +13,7 @@ import {
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import {
   ToolHooks,
@@ -88,10 +89,11 @@ function buildKiroIdeEntriesForEvent(
         def.matcher !== null &&
         def.matcher !== "" && { matcher: def.matcher }),
       action,
-      // Kiro IDE timeout is expressed in seconds; `0` disables it.
+      // Kiro IDE timeout is expressed in seconds; `0` explicitly disables it.
+      // Emit any non-negative timeout (including `0`) so the value round-trips.
       ...(def.timeout !== undefined &&
         def.timeout !== null &&
-        def.timeout > 0 && { timeout: def.timeout }),
+        def.timeout >= 0 && { timeout: def.timeout }),
       enabled: true,
     });
   }
@@ -127,6 +129,10 @@ function kiroIdeHooksToCanonical(entries: KiroIdeHookEntry[]): HooksConfig["hook
   for (const entry of entries) {
     if (entry.trigger === undefined || entry.action === undefined) continue;
     const eventName = KIRO_IDE_TO_CANONICAL_EVENT_NAMES[entry.trigger] ?? entry.trigger;
+    // A crafted `trigger` (e.g. "__proto__") would otherwise make the
+    // `canonical[eventName] ??= []` bracket access resolve to a prototype member
+    // and throw; skip prototype-pollution keys defensively.
+    if (isPrototypePollutionKey(eventName)) continue;
 
     const def: HookDefinition = {};
     if (entry.action.type === "command") {

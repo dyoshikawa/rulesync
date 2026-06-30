@@ -87,7 +87,34 @@ type ToolHooksFactory = {
   supportedEvents: readonly HookEvent[];
   supportedHookTypes: readonly HookType[];
   supportsMatcher: boolean;
+  /**
+   * When true, keys in the tool-specific override block (`config[target].hooks`)
+   * are passed through verbatim by the adapter even if they are not in
+   * `supportedEvents` (e.g. Kiro IDE's `PostFileSave`/`PreTaskExec` triggers),
+   * so they must not be reported as skipped/unsupported.
+   */
+  passthroughOverrideEvents?: boolean;
 };
+
+/**
+ * Event names present in the config that the target's adapter cannot emit.
+ *
+ * When the factory passes override-block keys through verbatim
+ * (`passthroughOverrideEvents`), those keys are excluded from the check so
+ * documented passthrough triggers aren't falsely reported as skipped.
+ */
+function unsupportedEventNames(params: {
+  factory: ToolHooksFactory;
+  sharedHooks: Record<string, unknown>;
+  effectiveHooks: Record<string, unknown>;
+}): string[] {
+  const { factory, sharedHooks, effectiveHooks } = params;
+  const supportedEvents: Set<string> = new Set(factory.supportedEvents);
+  const eventNames = factory.passthroughOverrideEvents
+    ? Object.keys(sharedHooks)
+    : Object.keys(effectiveHooks);
+  return [...new Set(eventNames)].filter((e) => !supportedEvents.has(e));
+}
 
 export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
   [
@@ -322,6 +349,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: KIRO_IDE_HOOK_EVENTS,
       supportedHookTypes: ["command", "prompt"],
       supportsMatcher: true,
+      // IDE-only triggers (PostFileSave, PreTaskExec, …) supplied via the
+      // `kiro-ide` override block are emitted verbatim, so don't warn on them.
+      passthroughOverrideEvents: true,
     },
   ],
   [
@@ -535,9 +565,7 @@ export class HooksProcessor extends FeatureProcessor {
 
     // Warn about unsupported events
     {
-      const supportedEvents: Set<string> = new Set(factory.supportedEvents);
-      const configEventNames = new Set<string>(Object.keys(effectiveHooks));
-      const skipped = [...configEventNames].filter((e) => !supportedEvents.has(e));
+      const skipped = unsupportedEventNames({ factory, sharedHooks, effectiveHooks });
       if (skipped.length > 0) {
         this.logger.warn(
           `Skipped hook event(s) for ${this.toolTarget} (not supported): ${skipped.join(", ")}`,
