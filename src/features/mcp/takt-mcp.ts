@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { dump, load } from "js-yaml";
+import { dump } from "js-yaml";
 
 import {
   TAKT_CONFIG_FILE_NAME,
@@ -9,9 +9,9 @@ import {
 } from "../../constants/takt-paths.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import type { McpServer, McpServers } from "../../types/mcp.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { isPlainObject, isRecord } from "../../utils/type-guards.js";
+import { isRecord } from "../../utils/type-guards.js";
+import { parseTaktConfig } from "../shared/takt-config.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -165,34 +165,6 @@ export class TaktMcp extends ToolMcp {
       global,
     });
   }
-}
-
-/**
- * Parse a Takt `config.yaml` into a plain object, treating an empty file as `{}`.
- * Uses `isPlainObject` (not `isRecord`) so class instances are rejected for
- * prototype-pollution hardening; a YAML mapping always parses to a plain object.
- */
-function parseTaktConfig(
-  fileContent: string,
-  relativeDirPath: string,
-  relativeFilePath: string,
-): Record<string, unknown> {
-  const configPath = join(relativeDirPath, relativeFilePath);
-  let parsed: unknown;
-  try {
-    parsed = fileContent.trim() === "" ? {} : load(fileContent);
-  } catch (error) {
-    throw new Error(`Failed to parse Takt config at ${configPath}: ${formatError(error)}`, {
-      cause: error,
-    });
-  }
-  if (parsed === undefined || parsed === null) {
-    return {};
-  }
-  if (!isPlainObject(parsed)) {
-    throw new Error(`Failed to parse Takt config at ${configPath}: expected a YAML mapping`);
-  }
-  return parsed;
 }
 
 /**
