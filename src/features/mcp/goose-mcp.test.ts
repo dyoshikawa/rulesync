@@ -11,6 +11,8 @@ import { RulesyncMcp } from "./rulesync-mcp.js";
 
 const GOOSE_DIR = join(".config", "goose");
 const GOOSE_FILE = "config.yaml";
+const GOOSE_PLUGIN_DIR = join(".agents", "plugins", "rulesync");
+const GOOSE_PLUGIN_FILE = ".mcp.json";
 
 function getExtensions(content: string): Record<string, Record<string, unknown>> {
   const parsed = load(content);
@@ -33,41 +35,157 @@ describe("GooseMcp", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("targets ~/.config/goose/config.yaml", () => {
-      const paths = GooseMcp.getSettablePaths();
+    it("targets ~/.config/goose/config.yaml in global mode", () => {
+      const paths = GooseMcp.getSettablePaths({ global: true });
       expect(paths.relativeDirPath).toBe(GOOSE_DIR);
       expect(paths.relativeFilePath).toBe(GOOSE_FILE);
+    });
+
+    it("targets the open-plugin .mcp.json manifest in project mode", () => {
+      const paths = GooseMcp.getSettablePaths({ global: false });
+      expect(paths.relativeDirPath).toBe(GOOSE_PLUGIN_DIR);
+      expect(paths.relativeFilePath).toBe(GOOSE_PLUGIN_FILE);
     });
   });
 
   describe("isDeletable", () => {
-    it("is never deletable (shared config file)", () => {
+    it("is not deletable in global mode (shared config file)", () => {
       const mcp = new GooseMcp({
         relativeDirPath: GOOSE_DIR,
         relativeFilePath: GOOSE_FILE,
         fileContent: "",
         validate: false,
+        global: true,
       });
       expect(mcp.isDeletable()).toBe(false);
     });
+
+    it("is deletable in project mode (rulesync-owned manifest)", () => {
+      const mcp = new GooseMcp({
+        relativeDirPath: GOOSE_PLUGIN_DIR,
+        relativeFilePath: GOOSE_PLUGIN_FILE,
+        fileContent: "",
+        validate: false,
+        global: false,
+      });
+      expect(mcp.isDeletable()).toBe(true);
+    });
   });
 
-  describe("global-only", () => {
-    it("fromRulesyncMcp throws without global", async () => {
+  describe("fromRulesyncMcp (project mode)", () => {
+    it("emits a Claude-style stdio server to .agents/plugins/rulesync/.mcp.json", async () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: ".rulesync",
         relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify({ mcpServers: {} }),
+        fileContent: JSON.stringify({
+          mcpServers: {
+            fetch: {
+              command: "uvx",
+              args: ["mcp-server-fetch"],
+              env: { TOKEN: "x" },
+              cwd: "/srv/fetch",
+            },
+          },
+        }),
       });
-      await expect(GooseMcp.fromRulesyncMcp({ rulesyncMcp, global: false })).rejects.toThrow(
-        /global-only/,
-      );
+
+      const mcp = await GooseMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: false,
+      });
+
+      expect(mcp.getRelativeDirPath()).toBe(GOOSE_PLUGIN_DIR);
+      expect(mcp.getRelativeFilePath()).toBe(GOOSE_PLUGIN_FILE);
+      const parsed = JSON.parse(mcp.getFileContent());
+      expect(parsed.mcpServers.fetch).toEqual({
+        command: "uvx",
+        args: ["mcp-server-fetch"],
+        env: { TOKEN: "x" },
+        cwd: "/srv/fetch",
+      });
     });
 
-    it("fromFile throws without global", async () => {
-      await expect(GooseMcp.fromFile({ outputRoot: testDir, global: false })).rejects.toThrow(
-        /global-only/,
+    it("folds an array command's tail into args", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { fetch: { command: ["uvx", "mcp-server-fetch"], args: ["--flag"] } },
+        }),
+      });
+
+      const mcp = await GooseMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: false,
+      });
+      const parsed = JSON.parse(mcp.getFileContent());
+      expect(parsed.mcpServers.fetch).toEqual({
+        command: "uvx",
+        args: ["mcp-server-fetch", "--flag"],
+      });
+    });
+
+    it("skips remote (http/sse) servers with a warning", async () => {
+      const warn = vi.fn();
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            local: { command: "uvx", args: ["mcp-server-fetch"] },
+            remote: { type: "http", url: "https://example.com/mcp" },
+            sse: { type: "sse", url: "https://example.com/sse" },
+          },
+        }),
+      });
+
+      const mcp = await GooseMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: false,
+        logger: { warn } as never,
+      });
+      const parsed = JSON.parse(mcp.getFileContent());
+
+      expect(Object.keys(parsed.mcpServers)).toEqual(["local"]);
+      expect(warn).toHaveBeenCalledTimes(2);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("stdio-only"));
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("remote"));
+    });
+
+    it("strips prototype-pollution keys from a server's env in project mode", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent:
+          '{"mcpServers":{"fetch":{"command":"uvx",' +
+          '"env":{"__proto__":"polluted","constructor":"polluted","TOKEN":"safe"}}}}',
+      });
+
+      const mcp = await GooseMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: false,
+      });
+      const parsed = JSON.parse(mcp.getFileContent());
+      expect(parsed.mcpServers.fetch.env).toEqual({ TOKEN: "safe" });
+    });
+
+    it("round-trips a project manifest back to canonical servers", async () => {
+      const dir = join(testDir, GOOSE_PLUGIN_DIR);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, GOOSE_PLUGIN_FILE),
+        JSON.stringify({
+          mcpServers: { fetch: { command: "uvx", args: ["mcp-server-fetch"] } },
+        }),
       );
+
+      const mcp = await GooseMcp.fromFile({ outputRoot: testDir, global: false });
+      const servers = JSON.parse(mcp.toRulesyncMcp().getFileContent()).mcpServers;
+      expect(servers.fetch).toEqual({ command: "uvx", args: ["mcp-server-fetch"] });
     });
   });
 

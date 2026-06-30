@@ -563,6 +563,7 @@ describe("McpProcessor", () => {
         outputRoot: testDir,
         rulesyncMcp,
         global: false,
+        logger: expect.any(Object),
       });
     });
 
@@ -598,6 +599,7 @@ describe("McpProcessor", () => {
         outputRoot: testDir,
         rulesyncMcp,
         global: true,
+        logger: expect.any(Object),
       });
     });
 
@@ -632,6 +634,7 @@ describe("McpProcessor", () => {
         outputRoot: testDir,
         rulesyncMcp,
         global: false,
+        logger: expect.any(Object),
       });
     });
 
@@ -666,6 +669,7 @@ describe("McpProcessor", () => {
         outputRoot: testDir,
         rulesyncMcp,
         global: false,
+        logger: expect.any(Object),
       });
     });
 
@@ -700,6 +704,7 @@ describe("McpProcessor", () => {
         outputRoot: testDir,
         rulesyncMcp,
         global: false,
+        logger: expect.any(Object),
       });
     });
 
@@ -735,6 +740,7 @@ describe("McpProcessor", () => {
         outputRoot: testDir,
         rulesyncMcp,
         global: true,
+        logger: expect.any(Object),
       });
     });
 
@@ -769,6 +775,7 @@ describe("McpProcessor", () => {
         outputRoot: testDir,
         rulesyncMcp,
         global: false,
+        logger: expect.any(Object),
       });
     });
 
@@ -802,6 +809,7 @@ describe("McpProcessor", () => {
         outputRoot: testDir,
         rulesyncMcp,
         global: true,
+        logger: expect.any(Object),
       });
     });
 
@@ -836,6 +844,7 @@ describe("McpProcessor", () => {
         outputRoot: testDir,
         rulesyncMcp,
         global: false,
+        logger: expect.any(Object),
       });
     });
 

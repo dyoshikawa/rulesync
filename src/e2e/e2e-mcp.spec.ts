@@ -34,6 +34,7 @@ describe("E2E: mcp", () => {
     { target: "opencode", outputPath: "opencode.jsonc" },
     { target: "deepagents", outputPath: join(".deepagents", ".mcp.json") },
     { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
+    { target: "goose", outputPath: join(".agents", "plugins", "rulesync", ".mcp.json") },
     { target: "kilo", outputPath: "kilo.jsonc" },
     { target: "roo", outputPath: join(".roo", "mcp.json") },
     { target: "kiro", outputPath: join(".kiro", "settings", "mcp.json") },

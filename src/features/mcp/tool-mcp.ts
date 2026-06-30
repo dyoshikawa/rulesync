@@ -15,6 +15,7 @@ export type ToolMcpFromRulesyncMcpParams = Omit<
   "fileContent" | "relativeFilePath" | "relativeDirPath"
 > & {
   rulesyncMcp: RulesyncMcp;
+  logger?: Logger;
 };
 
 export type ToolMcpFromFileParams = Pick<

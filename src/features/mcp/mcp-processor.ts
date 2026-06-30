@@ -251,12 +251,15 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
   [
     "goose",
     {
-      // Goose reads MCP servers as "extensions" only from the global user config
-      // `~/.config/goose/config.yaml`; it has no project-scoped MCP location.
+      // Goose reads MCP servers as "extensions" from the global user config
+      // `~/.config/goose/config.yaml`, and (since v1.39.0) discovers stdio-only
+      // MCP extensions in open plugins at project scope
+      // `.agents/plugins/rulesync/.mcp.json` (Claude-style `mcpServers`).
       // https://block.github.io/goose/docs/getting-started/using-extensions/
+      // https://github.com/block/goose/pull/9471
       class: GooseMcp,
       meta: {
-        supportsProject: false,
+        supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
@@ -636,6 +639,7 @@ export class McpProcessor extends FeatureProcessor {
           outputRoot: this.outputRoot,
           rulesyncMcp: filteredRulesyncMcp,
           global: this.global,
+          logger: this.logger,
         });
       }),
     );
