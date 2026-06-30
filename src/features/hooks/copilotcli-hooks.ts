@@ -19,6 +19,7 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { compact } from "../../utils/object.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import {
   ToolHooks,
@@ -107,21 +108,6 @@ const CopilotCliHookEntrySchema = z.looseObject({
 });
 
 type CopilotCliHookEntry = z.infer<typeof CopilotCliHookEntrySchema>;
-
-/**
- * Keep only the entries whose value is neither `undefined` nor `null`. Used to
- * assemble exported entries without one conditional spread per optional field
- * (which would otherwise exceed the lint complexity budget).
- */
-function definedPart<T extends Record<string, unknown>>(obj: T): Partial<T> {
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    if (value !== undefined && value !== null) {
-      result[key] = value;
-    }
-  }
-  return result as Partial<T>;
-}
 
 /** Filter the shared config hooks down to events the Copilot CLI supports. */
 function filterSupportedCopilotCliHooks(hooks: HooksConfig["hooks"]): HooksConfig["hooks"] {
@@ -216,7 +202,7 @@ function buildCopilotCliEntriesForEvent({
       entries.push({
         type: "http",
         ...matcherPart,
-        ...definedPart({
+        ...compact({
           url: def.url,
           headers: def.headers,
           allowedEnvVars: def.allowedEnvVars,
@@ -229,7 +215,7 @@ function buildCopilotCliEntriesForEvent({
       entries.push({
         type: "command",
         ...matcherPart,
-        ...definedPart({ [commandField]: def.command, env: def.env }),
+        ...compact({ [commandField]: def.command, env: def.env }),
         ...timeoutPart,
         ...rest,
       });

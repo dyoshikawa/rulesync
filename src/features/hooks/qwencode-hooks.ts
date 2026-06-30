@@ -13,6 +13,7 @@ import {
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { compact } from "../../utils/object.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import {
   ToolHooks,
@@ -21,21 +22,6 @@ import {
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
-
-/**
- * Drop entries whose value is `undefined` or `null`, keeping the rest as-is.
- * Used to assemble Qwen Code hook objects without listing a conditional spread
- * for every optional field (which would blow past the lint complexity budget).
- */
-function compact<T extends Record<string, unknown>>(obj: T): Partial<T> {
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    if (value !== undefined && value !== null) {
-      result[key] = value;
-    }
-  }
-  return result as Partial<T>;
-}
 
 /**
  * Build a single Qwen Code hook object from a canonical hook definition.
@@ -49,6 +35,7 @@ function canonicalDefToQwencodeHook(
 ): Record<string, unknown> {
   const type = def.type ?? "command";
   const isHttp = type === "http";
+  const isCommand = type === "command";
   return {
     type,
     ...compact({
@@ -58,10 +45,11 @@ function canonicalDefToQwencodeHook(
       name: def.name,
       description: def.description,
       statusMessage: def.statusMessage,
-      // Command-only per-hook fields (Qwen Code PR #2827).
-      async: isHttp ? undefined : def.async,
-      env: isHttp ? undefined : def.env,
-      shell: isHttp ? undefined : def.shell,
+      // Command-only per-hook fields (Qwen Code PR #2827) — upstream documents
+      // these for command hooks only, so gate on the command type explicitly.
+      async: isCommand ? def.async : undefined,
+      env: isCommand ? def.env : undefined,
+      shell: isCommand ? def.shell : undefined,
       // Http-only per-hook fields (Qwen Code PR #2827).
       headers: isHttp ? def.headers : undefined,
       allowedEnvVars: isHttp ? def.allowedEnvVars : undefined,
@@ -176,6 +164,7 @@ function qwencodeMatcherEntryToCanonical(
     const hookType =
       h.type === "command" || h.type === "prompt" || h.type === "http" ? h.type : "command";
     const isHttp = hookType === "http";
+    const isCommand = hookType === "command";
     defs.push({
       type: hookType,
       ...compact({
@@ -186,10 +175,10 @@ function qwencodeMatcherEntryToCanonical(
         description: h.description,
         // `statusMessage` applies to both command and http hooks.
         statusMessage: h.statusMessage,
-        // Command-only per-hook fields (Qwen Code PR #2827).
-        async: isHttp ? undefined : h.async,
-        env: isHttp ? undefined : h.env,
-        shell: isHttp ? undefined : h.shell,
+        // Command-only per-hook fields (Qwen Code PR #2827) — command type only.
+        async: isCommand ? h.async : undefined,
+        env: isCommand ? h.env : undefined,
+        shell: isCommand ? h.shell : undefined,
         // Http-only per-hook fields (Qwen Code PR #2827).
         headers: isHttp ? h.headers : undefined,
         allowedEnvVars: isHttp ? h.allowedEnvVars : undefined,
