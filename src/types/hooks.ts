@@ -215,7 +215,11 @@ export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
  * `sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`,
  * `postToolUse`, `postToolUseFailure`, `agentStop`, `subagentStart`,
  * `subagentStop`, `errorOccurred`, `preCompact`, `permissionRequest`,
- * `notification`.
+ * `notification`, `preMcpToolCall` ← `beforeMCPExecution`.
+ *
+ * `preMcpToolCall` (canonical `beforeMCPExecution`) was added in Copilot CLI
+ * v1.0.51 (2026-05-20) for hook providers to control outgoing MCP request
+ * metadata. https://github.com/github/copilot-cli/blob/main/changelog.md
  *
  * @see https://docs.github.com/en/copilot/reference/hooks-configuration
  */
@@ -233,6 +237,7 @@ export const COPILOTCLI_HOOK_EVENTS: readonly HookEvent[] = [
   "preCompact",
   "permissionRequest",
   "notification",
+  "beforeMCPExecution",
 ];
 
 /**
@@ -657,6 +662,9 @@ export const CANONICAL_TO_COPILOTCLI_EVENT_NAMES: Record<string, string> = {
   preCompact: "preCompact",
   permissionRequest: "permissionRequest",
   notification: "notification",
+  // Added in Copilot CLI v1.0.51 (2026-05-20). The canonical MCP pre-call event
+  // maps to the CLI's `preMcpToolCall` hook.
+  beforeMCPExecution: "preMcpToolCall",
 };
 
 /** Map GitHub Copilot CLI event names back to canonical camelCase. */
