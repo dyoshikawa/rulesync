@@ -32,6 +32,9 @@ jobs:
         with:
           experimental: true
 
+      - name: Setup Takumi Guard npm registry
+        uses: flatt-security/setup-takumi-guard-npm@b32fa78ac6c5507152b0470604b0b546fa2b8521 # v1
+
       - name: Install dependencies
         run: pnpm install --ignore-scripts
 
