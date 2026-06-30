@@ -43,6 +43,26 @@ export const HookDefinitionSchema = z.looseObject({
   // round-tripped through the canonical, flat list of definitions.
   // https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/hooks.md
   sequential: z.optional(z.boolean()),
+  // Qwen Code per-hook fields (PR https://github.com/QwenLM/qwen-code/pull/2827).
+  // Command hooks: `async` runs the command in the background without blocking;
+  // `env` supplies extra environment variables to the subprocess; `shell`
+  // selects the interpreter (`"bash"` | `"powershell"`).
+  async: z.optional(z.boolean()),
+  // Map/string values use `safeString` so control characters (newline/CR/NUL)
+  // can't ride into a generated shell env var or HTTP header (header-splitting
+  // shape), consistent with how `command`/`url` are guarded.
+  env: z.optional(z.record(z.string(), safeString)),
+  shell: z.optional(safeString),
+  // `statusMessage` is the progress text shown while the hook runs; Qwen Code
+  // accepts it on both command and http hooks.
+  statusMessage: z.optional(safeString),
+  // HTTP hooks: `headers` sets request headers (with `${VAR}` interpolation);
+  // `allowedEnvVars` whitelists the env vars usable in URL/headers; `once`
+  // limits execution to a single invocation per event per session.
+  // https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/hooks.md
+  headers: z.optional(z.record(z.string(), safeString)),
+  allowedEnvVars: z.optional(z.array(z.string())),
+  once: z.optional(z.boolean()),
 });
 
 export type HookDefinition = z.infer<typeof HookDefinitionSchema>;

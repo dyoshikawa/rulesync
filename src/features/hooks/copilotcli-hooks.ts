@@ -19,6 +19,7 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { compact } from "../../utils/object.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import {
   ToolHooks,
@@ -195,19 +196,26 @@ function buildCopilotCliEntriesForEvent({
       if (def.prompt === undefined || def.prompt === null) continue;
       entries.push({ type: "prompt", prompt: def.prompt, ...rest });
     } else if (hookType === "http") {
+      // `url`, `headers`, and `allowedEnvVars` are canonical fields Copilot CLI
+      // supports natively on http hooks, so emit them explicitly rather than via
+      // the non-canonical passthrough.
       entries.push({
         type: "http",
         ...matcherPart,
-        ...(def.url !== undefined && def.url !== null && { url: def.url }),
+        ...compact({
+          url: def.url,
+          headers: def.headers,
+          allowedEnvVars: def.allowedEnvVars,
+        }),
         ...timeoutPart,
         ...rest,
       });
     } else {
-      const command = def.command;
+      // `env` is a canonical field Copilot CLI supports natively on command hooks.
       entries.push({
         type: "command",
         ...matcherPart,
-        ...(command !== undefined && command !== null && { [commandField]: command }),
+        ...compact({ [commandField]: def.command, env: def.env }),
         ...timeoutPart,
         ...rest,
       });
