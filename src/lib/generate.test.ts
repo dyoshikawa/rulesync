@@ -1068,6 +1068,8 @@ describe("generate", () => {
   });
 });
 
+const stubRun = async () => ({ count: 0, paths: [], hasDiff: false });
+
 const executionStep = (
   id: string,
   opts: { writesSharedFile?: string[]; dependsOn?: string[] } = {},
@@ -1075,7 +1077,7 @@ const executionStep = (
   ({
     id,
     ...opts,
-    run: async () => ({ count: 0, paths: [], hasDiff: false }),
+    run: stubRun,
   }) as never;
 
 describe("resolveExecutionOrder", () => {
@@ -1155,9 +1157,7 @@ describe("resolveExecutionOrder", () => {
 });
 
 const asRunnableSteps = () =>
-  GENERATION_STEP_GRAPH.map(
-    (meta) => ({ ...meta, run: async () => ({ count: 0, paths: [], hasDiff: false }) }) as never,
-  );
+  GENERATION_STEP_GRAPH.map((meta) => ({ ...meta, run: stubRun }) as never);
 
 describe("GENERATION_STEP_GRAPH", () => {
   it("is well-formed: every shared-file writer pair is ordered by dependsOn", () => {

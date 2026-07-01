@@ -201,9 +201,9 @@ type GenerationStepId =
 type GenerationStep = {
   id: GenerationStepId;
   /** Tokens for on-disk files this step read-modify-writes and shares with other steps. */
-  writesSharedFile?: string[];
+  writesSharedFile?: readonly string[];
   /** Step ids that must run before this one (they write a shared file this step then reads). */
-  dependsOn?: GenerationStepId[];
+  dependsOn?: readonly GenerationStepId[];
   run: () => Promise<FeatureGenerateResult>;
 };
 
@@ -300,16 +300,18 @@ export function resolveExecutionOrder(steps: GenerationStep[]): GenerationStep[]
   return ordered;
 }
 
-type GenerationStepMeta = Omit<GenerationStep, "run">;
+type GenerationStepMeta = Readonly<Omit<GenerationStep, "run">>;
 
 /**
  * The static shape of the generation step graph: which steps write which shared
  * (read-modify-write) config files, and the `dependsOn` edges that fix a safe order
  * for those writers. Exported (separately from the `run` closures, which need a
  * live `config`/`logger`) so `resolveExecutionOrder`'s ordering guarantee can be
- * tested directly against the real graph rather than a hand-copied one.
+ * tested directly against the real graph rather than a hand-copied one. Readonly
+ * so a consumer can't mutate this module-level singleton and affect every
+ * subsequent `generate()` call in the process.
  */
-export const GENERATION_STEP_GRAPH: GenerationStepMeta[] = [
+export const GENERATION_STEP_GRAPH: readonly GenerationStepMeta[] = [
   {
     id: "ignore",
     writesSharedFile: ["claude-settings", "zed-settings"],
@@ -348,8 +350,10 @@ export const GENERATION_STEP_GRAPH: GenerationStepMeta[] = [
       "vibe-config",
       "devin-config",
     ],
-    // Shares claude-settings with ignore and several *-config files with mcp;
-    // both must run first so hooks' read-modify-write doesn't drop their keys.
+    // Shares claude-settings with ignore, and shares qwencode-settings,
+    // augmentcode-settings, hermesagent-config, codexcli-config, vibe-config,
+    // and devin-config with mcp; both must run first so hooks' read-modify-write
+    // doesn't drop their keys.
     dependsOn: ["ignore", "mcp"],
   },
   {
@@ -369,8 +373,9 @@ export const GENERATION_STEP_GRAPH: GenerationStepMeta[] = [
       "devin-config",
       "reasonix-config",
     ],
-    // Shares claude-settings/zed-settings/kilo-opencode-config and several
-    // *-config files with ignore, hooks, and mcp; all three must run first.
+    // Shares claude-settings/zed-settings with ignore, every token hooks writes,
+    // and every token mcp writes; all three must run first so permissions'
+    // read-modify-write doesn't drop their keys.
     dependsOn: ["ignore", "hooks", "mcp"],
   },
   {
