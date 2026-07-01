@@ -23,3 +23,8 @@ export const COPILOTCLI_HOOKS_FILE_NAME = "copilotcli-hooks.json";
 // Copilot IDE target via COPILOT_SKILLS_DIR_PATH) and personal/global skills
 // from `~/.copilot/skills/`.
 export const COPILOTCLI_SKILLS_GLOBAL_DIR_PATH = join(COPILOT_DIR, "skills");
+// GitHub Copilot auto-discovers personal/global skills from `~/.copilot/skills/`
+// (shared with the Copilot CLI personal skills location), mirroring the project
+// `.github/skills/` layout.
+// https://docs.github.com/en/copilot/concepts/agents/about-agent-skills
+export const COPILOT_SKILLS_GLOBAL_DIR_PATH = join(COPILOT_DIR, "skills");

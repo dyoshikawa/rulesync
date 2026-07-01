@@ -185,8 +185,10 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
   [
     "copilot",
     {
+      // GitHub Copilot reads project skills from `.github/skills/` and personal
+      // skills from `~/.copilot/skills/`, so it supports both project and global.
       class: CopilotSkill,
-      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
   [

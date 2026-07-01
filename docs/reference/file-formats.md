@@ -502,7 +502,7 @@ agentsskills: # for the Agent Skills standard target (optional; supports project
   metadata: # (optional) free-form metadata (spec-recommended place for skill versioning)
     version: "1.0.0"
   allowed-tools: "shell" # (optional, experimental) space-separated string or list
-copilot: # for GitHub Copilot-specific parameters (optional)
+copilot: # for GitHub Copilot-specific parameters (optional; project .github/skills/, global ~/.copilot/skills/)
   license: MIT # (optional)
   allowed-tools: "shell" # (optional) tools pre-approved without per-use confirmation
 copilotcli: # for GitHub Copilot CLI-specific parameters (optional; project .github/skills/, global ~/.copilot/skills/)
