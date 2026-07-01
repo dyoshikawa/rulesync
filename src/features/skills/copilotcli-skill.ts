@@ -4,7 +4,7 @@ import { z } from "zod/mini";
 
 import {
   COPILOT_SKILLS_DIR_PATH,
-  COPILOTCLI_SKILLS_GLOBAL_DIR_PATH,
+  COPILOT_SKILLS_GLOBAL_DIR_PATH,
 } from "../../constants/copilot-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
@@ -87,7 +87,7 @@ export class CopilotcliSkill extends ToolSkill {
   static getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths {
     if (options?.global) {
       return {
-        relativeDirPath: COPILOTCLI_SKILLS_GLOBAL_DIR_PATH,
+        relativeDirPath: COPILOT_SKILLS_GLOBAL_DIR_PATH,
       };
     }
     return {

@@ -19,12 +19,9 @@ export const COPILOTCLI_PROJECT_MCP_FILE_NAME = "mcp.json";
 export const COPILOTCLI_AGENTS_DIR_PATH = join(COPILOT_DIR, "agents");
 export const COPILOTCLI_HOOKS_DIR_PATH = join(COPILOT_DIR, "hooks");
 export const COPILOTCLI_HOOKS_FILE_NAME = "copilotcli-hooks.json";
-// Copilot CLI reads project skills from `.github/skills/` (shared with the
-// Copilot IDE target via COPILOT_SKILLS_DIR_PATH) and personal/global skills
-// from `~/.copilot/skills/`.
-export const COPILOTCLI_SKILLS_GLOBAL_DIR_PATH = join(COPILOT_DIR, "skills");
-// GitHub Copilot auto-discovers personal/global skills from `~/.copilot/skills/`
-// (shared with the Copilot CLI personal skills location), mirroring the project
-// `.github/skills/` layout.
+// Both GitHub Copilot and the Copilot CLI auto-discover personal/global skills
+// from the same `~/.copilot/skills/` location (mirroring the project
+// `.github/skills/` layout shared via COPILOT_SKILLS_DIR_PATH), so they share
+// this one constant rather than each declaring an identical value.
 // https://docs.github.com/en/copilot/concepts/agents/about-agent-skills
 export const COPILOT_SKILLS_GLOBAL_DIR_PATH = join(COPILOT_DIR, "skills");
