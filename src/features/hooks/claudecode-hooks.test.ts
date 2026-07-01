@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -204,6 +205,46 @@ describe("ClaudecodeHooks", () => {
       expect(sessionStartEntry.hooks[1].command).toBe("npx prettier --write ./src/hooks/format.ts");
     });
 
+    it("should quote the $CLAUDE_PROJECT_DIR-prefixed path so it survives spaces in the project path (#2097)", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          sessionStart: [{ type: "command", command: "./x.sh" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = claudecodeHooks.getFileContent();
+      const parsed = JSON.parse(content);
+      const command = parsed.hooks.SessionStart[0].hooks[0].command;
+      expect(command).toBe('"$CLAUDE_PROJECT_DIR/x.sh"');
+
+      // Simulate how Claude Code invokes hooks: `/bin/sh -c "<command>"`. Without quoting,
+      // a project path containing a space (e.g. "/Volumes/Crucial X9/...") would word-split
+      // and fail with `/bin/sh: /Volumes/Crucial: No such file or directory`.
+      const projectDir = "/Volumes/Crucial X9/project";
+      const shCommand = command.replace("$CLAUDE_PROJECT_DIR", projectDir);
+      const result = execFileSync("/bin/sh", ["-c", `printf %s ${shCommand}`], {
+        encoding: "utf8",
+      });
+      expect(result).toBe(`${projectDir}/x.sh`);
+    });
+
     it("should merge config.claudecode.hooks on top of shared hooks", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
@@ -337,6 +378,28 @@ describe("ClaudecodeHooks", () => {
       expect(json.hooks.sessionStart).toHaveLength(1);
       expect(json.hooks.sessionStart?.[0]?.command).toContain("echo.sh");
       expect(json.hooks.stop).toHaveLength(1);
+    });
+
+    it("should strip a quoted $CLAUDE_PROJECT_DIR prefix back to a ./-relative command (#2097)", () => {
+      const claudecodeHooks = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            SessionStart: [
+              {
+                hooks: [{ type: "command", command: '"$CLAUDE_PROJECT_DIR/x.sh"' }],
+              },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const rulesyncHooks = claudecodeHooks.toRulesyncHooks();
+      const json = rulesyncHooks.getJson();
+      expect(json.hooks.sessionStart?.[0]?.command).toBe("./x.sh");
     });
   });
 

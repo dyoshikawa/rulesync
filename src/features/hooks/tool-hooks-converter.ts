@@ -98,9 +98,16 @@ function applyCommandPrefix({
     !trimmedCommand.startsWith("$") &&
     (!converterConfig.prefixDotRelativeCommandsOnly || trimmedCommand.startsWith("."));
 
-  return shouldPrefix && typeof trimmedCommand === "string"
-    ? `${converterConfig.projectDirVar}/${trimmedCommand.replace(/^\.\//, "")}`
-    : def.command;
+  if (!shouldPrefix || typeof trimmedCommand !== "string") {
+    return def.command;
+  }
+  const withoutDotPrefix = trimmedCommand.replace(/^\.\//, "");
+  const spaceIndex = withoutDotPrefix.indexOf(" ");
+  const pathToken = spaceIndex === -1 ? withoutDotPrefix : withoutDotPrefix.slice(0, spaceIndex);
+  const rest = spaceIndex === -1 ? "" : withoutDotPrefix.slice(spaceIndex);
+  // Quote only the substituted path token so commands invoked via `sh -c` survive
+  // project paths containing spaces; trailing args are left unquoted and intact.
+  return `"${converterConfig.projectDirVar}/${pathToken}"${rest}`;
 }
 
 /**
@@ -211,10 +218,12 @@ function stripCommandPrefix({
     typeof cmd === "string" &&
     cmd.includes(`${converterConfig.projectDirVar}/`)
   ) {
-    return cmd.replace(
-      new RegExp(`^${converterConfig.projectDirVar.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/?`),
-      "./",
-    );
+    const escapedVar = converterConfig.projectDirVar.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const quotedMatch = cmd.match(new RegExp(`^"${escapedVar}\\/([^"]*)"(.*)$`));
+    if (quotedMatch) {
+      return `./${quotedMatch[1]}${quotedMatch[2]}`;
+    }
+    return cmd.replace(new RegExp(`^${escapedVar}\\/?`), "./");
   }
   return cmd;
 }
