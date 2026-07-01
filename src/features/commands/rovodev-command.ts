@@ -11,7 +11,7 @@ import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { readFileContent, readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import { stringifyFrontmatter } from "../../utils/frontmatter.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isPlainObject, isRecord } from "../../utils/type-guards.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -211,7 +211,10 @@ export class RovodevCommand extends ToolCommand {
     if (existingContent) {
       try {
         const parsed = load(existingContent);
-        if (isRecord(parsed)) {
+        // `isPlainObject` (not `isRecord`) rejects class instances / non-plain
+        // objects for prototype-pollution hardening before this gets spread
+        // into a new object below, mirroring rovodev-mcp.ts's convention.
+        if (isPlainObject(parsed)) {
           existing = parsed;
         }
       } catch {
@@ -268,7 +271,7 @@ async function lookupPromptDescription({
     return "";
   }
 
-  if (!isRecord(parsed) || !Array.isArray(parsed.prompts)) {
+  if (!isPlainObject(parsed) || !Array.isArray(parsed.prompts)) {
     return "";
   }
 
