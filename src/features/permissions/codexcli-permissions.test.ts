@@ -1080,6 +1080,72 @@ default_permissions = "rulesync"
     }
   });
 
+  it("should preserve granular tool-approval keys (default_tools_approval_mode, approval_policy, approvals_reviewer, apps.*, mcp_servers.*) on round-trip", async () => {
+    const codexDir = join(testDir, ".codex");
+    await ensureDir(codexDir);
+    await writeFileContent(
+      join(codexDir, "config.toml"),
+      `
+default_tools_approval_mode = "prompt"
+approvals_reviewer = "auto_review"
+
+[approval_policy]
+sandbox_approval = true
+rules = true
+mcp_elicitations = false
+request_permissions = true
+skill_approval = false
+
+[apps.myapp]
+default_tools_approval_mode = "auto"
+
+[mcp_servers.myserver]
+default_tools_approval_mode = "approve"
+command = "node"
+`,
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          read: { "src/**": "allow" },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    const parsed = smolToml.parse(fileContent) as Record<string, unknown>;
+
+    expect(parsed.default_tools_approval_mode).toBe("prompt");
+    expect(parsed.approvals_reviewer).toBe("auto_review");
+    expect(parsed.approval_policy).toEqual({
+      sandbox_approval: true,
+      rules: true,
+      mcp_elicitations: false,
+      request_permissions: true,
+      skill_approval: false,
+    });
+    expect((parsed.apps as Record<string, unknown>).myapp).toEqual({
+      default_tools_approval_mode: "auto",
+    });
+    expect((parsed.mcp_servers as Record<string, unknown>).myserver).toEqual({
+      default_tools_approval_mode: "approve",
+      command: "node",
+    });
+
+    // The rulesync-managed profile is still written alongside the preserved keys.
+    expect(fileContent).toContain('default_permissions = "rulesync"');
+    expect(fileContent).toContain('"src/**" = "read"');
+  });
+
   it("should convert rulesync bash permissions to Codex CLI .rules file", () => {
     const rulesFile = createCodexcliBashRulesFile({
       outputRoot: testDir,

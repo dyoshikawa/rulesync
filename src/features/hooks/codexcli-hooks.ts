@@ -37,9 +37,15 @@ const CODEXCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
 };
 
 /**
- * Build the content for `.codex/config.toml` with `[features] hooks = true`.
- * Reads the existing file (if any), parses TOML, sets the flag, and returns the content
- * without writing to disk. The caller is responsible for writing via the normal write phase.
+ * Build the content for `.codex/config.toml`, cleaning up the deprecated `codex_hooks` key.
+ * Reads the existing file (if any), parses TOML, and returns the content without writing to
+ * disk. The caller is responsible for writing via the normal write phase.
+ *
+ * Hooks are GA and enabled by default in Codex CLI, so `[features] hooks = true` is no longer
+ * required and is intentionally NOT force-written here (doing so used to be harmless/idempotent,
+ * but is now redundant and could mask a user's own `hooks = false` opt-out on a later edit).
+ * See https://developers.openai.com/codex/hooks. Only the legacy `codex_hooks` alias — superseded
+ * by `hooks` — is still cleaned up.
  */
 async function buildCodexConfigTomlContent({
   outputRoot,
@@ -60,12 +66,9 @@ async function buildCodexConfigTomlContent({
     );
   }
 
-  if (typeof configToml.features !== "object" || configToml.features === null) {
-    configToml.features = {} as smolToml.TomlTable;
+  if (typeof configToml.features === "object" && configToml.features !== null) {
+    delete (configToml.features as smolToml.TomlTable).codex_hooks;
   }
-  const features = configToml.features as smolToml.TomlTable;
-  delete features.codex_hooks;
-  features.hooks = true;
 
   return smolToml.stringify(configToml);
 }
