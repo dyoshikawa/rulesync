@@ -144,10 +144,9 @@ Skill content goes here.`,
       expect(paths.relativeDirPath).toBe(join(".github", "skills"));
     });
 
-    it("should throw for global mode", () => {
-      expect(() => CopilotSkill.getSettablePaths({ global: true })).toThrow(
-        "CopilotSkill does not support global mode.",
-      );
+    it("should return the personal .copilot/skills directory for global mode", () => {
+      const paths = CopilotSkill.getSettablePaths({ global: true });
+      expect(paths.relativeDirPath).toBe(join(".copilot", "skills"));
     });
   });
 
@@ -196,6 +195,19 @@ Skill content goes here.`,
         license: "Apache-2.0",
       });
       expect(copilotSkill.getBody()).toBe("Follow the testing plan");
+    });
+
+    it("should write to ~/.copilot/skills in global mode", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "global-skill",
+        frontmatter: { name: "global-skill", description: "Global", targets: ["*"] },
+        body: "content",
+      });
+
+      const copilotSkill = CopilotSkill.fromRulesyncSkill({ rulesyncSkill, global: true });
+      expect(copilotSkill.getRelativeDirPath()).toBe(join(".copilot", "skills"));
     });
 
     it("should round-trip the allowed-tools skill frontmatter", () => {
