@@ -300,6 +300,89 @@ export function resolveExecutionOrder(steps: GenerationStep[]): GenerationStep[]
   return ordered;
 }
 
+type GenerationStepMeta = Omit<GenerationStep, "run">;
+
+/**
+ * The static shape of the generation step graph: which steps write which shared
+ * (read-modify-write) config files, and the `dependsOn` edges that fix a safe order
+ * for those writers. Exported (separately from the `run` closures, which need a
+ * live `config`/`logger`) so `resolveExecutionOrder`'s ordering guarantee can be
+ * tested directly against the real graph rather than a hand-copied one.
+ */
+export const GENERATION_STEP_GRAPH: GenerationStepMeta[] = [
+  {
+    id: "ignore",
+    writesSharedFile: ["claude-settings", "zed-settings"],
+  },
+  {
+    id: "mcp",
+    writesSharedFile: [
+      "kilo-opencode-config",
+      "zed-settings",
+      "qwencode-settings",
+      "augmentcode-settings",
+      "hermesagent-config",
+      "amp-settings",
+      "codexcli-config",
+      "grokcli-config",
+      "vibe-config",
+      "devin-config",
+      "reasonix-config",
+    ],
+    // Both ignore and mcp write zed-settings; ignore must run first so mcp's
+    // read-modify-write doesn't drop the ignore keys it wrote.
+    dependsOn: ["ignore"],
+  },
+  { id: "commands" },
+  { id: "subagents" },
+  { id: "skills" },
+  {
+    id: "hooks",
+    writesSharedFile: [
+      "claude-settings",
+      "qwencode-settings",
+      "augmentcode-settings",
+      "hermesagent-config",
+      "kiro-agent-config",
+      "codexcli-config",
+      "vibe-config",
+      "devin-config",
+    ],
+    // Shares claude-settings with ignore and several *-config files with mcp;
+    // both must run first so hooks' read-modify-write doesn't drop their keys.
+    dependsOn: ["ignore", "mcp"],
+  },
+  {
+    id: "permissions",
+    writesSharedFile: [
+      "claude-settings",
+      "kilo-opencode-config",
+      "zed-settings",
+      "qwencode-settings",
+      "augmentcode-settings",
+      "hermesagent-config",
+      "kiro-agent-config",
+      "amp-settings",
+      "codexcli-config",
+      "grokcli-config",
+      "vibe-config",
+      "devin-config",
+      "reasonix-config",
+    ],
+    // Shares claude-settings/zed-settings/kilo-opencode-config and several
+    // *-config files with ignore, hooks, and mcp; all three must run first.
+    dependsOn: ["ignore", "hooks", "mcp"],
+  },
+  {
+    id: "rules",
+    writesSharedFile: ["kilo-opencode-config"],
+    // Shares kilo-opencode-config with mcp and permissions (both must run first),
+    // and reads the skills list the skills step produces (a value dependency,
+    // not a shared-file one).
+    dependsOn: ["mcp", "skills", "permissions"],
+  },
+];
+
 /**
  * Generate configuration files for AI tools.
  * @throws Error if generation fails
@@ -313,81 +396,24 @@ export async function generate(params: {
   // Captured by the skills step so the rules step can read the generated skills.
   let skillsResult: Awaited<ReturnType<typeof generateSkillsCore>> | undefined;
 
-  const steps: GenerationStep[] = [
-    {
-      id: "ignore",
-      writesSharedFile: ["claude-settings", "zed-settings"],
-      run: () => generateIgnoreCore({ config, logger }),
+  const runners: Record<GenerationStepId, () => Promise<FeatureGenerateResult>> = {
+    ignore: () => generateIgnoreCore({ config, logger }),
+    mcp: () => generateMcpCore({ config, logger }),
+    commands: () => generateCommandsCore({ config, logger }),
+    subagents: () => generateSubagentsCore({ config, logger }),
+    skills: async () => {
+      skillsResult = await generateSkillsCore({ config, logger });
+      return skillsResult;
     },
-    {
-      id: "mcp",
-      writesSharedFile: [
-        "kilo-opencode-config",
-        "zed-settings",
-        "qwencode-settings",
-        "augmentcode-settings",
-        "hermesagent-config",
-        "amp-settings",
-        "codexcli-config",
-        "grokcli-config",
-        "vibe-config",
-        "devin-config",
-        "reasonix-config",
-      ],
-      dependsOn: ["ignore"],
-      run: () => generateMcpCore({ config, logger }),
-    },
-    { id: "commands", run: () => generateCommandsCore({ config, logger }) },
-    { id: "subagents", run: () => generateSubagentsCore({ config, logger }) },
-    {
-      id: "skills",
-      run: async () => {
-        skillsResult = await generateSkillsCore({ config, logger });
-        return skillsResult;
-      },
-    },
-    {
-      id: "hooks",
-      writesSharedFile: [
-        "claude-settings",
-        "qwencode-settings",
-        "augmentcode-settings",
-        "hermesagent-config",
-        "kiro-agent-config",
-        "codexcli-config",
-        "vibe-config",
-        "devin-config",
-      ],
-      dependsOn: ["ignore", "mcp"],
-      run: () => generateHooksCore({ config, logger }),
-    },
-    {
-      id: "permissions",
-      writesSharedFile: [
-        "claude-settings",
-        "kilo-opencode-config",
-        "zed-settings",
-        "qwencode-settings",
-        "augmentcode-settings",
-        "hermesagent-config",
-        "kiro-agent-config",
-        "amp-settings",
-        "codexcli-config",
-        "grokcli-config",
-        "vibe-config",
-        "devin-config",
-        "reasonix-config",
-      ],
-      dependsOn: ["ignore", "hooks", "mcp"],
-      run: () => generatePermissionsCore({ config, logger }),
-    },
-    {
-      id: "rules",
-      writesSharedFile: ["kilo-opencode-config"],
-      dependsOn: ["mcp", "skills", "permissions"],
-      run: () => generateRulesCore({ config, logger, skills: skillsResult?.skills }),
-    },
-  ];
+    hooks: () => generateHooksCore({ config, logger }),
+    permissions: () => generatePermissionsCore({ config, logger }),
+    rules: () => generateRulesCore({ config, logger, skills: skillsResult?.skills }),
+  };
+
+  const steps: GenerationStep[] = GENERATION_STEP_GRAPH.map((meta) => ({
+    ...meta,
+    run: runners[meta.id],
+  }));
 
   const orderedSteps = resolveExecutionOrder(steps);
 
