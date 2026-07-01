@@ -1138,6 +1138,7 @@ describe("CommandsProcessor", () => {
           "hermesagent",
           "junie",
           "kilo",
+          "kiro-cli",
           "opencode",
           "pi",
           "qwencode",

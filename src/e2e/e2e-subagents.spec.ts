@@ -445,6 +445,7 @@ describe("E2E: subagents (global mode)", () => {
     { target: "grokcli", outputPath: join(".grok", "agents", "planner.md") },
     { target: "qwencode", outputPath: join(".qwen", "agents", "planner.md") },
     { target: "junie", outputPath: join(".junie", "agents", "planner.md") },
+    { target: "kiro-cli", outputPath: join(".kiro", "agents", "planner.json") },
     { target: "opencode", outputPath: join(".config", "opencode", "agents", "planner.md") },
     { target: "rovodev", outputPath: join(".rovodev", "subagents", "planner.md") },
     { target: "takt", outputPath: join(".takt", "facets", "personas", "planner.md") },

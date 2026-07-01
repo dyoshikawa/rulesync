@@ -263,10 +263,13 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     },
   ],
   [
+    // Kiro CLI loads agent configs from both `.kiro/agents/` (workspace) and
+    // `~/.kiro/agents/` (global); local agents take precedence over global
+    // ones with the same name. https://kiro.dev/docs/cli/custom-agents/configuration-reference/
     "kiro-cli",
     {
       class: KiroCliSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.json" },
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.json" },
     },
   ],
   [
