@@ -14,6 +14,11 @@ import {
 } from "./tool-command.js";
 
 export class KiroCommand extends ToolCommand {
+  // Kiro reads prompts from `.kiro/prompts/` (workspace) and, for the Kiro
+  // CLI, also from `~/.kiro/prompts/` (global, local takes precedence). Both
+  // scopes share the same relative path; the home-directory root is applied
+  // by the generate pipeline in global mode.
+  // https://kiro.dev/docs/cli/chat/manage-prompts/
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
     return {
       relativeDirPath: KIRO_PROMPTS_DIR_PATH,

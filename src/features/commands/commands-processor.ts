@@ -313,13 +313,16 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     },
   ],
   [
+    // Kiro CLI reads user-wide prompts from `~/.kiro/prompts/` in addition to
+    // the project-scope `.kiro/prompts/` (local takes precedence over global).
+    // https://kiro.dev/docs/cli/chat/manage-prompts/
     "kiro-cli",
     {
       class: KiroCliCommand,
       meta: {
         extension: "md",
         supportsProject: true,
-        supportsGlobal: false,
+        supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: false,
       },

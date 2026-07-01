@@ -191,6 +191,7 @@ describe("E2E: commands (global mode)", () => {
     { target: "cline", outputPath: join("Documents", "Cline", "Workflows", "review-pr.md") },
     { target: "kilo", outputPath: join(".config", "kilo", "commands", "review-pr.md") },
     { target: "junie", outputPath: join(".junie", "commands", "review-pr.md") },
+    { target: "kiro-cli", outputPath: join(".kiro", "prompts", "review-pr.md") },
     {
       target: "antigravity-ide",
       outputPath: join(".gemini", "antigravity", "global_workflows", "review-pr.md"),
