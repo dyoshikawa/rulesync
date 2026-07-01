@@ -12,7 +12,12 @@ import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { fileExists, readFileContentOrNull } from "../utils/file.js";
-import { checkRulesyncDirExists, generate, resolveExecutionOrder } from "./generate.js";
+import {
+  checkRulesyncDirExists,
+  generate,
+  GENERATION_STEP_GRAPH,
+  resolveExecutionOrder,
+} from "./generate.js";
 
 const logger = createMockLogger();
 
@@ -1063,6 +1068,8 @@ describe("generate", () => {
   });
 });
 
+const stubRun = async () => ({ count: 0, paths: [], hasDiff: false });
+
 const executionStep = (
   id: string,
   opts: { writesSharedFile?: string[]; dependsOn?: string[] } = {},
@@ -1070,7 +1077,7 @@ const executionStep = (
   ({
     id,
     ...opts,
-    run: async () => ({ count: 0, paths: [], hasDiff: false }),
+    run: stubRun,
   }) as never;
 
 describe("resolveExecutionOrder", () => {
@@ -1146,5 +1153,47 @@ describe("resolveExecutionOrder", () => {
     expect(() =>
       resolveExecutionOrder([step("a", { dependsOn: ["b"] }), step("b", { dependsOn: ["a"] })]),
     ).toThrow(/cyclic/);
+  });
+});
+
+const asRunnableSteps = () =>
+  GENERATION_STEP_GRAPH.map((meta) => ({ ...meta, run: stubRun }) as never);
+
+describe("GENERATION_STEP_GRAPH", () => {
+  it("is well-formed: every shared-file writer pair is ordered by dependsOn", () => {
+    expect(() => resolveExecutionOrder(asRunnableSteps())).not.toThrow();
+  });
+
+  it("declares every dependsOn edge for a reason: an overlapping writesSharedFile token, or the known rules->skills value dependency", () => {
+    const byId = new Map(GENERATION_STEP_GRAPH.map((meta) => [meta.id, meta]));
+    const knownValueDependencies = new Set(["rules->skills"]);
+
+    for (const step of GENERATION_STEP_GRAPH) {
+      for (const dep of step.dependsOn ?? []) {
+        const edgeKey = `${step.id}->${dep}`;
+        const depFiles = new Set(byId.get(dep)?.writesSharedFile ?? []);
+        const sharesFile = (step.writesSharedFile ?? []).some((file) => depFiles.has(file));
+
+        expect(
+          sharesFile || knownValueDependencies.has(edgeKey),
+          `dependsOn edge '${edgeKey}' has no overlapping writesSharedFile token and is not a ` +
+            `documented value dependency; either it's stale or the known-value-dependency list ` +
+            `needs updating`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("pins the full execution order of the real generation step graph", () => {
+    expect(resolveExecutionOrder(asRunnableSteps()).map((s) => s.id)).toEqual([
+      "ignore",
+      "commands",
+      "subagents",
+      "skills",
+      "mcp",
+      "hooks",
+      "permissions",
+      "rules",
+    ]);
   });
 });
