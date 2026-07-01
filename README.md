@@ -93,7 +93,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Cline                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |
 | Kilo Code              |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Roo Code               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |             |
-| Rovodev (Atlassian)    |  ✅   |        | ✅  |          |    ✅     |   ✅   |       |     ✅      |
+| Rovodev (Atlassian)    |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |
 | Takt                   |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |
 | Vibe Code              |  ✅   |   ✅   | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |
 | Qwen Code              |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |

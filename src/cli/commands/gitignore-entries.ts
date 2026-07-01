@@ -79,6 +79,10 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
 
   // Shared trees and global-scope outputs not produced via project getSettablePaths.
   { target: "rovodev", feature: "skills", entry: "**/.agents/skills/" },
+  // The `prompts.yml` manifest is produced via `RovodevCommand.getAuxiliaryFiles`,
+  // not `getSettablePaths` (only the sibling `.rovodev/prompts/` content-file
+  // directory is derived automatically), so it needs a hand-maintained entry.
+  { target: "rovodev", feature: "commands", entry: "**/.rovodev/prompts.yml" },
   { target: "devin", feature: "skills", entry: "**/.codeium/windsurf/skills/" },
   { target: "copilotcli", feature: "subagents", entry: "**/.copilot/agents/" },
   { target: "copilotcli", feature: "mcp", entry: "**/.copilot/mcp-config.json" },
