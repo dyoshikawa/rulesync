@@ -492,6 +492,55 @@ export const QWENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "todoCompleted",
 ];
 
+/**
+ * Hook events supported by Hermes Agent's native Shell Hooks system.
+ *
+ * Hermes validates hook events against a fixed `VALID_HOOKS` set:
+ * `pre_tool_call`, `post_tool_call`, `pre_llm_call`, `post_llm_call`,
+ * `pre_verify`, `on_session_start`, `on_session_end`, `on_session_finalize`,
+ * `on_session_reset`, `subagent_start`, `subagent_stop`, `pre_gateway_dispatch`,
+ * `pre_approval_request`, `post_approval_response`, `transform_tool_result`,
+ * `transform_terminal_output`, `transform_llm_output`. Only the events with a
+ * clean 1:1 canonical equivalent are mapped here; the remaining `VALID_HOOKS`
+ * entries (`pre_verify`, `on_session_finalize`, `on_session_reset`,
+ * `pre_gateway_dispatch`, `pre_approval_request`, `post_approval_response`, the
+ * `transform_*` result-rewriting hooks) have no canonical rulesync equivalent,
+ * so no canonical event maps to them.
+ * @see https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/hooks.md
+ */
+export const HERMESAGENT_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "preToolUse",
+  "postToolUse",
+  "preModelInvocation",
+  "postModelInvocation",
+  "subagentStart",
+  "subagentStop",
+];
+
+/**
+ * Map canonical camelCase event names to Hermes Agent's native `VALID_HOOKS`
+ * snake_case keys under the `hooks:` block of `~/.hermes/config.yaml`.
+ */
+export const CANONICAL_TO_HERMESAGENT_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "on_session_start",
+  sessionEnd: "on_session_end",
+  preToolUse: "pre_tool_call",
+  postToolUse: "post_tool_call",
+  preModelInvocation: "pre_llm_call",
+  postModelInvocation: "post_llm_call",
+  subagentStart: "subagent_start",
+  subagentStop: "subagent_stop",
+};
+
+/**
+ * Map Hermes Agent's native `VALID_HOOKS` keys back to canonical camelCase.
+ */
+export const HERMESAGENT_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_HERMESAGENT_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
 const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
 
 /**
@@ -517,6 +566,7 @@ export const HooksConfigSchema = z.looseObject({
   augmentcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "antigravity-ide": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "antigravity-cli": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  hermesagent: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   junie: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   vibe: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   qwencode: z.optional(
