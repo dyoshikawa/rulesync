@@ -506,6 +506,68 @@ describe("E2E: permissions", () => {
     expect(parsed.disabled_tools).toContain("write_file");
   });
 
+  it("should generate reasonix permissions into reasonix.toml and preserve MCP plugins", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, "reasonix.toml"),
+      [
+        'default_model = "deepseek"',
+        "",
+        "[[plugins]]",
+        'name = "filesystem"',
+        'command = "npx"',
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "*": "ask", "git *": "allow", "rm -rf *": "deny" },
+            edit: { "docs/**": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "reasonix", features: "permissions" });
+
+    const parsed = toTable(smolToml.parse(await readFileContent(join(testDir, "reasonix.toml"))));
+    const permissions = toTable(parsed.permissions);
+    expect(permissions.allow).toContain("Bash(git *)");
+    expect(permissions.allow).toContain("Edit(docs/**)");
+    expect(permissions.ask).toContain("Bash");
+    expect(permissions.deny).toContain("Bash(rm -rf *)");
+    // The MCP [[plugins]] table (written by the MCP adapter) must survive.
+    expect(toTableArray(parsed.plugins)).toMatchObject([{ name: "filesystem", command: "npx" }]);
+    expect(parsed.default_model).toBe("deepseek");
+  });
+
+  it("should import reasonix permissions from reasonix.toml", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, "reasonix.toml"),
+      [
+        "[permissions]",
+        'allow = ["Bash(git *)", "Edit(docs/**)"]',
+        'deny = ["Bash(rm -rf *)"]',
+      ].join("\n"),
+    );
+
+    await runImport({ target: "reasonix", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.bash["git *"]).toBe("allow");
+    expect(content.permission.bash["rm -rf *"]).toBe("deny");
+    expect(content.permission.edit["docs/**"]).toBe("allow");
+  });
+
   it("should generate takt permissions into .takt/config.yaml", async () => {
     const testDir = getTestDir();
 
@@ -1606,6 +1668,48 @@ describe("E2E: permissions (global mode)", () => {
     // Unrelated user settings preserved by the non-destructive merge.
     expect(parsed.model).toBe("hermes-large");
     expect(parsed.terminal).toBe("tmux");
+  });
+
+  it("should generate reasonix permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          root: true,
+          permission: {
+            bash: { "git status *": "allow" },
+            read: { ".env": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    // Pre-seed ~/.reasonix/config.toml with the MCP [[plugins]] table to verify
+    // the non-destructive merge into the shared global config.
+    await writeFileContent(
+      join(homeDir, ".reasonix", "config.toml"),
+      ["[[plugins]]", 'name = "existing"', 'command = "node"'].join("\n"),
+    );
+
+    await runGenerate({
+      target: "reasonix",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const parsed = toTable(
+      smolToml.parse(await readFileContent(join(homeDir, ".reasonix", "config.toml"))),
+    );
+    const permissions = toTable(parsed.permissions);
+    expect(permissions.allow).toContain("Bash(git status *)");
+    expect(permissions.deny).toContain("Read(.env)");
+    expect(toTableArray(parsed.plugins)).toMatchObject([{ name: "existing", command: "node" }]);
   });
 });
 

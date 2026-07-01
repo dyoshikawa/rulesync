@@ -288,6 +288,7 @@ rulesync.local.jsonc
 **/.opencode/commands/
 **/.pi/prompts/
 **/.qwen/commands/
+**/.reasonix/commands/
 **/.roo/commands/
 **/.takt/facets/instructions/
 **/.devin/workflows/
@@ -364,6 +365,7 @@ rulesync.local.jsonc
 **/.devin/hooks.v1.json
 **/.augment/settings.json
 **/.vibe/hooks.toml
+**/.reasonix/settings.json
 **/.cline/command-permissions.json
 **/.cursor/cli.json
 **/.junie/allowlist.json

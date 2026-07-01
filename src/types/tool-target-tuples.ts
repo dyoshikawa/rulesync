@@ -118,6 +118,7 @@ export const commandsProcessorToolTargetTuple = [
   "opencode",
   "pi",
   "qwencode",
+  "reasonix",
   "roo",
   "takt",
   "devin",
@@ -212,6 +213,7 @@ export const hooksProcessorToolTargetTuple = [
   "junie",
   "vibe",
   "qwencode",
+  "reasonix",
 ] as const;
 
 export const permissionsProcessorToolTargetTuple = [
@@ -235,6 +237,7 @@ export const permissionsProcessorToolTargetTuple = [
   "kiro-ide",
   "opencode",
   "qwencode",
+  "reasonix",
   "rovodev",
   "takt",
   "vibe",

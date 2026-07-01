@@ -33,6 +33,7 @@ describe("E2E: commands", () => {
     { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
     { target: "goose", outputPath: join(".goose", "recipes", "review-pr.yaml") },
     { target: "qwencode", outputPath: join(".qwen", "commands", "review-pr.md") },
+    { target: "reasonix", outputPath: join(".reasonix", "commands", "review-pr.md") },
   ])("should generate $target commands", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -143,6 +144,7 @@ describe("E2E: commands (import)", () => {
     { target: "pi", sourcePath: join(".pi", "prompts", "review-pr.md") },
     { target: "devin", sourcePath: join(".devin", "workflows", "review-pr.md") },
     { target: "factorydroid", sourcePath: join(".factory", "commands", "review-pr.md") },
+    { target: "reasonix", sourcePath: join(".reasonix", "commands", "review-pr.md") },
   ])("should import $target commands", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
@@ -212,6 +214,7 @@ describe("E2E: commands (global mode)", () => {
     // Hermes Agent has no project-scoped command location; commands are emitted
     // as Hermes skills under ~/.hermes/skills/<slug>/SKILL.md (global only).
     { target: "hermesagent", outputPath: join(".hermes", "skills", "review-pr", "SKILL.md") },
+    { target: "reasonix", outputPath: join(".reasonix", "commands", "review-pr.md") },
   ])("should generate $target commands in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

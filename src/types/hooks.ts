@@ -493,6 +493,26 @@ export const QWENCODE_HOOK_EVENTS: readonly HookEvent[] = [
 ];
 
 /**
+ * Hook events supported by Reasonix.
+ *
+ * Reasonix's `.reasonix/settings.json` (project) / `~/.reasonix/settings.json`
+ * (global) documents a ten-event surface (`PreToolUse`, `PostToolUse`,
+ * `UserPromptSubmit`, `Stop`, `PostLLMCall`, `SessionStart`, `SessionEnd`,
+ * `SubagentStop`, `Notification`, `PreCompact`), but only the four events the
+ * upstream issue scoped in are mapped here: `PreToolUse`, `PostToolUse`,
+ * `UserPromptSubmit` ← `beforeSubmitPrompt`, and `Stop`. `match` (Reasonix's
+ * matcher field name) is honored only on `PreToolUse`/`PostToolUse`, matching
+ * the canonical `matcher` field's tool-event scoping used by other adapters.
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/DESKTOP_HOOKS.zh-CN.md
+ */
+export const REASONIX_HOOK_EVENTS: readonly HookEvent[] = [
+  "preToolUse",
+  "postToolUse",
+  "beforeSubmitPrompt",
+  "stop",
+];
+
+/**
  * Hook events supported by Hermes Agent's native Shell Hooks system.
  *
  * Hermes validates hook events against a fixed `VALID_HOOKS` set:
@@ -569,6 +589,7 @@ export const HooksConfigSchema = z.looseObject({
   hermesagent: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   junie: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   vibe: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  reasonix: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   qwencode: z.optional(
     z.looseObject({
       hooks: z.optional(hooksRecordSchema),
@@ -1002,4 +1023,24 @@ export const CANONICAL_TO_QWENCODE_EVENT_NAMES: Record<string, string> = {
  */
 export const QWENCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_QWENCODE_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to Reasonix PascalCase.
+ * Reasonix explicitly mirrors Claude Code's hooks model, so it reuses the same
+ * PascalCase names for the four events rulesync maps.
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/DESKTOP_HOOKS.zh-CN.md
+ */
+export const CANONICAL_TO_REASONIX_EVENT_NAMES: Record<string, string> = {
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  stop: "Stop",
+};
+
+/**
+ * Map Reasonix PascalCase event names to canonical camelCase.
+ */
+export const REASONIX_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_REASONIX_EVENT_NAMES).map(([k, v]) => [v, k]),
 );

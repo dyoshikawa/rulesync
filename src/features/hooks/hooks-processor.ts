@@ -21,6 +21,7 @@ import {
   KIRO_IDE_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
   QWENCODE_HOOK_EVENTS,
+  REASONIX_HOOK_EVENTS,
   VIBE_HOOK_EVENTS,
   type HookEvent,
   type HookType,
@@ -50,6 +51,7 @@ import { KiroHooks } from "./kiro-hooks.js";
 import { KiroIdeHooks } from "./kiro-ide-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { QwencodeHooks } from "./qwencode-hooks.js";
+import { ReasonixHooks } from "./reasonix-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import type {
   ToolHooksForDeletionParams,
@@ -447,6 +449,28 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       },
       supportedEvents: QWENCODE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "reasonix",
+    {
+      // Reasonix hooks live in a Claude-Code-style but standalone JSON file:
+      // `.reasonix/settings.json` (project) / `~/.reasonix/settings.json`
+      // (global) — separate from the `[permissions]`/`[[plugins]]` TOML config
+      // the MCP/permissions adapters share. Only the four documented events
+      // (PreToolUse/PostToolUse/UserPromptSubmit/Stop) are mapped; the
+      // .mcp.json/rules/skills scope is deferred per the upstream issue.
+      class: ReasonixHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: REASONIX_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      // Only PreToolUse/PostToolUse honor `match`; the adapter itself drops it
+      // (with a warning) on UserPromptSubmit/Stop.
       supportsMatcher: true,
     },
   ],
