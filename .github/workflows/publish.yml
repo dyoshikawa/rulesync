@@ -48,8 +48,15 @@ jobs:
     name: Bump Homebrew/core formula
     needs: publish
     runs-on: ubuntu-latest
-    # Mirror the publish job's gating so the bump only runs for real releases.
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' && startsWith(github.event.workflow_run.head_branch, 'release/v')
+    # Only bump for real releases. `success()` keeps the implicit `needs: publish`
+    # success gate — a custom `if:` that omits it would replace that gate and let
+    # this job run even when `publish` failed. The remaining checks mirror the
+    # publish job's release-trigger gating.
+    if: success() && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' && startsWith(github.event.workflow_run.head_branch, 'release/v')
+    # This job only opens a cross-repo PR with its own HOMEBREW_BUMP_TOKEN; it never
+    # checks out this repo, uses GITHUB_TOKEN, or requests OIDC, so it needs none of
+    # the workflow-level permissions.
+    permissions: {}
     steps:
       - name: Open Homebrew/core bump PR
         env:
@@ -91,6 +98,10 @@ jobs:
             echo "::error::Failed to compute sha256 for $URL"
             exit 1
           fi
+
+          # GitHub-hosted runners ship Homebrew preinstalled but do not add it to
+          # PATH, so load its shell environment before invoking brew.
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 
           # Skip if Homebrew/core already has this exact version or an open bump PR
           # for it; brew bump-formula-pr is idempotent and will refuse duplicates.
