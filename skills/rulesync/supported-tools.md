@@ -27,7 +27,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Takt                   | takt            | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |    ✅ 🌏    |
 | Vibe Code              | vibe            | ✅ 🌏 |   ✅   |  ✅ 🌏   |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
 | Qwen Code              | qwencode        | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |
-| Reasonix               | reasonix        |       |        |  ✅ 🌏   |          |           |        |       |             |
+| Reasonix               | reasonix        |       |        |  ✅ 🌏   |  ✅ 🌏   |           |        | ✅ 🌏 |    ✅ 🌏    |
 | Kiro ⚠️                | kiro            | ✅ 🌏 |   ✅   |  ✅ 🌏   |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |
 | Kiro CLI               | kiro-cli        | ✅ 🌏 |   ✅   |  ✅ 🌏   |    ✅    |    ✅     | ✅ 🌏  |  ✅   |     ✅      |
 | Kiro IDE               | kiro-ide        | ✅ 🌏 |   ✅   |  ✅ 🌏   |    ✅    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |

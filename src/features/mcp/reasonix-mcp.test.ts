@@ -165,4 +165,94 @@ describe("ReasonixMcp", () => {
 
     expect(reasonixMcp.isDeletable()).toBe(false);
   });
+
+  describe("trusted_read_only_tools round-trip", () => {
+    it("should preserve trusted_read_only_tools when exporting rulesync MCP servers", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            search: {
+              type: "stdio",
+              command: "reasonix-plugin-search",
+              trusted_read_only_tools: ["search"],
+            },
+          },
+        }),
+      });
+
+      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const parsed = smolToml.parse(reasonixMcp.getFileContent()) as any;
+
+      expect(parsed.plugins[0]).toMatchObject({
+        name: "search",
+        command: "reasonix-plugin-search",
+        trusted_read_only_tools: ["search"],
+      });
+    });
+
+    it("should import trusted_read_only_tools from an existing [[plugins]] entry", () => {
+      const fileContent = [
+        "[[plugins]]",
+        'name = "search"',
+        'command = "reasonix-plugin-search"',
+        'trusted_read_only_tools = ["search"]',
+      ].join("\n");
+
+      const reasonixMcp = new ReasonixMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent,
+      });
+
+      const parsed = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
+
+      expect(parsed.mcpServers.search.trusted_read_only_tools).toEqual(["search"]);
+    });
+
+    it("should round-trip trusted_read_only_tools through export then import unchanged", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            example: {
+              command: "reasonix-plugin-example",
+              trusted_read_only_tools: ["search", "list_files"],
+            },
+          },
+        }),
+      });
+
+      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const roundTripped = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
+
+      expect(roundTripped.mcpServers.example.trusted_read_only_tools).toEqual([
+        "search",
+        "list_files",
+      ]);
+    });
+
+    it("should not emit trusted_read_only_tools when absent from the source", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            plain: { command: "reasonix-plugin-plain" },
+          },
+        }),
+      });
+
+      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const parsed = smolToml.parse(reasonixMcp.getFileContent()) as any;
+
+      expect(parsed.plugins[0].trusted_read_only_tools).toBeUndefined();
+    });
+  });
 });

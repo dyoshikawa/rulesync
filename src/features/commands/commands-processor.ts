@@ -32,6 +32,7 @@ import { KiroIdeCommand } from "./kiro-ide-command.js";
 import { OpenCodeCommand } from "./opencode-command.js";
 import { PiCommand } from "./pi-command.js";
 import { QwencodeCommand } from "./qwencode-command.js";
+import { ReasonixCommand } from "./reasonix-command.js";
 import { RooCommand } from "./roo-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { TaktCommand } from "./takt-command.js";
@@ -370,6 +371,23 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
       // upstream) under `.qwen/commands/` (project) / `~/.qwen/commands/`
       // (global), with subdirectory namespacing (`git/commit.md` -> `/git:commit`).
       class: QwencodeCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
+      },
+    },
+  ],
+  [
+    "reasonix",
+    {
+      // Reasonix custom slash commands are Markdown files under
+      // `.reasonix/commands/` (project) / `~/.reasonix/commands/` (global),
+      // directly analogous to Claude Code's `.claude/commands/` (subdirectory
+      // namespacing included, e.g. `git/commit.md` -> `/git:commit`).
+      class: ReasonixCommand,
       meta: {
         extension: "md",
         supportsProject: true,

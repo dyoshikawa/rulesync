@@ -26,6 +26,7 @@ import { KiloPermissions } from "./kilo-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
 import { QwencodePermissions } from "./qwencode-permissions.js";
+import { ReasonixPermissions } from "./reasonix-permissions.js";
 import { RovodevPermissions } from "./rovodev-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { TaktPermissions } from "./takt-permissions.js";
@@ -304,6 +305,20 @@ export const toolPermissionsFactories = new Map<
     {
       class: QwencodePermissions,
       meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "reasonix",
+    {
+      class: ReasonixPermissions,
+      meta: {
+        // Reasonix reads the `[permissions]` table from the same shared TOML
+        // config the MCP adapter already writes: `./reasonix.toml` (project) /
+        // `~/.reasonix/config.toml` (global).
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,

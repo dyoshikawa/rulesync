@@ -264,6 +264,60 @@ describe("E2E: hooks", () => {
     expect(JSON.stringify(parsed)).toContain(".rulesync/hooks/on-stop.sh");
   });
 
+  it("should generate reasonix hooks (.reasonix/settings.json, flat per-event arrays)", async () => {
+    const testDir = getTestDir();
+
+    // Reasonix only maps four events (PreToolUse/PostToolUse/UserPromptSubmit/Stop);
+    // sessionStart has no mapped Reasonix equivalent in rulesync's scoped surface.
+    const hooksContent = JSON.stringify(
+      {
+        version: 1,
+        hooks: {
+          preToolUse: [{ command: ".rulesync/hooks/pre-tool.sh", matcher: "bash", timeout: 5 }],
+          stop: [{ command: ".rulesync/hooks/audit.sh" }],
+          sessionStart: [{ command: ".rulesync/hooks/session-start.sh" }],
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
+
+    await runGenerate({ target: "reasonix", features: "hooks" });
+
+    const generatedContent = await readFileContent(join(testDir, ".reasonix", "settings.json"));
+    const parsed = JSON.parse(generatedContent);
+    // Flat array of hook objects per event, no matcher-group wrapper.
+    expect(parsed.hooks.PreToolUse).toEqual([
+      { match: "bash", command: ".rulesync/hooks/pre-tool.sh", timeout: 5000 },
+    ]);
+    expect(parsed.hooks.Stop).toEqual([{ command: ".rulesync/hooks/audit.sh" }]);
+    expect(parsed.hooks.SessionStart).toBeUndefined();
+  });
+
+  it("should import reasonix hooks from .reasonix/settings.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".reasonix", "settings.json"),
+      JSON.stringify({
+        hooks: {
+          PreToolUse: [{ match: "bash", command: "echo audit", timeout: 5000 }],
+          Stop: [{ command: "echo done" }],
+        },
+      }),
+    );
+
+    await runImport({ target: "reasonix", features: "hooks" });
+
+    const importedContent = await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
+    const parsed = JSON.parse(importedContent);
+    expect(parsed.hooks.preToolUse[0].command).toBe("echo audit");
+    expect(parsed.hooks.preToolUse[0].matcher).toBe("bash");
+    expect(parsed.hooks.preToolUse[0].timeout).toBe(5);
+    expect(parsed.hooks.stop[0].command).toBe("echo done");
+  });
+
   it.each([
     // claudecode, kiro use shared config files (isDeletable=false) — excluded.
     // factorydroid now writes a dedicated .factory/hooks.json (isDeletable=true).
@@ -675,5 +729,34 @@ describe("E2E: hooks (global mode)", () => {
     expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
     expect(generatedContent).toContain("matcher: terminal");
     expect(generatedContent).not.toContain(".rulesync/hooks/wt.sh");
+  });
+
+  it("should generate reasonix hooks in home directory", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    const hooksContent = JSON.stringify(
+      {
+        version: 1,
+        root: true,
+        hooks: {
+          stop: [{ command: ".rulesync/hooks/audit.sh" }],
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
+
+    await runGenerate({
+      target: "reasonix",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generatedContent = await readFileContent(join(homeDir, ".reasonix", "settings.json"));
+    const parsed = JSON.parse(generatedContent);
+    expect(parsed.hooks.Stop).toEqual([{ command: ".rulesync/hooks/audit.sh" }]);
   });
 });

@@ -540,6 +540,7 @@ describe("HooksProcessor", () => {
         "augmentcode",
         "vibe",
         "qwencode",
+        "reasonix",
       ]);
     });
 
@@ -564,6 +565,7 @@ describe("HooksProcessor", () => {
         "junie",
         "vibe",
         "qwencode",
+        "reasonix",
       ]);
     });
 
@@ -586,6 +588,7 @@ describe("HooksProcessor", () => {
         "augmentcode",
         "vibe",
         "qwencode",
+        "reasonix",
       ]);
     });
 
@@ -608,6 +611,7 @@ describe("HooksProcessor", () => {
         "junie",
         "vibe",
         "qwencode",
+        "reasonix",
       ]);
     });
   });
