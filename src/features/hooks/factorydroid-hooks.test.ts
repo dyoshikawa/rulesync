@@ -101,6 +101,37 @@ describe("FactorydroidHooks", () => {
       expect(sessionStartEntry.hooks[0].command).toContain(".rulesync/hooks/session-start.sh");
     });
 
+    it("should quote only the $FACTORY_PROJECT_DIR variable, keeping trailing arguments outside the quotes", async () => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(join(testDir, ".factory", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          sessionStart: [{ type: "command", command: "./scripts/format.sh --fix --quiet" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = factorydroidHooks.getFileContent();
+      const parsed = JSON.parse(content);
+      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe(
+        '"$FACTORY_PROJECT_DIR"/scripts/format.sh --fix --quiet',
+      );
+    });
+
     it("should not prefix commands that already start with $", async () => {
       await ensureDir(join(testDir, ".factory"));
       await writeFileContent(join(testDir, ".factory", "settings.json"), JSON.stringify({}));
@@ -414,6 +445,33 @@ describe("FactorydroidHooks", () => {
       const rulesyncHooks = factorydroidHooks.toRulesyncHooks();
       const json = rulesyncHooks.getJson();
       expect(json.hooks.sessionStart?.[0]?.command).toBe("./.rulesync/hooks/start.sh");
+    });
+
+    it("should strip the quoted $FACTORY_PROJECT_DIR prefix while preserving trailing arguments", () => {
+      const factorydroidHooks = new FactorydroidHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".factory",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            SessionStart: [
+              {
+                hooks: [
+                  {
+                    type: "command",
+                    command: '"$FACTORY_PROJECT_DIR"/scripts/format.sh --fix --quiet',
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const rulesyncHooks = factorydroidHooks.toRulesyncHooks();
+      const json = rulesyncHooks.getJson();
+      expect(json.hooks.sessionStart?.[0]?.command).toBe("./scripts/format.sh --fix --quiet");
     });
 
     it("should preserve matcher from entries", () => {
