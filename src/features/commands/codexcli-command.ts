@@ -30,6 +30,16 @@ export type CodexcliCommandParams = {
   body: string;
 } & Omit<AiFileParams, "fileContent">;
 
+/**
+ * Generates Codex CLI's global-only custom prompts under `~/.codex/prompts/*.md`.
+ *
+ * Note: upstream Codex docs now state "Custom prompts are deprecated. Use skills for
+ * reusable instructions" (https://developers.openai.com/codex/custom-prompts). No removal
+ * date has been announced and custom prompts remain functional, so this class's
+ * generation behavior is unchanged. Prefer rulesync's `codexcli` skills support
+ * (see `src/features/skills/codexcli-skill.ts`) for new reusable instructions going
+ * forward; this class is kept for users who still rely on custom prompts.
+ */
 export class CodexcliCommand extends ToolCommand {
   private readonly frontmatter: CodexcliCommandFrontmatter;
   private readonly body: string;

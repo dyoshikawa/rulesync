@@ -532,9 +532,9 @@ describe("CodexcliConfigToml", () => {
     await cleanup();
   });
 
-  it("should generate config.toml with hooks feature flag", async () => {
+  it("should not force-write [features] hooks = true (hooks are GA/default-on)", async () => {
     const configToml = await CodexcliConfigToml.fromOutputRoot({ outputRoot: testDir });
-    expect(configToml.getFileContent()).toContain("hooks = true");
+    expect(configToml.getFileContent()).not.toContain("hooks = true");
     expect(configToml.getFileContent()).not.toContain("codex_hooks");
   });
 
@@ -547,15 +547,28 @@ describe("CodexcliConfigToml", () => {
 
     const configToml = await CodexcliConfigToml.fromOutputRoot({ outputRoot: testDir });
     const content = configToml.getFileContent();
-    expect(content).toContain("hooks = true");
+    expect(content).not.toContain("hooks = true");
     expect(content).not.toContain("codex_hooks");
     expect(content).toContain("mcp_servers");
     expect(content).toContain("myserver");
   });
 
-  it("should preserve existing [features] values when enabling hooks", async () => {
+  it("should preserve existing [features] values without adding hooks = true", async () => {
     await ensureDir(join(testDir, ".codex"));
     await writeFileContent(join(testDir, ".codex", "config.toml"), "[features]\nverbose = true\n");
+
+    const configToml = await CodexcliConfigToml.fromOutputRoot({ outputRoot: testDir });
+    const content = configToml.getFileContent();
+    expect(content).not.toContain("hooks = true");
+    expect(content).toContain("verbose = true");
+  });
+
+  it("should not strip a user-set [features] hooks = true value", async () => {
+    await ensureDir(join(testDir, ".codex"));
+    await writeFileContent(
+      join(testDir, ".codex", "config.toml"),
+      "[features]\nhooks = true\nverbose = true\n",
+    );
 
     const configToml = await CodexcliConfigToml.fromOutputRoot({ outputRoot: testDir });
     const content = configToml.getFileContent();
@@ -563,7 +576,7 @@ describe("CodexcliConfigToml", () => {
     expect(content).toContain("verbose = true");
   });
 
-  it("should remove deprecated codex_hooks when enabling hooks", async () => {
+  it("should remove deprecated codex_hooks without adding hooks = true", async () => {
     await ensureDir(join(testDir, ".codex"));
     await writeFileContent(
       join(testDir, ".codex", "config.toml"),
@@ -572,7 +585,7 @@ describe("CodexcliConfigToml", () => {
 
     const configToml = await CodexcliConfigToml.fromOutputRoot({ outputRoot: testDir });
     const content = configToml.getFileContent();
-    expect(content).toContain("hooks = true");
+    expect(content).not.toContain("hooks = true");
     expect(content).toContain("verbose = true");
     expect(content).not.toContain("codex_hooks");
   });
