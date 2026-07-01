@@ -46,3 +46,71 @@ jobs:
             exit 1
           fi
           gh release edit "$TAG" --draft=false --latest
+
+  homebrew:
+    name: Bump Homebrew/core formula
+    needs: publish
+    runs-on: ubuntu-latest
+    # Only bump for real releases. `success()` keeps the implicit `needs: publish`
+    # success gate — a custom `if:` that omits it would replace that gate and let
+    # this job run even when `publish` failed. The remaining checks mirror the
+    # publish job's release-trigger gating.
+    if: success() && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' && startsWith(github.event.workflow_run.head_branch, 'release/v')
+    # This job only opens a cross-repo PR with its own HOMEBREW_BUMP_TOKEN; it never
+    # checks out this repo, uses GITHUB_TOKEN, or requests OIDC, so it needs none of
+    # the workflow-level permissions.
+    permissions: {}
+    steps:
+      - name: Open Homebrew/core bump PR
+        env:
+          # Maintainer-owned PAT with `public_repo` scope (forking + PRs against
+          # Homebrew/homebrew-core). The default GITHUB_TOKEN cannot open
+          # cross-repository PRs, so the step is skipped when this is absent.
+          HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.HOMEBREW_BUMP_TOKEN }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          if [ -z "${HOMEBREW_GITHUB_API_TOKEN}" ]; then
+            echo "::warning::HOMEBREW_BUMP_TOKEN secret is not set; skipping Homebrew formula bump."
+            exit 0
+          fi
+
+          TAG="${HEAD_BRANCH#release/}"
+          if ! echo "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid release tag derived from branch: $HEAD_BRANCH"
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          URL="https://registry.npmjs.org/rulesync/-/rulesync-${VERSION}.tgz"
+
+          # Wait until the npm tarball for this version is actually downloadable
+          # (npm registry propagation can lag behind `pnpm publish`).
+          for attempt in $(seq 1 30); do
+            if curl -sfIL "$URL" >/dev/null 2>&1; then
+              break
+            fi
+            echo "Waiting for npm tarball to become available (attempt ${attempt}/30)..."
+            sleep 20
+          done
+          if ! curl -sfIL "$URL" >/dev/null 2>&1; then
+            echo "::error::npm tarball not available after timeout: $URL"
+            exit 1
+          fi
+
+          SHA256="$(curl -sfL "$URL" | sha256sum | cut -d' ' -f1)"
+          if [ -z "${SHA256}" ]; then
+            echo "::error::Failed to compute sha256 for $URL"
+            exit 1
+          fi
+
+          # GitHub-hosted runners ship Homebrew preinstalled but do not add it to
+          # PATH, so load its shell environment before invoking brew.
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+
+          # Skip if Homebrew/core already has this exact version or an open bump PR
+          # for it; brew bump-formula-pr is idempotent and will refuse duplicates.
+          brew bump-formula-pr rulesync \
+            --version "${VERSION}" \
+            --url "${URL}" \
+            --sha256 "${SHA256}" \
+            --no-browse \
+            --message "Automated bump from rulesync ${TAG} release."
