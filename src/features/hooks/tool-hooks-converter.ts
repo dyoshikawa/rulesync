@@ -99,7 +99,7 @@ function applyCommandPrefix({
     (!converterConfig.prefixDotRelativeCommandsOnly || trimmedCommand.startsWith("."));
 
   return shouldPrefix && typeof trimmedCommand === "string"
-    ? `${converterConfig.projectDirVar}/${trimmedCommand.replace(/^\.\//, "")}`
+    ? `"${converterConfig.projectDirVar}/${trimmedCommand.replace(/^\.\//, "")}"`
     : def.command;
 }
 
@@ -206,15 +206,16 @@ function stripCommandPrefix({
   converterConfig: ToolHooksConverterConfig;
 }): string | undefined {
   const cmd = typeof command === "string" ? command : undefined;
-  if (
-    converterConfig.projectDirVar !== "" &&
-    typeof cmd === "string" &&
-    cmd.includes(`${converterConfig.projectDirVar}/`)
-  ) {
-    return cmd.replace(
-      new RegExp(`^${converterConfig.projectDirVar.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/?`),
-      "./",
-    );
+  if (converterConfig.projectDirVar === "" || typeof cmd !== "string") {
+    return cmd;
+  }
+  const escapedVar = converterConfig.projectDirVar.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const quotedMatch = cmd.match(new RegExp(`^"${escapedVar}\\/(.*)"$`));
+  if (quotedMatch) {
+    return `./${quotedMatch[1]}`;
+  }
+  if (cmd.includes(`${converterConfig.projectDirVar}/`)) {
+    return cmd.replace(new RegExp(`^${escapedVar}\\/?`), "./");
   }
   return cmd;
 }
