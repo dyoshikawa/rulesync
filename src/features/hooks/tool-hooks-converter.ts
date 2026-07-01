@@ -98,8 +98,11 @@ function applyCommandPrefix({
     !trimmedCommand.startsWith("$") &&
     (!converterConfig.prefixDotRelativeCommandsOnly || trimmedCommand.startsWith("."));
 
+  // Only the variable itself is quoted (not the whole command) so a project path
+  // containing a space can't be word-split by the shell, while any trailing
+  // arguments after the script path stay outside the quotes and still split normally.
   return shouldPrefix && typeof trimmedCommand === "string"
-    ? `"${converterConfig.projectDirVar}/${trimmedCommand.replace(/^\.\//, "")}"`
+    ? `"${converterConfig.projectDirVar}"/${trimmedCommand.replace(/^\.\//, "")}`
     : def.command;
 }
 
@@ -209,12 +212,12 @@ function stripCommandPrefix({
   if (converterConfig.projectDirVar === "" || typeof cmd !== "string") {
     return cmd;
   }
-  const escapedVar = converterConfig.projectDirVar.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const quotedMatch = cmd.match(new RegExp(`^"${escapedVar}\\/(.*)"$`));
-  if (quotedMatch) {
-    return `./${quotedMatch[1]}`;
+  const quotedPrefix = `"${converterConfig.projectDirVar}"/`;
+  if (cmd.startsWith(quotedPrefix)) {
+    return `./${cmd.slice(quotedPrefix.length)}`;
   }
   if (cmd.includes(`${converterConfig.projectDirVar}/`)) {
+    const escapedVar = converterConfig.projectDirVar.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     return cmd.replace(new RegExp(`^${escapedVar}\\/?`), "./");
   }
   return cmd;

@@ -204,7 +204,7 @@ describe("ClaudecodeHooks", () => {
       expect(sessionStartEntry.hooks[1].command).toBe("npx prettier --write ./src/hooks/format.ts");
     });
 
-    it("should quote the $CLAUDE_PROJECT_DIR-prefixed command so it survives word-splitting on project paths with spaces", async () => {
+    it("should quote only the $CLAUDE_PROJECT_DIR variable so it survives word-splitting on project paths with spaces", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
 
@@ -230,7 +230,37 @@ describe("ClaudecodeHooks", () => {
 
       const parsed = JSON.parse(claudecodeHooks.getFileContent());
       expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe(
-        '"$CLAUDE_PROJECT_DIR/.rulesync/hooks/session-start.sh"',
+        '"$CLAUDE_PROJECT_DIR"/.rulesync/hooks/session-start.sh',
+      );
+    });
+
+    it("should keep trailing arguments outside the quotes so they still split as separate words", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          sessionStart: [{ type: "command", command: "./scripts/format.sh --fix --quiet" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(claudecodeHooks.getFileContent());
+      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe(
+        '"$CLAUDE_PROJECT_DIR"/scripts/format.sh --fix --quiet',
       );
     });
 
@@ -377,7 +407,7 @@ describe("ClaudecodeHooks", () => {
         fileContent: JSON.stringify({
           hooks: {
             SessionStart: [
-              { hooks: [{ type: "command", command: '"$CLAUDE_PROJECT_DIR/echo.sh"' }] },
+              { hooks: [{ type: "command", command: '"$CLAUDE_PROJECT_DIR"/echo.sh' }] },
             ],
           },
         }),
@@ -387,6 +417,33 @@ describe("ClaudecodeHooks", () => {
       const rulesyncHooks = claudecodeHooks.toRulesyncHooks();
       const json = rulesyncHooks.getJson();
       expect(json.hooks.sessionStart?.[0]?.command).toBe("./echo.sh");
+    });
+
+    it("should strip the quoted $CLAUDE_PROJECT_DIR prefix while preserving trailing arguments", () => {
+      const claudecodeHooks = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            SessionStart: [
+              {
+                hooks: [
+                  {
+                    type: "command",
+                    command: '"$CLAUDE_PROJECT_DIR"/scripts/format.sh --fix --quiet',
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const rulesyncHooks = claudecodeHooks.toRulesyncHooks();
+      const json = rulesyncHooks.getJson();
+      expect(json.hooks.sessionStart?.[0]?.command).toBe("./scripts/format.sh --fix --quiet");
     });
   });
 
