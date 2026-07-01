@@ -636,16 +636,21 @@ describe("E2E: hooks (global mode)", () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
 
-    // Hermes Agent has no project-scoped hooks location; hooks are merged under
-    // the `hooks.rulesync` key of the shared global ~/.hermes/config.yaml (YAML,
-    // global only).
+    // Hermes Agent has no project-scoped hooks location; hooks are merged into
+    // the shared global ~/.hermes/config.yaml (YAML, global only) under
+    // Hermes's real `VALID_HOOKS` event keys — NOT a `hooks.rulesync` blob,
+    // which Hermes would silently ignore.
     const hooksContent = JSON.stringify(
       {
         version: 1,
         root: true,
         hooks: {
           sessionStart: [{ type: "command", command: ".rulesync/hooks/session-start.sh" }],
-          stop: [{ command: ".rulesync/hooks/audit.sh" }],
+          preToolUse: [
+            { type: "command", command: ".rulesync/hooks/audit.sh", matcher: "terminal" },
+          ],
+          // Not part of Hermes's VALID_HOOKS mapping table — must be dropped.
+          worktreeCreate: [{ command: ".rulesync/hooks/wt.sh" }],
         },
       },
       null,
@@ -660,11 +665,15 @@ describe("E2E: hooks (global mode)", () => {
       env: { HOME_DIR: homeDir },
     });
 
-    // The config is YAML; assert the canonical hook command paths survive
-    // generation under the nested `hooks.rulesync` block.
+    // The config is YAML; assert the canonical hooks survive generation under
+    // Hermes's real, functioning event keys.
     const generatedContent = await readFileContent(join(homeDir, ".hermes", "config.yaml"));
-    expect(generatedContent).toContain("rulesync");
+    expect(generatedContent).not.toContain("rulesync:");
+    expect(generatedContent).toContain("on_session_start");
+    expect(generatedContent).toContain("pre_tool_call");
     expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
     expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+    expect(generatedContent).toContain("matcher: terminal");
+    expect(generatedContent).not.toContain(".rulesync/hooks/wt.sh");
   });
 });

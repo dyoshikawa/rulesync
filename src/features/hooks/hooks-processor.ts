@@ -14,6 +14,7 @@ import {
   DEVIN_HOOK_EVENTS,
   FACTORYDROID_HOOK_EVENTS,
   GOOSE_HOOK_EVENTS,
+  HERMESAGENT_HOOK_EVENTS,
   JUNIE_HOOK_EVENTS,
   KILO_HOOK_EVENTS,
   KIRO_HOOK_EVENTS,
@@ -283,8 +284,14 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     {
       class: HermesagentHooks,
       meta: { supportsProject: false, supportsGlobal: true, supportsImport: true },
-      supportedEvents: CLAUDE_HOOK_EVENTS,
-      supportedHookTypes: ["command", "prompt", "http"],
+      // Hermes validates hooks against a fixed `VALID_HOOKS` event set and only
+      // runs shell commands (shlex.split, shell=False) — `prompt`/`http` hooks
+      // and unmapped canonical events have no native equivalent.
+      // https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/hooks.md
+      supportedEvents: HERMESAGENT_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      // `matcher` is only valid on pre_tool_call/post_tool_call; the adapter
+      // itself drops it (with a warning) on the other supported events.
       supportsMatcher: true,
     },
   ],
