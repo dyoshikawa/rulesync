@@ -235,6 +235,7 @@ rulesync.local.jsonc
 **/.takt/config.yaml
 **/.augment-guidelines
 **/.agents/skills/
+**/.rovodev/prompts.yml
 **/.codeium/windsurf/skills/
 **/.copilot/agents/
 **/.copilot/mcp-config.json
@@ -290,6 +291,7 @@ rulesync.local.jsonc
 **/.qwen/commands/
 **/.reasonix/commands/
 **/.roo/commands/
+**/.rovodev/prompts/
 **/.takt/facets/instructions/
 **/.devin/workflows/
 **/.augment/skills/

@@ -34,6 +34,7 @@ describe("E2E: commands", () => {
     { target: "goose", outputPath: join(".goose", "recipes", "review-pr.yaml") },
     { target: "qwencode", outputPath: join(".qwen", "commands", "review-pr.md") },
     { target: "reasonix", outputPath: join(".reasonix", "commands", "review-pr.md") },
+    { target: "rovodev", outputPath: join(".rovodev", "prompts", "review-pr.md") },
   ])("should generate $target commands", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
@@ -55,6 +56,33 @@ Check the PR diff and provide feedback.
     // Verify that the expected output file was generated
     const generatedContent = await readFileContent(join(testDir, outputPath));
     expect(generatedContent).toContain("Check the PR diff and provide feedback.");
+  });
+
+  it("should generate a rovodev prompts.yml manifest alongside the content file", async () => {
+    const testDir = getTestDir();
+
+    const commandContent = `---
+description: "Review a pull request"
+targets: ["*"]
+---
+Check the PR diff and provide feedback.
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
+      commandContent,
+    );
+
+    await runGenerate({ target: "rovodev", features: "commands" });
+
+    // The content file holds the raw prompt body (no frontmatter).
+    const contentFile = await readFileContent(join(testDir, ".rovodev", "prompts", "review-pr.md"));
+    expect(contentFile.trim()).toBe("Check the PR diff and provide feedback.");
+
+    // The manifest indexes the prompt by name/description/content_file.
+    const manifest = await readFileContent(join(testDir, ".rovodev", "prompts.yml"));
+    expect(manifest).toContain("name: review-pr");
+    expect(manifest).toContain("description: Review a pull request");
+    expect(manifest).toContain("content_file: prompts/review-pr.md");
   });
 
   it.each([{ target: "agentsmd", outputPath: join(".agents", "commands", "review-pr.md") }])(
@@ -97,6 +125,7 @@ Check the PR diff and provide feedback.
     { target: "devin", orphanPath: join(".devin", "workflows", "orphan.md") },
     { target: "factorydroid", orphanPath: join(".factory", "commands", "orphan.md") },
     { target: "goose", orphanPath: join(".goose", "recipes", "orphan.yaml") },
+    { target: "rovodev", orphanPath: join(".rovodev", "prompts", "orphan.md") },
   ])(
     "should fail in check mode when delete would remove an orphan $target command file",
     async ({ target, orphanPath }) => {
@@ -145,6 +174,7 @@ describe("E2E: commands (import)", () => {
     { target: "devin", sourcePath: join(".devin", "workflows", "review-pr.md") },
     { target: "factorydroid", sourcePath: join(".factory", "commands", "review-pr.md") },
     { target: "reasonix", sourcePath: join(".reasonix", "commands", "review-pr.md") },
+    { target: "rovodev", sourcePath: join(".rovodev", "prompts", "review-pr.md") },
   ])("should import $target commands", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
@@ -216,6 +246,7 @@ describe("E2E: commands (global mode)", () => {
     // as Hermes skills under ~/.hermes/skills/<slug>/SKILL.md (global only).
     { target: "hermesagent", outputPath: join(".hermes", "skills", "review-pr", "SKILL.md") },
     { target: "reasonix", outputPath: join(".reasonix", "commands", "review-pr.md") },
+    { target: "rovodev", outputPath: join(".rovodev", "prompts", "review-pr.md") },
   ])("should generate $target commands in home directory", async ({ target, outputPath }) => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

@@ -1,4 +1,5 @@
 import { AiFile, AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
+import type { ToolFile } from "../../types/tool-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import type { RulesyncCommand } from "./rulesync-command.js";
 
@@ -69,6 +70,22 @@ export abstract class ToolCommand extends AiFile {
    */
   static forDeletion(_params: ToolCommandForDeletionParams): ToolCommand {
     throw new Error("Please implement this method in the subclass.");
+  }
+
+  /**
+   * Optional hook for tools whose commands are not purely one-file-per-command
+   * (e.g. Rovo Dev's `prompts.yml` manifest that indexes every saved-prompt
+   * content file). Given the full set of ToolCommand instances just generated
+   * for this target, returns any additional shared/aggregate files that must
+   * be written alongside them. Most tools don't need this and inherit the
+   * empty default (mirrors `ToolHooks.getAuxiliaryFiles`).
+   */
+  static async getAuxiliaryFiles(_params: {
+    toolCommands: ToolCommand[];
+    outputRoot?: string;
+    global?: boolean;
+  }): Promise<ToolFile[]> {
+    return [];
   }
 
   /**

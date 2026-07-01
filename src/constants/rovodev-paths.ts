@@ -9,3 +9,5 @@ export const ROVODEV_LEGACY_RULE_FILE_NAME = "AGENTS.local.md";
 export const ROVODEV_MCP_FILE_NAME = "mcp.json";
 export const ROVODEV_CONFIG_FILE_NAME = "config.yml";
 export const ROVODEV_AGENTS_SKILLS_DIR_PATH = join(".agents", "skills");
+export const ROVODEV_PROMPTS_FILE_NAME = "prompts.yml";
+export const ROVODEV_PROMPTS_DIR_PATH = join(ROVODEV_DIR, "prompts");

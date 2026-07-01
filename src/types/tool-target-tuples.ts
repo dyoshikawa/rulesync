@@ -120,6 +120,7 @@ export const commandsProcessorToolTargetTuple = [
   "qwencode",
   "reasonix",
   "roo",
+  "rovodev",
   "takt",
   "devin",
 ] as const;

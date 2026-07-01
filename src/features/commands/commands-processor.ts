@@ -34,6 +34,7 @@ import { PiCommand } from "./pi-command.js";
 import { QwencodeCommand } from "./qwencode-command.js";
 import { ReasonixCommand } from "./reasonix-command.js";
 import { RooCommand } from "./roo-command.js";
+import { RovodevCommand } from "./rovodev-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { TaktCommand } from "./takt-command.js";
 import {
@@ -65,6 +66,16 @@ type ToolCommandFactory = {
       outputRoot: string;
       global: boolean;
     }): Promise<ToolCommand[]>;
+    /**
+     * Optional hook for tools that need a shared/aggregate file alongside the
+     * per-command files (e.g. Rovo Dev's `prompts.yml` manifest). See
+     * {@link ToolCommand.getAuxiliaryFiles}.
+     */
+    getAuxiliaryFiles?(params: {
+      toolCommands: ToolCommand[];
+      outputRoot?: string;
+      global?: boolean;
+    }): Promise<ToolFile[]> | ToolFile[];
   };
   meta: {
     /** File extension for the command file */
@@ -414,6 +425,26 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     },
   ],
   [
+    // Rovo Dev CLI "saved prompts": a `prompts.yml` manifest (one entry per
+    // prompt: `{ name, description, content_file }`) plus per-prompt Markdown
+    // content files. Discovered in repo-root `.rovodev/`, cwd `.rovodev/`, and
+    // global `~/.rovodev/`. Content files live under `.rovodev/prompts/`
+    // (project) / `~/.rovodev/prompts/` (global); the manifest is regenerated
+    // via `RovodevCommand.getAuxiliaryFiles`.
+    // https://support.atlassian.com/rovo/docs/save-and-reuse-a-prompt-in-rovo-dev-cli/
+    "rovodev",
+    {
+      class: RovodevCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
     "takt",
     {
       class: TaktCommand,
@@ -546,7 +577,18 @@ export class CommandsProcessor extends FeatureProcessor {
       })
       .filter((command): command is ToolCommand => command !== null);
 
-    return toolCommands;
+    const auxiliaryFiles = await factory.class.getAuxiliaryFiles?.({
+      toolCommands,
+      outputRoot: this.outputRoot,
+      global: this.global,
+    });
+
+    const result: ToolFile[] = [...toolCommands];
+    if (auxiliaryFiles && auxiliaryFiles.length > 0) {
+      result.push(...auxiliaryFiles);
+    }
+
+    return result;
   }
 
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
