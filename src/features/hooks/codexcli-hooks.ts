@@ -7,6 +7,7 @@ import {
   CODEXCLI_HOOKS_FILE_NAME,
   CODEXCLI_MCP_FILE_NAME,
 } from "../../constants/codexcli-paths.js";
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import {
   CODEXCLI_HOOK_EVENTS,
@@ -103,6 +104,12 @@ export class CodexcliHooks extends ToolHooks {
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
     return { relativeDirPath: CODEXCLI_DIR, relativeFilePath: CODEXCLI_HOOKS_FILE_NAME };
+  }
+
+  // Codex CLI enables hooks by also writing `.codex/config.toml`, a file the MCP
+  // and permissions features share. Declared here because it is not a settable path.
+  static getExtraSharedWritePaths(): SharedWritePath[] {
+    return [{ relativeDirPath: CODEXCLI_DIR, relativeFilePath: CODEXCLI_MCP_FILE_NAME }];
   }
 
   static async fromFile({
