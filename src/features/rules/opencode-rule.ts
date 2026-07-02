@@ -5,8 +5,10 @@ import {
   OPENCODE_GLOBAL_DIR,
   OPENCODE_RULE_FILE_NAME,
 } from "../../constants/opencode-paths.js";
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
+import { OpencodeMcp } from "../mcp/opencode-mcp.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -52,6 +54,14 @@ export class OpenCodeRule extends ToolRule {
         relativeDirPath: buildToolPath(OPENCODE_DIR, "memories", excludeToolDir),
       },
     };
+  }
+
+  // Only project-scope rule generation writes the shared opencode.json (global
+  // skips the MCP instructions registrar).
+  static getExtraSharedWritePaths({
+    global = false,
+  }: { global?: boolean } = {}): SharedWritePath[] {
+    return global ? [] : [OpencodeMcp.getSettablePaths({ global: false })];
   }
 
   static async fromFile({
