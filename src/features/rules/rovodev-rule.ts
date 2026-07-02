@@ -376,4 +376,15 @@ export class RovodevRule extends ToolRule {
       mirrorGlob: join(outputRoot, ROVODEV_RULE_FILE_NAME),
     };
   }
+
+  /** Glob for the `separate-local-file` deletion; rovodev writes it at project root, not under `.rovodev/`. */
+  static getLocalRootDeletionGlob({
+    outputRoot,
+    fileName,
+  }: {
+    outputRoot: string;
+    fileName: string;
+  }): string {
+    return join(outputRoot, fileName);
+  }
 }

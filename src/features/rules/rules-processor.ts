@@ -218,6 +218,11 @@ type ToolRuleFactory = {
       primaryGlob: string;
       mirrorGlob: string;
     };
+    /**
+     * Override where the `separate-local-file` deletion glob points when the tool
+     * writes its local file outside its root dir. See {@link RovodevRule.getLocalRootDeletionGlob}.
+     */
+    getLocalRootDeletionGlob?(params: { outputRoot: string; fileName: string }): string;
   };
   meta: {
     /** File extension for the rule file */
@@ -1421,9 +1426,10 @@ As this project's AI coding tool, you must follow the additional conventions bel
         }
         const fileName = factory.meta.localRootFileName;
 
-        // rovodev writes its local file at the project root, not under its root dir.
-        if (factory.class === RovodevRule) {
-          const filePaths = await findFilesByGlobs(join(this.outputRoot, fileName));
+        if (factory.class.getLocalRootDeletionGlob) {
+          const filePaths = await findFilesByGlobs(
+            factory.class.getLocalRootDeletionGlob({ outputRoot: this.outputRoot, fileName }),
+          );
           return buildDeletionRulesFromPaths(filePaths);
         }
 
