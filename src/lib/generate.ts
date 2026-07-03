@@ -200,7 +200,7 @@ type GenerationStepId =
 
 type GenerationStep = {
   id: GenerationStepId;
-  /** Tokens for on-disk files this step read-modify-writes and shares with other steps. */
+  /** `dir/file` keys for on-disk files this step read-modify-writes and shares with other steps. */
   writesSharedFile?: readonly string[];
   /** Step ids that must run before this one (they write a shared file this step then reads). */
   dependsOn?: readonly GenerationStepId[];
@@ -314,25 +314,32 @@ type GenerationStepMeta = Readonly<Omit<GenerationStep, "run">>;
 export const GENERATION_STEP_GRAPH: readonly GenerationStepMeta[] = [
   {
     id: "ignore",
-    writesSharedFile: ["claude-settings", "zed-settings"],
+    writesSharedFile: [".claude/settings.json", ".zed/settings.json"],
   },
   {
     id: "mcp",
     writesSharedFile: [
-      "kilo-opencode-config",
-      "zed-settings",
-      "qwencode-settings",
-      "augmentcode-settings",
-      "hermesagent-config",
-      "amp-settings",
-      "codexcli-config",
-      "grokcli-config",
-      "vibe-config",
-      "devin-config",
-      "reasonix-config",
+      ".amp/settings.json",
+      ".augment/settings.json",
+      ".codex/config.toml",
+      ".config/amp/settings.json",
+      ".config/devin/config.json",
+      ".config/opencode/opencode.json",
+      ".config/zed/settings.json",
+      ".devin/config.json",
+      ".grok/config.toml",
+      ".hermes/config.yaml",
+      ".qwen/settings.json",
+      ".reasonix/config.toml",
+      ".takt/config.yaml",
+      ".vibe/config.toml",
+      ".zed/settings.json",
+      "kilo.json",
+      "opencode.json",
+      "reasonix.toml",
     ],
-    // Both ignore and mcp write zed-settings; ignore must run first so mcp's
-    // read-modify-write doesn't drop the ignore keys it wrote.
+    // Both ignore and mcp write .zed/settings.json; ignore must run first so
+    // mcp's read-modify-write doesn't drop the ignore keys it wrote.
     dependsOn: ["ignore"],
   },
   { id: "commands" },
@@ -341,49 +348,52 @@ export const GENERATION_STEP_GRAPH: readonly GenerationStepMeta[] = [
   {
     id: "hooks",
     writesSharedFile: [
-      "claude-settings",
-      "qwencode-settings",
-      "augmentcode-settings",
-      "hermesagent-config",
-      "kiro-agent-config",
-      "codexcli-config",
-      "vibe-config",
-      "devin-config",
+      ".augment/settings.json",
+      ".claude/settings.json",
+      ".codex/config.toml",
+      ".config/devin/config.json",
+      ".hermes/config.yaml",
+      ".kiro/agents/default.json",
+      ".qwen/settings.json",
+      ".vibe/config.toml",
     ],
-    // Shares claude-settings with ignore, and shares qwencode-settings,
-    // augmentcode-settings, hermesagent-config, codexcli-config, vibe-config,
-    // and devin-config with mcp; both must run first so hooks' read-modify-write
-    // doesn't drop their keys.
+    // Shares .claude/settings.json with ignore and several config files with mcp;
+    // both must run first so hooks' read-modify-write doesn't drop their keys.
     dependsOn: ["ignore", "mcp"],
   },
   {
     id: "permissions",
     writesSharedFile: [
-      "claude-settings",
-      "kilo-opencode-config",
-      "zed-settings",
-      "qwencode-settings",
-      "augmentcode-settings",
-      "hermesagent-config",
-      "kiro-agent-config",
-      "amp-settings",
-      "codexcli-config",
-      "grokcli-config",
-      "vibe-config",
-      "devin-config",
-      "reasonix-config",
+      ".amp/settings.json",
+      ".augment/settings.json",
+      ".claude/settings.json",
+      ".codex/config.toml",
+      ".config/amp/settings.json",
+      ".config/devin/config.json",
+      ".config/opencode/opencode.json",
+      ".config/zed/settings.json",
+      ".devin/config.json",
+      ".grok/config.toml",
+      ".hermes/config.yaml",
+      ".kiro/agents/default.json",
+      ".qwen/settings.json",
+      ".reasonix/config.toml",
+      ".takt/config.yaml",
+      ".vibe/config.toml",
+      ".zed/settings.json",
+      "opencode.json",
+      "reasonix.toml",
     ],
-    // Shares claude-settings/zed-settings with ignore, every token hooks writes,
-    // and every token mcp writes; all three must run first so permissions'
-    // read-modify-write doesn't drop their keys.
+    // Shares files with ignore, and with every file hooks and mcp write; all
+    // three must run first so permissions' read-modify-write doesn't drop keys.
     dependsOn: ["ignore", "hooks", "mcp"],
   },
   {
     id: "rules",
-    writesSharedFile: ["kilo-opencode-config"],
-    // Shares kilo-opencode-config with mcp and permissions (both must run first),
-    // and reads the skills list the skills step produces (a value dependency,
-    // not a shared-file one).
+    writesSharedFile: ["kilo.json", "opencode.json"],
+    // Shares kilo.json/opencode.json with mcp and permissions (both must run
+    // first), and reads the skills list the skills step produces (a value
+    // dependency, not a shared-file one).
     dependsOn: ["mcp", "skills", "permissions"],
   },
 ];
