@@ -35,7 +35,7 @@ jobs:
           experimental: true
 
       - name: Setup Takumi Guard npm registry
-        uses: flatt-security/setup-takumi-guard-npm@b32fa78ac6c5507152b0470604b0b546fa2b8521 # v1
+        uses: flatt-security/setup-takumi-guard-npm@9a5d797c2085b6326d3a2985c08e3a114b9b88c1 # v1
 
       - name: Install dependencies
         run: bun install
@@ -50,7 +50,7 @@ jobs:
           bun build --compile --minify --sourcemap --target=bun-windows-x64 --outfile=dist-bun/rulesync-windows-x64.exe ./src/cli/index.ts
 
       - name: Cache binaries
-        uses: actions/cache/save@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: dist-bun
           key: rulesync-binaries-${{ github.sha }}
@@ -72,7 +72,7 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Restore cached binaries
-        uses: actions/cache/restore@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: dist-bun
           key: rulesync-binaries-${{ github.sha }}
@@ -109,7 +109,7 @@ jobs:
           experimental: true
 
       - name: Setup Takumi Guard npm registry
-        uses: flatt-security/setup-takumi-guard-npm@b32fa78ac6c5507152b0470604b0b546fa2b8521 # v1
+        uses: flatt-security/setup-takumi-guard-npm@9a5d797c2085b6326d3a2985c08e3a114b9b88c1 # v1
 
       - name: Install dependencies
         run: pnpm install --ignore-scripts
