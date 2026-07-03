@@ -41,7 +41,7 @@ jobs:
           experimental: true
 
       - name: Setup Takumi Guard npm registry
-        uses: flatt-security/setup-takumi-guard-npm@b32fa78ac6c5507152b0470604b0b546fa2b8521 # v1
+        uses: flatt-security/setup-takumi-guard-npm@9a5d797c2085b6326d3a2985c08e3a114b9b88c1 # v1
 
       - name: Install dependencies
         run: pnpm install --ignore-scripts
@@ -56,7 +56,7 @@ jobs:
           input-text: ${{ inputs.model }}
 
       - name: Run OpenCode to draft release
-        uses: anomalyco/opencode/github@67aec2212010d67775c35e696d8b8b54902eb338 # v1.17.11
+        uses: anomalyco/opencode/github@10c894bdeef3618f5666fb506ef7f9491bb964d8 # v1.17.13
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
