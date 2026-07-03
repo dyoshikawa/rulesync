@@ -1,13 +1,12 @@
 import { join } from "node:path";
 
-import { uniq } from "es-toolkit";
-
 import { CLAUDECODE_DIR, CLAUDECODE_SETTINGS_FILE_NAME } from "../../constants/claudecode-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { applyPermissions } from "../claudecode-settings-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -137,61 +136,21 @@ export class ClaudecodePermissions extends ToolPermissions {
     const config = rulesyncPermissions.getJson();
     const { allow, ask, deny } = convertRulesyncToClaudePermissions(config);
 
-    // Determine which tool names are managed by the permissions config
     const managedToolNames = new Set(
       Object.keys(config.permission).map((category) => toClaudeToolName(category)),
     );
 
-    // Read existing permission arrays and preserve entries for tools NOT in the permissions config
-    const existingPermissions = settings.permissions ?? {};
-    const preservedAllow = (existingPermissions.allow ?? []).filter(
-      (entry) => !managedToolNames.has(parseClaudePermissionEntry(entry).toolName),
-    );
-    const preservedAsk = (existingPermissions.ask ?? []).filter(
-      (entry) => !managedToolNames.has(parseClaudePermissionEntry(entry).toolName),
-    );
-    const preservedDeny = (existingPermissions.deny ?? []).filter(
-      (entry) => !managedToolNames.has(parseClaudePermissionEntry(entry).toolName),
-    );
-
-    // Warn when permissions feature overwrites ignore-generated Read(...) deny entries
-    if (logger && managedToolNames.has("Read")) {
-      const droppedReadDenyEntries = (existingPermissions.deny ?? []).filter((entry) => {
-        const { toolName } = parseClaudePermissionEntry(entry);
-        return toolName === "Read";
-      });
-      if (droppedReadDenyEntries.length > 0) {
-        logger.warn(
-          `Permissions feature manages 'Read' tool and will overwrite ${droppedReadDenyEntries.length} existing Read deny entries (possibly from ignore feature). Permissions take precedence.`,
-        );
-      }
-    }
-
-    const mergedPermissions: Record<string, unknown> = {
-      ...existingPermissions,
-    };
-
-    const mergedAllow = uniq([...preservedAllow, ...allow].toSorted());
-    const mergedAsk = uniq([...preservedAsk, ...ask].toSorted());
-    const mergedDeny = uniq([...preservedDeny, ...deny].toSorted());
-
-    if (mergedAllow.length > 0) {
-      mergedPermissions.allow = mergedAllow;
-    } else {
-      delete mergedPermissions.allow;
-    }
-    if (mergedAsk.length > 0) {
-      mergedPermissions.ask = mergedAsk;
-    } else {
-      delete mergedPermissions.ask;
-    }
-    if (mergedDeny.length > 0) {
-      mergedPermissions.deny = mergedDeny;
-    } else {
-      delete mergedPermissions.deny;
-    }
-
-    const merged = { ...settings, permissions: mergedPermissions };
+    // The gateway owns the shared `permissions` merge and the cross-feature
+    // ownership rule; here we only state the intent (managed tools + arrays).
+    const merged = applyPermissions({
+      settings,
+      managedToolNames,
+      toolNameOf: (entry) => parseClaudePermissionEntry(entry).toolName,
+      allow,
+      ask,
+      deny,
+      logger,
+    });
     const fileContent = JSON.stringify(merged, null, 2);
 
     return new ClaudecodePermissions({
