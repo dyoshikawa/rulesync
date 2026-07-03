@@ -3,6 +3,7 @@ import { join, resolve, sep } from "node:path";
 import { Semaphore } from "es-toolkit/promise";
 
 import type { SourceEntry } from "../config/config.js";
+import { SKILL_FILE_NAME } from "../constants/general.js";
 import {
   FETCH_CONCURRENCY_LIMIT,
   MAX_FILE_SIZE,
@@ -460,11 +461,16 @@ function groupRemoteFilesBySkillRoot(params: {
     grouped.set(skillName, groupedFiles);
   }
 
-  if (grouped.size === 0 && !isWildcard && skillFilter.length === 1) {
-    const [singleSkillName] = skillFilter;
-    if (singleSkillName !== undefined && rootLevelFiles.length > 0) {
-      grouped.set(singleSkillName, rootLevelFiles);
-    }
+  const [singleSkillName] = skillFilter;
+  const hasRootSkillFile = rootLevelFiles.some((file) => file.relativePath === SKILL_FILE_NAME);
+  if (
+    !isWildcard &&
+    skillFilter.length === 1 &&
+    singleSkillName !== undefined &&
+    hasRootSkillFile &&
+    !grouped.has(singleSkillName)
+  ) {
+    grouped.set(singleSkillName, rootLevelFiles);
   }
 
   return grouped;
@@ -506,10 +512,9 @@ async function resolveGithubFetchRef(params: {
 }
 
 /**
- * Fallback path used when the skills directory has no subdirectories but does
- * contain a single flat skill (root-level files). Fetches and writes that skill
- * into `fetchedSkills`. Returns whether the fallback fired and the resulting
- * remote skill names.
+ * Fallback path used when an explicit single-skill source points at a flat skill
+ * with root-level files. Fetches and writes that skill into `fetchedSkills`.
+ * Returns whether the fallback fired and the resulting remote skill names.
  */
 async function fetchRootLevelFallbackSkill(params: {
   entries: GitHubFileEntry[];
@@ -721,7 +726,10 @@ async function discoverGithubSkillDirs(params: {
       .filter((e) => e.type === "dir")
       .map((e) => ({ name: e.name, path: e.path }));
 
-    if (remoteSkillDirs.length === 0 && !isWildcard && skillFilter.length === 1) {
+    const [singleSkillName] = skillFilter;
+    const hasRequestedSkillDir =
+      singleSkillName !== undefined && remoteSkillDirs.some((d) => d.name === singleSkillName);
+    if (!isWildcard && skillFilter.length === 1 && !hasRequestedSkillDir) {
       const fallback = await fetchRootLevelFallbackSkill({
         entries,
         parsed,
