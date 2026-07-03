@@ -4,73 +4,88 @@ import { describe, expect, it } from "vitest";
 
 import { KIRO_IGNORE_FILE_NAME } from "../constants/kiro-paths.js";
 import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
+import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
-import { runGenerate, runImport, useTestDirectory } from "./e2e-helper.js";
+import {
+  assertGenerateMatrixCoversTargets,
+  runGenerate,
+  runImport,
+  useTestDirectory,
+} from "./e2e-helper.js";
+
+const ignoreGenerateTargets = [
+  { target: "cursor", outputPath: ".cursorignore", format: "plaintext" as const },
+  {
+    target: "claudecode",
+    outputPath: join(".claude", "settings.json"),
+    format: "json" as const,
+  },
+  { target: "antigravity-cli", outputPath: ".geminiignore", format: "plaintext" as const },
+  { target: "goose", outputPath: ".gooseignore", format: "plaintext" as const },
+  { target: "cline", outputPath: ".clineignore", format: "plaintext" as const },
+  { target: "kilo", outputPath: ".kilocodeignore", format: "plaintext" as const },
+  { target: "roo", outputPath: ".rooignore", format: "plaintext" as const },
+  { target: "qwencode", outputPath: ".qwenignore", format: "plaintext" as const },
+  { target: "kiro", outputPath: KIRO_IGNORE_FILE_NAME, format: "plaintext" as const },
+  { target: "kiro-cli", outputPath: KIRO_IGNORE_FILE_NAME, format: "plaintext" as const },
+  { target: "kiro-ide", outputPath: KIRO_IGNORE_FILE_NAME, format: "plaintext" as const },
+  { target: "junie", outputPath: ".aiignore", format: "plaintext" as const },
+  { target: "aiassistant", outputPath: ".aiignore", format: "plaintext" as const },
+  { target: "augmentcode", outputPath: ".augmentignore", format: "plaintext" as const },
+  { target: "devin", outputPath: ".devinignore", format: "plaintext" as const },
+  {
+    target: "zed",
+    outputPath: join(".zed", "settings.json"),
+    format: "json" as const,
+  },
+  { target: "vibe", outputPath: ".vibeignore", format: "plaintext" as const },
+  { target: "warp", outputPath: ".warpindexingignore", format: "plaintext" as const },
+] as const;
 
 describe("E2E: ignore", () => {
   const { getTestDir } = useTestDirectory();
 
-  it.each([
-    { target: "cursor", outputPath: ".cursorignore", format: "plaintext" as const },
-    {
-      target: "claudecode",
-      outputPath: join(".claude", "settings.json"),
-      format: "json" as const,
-    },
-    { target: "antigravity-cli", outputPath: ".geminiignore", format: "plaintext" as const },
-    { target: "goose", outputPath: ".gooseignore", format: "plaintext" as const },
-    { target: "cline", outputPath: ".clineignore", format: "plaintext" as const },
-    { target: "kilo", outputPath: ".kilocodeignore", format: "plaintext" as const },
-    { target: "roo", outputPath: ".rooignore", format: "plaintext" as const },
-    { target: "qwencode", outputPath: ".qwenignore", format: "plaintext" as const },
-    { target: "kiro", outputPath: KIRO_IGNORE_FILE_NAME, format: "plaintext" as const },
-    { target: "kiro-cli", outputPath: KIRO_IGNORE_FILE_NAME, format: "plaintext" as const },
-    { target: "kiro-ide", outputPath: KIRO_IGNORE_FILE_NAME, format: "plaintext" as const },
-    { target: "junie", outputPath: ".aiignore", format: "plaintext" as const },
-    { target: "aiassistant", outputPath: ".aiignore", format: "plaintext" as const },
-    { target: "augmentcode", outputPath: ".augmentignore", format: "plaintext" as const },
-    { target: "devin", outputPath: ".devinignore", format: "plaintext" as const },
-    {
-      target: "zed",
-      outputPath: join(".zed", "settings.json"),
-      format: "json" as const,
-    },
-    { target: "vibe", outputPath: ".vibeignore", format: "plaintext" as const },
-    { target: "warp", outputPath: ".warpindexingignore", format: "plaintext" as const },
-  ])("should generate $target ignore", async ({ target, outputPath, format }) => {
-    const testDir = getTestDir();
+  it("generate matrix must cover every native ignore tool target", () => {
+    assertGenerateMatrixCoversTargets({
+      processor: IgnoreProcessor,
+      testedTargets: ignoreGenerateTargets.map((e) => e.target),
+    });
+  });
 
-    // Setup: Create .rulesync/.aiignore
-    const ignoreContent = `tmp/
+  it.each(ignoreGenerateTargets)(
+    "should generate $target ignore",
+    async ({ target, outputPath, format }) => {
+      const testDir = getTestDir();
+
+      const ignoreContent = `tmp/
 credentials/
 *.secret
 `;
-    await writeFileContent(join(testDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH), ignoreContent);
+      await writeFileContent(join(testDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH), ignoreContent);
 
-    // Execute: Generate ignore for the target
-    await runGenerate({ target, features: "ignore" });
+      await runGenerate({ target, features: "ignore" });
 
-    // Verify that the expected output file was generated
-    const generatedContent = await readFileContent(join(testDir, outputPath));
-    if (format === "plaintext") {
-      expect(generatedContent).toContain("tmp/");
-      expect(generatedContent).toContain("credentials/");
-    } else if (format === "json" && target === "claudecode") {
-      // Claude Code uses JSON format with permissions.deny
-      const parsed = JSON.parse(generatedContent);
-      expect(parsed.permissions.deny).toBeDefined();
-      expect(parsed.permissions.deny).toEqual(
-        expect.arrayContaining([expect.stringContaining("tmp/")]),
-      );
-    } else if (format === "json" && target === "zed") {
-      // Zed uses JSON format with private_files
-      const parsed = JSON.parse(generatedContent);
-      expect(parsed.private_files).toBeDefined();
-      expect(parsed.private_files).toEqual(
-        expect.arrayContaining([expect.stringContaining("tmp/")]),
-      );
-    }
-  });
+      const generatedContent = await readFileContent(join(testDir, outputPath));
+      if (format === "plaintext") {
+        expect(generatedContent).toContain("tmp/");
+        expect(generatedContent).toContain("credentials/");
+      } else if (format === "json" && target === "claudecode") {
+        // Claude Code uses JSON format with permissions.deny
+        const parsed = JSON.parse(generatedContent);
+        expect(parsed.permissions.deny).toBeDefined();
+        expect(parsed.permissions.deny).toEqual(
+          expect.arrayContaining([expect.stringContaining("tmp/")]),
+        );
+      } else if (format === "json" && target === "zed") {
+        // Zed uses JSON format with private_files
+        const parsed = JSON.parse(generatedContent);
+        expect(parsed.private_files).toBeDefined();
+        expect(parsed.private_files).toEqual(
+          expect.arrayContaining([expect.stringContaining("tmp/")]),
+        );
+      }
+    },
+  );
 
   it.each([
     { target: "cursor", orphanPath: ".cursorignore" },

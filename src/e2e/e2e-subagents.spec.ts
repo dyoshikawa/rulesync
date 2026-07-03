@@ -3,122 +3,189 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
+import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
 import {
+  assertGenerateMatrixCoversTargets,
   runGenerate,
   runImport,
   useGlobalTestDirectories,
   useTestDirectory,
 } from "./e2e-helper.js";
 
+const subagentsGenerateTargets = [
+  {
+    target: "augmentcode",
+    outputPath: join(".augment", "agents", "planner.md"),
+  },
+  {
+    target: "claudecode",
+    outputPath: join(".claude", "agents", "planner.md"),
+  },
+  {
+    target: "cursor",
+    outputPath: join(".cursor", "agents", "planner.md"),
+  },
+  {
+    target: "grokcli",
+    outputPath: join(".grok", "agents", "planner.md"),
+  },
+  {
+    target: "qwencode",
+    outputPath: join(".qwen", "agents", "planner.md"),
+  },
+  {
+    target: "codexcli",
+    outputPath: join(".codex", "agents", "planner.toml"),
+  },
+  {
+    target: "copilot",
+    outputPath: join(".github", "agents", "planner.agent.md"),
+  },
+  {
+    target: "copilotcli",
+    outputPath: join(".github", "agents", "planner.agent.md"),
+  },
+  {
+    target: "deepagents",
+    outputPath: join(".deepagents", "agents", "planner", "AGENTS.md"),
+  },
+  {
+    target: "devin",
+    outputPath: join(".devin", "agents", "planner", "AGENT.md"),
+  },
+  {
+    target: "kiro",
+    outputPath: join(".kiro", "agents", "planner.json"),
+  },
+  {
+    target: "kiro-cli",
+    outputPath: join(".kiro", "agents", "planner.json"),
+  },
+  {
+    target: "kiro-ide",
+    outputPath: join(".kiro", "agents", "planner.md"),
+  },
+  {
+    target: "kilo",
+    outputPath: join(".kilo", "agents", "planner.md"),
+  },
+  {
+    target: "opencode",
+    outputPath: join(".opencode", "agents", "planner.md"),
+  },
+  {
+    target: "rovodev",
+    outputPath: join(".rovodev", "subagents", "planner.md"),
+  },
+  {
+    target: "junie",
+    outputPath: join(".junie", "agents", "planner.md"),
+  },
+  {
+    target: "takt",
+    outputPath: join(".takt", "facets", "personas", "planner.md"),
+  },
+  {
+    target: "factorydroid",
+    outputPath: join(".factory", "droids", "planner.md"),
+  },
+  {
+    target: "cline",
+    outputPath: join(".cline", "agents", "planner.yaml"),
+  },
+  {
+    target: "vibe",
+    outputPath: join(".vibe", "agents", "planner.toml"),
+  },
+  {
+    target: "goose",
+    outputPath: join(".goose", "recipes", "subagents", "planner.yaml"),
+  },
+  {
+    target: "roo",
+    outputPath: ".roomodes",
+  },
+] as const;
+
+const subagentsGlobalTargets = [
+  { target: "augmentcode", outputPath: join(".augment", "agents", "planner.md") },
+  { target: "claudecode", outputPath: join(".claude", "agents", "planner.md") },
+  { target: "codexcli", outputPath: join(".codex", "agents", "planner.toml") },
+  { target: "copilot", outputPath: join(".copilot", "agents", "planner.agent.md") },
+  { target: "copilotcli", outputPath: join(".copilot", "agents", "planner.agent.md") },
+  { target: "cursor", outputPath: join(".cursor", "agents", "planner.md") },
+  { target: "grokcli", outputPath: join(".grok", "agents", "planner.md") },
+  { target: "qwencode", outputPath: join(".qwen", "agents", "planner.md") },
+  { target: "junie", outputPath: join(".junie", "agents", "planner.md") },
+  { target: "kiro-cli", outputPath: join(".kiro", "agents", "planner.json") },
+  { target: "kiro-ide", outputPath: join(".kiro", "agents", "planner.md") },
+  { target: "kilo", outputPath: join(".config", "kilo", "agents", "planner.md") },
+  { target: "opencode", outputPath: join(".config", "opencode", "agents", "planner.md") },
+  { target: "rovodev", outputPath: join(".rovodev", "subagents", "planner.md") },
+  { target: "takt", outputPath: join(".takt", "facets", "personas", "planner.md") },
+  { target: "factorydroid", outputPath: join(".factory", "droids", "planner.md") },
+  { target: "cline", outputPath: join(".cline", "agents", "planner.yaml") },
+  {
+    target: "deepagents",
+    outputPath: join(".deepagents", "deepagents", "agents", "planner", "AGENTS.md"),
+  },
+  {
+    target: "devin",
+    outputPath: join(".config", "devin", "agents", "planner", "AGENT.md"),
+  },
+  { target: "vibe", outputPath: join(".vibe", "agents", "planner.toml") },
+  {
+    target: "goose",
+    outputPath: join(".config", "goose", "recipes", "subagents", "planner.yaml"),
+  },
+  {
+    // Hermes Agent has no project-scoped subagent location; subagents are
+    // emitted as JSON specs under ~/.hermes/rulesync/subagents/<slug>.json,
+    // discovered by the generated rulesync-subagents plugin (global only).
+    target: "hermesagent",
+    outputPath: join(".hermes", "rulesync", "subagents", "planner.json"),
+  },
+] as const;
+
 describe("E2E: subagents", () => {
   const { getTestDir } = useTestDirectory();
 
-  it.each([
-    {
-      target: "augmentcode",
-      outputPath: join(".augment", "agents", "planner.md"),
-    },
-    {
-      target: "claudecode",
-      outputPath: join(".claude", "agents", "planner.md"),
-    },
-    {
-      target: "cursor",
-      outputPath: join(".cursor", "agents", "planner.md"),
-    },
-    {
-      target: "grokcli",
-      outputPath: join(".grok", "agents", "planner.md"),
-    },
-    {
-      target: "qwencode",
-      outputPath: join(".qwen", "agents", "planner.md"),
-    },
-    {
-      target: "codexcli",
-      outputPath: join(".codex", "agents", "planner.toml"),
-    },
-    {
-      target: "copilot",
-      outputPath: join(".github", "agents", "planner.agent.md"),
-    },
-    {
-      target: "copilotcli",
-      outputPath: join(".github", "agents", "planner.agent.md"),
-    },
-    {
-      target: "deepagents",
-      outputPath: join(".deepagents", "agents", "planner", "AGENTS.md"),
-    },
-    {
-      target: "devin",
-      outputPath: join(".devin", "agents", "planner", "AGENT.md"),
-    },
-    {
-      target: "kiro",
-      outputPath: join(".kiro", "agents", "planner.json"),
-    },
-    {
-      target: "kiro-cli",
-      outputPath: join(".kiro", "agents", "planner.json"),
-    },
-    {
-      target: "kiro-ide",
-      outputPath: join(".kiro", "agents", "planner.md"),
-    },
-    {
-      target: "junie",
-      outputPath: join(".junie", "agents", "planner.md"),
-    },
-    {
-      target: "takt",
-      outputPath: join(".takt", "facets", "personas", "planner.md"),
-    },
-    {
-      target: "factorydroid",
-      outputPath: join(".factory", "droids", "planner.md"),
-    },
-    {
-      target: "cline",
-      outputPath: join(".cline", "agents", "planner.yaml"),
-    },
-    {
-      target: "vibe",
-      outputPath: join(".vibe", "agents", "planner.toml"),
-    },
-    {
-      target: "goose",
-      outputPath: join(".goose", "recipes", "subagents", "planner.yaml"),
-    },
-    {
-      target: "roo",
-      outputPath: ".roomodes",
-    },
-  ])("should generate $target subagents", async ({ target, outputPath }) => {
-    const testDir = getTestDir();
+  it("generate matrix must cover every native subagents tool target", () => {
+    assertGenerateMatrixCoversTargets({
+      processor: SubagentsProcessor,
+      testedTargets: subagentsGenerateTargets.map((e) => e.target),
+      // Hermes Agent is a native subagents tool but has no project-scoped
+      // single-file output; its generate path emits only global JSON specs, so
+      // it is exercised by the global matrix instead of this project matrix.
+      untested: ["hermesagent"],
+    });
+  });
 
-    // Setup: Create .rulesync/subagents/planner.md
-    const subagentContent = `---
+  it.each(subagentsGenerateTargets)(
+    "should generate $target subagents",
+    async ({ target, outputPath }) => {
+      const testDir = getTestDir();
+
+      const subagentContent = `---
 name: planner
 targets: ["*"]
 description: "Plans implementation tasks"
 ---
 You are the planner. Analyze files and create a plan.
 `;
-    await writeFileContent(
-      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
-      subagentContent,
-    );
+      await writeFileContent(
+        join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+        subagentContent,
+      );
 
-    // Execute: Generate subagents for the target
-    await runGenerate({ target, features: "subagents" });
+      await runGenerate({ target, features: "subagents" });
 
-    // Verify that the expected output file was generated
-    const generatedContent = await readFileContent(join(testDir, outputPath));
-    expect(generatedContent).toContain("planner");
-    expect(generatedContent).toContain("Analyze files and create a plan.");
-  });
+      const generatedContent = await readFileContent(join(testDir, outputPath));
+      expect(generatedContent).toContain("planner");
+      expect(generatedContent).toContain("Analyze files and create a plan.");
+    },
+  );
 
   it.each([{ target: "agentsmd", outputPath: join(".agents", "subagents", "planner.md") }])(
     "should generate $target simulated subagents",
@@ -167,7 +234,6 @@ You are a primary agent. You appear in the Tab rotation.
       subagentContent,
     );
 
-    // Execute: Generate subagents for opencode
     await runGenerate({ target: "opencode", features: "subagents" });
 
     // Verify that the mode is preserved as primary, not defaulting to subagent
@@ -435,48 +501,21 @@ Break down tasks into steps.
 describe("E2E: subagents (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
 
-  it.each([
-    { target: "augmentcode", outputPath: join(".augment", "agents", "planner.md") },
-    { target: "claudecode", outputPath: join(".claude", "agents", "planner.md") },
-    { target: "codexcli", outputPath: join(".codex", "agents", "planner.toml") },
-    { target: "copilot", outputPath: join(".copilot", "agents", "planner.agent.md") },
-    { target: "copilotcli", outputPath: join(".copilot", "agents", "planner.agent.md") },
-    { target: "cursor", outputPath: join(".cursor", "agents", "planner.md") },
-    { target: "grokcli", outputPath: join(".grok", "agents", "planner.md") },
-    { target: "qwencode", outputPath: join(".qwen", "agents", "planner.md") },
-    { target: "junie", outputPath: join(".junie", "agents", "planner.md") },
-    { target: "kiro-cli", outputPath: join(".kiro", "agents", "planner.json") },
-    { target: "opencode", outputPath: join(".config", "opencode", "agents", "planner.md") },
-    { target: "rovodev", outputPath: join(".rovodev", "subagents", "planner.md") },
-    { target: "takt", outputPath: join(".takt", "facets", "personas", "planner.md") },
-    { target: "factorydroid", outputPath: join(".factory", "droids", "planner.md") },
-    { target: "cline", outputPath: join(".cline", "agents", "planner.yaml") },
-    {
-      target: "deepagents",
-      outputPath: join(".deepagents", "deepagents", "agents", "planner", "AGENTS.md"),
-    },
-    {
-      target: "devin",
-      outputPath: join(".config", "devin", "agents", "planner", "AGENT.md"),
-    },
-    { target: "vibe", outputPath: join(".vibe", "agents", "planner.toml") },
-    {
-      target: "goose",
-      outputPath: join(".config", "goose", "recipes", "subagents", "planner.yaml"),
-    },
-    {
-      // Hermes Agent has no project-scoped subagent location; subagents are
-      // emitted as JSON specs under ~/.hermes/rulesync/subagents/<slug>.json,
-      // discovered by the generated rulesync-subagents plugin (global only).
-      target: "hermesagent",
-      outputPath: join(".hermes", "rulesync", "subagents", "planner.json"),
-    },
-  ])("should generate $target subagents in home directory", async ({ target, outputPath }) => {
-    const projectDir = getProjectDir();
-    const homeDir = getHomeDir();
+  it("global matrix must cover every native global subagents tool target", () => {
+    assertGenerateMatrixCoversTargets({
+      processor: SubagentsProcessor,
+      testedTargets: subagentsGlobalTargets.map((e) => e.target),
+      global: true,
+    });
+  });
 
-    // Setup: Create .rulesync/subagents/planner.md with root: true
-    const subagentContent = `---
+  it.each(subagentsGlobalTargets)(
+    "should generate $target subagents in home directory",
+    async ({ target, outputPath }) => {
+      const projectDir = getProjectDir();
+      const homeDir = getHomeDir();
+
+      const subagentContent = `---
 root: true
 name: planner
 targets: ["*"]
@@ -484,24 +523,23 @@ description: "Plans implementation tasks"
 ---
 You are the planner. Analyze files and create a plan.
 `;
-    await writeFileContent(
-      join(projectDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
-      subagentContent,
-    );
+      await writeFileContent(
+        join(projectDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+        subagentContent,
+      );
 
-    // Execute: Generate subagents in global mode with HOME pointed to temp dir
-    await runGenerate({
-      target,
-      features: "subagents",
-      global: true,
-      env: { HOME_DIR: homeDir },
-    });
+      await runGenerate({
+        target,
+        features: "subagents",
+        global: true,
+        env: { HOME_DIR: homeDir },
+      });
 
-    // Verify that the expected output file was generated
-    const generatedContent = await readFileContent(join(homeDir, outputPath));
-    expect(generatedContent).toContain("planner");
-    expect(generatedContent).toContain("Analyze files and create a plan.");
-  });
+      const generatedContent = await readFileContent(join(homeDir, outputPath));
+      expect(generatedContent).toContain("planner");
+      expect(generatedContent).toContain("Analyze files and create a plan.");
+    },
+  );
 
   it("should ignore non-root subagents in global mode", async () => {
     const projectDir = getProjectDir();

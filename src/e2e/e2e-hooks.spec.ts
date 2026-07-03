@@ -3,8 +3,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
+import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
 import {
+  assertGenerateMatrixCoversTargets,
   runGenerate,
   runImport,
   useGlobalTestDirectories,
@@ -24,31 +26,51 @@ function assertHookCommandsPreserved(parsed: { hooks?: unknown }): void {
   expect(serialized).toContain(".rulesync/hooks/audit.sh");
 }
 
+// Tools whose event mapping/serialization needs a
+// bespoke assertion (vibe, devin, reasonix) live in their own standalone `it`s
+// below; `hooksProjectStandaloneTargets` lists them so the completeness check
+// still accounts for them.
+const hooksGenerateTargets = [
+  { target: "claudecode", outputPath: join(".claude", "settings.json") },
+  { target: "cursor", outputPath: join(".cursor", "hooks.json") },
+  { target: "opencode", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
+  { target: "kilo", outputPath: join(".kilo", "plugins", "rulesync-hooks.js") },
+  { target: "codexcli", outputPath: join(".codex", "hooks.json") },
+  { target: "qwencode", outputPath: join(".qwen", "settings.json") },
+  {
+    target: "goose",
+    outputPath: join(".agents", "plugins", "rulesync", "hooks", "hooks.json"),
+  },
+  { target: "copilot", outputPath: join(".github", "hooks", "copilot-hooks.json") },
+  { target: "copilotcli", outputPath: join(".github", "hooks", "copilotcli-hooks.json") },
+  { target: "factorydroid", outputPath: join(".factory", "hooks.json") },
+  { target: "kiro", outputPath: join(".kiro", "agents", "default.json") },
+  { target: "kiro-cli", outputPath: join(".kiro", "agents", "default.json") },
+  { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
+  { target: "antigravity-ide", outputPath: join(".agents", "hooks.json") },
+  { target: "antigravity-cli", outputPath: join(".agents", "hooks.json") },
+  { target: "augmentcode", outputPath: join(".augment", "settings.json") },
+] as const;
+
+// Targets exercised by dedicated `it`s (bespoke per-tool serialization).
+const hooksProjectStandaloneTargets = ["vibe", "devin", "reasonix"] as const;
+
 describe("E2E: hooks", () => {
   const { getTestDir } = useTestDirectory();
 
-  it.each([
-    { target: "claudecode", outputPath: join(".claude", "settings.json") },
-    { target: "cursor", outputPath: join(".cursor", "hooks.json") },
-    { target: "opencode", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
-    { target: "codexcli", outputPath: join(".codex", "hooks.json") },
-    { target: "qwencode", outputPath: join(".qwen", "settings.json") },
-    {
-      target: "goose",
-      outputPath: join(".agents", "plugins", "rulesync", "hooks", "hooks.json"),
-    },
-    { target: "copilot", outputPath: join(".github", "hooks", "copilot-hooks.json") },
-    { target: "copilotcli", outputPath: join(".github", "hooks", "copilotcli-hooks.json") },
-    { target: "factorydroid", outputPath: join(".factory", "hooks.json") },
-    { target: "kiro", outputPath: join(".kiro", "agents", "default.json") },
-    { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
-    { target: "antigravity-ide", outputPath: join(".agents", "hooks.json") },
-    { target: "antigravity-cli", outputPath: join(".agents", "hooks.json") },
-    { target: "augmentcode", outputPath: join(".augment", "settings.json") },
-  ])("should generate $target hooks", async ({ target, outputPath }) => {
+  it("generate matrix must cover every native hooks tool target", () => {
+    assertGenerateMatrixCoversTargets({
+      processor: HooksProcessor,
+      testedTargets: [
+        ...hooksGenerateTargets.map((e) => e.target),
+        ...hooksProjectStandaloneTargets,
+      ],
+    });
+  });
+
+  it.each(hooksGenerateTargets)("should generate $target hooks", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
-    // Setup: Create .rulesync/hooks.json
     const hooksContent = JSON.stringify(
       {
         version: 1,
@@ -62,10 +84,8 @@ describe("E2E: hooks", () => {
     );
     await writeFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
 
-    // Execute: Generate hooks for the target
     await runGenerate({ target, features: "hooks" });
 
-    // Verify that the expected output file was generated
     const generatedContent = await readFileContent(join(testDir, outputPath));
 
     if (target === "opencode") {
@@ -73,6 +93,11 @@ describe("E2E: hooks", () => {
       expect(generatedContent).toContain("export const RulesyncHooksPlugin");
       expect(generatedContent).toContain('"session.created"');
       expect(generatedContent).toContain('"session.idle"');
+      expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
+      expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+    } else if (target === "kilo") {
+      // Kilo also emits a JavaScript plugin (.kilo/plugins/rulesync-hooks.js),
+      // so assert the canonical command paths survive rather than parsing JSON.
       expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
       expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
     } else {
@@ -89,8 +114,10 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks).toBeDefined();
         expect(parsed.hooks.sessionStart).toBeDefined();
         expect(parsed.hooks.stop).toBeDefined();
-      } else if (target === "kiro") {
-        // Kiro CLI uses its own event names: sessionStart → agentSpawn, stop → stop
+      } else if (target === "kiro" || target === "kiro-cli") {
+        // Kiro (and the kiro-cli alias, which reuses KiroHooks) share the
+        // .kiro/agents/default.json agent-hook format and event mapping:
+        // sessionStart → agentSpawn, stop → stop.
         expect(parsed.hooks).toBeDefined();
         expect(parsed.hooks.agentSpawn).toBeDefined();
         expect(parsed.hooks.stop).toBeDefined();
@@ -527,93 +554,114 @@ describe("E2E: hooks (import)", () => {
   );
 });
 
+const hooksGlobalTargets = [
+  { target: "claudecode", outputPath: join(".claude", "settings.json") },
+  { target: "codexcli", outputPath: join(".codex", "hooks.json") },
+  { target: "qwencode", outputPath: join(".qwen", "settings.json") },
+  {
+    target: "goose",
+    outputPath: join(".agents", "plugins", "rulesync", "hooks", "hooks.json"),
+  },
+  { target: "opencode", outputPath: join(".config", "opencode", "plugins", "rulesync-hooks.js") },
+  { target: "kilo", outputPath: join(".config", "kilo", "plugins", "rulesync-hooks.js") },
+  { target: "factorydroid", outputPath: join(".factory", "hooks.json") },
+  { target: "deepagents", outputPath: join(".deepagents", "hooks.json") },
+  { target: "junie", outputPath: join(".junie", "config.json") },
+  { target: "cursor", outputPath: join(".cursor", "hooks.json") },
+  { target: "copilotcli", outputPath: join(".copilot", "hooks", "copilot-hooks.json") },
+  { target: "antigravity-ide", outputPath: join(".gemini", "config", "hooks.json") },
+  { target: "antigravity-cli", outputPath: join(".gemini", "config", "hooks.json") },
+  { target: "augmentcode", outputPath: join(".augment", "settings.json") },
+  { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
+] as const;
+
+// Global targets exercised by dedicated `it`s (bespoke per-tool serialization).
+const hooksGlobalStandaloneTargets = ["devin", "vibe", "hermesagent", "reasonix"] as const;
+
 describe("E2E: hooks (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
 
-  it.each([
-    { target: "claudecode", outputPath: join(".claude", "settings.json") },
-    { target: "codexcli", outputPath: join(".codex", "hooks.json") },
-    { target: "qwencode", outputPath: join(".qwen", "settings.json") },
-    {
-      target: "goose",
-      outputPath: join(".agents", "plugins", "rulesync", "hooks", "hooks.json"),
-    },
-    { target: "opencode", outputPath: join(".config", "opencode", "plugins", "rulesync-hooks.js") },
-    { target: "factorydroid", outputPath: join(".factory", "hooks.json") },
-    { target: "deepagents", outputPath: join(".deepagents", "hooks.json") },
-    { target: "junie", outputPath: join(".junie", "config.json") },
-    { target: "cursor", outputPath: join(".cursor", "hooks.json") },
-    { target: "copilotcli", outputPath: join(".copilot", "hooks", "copilot-hooks.json") },
-    { target: "antigravity-ide", outputPath: join(".gemini", "config", "hooks.json") },
-    { target: "antigravity-cli", outputPath: join(".gemini", "config", "hooks.json") },
-    { target: "augmentcode", outputPath: join(".augment", "settings.json") },
-    { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
-  ])("should generate $target hooks in home directory", async ({ target, outputPath }) => {
-    const projectDir = getProjectDir();
-    const homeDir = getHomeDir();
-
-    const hooksContent = JSON.stringify(
-      {
-        version: 1,
-        root: true,
-        hooks: {
-          sessionStart: [{ type: "command", command: ".rulesync/hooks/session-start.sh" }],
-          stop: [{ command: ".rulesync/hooks/audit.sh" }],
-        },
-      },
-      null,
-      2,
-    );
-    await writeFileContent(join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
-
-    await runGenerate({
-      target,
-      features: "hooks",
+  it("global matrix must cover every native global hooks tool target", () => {
+    assertGenerateMatrixCoversTargets({
+      processor: HooksProcessor,
+      testedTargets: [...hooksGlobalTargets.map((e) => e.target), ...hooksGlobalStandaloneTargets],
       global: true,
-      env: { HOME_DIR: homeDir },
     });
-
-    const generatedContent = await readFileContent(join(homeDir, outputPath));
-    if (target === "opencode") {
-      expect(generatedContent).toContain("RulesyncHooksPlugin");
-      expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
-      expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
-    } else if (target === "copilotcli") {
-      // Copilot CLI does not support the `stop` hook event, so audit.sh is
-      // intentionally dropped during generation.
-      const parsed = JSON.parse(generatedContent);
-      expect(parsed.hooks.sessionStart).toBeDefined();
-      expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
-    } else if (target === "junie") {
-      // Junie CLI supports SessionStart, UserPromptSubmit, Stop, and SessionEnd
-      // (PascalCase), so both `sessionStart` and `stop` (audit.sh) survive.
-      const parsed = JSON.parse(generatedContent);
-      expect(parsed.hooks.SessionStart).toBeDefined();
-      expect(parsed.hooks.Stop).toBeDefined();
-      expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
-      expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
-    } else if (target === "antigravity-ide" || target === "antigravity-cli") {
-      // Antigravity nests the event map under a generated `rulesync` hook name
-      // and supports preToolUse/postToolUse/preModelInvocation/
-      // postModelInvocation/stop, so `sessionStart` is dropped and only audit.sh
-      // (mapped to `Stop`) survives generation.
-      const parsed = JSON.parse(generatedContent);
-      expect(parsed.rulesync.Stop).toBeDefined();
-      expect(JSON.stringify(parsed)).toContain(".rulesync/hooks/audit.sh");
-    } else if (target === "qwencode") {
-      // Qwen Code emits Claude-style PascalCase event names under the `hooks`
-      // key of .qwen/settings.json: canonical `sessionStart` → `SessionStart`,
-      // `stop` → `Stop`. See CANONICAL_TO_QWENCODE_EVENT_NAMES in
-      // src/types/hooks.ts.
-      const parsed = JSON.parse(generatedContent);
-      expect(parsed.hooks.SessionStart).toBeDefined();
-      expect(parsed.hooks.Stop).toBeDefined();
-      expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
-      expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
-    } else {
-      assertHookCommandsPreserved(JSON.parse(generatedContent));
-    }
   });
+
+  it.each(hooksGlobalTargets)(
+    "should generate $target hooks in home directory",
+    async ({ target, outputPath }) => {
+      const projectDir = getProjectDir();
+      const homeDir = getHomeDir();
+
+      const hooksContent = JSON.stringify(
+        {
+          version: 1,
+          root: true,
+          hooks: {
+            sessionStart: [{ type: "command", command: ".rulesync/hooks/session-start.sh" }],
+            stop: [{ command: ".rulesync/hooks/audit.sh" }],
+          },
+        },
+        null,
+        2,
+      );
+      await writeFileContent(join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
+
+      await runGenerate({
+        target,
+        features: "hooks",
+        global: true,
+        env: { HOME_DIR: homeDir },
+      });
+
+      const generatedContent = await readFileContent(join(homeDir, outputPath));
+      if (target === "opencode") {
+        expect(generatedContent).toContain("RulesyncHooksPlugin");
+        expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
+        expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "kilo") {
+        // Kilo's JS plugin differs from OpenCode's shape; assert command paths.
+        expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
+        expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "copilotcli") {
+        // Copilot CLI does not support the `stop` hook event, so audit.sh is
+        // intentionally dropped during generation.
+        const parsed = JSON.parse(generatedContent);
+        expect(parsed.hooks.sessionStart).toBeDefined();
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+      } else if (target === "junie") {
+        // Junie CLI supports SessionStart, UserPromptSubmit, Stop, and SessionEnd
+        // (PascalCase), so both `sessionStart` and `stop` (audit.sh) survive.
+        const parsed = JSON.parse(generatedContent);
+        expect(parsed.hooks.SessionStart).toBeDefined();
+        expect(parsed.hooks.Stop).toBeDefined();
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "antigravity-ide" || target === "antigravity-cli") {
+        // Antigravity nests the event map under a generated `rulesync` hook name
+        // and supports preToolUse/postToolUse/preModelInvocation/
+        // postModelInvocation/stop, so `sessionStart` is dropped and only audit.sh
+        // (mapped to `Stop`) survives generation.
+        const parsed = JSON.parse(generatedContent);
+        expect(parsed.rulesync.Stop).toBeDefined();
+        expect(JSON.stringify(parsed)).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "qwencode") {
+        // Qwen Code emits Claude-style PascalCase event names under the `hooks`
+        // key of .qwen/settings.json: canonical `sessionStart` → `SessionStart`,
+        // `stop` → `Stop`. See CANONICAL_TO_QWENCODE_EVENT_NAMES in
+        // src/types/hooks.ts.
+        const parsed = JSON.parse(generatedContent);
+        expect(parsed.hooks.SessionStart).toBeDefined();
+        expect(parsed.hooks.Stop).toBeDefined();
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
+      } else {
+        assertHookCommandsPreserved(JSON.parse(generatedContent));
+      }
+    },
+  );
 
   it("should generate devin hooks in home directory", async () => {
     const projectDir = getProjectDir();

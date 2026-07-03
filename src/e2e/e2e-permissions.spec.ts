@@ -5,16 +5,134 @@ import * as smolToml from "smol-toml";
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
+import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
 import {
+  assertGenerateMatrixCoversTargets,
   runGenerate,
   runImport,
   useGlobalTestDirectories,
   useTestDirectory,
 } from "./e2e-helper.js";
 
+// Permissions targets exercised by the project-scope generate `it`s below. Each
+// tool has a bespoke serialization, so tests stay hand-written rather than
+// table-driven; this explicit list feeds the completeness check so a new
+// project-scope permissions tool cannot be added without a matching e2e test.
+const permissionsGenerateTargets = [
+  "opencode",
+  "zed",
+  "amp",
+  "devin",
+  "codexcli",
+  "junie",
+  "cursor",
+  "kiro",
+  "kiro-cli",
+  "kiro-ide",
+  "kilo",
+  "antigravity-ide",
+  "augmentcode",
+  "cline",
+  "factorydroid",
+  "qwencode",
+  "vibe",
+  "reasonix",
+  "takt",
+  "claudecode",
+] as const;
+
+// Permissions targets exercised by the global-scope generate `it`s below.
+const permissionsGlobalTargets = [
+  "claudecode",
+  "opencode",
+  "codexcli",
+  "cursor",
+  "kilo",
+  "augmentcode",
+  "qwencode",
+  "antigravity-cli",
+  "warp",
+  "zed",
+  "amp",
+  "vibe",
+  "rovodev",
+  "goose",
+  "grokcli",
+  "takt",
+  "hermesagent",
+  "reasonix",
+  "devin",
+  "factorydroid",
+  "junie",
+] as const;
+
 describe("E2E: permissions", () => {
   const { getTestDir } = useTestDirectory();
+
+  it("generate matrix must cover every native permissions tool target", () => {
+    assertGenerateMatrixCoversTargets({
+      processor: PermissionsProcessor,
+      testedTargets: permissionsGenerateTargets,
+    });
+  });
+
+  it("should generate claudecode permissions into .claude/settings.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git status *": "allow", "rm *": "deny" },
+            read: { ".env": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "claudecode", features: "permissions" });
+
+    const content = JSON.parse(await readFileContent(join(testDir, ".claude", "settings.json")));
+    expect(content.permissions.allow).toContain("Bash(git status *)");
+    expect(content.permissions.deny).toContain("Bash(rm *)");
+    expect(content.permissions.deny).toContain("Read(.env)");
+  });
+
+  it.each([{ target: "kiro-cli" }, { target: "kiro-ide" }])(
+    "should generate $target permissions into .kiro/agents/default.json",
+    async ({ target }) => {
+      const testDir = getTestDir();
+
+      await writeFileContent(
+        join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+        JSON.stringify(
+          {
+            permission: {
+              bash: { "git *": "allow", "rm *": "deny" },
+              read: { "src/**": "allow" },
+            },
+          },
+          null,
+          2,
+        ),
+      );
+
+      // kiro-cli and kiro-ide reuse the same .kiro/agents/default.json format as
+      // the kiro alias.
+      await runGenerate({ target, features: "permissions" });
+
+      const content = JSON.parse(
+        await readFileContent(join(testDir, ".kiro", "agents", "default.json")),
+      );
+      expect(content.toolsSettings.shell.allowedCommands).toContain("git *");
+      expect(content.toolsSettings.shell.deniedCommands).toContain("rm *");
+      expect(content.toolsSettings.read.allowedPaths).toContain("src/**");
+    },
+  );
 
   it("should generate opencode permissions from .rulesync/permissions.json", async () => {
     const testDir = getTestDir();
@@ -970,6 +1088,53 @@ enabled = true
 
 describe("E2E: permissions (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
+
+  it("global matrix must cover every native global permissions tool target", () => {
+    assertGenerateMatrixCoversTargets({
+      processor: PermissionsProcessor,
+      testedTargets: permissionsGlobalTargets,
+      global: true,
+    });
+  });
+
+  it.each([
+    { target: "devin", outputPath: join(".config", "devin", "config.json") },
+    { target: "factorydroid", outputPath: join(".factory", "settings.json") },
+    { target: "junie", outputPath: join(".junie", "allowlist.json") },
+  ])(
+    "should generate $target permissions in home directory with --global",
+    async ({ target, outputPath }) => {
+      const projectDir = getProjectDir();
+      const homeDir = getHomeDir();
+
+      await writeFileContent(
+        join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+        JSON.stringify(
+          {
+            root: true,
+            permission: {
+              bash: { "git status *": "allow", "rm *": "deny" },
+            },
+          },
+          null,
+          2,
+        ),
+      );
+
+      await runGenerate({
+        target,
+        features: "permissions",
+        global: true,
+        env: { HOME_DIR: homeDir },
+      });
+
+      // Event mapping/serialization differs per tool, so assert the canonical
+      // command patterns survive somewhere in the generated file.
+      const generated = await readFileContent(join(homeDir, outputPath));
+      expect(generated).toContain("git status *");
+      expect(generated).toContain("rm *");
+    },
+  );
 
   it("should generate claudecode permissions in home directory with --global", async () => {
     const projectDir = getProjectDir();
