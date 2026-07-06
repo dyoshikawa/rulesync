@@ -17,8 +17,11 @@ import {
 
 // Permissions targets exercised by the project-scope generate `it`s below. Each
 // tool has a bespoke serialization, so tests stay hand-written rather than
-// table-driven; this explicit list feeds the completeness check so a new
-// project-scope permissions tool cannot be added without a matching e2e test.
+// table-driven; this explicit list feeds the completeness check. Note the check
+// only enforces that this enumeration matches the processor's declared target
+// set — it does NOT verify that a dedicated `it` body exists for each name, so a
+// tool's `it` could be deleted while its name lingers here and the check stays
+// green. Keep this list in sync with the actual `it`s by hand.
 const permissionsGenerateTargets = [
   "opencode",
   "zed",

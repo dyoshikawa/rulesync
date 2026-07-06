@@ -200,6 +200,18 @@ export function assertGenerateMatrixCoversTargets({
     .filter((target) => !target.endsWith("-legacy"));
   const declaredSet = new Set<string>(declared);
 
+  const duplicates = testedTargets.filter((t, i) => testedTargets.indexOf(t) !== i).toSorted();
+  expect(
+    Array.from(new Set(duplicates)),
+    `These targets appear more than once in \`testedTargets\`: ${duplicates.join(", ")}`,
+  ).toEqual([]);
+
+  const overlap = testedTargets.filter((t) => untested.includes(t)).toSorted();
+  expect(
+    overlap,
+    `These targets are listed in both \`testedTargets\` and \`untested\` (a target cannot be both tested and intentionally untested): ${overlap.join(", ")}`,
+  ).toEqual([]);
+
   const stray = [...testedTargets, ...untested].filter((t) => !declaredSet.has(t)).toSorted();
   expect(
     stray,
