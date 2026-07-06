@@ -171,12 +171,18 @@ type ProcessorTargets = {
  * processor without wiring it into the matrix (or dropping one) fails CI instead
  * of silently eroding coverage.
  *
- * The declared targets (from `getToolTargets`) must partition exactly into
+ * The declared targets (from `getToolTargets`) must be covered by the union of
  * `testedTargets` (tools with an entry in the matrix `it.each` dictionary) and
  * `untested` (tools intentionally excluded from this matrix — e.g. tools whose
  * output only exists in another scope, or that merge into a shared file). Every
  * excluded tool must be listed explicitly with a reason so the omission is a
  * conscious decision rather than an accidental gap.
+ *
+ * `testedTargets` and `untested` must be disjoint: a tool cannot be both tested
+ * and intentionally untested. (A tool may legitimately appear more than once
+ * *within* `testedTargets` when it is exercised by several matrices — e.g. a
+ * tool that emits both a root `AGENTS.md` and a nested tree — so duplicates
+ * within a single side are allowed.)
  *
  * `-legacy` targets are dropped from the comparison: they are duplicate aliases
  * that the same tables/generators exclude, and are never exercised end-to-end.
@@ -184,11 +190,6 @@ type ProcessorTargets = {
  * Mirrors the "derive from the implementation, fail on drift" idiom already used
  * by the TOOL_DISPLAY completeness check and the gitignore derivation.
  */
-/** Returns the sorted, de-duplicated set of values that appear more than once. */
-function uniqueDuplicates(targets: readonly string[]): string[] {
-  return Array.from(new Set(targets.filter((t, i) => targets.indexOf(t) !== i))).toSorted();
-}
-
 export function assertGenerateMatrixCoversTargets({
   processor,
   testedTargets,
@@ -205,20 +206,9 @@ export function assertGenerateMatrixCoversTargets({
     .filter((target) => !target.endsWith("-legacy"));
   const declaredSet = new Set<string>(declared);
 
-  // A true "exact partition" requires each side to have no internal duplicates,
-  // so check both `testedTargets` and `untested` symmetrically.
-  const testedDuplicates = uniqueDuplicates(testedTargets);
-  expect(
-    testedDuplicates,
-    `These targets appear more than once in \`testedTargets\`: ${testedDuplicates.join(", ")}`,
-  ).toEqual([]);
-
-  const untestedDuplicates = uniqueDuplicates(untested);
-  expect(
-    untestedDuplicates,
-    `These targets appear more than once in \`untested\`: ${untestedDuplicates.join(", ")}`,
-  ).toEqual([]);
-
+  // `testedTargets` and `untested` must be disjoint — a tool listed as both
+  // tested and intentionally untested is a contradiction the stray/uncovered
+  // checks below cannot catch (each set covers it, so neither fires).
   const overlap = testedTargets.filter((t) => untested.includes(t)).toSorted();
   expect(
     overlap,
