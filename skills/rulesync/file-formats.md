@@ -829,6 +829,26 @@ For Claude Code, this generates `permissions.allow`, `permissions.ask`, and `per
 
 For OpenCode, this generates the `permission` object in `opencode.json` / `opencode.jsonc` (project mode) or `.config/opencode/opencode.json` / `.config/opencode/opencode.jsonc` (global mode), preserving other existing OpenCode config fields.
 
+> **OpenCode-only override (`opencode` key):** OpenCode exposes permission categories that other tools do not understand (e.g. `external_directory`). Placing these in the shared `permission` block would push meaningless entries into Claude Code, Codex, etc. To scope them to OpenCode, add a tool-scoped `opencode` override key alongside the shared block — mirroring the tool-scoped override keys used by [hooks](#hooks) (`opencode.hooks`) and rules frontmatter. Categories under `opencode.permission` are merged on top of the shared block **per category** (the override wins) and are emitted **only** into `opencode.json` / `opencode.jsonc`; every other tool ignores them. Each value may be a bare action string (`"deny"`) or a pattern map (`{ "*": "ask" }`), matching OpenCode's own permission syntax.
+>
+> ```jsonc
+> {
+>   "permission": {
+>     "bash": { "git *": "allow", "*": "ask" },
+>   },
+>   // Emitted only into opencode.json's `permission`; never leaks to other tools.
+>   "opencode": {
+>     "permission": {
+>       "external_directory": "deny",
+>     },
+>   },
+> }
+> ```
+>
+> On **import**, any OpenCode category that is not a shared canonical rulesync category (`bash`, `read`, `edit`, `write`, `webfetch`, `websearch`, `grep`, `glob`, `notebookedit`, `agent`, the all-tools key `*`, or an `mcp__*` tool name) is routed into the `opencode` override rather than the shared block, so a subsequent `rulesync generate` does not leak it into other tools.
+>
+> You may also override a **shared** category for OpenCode specifically (e.g. put `webfetch` under `opencode.permission` to give OpenCode a different value than the shared block sends to other tools). On generate this works as expected, but note the override is not round-trip stable for shared categories: re-importing the generated `opencode.json` classifies a shared category back into the shared block, so prefer expressing OpenCode-only categories here and keeping cross-tool categories in the shared block.
+
 For Codex CLI, this generates a `rulesync` named profile in `.codex/config.toml` under `[permissions.rulesync]` and sets `default_permissions = "rulesync"` (project/global depending on mode). It also generates `.codex/rules/rulesync.rules` from `permission.bash` entries using `prefix_rule(...)`. Current Rulesync-to-Codex mapping supports `bash`, `read`, `edit`/`write`, and `webfetch` categories:
 
 - `bash`: generates one `prefix_rule(...)` per command pattern in `.codex/rules/rulesync.rules` (`allow` → `allow`, `ask` → `prompt`, `deny` → `forbidden`)
