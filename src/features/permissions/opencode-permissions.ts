@@ -52,7 +52,15 @@ const CANONICAL_PERMISSION_CATEGORIES = new Set([
 ]);
 
 function isSharedPermissionCategory(category: string): boolean {
-  return CANONICAL_PERMISSION_CATEGORIES.has(category) || category.startsWith("mcp__");
+  // `"*"` is OpenCode's all-tools key and carries a cross-tool meaning in the
+  // canonical rulesync model (the string form `"permission": "allow"` normalizes
+  // to the same `{ "*": { "*": action } }` shape), so it must stay in the shared
+  // block rather than being routed into the OpenCode-only override.
+  return (
+    category === "*" ||
+    CANONICAL_PERMISSION_CATEGORIES.has(category) ||
+    category.startsWith("mcp__")
+  );
 }
 
 const OpencodePermissionsConfigSchema = z.looseObject({

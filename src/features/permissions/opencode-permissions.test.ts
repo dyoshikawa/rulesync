@@ -140,6 +140,21 @@ describe("OpencodePermissions", () => {
     });
   });
 
+  it("should keep the all-tools wildcard category in the shared block on import", async () => {
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({ permission: { "*": "ask" } }),
+    );
+
+    const instance = await OpencodePermissions.fromFile({ outputRoot: testDir });
+    const rulesync = instance.toRulesyncPermissions().getJson();
+
+    // `"*"` is the all-tools key: it must stay shared (matching the string form
+    // `"permission": "ask"`), not be routed into the OpenCode-only override.
+    expect(rulesync.permission).toEqual({ "*": { "*": "ask" } });
+    expect(rulesync.opencode).toBeUndefined();
+  });
+
   it("should omit the opencode override when there are no OpenCode-only categories", async () => {
     await writeFileContent(
       join(testDir, "opencode.json"),
