@@ -1037,6 +1037,35 @@ describe("resolveAndFetchSources", () => {
     );
   });
 
+  it("should install root SKILL.md when git source has metadata directories", async () => {
+    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "a".repeat(40) });
+    vi.mocked(fetchSkillFiles).mockResolvedValue([
+      { relativePath: "SKILL.md", content: "# Humanizer", size: 50 },
+      { relativePath: "README.md", content: "docs", size: 20 },
+      { relativePath: ".claude-plugin/plugin.json", content: "{}", size: 2 },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [
+        {
+          source: "https://github.com/blader/humanizer",
+          transport: "git",
+          path: ".",
+          skills: ["humanizer"],
+        },
+      ],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(1);
+    expect(writeFileContent).toHaveBeenCalledWith(
+      join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "humanizer", "SKILL.md"),
+      "# Humanizer",
+    );
+  });
+
   it("should still handle classic subdirectory skill structure", async () => {
     const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
     vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "b".repeat(40) });
@@ -1077,6 +1106,31 @@ describe("resolveAndFetchSources", () => {
           source: "https://dev.azure.com/org/_git/single-skill-repo",
           transport: "git",
           // no skills → defaults to ["*"]
+        },
+      ],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(0);
+    expect(writeFileContent).not.toHaveBeenCalled();
+  });
+
+  it("should not install explicit root fallback without root SKILL.md", async () => {
+    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "c".repeat(40) });
+    vi.mocked(fetchSkillFiles).mockResolvedValue([
+      { relativePath: "README.md", content: "docs", size: 20 },
+      { relativePath: ".claude-plugin/plugin.json", content: "{}", size: 2 },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [
+        {
+          source: "https://github.com/blader/humanizer",
+          transport: "git",
+          path: ".",
+          skills: ["humanizer"],
         },
       ],
       projectRoot: testDir,
@@ -1149,6 +1203,40 @@ describe("resolveAndFetchSources", () => {
     const result = await resolveAndFetchSources({
       logger,
       sources: [{ source: "org/humanizer:skills", skills: ["humanizer"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(1);
+    expect(writeFileContent).toHaveBeenCalledWith(
+      join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "humanizer", "SKILL.md"),
+      "# Humanizer",
+    );
+  });
+
+  it("should install root SKILL.md when github source has metadata directories", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === ".") {
+          return [
+            { name: "SKILL.md", path: "SKILL.md", type: "file", size: 50 },
+            { name: "README.md", path: "README.md", type: "file", size: 20 },
+            { name: ".claude-plugin", path: ".claude-plugin", type: "dir", size: 0 },
+          ];
+        }
+        return [];
+      },
+    );
+    mockClientInstance.getFileContent.mockImplementation(
+      async (_o: string, _r: string, path: string) => {
+        if (path === "SKILL.md") return "# Humanizer";
+        if (path === "README.md") return "docs";
+        return "";
+      },
+    );
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/humanizer:.", skills: ["humanizer"] }],
       projectRoot: testDir,
     });
 
