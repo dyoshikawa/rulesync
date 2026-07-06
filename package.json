@@ -94,7 +94,7 @@
     "fastmcp": "4.3.2",
     "globby": "16.2.0",
     "gray-matter": "4.0.3",
-    "js-yaml": "5.2.1",
+    "js-yaml": "4.2.0",
     "jsonc-parser": "3.3.1",
     "smol-toml": "1.7.0",
     "sury": "10.0.4",
