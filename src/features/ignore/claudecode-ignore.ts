@@ -9,6 +9,7 @@ import {
 } from "../../constants/claudecode-paths.js";
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import { FeatureOptions } from "../../types/features.js";
+import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import {
   applyIgnoreReadDenies,
@@ -143,7 +144,15 @@ export class ClaudecodeIgnore extends ToolIgnore {
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const exists = await fileExists(filePath);
     const existingFileContent = exists ? await readFileContent(filePath) : "{}";
-    const existingJsonValue: ClaudeSettingsJson = JSON.parse(existingFileContent);
+    let existingJsonValue: ClaudeSettingsJson;
+    try {
+      existingJsonValue = JSON.parse(existingFileContent);
+    } catch (error) {
+      throw new Error(
+        `Failed to parse existing Claude settings at ${filePath}: ${formatError(error)}`,
+        { cause: error },
+      );
+    }
 
     // The gateway owns the `permissions.deny` merge shared with the permissions
     // feature; here we only state the intent (deny these Read patterns).
