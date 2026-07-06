@@ -184,6 +184,11 @@ type ProcessorTargets = {
  * Mirrors the "derive from the implementation, fail on drift" idiom already used
  * by the TOOL_DISPLAY completeness check and the gitignore derivation.
  */
+/** Returns the sorted, de-duplicated set of values that appear more than once. */
+function uniqueDuplicates(targets: readonly string[]): string[] {
+  return Array.from(new Set(targets.filter((t, i) => targets.indexOf(t) !== i))).toSorted();
+}
+
 export function assertGenerateMatrixCoversTargets({
   processor,
   testedTargets,
@@ -200,10 +205,18 @@ export function assertGenerateMatrixCoversTargets({
     .filter((target) => !target.endsWith("-legacy"));
   const declaredSet = new Set<string>(declared);
 
-  const duplicates = testedTargets.filter((t, i) => testedTargets.indexOf(t) !== i).toSorted();
+  // A true "exact partition" requires each side to have no internal duplicates,
+  // so check both `testedTargets` and `untested` symmetrically.
+  const testedDuplicates = uniqueDuplicates(testedTargets);
   expect(
-    Array.from(new Set(duplicates)),
-    `These targets appear more than once in \`testedTargets\`: ${duplicates.join(", ")}`,
+    testedDuplicates,
+    `These targets appear more than once in \`testedTargets\`: ${testedDuplicates.join(", ")}`,
+  ).toEqual([]);
+
+  const untestedDuplicates = uniqueDuplicates(untested);
+  expect(
+    untestedDuplicates,
+    `These targets appear more than once in \`untested\`: ${untestedDuplicates.join(", ")}`,
   ).toEqual([]);
 
   const overlap = testedTargets.filter((t) => untested.includes(t)).toSorted();
