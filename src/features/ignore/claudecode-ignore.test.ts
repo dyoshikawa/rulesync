@@ -216,6 +216,26 @@ describe("ClaudecodeIgnore", () => {
       // existing shared settings.json untouched on disk.
       expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.local.json");
     });
+
+    it("should throw a formatted error when the existing settings.json is malformed", async () => {
+      const claudeDir = join(testDir, ".claude");
+      await ensureDir(claudeDir);
+      await writeFileContent(join(claudeDir, "settings.json"), "{ not valid json");
+
+      const rulesyncIgnore = new RulesyncIgnore({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+        fileContent: "*.log",
+      });
+
+      await expect(
+        ClaudecodeIgnore.fromRulesyncIgnore({
+          outputRoot: testDir,
+          rulesyncIgnore,
+          options: { fileMode: "shared" },
+        }),
+      ).rejects.toThrow(/Failed to parse existing Claude settings at .*settings\.json/);
+    });
   });
 
   describe("isDeletable", () => {
