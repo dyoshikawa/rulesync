@@ -8,48 +8,74 @@ import {
   RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
+import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
+  assertGenerateMatrixCoversTargets,
   runGenerate,
   runImport,
   useGlobalTestDirectories,
   useTestDirectory,
 } from "./e2e-helper.js";
 
+// Tools whose root rule lands in a single memory file.
+const rulesRootTargets = [
+  { target: "claudecode", outputPath: "CLAUDE.md" },
+  { target: "cursor", outputPath: join(".cursor", "rules", "overview.mdc") },
+  { target: "aiassistant", outputPath: join(".aiassistant", "rules", "overview.md") },
+  { target: "amp", outputPath: "AGENTS.md" },
+  { target: "codexcli", outputPath: "AGENTS.md" },
+  { target: "grokcli", outputPath: "AGENTS.md" },
+  { target: "hermesagent", outputPath: ".hermes.md" },
+  { target: "copilot", outputPath: join(".github", "copilot-instructions.md") },
+  { target: "opencode", outputPath: "AGENTS.md" },
+  { target: "antigravity-cli", outputPath: "AGENTS.md" },
+  { target: "antigravity-ide", outputPath: "AGENTS.md" },
+  { target: "goose", outputPath: ".goosehints" },
+  { target: "copilotcli", outputPath: join(".github", "copilot-instructions.md") },
+  { target: "kilo", outputPath: "AGENTS.md" },
+  { target: "agentsmd", outputPath: "AGENTS.md" },
+  { target: "factorydroid", outputPath: "AGENTS.md" },
+  { target: "deepagents", outputPath: join(".deepagents", "AGENTS.md") },
+  { target: "rovodev", outputPath: join(".rovodev", "AGENTS.md") },
+  { target: "qwencode", outputPath: "QWEN.md" },
+  { target: "junie", outputPath: join(".junie", "AGENTS.md") },
+  { target: "warp", outputPath: "AGENTS.md" },
+  { target: "replit", outputPath: "replit.md" },
+  { target: "pi", outputPath: "AGENTS.md" },
+  { target: "zed", outputPath: ".rules" },
+  { target: "vibe", outputPath: "AGENTS.md" },
+] as const;
+
+// Tools that emit every rule as a directory entry.
+const rulesNonRootTargets = [
+  { target: "cline", outputPath: join(".clinerules", "overview.md") },
+  { target: "roo", outputPath: join(".roo", "rules", "overview.md") },
+  { target: "kiro", outputPath: join(".kiro", "steering", "overview.md") },
+  { target: "kiro-cli", outputPath: join(".kiro", "steering", "overview.md") },
+  { target: "kiro-ide", outputPath: join(".kiro", "steering", "overview.md") },
+  { target: "antigravity-ide", outputPath: join(".agents", "rules", "overview.md") },
+  { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },
+  { target: "devin", outputPath: join(".devin", "rules", "overview.md") },
+  { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
+] as const;
+
 describe("E2E: rules", () => {
   const { getTestDir } = useTestDirectory();
 
-  // Both codexcli and opencode generate AGENTS.md as their root rule output
-  it.each([
-    { target: "claudecode", outputPath: "CLAUDE.md" },
-    { target: "cursor", outputPath: join(".cursor", "rules", "overview.mdc") },
-    { target: "aiassistant", outputPath: join(".aiassistant", "rules", "overview.md") },
-    { target: "amp", outputPath: "AGENTS.md" },
-    { target: "codexcli", outputPath: "AGENTS.md" },
-    { target: "grokcli", outputPath: "AGENTS.md" },
-    { target: "hermesagent", outputPath: ".hermes.md" },
-    { target: "copilot", outputPath: join(".github", "copilot-instructions.md") },
-    { target: "opencode", outputPath: "AGENTS.md" },
-    { target: "antigravity-cli", outputPath: "AGENTS.md" },
-    { target: "antigravity-ide", outputPath: "AGENTS.md" },
-    { target: "goose", outputPath: ".goosehints" },
-    { target: "copilotcli", outputPath: join(".github", "copilot-instructions.md") },
-    { target: "kilo", outputPath: "AGENTS.md" },
-    { target: "agentsmd", outputPath: "AGENTS.md" },
-    { target: "factorydroid", outputPath: "AGENTS.md" },
-    { target: "deepagents", outputPath: join(".deepagents", "AGENTS.md") },
-    { target: "rovodev", outputPath: join(".rovodev", "AGENTS.md") },
-    { target: "qwencode", outputPath: "QWEN.md" },
-    { target: "junie", outputPath: join(".junie", "AGENTS.md") },
-    { target: "warp", outputPath: "AGENTS.md" },
-    { target: "replit", outputPath: "replit.md" },
-    { target: "pi", outputPath: "AGENTS.md" },
-    { target: "zed", outputPath: ".rules" },
-    { target: "vibe", outputPath: "AGENTS.md" },
-  ])("should generate $target rules", async ({ target, outputPath }) => {
+  it("generate matrix must cover every native rules tool target", () => {
+    // antigravity-ide appears in both matrices (root AGENTS.md vs .agents/rules),
+    // so the union of the two matrices is the set of natively-tested tools.
+    const tested = [
+      ...rulesRootTargets.map((e) => e.target),
+      ...rulesNonRootTargets.map((e) => e.target),
+    ];
+    assertGenerateMatrixCoversTargets({ processor: RulesProcessor, testedTargets: tested });
+  });
+
+  it.each(rulesRootTargets)("should generate $target rules", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
-    // Setup: Create necessary directories and a sample rule file
     const ruleContent = `---
 root: true
 targets: ["*"]
@@ -66,29 +92,18 @@ This is a test rule for E2E testing.
       ruleContent,
     );
 
-    // Execute: Generate rules for the target
     await runGenerate({ target, features: "rules" });
 
-    // Verify that the expected output file was generated
     const generatedContent = await readFileContent(join(testDir, outputPath));
     expect(generatedContent).toContain("Test Rule");
   });
 
-  it.each([
-    { target: "cline", outputPath: join(".clinerules", "overview.md") },
-    { target: "roo", outputPath: join(".roo", "rules", "overview.md") },
-    { target: "kiro", outputPath: join(".kiro", "steering", "overview.md") },
-    { target: "kiro-cli", outputPath: join(".kiro", "steering", "overview.md") },
-    { target: "kiro-ide", outputPath: join(".kiro", "steering", "overview.md") },
-    { target: "antigravity-ide", outputPath: join(".agents", "rules", "overview.md") },
-    { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },
-    { target: "devin", outputPath: join(".devin", "rules", "overview.md") },
-    { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
-  ])("should generate $target rules (non-root)", async ({ target, outputPath }) => {
-    const testDir = getTestDir();
+  it.each(rulesNonRootTargets)(
+    "should generate $target rules (non-root)",
+    async ({ target, outputPath }) => {
+      const testDir = getTestDir();
 
-    // Setup: Create a non-root rule file
-    const ruleContent = `---
+      const ruleContent = `---
 targets: ["*"]
 description: "Test rule"
 globs: ["src/**/*"]
@@ -98,18 +113,17 @@ globs: ["src/**/*"]
 
 This is a test rule for E2E testing.
 `;
-    await writeFileContent(
-      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
-      ruleContent,
-    );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+        ruleContent,
+      );
 
-    // Execute: Generate rules for the target
-    await runGenerate({ target, features: "rules" });
+      await runGenerate({ target, features: "rules" });
 
-    // Verify that the expected output file was generated
-    const generatedContent = await readFileContent(join(testDir, outputPath));
-    expect(generatedContent).toContain("Test Rule");
-  });
+      const generatedContent = await readFileContent(join(testDir, outputPath));
+      expect(generatedContent).toContain("Test Rule");
+    },
+  );
 
   it("should fold pi non-root rules into the root AGENTS.md", async () => {
     const testDir = getTestDir();
@@ -644,45 +658,59 @@ This is a test project for E2E testing.
   });
 });
 
+const rulesGlobalTargets = [
+  { target: "claudecode", outputPath: join(".claude", "CLAUDE.md") },
+  { target: "copilot", outputPath: join(".copilot", "copilot-instructions.md") },
+  { target: "opencode", outputPath: join(".config", "opencode", "AGENTS.md") },
+  { target: "codexcli", outputPath: join(".codex", "AGENTS.md") },
+  { target: "grokcli", outputPath: join(".grok", "AGENTS.md") },
+  { target: "amp", outputPath: join(".config", "amp", "AGENTS.md") },
+  { target: "cline", outputPath: join(".agents", "AGENTS.md") },
+  { target: "antigravity-ide", outputPath: join(".gemini", "GEMINI.md") },
+  { target: "antigravity-cli", outputPath: join(".gemini", "GEMINI.md") },
+  { target: "goose", outputPath: join(".config", "goose", ".goosehints") },
+  { target: "copilotcli", outputPath: join(".copilot", "copilot-instructions.md") },
+  { target: "deepagents", outputPath: join(".deepagents", "deepagents", "AGENTS.md") },
+  { target: "factorydroid", outputPath: join(".factory", "AGENTS.md") },
+  { target: "kilo", outputPath: join(".config", "kilo", "AGENTS.md") },
+  { target: "rovodev", outputPath: join(".rovodev", "AGENTS.md") },
+  { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
+  { target: "pi", outputPath: join(".pi", "agent", "AGENTS.md") },
+  { target: "zed", outputPath: join(".config", "zed", "AGENTS.md") },
+  { target: "vibe", outputPath: join(".vibe", "AGENTS.md") },
+  { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },
+  {
+    target: "devin",
+    outputPath: join(".config", "devin", "AGENTS.md"),
+  },
+  { target: "junie", outputPath: join(".junie", "AGENTS.md") },
+  { target: "qwencode", outputPath: join(".qwen", "QWEN.md") },
+  { target: "kiro", outputPath: join(".kiro", "steering", "product.md") },
+  { target: "kiro-cli", outputPath: join(".kiro", "steering", "product.md") },
+  { target: "kiro-ide", outputPath: join(".kiro", "steering", "product.md") },
+] as const;
+
 describe("E2E: rules (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
 
-  it.each([
-    { target: "claudecode", outputPath: join(".claude", "CLAUDE.md") },
-    { target: "copilot", outputPath: join(".copilot", "copilot-instructions.md") },
-    { target: "opencode", outputPath: join(".config", "opencode", "AGENTS.md") },
-    { target: "codexcli", outputPath: join(".codex", "AGENTS.md") },
-    { target: "grokcli", outputPath: join(".grok", "AGENTS.md") },
-    { target: "amp", outputPath: join(".config", "amp", "AGENTS.md") },
-    { target: "cline", outputPath: join(".agents", "AGENTS.md") },
-    { target: "antigravity-ide", outputPath: join(".gemini", "GEMINI.md") },
-    { target: "antigravity-cli", outputPath: join(".gemini", "GEMINI.md") },
-    { target: "goose", outputPath: join(".config", "goose", ".goosehints") },
-    { target: "copilotcli", outputPath: join(".copilot", "copilot-instructions.md") },
-    { target: "deepagents", outputPath: join(".deepagents", "deepagents", "AGENTS.md") },
-    { target: "factorydroid", outputPath: join(".factory", "AGENTS.md") },
-    { target: "kilo", outputPath: join(".config", "kilo", "AGENTS.md") },
-    { target: "rovodev", outputPath: join(".rovodev", "AGENTS.md") },
-    { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
-    { target: "pi", outputPath: join(".pi", "agent", "AGENTS.md") },
-    { target: "zed", outputPath: join(".config", "zed", "AGENTS.md") },
-    { target: "vibe", outputPath: join(".vibe", "AGENTS.md") },
-    { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },
-    {
-      target: "devin",
-      outputPath: join(".config", "devin", "AGENTS.md"),
-    },
-    { target: "junie", outputPath: join(".junie", "AGENTS.md") },
-    { target: "qwencode", outputPath: join(".qwen", "QWEN.md") },
-    { target: "kiro", outputPath: join(".kiro", "steering", "product.md") },
-    { target: "kiro-cli", outputPath: join(".kiro", "steering", "product.md") },
-    { target: "kiro-ide", outputPath: join(".kiro", "steering", "product.md") },
-  ])("should generate $target rules in home directory", async ({ target, outputPath }) => {
-    const projectDir = getProjectDir();
-    const homeDir = getHomeDir();
+  it("global matrix must cover every native global rules tool target", () => {
+    assertGenerateMatrixCoversTargets({
+      processor: RulesProcessor,
+      testedTargets: rulesGlobalTargets.map((e) => e.target),
+      // Roo has no root memory file, so its global output is exercised by the
+      // dedicated "~/.roo/rules" non-root test below rather than this root matrix.
+      untested: ["roo"],
+      global: true,
+    });
+  });
 
-    // Setup: Create a root rule in the project directory
-    const ruleContent = `---
+  it.each(rulesGlobalTargets)(
+    "should generate $target rules in home directory",
+    async ({ target, outputPath }) => {
+      const projectDir = getProjectDir();
+      const homeDir = getHomeDir();
+
+      const ruleContent = `---
 root: true
 targets: ["*"]
 description: "Global test rule"
@@ -693,23 +721,22 @@ globs: ["**/*"]
 
 This is a global test rule for E2E testing.
 `;
-    await writeFileContent(
-      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
-      ruleContent,
-    );
+      await writeFileContent(
+        join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+        ruleContent,
+      );
 
-    // Execute: Generate rules in global mode with HOME pointed to temp dir
-    await runGenerate({
-      target,
-      features: "rules",
-      global: true,
-      env: { HOME_DIR: homeDir },
-    });
+      await runGenerate({
+        target,
+        features: "rules",
+        global: true,
+        env: { HOME_DIR: homeDir },
+      });
 
-    // Verify that the output file was written to the home directory
-    const generatedContent = await readFileContent(join(homeDir, outputPath));
-    expect(generatedContent).toContain("Global Test Rule");
-  });
+      const generatedContent = await readFileContent(join(homeDir, outputPath));
+      expect(generatedContent).toContain("Global Test Rule");
+    },
+  );
 
   it("should ignore non-root rules in global mode", async () => {
     const projectDir = getProjectDir();

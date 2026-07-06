@@ -10,8 +10,10 @@ import {
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
 } from "../constants/rulesync-paths.js";
+import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
+  assertGenerateMatrixCoversTargets,
   runGenerate,
   runImport,
   rulesyncArgs,
@@ -20,37 +22,52 @@ import {
   useTestDirectory,
 } from "./e2e-helper.js";
 
+// Native MCP tools that emit "test-server" (takt writes a transport allowlist instead).
+const mcpGenerateTargets = [
+  { target: "amp", outputPath: join(".amp", "settings.json") },
+  { target: "claudecode", outputPath: ".mcp.json" },
+  { target: "cursor", outputPath: join(".cursor", "mcp.json") },
+  { target: "qwencode", outputPath: join(".qwen", "settings.json") },
+  { target: "codexcli", outputPath: join(".codex", "config.toml") },
+  { target: "grokcli", outputPath: join(".grok", "config.toml") },
+  { target: "copilot", outputPath: join(".vscode", "mcp.json") },
+  { target: "copilotcli", outputPath: join(".github", "mcp.json") },
+  { target: "opencode", outputPath: "opencode.jsonc" },
+  { target: "deepagents", outputPath: join(".deepagents", ".mcp.json") },
+  { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
+  { target: "goose", outputPath: join(".agents", "plugins", "rulesync", ".mcp.json") },
+  { target: "kilo", outputPath: "kilo.jsonc" },
+  { target: "roo", outputPath: join(".roo", "mcp.json") },
+  { target: "kiro", outputPath: join(".kiro", "settings", "mcp.json") },
+  { target: "kiro-cli", outputPath: join(".kiro", "settings", "mcp.json") },
+  { target: "kiro-ide", outputPath: join(".kiro", "settings", "mcp.json") },
+  { target: "junie", outputPath: join(".junie", "mcp", "mcp.json") },
+  { target: "antigravity-ide", outputPath: join(".agents", "mcp_config.json") },
+  { target: "antigravity-cli", outputPath: join(".agents", "mcp_config.json") },
+  { target: "warp", outputPath: join(".warp", ".mcp.json") },
+  { target: "zed", outputPath: join(".zed", "settings.json") },
+  { target: "devin", outputPath: join(".devin", "config.json") },
+  { target: "vibe", outputPath: join(".vibe", "config.toml") },
+  { target: "reasonix", outputPath: "reasonix.toml" },
+] as const;
+
 describe("E2E: mcp", () => {
   const { getTestDir } = useTestDirectory();
 
-  it.each([
-    { target: "amp", outputPath: join(".amp", "settings.json") },
-    { target: "claudecode", outputPath: ".mcp.json" },
-    { target: "cursor", outputPath: join(".cursor", "mcp.json") },
-    { target: "qwencode", outputPath: join(".qwen", "settings.json") },
-    { target: "codexcli", outputPath: join(".codex", "config.toml") },
-    { target: "grokcli", outputPath: join(".grok", "config.toml") },
-    { target: "copilot", outputPath: join(".vscode", "mcp.json") },
-    { target: "copilotcli", outputPath: join(".github", "mcp.json") },
-    { target: "opencode", outputPath: "opencode.jsonc" },
-    { target: "deepagents", outputPath: join(".deepagents", ".mcp.json") },
-    { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
-    { target: "goose", outputPath: join(".agents", "plugins", "rulesync", ".mcp.json") },
-    { target: "kilo", outputPath: "kilo.jsonc" },
-    { target: "roo", outputPath: join(".roo", "mcp.json") },
-    { target: "kiro", outputPath: join(".kiro", "settings", "mcp.json") },
-    { target: "junie", outputPath: join(".junie", "mcp", "mcp.json") },
-    { target: "antigravity-ide", outputPath: join(".agents", "mcp_config.json") },
-    { target: "antigravity-cli", outputPath: join(".agents", "mcp_config.json") },
-    { target: "warp", outputPath: join(".warp", ".mcp.json") },
-    { target: "zed", outputPath: join(".zed", "settings.json") },
-    { target: "devin", outputPath: join(".devin", "config.json") },
-    { target: "vibe", outputPath: join(".vibe", "config.toml") },
-    { target: "reasonix", outputPath: "reasonix.toml" },
-  ])("should generate $target mcp", async ({ target, outputPath }) => {
+  it("generate matrix must cover every native mcp tool target", () => {
+    assertGenerateMatrixCoversTargets({
+      processor: McpProcessor,
+      testedTargets: mcpGenerateTargets.map((e) => e.target),
+      // takt only writes a transport allowlist to .takt/config.yaml (no
+      // "test-server" entry), so it is covered by its own dedicated test
+      // "should generate Takt MCP transport allowlist into .takt/config.yaml".
+      untested: ["takt"],
+    });
+  });
+
+  it.each(mcpGenerateTargets)("should generate $target mcp", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
-    // Setup: Create .rulesync/mcp.json with a test MCP server
     const mcpContent = JSON.stringify(
       {
         mcpServers: {
@@ -68,10 +85,8 @@ describe("E2E: mcp", () => {
     );
     await writeFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH), mcpContent);
 
-    // Execute: Generate mcp for the target
     await runGenerate({ target, features: "mcp" });
 
-    // Verify that the expected output file was generated and contains the server
     const generatedContent = await readFileContent(join(testDir, outputPath));
     expect(generatedContent).toContain("test-server");
   });
@@ -528,84 +543,99 @@ describe("E2E: mcp (import)", () => {
   });
 });
 
+// Native global-scope MCP tools that emit "test-server" (takt writes a transport allowlist instead).
+const mcpGlobalTargets = [
+  { target: "augmentcode", outputPath: join(".augment", "settings.json") },
+  { target: "claudecode", outputPath: ".claude.json" },
+  { target: "cursor", outputPath: join(".cursor", "mcp.json") },
+  { target: "qwencode", outputPath: join(".qwen", "settings.json") },
+  { target: "goose", outputPath: join(".config", "goose", "config.yaml") },
+  { target: "hermesagent", outputPath: join(".hermes", "config.yaml") },
+  { target: "opencode", outputPath: join(".config", "opencode", "opencode.jsonc") },
+  { target: "codexcli", outputPath: join(".codex", "config.toml") },
+  { target: "grokcli", outputPath: join(".grok", "config.toml") },
+  { target: "copilotcli", outputPath: join(".copilot", "mcp-config.json") },
+  { target: "deepagents", outputPath: join(".deepagents", ".mcp.json") },
+  { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
+  { target: "rovodev", outputPath: join(".rovodev", "mcp.json") },
+  {
+    target: "cline",
+    outputPath: join(".cline", "data", "settings", "cline_mcp_settings.json"),
+  },
+  { target: "kilo", outputPath: join(".config", "kilo", "kilo.jsonc") },
+  { target: "junie", outputPath: join(".junie", "mcp", "mcp.json") },
+  { target: "amp", outputPath: join(".config", "amp", "settings.json") },
+  {
+    target: "antigravity-ide",
+    outputPath: join(".gemini", "config", "mcp_config.json"),
+  },
+  {
+    target: "antigravity-cli",
+    outputPath: join(".gemini", "config", "mcp_config.json"),
+  },
+  { target: "warp", outputPath: join(".warp", ".mcp.json") },
+  { target: "zed", outputPath: join(".config", "zed", "settings.json") },
+  {
+    target: "devin",
+    outputPath: join(".config", "devin", "config.json"),
+  },
+  { target: "vibe", outputPath: join(".vibe", "config.toml") },
+  { target: "reasonix", outputPath: join(".reasonix", "config.toml") },
+  { target: "kiro", outputPath: join(".kiro", "settings", "mcp.json") },
+  { target: "kiro-cli", outputPath: join(".kiro", "settings", "mcp.json") },
+  { target: "kiro-ide", outputPath: join(".kiro", "settings", "mcp.json") },
+] as const;
+
 describe("E2E: mcp (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
 
-  it.each([
-    { target: "augmentcode", outputPath: join(".augment", "settings.json") },
-    { target: "claudecode", outputPath: ".claude.json" },
-    { target: "cursor", outputPath: join(".cursor", "mcp.json") },
-    { target: "qwencode", outputPath: join(".qwen", "settings.json") },
-    { target: "goose", outputPath: join(".config", "goose", "config.yaml") },
-    { target: "hermesagent", outputPath: join(".hermes", "config.yaml") },
-    { target: "opencode", outputPath: join(".config", "opencode", "opencode.jsonc") },
-    { target: "codexcli", outputPath: join(".codex", "config.toml") },
-    { target: "grokcli", outputPath: join(".grok", "config.toml") },
-    { target: "copilotcli", outputPath: join(".copilot", "mcp-config.json") },
-    { target: "deepagents", outputPath: join(".deepagents", ".mcp.json") },
-    { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
-    { target: "rovodev", outputPath: join(".rovodev", "mcp.json") },
-    {
-      target: "cline",
-      outputPath: join(".cline", "data", "settings", "cline_mcp_settings.json"),
-    },
-    { target: "kilo", outputPath: join(".config", "kilo", "kilo.jsonc") },
-    { target: "junie", outputPath: join(".junie", "mcp", "mcp.json") },
-    { target: "amp", outputPath: join(".config", "amp", "settings.json") },
-    {
-      target: "antigravity-ide",
-      outputPath: join(".gemini", "config", "mcp_config.json"),
-    },
-    {
-      target: "antigravity-cli",
-      outputPath: join(".gemini", "config", "mcp_config.json"),
-    },
-    { target: "warp", outputPath: join(".warp", ".mcp.json") },
-    { target: "zed", outputPath: join(".config", "zed", "settings.json") },
-    {
-      target: "devin",
-      outputPath: join(".config", "devin", "config.json"),
-    },
-    { target: "vibe", outputPath: join(".vibe", "config.toml") },
-    { target: "reasonix", outputPath: join(".reasonix", "config.toml") },
-    { target: "kiro", outputPath: join(".kiro", "settings", "mcp.json") },
-    { target: "kiro-cli", outputPath: join(".kiro", "settings", "mcp.json") },
-    { target: "kiro-ide", outputPath: join(".kiro", "settings", "mcp.json") },
-  ])("should generate $target mcp in home directory", async ({ target, outputPath }) => {
-    const projectDir = getProjectDir();
-    const homeDir = getHomeDir();
+  it("generate matrix must cover every native mcp tool target in global mode", () => {
+    assertGenerateMatrixCoversTargets({
+      processor: McpProcessor,
+      testedTargets: mcpGlobalTargets.map((e) => e.target),
+      global: true,
+      // takt only writes a transport allowlist to ~/.takt/config.yaml (no
+      // "test-server" entry), so it is covered by its own dedicated global test
+      // "should generate Takt MCP transport allowlist into ~/.takt/config.yaml (global)".
+      untested: ["takt"],
+    });
+  });
 
-    // Setup: Create .rulesync/mcp.json with root: true and a test MCP server
-    const mcpContent = JSON.stringify(
-      {
-        root: true,
-        mcpServers: {
-          "test-server": {
-            description: "Test MCP server",
-            type: "stdio",
-            command: "echo",
-            args: ["hello"],
-            env: {},
+  it.each(mcpGlobalTargets)(
+    "should generate $target mcp in home directory",
+    async ({ target, outputPath }) => {
+      const projectDir = getProjectDir();
+      const homeDir = getHomeDir();
+
+      const mcpContent = JSON.stringify(
+        {
+          root: true,
+          mcpServers: {
+            "test-server": {
+              description: "Test MCP server",
+              type: "stdio",
+              command: "echo",
+              args: ["hello"],
+              env: {},
+            },
           },
         },
-      },
-      null,
-      2,
-    );
-    await writeFileContent(join(projectDir, RULESYNC_MCP_RELATIVE_FILE_PATH), mcpContent);
+        null,
+        2,
+      );
+      await writeFileContent(join(projectDir, RULESYNC_MCP_RELATIVE_FILE_PATH), mcpContent);
 
-    // Execute: Generate mcp in global mode with HOME pointed to temp dir
-    await runGenerate({
-      target,
-      features: "mcp",
-      global: true,
-      env: { HOME_DIR: homeDir },
-    });
+      await runGenerate({
+        target,
+        features: "mcp",
+        global: true,
+        env: { HOME_DIR: homeDir },
+      });
 
-    // Verify that the expected output file was generated and contains the server
-    const generatedContent = await readFileContent(join(homeDir, outputPath));
-    expect(generatedContent).toContain("test-server");
-  });
+      const generatedContent = await readFileContent(join(homeDir, outputPath));
+      expect(generatedContent).toContain("test-server");
+    },
+  );
 
   it("should generate Takt MCP transport allowlist into ~/.takt/config.yaml (global)", async () => {
     const projectDir = getProjectDir();

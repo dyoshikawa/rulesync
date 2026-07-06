@@ -2,9 +2,10 @@ import { execFile } from "node:child_process";
 import { join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 
-import { afterEach, beforeEach } from "vitest";
+import { afterEach, beforeEach, expect } from "vitest";
 
 import { setupTestDirectory } from "../test-utils/test-directories.js";
+import type { ToolTarget } from "../types/tool-targets.js";
 
 // Save original working directory
 const originalCwd = process.cwd();
@@ -158,4 +159,57 @@ export function useGlobalTestDirectories(): {
     getProjectDir: () => projectDir,
     getHomeDir: () => homeDir,
   };
+}
+
+type ProcessorTargets = {
+  getToolTargets(options?: { global?: boolean; importOnly?: boolean }): ToolTarget[];
+};
+
+/**
+ * Asserts that an e2e generate/global happy-path matrix stays in lock-step with
+ * the tool targets a feature processor actually declares, so adding a tool to a
+ * processor without wiring it into the matrix (or dropping one) fails CI instead
+ * of silently eroding coverage.
+ *
+ * The declared targets (from `getToolTargets`) must partition exactly into
+ * `testedTargets` (tools with an entry in the matrix `it.each` dictionary) and
+ * `untested` (tools intentionally excluded from this matrix — e.g. tools whose
+ * output only exists in another scope, or that merge into a shared file). Every
+ * excluded tool must be listed explicitly with a reason so the omission is a
+ * conscious decision rather than an accidental gap.
+ *
+ * `-legacy` targets are dropped from the comparison: they are duplicate aliases
+ * that the same tables/generators exclude, and are never exercised end-to-end.
+ *
+ * Mirrors the "derive from the implementation, fail on drift" idiom already used
+ * by the TOOL_DISPLAY completeness check and the gitignore derivation.
+ */
+export function assertGenerateMatrixCoversTargets({
+  processor,
+  testedTargets,
+  untested = [],
+  global = false,
+}: {
+  processor: ProcessorTargets;
+  testedTargets: readonly string[];
+  untested?: readonly string[];
+  global?: boolean;
+}): void {
+  const declared = processor
+    .getToolTargets({ global })
+    .filter((target) => !target.endsWith("-legacy"));
+  const declaredSet = new Set<string>(declared);
+
+  const stray = [...testedTargets, ...untested].filter((t) => !declaredSet.has(t)).toSorted();
+  expect(
+    stray,
+    `These matrix/untested entries are not declared by the processor (stale or mistyped): ${stray.join(", ")}`,
+  ).toEqual([]);
+
+  const covered = new Set<string>([...testedTargets, ...untested]);
+  const uncovered = declared.filter((t) => !covered.has(t)).toSorted();
+  expect(
+    uncovered,
+    `These tools are declared by the processor but missing from the e2e matrix. Add each to the matrix dictionary, or to the \`untested\` list with a reason: ${uncovered.join(", ")}`,
+  ).toEqual([]);
 }
