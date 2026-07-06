@@ -171,12 +171,18 @@ type ProcessorTargets = {
  * processor without wiring it into the matrix (or dropping one) fails CI instead
  * of silently eroding coverage.
  *
- * The declared targets (from `getToolTargets`) must partition exactly into
+ * The declared targets (from `getToolTargets`) must be covered by the union of
  * `testedTargets` (tools with an entry in the matrix `it.each` dictionary) and
  * `untested` (tools intentionally excluded from this matrix — e.g. tools whose
  * output only exists in another scope, or that merge into a shared file). Every
  * excluded tool must be listed explicitly with a reason so the omission is a
  * conscious decision rather than an accidental gap.
+ *
+ * `testedTargets` and `untested` must be disjoint: a tool cannot be both tested
+ * and intentionally untested. (A tool may legitimately appear more than once
+ * *within* `testedTargets` when it is exercised by several matrices — e.g. a
+ * tool that emits both a root `AGENTS.md` and a nested tree — so duplicates
+ * within a single side are allowed.)
  *
  * `-legacy` targets are dropped from the comparison: they are duplicate aliases
  * that the same tables/generators exclude, and are never exercised end-to-end.
@@ -199,6 +205,15 @@ export function assertGenerateMatrixCoversTargets({
     .getToolTargets({ global })
     .filter((target) => !target.endsWith("-legacy"));
   const declaredSet = new Set<string>(declared);
+
+  // `testedTargets` and `untested` must be disjoint — a tool listed as both
+  // tested and intentionally untested is a contradiction the stray/uncovered
+  // checks below cannot catch (each set covers it, so neither fires).
+  const overlap = testedTargets.filter((t) => untested.includes(t)).toSorted();
+  expect(
+    overlap,
+    `These targets are listed in both \`testedTargets\` and \`untested\` (a target cannot be both tested and intentionally untested): ${overlap.join(", ")}`,
+  ).toEqual([]);
 
   const stray = [...testedTargets, ...untested].filter((t) => !declaredSet.has(t)).toSorted();
   expect(

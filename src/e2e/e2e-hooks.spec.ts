@@ -29,7 +29,9 @@ function assertHookCommandsPreserved(parsed: { hooks?: unknown }): void {
 // Tools whose event mapping/serialization needs a
 // bespoke assertion (vibe, devin, reasonix) live in their own standalone `it`s
 // below; `hooksProjectStandaloneTargets` lists them so the completeness check
-// still accounts for them.
+// still accounts for them. The check only enforces that this enumeration matches
+// the processor's declared target set — it does NOT verify a matching standalone
+// `it` exists for each name, so keep this list in sync with the actual `it`s by hand.
 const hooksGenerateTargets = [
   { target: "claudecode", outputPath: join(".claude", "settings.json") },
   { target: "cursor", outputPath: join(".cursor", "hooks.json") },
@@ -576,6 +578,9 @@ const hooksGlobalTargets = [
 ] as const;
 
 // Global targets exercised by dedicated `it`s (bespoke per-tool serialization).
+// As with the project-scope list, the completeness check only enforces that this
+// enumeration matches the processor's declared set — not that a matching `it`
+// exists for each name; keep it in sync with the actual `it`s by hand.
 const hooksGlobalStandaloneTargets = ["devin", "vibe", "hermesagent", "reasonix"] as const;
 
 describe("E2E: hooks (global mode)", () => {
