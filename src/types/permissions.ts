@@ -198,14 +198,34 @@ const ReasonixPermissionsOverrideSchema = z.looseObject({
 export type ReasonixPermissionsOverride = z.infer<typeof ReasonixPermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for Factory Droid. Factory Droid's `settings.json`
+ * exposes security controls with no canonical per-command allow/ask/deny slot —
+ * `commandBlocklist` (a hard-block tier that can never be approved, distinct from
+ * an approvable `deny`), `networkPolicy` (`allowedIps`), `sandbox`
+ * (`enabled`/`mode`/`filesystem`/`network`), `mcpPolicy`, `enableDroidShield`,
+ * and autonomy settings (`sessionDefaultSettings`, `maxAutonomyLevel`,
+ * `interactionMode`). Fields placed here are merged into `settings.json` and
+ * emitted only for Factory Droid, while the shared `permission` block continues
+ * to drive `commandAllowlist`/`commandDenylist`. Kept `looseObject` passthrough.
+ *
+ * @example
+ * { "commandBlocklist": ["rm -rf /*"], "sandbox": { "enabled": true } }
+ */
+const FactorydroidPermissionsOverrideSchema = z.looseObject({
+  commandBlocklist: z.optional(z.array(z.string())),
+});
+export type FactorydroidPermissionsOverride = z.infer<typeof FactorydroidPermissionsOverrideSchema>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
  * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode`/`vibe`/`cursor`/
- * `qwencode`/`reasonix` keys are tool-scoped overrides consumed only by their
- * respective translator (see the matching `*PermissionsOverrideSchema`); every
- * other tool reads the shared `permission` block and ignores them.
+ * `qwencode`/`reasonix`/`factorydroid` keys are tool-scoped overrides consumed
+ * only by their respective translator (see the matching
+ * `*PermissionsOverrideSchema`); every other tool reads the shared `permission`
+ * block and ignores them.
  *
  * @example
  * {
@@ -224,6 +244,7 @@ const PermissionsConfigSchema = z.looseObject({
   cursor: z.optional(CursorPermissionsOverrideSchema),
   qwencode: z.optional(QwencodePermissionsOverrideSchema),
   reasonix: z.optional(ReasonixPermissionsOverrideSchema),
+  factorydroid: z.optional(FactorydroidPermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 

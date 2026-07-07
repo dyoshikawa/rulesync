@@ -33,6 +33,22 @@ type FactorydroidSettingsJson = {
   [key: string]: unknown;
 };
 
+// Factory Droid-specific security keys that the `factorydroid` override authors
+// and that round-trip back into it on import. `commandBlocklist` is the
+// hard-block tier (distinct from an approvable canonical `deny`); the rest are
+// autonomy/sandbox/network/MCP controls with no canonical slot. rulesync still
+// fully owns `commandAllowlist`/`commandDenylist` via the shared block.
+const FACTORYDROID_OVERRIDE_KEYS = [
+  "commandBlocklist",
+  "networkPolicy",
+  "sandbox",
+  "mcpPolicy",
+  "enableDroidShield",
+  "sessionDefaultSettings",
+  "maxAutonomyLevel",
+  "interactionMode",
+] as const;
+
 /**
  * Permissions adapter for Factory Droid.
  *
@@ -50,18 +66,14 @@ type FactorydroidSettingsJson = {
  * skipped (with a warning when they carry `deny` rules, to surface the gap).
  *
  * Factory Droid also has a stronger `commandBlocklist` tier — commands that can
- * never run, not even under full autonomy. rulesync's canonical action model
- * has only `allow | ask | deny`, with no equivalent of a hard block that can
- * never be approved. So on **import** a `commandBlocklist` entry is collapsed
- * onto canonical `deny` (lossy: the never-runs guarantee is weakened to a deny
- * the user can still approve), rather than being silently dropped. On **export**
- * there is no canonical `block` to emit one from, so rulesync never writes
- * `commandBlocklist`; an existing one on disk is preserved verbatim as an
- * unmanaged key. (A consequence of the lossy collapse: importing a
- * `commandBlocklist` and re-exporting it to a *fresh* config writes it back as
- * `commandDenylist`, not `commandBlocklist` — the hard-block tier is not
- * reconstructed. Re-running over the original file keeps it intact via the
- * verbatim preservation above.)
+ * never run, not even under full autonomy — plus other security controls
+ * (`networkPolicy`, `sandbox`, `mcpPolicy`, `enableDroidShield`, autonomy
+ * settings) that do not fit the canonical `allow | ask | deny` per-command
+ * model. These are authored and round-tripped through the `factorydroid`
+ * override namespace (see `FactorydroidPermissionsOverrideSchema`): on **import**
+ * they are lifted from `settings.json` into the override, and on **export** they
+ * are merged back in — so `commandBlocklist`'s never-runs guarantee is preserved
+ * faithfully rather than being collapsed onto an approvable `deny`.
  */
 export class FactorydroidPermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
@@ -133,7 +145,14 @@ export class FactorydroidPermissions extends ToolPermissions {
 
     // rulesync owns the commandAllowlist/commandDenylist surface; every other
     // key in settings.json (hooks, autonomy, etc.) is preserved verbatim.
-    const merged: FactorydroidSettingsJson = { ...settings };
+    // The `factorydroid` override authors Factory-specific security keys
+    // (commandBlocklist, networkPolicy, sandbox, ...); overlay them here (the
+    // override wins), before setting the managed allow/deny lists below.
+    const override = config.factorydroid;
+    const merged: FactorydroidSettingsJson = {
+      ...settings,
+      ...(override !== undefined && typeof override === "object" ? override : {}),
+    };
 
     const mergedAllow = uniq(allow.toSorted());
     const mergedDeny = uniq(deny.toSorted());
@@ -172,11 +191,23 @@ export class FactorydroidPermissions extends ToolPermissions {
     const config = convertFactorydroidToRulesyncPermissions({
       allow: Array.isArray(settings.commandAllowlist) ? settings.commandAllowlist : [],
       deny: Array.isArray(settings.commandDenylist) ? settings.commandDenylist : [],
-      block: Array.isArray(settings.commandBlocklist) ? settings.commandBlocklist : [],
     });
 
+    // Route Factory Droid's security controls into the `factorydroid` override.
+    // `commandBlocklist` (the hard-block tier) now round-trips faithfully here
+    // rather than collapsing onto an approvable canonical `deny`.
+    const factorydroidOverride: Record<string, unknown> = {};
+    for (const key of FACTORYDROID_OVERRIDE_KEYS) {
+      if (settings[key] !== undefined) factorydroidOverride[key] = settings[key];
+    }
+
+    const result: Record<string, unknown> = { ...config };
+    if (Object.keys(factorydroidOverride).length > 0) {
+      result.factorydroid = factorydroidOverride;
+    }
+
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify(config, null, 2),
+      fileContent: JSON.stringify(result, null, 2),
     });
   }
 
@@ -245,21 +276,20 @@ function convertRulesyncToFactorydroidPermissions({
 }
 
 /**
- * Convert Factory Droid allow/deny/block command lists back to rulesync config
- * under the `bash` category.
+ * Convert Factory Droid allow/deny command lists back to rulesync config under
+ * the `bash` category.
  *
- * `commandBlocklist` (hard block) has no canonical equivalent, so it collapses
- * onto `deny` — lossy (a deny can still be approved), but preferable to dropping
- * the rule entirely.
+ * `commandBlocklist` (the hard-block tier) is no longer collapsed here — it has
+ * no canonical equivalent and now round-trips through the `factorydroid`
+ * override so the never-runs guarantee is preserved instead of being weakened to
+ * an approvable `deny`.
  */
 function convertFactorydroidToRulesyncPermissions({
   allow,
   deny,
-  block,
 }: {
   allow: string[];
   deny: string[];
-  block: string[];
 }): PermissionsConfig {
   const bash: Record<string, PermissionAction> = {};
 
@@ -268,11 +298,6 @@ function convertFactorydroidToRulesyncPermissions({
   }
   // Denylist wins when a command appears in both lists.
   for (const pattern of deny) {
-    bash[pattern] = "deny";
-  }
-  // A hard-block command outranks everything, so apply it last; it collapses
-  // onto `deny` since the canonical model has no hard-block action.
-  for (const pattern of block) {
     bash[pattern] = "deny";
   }
 
