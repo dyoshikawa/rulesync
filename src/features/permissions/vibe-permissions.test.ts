@@ -159,6 +159,52 @@ describe("VibePermissions", () => {
     ).toBeUndefined();
   });
 
+  it("clears an existing sensitive_patterns when the override lists an empty array", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      '[tools.bash]\npermission = "always"\nsensitive_patterns = ["rm *"]\n',
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "*": "allow" } },
+          vibe: { permission: { bash: { sensitive_patterns: [] } } },
+        }),
+      }),
+    });
+
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+    expect(parsed.tools.bash.sensitive_patterns).toBeUndefined();
+  });
+
+  it("preserves an existing sensitive_patterns for a category not named in the override", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      '[tools.bash]\npermission = "always"\nsensitive_patterns = ["rm *"]\n',
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        // Only `read` is configured; `bash` is not named anywhere.
+        fileContent: JSON.stringify({ permission: { read: { "*": "allow" } } }),
+      }),
+    });
+
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+    expect(parsed.tools.bash.sensitive_patterns).toEqual(["rm *"]);
+  });
+
   it("should not be deletable because config.toml is shared", () => {
     const vibePermissions = VibePermissions.forDeletion({
       outputRoot: testDir,
