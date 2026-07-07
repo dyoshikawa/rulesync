@@ -3,7 +3,11 @@ import { join } from "node:path";
 import * as smolToml from "smol-toml";
 
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
+import type {
+  PermissionAction,
+  PermissionsConfig,
+  VibePermissionsOverride,
+} from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -21,6 +25,7 @@ type VibeToolConfig = Record<string, unknown> & {
   deny?: string[];
   allowlist?: string[];
   denylist?: string[];
+  sensitive_patterns?: string[];
 };
 
 type VibeConfig = Record<string, unknown> & {
@@ -168,6 +173,8 @@ export class VibePermissions extends ToolPermissions {
       tools[vibeToolName] = nextTool;
     }
 
+    applyVibeSensitivePatterns(tools, rulesyncPermissions.getJson().vibe);
+
     config.tools = tools;
     if (enabledTools.size > 0) {
       config.enabled_tools = [...enabledTools].toSorted();
@@ -192,6 +199,7 @@ export class VibePermissions extends ToolPermissions {
 
   toRulesyncPermissions(): RulesyncPermissions {
     const permission: PermissionsConfig["permission"] = {};
+    const vibeOverridePermission: Record<string, { sensitive_patterns: string[] }> = {};
 
     for (const tool of toStringArray(this.toml.enabled_tools)) {
       ensurePermission(permission, toCanonicalToolName(tool))["*"] = "allow";
@@ -213,10 +221,23 @@ export class VibePermissions extends ToolPermissions {
       for (const pattern of toStringArray(toolConfig.deny ?? toolConfig.denylist)) {
         rules[pattern] = "deny";
       }
+
+      // `sensitive_patterns` (escalate-to-ASK-when-ALWAYS) has no canonical
+      // action, so it round-trips through the `vibe` override rather than the
+      // shared block.
+      const sensitivePatterns = toStringArray(toolConfig.sensitive_patterns);
+      if (sensitivePatterns.length > 0) {
+        vibeOverridePermission[category] = { sensitive_patterns: sensitivePatterns };
+      }
     }
 
+    const json: PermissionsConfig =
+      Object.keys(vibeOverridePermission).length > 0
+        ? { permission, vibe: { permission: vibeOverridePermission } }
+        : { permission };
+
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify({ permission }, null, 2),
+      fileContent: JSON.stringify(json, null, 2),
     });
   }
 
@@ -246,6 +267,29 @@ export class VibePermissions extends ToolPermissions {
       validate: false,
       global,
     });
+  }
+}
+
+/**
+ * Apply the Vibe-scoped override's per-tool `sensitive_patterns` (patterns that
+ * escalate to ASK even when the base permission is ALWAYS). rulesync owns this
+ * list for any category the override names: a present list is set, an empty
+ * one clears it. Categories not named keep whatever the existing file had.
+ */
+function applyVibeSensitivePatterns(
+  tools: Record<string, VibeToolConfig>,
+  vibeOverride: VibePermissionsOverride | undefined,
+): void {
+  for (const [category, toolOverride] of Object.entries(vibeOverride?.permission ?? {})) {
+    const vibeToolName = toVibeToolName(category);
+    const nextTool = toVibeToolConfig(tools[vibeToolName]);
+    const patterns = toStringArray(toolOverride.sensitive_patterns);
+    if (patterns.length > 0) {
+      nextTool.sensitive_patterns = [...patterns].toSorted();
+    } else {
+      delete nextTool.sensitive_patterns;
+    }
+    tools[vibeToolName] = nextTool;
   }
 }
 
