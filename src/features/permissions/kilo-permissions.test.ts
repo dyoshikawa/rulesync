@@ -172,6 +172,74 @@ describe("KiloPermissions", () => {
     expect(warnCalls).toHaveLength(0);
   });
 
+  it("should author Kilo-only keys from the kilo override", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { bash: { "git *": "allow" } },
+        kilo: {
+          permission: {
+            external_directory: "deny",
+            doom_loop: "ask",
+            notebook_edit: { "*.ipynb": "allow" },
+          },
+        },
+      }),
+    });
+
+    const instance = await KiloPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+    const json = JSON.parse(instance.getFileContent());
+
+    expect(json.permission.bash["git *"]).toBe("allow");
+    expect(json.permission.external_directory).toBe("deny");
+    expect(json.permission.doom_loop).toBe("ask");
+    expect(json.permission.notebook_edit).toEqual({ "*.ipynb": "allow" });
+  });
+
+  it("should route Kilo-only keys into the kilo override on import", async () => {
+    await writeFileContent(
+      join(testDir, "kilo.jsonc"),
+      JSON.stringify({
+        permission: {
+          bash: "ask",
+          external_directory: "deny",
+          notebook_edit: { "*.ipynb": "allow" },
+        },
+      }),
+    );
+
+    const instance = await KiloPermissions.fromFile({ outputRoot: testDir });
+    const rulesync = instance.toRulesyncPermissions().getJson();
+
+    // Shared canonical category stays in the shared block.
+    expect(rulesync.permission.bash).toEqual({ "*": "ask" });
+    // Kilo-only keys are NOT in the shared block (would leak to other tools).
+    expect(rulesync.permission.external_directory).toBeUndefined();
+    expect(rulesync.permission.notebook_edit).toBeUndefined();
+    // ...they live under the kilo override instead, keeping their original shape.
+    expect(rulesync.kilo).toEqual({
+      permission: {
+        external_directory: "deny",
+        notebook_edit: { "*.ipynb": "allow" },
+      },
+    });
+  });
+
+  it("should not emit a kilo override when only shared categories are present", async () => {
+    await writeFileContent(
+      join(testDir, "kilo.jsonc"),
+      JSON.stringify({ permission: { bash: "ask", read: { ".env": "deny" } } }),
+    );
+
+    const instance = await KiloPermissions.fromFile({ outputRoot: testDir });
+    expect(instance.toRulesyncPermissions().getJson().kilo).toBeUndefined();
+  });
+
   it("should round-trip permissions back to rulesync format", async () => {
     await writeFileContent(
       join(testDir, "kilo.jsonc"),

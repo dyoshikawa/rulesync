@@ -77,11 +77,29 @@ const ClinePermissionsOverrideSchema = z.looseObject({
 export type ClinePermissionsOverride = z.infer<typeof ClinePermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for Kilo Code (an OpenCode fork). Kilo's permission
+ * object is a free-form record with tool-specific keys that have no canonical
+ * category — OpenCode-inherited ones (`external_directory`, `doom_loop`, `lsp`,
+ * `question`, `todowrite`, `skill`, `task`, `list`) and Kilo-unique ones
+ * (`agent_manager`, `notebook_read`, `notebook_edit`, `notebook_execute`,
+ * `repo_clone`, `repo_overview`). Placing them here makes them authorable and
+ * portable and keeps them out of other tools' configs. Mirrors the OpenCode
+ * override; each value may be a bare action string or a pattern map.
+ *
+ * @example
+ * { "permission": { "external_directory": "deny", "doom_loop": "ask" } }
+ */
+const KiloPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(z.record(z.string(), OpencodeOverridePermissionValueSchema)),
+});
+export type KiloPermissionsOverride = z.infer<typeof KiloPermissionsOverrideSchema>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
- * The optional `opencode`/`hermes`/`cline` keys are tool-scoped overrides
+ * The optional `opencode`/`hermes`/`cline`/`kilo` keys are tool-scoped overrides
  * consumed only by their respective translator (see the matching
  * `*PermissionsOverrideSchema`); every other tool reads the shared `permission`
  * block and ignores them.
@@ -97,6 +115,7 @@ const PermissionsConfigSchema = z.looseObject({
   opencode: z.optional(OpencodePermissionsOverrideSchema),
   hermes: z.optional(HermesPermissionsOverrideSchema),
   cline: z.optional(ClinePermissionsOverrideSchema),
+  kilo: z.optional(KiloPermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 
