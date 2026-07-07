@@ -132,8 +132,8 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 | `sessionStart`         |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |        —        |        —        |   —   |     ✅      |  ✅   |
 | `sessionEnd`           |   ✅   |     ✅      |    —     |  —   |   ✅    |     ✅      |      ✅       |     ✅     |     —     |     ✅     |  ✅  |        —        |        —        |   —   |     ✅      |  ✅   |
 | `beforeSubmitPrompt`   |   ✅   |     ✅      |    —     |  —   |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |        —        |        —        |  ✅   |      —      |  ✅   |
-| `preToolUse`           |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     —      |  ✅  |       ✅        |       ✅        |   —   |     ✅      |  ✅   |
-| `postToolUse`          |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     —      |  ✅  |       ✅        |       ✅        |   —   |     ✅      |  ✅   |
+| `preToolUse`           |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |       ✅        |       ✅        |   —   |     ✅      |  ✅   |
+| `postToolUse`          |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |       ✅        |       ✅        |   —   |     ✅      |  ✅   |
 | `preModelInvocation`   |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |       ✅        |       ✅        |   —   |      —      |   —   |
 | `postModelInvocation`  |   —    |      —      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |       ✅        |       ✅        |   —   |      —      |   —   |
 | `postToolUseFailure`   |   ✅   |     ✅      |    —     |  —   |    —    |     ✅      |       —       |     —      |     —     |     ✅     |  —   |        —        |        —        |   —   |      —      |  ✅   |

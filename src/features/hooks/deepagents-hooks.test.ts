@@ -151,6 +151,36 @@ describe("DeepagentsHooks", () => {
       expect(entry.command).toEqual(["bash", "-c", "echo needs input"]);
     });
 
+    it("should map the canonical preToolUse/postToolUse events to dcode tool.use/tool.result", () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [{ type: "command", command: "echo before" }],
+            postToolUse: [{ type: "command", command: "echo after" }],
+          },
+        }),
+      });
+
+      const hooks = DeepagentsHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+      const parsed = JSON.parse(hooks.getFileContent());
+
+      const useEntry = parsed.hooks.find((h: { events?: string[] }) =>
+        h.events?.includes("tool.use"),
+      );
+      expect(useEntry).toBeDefined();
+      expect(useEntry.command).toEqual(["bash", "-c", "echo before"]);
+
+      const resultEntry = parsed.hooks.find((h: { events?: string[] }) =>
+        h.events?.includes("tool.result"),
+      );
+      expect(resultEntry).toBeDefined();
+      expect(resultEntry.command).toEqual(["bash", "-c", "echo after"]);
+    });
+
     it("should skip prompt-type hooks", () => {
       const rulesyncHooksContent = JSON.stringify({
         version: 1,
@@ -179,8 +209,8 @@ describe("DeepagentsHooks", () => {
       const rulesyncHooksContent = JSON.stringify({
         version: 1,
         hooks: {
-          // preToolUse is NOT in DEEPAGENTS_HOOK_EVENTS
-          preToolUse: [{ type: "command", command: "echo tool" }],
+          // subagentStop is NOT in DEEPAGENTS_HOOK_EVENTS
+          subagentStop: [{ type: "command", command: "echo tool" }],
           sessionStart: [{ type: "command", command: "echo start" }],
         },
       });
