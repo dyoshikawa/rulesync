@@ -239,13 +239,31 @@ const WarpPermissionsOverrideSchema = z.looseObject({
 export type WarpPermissionsOverride = z.infer<typeof WarpPermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for JetBrains Junie. Junie's `allowlist.json` has
+ * two top-level autonomy knobs with no canonical per-glob slot:
+ * `allowReadonlyCommands` (a boolean auto-allowing read-only commands) and
+ * `defaultBehavior` (the fallback action applied when no rule matches — Junie
+ * documents only `allow`/`ask`). Fields placed here are merged onto the
+ * top level of `allowlist.json`, while the shared `permission` block continues
+ * to drive the per-category `rules` groups.
+ *
+ * @example
+ * { "allowReadonlyCommands": true, "defaultBehavior": "ask" }
+ */
+const JuniePermissionsOverrideSchema = z.looseObject({
+  allowReadonlyCommands: z.optional(z.boolean()),
+  defaultBehavior: z.optional(z.string()),
+});
+export type JuniePermissionsOverride = z.infer<typeof JuniePermissionsOverrideSchema>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
  * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode`/`vibe`/`cursor`/
- * `qwencode`/`reasonix`/`factorydroid`/`warp` keys are tool-scoped overrides
- * consumed only by their respective translator (see the matching
+ * `qwencode`/`reasonix`/`factorydroid`/`warp`/`junie` keys are tool-scoped
+ * overrides consumed only by their respective translator (see the matching
  * `*PermissionsOverrideSchema`); every other tool reads the shared `permission`
  * block and ignores them.
  *
@@ -268,6 +286,7 @@ const PermissionsConfigSchema = z.looseObject({
   reasonix: z.optional(ReasonixPermissionsOverrideSchema),
   factorydroid: z.optional(FactorydroidPermissionsOverrideSchema),
   warp: z.optional(WarpPermissionsOverrideSchema),
+  junie: z.optional(JuniePermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 

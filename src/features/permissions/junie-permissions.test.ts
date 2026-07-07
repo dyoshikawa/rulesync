@@ -59,7 +59,8 @@ describe("JuniePermissions", () => {
   });
 
   describe("fromRulesyncPermissions", () => {
-    it("should map canonical categories to Junie rule groups", async () => {
+    it("should map canonical categories to Junie rule groups (deny downgraded to ask)", async () => {
+      const mockLogger = createMockLogger();
       const rulesyncPermissions = buildRulesyncPermissions({
         permission: {
           bash: { "git ": "allow", "rm *": "deny" },
@@ -72,19 +73,23 @@ describe("JuniePermissions", () => {
       const instance = await JuniePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions,
+        logger: mockLogger,
       });
 
       const json = JSON.parse(instance.getFileContent());
       // Literal patterns become `prefix`; glob patterns become `pattern`.
+      // Junie has no `deny`, so canonical deny is downgraded to `ask` + warned.
       expect(json.rules.executables).toEqual([
         { prefix: "git ", action: "allow" },
-        { pattern: "rm *", action: "deny" },
+        { pattern: "rm *", action: "ask" },
       ]);
       expect(json.rules.fileEditing).toEqual([{ pattern: "src/**", action: "allow" }]);
-      expect(json.rules.readOutsideProject).toEqual([{ pattern: "/etc/**", action: "deny" }]);
+      expect(json.rules.readOutsideProject).toEqual([{ pattern: "/etc/**", action: "ask" }]);
       expect(json.rules.mcpTools).toEqual([{ prefix: "search", action: "ask" }]);
-      // defaultBehavior defaults to Junie's documented "ask" when absent.
-      expect(json.defaultBehavior).toBe("ask");
+      // defaultBehavior is not fabricated when neither the override nor an
+      // existing file supplies it (Junie's own default is already "ask").
+      expect(json.defaultBehavior).toBeUndefined();
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("no 'deny'"));
     });
 
     it("should fold write rules into fileEditing alongside edit rules", async () => {
@@ -101,10 +106,50 @@ describe("JuniePermissions", () => {
       });
 
       const json = JSON.parse(instance.getFileContent());
+      // `write` deny also downgrades to `ask` (Junie has no `deny`).
       expect(json.rules.fileEditing).toEqual([
         { pattern: "src/**", action: "allow" },
-        { pattern: "dist/**", action: "deny" },
+        { pattern: "dist/**", action: "ask" },
       ]);
+    });
+
+    it("should overlay the junie override's top-level autonomy knobs", async () => {
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: { bash: { "git ": "allow" } },
+        junie: { allowReadonlyCommands: true, defaultBehavior: "allow" },
+      });
+
+      const instance = await JuniePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(instance.getFileContent());
+      expect(json.allowReadonlyCommands).toBe(true);
+      expect(json.defaultBehavior).toBe("allow");
+      expect(json.rules.executables).toEqual([{ prefix: "git ", action: "allow" }]);
+    });
+
+    it("should let the junie override win over an existing top-level value", async () => {
+      const dir = join(testDir, ".junie");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "allowlist.json"),
+        JSON.stringify({ defaultBehavior: "ask", allowReadonlyCommands: false }),
+      );
+
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: { bash: { "git ": "allow" } },
+        junie: { allowReadonlyCommands: true },
+      });
+
+      const instance = await JuniePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(instance.getFileContent());
+      expect(json.allowReadonlyCommands).toBe(true);
     });
 
     it("should preserve top-level settings in an existing allowlist.json", async () => {
@@ -177,10 +222,40 @@ describe("JuniePermissions", () => {
       });
 
       const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+      // A hand-written `deny` (invalid per Junie, but present) is imported
+      // faithfully into the canonical model.
       expect(config.permission.bash).toEqual({ "git ": "allow", "rm *": "deny" });
       expect(config.permission.edit).toEqual({ "src/**": "allow" });
       expect(config.permission.read).toEqual({ "/etc/**": "deny" });
       expect(config.permission.mcp).toEqual({ search: "ask" });
+    });
+
+    it("should lift top-level autonomy knobs into the junie override", () => {
+      const instance = new JuniePermissions({
+        relativeDirPath: ".junie",
+        relativeFilePath: "allowlist.json",
+        fileContent: JSON.stringify({
+          defaultBehavior: "ask",
+          allowReadonlyCommands: true,
+          rules: { executables: [{ prefix: "git ", action: "allow" }] },
+        }),
+      });
+
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+      expect(config.junie).toEqual({ allowReadonlyCommands: true, defaultBehavior: "ask" });
+    });
+
+    it("should omit the junie override when no top-level knobs are present", () => {
+      const instance = new JuniePermissions({
+        relativeDirPath: ".junie",
+        relativeFilePath: "allowlist.json",
+        fileContent: JSON.stringify({
+          rules: { executables: [{ prefix: "git ", action: "allow" }] },
+        }),
+      });
+
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+      expect(config.junie).toBeUndefined();
     });
 
     it("should ignore malformed rules and unknown actions", () => {
@@ -205,7 +280,7 @@ describe("JuniePermissions", () => {
   });
 
   describe("round-trip", () => {
-    it("should round-trip rules across the four groups", async () => {
+    it("should round-trip rules across the four groups (deny lands as ask)", async () => {
       const original = buildRulesyncPermissions({
         permission: {
           bash: { "git ": "allow", "rm *": "deny" },
@@ -221,12 +296,42 @@ describe("JuniePermissions", () => {
       });
       const roundTripped = JSON.parse(junie.toRulesyncPermissions().getFileContent());
 
+      // Junie has no `deny`, so the two deny rules round-trip as `ask`.
       expect(roundTripped.permission).toEqual({
-        bash: { "git ": "allow", "rm *": "deny" },
+        bash: { "git ": "allow", "rm *": "ask" },
         edit: { "src/**": "allow" },
-        read: { "/etc/**": "deny" },
+        read: { "/etc/**": "ask" },
         mcp: { search: "ask" },
       });
+    });
+
+    it("should not add a spurious junie override when none was authored", async () => {
+      const original = buildRulesyncPermissions({
+        permission: { bash: { "git ": "allow" } },
+      });
+
+      const junie = await JuniePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: original,
+      });
+      const roundTripped = JSON.parse(junie.toRulesyncPermissions().getFileContent());
+
+      expect(roundTripped.junie).toBeUndefined();
+    });
+
+    it("should round-trip the junie override through export and re-import", async () => {
+      const original = buildRulesyncPermissions({
+        permission: { bash: { "git ": "allow" } },
+        junie: { allowReadonlyCommands: true, defaultBehavior: "ask" },
+      });
+
+      const junie = await JuniePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: original,
+      });
+      const roundTripped = JSON.parse(junie.toRulesyncPermissions().getFileContent());
+
+      expect(roundTripped.junie).toEqual({ allowReadonlyCommands: true, defaultBehavior: "ask" });
     });
   });
 });

@@ -34,14 +34,18 @@ import {
  *     "executables":       [ { "prefix": "git ", "action": "allow" } ],
  *     "fileEditing":       [ { "pattern": "src/**", "action": "allow" } ],
  *     "mcpTools":          [ { "prefix": "search", "action": "allow" } ],
- *     "readOutsideProject":[ { "pattern": "/etc/**", "action": "deny" } ]
+ *     "readOutsideProject":[ { "pattern": "/etc/**", "action": "ask" } ]
  *   }
  * }
  * ```
  *
  * Each rule carries a literal `prefix` (matches commands that start with it) or
- * a glob `pattern` (`*`, `**`, `?`, `[abc]`, `[!abc]`) plus an `action`
- * (`allow` | `ask` | `deny`). rulesync's canonical actions map 1:1 onto Junie's.
+ * a glob `pattern` (`*`, `**`, `?`, `[abc]`, `[!abc]`) plus an `action`. Junie
+ * documents only `allow` and `ask` as valid actions — there is **no `deny`**
+ * (https://junie.jetbrains.com/docs/action-allowlist-junie-cli.html). rulesync's
+ * canonical `allow`/`ask` map 1:1; a canonical `deny` has no Junie equivalent
+ * and is mapped to the nearest valid action, `ask` (still withholds
+ * auto-approval), with a warning so the downgrade is surfaced.
  *
  * Category mapping (rulesync canonical <-> Junie rule group):
  * - `bash`         <-> `executables`
@@ -51,8 +55,11 @@ import {
  *
  * Categories Junie cannot represent (e.g. `webfetch`) are skipped on export
  * (with a warning when they carry rules). The top-level `defaultBehavior` and
- * `allowReadonlyCommands` settings have no canonical equivalent: they are
- * preserved verbatim on export but not imported into the rulesync model.
+ * `allowReadonlyCommands` settings have no canonical per-glob slot: they are
+ * authored and round-tripped through the `junie` override namespace (see
+ * `JuniePermissionsOverrideSchema`) — lifted into the override on import and
+ * merged back onto the top level on export — and any other unmodeled top-level
+ * key is preserved verbatim.
  *
  * @see https://junie.jetbrains.com/docs/action-allowlist-junie-cli.html
  */
@@ -66,7 +73,9 @@ type JunieRule = {
 };
 
 type JunieAllowlist = {
-  defaultBehavior?: PermissionAction;
+  // Junie documents only `allow`/`ask`, but the value is kept as a bare string
+  // so a forward-compat value authored via the `junie` override round-trips.
+  defaultBehavior?: string;
   allowReadonlyCommands?: boolean;
   rules?: Partial<Record<JunieRuleGroup, JunieRule[]>>;
   [key: string]: unknown;
@@ -86,10 +95,6 @@ const JUNIE_GROUP_TO_CANONICAL: Record<JunieRuleGroup, string> = {
   mcpTools: "mcp",
   readOutsideProject: "read",
 };
-
-// Junie's default response mode when no rule matches; used when an existing
-// allowlist.json does not already declare one.
-const JUNIE_DEFAULT_BEHAVIOR: PermissionAction = "ask";
 
 function isPermissionAction(value: unknown): value is PermissionAction {
   return PermissionActionSchema.safeParse(value).success;
@@ -172,11 +177,18 @@ export class JuniePermissions extends ToolPermissions {
     const config = rulesyncPermissions.getJson();
     const rules = convertRulesyncToJunieRules({ config, logger });
 
-    // rulesync owns the four rule groups; every other top-level key
-    // (defaultBehavior, allowReadonlyCommands, ...) is preserved verbatim.
+    // The `junie` override authors the top-level autonomy knobs
+    // (allowReadonlyCommands, defaultBehavior). Overlay it (the override wins),
+    // then rulesync owns the four rule groups; every other existing top-level
+    // key is preserved verbatim. `defaultBehavior`/`allowReadonlyCommands` flow
+    // through the spreads only when authored or pre-existing — the documented
+    // default is not fabricated, so a fresh generate does not leak a spurious
+    // `junie` override back on re-import.
+    const override = config.junie;
+    const overrideObj = override !== undefined && typeof override === "object" ? override : {};
     const merged: JunieAllowlist = {
       ...existing,
-      defaultBehavior: existing.defaultBehavior ?? JUNIE_DEFAULT_BEHAVIOR,
+      ...overrideObj,
       rules,
     };
 
@@ -206,8 +218,23 @@ export class JuniePermissions extends ToolPermissions {
 
     const config = convertJunieToRulesyncPermissions({ allowlist });
 
+    // Lift Junie's top-level autonomy knobs into the `junie` override so they
+    // are authorable and portable instead of only round-trip-preserved.
+    const junieOverride: Record<string, unknown> = {};
+    if (typeof allowlist.allowReadonlyCommands === "boolean") {
+      junieOverride.allowReadonlyCommands = allowlist.allowReadonlyCommands;
+    }
+    if (typeof allowlist.defaultBehavior === "string") {
+      junieOverride.defaultBehavior = allowlist.defaultBehavior;
+    }
+
+    const result: Record<string, unknown> = { ...config };
+    if (Object.keys(junieOverride).length > 0) {
+      result.junie = junieOverride;
+    }
+
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify(config, null, 2),
+      fileContent: JSON.stringify(result, null, 2),
     });
   }
 
@@ -260,14 +287,37 @@ function convertRulesyncToJunieRules({
     }
 
     for (const [pattern, action] of Object.entries(patterns)) {
+      const junieAction = toJunieAction(action, category, pattern, logger);
       const rule: JunieRule = isGlobPattern(pattern)
-        ? { pattern, action }
-        : { prefix: pattern, action };
+        ? { pattern, action: junieAction }
+        : { prefix: pattern, action: junieAction };
       (rules[group] ??= []).push(rule);
     }
   }
 
   return rules;
+}
+
+/**
+ * Map a canonical action onto a valid Junie allowlist action. Junie supports
+ * only `allow` and `ask`; a canonical `deny` is downgraded to `ask` (the
+ * nearest valid action — both withhold auto-approval) with a warning, so
+ * rulesync never emits a `deny` that Junie would silently ignore.
+ */
+function toJunieAction(
+  action: PermissionAction,
+  category: string,
+  pattern: string,
+  logger?: Logger,
+): "allow" | "ask" {
+  if (action === "deny") {
+    logger?.warn(
+      `Junie's allowlist supports only 'allow'/'ask' actions; the '${category}' deny rule ` +
+        `for '${pattern}' was downgraded to 'ask' (Junie has no 'deny').`,
+    );
+    return "ask";
+  }
+  return action;
 }
 
 /**
