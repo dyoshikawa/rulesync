@@ -86,8 +86,9 @@ describe("JuniePermissions", () => {
       expect(json.rules.fileEditing).toEqual([{ pattern: "src/**", action: "allow" }]);
       expect(json.rules.readOutsideProject).toEqual([{ pattern: "/etc/**", action: "ask" }]);
       expect(json.rules.mcpTools).toEqual([{ prefix: "search", action: "ask" }]);
-      // defaultBehavior defaults to Junie's documented "ask" when absent.
-      expect(json.defaultBehavior).toBe("ask");
+      // defaultBehavior is not fabricated when neither the override nor an
+      // existing file supplies it (Junie's own default is already "ask").
+      expect(json.defaultBehavior).toBeUndefined();
       expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("no 'deny'"));
     });
 
@@ -302,6 +303,20 @@ describe("JuniePermissions", () => {
         read: { "/etc/**": "ask" },
         mcp: { search: "ask" },
       });
+    });
+
+    it("should not add a spurious junie override when none was authored", async () => {
+      const original = buildRulesyncPermissions({
+        permission: { bash: { "git ": "allow" } },
+      });
+
+      const junie = await JuniePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: original,
+      });
+      const roundTripped = JSON.parse(junie.toRulesyncPermissions().getFileContent());
+
+      expect(roundTripped.junie).toBeUndefined();
     });
 
     it("should round-trip the junie override through export and re-import", async () => {

@@ -331,7 +331,10 @@ describe("E2E: permissions", () => {
     expect(content.rules.fileEditing).toEqual([{ pattern: "src/**", action: "allow" }]);
     expect(content.rules.readOutsideProject).toEqual([{ pattern: "/etc/**", action: "ask" }]);
     expect(content.rules.mcpTools).toEqual([{ prefix: "search", action: "ask" }]);
-    expect(content.defaultBehavior).toBe("ask");
+    // defaultBehavior is not fabricated on a fresh generate (Junie's own
+    // default is "ask"); it is only written when authored via the junie
+    // override or pre-existing in the file.
+    expect(content.defaultBehavior).toBeUndefined();
   });
 
   it("should generate cursor permissions into .cursor/cli.json", async () => {

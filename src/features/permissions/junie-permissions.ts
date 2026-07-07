@@ -96,10 +96,6 @@ const JUNIE_GROUP_TO_CANONICAL: Record<JunieRuleGroup, string> = {
   readOutsideProject: "read",
 };
 
-// Junie's default response mode when no rule matches; used when an existing
-// allowlist.json does not already declare one.
-const JUNIE_DEFAULT_BEHAVIOR: PermissionAction = "ask";
-
 function isPermissionAction(value: unknown): value is PermissionAction {
   return PermissionActionSchema.safeParse(value).success;
 }
@@ -184,14 +180,15 @@ export class JuniePermissions extends ToolPermissions {
     // The `junie` override authors the top-level autonomy knobs
     // (allowReadonlyCommands, defaultBehavior). Overlay it (the override wins),
     // then rulesync owns the four rule groups; every other existing top-level
-    // key is preserved verbatim.
+    // key is preserved verbatim. `defaultBehavior`/`allowReadonlyCommands` flow
+    // through the spreads only when authored or pre-existing — the documented
+    // default is not fabricated, so a fresh generate does not leak a spurious
+    // `junie` override back on re-import.
     const override = config.junie;
     const overrideObj = override !== undefined && typeof override === "object" ? override : {};
     const merged: JunieAllowlist = {
       ...existing,
       ...overrideObj,
-      defaultBehavior:
-        overrideObj.defaultBehavior ?? existing.defaultBehavior ?? JUNIE_DEFAULT_BEHAVIOR,
       rules,
     };
 
