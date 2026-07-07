@@ -1827,6 +1827,8 @@ describe("E2E: permissions (global mode)", () => {
     // under `permissions.rulesync` for round-tripping.
     const parsed = toTable(load(await readFileContent(join(homeDir, ".hermes", "config.yaml"))));
     expect(parsed.command_allowlist).toEqual(["git status *"]);
+    // The bash deny reaches Hermes's hard denylist (previously silently dropped).
+    expect(toTable(parsed.approvals).deny).toEqual(["rm -rf *"]);
     const permissions = toTable(parsed.permissions);
     const rulesyncProfile = toTable(permissions.rulesync);
     const permissionMap = toTable(rulesyncProfile.permission);

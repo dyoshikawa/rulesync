@@ -862,6 +862,22 @@ For OpenCode, this generates the `permission` object in `opencode.json` / `openc
 >
 > You may also override a **shared** category for OpenCode specifically (e.g. put `webfetch` under `opencode.permission` to give OpenCode a different value than the shared block sends to other tools). On generate this works as expected, but note the override is not round-trip stable for shared categories: re-importing the generated `opencode.json` classifies a shared category back into the shared block, so prefer expressing OpenCode-only categories here and keeping cross-tool categories in the shared block.
 
+For Hermes Agent, permissions are written into the shared `~/.hermes/config.yaml` (global only). Canonical rules map onto the structures Hermes's runtime actually enforces:
+
+- `allow` patterns (all categories) → `command_allowlist`.
+- `bash` `deny` patterns → `approvals.deny` — Hermes's hard denylist, evaluated **before** `--yolo` / `approvals.mode: off`.
+- `webfetch` `deny` patterns → `security.website_blocklist.domains`.
+- Every `ask` rule, and `deny` rules in categories other than `bash`/`webfetch`, have no native per-pattern Hermes primitive; they survive only for round-trip (Rulesync also stores the full canonical config under a private `permissions.rulesync` key so `.rulesync/permissions.json` reconstructs losslessly).
+
+> **Hermes-only override (`hermes` key):** Hermes exposes approval/security controls with no canonical permission category — e.g. `approvals` (`mode`, `cron_mode`, `mcp_reload_confirm`, ...), `security` (`allow_private_urls`, ...), `skills.write_approval`, `memory.write_approval`. Add a tool-scoped `hermes` override key alongside the shared block to author them; its contents are **deep-merged** into `config.yaml` (so an `approvals.mode` here coexists with the `approvals.deny` derived from canonical deny rules) and are emitted **only** for Hermes. The block is a verbatim passthrough, so any current or future Hermes config key can be set without Rulesync modeling each one. Note that the deep merge replaces **arrays** wholesale, so setting `hermes.approvals.deny` or `hermes.security.website_blocklist.domains` overrides (does not append to) the list derived from the shared `permission` block — use it only when you intend to replace the canonical-derived deny list for Hermes. The top-level `permissions` key is reserved by Rulesync for the round-trip blob, so a `permissions` key inside the `hermes` override is ignored.
+>
+> ```json
+> {
+>   "permission": { "bash": { "rm -rf *": "deny" } },
+>   "hermes": { "approvals": { "mode": "smart" }, "security": { "allow_private_urls": false } }
+> }
+> ```
+
 For Codex CLI, this generates a `rulesync` named profile in `.codex/config.toml` under `[permissions.rulesync]` and sets `default_permissions = "rulesync"` (project/global depending on mode). It also generates `.codex/rules/rulesync.rules` from `permission.bash` entries using `prefix_rule(...)`. Current Rulesync-to-Codex mapping supports `bash`, `read`, `edit`/`write`, and `webfetch` categories:
 
 - `bash`: generates one `prefix_rule(...)` per command pattern in `.codex/rules/rulesync.rules` (`allow` → `allow`, `ask` → `prompt`, `deny` → `forbidden`)
