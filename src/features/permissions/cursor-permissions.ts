@@ -371,8 +371,13 @@ export class CursorPermissions extends ToolPermissions {
     // file. Any pre-existing `version` value (including a non-`1` value) is
     // preserved verbatim to keep the round-trip stable; if Cursor ever bumps
     // the schema version, hand-edited values will not be silently overwritten.
+    // Overlay the Cursor-scoped override's top-level cli.json fields
+    // (`approvalMode`, `sandbox`, ...). rulesync's managed `version`/`editor`/
+    // `permissions` are re-applied after so the override cannot clobber them.
+    const cursorOverride = config.cursor;
     const merged = {
       ...settings,
+      ...cursorOverride,
       version: settings.version ?? 1,
       editor: {
         ...existingEditor,
@@ -417,8 +422,19 @@ export class CursorPermissions extends ToolPermissions {
       deny: asCursorPermissionEntryArray(permissions.deny),
     });
 
+    // Route Cursor's autonomy settings (`approvalMode`, `sandbox`) into the
+    // `cursor` override — they have no canonical category and would otherwise be
+    // dropped on round-trip.
+    const result: Record<string, unknown> = { ...config };
+    const cursorOverride: Record<string, unknown> = {};
+    if (settings.approvalMode !== undefined) cursorOverride.approvalMode = settings.approvalMode;
+    if (settings.sandbox !== undefined) cursorOverride.sandbox = settings.sandbox;
+    if (Object.keys(cursorOverride).length > 0) {
+      result.cursor = cursorOverride;
+    }
+
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify(config, null, 2),
+      fileContent: JSON.stringify(result, null, 2),
     });
   }
 
