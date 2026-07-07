@@ -245,12 +245,12 @@ describe("KiloPermissions", () => {
     const canonical = imported.toRulesyncPermissions();
 
     // canonical -> generate back into a fresh project (no pre-existing kilo.jsonc)
-    const regenDir = join(testDir, "regen");
-    await ensureDir(regenDir);
+    const freshProjectDir = join(testDir, "fresh-project");
+    await ensureDir(freshProjectDir);
     const regenerated = await KiloPermissions.fromRulesyncPermissions({
-      outputRoot: regenDir,
+      outputRoot: freshProjectDir,
       rulesyncPermissions: new RulesyncPermissions({
-        outputRoot: regenDir,
+        outputRoot: freshProjectDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
         fileContent: canonical.getFileContent(),
