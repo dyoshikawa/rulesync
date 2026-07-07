@@ -95,14 +95,34 @@ const KiloPermissionsOverrideSchema = z.looseObject({
 export type KiloPermissionsOverride = z.infer<typeof KiloPermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for Claude Code. Claude Code's `permissions` object
+ * (in `.claude/settings.json`) carries non-list fields that have no canonical
+ * permission category — `defaultMode` (the session-start permission mode) and
+ * `additionalDirectories` (extra working directories) being the primary ones.
+ * Fields placed under `claudecode.permissions` are merged into the settings
+ * `permissions` object and emitted only for Claude Code, while the shared
+ * `permission` block continues to drive the `allow`/`ask`/`deny` arrays. Kept a
+ * `looseObject` passthrough so any current or future `permissions` field can be
+ * authored without modeling each one; the managed `allow`/`ask`/`deny` arrays are
+ * ignored here (rulesync owns them).
+ *
+ * @example
+ * { "permissions": { "defaultMode": "acceptEdits", "additionalDirectories": ["../shared"] } }
+ */
+const ClaudecodePermissionsOverrideSchema = z.looseObject({
+  permissions: z.optional(z.looseObject({})),
+});
+export type ClaudecodePermissionsOverride = z.infer<typeof ClaudecodePermissionsOverrideSchema>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
- * The optional `opencode`/`hermes`/`cline`/`kilo` keys are tool-scoped overrides
- * consumed only by their respective translator (see the matching
- * `*PermissionsOverrideSchema`); every other tool reads the shared `permission`
- * block and ignores them.
+ * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode` keys are
+ * tool-scoped overrides consumed only by their respective translator (see the
+ * matching `*PermissionsOverrideSchema`); every other tool reads the shared
+ * `permission` block and ignores them.
  *
  * @example
  * {
@@ -116,6 +136,7 @@ const PermissionsConfigSchema = z.looseObject({
   hermes: z.optional(HermesPermissionsOverrideSchema),
   cline: z.optional(ClinePermissionsOverrideSchema),
   kilo: z.optional(KiloPermissionsOverrideSchema),
+  claudecode: z.optional(ClaudecodePermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 
