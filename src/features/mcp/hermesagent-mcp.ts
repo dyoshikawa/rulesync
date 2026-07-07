@@ -86,7 +86,9 @@ function convertServerToHermes(config: Record<string, unknown>): Record<string, 
   if (timeout !== undefined) out.timeout = timeout;
 
   // Per-server selective tool loading. Canonical `enabledTools`/`disabledTools`
-  // map to Hermes's `tools: { include, exclude }` block (see hermes-agent mcp.md).
+  // map to Hermes's `tools: { include, exclude }` block (include = whitelist,
+  // exclude = denylist; see hermes-agent `apps/desktop/src/lib/mcp-tool-filter.ts`
+  // and `tools/mcp_tool.py`'s `_register_server_tools`).
   const tools: Record<string, unknown> = {};
   if (isStringArray(config.enabledTools)) tools.include = config.enabledTools;
   if (isStringArray(config.disabledTools)) tools.exclude = config.disabledTools;

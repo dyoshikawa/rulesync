@@ -258,6 +258,44 @@ describe("HermesagentMcp", () => {
       expect(server?.tools).toEqual({ include: ["search", "fetch"], exclude: ["delete"] });
     });
 
+    it("emits only include when only enabledTools is set", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { fetch: { command: "uvx", enabledTools: ["search"] } },
+        }),
+      });
+
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const server = getMcpServers(mcp.getFileContent()).fetch;
+
+      expect(server?.tools).toEqual({ include: ["search"] });
+    });
+
+    it("emits only exclude when only disabledTools is set", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { fetch: { command: "uvx", disabledTools: ["delete"] } },
+        }),
+      });
+
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const server = getMcpServers(mcp.getFileContent()).fetch;
+
+      expect(server?.tools).toEqual({ exclude: ["delete"] });
+    });
+
     it("omits the tools block when no tool filters are set", async () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: ".rulesync",
