@@ -6,7 +6,6 @@ import { type AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction } from "../../types/permissions.js";
 import {
   deepMergeHermesConfig,
-  mergeHermesConfig,
   parseHermesConfig,
   stringifyHermesConfig,
 } from "../hermes-config.js";
@@ -52,7 +51,13 @@ export class HermesagentPermissions extends ToolPermissions {
   }
 
   setFileContent(fileContent: string): void {
-    this.fileContent = mergeHermesConfig(fileContent, parseHermesConfig(this.fileContent));
+    // Deep-merge the freshly generated config over the existing file so that
+    // hand-edited sibling keys under `approvals`/`security` (e.g. `approvals.mode`,
+    // `security.allow_private_urls`) survive instead of being clobbered by a
+    // shallow top-level merge now that generation emits those top-level blocks.
+    this.fileContent = stringifyHermesConfig(
+      deepMergeHermesConfig(parseHermesConfig(fileContent), parseHermesConfig(this.fileContent)),
+    );
   }
 
   toRulesyncPermissions(): RulesyncPermissions {
@@ -93,7 +98,10 @@ export class HermesagentPermissions extends ToolPermissions {
     if (commandAllowlist.length > 0) config.command_allowlist = commandAllowlist;
     if (bashDeny.length > 0) config.approvals = { deny: bashDeny };
     if (webfetchDeny.length > 0) {
-      config.security = { website_blocklist: { domains: webfetchDeny } };
+      // `website_blocklist.enabled` defaults to false in Hermes, so the blocklist
+      // is inert unless it is explicitly enabled — emit `enabled: true` alongside
+      // the domains, otherwise the deny would be written but never enforced.
+      config.security = { website_blocklist: { enabled: true, domains: webfetchDeny } };
     }
 
     // Overlay the Hermes-scoped override (approvals.mode, security.*,

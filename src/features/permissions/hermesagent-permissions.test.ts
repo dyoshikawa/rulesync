@@ -71,6 +71,35 @@ mcp_servers:
     });
   });
 
+  it("preserves hand-edited sibling keys under approvals/security on merge", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          bash: { "rm -rf *": "deny" },
+        },
+      }),
+    });
+
+    const permissions = await HermesagentPermissions.fromRulesyncPermissions({
+      outputRoot: ".",
+      rulesyncPermissions,
+    });
+
+    // Existing file carries a hand-edited approvals.mode and security setting.
+    permissions.setFileContent(`approvals:
+  mode: smart
+security:
+  allow_private_urls: false
+`);
+
+    const config = parseHermesConfig(permissions.getFileContent());
+    // The generated approvals.deny and the hand-edited approvals.mode coexist.
+    expect(config.approvals).toEqual({ mode: "smart", deny: ["rm -rf *"] });
+    expect(config.security).toEqual({ allow_private_urls: false });
+  });
+
   it("maps bash deny rules to approvals.deny (hard denylist)", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
       relativeDirPath: ".rulesync",
@@ -117,7 +146,7 @@ mcp_servers:
 
     const config = parseHermesConfig(permissions.getFileContent());
     expect(config.security).toEqual({
-      website_blocklist: { domains: ["evil.example.com", "tracker.example.net"] },
+      website_blocklist: { enabled: true, domains: ["evil.example.com", "tracker.example.net"] },
     });
   });
 
