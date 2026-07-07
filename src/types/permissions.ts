@@ -135,14 +135,36 @@ const VibePermissionsOverrideSchema = z.looseObject({
 export type VibePermissionsOverride = z.infer<typeof VibePermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for Cursor CLI. Cursor's `cli.json` carries scalar
+ * autonomy settings with no canonical permission category — `approvalMode`
+ * (`allowlist` | `auto-review` | `unrestricted`) and a `sandbox` object
+ * (`mode`/`networkAccess`). Fields placed here are merged into the top-level of
+ * `.cursor/cli.json` (project) / `~/.cursor/cli-config.json` (global) and emitted
+ * only for Cursor, while the shared `permission` block continues to drive the
+ * `permissions.allow`/`permissions.deny` arrays. Kept a `looseObject` so extra
+ * `cli.json` keys can be authored (they are merged verbatim on generate);
+ * `sandbox`'s accepted values are not documented so it passes through verbatim.
+ * Note: only `approvalMode` and `sandbox` round-trip back on import — other keys
+ * authored here reach `cli.json` on generate but are not re-extracted.
+ *
+ * @example
+ * { "approvalMode": "auto-review" }
+ */
+const CursorPermissionsOverrideSchema = z.looseObject({
+  approvalMode: z.optional(z.string()),
+  sandbox: z.optional(z.looseObject({})),
+});
+export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverrideSchema>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
- * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode`/`vibe` keys are
- * tool-scoped overrides consumed only by their respective translator (see the
- * matching `*PermissionsOverrideSchema`); every other tool reads the shared
- * `permission` block and ignores them.
+ * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode`/`vibe`/`cursor`
+ * keys are tool-scoped overrides consumed only by their respective translator
+ * (see the matching `*PermissionsOverrideSchema`); every other tool reads the
+ * shared `permission` block and ignores them.
  *
  * @example
  * {
@@ -158,6 +180,7 @@ const PermissionsConfigSchema = z.looseObject({
   kilo: z.optional(KiloPermissionsOverrideSchema),
   claudecode: z.optional(ClaudecodePermissionsOverrideSchema),
   vibe: z.optional(VibePermissionsOverrideSchema),
+  cursor: z.optional(CursorPermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 
