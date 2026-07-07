@@ -684,6 +684,19 @@ env_vars = ["OPENAI_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY"]
 - Use this for secrets and API keys you do not want literal-encoded into a committed `mcp.json`.
 - Precedence: codex CLI resolves these names from the user's runtime shell environment. If a name is also set in `env` (literal value), the codex CLI behavior is upstream-defined; see the [Codex configuration reference](https://developers.openai.com/codex/config-reference#mcp_serversid-env_vars) (last checked 2026-05-13) for the exact resolution rule.
 
+#### Codex-specific: OAuth client id (`oauth.clientId` → `client_id`)
+
+A server's `oauth` block is preserved in the canonical Claude Code shape (camelCase `clientId`), but Codex CLI reads the OAuth client id from snake_case `oauth.client_id`. Without it, `codex mcp login <server>` falls back to dynamic client registration and fails for providers that do not support it (e.g. Slack). The codex generator therefore **duplicates** `clientId` into a sibling `client_id`, keeping the camelCase key so tools that expect it keep working:
+
+```toml
+[mcp_servers.slack.oauth]
+clientId = "1601185624273.8899143856786"
+client_id = "1601185624273.8899143856786"
+callbackPort = 3118
+```
+
+Only a string `clientId` is duplicated (a non-string value would not be a usable OAuth client id), and an explicit `client_id` already present in the source is left untouched. On import, `client_id` collapses back to the canonical `clientId` (and is dropped when both are present) so the round-trip stays stable.
+
 > **Grok CLI note:** MCP servers are written to a `[mcp_servers.<name>]` table in `.grok/config.toml` (project) / `~/.grok/config.toml` (global, via `--global`). The file is treated as shared Grok config: Rulesync only replaces the `mcp_servers` key and preserves every other table on round-trip, and it is never deleted. Unlike Codex CLI, Grok uses a literal `env` table (it does not support the `env_vars` runtime-passthrough list) and has no per-server tool allow/deny lists, so the only field rename is `disabled` (rulesync) ⇄ `enabled = false` (grok); an active server simply omits `enabled`. Servers with no environment variables are emitted without a dangling `[mcp_servers.<name>.env]` table (empty nested tables are stripped), and a server whose entire configuration would be empty is dropped with a warning.
 
 ### Goose-specific: MCP servers as `extensions` (global) and open-plugin manifest (project)
