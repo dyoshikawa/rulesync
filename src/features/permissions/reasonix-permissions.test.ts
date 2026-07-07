@@ -316,6 +316,28 @@ describe("ReasonixPermissions", () => {
       });
     });
 
+    it("clears an existing plan-mode list when the override supplies an empty array", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        smolToml.stringify({ agent: { plan_mode_allowed_tools: ["old"] } }),
+      );
+
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            reasonix: { agent: { plan_mode_allowed_tools: [] } },
+          }),
+        }),
+      });
+
+      const parsed = smolToml.parse(instance.getFileContent()) as any;
+      expect(parsed.agent.plan_mode_allowed_tools).toEqual([]);
+    });
+
     it("routes sandbox and agent plan-mode lists back into the reasonix override on import", () => {
       const instance = new ReasonixPermissions({
         relativeDirPath: ".",

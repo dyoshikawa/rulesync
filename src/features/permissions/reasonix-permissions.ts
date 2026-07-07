@@ -304,7 +304,10 @@ export class ReasonixPermissions extends ToolPermissions {
     // Route Reasonix's security tables into the `reasonix` override — they have
     // no canonical category. The `[sandbox]` table is dedicated, so it
     // round-trips in full; only the plan-mode trust lists are lifted from
-    // `[agent]` (which also carries unrelated settings).
+    // `[agent]` (which also carries unrelated settings). Note the merge is
+    // shallow on generate but the extract is whole-table for `[sandbox]`, so an
+    // existing `[sandbox]` key the override did not author is pulled into the
+    // override on the next import.
     const sandbox = asReasonixRecord(this.toml.sandbox);
     const agentPlanMode = pickReasonixKeys(this.toml.agent, REASONIX_OVERRIDE_AGENT_KEYS);
     const reasonixOverride: Record<string, unknown> = {};
