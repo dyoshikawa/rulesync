@@ -157,14 +157,33 @@ const CursorPermissionsOverrideSchema = z.looseObject({
 export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for Qwen Code. Qwen's `settings.json` exposes
+ * autonomy/sandbox controls with no canonical permission category — under
+ * `tools` (`approvalMode` = plan/default/auto-edit/auto/yolo, `autoAccept`,
+ * `sandbox`, `sandboxImage`, `disabled`) and `security` (`folderTrust`). Fields
+ * placed here are merged into the matching `settings.json` group and emitted
+ * only for Qwen, while the shared `permission` block continues to drive the
+ * `permissions.allow`/`ask`/`deny` arrays. Kept `looseObject` (verbatim
+ * passthrough) so any current or future `tools`/`security` key can be authored.
+ *
+ * @example
+ * { "tools": { "approvalMode": "auto-edit" }, "security": { "folderTrust": { "enabled": true } } }
+ */
+const QwencodePermissionsOverrideSchema = z.looseObject({
+  tools: z.optional(z.looseObject({})),
+  security: z.optional(z.looseObject({})),
+});
+export type QwencodePermissionsOverride = z.infer<typeof QwencodePermissionsOverrideSchema>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
- * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode`/`vibe`/`cursor`
- * keys are tool-scoped overrides consumed only by their respective translator
- * (see the matching `*PermissionsOverrideSchema`); every other tool reads the
- * shared `permission` block and ignores them.
+ * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode`/`vibe`/`cursor`/
+ * `qwencode` keys are tool-scoped overrides consumed only by their respective
+ * translator (see the matching `*PermissionsOverrideSchema`); every other tool
+ * reads the shared `permission` block and ignores them.
  *
  * @example
  * {
@@ -181,6 +200,7 @@ const PermissionsConfigSchema = z.looseObject({
   claudecode: z.optional(ClaudecodePermissionsOverrideSchema),
   vibe: z.optional(VibePermissionsOverrideSchema),
   cursor: z.optional(CursorPermissionsOverrideSchema),
+  qwencode: z.optional(QwencodePermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 

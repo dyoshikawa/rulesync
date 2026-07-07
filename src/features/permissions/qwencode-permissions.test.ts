@@ -208,6 +208,114 @@ describe("QwencodePermissions", () => {
     expect(await fileExists(join(testDir, ".qwen", "settings.json"))).toBe(false);
   });
 
+  describe("qwencode override (tools / security)", () => {
+    it("merges tools/security from the qwencode override into settings.json", async () => {
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            qwencode: {
+              tools: { approvalMode: "auto-edit", autoAccept: true },
+              security: { folderTrust: { enabled: true } },
+            },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.tools).toEqual({ approvalMode: "auto-edit", autoAccept: true });
+      expect(content.security).toEqual({ folderTrust: { enabled: true } });
+      // The shared permission block is still emitted.
+      expect(content.permissions.allow).toContain("Bash(git *)");
+    });
+
+    it("preserves unrelated tools keys while the override sets its own", async () => {
+      const settingsDir = join(testDir, ".qwen");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({ tools: { core: ["ReadFile"], approvalMode: "default" } }),
+      );
+
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            qwencode: { tools: { approvalMode: "yolo" } },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      // Unrelated `core` preserved; `approvalMode` overridden.
+      expect(content.tools).toEqual({ core: ["ReadFile"], approvalMode: "yolo" });
+    });
+
+    it("preserves an unrelated security sibling key while replacing folderTrust wholesale", async () => {
+      const settingsDir = join(testDir, ".qwen");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({ security: { auth: { type: "oauth" }, folderTrust: { enabled: false } } }),
+      );
+
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            qwencode: { security: { folderTrust: { enabled: true } } },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      // Sibling `auth` preserved; folderTrust replaced by the override.
+      expect(content.security).toEqual({
+        auth: { type: "oauth" },
+        folderTrust: { enabled: true },
+      });
+    });
+
+    it("routes tools/security autonomy settings back into the qwencode override on import", () => {
+      const instance = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          permissions: { allow: ["Bash(git *)"] },
+          tools: { approvalMode: "auto-edit", core: ["ReadFile"] },
+          security: { folderTrust: { enabled: true } },
+        }),
+      });
+
+      const json = instance.toRulesyncPermissions().getJson();
+      expect(json.permission.bash?.["git *"]).toBe("allow");
+      // Only the override-managed keys are extracted (not `tools.core`).
+      expect(json.qwencode).toEqual({
+        tools: { approvalMode: "auto-edit" },
+        security: { folderTrust: { enabled: true } },
+      });
+    });
+
+    it("does not emit a qwencode override when no autonomy settings are present", () => {
+      const instance = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ permissions: { allow: ["Bash(git *)"] } }),
+      });
+
+      expect(instance.toRulesyncPermissions().getJson().qwencode).toBeUndefined();
+    });
+  });
+
   describe("validate()", () => {
     it("should succeed for well-formed Qwen settings JSON", () => {
       const instance = new QwencodePermissions({
