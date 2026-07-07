@@ -1,13 +1,15 @@
 import { join } from "node:path";
 
+import { uniq } from "es-toolkit";
 import * as smolToml from "smol-toml";
 
 import { GROKCLI_CONFIG_FILE_NAME, GROKCLI_DIR } from "../../constants/grokcli-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import type { PermissionsConfig } from "../../types/permissions.js";
+import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { isRecord } from "../../utils/type-guards.js";
+import type { Logger } from "../../utils/logger.js";
+import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -20,41 +22,139 @@ import {
 const GROKCLI_GLOBAL_ONLY_MESSAGE =
   "Grok CLI permissions are global-only; use --global to sync ~/.grok/config.toml";
 
-// Grok stores the permission toggle as `[ui] permission_mode` in config.toml.
+// Grok stores the coarse permission toggle as `[ui] permission_mode` in
+// config.toml (kept as a backward-compatible fallback) and the fine-grained
+// rules as Claude-style entries under the `[permission]` allow/deny/ask arrays.
+// https://docs.x.ai/build/settings/reference
 // https://docs.x.ai/build/modes-and-commands
 const GROKCLI_UI_KEY = "ui";
 const GROKCLI_PERMISSION_MODE_KEY = "permission_mode";
+const GROKCLI_PERMISSION_KEY = "permission";
 
 type GrokPermissionMode = "ask" | "always-approve";
 
-// rulesync canonical catch-all pattern (Grok's mode is global, so only a
-// catch-all maps cleanly back on import).
+// rulesync canonical catch-all pattern (Grok's coarse mode is global, so only a
+// catch-all maps cleanly back on import from `permission_mode`).
 const CATCH_ALL_PATTERN = "*";
+
+const MCP_CANONICAL_PREFIX = "mcp__";
+
+// Canonical category ⇒ Grok Claude-style tool prefix. Grok exposes no separate
+// `Write` tool (writes gate through `Edit`), so `write` collapses onto `Edit`;
+// categories with no Grok tool (`websearch`, `glob`, `notebookedit`, `agent`)
+// are skipped. MCP categories are handled separately (see `buildGrokEntry`).
+const CATEGORY_TO_GROK_TOOL: Record<string, string> = {
+  bash: "Bash",
+  read: "Read",
+  edit: "Edit",
+  write: "Edit",
+  grep: "Grep",
+  webfetch: "WebFetch",
+};
+
+// Grok tool prefix ⇒ canonical category (inverse of the above; `write` is not
+// recovered because it collapses onto `Edit` on export — a documented lossy
+// mapping). `MCPTool` is handled separately in `parseGrokEntry`.
+const GROK_TOOL_TO_CATEGORY: Record<string, string> = {
+  Bash: "bash",
+  Read: "read",
+  Edit: "edit",
+  Grep: "grep",
+  WebFetch: "webfetch",
+};
+
+const GROK_MCP_TOOL = "MCPTool";
+
+/**
+ * Build a Grok Claude-style permission entry (e.g. `Bash(git *)`, `Read`,
+ * `MCPTool(server__tool)`) from a canonical category + pattern. Returns `null`
+ * for categories Grok cannot express so callers can skip them.
+ *
+ * Scoped MCP categories (`mcp__<remainder>`) fold their address into the
+ * parentheses (`MCPTool(<remainder>)`); the bare `mcp` category becomes
+ * `MCPTool`. For every other tool, a `*` pattern emits the bare tool name and a
+ * concrete pattern emits `Tool(pattern)`.
+ */
+function buildGrokEntry(category: string, pattern: string): string | null {
+  if (category.startsWith(MCP_CANONICAL_PREFIX)) {
+    const remainder = category.slice(MCP_CANONICAL_PREFIX.length);
+    return remainder.length > 0 ? `${GROK_MCP_TOOL}(${remainder})` : GROK_MCP_TOOL;
+  }
+  if (category === "mcp") {
+    return pattern === CATCH_ALL_PATTERN || pattern === ""
+      ? GROK_MCP_TOOL
+      : `${GROK_MCP_TOOL}(${pattern})`;
+  }
+  const tool = CATEGORY_TO_GROK_TOOL[category];
+  if (tool === undefined) {
+    return null;
+  }
+  return pattern === CATCH_ALL_PATTERN || pattern === "" ? tool : `${tool}(${pattern})`;
+}
+
+/**
+ * Parse a Grok Claude-style permission entry back into a canonical category +
+ * pattern. Entries without parentheses are treated as catch-all (`*`). Returns
+ * `null` for tool prefixes with no canonical equivalent (e.g. `any`).
+ */
+function parseGrokEntry(entry: string): { category: string; pattern: string } | null {
+  const trimmed = entry.trim();
+  const parenIndex = trimmed.indexOf("(");
+  let tool: string;
+  let inner: string;
+  if (parenIndex === -1 || !trimmed.endsWith(")")) {
+    tool = trimmed;
+    inner = "";
+  } else {
+    tool = trimmed.slice(0, parenIndex);
+    inner = trimmed.slice(parenIndex + 1, -1).trim();
+  }
+
+  if (tool === GROK_MCP_TOOL) {
+    return inner.length > 0
+      ? { category: `${MCP_CANONICAL_PREFIX}${inner}`, pattern: CATCH_ALL_PATTERN }
+      : { category: "mcp", pattern: CATCH_ALL_PATTERN };
+  }
+
+  const category = GROK_TOOL_TO_CATEGORY[tool];
+  if (category === undefined) {
+    return null;
+  }
+  return { category, pattern: inner.length > 0 ? inner : CATCH_ALL_PATTERN };
+}
 
 /**
  * Permissions adapter for the xAI Grok Build CLI (`grokcli`).
  *
- * Grok has no per-tool / per-pattern permission rules. Tool gating is a single
- * coarse toggle, `[ui] permission_mode`, in `~/.grok/config.toml`:
- *   - `ask` — prompt before each tool call (Grok's default).
- *   - `always-approve` — skip prompts.
+ * Grok Build CLI ships a Claude-style rule system under `[permission]` in
+ * `~/.grok/config.toml`: `allow` / `deny` / `ask` arrays of entries such as
+ * `Bash(git *)`, `Read(src/**)`, `Edit`, `Grep`, `MCPTool(server__tool)`, and
+ * `WebFetch`, evaluated with precedence `deny > ask > allow`
+ * (https://docs.x.ai/build/settings/reference). rulesync's canonical
+ * per-category, per-pattern model maps almost 1:1:
+ *   - Generate: each `permission.<category>.<pattern> = allow|ask|deny` becomes
+ *     the matching Grok entry and is bucketed into the `[permission]` array for
+ *     that action. `bash|read|edit|grep|webfetch` map to their Grok tool;
+ *     `write` collapses onto `Edit` (Grok has no `Write` tool); `mcp__*` maps to
+ *     `MCPTool(...)`. Categories with no Grok tool (`websearch`, `glob`,
+ *     `notebookedit`, `agent`) are skipped (with a warning when they carry a
+ *     `deny` rule, to surface the gap).
+ *   - Import: the `[permission]` arrays are parsed back into canonical
+ *     categories. When no `[permission]` section is present (older configs), the
+ *     coarse `[ui] permission_mode` is used as a fallback.
  *
- * rulesync's permission model is per-category, per-pattern `allow`/`ask`/`deny`,
- * so the mapping is **lossy** (a single mode cannot express per-pattern rules):
- *   - Generate: any `deny` or `ask` rule anywhere ⇒ `ask` (conservative — keep
- *     prompting whenever the user expressed any restriction); otherwise, if at
- *     least one `allow` rule exists and nothing is denied/asked ⇒
- *     `always-approve`; an empty config falls back to the safe default `ask`.
- *   - Import: `always-approve` ⇒ `bash: { "*": "allow" }`; `ask` (or unset) ⇒
- *     `bash: { "*": "ask" }`. `bash` is used as the representative catch-all
- *     because it is the primary permission-gated surface, and this round-trips
- *     the generate mapping.
+ * The coarse `[ui] permission_mode` toggle is still written for backward
+ * compatibility with older Grok versions: `always-approve` when the config is
+ * pure-`allow`, otherwise `ask` (conservative — it is never `always-approve`
+ * while any `deny`/`ask` rule exists, so it never contradicts the fine-grained
+ * arrays).
  *
- * This surface is **global only** — `permission_mode` lives in the user-level
- * `~/.grok/config.toml`; Grok has no project-scoped permission file. The shared
- * config is merged in place: the `[ui] permission_mode` value is set and every
- * other key (e.g. `[mcp_servers]`, legacy `approval_mode`) is preserved. The
- * file is never deleted.
+ * This surface is **global only** — the adapter syncs the user-level
+ * `~/.grok/config.toml`. (Grok also supports a project-scoped `[permission]`
+ * file; project scope is not modeled here.) The shared config is merged in
+ * place: rulesync owns the `[permission]` `allow`/`deny`/`ask` arrays and the
+ * `[ui] permission_mode` value, while every other key (e.g. `[mcp_servers]`,
+ * `[permission] rules`, `[sandbox]`) is preserved. The file is never deleted.
  */
 export class GrokcliPermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
@@ -99,6 +199,7 @@ export class GrokcliPermissions extends ToolPermissions {
   static async fromRulesyncPermissions({
     outputRoot = process.cwd(),
     rulesyncPermissions,
+    logger,
     global = false,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<GrokcliPermissions> {
     if (!global) {
@@ -120,8 +221,24 @@ export class GrokcliPermissions extends ToolPermissions {
       );
     }
 
-    const mode = deriveGrokPermissionMode(rulesyncPermissions.getJson());
+    const config = rulesyncPermissions.getJson();
 
+    // Fine-grained `[permission]` arrays (the high-fidelity surface). rulesync
+    // owns allow/deny/ask; other `[permission]` keys (e.g. verbose `rules`) are
+    // preserved.
+    const buckets = buildGrokPermissionArrays(config, logger);
+    const existingPermission = isRecord(parsed[GROKCLI_PERMISSION_KEY])
+      ? parsed[GROKCLI_PERMISSION_KEY]
+      : {};
+    parsed[GROKCLI_PERMISSION_KEY] = {
+      ...existingPermission,
+      allow: buckets.allow,
+      deny: buckets.deny,
+      ask: buckets.ask,
+    } as smolToml.TomlTable;
+
+    // Coarse `[ui] permission_mode` fallback for older Grok versions.
+    const mode = deriveGrokPermissionMode(config);
     const existingUi = isRecord(parsed[GROKCLI_UI_KEY]) ? parsed[GROKCLI_UI_KEY] : {};
     parsed[GROKCLI_UI_KEY] = {
       ...existingUi,
@@ -150,13 +267,16 @@ export class GrokcliPermissions extends ToolPermissions {
       );
     }
 
-    const ui = isRecord(parsed[GROKCLI_UI_KEY]) ? parsed[GROKCLI_UI_KEY] : {};
-    const mode = ui[GROKCLI_PERMISSION_MODE_KEY];
-    const action = mode === "always-approve" ? "allow" : "ask";
+    const permission = isRecord(parsed[GROKCLI_PERMISSION_KEY])
+      ? parsed[GROKCLI_PERMISSION_KEY]
+      : {};
+    const fineGrained = parseGrokPermissionArrays(permission);
 
-    const rulesyncConfig: PermissionsConfig = {
-      permission: { bash: { [CATCH_ALL_PATTERN]: action } },
-    };
+    // Prefer the fine-grained `[permission]` arrays when present; fall back to
+    // the coarse `[ui] permission_mode` for older configs that have neither.
+    const rulesyncConfig: PermissionsConfig = fineGrained
+      ? { permission: fineGrained }
+      : { permission: { bash: { [CATCH_ALL_PATTERN]: legacyModeAction(parsed) } } };
 
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(rulesyncConfig, null, 2),
@@ -181,6 +301,84 @@ export class GrokcliPermissions extends ToolPermissions {
       global: true,
     });
   }
+}
+
+/**
+ * Bucket canonical rules into Grok's `[permission]` allow/deny/ask arrays of
+ * Claude-style entries. Categories Grok cannot express are skipped (with a
+ * warning when they carry a `deny` rule, to surface the dropped restriction).
+ */
+function buildGrokPermissionArrays(
+  config: PermissionsConfig,
+  logger?: Logger,
+): { allow: string[]; deny: string[]; ask: string[] } {
+  const allow: string[] = [];
+  const deny: string[] = [];
+  const ask: string[] = [];
+
+  for (const [category, rules] of Object.entries(config.permission)) {
+    for (const [pattern, action] of Object.entries(rules)) {
+      const entry = buildGrokEntry(category, pattern);
+      if (entry === null) {
+        if (action === "deny" && logger) {
+          logger.warn(
+            `Grok CLI has no permission tool for the '${category}' category; ` +
+              `its 'deny' rule could not be represented and was skipped.`,
+          );
+        }
+        continue;
+      }
+      if (action === "allow") allow.push(entry);
+      else if (action === "deny") deny.push(entry);
+      else ask.push(entry);
+    }
+  }
+
+  return { allow: uniq(allow.toSorted()), deny: uniq(deny.toSorted()), ask: uniq(ask.toSorted()) };
+}
+
+/**
+ * Parse Grok's `[permission]` allow/deny/ask arrays back into a canonical
+ * permission map. Returns `null` when the section defines none of the three
+ * arrays, so the caller can fall back to the coarse `permission_mode`.
+ * Precedence `deny > ask > allow` is applied so a tool listed in multiple
+ * arrays resolves to the strictest action.
+ */
+function parseGrokPermissionArrays(
+  permission: Record<string, unknown>,
+): Record<string, Record<string, PermissionAction>> | null {
+  const allow = isStringArray(permission.allow) ? permission.allow : undefined;
+  const deny = isStringArray(permission.deny) ? permission.deny : undefined;
+  const ask = isStringArray(permission.ask) ? permission.ask : undefined;
+  if (allow === undefined && deny === undefined && ask === undefined) {
+    return null;
+  }
+
+  const result: Record<string, Record<string, PermissionAction>> = {};
+  const apply = (entries: string[] | undefined, action: PermissionAction) => {
+    for (const entry of entries ?? []) {
+      const parsed = parseGrokEntry(entry);
+      if (parsed === null) continue;
+      const bucket = (result[parsed.category] ??= {});
+      bucket[parsed.pattern] = action;
+    }
+  };
+  // Apply weakest first so stricter actions overwrite on collision
+  // (deny > ask > allow).
+  apply(allow, "allow");
+  apply(ask, "ask");
+  apply(deny, "deny");
+
+  return result;
+}
+
+/**
+ * Legacy coarse fallback: map `[ui] permission_mode` to a canonical action.
+ * `always-approve` ⇒ `allow`; anything else (including a missing mode) ⇒ `ask`.
+ */
+function legacyModeAction(parsed: smolToml.TomlTable): PermissionAction {
+  const ui = isRecord(parsed[GROKCLI_UI_KEY]) ? parsed[GROKCLI_UI_KEY] : {};
+  return ui[GROKCLI_PERMISSION_MODE_KEY] === "always-approve" ? "allow" : "ask";
 }
 
 /**
