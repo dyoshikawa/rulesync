@@ -317,6 +317,8 @@ export const DEEPAGENTS_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionEnd",
   "beforeSubmitPrompt",
   "permissionRequest",
+  "preToolUse",
+  "postToolUse",
   "postToolUseFailure",
   "stop",
   "preCompact",
@@ -890,6 +892,9 @@ export const CANONICAL_TO_DEEPAGENTS_EVENT_NAMES: Record<string, string> = {
   sessionEnd: "session.end",
   beforeSubmitPrompt: "user.prompt",
   permissionRequest: "permission.request",
+  // Tool lifecycle events added upstream in deepagents-code 0.1.32.
+  preToolUse: "tool.use",
+  postToolUse: "tool.result",
   postToolUseFailure: "tool.error",
   stop: "task.complete",
   preCompact: "context.compact",
