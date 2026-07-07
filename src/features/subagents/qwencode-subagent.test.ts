@@ -340,6 +340,31 @@ Body content`;
         tools: ["read_file"],
       });
     });
+
+    it("carries a record-of-specs mcpServers through toRulesyncSubagent", () => {
+      const mcpServers = {
+        filesystem: {
+          type: "stdio",
+          command: "node",
+          args: ["/usr/local/lib/mcp-fs/server.js"],
+        },
+      };
+      const subagent = new QwencodeSubagent({
+        outputRoot: testDir,
+        relativeDirPath: ".qwen/agents",
+        relativeFilePath: "record-agent.md",
+        frontmatter: {
+          name: "Record Agent",
+          description: "Record description",
+          mcpServers,
+        },
+        body: "Record body",
+        validate: true,
+      });
+
+      const rulesyncSubagent = subagent.toRulesyncSubagent();
+      expect(rulesyncSubagent.getFrontmatter().qwencode).toEqual({ mcpServers });
+    });
   });
 
   describe("fromFile", () => {
@@ -403,6 +428,33 @@ Body content`;
           args: ["/usr/local/lib/mcp-fs/server.js"],
         },
       });
+    });
+
+    it("should import a subagent whose mcpServers uses the array-of-names form", async () => {
+      const subagentsDir = join(testDir, ".qwen", "agents");
+      const filePath = join(subagentsDir, "array-file-agent.md");
+
+      await writeFileContent(
+        filePath,
+        [
+          "---",
+          "name: Array File Agent",
+          "description: Imported with array-form mcpServers",
+          "mcpServers:",
+          "  - my-server",
+          "---",
+          "Body.",
+          "",
+        ].join("\n"),
+      );
+
+      const subagent = await QwencodeSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "array-file-agent.md",
+        validate: true,
+      });
+
+      expect(subagent.getFrontmatter().mcpServers).toEqual(["my-server"]);
     });
 
     it("should throw error when file does not exist", async () => {
