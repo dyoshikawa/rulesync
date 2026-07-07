@@ -46,13 +46,29 @@ const OpencodePermissionsOverrideSchema = z.looseObject({
 export type OpencodePermissionsOverride = z.infer<typeof OpencodePermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for Hermes Agent. Keys placed here are deep-merged
+ * into Hermes's `~/.hermes/config.yaml` and never leak into other tools' configs.
+ * It carries Hermes-specific approval/security controls that have no canonical
+ * permission category — e.g. `approvals` (`mode`, `cron_mode`, ...),
+ * `security` (`allow_private_urls`, ...), `skills.write_approval`,
+ * `memory.write_approval`. Kept `looseObject` (a verbatim passthrough) so any
+ * current or future Hermes config key can be authored without modeling each one.
+ *
+ * @example
+ * { "approvals": { "mode": "smart" }, "security": { "allow_private_urls": false } }
+ */
+const HermesPermissionsOverrideSchema = z.looseObject({});
+export type HermesPermissionsOverride = z.infer<typeof HermesPermissionsOverrideSchema>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
- * The optional `opencode` key is a tool-scoped override that is consumed only by
- * the OpenCode translator (see `OpencodePermissionsOverrideSchema`); every other
- * tool reads the shared `permission` block and ignores it.
+ * The optional `opencode`/`hermes` keys are tool-scoped overrides consumed only
+ * by their respective translator (see `OpencodePermissionsOverrideSchema` /
+ * `HermesPermissionsOverrideSchema`); every other tool reads the shared
+ * `permission` block and ignores them.
  *
  * @example
  * {
@@ -63,6 +79,7 @@ export type OpencodePermissionsOverride = z.infer<typeof OpencodePermissionsOver
 const PermissionsConfigSchema = z.looseObject({
   permission: z.record(z.string(), PermissionRulesSchema),
   opencode: z.optional(OpencodePermissionsOverrideSchema),
+  hermes: z.optional(HermesPermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 

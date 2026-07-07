@@ -52,3 +52,27 @@ export function mergeHermesConfig(fileContent: string, patch: HermesConfig): str
     ...patch,
   });
 }
+
+/**
+ * Recursively merge `patch` into `base` (patch wins). Nested plain objects are
+ * merged key-by-key; every other value (arrays, scalars) is replaced wholesale.
+ * Used to overlay the Hermes-scoped permission override onto the natively
+ * emitted `approvals`/`security` structures without one clobbering the other
+ * (e.g. `approvals.deny` from canonical deny rules coexisting with an
+ * `approvals.mode` from the override). Prototype-pollution keys are dropped.
+ */
+export function deepMergeHermesConfig(base: HermesConfig, patch: HermesConfig): HermesConfig {
+  const result: HermesConfig = { ...base };
+
+  for (const [key, patchValue] of Object.entries(patch)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+    const baseValue = result[key];
+    if (isPlainObject(baseValue) && isPlainObject(patchValue)) {
+      result[key] = deepMergeHermesConfig(baseValue, patchValue);
+    } else {
+      result[key] = sanitizeHermesConfigValue(patchValue);
+    }
+  }
+
+  return result;
+}
