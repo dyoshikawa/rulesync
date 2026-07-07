@@ -100,6 +100,36 @@ security:
     expect(config.security).toEqual({ allow_private_urls: false });
   });
 
+  it("replaces the round-trip blob wholesale so deleted rules do not resurrect", async () => {
+    // Canonical no longer contains "old-cmd"; only "git *" remains.
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: { bash: { "git *": "allow" } },
+      }),
+    });
+
+    const permissions = await HermesagentPermissions.fromRulesyncPermissions({
+      outputRoot: ".",
+      rulesyncPermissions,
+    });
+
+    // Existing config.yaml still carries a stale "old-cmd" entry in the blob.
+    permissions.setFileContent(`permissions:
+  rulesync:
+    permission:
+      bash:
+        "git *": allow
+        "old-cmd": deny
+`);
+
+    const config = parseHermesConfig(permissions.getFileContent());
+    expect(config.permissions).toEqual({
+      rulesync: { permission: { bash: { "git *": "allow" } } },
+    });
+  });
+
   it("maps bash deny rules to approvals.deny (hard denylist)", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
       relativeDirPath: ".rulesync",

@@ -55,9 +55,17 @@ export class HermesagentPermissions extends ToolPermissions {
     // hand-edited sibling keys under `approvals`/`security` (e.g. `approvals.mode`,
     // `security.allow_private_urls`) survive instead of being clobbered by a
     // shallow top-level merge now that generation emits those top-level blocks.
-    this.fileContent = stringifyHermesConfig(
-      deepMergeHermesConfig(parseHermesConfig(fileContent), parseHermesConfig(this.fileContent)),
-    );
+    const existing = parseHermesConfig(fileContent);
+    const generated = parseHermesConfig(this.fileContent);
+    const merged = deepMergeHermesConfig(existing, generated);
+    // The `permissions.rulesync` blob is an authoritative snapshot of the current
+    // canonical config, so replace it wholesale rather than deep-merging — a
+    // deep merge would resurrect a rule that was deleted from
+    // `.rulesync/permissions.json` but still lingered in the existing blob.
+    if (generated.permissions !== undefined) {
+      merged.permissions = generated.permissions;
+    }
+    this.fileContent = stringifyHermesConfig(merged);
   }
 
   toRulesyncPermissions(): RulesyncPermissions {
