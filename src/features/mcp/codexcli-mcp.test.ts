@@ -1836,6 +1836,77 @@ callbackPort = 3118
       });
     });
 
+    it("does not duplicate a non-string clientId", async () => {
+      const jsonData = {
+        mcpServers: {
+          slack: {
+            type: "http",
+            url: "https://mcp.slack.com/mcp",
+            oauth: {
+              // A non-string client id is not a usable OAuth client id, so it is
+              // left as-is rather than duplicated into `client_id`.
+              clientId: 12345,
+            },
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: false,
+      });
+
+      const oauth = (codexcliMcp.getToml().mcp_servers as any).slack.oauth;
+      expect(oauth.clientId).toBe(12345);
+      expect("client_id" in oauth).toBe(false);
+    });
+
+    it("keeps a full generate → import round-trip stable", async () => {
+      const jsonData = {
+        mcpServers: {
+          slack: {
+            type: "http",
+            url: "https://mcp.slack.com/mcp",
+            oauth: {
+              clientId: "1601185624273.8899143856786",
+              callbackPort: 3118,
+            },
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      // Generate the codex config, then re-parse it as a CodexcliMcp and convert
+      // back to the canonical shape — the OAuth block must collapse back to just
+      // the camelCase clientId.
+      const generated = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: false,
+      });
+      const reimported = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: generated.getFileContent(),
+      });
+
+      const json = JSON.parse(reimported.toRulesyncMcp().getFileContent());
+      expect(json.mcpServers.slack.oauth).toEqual({
+        clientId: "1601185624273.8899143856786",
+        callbackPort: 3118,
+      });
+    });
+
     it("prefers canonical clientId and drops client_id when both are present on import", () => {
       const tomlContent = `[mcp_servers.slack.oauth]
 clientId = "camel-value"

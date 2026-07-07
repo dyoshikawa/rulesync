@@ -7,7 +7,10 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import { warnWithFallback } from "../../utils/logger.js";
-import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
+import {
+  omitPrototypePollutionKeys,
+  PROTOTYPE_POLLUTION_KEYS,
+} from "../../utils/prototype-pollution.js";
 import { isPlainObject, isRecord, isStringArray } from "../../utils/type-guards.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -43,11 +46,9 @@ const MAX_REMOVE_EMPTY_ENTRIES_DEPTH = 32;
  * the round-trip stays stable.
  */
 function mapOauthToCodex(oauth: Record<string, unknown>): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(oauth)) {
-    if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
-    result[key] = value;
-  }
+  const result = omitPrototypePollutionKeys(oauth);
+  // Only a string client id is duplicated: Codex's `client_id` must be a bare
+  // string, and a non-string value would not be a usable OAuth client id anyway.
   if (typeof oauth["clientId"] === "string" && !("client_id" in result)) {
     result["client_id"] = oauth["clientId"];
   }
