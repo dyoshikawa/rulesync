@@ -198,7 +198,7 @@ const ReasonixPermissionsOverrideSchema = z.looseObject({
 export type ReasonixPermissionsOverride = z.infer<typeof ReasonixPermissionsOverrideSchema>;
 
 /**
- * Tool-scoped override block for Factory Droid. Factory Droid'`s `settings.json`
+ * Tool-scoped override block for Factory Droid. Factory Droid's `settings.json`
  * exposes security controls with no canonical per-command allow/ask/deny slot —
  * `commandBlocklist` (a hard-block tier that can never be approved, distinct from
  * an approvable `deny`), `networkPolicy` (`allowedIps`), `sandbox`

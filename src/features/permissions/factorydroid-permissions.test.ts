@@ -251,6 +251,51 @@ describe("FactorydroidPermissions", () => {
   });
 
   describe("factorydroid override (generate)", () => {
+    it("keeps commandBlocklist stable across a full import -> generate round-trip", async () => {
+      const original = new FactorydroidPermissions({
+        relativeDirPath: ".factory",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          commandAllowlist: ["git *"],
+          commandBlocklist: ["curl *"],
+          sandbox: { enabled: true },
+        }),
+      });
+
+      const canonical = original.toRulesyncPermissions();
+      const regenerated = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: join(testDir, "fresh"),
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: canonical.getFileContent(),
+        }),
+      });
+
+      const settings = JSON.parse(regenerated.getFileContent());
+      expect(settings.commandAllowlist).toEqual(["git *"]);
+      expect(settings.commandBlocklist).toEqual(["curl *"]);
+      expect(settings.sandbox).toEqual({ enabled: true });
+    });
+
+    it("lets the managed lists win over a stray commandDenylist inside the override", async () => {
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "rm *": "deny" } },
+            factorydroid: { commandDenylist: ["should-be-ignored"] },
+          }),
+        }),
+      });
+
+      const settings = JSON.parse(instance.getFileContent());
+      // The managed denylist (from the shared block) wins over the stray override value.
+      expect(settings.commandDenylist).toEqual(["rm *"]);
+    });
+
     it("merges the factorydroid override's security keys into settings.json", async () => {
       const instance = await FactorydroidPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
