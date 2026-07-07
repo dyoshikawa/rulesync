@@ -141,9 +141,11 @@ export type VibePermissionsOverride = z.infer<typeof VibePermissionsOverrideSche
  * (`mode`/`networkAccess`). Fields placed here are merged into the top-level of
  * `.cursor/cli.json` (project) / `~/.cursor/cli-config.json` (global) and emitted
  * only for Cursor, while the shared `permission` block continues to drive the
- * `permissions.allow`/`permissions.deny` arrays. Kept a `looseObject` passthrough
- * so any current or future `cli.json` key can be authored; `sandbox`'s accepted
- * values are not documented so it passes through verbatim.
+ * `permissions.allow`/`permissions.deny` arrays. Kept a `looseObject` so extra
+ * `cli.json` keys can be authored (they are merged verbatim on generate);
+ * `sandbox`'s accepted values are not documented so it passes through verbatim.
+ * Note: only `approvalMode` and `sandbox` round-trip back on import — other keys
+ * authored here reach `cli.json` on generate but are not re-extracted.
  *
  * @example
  * { "approvalMode": "auto-review" }

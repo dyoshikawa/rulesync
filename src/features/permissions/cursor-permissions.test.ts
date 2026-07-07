@@ -358,6 +358,26 @@ describe("CursorPermissions", () => {
       expect(parsed.permissions.allow).toEqual(["Shell(git *)"]);
     });
 
+    it("does not let the override clobber managed version/editor", async () => {
+      const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            cursor: { approvalMode: "auto-review", version: 99, editor: { vimMode: true } },
+          }),
+        }),
+      });
+
+      const parsed = JSON.parse(cursorPermissions.getFileContent());
+      expect(parsed.approvalMode).toBe("auto-review");
+      // rulesync-managed fields win over the override.
+      expect(parsed.version).toBe(1);
+      expect(parsed.editor).toEqual({ vimMode: false });
+    });
+
     it("routes cli.json approvalMode/sandbox back into the cursor override on import", () => {
       const cursorPermissions = new CursorPermissions({
         relativeDirPath: ".cursor",
