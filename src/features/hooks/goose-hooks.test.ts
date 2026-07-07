@@ -107,11 +107,14 @@ describe("GooseHooks", () => {
       expect(parsed.hooks.AfterShellExecution).toBeDefined();
     });
 
-    it("should map subagent lifecycle events", async () => {
+    it("should drop subagent lifecycle events Goose does not support", async () => {
+      // Goose's HookEvent enum has no SubagentStart/SubagentStop arms, so these
+      // canonical events must not be emitted (Goose would silently ignore them).
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({
           fileContent: JSON.stringify({
             hooks: {
+              sessionStart: [{ command: "echo start" }],
               subagentStart: [{ command: "echo sub-start" }],
               subagentStop: [{ command: "echo sub-stop" }],
             },
@@ -126,8 +129,9 @@ describe("GooseHooks", () => {
       });
 
       const parsed = JSON.parse(gooseHooks.getFileContent());
-      expect(parsed.hooks.SubagentStart).toBeDefined();
-      expect(parsed.hooks.SubagentStop).toBeDefined();
+      expect(parsed.hooks.SessionStart).toBeDefined();
+      expect(parsed.hooks.SubagentStart).toBeUndefined();
+      expect(parsed.hooks.SubagentStop).toBeUndefined();
     });
 
     it("should filter unsupported events", async () => {
@@ -217,13 +221,17 @@ describe("GooseHooks", () => {
       });
     });
 
-    it("should convert SubagentStart/SubagentStop back to canonical events", () => {
+    it("should drop non-Goose SubagentStart/SubagentStop keys on import", () => {
+      // Goose never emits these (its HookEvent enum has no such arms), but an
+      // old rulesync-generated hooks.json might carry them. They have no
+      // canonical mapping anymore, so import drops them while keeping real events.
       const gooseHooks = new GooseHooks(
         createMockAiFileParams({
           relativeDirPath: GOOSE_HOOKS_DIR,
           relativeFilePath: "hooks.json",
           fileContent: JSON.stringify({
             hooks: {
+              SessionStart: [{ hooks: [{ command: "echo start" }] }],
               SubagentStart: [{ hooks: [{ command: "echo sub-start" }] }],
               SubagentStop: [{ hooks: [{ command: "echo sub-stop" }] }],
             },
@@ -232,14 +240,12 @@ describe("GooseHooks", () => {
       );
 
       const parsed = gooseHooks.toRulesyncHooks().getJson();
-      expect(parsed.hooks.subagentStart?.[0]).toEqual({
+      expect(parsed.hooks.sessionStart?.[0]).toEqual({
         type: "command",
-        command: "echo sub-start",
+        command: "echo start",
       });
-      expect(parsed.hooks.subagentStop?.[0]).toEqual({
-        type: "command",
-        command: "echo sub-stop",
-      });
+      expect(parsed.hooks.subagentStart).toBeUndefined();
+      expect(parsed.hooks.subagentStop).toBeUndefined();
     });
   });
 
