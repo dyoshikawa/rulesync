@@ -428,7 +428,16 @@ export class CursorPermissions extends ToolPermissions {
     const result: Record<string, unknown> = { ...config };
     const cursorOverride: Record<string, unknown> = {};
     if (settings.approvalMode !== undefined) cursorOverride.approvalMode = settings.approvalMode;
-    if (settings.sandbox !== undefined) cursorOverride.sandbox = settings.sandbox;
+    // Only carry `sandbox` when it is a plain object, matching the override
+    // schema (`sandbox` is a `looseObject`); a malformed non-object value stays
+    // in the file rather than producing a canonical config that fails validation.
+    if (
+      settings.sandbox !== null &&
+      typeof settings.sandbox === "object" &&
+      !Array.isArray(settings.sandbox)
+    ) {
+      cursorOverride.sandbox = settings.sandbox;
+    }
     if (Object.keys(cursorOverride).length > 0) {
       result.cursor = cursorOverride;
     }

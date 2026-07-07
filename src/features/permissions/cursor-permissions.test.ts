@@ -377,6 +377,22 @@ describe("CursorPermissions", () => {
       });
     });
 
+    it("skips a malformed non-object sandbox on import", () => {
+      const cursorPermissions = new CursorPermissions({
+        relativeDirPath: ".cursor",
+        relativeFilePath: "cli.json",
+        fileContent: JSON.stringify({
+          approvalMode: "auto-review",
+          sandbox: "not-an-object",
+          permissions: { allow: ["Shell(git *)"] },
+        }),
+      });
+
+      const json = cursorPermissions.toRulesyncPermissions().getJson();
+      // approvalMode is still carried; the malformed sandbox is dropped.
+      expect(json.cursor).toEqual({ approvalMode: "auto-review" });
+    });
+
     it("does not emit a cursor override when no autonomy settings are present", () => {
       const cursorPermissions = new CursorPermissions({
         relativeDirPath: ".cursor",
