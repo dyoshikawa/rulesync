@@ -136,6 +136,16 @@ export class ClaudecodePermissions extends ToolPermissions {
     const config = rulesyncPermissions.getJson();
     const { allow, ask, deny } = convertRulesyncToClaudePermissions(config);
 
+    // Merge the Claude Code-scoped override's non-list `permissions` fields
+    // (e.g. `defaultMode`, `additionalDirectories`) into the settings
+    // `permissions` object. The managed `allow`/`ask`/`deny` arrays are excluded
+    // — rulesync owns them and `applyPermissions` sets them below.
+    const overridePermissions = config.claudecode?.permissions;
+    if (overridePermissions && typeof overridePermissions === "object") {
+      const { allow: _a, ask: _k, deny: _d, ...nonListFields } = overridePermissions;
+      settings.permissions = { ...settings.permissions, ...nonListFields };
+    }
+
     const managedToolNames = new Set(
       Object.keys(config.permission).map((category) => toClaudeToolName(category)),
     );
@@ -179,6 +189,14 @@ export class ClaudecodePermissions extends ToolPermissions {
       ask: permissions.ask ?? [],
       deny: permissions.deny ?? [],
     });
+
+    // Route the non-list `permissions` fields (defaultMode, additionalDirectories,
+    // org locks, ...) into the claudecode override so they round-trip without
+    // leaking into other tools' configs.
+    const { allow: _a, ask: _k, deny: _d, ...nonListFields } = permissions;
+    if (Object.keys(nonListFields).length > 0) {
+      config.claudecode = { permissions: nonListFields };
+    }
 
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(config, null, 2),

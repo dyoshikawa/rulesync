@@ -840,6 +840,17 @@ Rulesync provides a JSON Schema for editor validation and autocompletion. Add th
 
 For Claude Code, this generates `permissions.allow`, `permissions.ask`, and `permissions.deny` arrays in `.claude/settings.json` (project mode) or `~/.claude/settings.json` (global mode) using PascalCase tool names (e.g., `Bash(git *)`, `Edit(src/**)`, `Read(.env)`).
 
+> **Claude Code-only override (`claudecode` key):** Claude Code's `permissions` object also carries non-list fields with no canonical permission category — notably `defaultMode` (the session-start permission mode: `default` | `acceptEdits` | `plan` | `bypassPermissions`) and `additionalDirectories` (extra working directories). Add a tool-scoped `claudecode` override key alongside the shared block to author them: the fields under `claudecode.permissions` are merged into the settings `permissions` object and emitted **only** for Claude Code, while the shared `permission` block continues to drive the managed `allow`/`ask`/`deny` arrays. The block is a verbatim passthrough (so other/future `permissions` fields such as the org locks `disableBypassPermissionsMode`/`disableAutoMode` can be set too), but any `allow`/`ask`/`deny` placed inside it is ignored — rulesync owns those arrays. On import, the non-list `permissions` fields round-trip back into the `claudecode` override.
+>
+> ```json
+> {
+>   "permission": { "bash": { "git *": "allow" } },
+>   "claudecode": {
+>     "permissions": { "defaultMode": "acceptEdits", "additionalDirectories": ["../shared"] }
+>   }
+> }
+> ```
+
 For OpenCode, this generates the `permission` object in `opencode.json` / `opencode.jsonc` (project mode) or `.config/opencode/opencode.json` / `.config/opencode/opencode.jsonc` (global mode), preserving other existing OpenCode config fields.
 
 > **OpenCode-only override (`opencode` key):** OpenCode exposes permission categories that other tools do not understand (e.g. `external_directory`). Placing these in the shared `permission` block would push meaningless entries into Claude Code, Codex, etc. To scope them to OpenCode, add a tool-scoped `opencode` override key alongside the shared block — mirroring the tool-scoped override keys used by [hooks](#hooks) (`opencode.hooks`) and rules frontmatter. Categories under `opencode.permission` are merged on top of the shared block **per category** (the override wins) and are emitted **only** into `opencode.json` / `opencode.jsonc`; every other tool ignores them. Each value may be a bare action string (`"deny"`) or a pattern map (`{ "*": "ask" }`), matching OpenCode's own permission syntax.
