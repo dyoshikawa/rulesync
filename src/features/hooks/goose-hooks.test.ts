@@ -244,8 +244,11 @@ describe("GooseHooks", () => {
         type: "command",
         command: "echo start",
       });
+      // Neither the canonical camelCase name nor the raw PascalCase key survives.
       expect(parsed.hooks.subagentStart).toBeUndefined();
       expect(parsed.hooks.subagentStop).toBeUndefined();
+      expect((parsed.hooks as Record<string, unknown>).SubagentStart).toBeUndefined();
+      expect((parsed.hooks as Record<string, unknown>).SubagentStop).toBeUndefined();
     });
   });
 
