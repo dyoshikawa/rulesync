@@ -33,6 +33,46 @@ const RULESYNC_TO_CODEX_FIELD_MAP: Record<string, string> = {
 
 const MAX_REMOVE_EMPTY_ENTRIES_DEPTH = 32;
 
+/**
+ * Translate a server's `oauth` table from the canonical rulesync shape (Claude
+ * Code style camelCase) into the shape Codex CLI understands. Codex expects the
+ * OAuth client id under snake_case `client_id`; without it `codex mcp login`
+ * falls back to dynamic client registration and fails for providers that do not
+ * support it (e.g. Slack, see #2158). The canonical `clientId` is kept alongside
+ * the added `client_id` so tools that read the camelCase shape keep working and
+ * the round-trip stays stable.
+ */
+function mapOauthToCodex(oauth: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(oauth)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+    result[key] = value;
+  }
+  if (typeof oauth["clientId"] === "string" && !("client_id" in result)) {
+    result["client_id"] = oauth["clientId"];
+  }
+  return result;
+}
+
+/**
+ * Reverse of {@link mapOauthToCodex}: collapse Codex's `oauth.client_id` back to
+ * the canonical `clientId` on import. When both keys are present (the shape
+ * rulesync itself emits) the canonical `clientId` wins and `client_id` is
+ * dropped so a subsequent generate does not accumulate duplicates.
+ */
+function mapOauthFromCodex(oauth: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(oauth)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+    if (key === "client_id") {
+      if (!("clientId" in oauth)) result["clientId"] = value;
+      continue;
+    }
+    result[key] = value;
+  }
+  return result;
+}
+
 function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
   const result: McpServers = {};
 
@@ -46,6 +86,8 @@ function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
         if (value === false) {
           converted["disabled"] = true;
         }
+      } else if (key === "oauth" && isRecord(value)) {
+        converted[key] = mapOauthFromCodex(value);
       } else if (Object.hasOwn(CODEX_TO_RULESYNC_FIELD_MAP, key)) {
         const mappedKey = CODEX_TO_RULESYNC_FIELD_MAP[key];
         if (mappedKey) {
@@ -79,6 +121,8 @@ function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
         if (value === true) {
           converted["enabled"] = false;
         }
+      } else if (key === "oauth" && isRecord(value)) {
+        converted[key] = mapOauthToCodex(value);
       } else if (Object.hasOwn(RULESYNC_TO_CODEX_FIELD_MAP, key)) {
         const mappedKey = RULESYNC_TO_CODEX_FIELD_MAP[key];
         if (mappedKey) {
