@@ -322,13 +322,14 @@ describe("E2E: permissions", () => {
     await runGenerate({ target: "junie", features: "permissions" });
 
     const content = JSON.parse(await readFileContent(join(testDir, ".junie", "allowlist.json")));
-    // Literal patterns become `prefix`; glob patterns become `pattern`.
+    // Literal patterns become `prefix`; glob patterns become `pattern`. Junie
+    // has no `deny`, so canonical deny rules are downgraded to `ask`.
     expect(content.rules.executables).toEqual([
       { prefix: "git ", action: "allow" },
-      { pattern: "rm *", action: "deny" },
+      { pattern: "rm *", action: "ask" },
     ]);
     expect(content.rules.fileEditing).toEqual([{ pattern: "src/**", action: "allow" }]);
-    expect(content.rules.readOutsideProject).toEqual([{ pattern: "/etc/**", action: "deny" }]);
+    expect(content.rules.readOutsideProject).toEqual([{ pattern: "/etc/**", action: "ask" }]);
     expect(content.rules.mcpTools).toEqual([{ prefix: "search", action: "ask" }]);
     expect(content.defaultBehavior).toBe("ask");
   });
