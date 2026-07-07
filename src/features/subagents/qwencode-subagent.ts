@@ -26,7 +26,11 @@ const QwencodeSubagentFrontmatterSchema = z.looseObject({
   disallowedTools: z.optional(z.array(z.string())),
   maxTurns: z.optional(z.number()),
   color: z.optional(z.string()),
-  mcpServers: z.optional(z.array(z.string())),
+  // Qwen Code documents per-agent `mcpServers` as a record of MCP server specs
+  // (an object), but earlier rulesync versions only accepted an array of server
+  // names. Accept both so per-agent MCP overrides round-trip either way. See
+  // QwenLM/qwen-code docs/users/features/sub-agents.md.
+  mcpServers: z.optional(z.union([z.array(z.string()), z.record(z.string(), z.looseObject({}))])),
   hooks: z.optional(z.unknown()),
 });
 

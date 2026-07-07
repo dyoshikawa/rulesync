@@ -225,6 +225,49 @@ Body content`;
       expect(fileContent).toContain("Rich agent body");
     });
 
+    it("should accept the documented record-of-specs mcpServers form", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "record-agent.md",
+        frontmatter: {
+          targets: ["qwencode"],
+          name: "Record Agent",
+          description: "Agent with per-agent MCP overrides",
+          qwencode: {
+            mcpServers: {
+              filesystem: {
+                type: "stdio",
+                command: "node",
+                args: ["/usr/local/lib/mcp-fs/server.js"],
+              },
+            },
+          },
+        },
+        body: "Record agent body",
+        validate: true,
+      });
+
+      const qwencodeSubagent = QwencodeSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: ".qwen/agents",
+        rulesyncSubagent,
+        validate: true,
+      }) as QwencodeSubagent;
+
+      const frontmatter = qwencodeSubagent.getFrontmatter();
+      expect(frontmatter.mcpServers).toEqual({
+        filesystem: {
+          type: "stdio",
+          command: "node",
+          args: ["/usr/local/lib/mcp-fs/server.js"],
+        },
+      });
+
+      // The record form must survive serialization to the .qwen/agents markdown.
+      expect(qwencodeSubagent.getFileContent()).toContain("filesystem:");
+    });
+
     it("should handle empty name and description", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         outputRoot: testDir,
@@ -323,6 +366,43 @@ Body content`;
         approvalMode: "auto",
       });
       expect(subagent.getRelativeFilePath()).toBe("test-file-agent.md");
+    });
+
+    it("should import a subagent whose mcpServers uses the record-of-specs form", async () => {
+      const subagentsDir = join(testDir, ".qwen", "agents");
+      const filePath = join(subagentsDir, "record-file-agent.md");
+
+      await writeFileContent(
+        filePath,
+        [
+          "---",
+          "name: Record File Agent",
+          "description: Imported with per-agent MCP overrides",
+          "mcpServers:",
+          "  filesystem:",
+          "    type: stdio",
+          "    command: node",
+          "    args:",
+          "      - /usr/local/lib/mcp-fs/server.js",
+          "---",
+          "Body.",
+          "",
+        ].join("\n"),
+      );
+
+      const subagent = await QwencodeSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "record-file-agent.md",
+        validate: true,
+      });
+
+      expect(subagent.getFrontmatter().mcpServers).toEqual({
+        filesystem: {
+          type: "stdio",
+          command: "node",
+          args: ["/usr/local/lib/mcp-fs/server.js"],
+        },
+      });
     });
 
     it("should throw error when file does not exist", async () => {
