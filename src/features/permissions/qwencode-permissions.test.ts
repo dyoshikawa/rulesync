@@ -257,6 +257,34 @@ describe("QwencodePermissions", () => {
       expect(content.tools).toEqual({ core: ["ReadFile"], approvalMode: "yolo" });
     });
 
+    it("preserves an unrelated security sibling key while replacing folderTrust wholesale", async () => {
+      const settingsDir = join(testDir, ".qwen");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({ security: { auth: { type: "oauth" }, folderTrust: { enabled: false } } }),
+      );
+
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            qwencode: { security: { folderTrust: { enabled: true } } },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      // Sibling `auth` preserved; folderTrust replaced by the override.
+      expect(content.security).toEqual({
+        auth: { type: "oauth" },
+        folderTrust: { enabled: true },
+      });
+    });
+
     it("routes tools/security autonomy settings back into the qwencode override on import", () => {
       const instance = new QwencodePermissions({
         relativeDirPath: ".qwen",

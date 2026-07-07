@@ -111,7 +111,9 @@ function buildQwenPermissionEntry(toolName: string, pattern: string): string {
 
 // The `tools`/`security` sub-keys that the `qwencode` override authors and that
 // round-trip back into it on import. Kept explicit so unrelated `tools`/
-// `security` keys are not pulled into the canonical model on import.
+// `security` keys are not pulled into the canonical model on import. The
+// deprecated `tools.exclude` is intentionally excluded — Qwen recommends
+// expressing those denials via `permissions.deny`, which the shared block owns.
 const QWEN_OVERRIDE_TOOLS_KEYS = [
   "approvalMode",
   "autoAccept",
@@ -263,8 +265,10 @@ export class QwencodePermissions extends ToolPermissions {
     const merged: Record<string, unknown> = { ...settings, permissions: mergedPermissions };
 
     // Overlay the Qwen-scoped override's `tools`/`security` groups (autonomy and
-    // sandbox settings). Shallow-merged so the override's keys win while other
-    // keys the user set directly in those groups are preserved.
+    // sandbox settings). Shallow-merged at the top level of each group, so an
+    // unrelated sibling key (e.g. `tools.core`) is preserved while an override
+    // key wins; a nested object the override supplies (e.g. `security.folderTrust`)
+    // replaces the existing one wholesale rather than being deep-merged.
     const override = config.qwencode;
     if (override?.tools !== undefined) {
       merged.tools = { ...asPlainRecord(settings.tools), ...asPlainRecord(override.tools) };
