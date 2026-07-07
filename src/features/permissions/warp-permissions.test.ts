@@ -141,6 +141,31 @@ describe("WarpPermissions", () => {
       expect(profiles.agent_mode_execute_readonly_commands).toBe(true);
     });
 
+    it("passes through forward-compat override keys but keeps rulesync owning the command lists", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({
+            permission: { bash: { "git .*": "allow" } },
+            warp: {
+              // An unknown future autonomy key must pass through verbatim...
+              agent_mode_future_knob: "x",
+              // ...but a command list in the override must NOT clobber the
+              // rulesync-owned allowlist.
+              [ALLOWLIST_KEY]: ["should-be-overwritten"],
+            },
+          }),
+        }),
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles.agent_mode_future_knob).toBe("x");
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["git .*"]);
+    });
+
     it("lets the warp override win over an existing agents.profiles autonomy value", async () => {
       const dir = join(testDir, WarpPermissions.getSettablePaths().relativeDirPath);
       await ensureDir(dir);

@@ -167,6 +167,14 @@ export class WarpPermissions extends ToolPermissions {
     const agents = isRecord(settings.agents) ? { ...settings.agents } : {};
     const profiles = isRecord(agents.profiles) ? { ...agents.profiles } : {};
 
+    // Overlay the Warp-scoped override's autonomy keys onto `[agents.profiles]`
+    // first (verbatim, so forward-compat keys pass through), then set the
+    // rulesync-owned command lists below so they always win over the override.
+    const override = config.warp;
+    if (isRecord(override)) {
+      Object.assign(profiles, override);
+    }
+
     const mergedAllow = uniq(allow.toSorted());
     const mergedDeny = uniq(deny.toSorted());
     if (mergedAllow.length > 0) {
@@ -178,15 +186,6 @@ export class WarpPermissions extends ToolPermissions {
       profiles[DENYLIST_KEY] = mergedDeny;
     } else {
       delete profiles[DENYLIST_KEY];
-    }
-
-    // Overlay the Warp-scoped override's file-read/read-only autonomy keys onto
-    // the same `[agents.profiles]` table (the override wins).
-    const override = config.warp;
-    if (override !== undefined && typeof override === "object") {
-      for (const key of WARP_OVERRIDE_KEYS) {
-        if (override[key] !== undefined) profiles[key] = override[key];
-      }
     }
 
     agents.profiles = profiles;
