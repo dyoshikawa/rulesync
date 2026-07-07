@@ -176,14 +176,33 @@ const QwencodePermissionsOverrideSchema = z.looseObject({
 export type QwencodePermissionsOverride = z.infer<typeof QwencodePermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for Reasonix. Reasonix has security axes orthogonal
+ * to per-tool allow/ask/deny with no canonical category — the `[sandbox]`
+ * enforcement table (`workspace_root`, `allow_write`, `forbid_read`, `bash`,
+ * `network`) and plan-mode read-only trust lists under `[agent]`
+ * (`plan_mode_allowed_tools`, `plan_mode_read_only_commands`). Fields placed here
+ * are merged into the matching `reasonix.toml` table and emitted only for
+ * Reasonix, while the shared `permission` block continues to drive
+ * `[permissions].allow`/`ask`/`deny`. Kept `looseObject` (verbatim passthrough).
+ *
+ * @example
+ * { "sandbox": { "bash": "enforce", "network": false }, "agent": { "plan_mode_read_only_commands": ["gh pr diff"] } }
+ */
+const ReasonixPermissionsOverrideSchema = z.looseObject({
+  sandbox: z.optional(z.looseObject({})),
+  agent: z.optional(z.looseObject({})),
+});
+export type ReasonixPermissionsOverride = z.infer<typeof ReasonixPermissionsOverrideSchema>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
  * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode`/`vibe`/`cursor`/
- * `qwencode` keys are tool-scoped overrides consumed only by their respective
- * translator (see the matching `*PermissionsOverrideSchema`); every other tool
- * reads the shared `permission` block and ignores them.
+ * `qwencode`/`reasonix` keys are tool-scoped overrides consumed only by their
+ * respective translator (see the matching `*PermissionsOverrideSchema`); every
+ * other tool reads the shared `permission` block and ignores them.
  *
  * @example
  * {
@@ -201,6 +220,7 @@ const PermissionsConfigSchema = z.looseObject({
   vibe: z.optional(VibePermissionsOverrideSchema),
   cursor: z.optional(CursorPermissionsOverrideSchema),
   qwencode: z.optional(QwencodePermissionsOverrideSchema),
+  reasonix: z.optional(ReasonixPermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 

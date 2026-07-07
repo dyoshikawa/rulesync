@@ -267,6 +267,86 @@ describe("ReasonixPermissions", () => {
     });
   });
 
+  describe("reasonix override (sandbox / agent plan-mode)", () => {
+    it("merges sandbox and agent plan-mode tables from the override", async () => {
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            reasonix: {
+              sandbox: { bash: "enforce", network: false, allow_write: ["/tmp"] },
+              agent: { plan_mode_read_only_commands: ["gh pr diff"] },
+            },
+          }),
+        }),
+      });
+
+      const parsed = smolToml.parse(instance.getFileContent()) as any;
+      expect(parsed.sandbox).toEqual({ bash: "enforce", network: false, allow_write: ["/tmp"] });
+      expect(parsed.agent.plan_mode_read_only_commands).toEqual(["gh pr diff"]);
+      expect(parsed.permissions.allow).toContain("Bash(git *)");
+    });
+
+    it("preserves unrelated [agent] keys while the override sets plan-mode lists", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        smolToml.stringify({ agent: { model: "reasonix-pro", plan_mode_allowed_tools: ["old"] } }),
+      );
+
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            reasonix: { agent: { plan_mode_allowed_tools: ["custom_reader"] } },
+          }),
+        }),
+      });
+
+      const parsed = smolToml.parse(instance.getFileContent()) as any;
+      // Unrelated `model` preserved; plan_mode_allowed_tools overridden.
+      expect(parsed.agent).toEqual({
+        model: "reasonix-pro",
+        plan_mode_allowed_tools: ["custom_reader"],
+      });
+    });
+
+    it("routes sandbox and agent plan-mode lists back into the reasonix override on import", () => {
+      const instance = new ReasonixPermissions({
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent: smolToml.stringify({
+          permissions: { allow: ["Bash(git *)"] },
+          sandbox: { bash: "enforce", network: false },
+          agent: { model: "reasonix-pro", plan_mode_read_only_commands: ["gh pr diff"] },
+        }),
+      });
+
+      const json = instance.toRulesyncPermissions().getJson();
+      expect(json.permission.bash?.["git *"]).toBe("allow");
+      // Whole sandbox table + only the plan-mode agent keys (not `model`).
+      expect(json.reasonix).toEqual({
+        sandbox: { bash: "enforce", network: false },
+        agent: { plan_mode_read_only_commands: ["gh pr diff"] },
+      });
+    });
+
+    it("does not emit a reasonix override when no sandbox/agent settings are present", () => {
+      const instance = new ReasonixPermissions({
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent: smolToml.stringify({ permissions: { allow: ["Bash(git *)"] } }),
+      });
+
+      expect(instance.toRulesyncPermissions().getJson().reasonix).toBeUndefined();
+    });
+  });
+
   describe("toRulesyncPermissions", () => {
     it("should convert Reasonix Tool(specifier) entries to rulesync canonical format", () => {
       const instance = new ReasonixPermissions({
