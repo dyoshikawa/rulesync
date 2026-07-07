@@ -215,11 +215,14 @@ export class ClinePermissions extends ToolPermissions {
       );
     }
 
+    // Precedence for the global `allowRedirects` flag: the rulesync `cline`
+    // override wins, else preserve an existing hand-set value, else Cline's
+    // default of `false`.
     const next: ClineCommandPermissions = {
       ...existing,
       allow: dedupedAllow,
       deny: mergedDeny,
-      allowRedirects: existing.allowRedirects ?? false,
+      allowRedirects: config.cline?.allowRedirects ?? existing.allowRedirects ?? false,
     };
 
     return new ClinePermissions({
@@ -257,6 +260,12 @@ export class ClinePermissions extends ToolPermissions {
 
     const config: PermissionsConfig =
       Object.keys(bashRules).length > 0 ? { permission: { bash: bashRules } } : { permission: {} };
+
+    // Round-trip the Cline-only `allowRedirects` flag into the `cline` override
+    // when it is enabled (the default `false` needs no override entry).
+    if (parsed.allowRedirects === true) {
+      config.cline = { allowRedirects: true };
+    }
 
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(config, null, 2),

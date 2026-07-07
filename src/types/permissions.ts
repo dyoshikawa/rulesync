@@ -61,14 +61,30 @@ const HermesPermissionsOverrideSchema = z.looseObject({});
 export type HermesPermissionsOverride = z.infer<typeof HermesPermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for Cline. Cline's `command-permissions.json`
+ * carries a single global `allowRedirects` boolean (gates shell redirection
+ * operators `>`/`>>`/`<`) that has no per-command dimension and therefore no
+ * canonical permission category. Placing it here lets users author it
+ * declaratively; it is emitted only into Cline's config. Kept `looseObject` so
+ * future Cline-only knobs can be added.
+ *
+ * @example
+ * { "allowRedirects": true }
+ */
+const ClinePermissionsOverrideSchema = z.looseObject({
+  allowRedirects: z.optional(z.boolean()),
+});
+export type ClinePermissionsOverride = z.infer<typeof ClinePermissionsOverrideSchema>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
- * The optional `opencode`/`hermes` keys are tool-scoped overrides consumed only
- * by their respective translator (see `OpencodePermissionsOverrideSchema` /
- * `HermesPermissionsOverrideSchema`); every other tool reads the shared
- * `permission` block and ignores them.
+ * The optional `opencode`/`hermes`/`cline` keys are tool-scoped overrides
+ * consumed only by their respective translator (see the matching
+ * `*PermissionsOverrideSchema`); every other tool reads the shared `permission`
+ * block and ignores them.
  *
  * @example
  * {
@@ -80,6 +96,7 @@ const PermissionsConfigSchema = z.looseObject({
   permission: z.record(z.string(), PermissionRulesSchema),
   opencode: z.optional(OpencodePermissionsOverrideSchema),
   hermes: z.optional(HermesPermissionsOverrideSchema),
+  cline: z.optional(ClinePermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 
