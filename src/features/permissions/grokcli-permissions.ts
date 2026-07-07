@@ -136,9 +136,14 @@ function parseGrokEntry(entry: string): { category: string; pattern: string } | 
  *     the matching Grok entry and is bucketed into the `[permission]` array for
  *     that action. `bash|read|edit|grep|webfetch` map to their Grok tool;
  *     `write` collapses onto `Edit` (Grok has no `Write` tool); `mcp__*` maps to
- *     `MCPTool(...)`. Categories with no Grok tool (`websearch`, `glob`,
- *     `notebookedit`, `agent`) are skipped (with a warning when they carry a
- *     `deny` rule, to surface the gap).
+ *     `MCPTool(...)` (a scoped MCP category folds its address into the
+ *     parentheses, so a non-`*` argument pattern on it is not represented).
+ *     Categories with no Grok tool (`websearch`, `glob`, `notebookedit`,
+ *     `agent`) are skipped (with a warning when they carry a `deny` rule, to
+ *     surface the gap). When two canonical rules collapse onto the same Grok
+ *     entry with different actions (e.g. `edit` allow + `write` deny → `Edit`),
+ *     the strictest wins (`deny > ask > allow`) and a warning is logged, so the
+ *     entry never lands contradictorily in two arrays.
  *   - Import: the `[permission]` arrays are parsed back into canonical
  *     categories. When no `[permission]` section is present (older configs), the
  *     coarse `[ui] permission_mode` is used as a fallback.
@@ -152,9 +157,11 @@ function parseGrokEntry(entry: string): { category: string; pattern: string } | 
  * This surface is **global only** — the adapter syncs the user-level
  * `~/.grok/config.toml`. (Grok also supports a project-scoped `[permission]`
  * file; project scope is not modeled here.) The shared config is merged in
- * place: rulesync owns the `[permission]` `allow`/`deny`/`ask` arrays and the
- * `[ui] permission_mode` value, while every other key (e.g. `[mcp_servers]`,
- * `[permission] rules`, `[sandbox]`) is preserved. The file is never deleted.
+ * place: rulesync owns the `[permission]` `allow`/`deny`/`ask` entries for the
+ * tools it models and the `[ui] permission_mode` value, while every other key
+ * (e.g. `[mcp_servers]`, `[permission] rules`, `[sandbox]`) and any user-authored
+ * entries for tools rulesync cannot model (e.g. `WebSearch`) are preserved. The
+ * file is never deleted.
  */
 export class GrokcliPermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
@@ -224,12 +231,13 @@ export class GrokcliPermissions extends ToolPermissions {
     const config = rulesyncPermissions.getJson();
 
     // Fine-grained `[permission]` arrays (the high-fidelity surface). rulesync
-    // owns allow/deny/ask; other `[permission]` keys (e.g. verbose `rules`) are
-    // preserved.
-    const buckets = buildGrokPermissionArrays(config, logger);
+    // owns the entries for the tools it models; other `[permission]` keys (e.g.
+    // verbose `rules`) and user-authored entries for tools rulesync cannot model
+    // (e.g. `WebSearch`) are preserved.
     const existingPermission = isRecord(parsed[GROKCLI_PERMISSION_KEY])
       ? parsed[GROKCLI_PERMISSION_KEY]
       : {};
+    const buckets = buildGrokPermissionArrays(config, existingPermission, logger);
     parsed[GROKCLI_PERMISSION_KEY] = {
       ...existingPermission,
       allow: buckets.allow,
@@ -303,19 +311,38 @@ export class GrokcliPermissions extends ToolPermissions {
   }
 }
 
+// Grok's documented evaluation precedence, `deny > ask > allow`. Used to
+// resolve the case where two canonical rules collapse onto the same Grok entry
+// (e.g. `edit` and `write` both map to `Edit`): the strictest action wins, so
+// only one non-contradictory entry is emitted.
+const ACTION_RANK: Record<PermissionAction, number> = { allow: 0, ask: 1, deny: 2 };
+
+/**
+ * Collect user-authored entries from an existing `[permission]` array whose
+ * tool prefix rulesync cannot model (e.g. `WebSearch`, `any`). Such entries are
+ * preserved verbatim so replacing the arrays does not silently drop them
+ * (mirrors the Cursor adapter's preservation of unmanaged types).
+ */
+function unmanagedEntries(existingPermission: Record<string, unknown>, key: string): string[] {
+  const arr = isStringArray(existingPermission[key]) ? existingPermission[key] : [];
+  return arr.filter((entry) => parseGrokEntry(entry) === null);
+}
+
 /**
  * Bucket canonical rules into Grok's `[permission]` allow/deny/ask arrays of
- * Claude-style entries. Categories Grok cannot express are skipped (with a
- * warning when they carry a `deny` rule, to surface the dropped restriction).
+ * Claude-style entries, resolving collapse collisions via `deny > ask > allow`.
+ * Categories Grok cannot express are skipped (with a warning when they carry a
+ * `deny` rule); entries the user authored for tools rulesync cannot model are
+ * preserved from `existingPermission`.
  */
 function buildGrokPermissionArrays(
   config: PermissionsConfig,
+  existingPermission: Record<string, unknown>,
   logger?: Logger,
 ): { allow: string[]; deny: string[]; ask: string[] } {
-  const allow: string[] = [];
-  const deny: string[] = [];
-  const ask: string[] = [];
-
+  // Map each managed entry to a single action; on collision keep the strictest
+  // (and warn), so no entry ends up contradictorily in two arrays.
+  const ranked = new Map<string, PermissionAction>();
   for (const [category, rules] of Object.entries(config.permission)) {
     for (const [pattern, action] of Object.entries(rules)) {
       const entry = buildGrokEntry(category, pattern);
@@ -328,10 +355,26 @@ function buildGrokPermissionArrays(
         }
         continue;
       }
-      if (action === "allow") allow.push(entry);
-      else if (action === "deny") deny.push(entry);
-      else ask.push(entry);
+      const existing = ranked.get(entry);
+      if (existing !== undefined && existing !== action) {
+        logger?.warn(
+          `Grok permission entry '${entry}' received conflicting actions ` +
+            `('${existing}' and '${action}'); keeping the stricter one (deny > ask > allow).`,
+        );
+      }
+      if (existing === undefined || ACTION_RANK[action] > ACTION_RANK[existing]) {
+        ranked.set(entry, action);
+      }
     }
+  }
+
+  const allow = unmanagedEntries(existingPermission, "allow");
+  const deny = unmanagedEntries(existingPermission, "deny");
+  const ask = unmanagedEntries(existingPermission, "ask");
+  for (const [entry, action] of ranked) {
+    if (action === "allow") allow.push(entry);
+    else if (action === "deny") deny.push(entry);
+    else ask.push(entry);
   }
 
   return { allow: uniq(allow.toSorted()), deny: uniq(deny.toSorted()), ask: uniq(ask.toSorted()) };
@@ -350,7 +393,11 @@ function parseGrokPermissionArrays(
   const allow = isStringArray(permission.allow) ? permission.allow : undefined;
   const deny = isStringArray(permission.deny) ? permission.deny : undefined;
   const ask = isStringArray(permission.ask) ? permission.ask : undefined;
-  if (allow === undefined && deny === undefined && ask === undefined) {
+  // Treat absent *and* all-empty arrays as "no fine-grained rules" so the
+  // coarse `permission_mode` fallback still applies (a freshly generated
+  // empty config writes empty arrays alongside the mode).
+  const total = (allow?.length ?? 0) + (deny?.length ?? 0) + (ask?.length ?? 0);
+  if (total === 0) {
     return null;
   }
 

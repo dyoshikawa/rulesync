@@ -150,6 +150,40 @@ describe("GrokcliPermissions", () => {
       expect(permission.ask).toEqual([]);
     });
 
+    it("resolves edit/write collapse collisions to the stricter action (no contradiction)", async () => {
+      const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          edit: { "*": "allow" },
+          write: { "*": "deny" },
+        }),
+        global: true,
+      });
+
+      const permission = readPermission(permissions.getFileContent());
+      // `Edit` must appear only in deny (the stricter action), never in both.
+      expect(permission.deny).toEqual(["Edit"]);
+      expect(permission.allow).toEqual([]);
+    });
+
+    it("preserves user-authored entries for tools rulesync cannot model", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        ["[permission]", 'allow = ["WebSearch", "Bash(stale)"]', ""].join("\n"),
+      );
+
+      const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ bash: { "git *": "allow" } }),
+        global: true,
+      });
+
+      const permission = readPermission(permissions.getFileContent());
+      // The unmanaged `WebSearch` entry survives; the managed `Bash(stale)` one
+      // (rulesync owns Bash) is replaced by the generated rule.
+      expect(permission.allow).toEqual(["Bash(git *)", "WebSearch"]);
+    });
+
     it("preserves existing [permission] keys such as verbose rules", async () => {
       await writeFileContent(
         join(testDir, ".grok", "config.toml"),
@@ -236,6 +270,25 @@ describe("GrokcliPermissions", () => {
       await writeFileContent(
         join(testDir, ".grok", "config.toml"),
         ["[ui]", 'permission_mode = "always-approve"'].join("\n"),
+      );
+      const tool = await GrokcliPermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
+      expect(json.permission.bash["*"]).toBe("allow");
+    });
+
+    it("falls back to permission_mode when the [permission] arrays are all empty", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        [
+          "[ui]",
+          'permission_mode = "always-approve"',
+          "",
+          "[permission]",
+          "allow = []",
+          "deny = []",
+          "ask = []",
+          "",
+        ].join("\n"),
       );
       const tool = await GrokcliPermissions.fromFile({ outputRoot: testDir, global: true });
       const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
