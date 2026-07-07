@@ -122,6 +122,30 @@ function toPermissionsTable(value: unknown): Record<string, unknown> {
   return { ...(value as Record<string, unknown>) };
 }
 
+// The `[agent]` sub-keys the `reasonix` override authors and round-trips. The
+// whole `[sandbox]` table is a dedicated security surface, so it round-trips in
+// full; `[agent]` also holds unrelated settings, so only the plan-mode read-only
+// trust lists are extracted on import.
+const REASONIX_OVERRIDE_AGENT_KEYS = [
+  "plan_mode_allowed_tools",
+  "plan_mode_read_only_commands",
+] as const;
+
+function asReasonixRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function pickReasonixKeys(source: unknown, keys: readonly string[]): Record<string, unknown> {
+  const record = asReasonixRecord(source);
+  const picked: Record<string, unknown> = {};
+  for (const key of keys) {
+    if (record[key] !== undefined) picked[key] = record[key];
+  }
+  return picked;
+}
+
 export class ReasonixPermissions extends ToolPermissions {
   private readonly toml: ReasonixConfig;
 
@@ -243,6 +267,21 @@ export class ReasonixPermissions extends ToolPermissions {
     // Preserve every other top-level key (MCP `[[plugins]]`, `[agent]`, `[ui]`,
     // …) exactly like `reasonix-mcp.ts`'s read-modify-write TOML merge.
     const merged: ReasonixConfig = { ...parsed, permissions: mergedPermissions };
+
+    // Overlay the Reasonix-scoped override's `[sandbox]`/`[agent]` tables. Shallow
+    // merged at the table's top level, so the override's keys win while unrelated
+    // sibling keys the user set directly (e.g. `[agent].model`) are preserved.
+    const override = config.reasonix;
+    if (override?.sandbox !== undefined) {
+      merged.sandbox = {
+        ...asReasonixRecord(parsed.sandbox),
+        ...asReasonixRecord(override.sandbox),
+      };
+    }
+    if (override?.agent !== undefined) {
+      merged.agent = { ...asReasonixRecord(parsed.agent), ...asReasonixRecord(override.agent) };
+    }
+
     const fileContent = smolToml.stringify(merged);
 
     return new ReasonixPermissions({
@@ -262,8 +301,26 @@ export class ReasonixPermissions extends ToolPermissions {
       deny: toStringArray(permissions.deny),
     });
 
+    // Route Reasonix's security tables into the `reasonix` override — they have
+    // no canonical category. The `[sandbox]` table is dedicated, so it
+    // round-trips in full; only the plan-mode trust lists are lifted from
+    // `[agent]` (which also carries unrelated settings). Note the merge is
+    // shallow on generate but the extract is whole-table for `[sandbox]`, so an
+    // existing `[sandbox]` key the override did not author is pulled into the
+    // override on the next import.
+    const sandbox = asReasonixRecord(this.toml.sandbox);
+    const agentPlanMode = pickReasonixKeys(this.toml.agent, REASONIX_OVERRIDE_AGENT_KEYS);
+    const reasonixOverride: Record<string, unknown> = {};
+    if (Object.keys(sandbox).length > 0) reasonixOverride.sandbox = sandbox;
+    if (Object.keys(agentPlanMode).length > 0) reasonixOverride.agent = agentPlanMode;
+
+    const result: Record<string, unknown> = { ...config };
+    if (Object.keys(reasonixOverride).length > 0) {
+      result.reasonix = reasonixOverride;
+    }
+
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify(config, null, 2),
+      fileContent: JSON.stringify(result, null, 2),
     });
   }
 

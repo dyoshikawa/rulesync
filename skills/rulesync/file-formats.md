@@ -988,4 +988,18 @@ For JetBrains Junie CLI, this generates the Action Allowlist `rules` object in `
 
 For Reasonix, this generates `permissions.allow`, `permissions.ask`, and `permissions.deny` arrays in the `[permissions]` table of the shared `reasonix.toml` (project mode) or `~/.reasonix/config.toml` (global mode) — the same TOML file the MCP feature's `[[plugins]]` array-of-tables lives in. The rule syntax mirrors Claude Code's: entries are `Bash(<pattern>)`, `Read(<pattern>)`, `Edit(<pattern>)`, `Write(<pattern>)`, `WebFetch(<pattern>)`, `WebSearch(<pattern>)`, `Grep(<pattern>)`, `Glob(<pattern>)`, `NotebookEdit(<pattern>)`, `Agent(<pattern>)`, etc. (Reasonix's SPEC.md documents these as "Claude Code-style" families; `agent` → `Agent` is the one lower-confidence mapping, since Reasonix's own delegation tool is internally named `task`). `[permissions].mode` (the writer fallback: `ask`/`allow`/`deny`) has no canonical rulesync equivalent and is preserved untouched. The TOML file is shared with the MCP feature, so writes only replace the `permissions` table — every other table (`[[plugins]]`, `[agent]`, `[ui]`, …) is preserved on round-trip, and the file is never deleted. See [SPEC.md §3.7 Permissions](https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md).
 
+> **Reasonix-only override (`reasonix` key):** Reasonix has security axes orthogonal to per-tool allow/ask/deny with no canonical category — the `[sandbox]` enforcement table (`workspace_root`, `allow_write`, `forbid_read`, `bash` = `enforce`/`off`, `network`) and the plan-mode read-only trust lists under `[agent]` (`plan_mode_allowed_tools`, `plan_mode_read_only_commands`). Add a tool-scoped `reasonix` override to author them: `reasonix.sandbox` and `reasonix.agent` are shallow-merged into the matching `reasonix.toml` table at its top level (override keys win, unrelated sibling keys such as `[agent].model` are preserved), while the shared `permission` block keeps driving `[permissions].allow`/`ask`/`deny`. On import, the whole `[sandbox]` table round-trips (it is a dedicated security surface) and only the plan-mode keys are lifted from `[agent]`.
+>
+> ```json
+> {
+>   "permission": { "bash": { "git status*": "allow" } },
+>   "reasonix": {
+>     "sandbox": { "bash": "enforce", "network": false },
+>     "agent": { "plan_mode_read_only_commands": ["gh pr diff"] }
+>   }
+> }
+> ```
+>
+> The `[[plugins]].trusted_read_only_tools` MCP read-only trust list is per-plugin (an array-of-tables shared with the MCP feature) and is not covered by this override.
+
 > **Note: Interaction with ignore feature.** Both the ignore feature and the permissions feature can manage `Read` tool deny entries in `.claude/settings.json`. When both features configure the `Read` tool, the **permissions feature takes precedence** and a warning is emitted. If you only need to restrict file reads based on glob patterns, use the ignore feature (`.rulesync/.aiignore`). Use permissions only when you need fine-grained `allow`/`ask`/`deny` control over the `Read` tool.
