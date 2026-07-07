@@ -346,7 +346,13 @@ export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = [
  * Goose adopts the Open Plugins hooks spec: each plugin's `hooks/hooks.json`
  * maps PascalCase event names to matcher/handler arrays. Every Goose event has a
  * 1:1 canonical equivalent, so no new canonical events are required.
- * @see https://goose-docs.ai/blog/2026/05/14/goose-hooks/
+ *
+ * Goose's `HookEvent` enum defines exactly these 11 events (v1.41.0). Notably it
+ * has NO `SubagentStart`/`SubagentStop` arms — emitting them would write keys
+ * Goose silently ignores, so `subagentStart`/`subagentStop` are intentionally
+ * excluded here and from `CANONICAL_TO_GOOSE_EVENT_NAMES`.
+ * @see https://github.com/block/goose/blob/v1.41.0/crates/goose/src/hooks/mod.rs
+ * @see https://block.github.io/goose/docs/guides/context-engineering/hooks/
  */
 export const GOOSE_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -360,8 +366,6 @@ export const GOOSE_HOOK_EVENTS: readonly HookEvent[] = [
   "afterFileEdit",
   "beforeShellExecution",
   "afterShellExecution",
-  "subagentStart",
-  "subagentStop",
 ];
 
 /** Hook events supported by Kiro CLI. */
@@ -873,8 +877,6 @@ export const CANONICAL_TO_GOOSE_EVENT_NAMES: Record<string, string> = {
   afterFileEdit: "AfterFileEdit",
   beforeShellExecution: "BeforeShellExecution",
   afterShellExecution: "AfterShellExecution",
-  subagentStart: "SubagentStart",
-  subagentStop: "SubagentStop",
 };
 
 /**

@@ -38,7 +38,7 @@ const GOOSE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
  *
  * The JSON shape matches Claude Code's: each PascalCase event maps to an array of
  * `{ matcher, hooks: [{ type: "command", command }] }` entries.
- * @see https://goose-docs.ai/blog/2026/05/14/goose-hooks/
+ * @see https://block.github.io/goose/docs/guides/context-engineering/hooks/
  */
 export class GooseHooks extends ToolHooks {
   constructor(params: AiFileParams) {
@@ -108,8 +108,22 @@ export class GooseHooks extends ToolHooks {
         },
       );
     }
+    // Drop any event key Goose does not define (e.g. `SubagentStart`/
+    // `SubagentStop` left in an old rulesync-generated file). Every real Goose
+    // event maps 1:1 to a canonical event, so a key absent from
+    // GOOSE_TO_CANONICAL_EVENT_NAMES is cruft rather than a tool-specific event
+    // worth passing through; keeping it would inject an invalid PascalCase key
+    // into the canonical `.rulesync/hooks.json`.
+    const recognizedHooks =
+      parsed.hooks && typeof parsed.hooks === "object" && !Array.isArray(parsed.hooks)
+        ? Object.fromEntries(
+            Object.entries(parsed.hooks as Record<string, unknown>).filter(([eventName]) =>
+              Object.hasOwn(GOOSE_TO_CANONICAL_EVENT_NAMES, eventName),
+            ),
+          )
+        : parsed.hooks;
     const hooks = toolHooksToCanonical({
-      hooks: parsed.hooks,
+      hooks: recognizedHooks,
       converterConfig: GOOSE_CONVERTER_CONFIG,
     });
     return this.toRulesyncHooksDefault({
