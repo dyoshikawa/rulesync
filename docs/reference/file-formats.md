@@ -909,6 +909,8 @@ For Kiro, this generates tool permission settings in `.kiro/agents/default.json`
 - `bash` maps to `toolsSettings.shell.allowedCommands` / `toolsSettings.shell.deniedCommands`
 - `read` maps to `toolsSettings.read.allowedPaths` / `toolsSettings.read.deniedPaths`
 - `edit` / `write` map to `toolsSettings.write.allowedPaths` / `toolsSettings.write.deniedPaths`
+- `grep` maps to `toolsSettings.grep.allowedPaths` / `toolsSettings.grep.deniedPaths`
+- `glob` maps to `toolsSettings.glob.allowedPaths` / `toolsSettings.glob.deniedPaths` (both emitted only when a rule is present, so existing configs do not gain empty tables)
 - `webfetch` / `websearch` with pattern `*` map to `allowedTools` entries (`web_fetch` / `web_search`)
 - `ask` rules are skipped with a warning (Kiro config does not support explicit ask entries)
 
