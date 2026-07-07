@@ -116,6 +116,60 @@ describe("WarpPermissions", () => {
       expect(profiles[DENYLIST_KEY]).toBeUndefined();
     });
 
+    it("overlays the warp override's file-read/read-only autonomy keys onto agents.profiles", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({
+            permission: { bash: { "git .*": "allow" } },
+            warp: {
+              agent_mode_coding_permissions: "allow_reading_specific_files",
+              agent_mode_coding_file_read_allowlist: ["src/**", "docs/**"],
+              agent_mode_execute_readonly_commands: true,
+            },
+          }),
+        }),
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["git .*"]);
+      expect(profiles.agent_mode_coding_permissions).toBe("allow_reading_specific_files");
+      expect(profiles.agent_mode_coding_file_read_allowlist).toEqual(["src/**", "docs/**"]);
+      expect(profiles.agent_mode_execute_readonly_commands).toBe(true);
+    });
+
+    it("lets the warp override win over an existing agents.profiles autonomy value", async () => {
+      const dir = join(testDir, WarpPermissions.getSettablePaths().relativeDirPath);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "settings.toml"),
+        [
+          "[agents.profiles]",
+          'agent_mode_coding_permissions = "always_ask_before_reading"',
+          "",
+        ].join("\n"),
+      );
+
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({
+            permission: { bash: { "git .*": "allow" } },
+            warp: { agent_mode_coding_permissions: "always_allow_reading" },
+          }),
+        }),
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles.agent_mode_coding_permissions).toBe("always_allow_reading");
+    });
+
     it("preserves other agents.profiles keys and other top-level tables", async () => {
       const dir = join(testDir, WarpPermissions.getSettablePaths().relativeDirPath);
       await ensureDir(dir);
@@ -165,6 +219,76 @@ describe("WarpPermissions", () => {
       expect(config.permission.bash["rm -rf .*"]).toBe("deny");
       // A pattern in both lists resolves to deny.
       expect(config.permission.bash["shared .*"]).toBe("deny");
+    });
+
+    it("lifts the file-read/read-only autonomy keys into the warp override", () => {
+      const content = [
+        "[agents.profiles]",
+        `${ALLOWLIST_KEY} = ["git .*"]`,
+        'agent_mode_coding_permissions = "allow_reading_specific_files"',
+        'agent_mode_coding_file_read_allowlist = ["src/**", "docs/**"]',
+        "agent_mode_execute_readonly_commands = true",
+        "",
+      ].join("\n");
+      const perms = new WarpPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".config/warp-terminal",
+        relativeFilePath: "settings.toml",
+        fileContent: content,
+      });
+
+      const config = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(config.permission.bash["git .*"]).toBe("allow");
+      expect(config.warp).toEqual({
+        agent_mode_coding_permissions: "allow_reading_specific_files",
+        agent_mode_coding_file_read_allowlist: ["src/**", "docs/**"],
+        agent_mode_execute_readonly_commands: true,
+      });
+    });
+
+    it("round-trips the warp override through export and re-import", async () => {
+      const original = new RulesyncPermissions({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "git .*": "allow" } },
+          warp: {
+            agent_mode_coding_permissions: "always_allow_reading",
+            agent_mode_execute_readonly_commands: true,
+          },
+        }),
+      });
+
+      const exported = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: original,
+        global: true,
+      });
+
+      const reimported = new WarpPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".config/warp-terminal",
+        relativeFilePath: "settings.toml",
+        fileContent: exported.getFileContent(),
+      });
+
+      const config = JSON.parse(reimported.toRulesyncPermissions().getFileContent());
+      expect(config.warp).toEqual({
+        agent_mode_coding_permissions: "always_allow_reading",
+        agent_mode_execute_readonly_commands: true,
+      });
+    });
+
+    it("omits the warp override when no autonomy keys are present", () => {
+      const content = ["[agents.profiles]", `${ALLOWLIST_KEY} = ["git .*"]`, ""].join("\n");
+      const perms = new WarpPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".config/warp-terminal",
+        relativeFilePath: "settings.toml",
+        fileContent: content,
+      });
+      const config = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(config.warp).toBeUndefined();
     });
 
     it("returns an empty permission set when there are no command lists", () => {

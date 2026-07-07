@@ -217,13 +217,35 @@ const FactorydroidPermissionsOverrideSchema = z.looseObject({
 export type FactorydroidPermissionsOverride = z.infer<typeof FactorydroidPermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for Warp. Warp's `[agents.profiles]` table exposes
+ * file-read/read-only autonomy keys with no canonical per-command allow/ask/deny
+ * slot — `agent_mode_coding_permissions`
+ * (`always_ask_before_reading` | `always_allow_reading` | `allow_reading_specific_files`),
+ * `agent_mode_coding_file_read_allowlist` (a path array), and
+ * `agent_mode_execute_readonly_commands` (a read-only auto-execution boolean).
+ * Fields placed here are merged into `[agents.profiles]` of Warp's global
+ * `settings.toml`, while the shared `permission` block continues to drive the
+ * `agent_mode_command_execution_allowlist`/`_denylist` command regex arrays.
+ * Warp permissions are global-only.
+ *
+ * @example
+ * { "agent_mode_coding_permissions": "always_allow_reading", "agent_mode_execute_readonly_commands": true }
+ */
+const WarpPermissionsOverrideSchema = z.looseObject({
+  agent_mode_coding_permissions: z.optional(z.string()),
+  agent_mode_coding_file_read_allowlist: z.optional(z.array(z.string())),
+  agent_mode_execute_readonly_commands: z.optional(z.boolean()),
+});
+export type WarpPermissionsOverride = z.infer<typeof WarpPermissionsOverrideSchema>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
  * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode`/`vibe`/`cursor`/
- * `qwencode`/`reasonix`/`factorydroid` keys are tool-scoped overrides consumed
- * only by their respective translator (see the matching
+ * `qwencode`/`reasonix`/`factorydroid`/`warp` keys are tool-scoped overrides
+ * consumed only by their respective translator (see the matching
  * `*PermissionsOverrideSchema`); every other tool reads the shared `permission`
  * block and ignores them.
  *
@@ -245,6 +267,7 @@ const PermissionsConfigSchema = z.looseObject({
   qwencode: z.optional(QwencodePermissionsOverrideSchema),
   reasonix: z.optional(ReasonixPermissionsOverrideSchema),
   factorydroid: z.optional(FactorydroidPermissionsOverrideSchema),
+  warp: z.optional(WarpPermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 
