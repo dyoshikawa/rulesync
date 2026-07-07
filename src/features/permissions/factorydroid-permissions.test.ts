@@ -198,7 +198,7 @@ describe("FactorydroidPermissions", () => {
       expect(config.permission.bash["rm -rf *"]).toBe("deny");
     });
 
-    it("should collapse commandBlocklist (hard block) onto deny", () => {
+    it("routes commandBlocklist into the factorydroid override (no deny collapse)", () => {
       const instance = new FactorydroidPermissions({
         relativeDirPath: ".factory",
         relativeFilePath: "settings.json",
@@ -209,25 +209,68 @@ describe("FactorydroidPermissions", () => {
       });
 
       const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
-      expect(config.permission.bash).toEqual({
-        "git *": "allow",
-        "curl *": "deny",
-        "wget *": "deny",
-      });
+      // allow/deny drive the shared block; the hard-block tier lives in the override.
+      expect(config.permission.bash).toEqual({ "git *": "allow" });
+      expect(config.factorydroid).toEqual({ commandBlocklist: ["curl *", "wget *"] });
     });
 
-    it("should let a hard-block command outrank an allowlist entry", () => {
+    it("routes the other Factory Droid security keys into the override on import", () => {
       const instance = new FactorydroidPermissions({
         relativeDirPath: ".factory",
         relativeFilePath: "settings.json",
         fileContent: JSON.stringify({
-          commandAllowlist: ["rm -rf *"],
-          commandBlocklist: ["rm -rf *"],
+          commandDenylist: ["rm -rf *"],
+          sandbox: { enabled: true, mode: "workspace" },
+          networkPolicy: { allowedIps: ["10.0.0.0/8"] },
+          enableDroidShield: false,
+          sessionDefaultSettings: { autonomyLevel: "low" },
         }),
       });
 
       const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
-      expect(config.permission.bash["rm -rf *"]).toBe("deny");
+      expect(config.permission.bash).toEqual({ "rm -rf *": "deny" });
+      expect(config.factorydroid).toEqual({
+        sandbox: { enabled: true, mode: "workspace" },
+        networkPolicy: { allowedIps: ["10.0.0.0/8"] },
+        enableDroidShield: false,
+        sessionDefaultSettings: { autonomyLevel: "low" },
+      });
+    });
+
+    it("does not emit a factorydroid override when no Factory-specific keys are present", () => {
+      const instance = new FactorydroidPermissions({
+        relativeDirPath: ".factory",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ commandAllowlist: ["git *"] }),
+      });
+
+      expect(
+        JSON.parse(instance.toRulesyncPermissions().getFileContent()).factorydroid,
+      ).toBeUndefined();
+    });
+  });
+
+  describe("factorydroid override (generate)", () => {
+    it("merges the factorydroid override's security keys into settings.json", async () => {
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            factorydroid: {
+              commandBlocklist: ["curl *"],
+              sandbox: { enabled: true },
+            },
+          }),
+        }),
+      });
+
+      const settings = JSON.parse(instance.getFileContent());
+      expect(settings.commandAllowlist).toEqual(["git *"]);
+      expect(settings.commandBlocklist).toEqual(["curl *"]);
+      expect(settings.sandbox).toEqual({ enabled: true });
     });
   });
 
