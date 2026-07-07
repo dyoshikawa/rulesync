@@ -237,13 +237,25 @@ export class KiloPermissions extends ToolPermissions {
       parsedPermission && typeof parsedPermission === "object" && !Array.isArray(parsedPermission)
         ? { ...parsedPermission }
         : {};
-    const rulesyncPermission = rulesyncPermissions.getJson().permission;
+    const rulesyncJson = rulesyncPermissions.getJson();
 
+    // The full set of keys rulesync owns this generation: the shared `permission`
+    // block plus the Kilo-scoped override (override wins per key). Overlaying the
+    // override here is what makes Kilo-only keys (external_directory, doom_loop,
+    // notebook_edit, ...) authorable from rulesync rather than only pass-through.
+    const kiloOverride = rulesyncJson.kilo;
+    const incomingPermission: Record<string, unknown> = {
+      ...rulesyncJson.permission,
+      ...kiloOverride?.permission,
+    };
+
+    // Detect `deny` patterns that disappear from any key rulesync now owns —
+    // including override keys — so a regenerate that silently weakens a
+    // previously-denied surface is surfaced (fail-closed convention).
     const droppedDenyByKey: Record<string, string[]> = {};
-    for (const key of Object.keys(rulesyncPermission)) {
-      const previous = existingPermission[key];
-      const previousDenyPatterns = collectKiloDenyPatterns(previous);
-      const nextDenyPatterns = new Set(collectKiloDenyPatterns(rulesyncPermission[key]));
+    for (const [key, value] of Object.entries(incomingPermission)) {
+      const previousDenyPatterns = collectKiloDenyPatterns(existingPermission[key]);
+      const nextDenyPatterns = new Set(collectKiloDenyPatterns(value));
       const dropped = previousDenyPatterns.filter((p) => !nextDenyPatterns.has(p));
       if (dropped.length > 0) {
         droppedDenyByKey[key] = dropped;
@@ -261,18 +273,10 @@ export class KiloPermissions extends ToolPermissions {
       );
     }
 
-    const mergedPermission: Record<string, unknown> = { ...existingPermission };
-    for (const [key, value] of Object.entries(rulesyncPermission)) {
-      mergedPermission[key] = value;
-    }
-
-    // Overlay the Kilo-scoped override on top of the shared block (override wins
-    // per key). This is what makes Kilo-only keys (external_directory, doom_loop,
-    // notebook_edit, ...) authorable from rulesync rather than only pass-through.
-    const kiloOverride = rulesyncPermissions.getJson().kilo as KiloPermissionsOverride | undefined;
-    for (const [key, value] of Object.entries(kiloOverride?.permission ?? {})) {
-      mergedPermission[key] = value;
-    }
+    const mergedPermission: Record<string, unknown> = {
+      ...existingPermission,
+      ...incomingPermission,
+    };
 
     const nextJson = {
       ...parsed,

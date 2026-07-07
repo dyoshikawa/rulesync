@@ -230,6 +230,86 @@ describe("KiloPermissions", () => {
     });
   });
 
+  it("should keep a Kilo-only key stable across a full import -> generate round-trip", async () => {
+    const original = {
+      permission: {
+        bash: "ask",
+        external_directory: "deny",
+        notebook_edit: { "*.ipynb": "allow" },
+      },
+    };
+    await writeFileContent(join(testDir, "kilo.jsonc"), JSON.stringify(original));
+
+    // import -> canonical (Kilo-only keys land in the kilo override)
+    const imported = await KiloPermissions.fromFile({ outputRoot: testDir });
+    const canonical = imported.toRulesyncPermissions();
+
+    // canonical -> generate back into a fresh project (no pre-existing kilo.jsonc)
+    const regenDir = join(testDir, "regen");
+    await ensureDir(regenDir);
+    const regenerated = await KiloPermissions.fromRulesyncPermissions({
+      outputRoot: regenDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: regenDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: canonical.getFileContent(),
+      }),
+    });
+
+    expect(JSON.parse(regenerated.getFileContent()).permission).toEqual({
+      bash: { "*": "ask" },
+      external_directory: "deny",
+      notebook_edit: { "*.ipynb": "allow" },
+    });
+  });
+
+  it("should let the kilo override win over the shared block for the same key", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { webfetch: { "*": "ask" } },
+        kilo: { permission: { webfetch: "deny" } },
+      }),
+    });
+
+    const instance = await KiloPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    expect(JSON.parse(instance.getFileContent()).permission.webfetch).toBe("deny");
+  });
+
+  it("should warn when a kilo override key drops an existing deny", async () => {
+    await writeFileContent(
+      join(testDir, "kilo.jsonc"),
+      JSON.stringify({ permission: { external_directory: { "/etc": "deny" } } }),
+    );
+    const logger = createMockLogger();
+
+    await KiloPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {},
+          kilo: { permission: { external_directory: "allow" } },
+        }),
+      }),
+      logger,
+    });
+
+    const warned = logger.warn.mock.calls.some(
+      (c: unknown[]) => typeof c[0] === "string" && c[0].includes("external_directory: [/etc]"),
+    );
+    expect(warned).toBe(true);
+  });
+
   it("should not emit a kilo override when only shared categories are present", async () => {
     await writeFileContent(
       join(testDir, "kilo.jsonc"),
