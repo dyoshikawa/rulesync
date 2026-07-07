@@ -290,6 +290,29 @@ describe("ReasonixPermissions", () => {
       expect(parsed.permissions.allow).toContain("Bash(git *)");
     });
 
+    it("preserves unrelated [sandbox] keys while the override sets its own", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        smolToml.stringify({ sandbox: { workspace_root: "/repo", bash: "off" } }),
+      );
+
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            reasonix: { sandbox: { bash: "enforce" } },
+          }),
+        }),
+      });
+
+      const parsed = smolToml.parse(instance.getFileContent()) as any;
+      // Sibling `workspace_root` preserved; `bash` overridden.
+      expect(parsed.sandbox).toEqual({ workspace_root: "/repo", bash: "enforce" });
+    });
+
     it("preserves unrelated [agent] keys while the override sets plan-mode lists", async () => {
       await writeFileContent(
         join(testDir, "reasonix.toml"),

@@ -184,6 +184,9 @@ export type QwencodePermissionsOverride = z.infer<typeof QwencodePermissionsOver
  * are merged into the matching `reasonix.toml` table and emitted only for
  * Reasonix, while the shared `permission` block continues to drive
  * `[permissions].allow`/`ask`/`deny`. Kept `looseObject` (verbatim passthrough).
+ * Note: the whole `[sandbox]` table round-trips, but only the plan-mode keys are
+ * re-extracted from `[agent]` on import — other `agent` keys authored here reach
+ * `reasonix.toml` on generate but are not re-extracted back into the override.
  *
  * @example
  * { "sandbox": { "bash": "enforce", "network": false }, "agent": { "plan_mode_read_only_commands": ["gh pr diff"] } }
