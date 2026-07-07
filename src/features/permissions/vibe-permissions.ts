@@ -231,6 +231,15 @@ export class VibePermissions extends ToolPermissions {
       }
     }
 
+    // Drop categories that ended up with no rules (e.g. a Vibe tool that carries
+    // only `sensitive_patterns`, which routes into the `vibe` override) so the
+    // shared block does not accumulate empty `{}` entries.
+    for (const [category, rules] of Object.entries(permission)) {
+      if (Object.keys(rules).length === 0) {
+        delete permission[category];
+      }
+    }
+
     const json: PermissionsConfig =
       Object.keys(vibeOverridePermission).length > 0
         ? { permission, vibe: { permission: vibeOverridePermission } }

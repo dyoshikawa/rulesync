@@ -146,6 +146,21 @@ describe("VibePermissions", () => {
     });
   });
 
+  it("does not add an empty shared category for a sensitive_patterns-only tool", () => {
+    const vibePermissions = new VibePermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".vibe",
+      relativeFilePath: "config.toml",
+      // No permission/allow/deny — only sensitive_patterns.
+      fileContent: '[tools.bash]\nsensitive_patterns = ["rm *"]\n',
+    });
+
+    const json = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+    // The shared block must not carry an empty `bash: {}`.
+    expect(json.permission.bash).toBeUndefined();
+    expect(json.vibe).toEqual({ permission: { bash: { sensitive_patterns: ["rm *"] } } });
+  });
+
   it("should not emit a vibe override when no sensitive_patterns are present", () => {
     const vibePermissions = new VibePermissions({
       outputRoot: testDir,
