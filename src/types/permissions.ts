@@ -115,11 +115,28 @@ const ClaudecodePermissionsOverrideSchema = z.looseObject({
 export type ClaudecodePermissionsOverride = z.infer<typeof ClaudecodePermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for Block Goose. Goose has a fourth per-tool
+ * disposition, `smart_approve` ("let the LLM PermissionJudge decide"), that is
+ * semantically distinct from the canonical `ask` (which prompts the human) and
+ * cannot be expressed by the shared `allow`/`ask`/`deny` vocabulary. Entries
+ * under `goose.permission` map a canonical category to `smart_approve`, emitted
+ * into the `user.smart_approve` list of `~/.config/goose/permission.yaml`. The
+ * canonical block continues to drive `always_allow`/`ask_before`/`never_allow`.
+ *
+ * @example
+ * { "permission": { "bash": "smart_approve" } }
+ */
+const GoosePermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(z.record(z.string(), z.enum(["smart_approve"]))),
+});
+export type GoosePermissionsOverride = z.infer<typeof GoosePermissionsOverrideSchema>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
- * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode` keys are
+ * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode`/`goose` keys are
  * tool-scoped overrides consumed only by their respective translator (see the
  * matching `*PermissionsOverrideSchema`); every other tool reads the shared
  * `permission` block and ignores them.
@@ -137,6 +154,7 @@ const PermissionsConfigSchema = z.looseObject({
   cline: z.optional(ClinePermissionsOverrideSchema),
   kilo: z.optional(KiloPermissionsOverrideSchema),
   claudecode: z.optional(ClaudecodePermissionsOverrideSchema),
+  goose: z.optional(GoosePermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 

@@ -77,7 +77,15 @@ type GoosePermissionConfig = {
   always_allow: string[];
   ask_before: string[];
   never_allow: string[];
+  // Goose's 4th disposition ("let the LLM PermissionJudge decide"). Only authored
+  // via the `goose` override (no canonical action maps to it), so it is emitted
+  // only when the override supplies at least one tool.
+  smart_approve?: string[];
 };
+
+// Goose's per-tool `smart_approve` disposition, authored via the `goose`
+// override rather than the canonical allow/ask/deny actions.
+const GOOSE_SMART_APPROVE_KEY = "smart_approve";
 
 /**
  * Permissions adapter for Block Goose (codename goose).
@@ -176,9 +184,10 @@ export class GoosePermissions extends ToolPermissions {
       logger,
     });
 
-    // Merge into the `user` block, preserving any unmanaged keys inside it and
-    // every other top-level key (e.g. the `smart_approve` LLM cache).
-    config[GOOSE_USER_KEY] = userPermission;
+    // Merge the managed disposition lists into the existing `user` block,
+    // preserving any other sub-keys the user may have set.
+    const existingUser = isRecord(config[GOOSE_USER_KEY]) ? config[GOOSE_USER_KEY] : {};
+    config[GOOSE_USER_KEY] = { ...existingUser, ...userPermission };
 
     return new GoosePermissions({
       outputRoot,
@@ -293,6 +302,17 @@ function convertRulesyncToGoosePermissionConfig({
     lists[key] = [...new Set(lists[key])].toSorted();
   }
 
+  // The `goose` override authors the 4th disposition, `smart_approve`, which the
+  // canonical allow/ask/deny vocabulary cannot express. Map its categories onto
+  // Goose tool names the same way, and only emit the key when non-empty.
+  const smartApprove = new Set<string>();
+  for (const category of Object.keys(config.goose?.permission ?? {})) {
+    smartApprove.add(RULESYNC_TO_GOOSE_TOOL_NAME[category] ?? category);
+  }
+  if (smartApprove.size > 0) {
+    lists[GOOSE_SMART_APPROVE_KEY] = [...smartApprove].toSorted();
+  }
+
   return lists;
 }
 
@@ -314,5 +334,17 @@ function convertGoosePermissionConfigToRulesync(
     }
   }
 
-  return { permission };
+  // Route the `smart_approve` list into the `goose` override — it has no
+  // canonical action, so it lives outside the shared `permission` block.
+  const smartApproveTools = isStringArray(userPermission[GOOSE_SMART_APPROVE_KEY])
+    ? userPermission[GOOSE_SMART_APPROVE_KEY]
+    : [];
+  const smartApprove: Record<string, "smart_approve"> = {};
+  for (const toolName of smartApproveTools) {
+    smartApprove[GOOSE_TO_RULESYNC_TOOL_NAME[toolName] ?? toolName] = "smart_approve";
+  }
+
+  return Object.keys(smartApprove).length > 0
+    ? { permission, goose: { permission: smartApprove } }
+    : { permission };
 }

@@ -183,6 +183,58 @@ describe("GoosePermissions", () => {
     });
   });
 
+  describe("goose override (smart_approve)", () => {
+    it("emits the goose override's smart_approve tools into user.smart_approve", async () => {
+      const perms = await GoosePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({
+            permission: { bash: { "*": "allow" } },
+            goose: { permission: { edit: "smart_approve", websearch: "smart_approve" } },
+          }),
+        }),
+        global: true,
+      });
+
+      const user = userPermissionOf(perms.getFileContent());
+      expect(user.always_allow).toEqual(["developer__shell"]);
+      // edit -> developer__text_editor; websearch passes through verbatim.
+      expect(user.smart_approve).toEqual(["developer__text_editor", "websearch"]);
+    });
+
+    it("does not emit user.smart_approve when the override is absent", async () => {
+      const perms = await GoosePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ bash: { "*": "allow" } }),
+        global: true,
+      });
+
+      expect(userPermissionOf(perms.getFileContent()).smart_approve).toBeUndefined();
+    });
+
+    it("routes user.smart_approve back into the goose override on import", () => {
+      const perms = new GoosePermissions({
+        relativeDirPath: join(".config", "goose"),
+        relativeFilePath: "permission.yaml",
+        fileContent: dump({
+          user: {
+            always_allow: ["developer__shell"],
+            smart_approve: ["developer__text_editor", "websearch"],
+          },
+        }),
+        global: true,
+      });
+
+      const json = perms.toRulesyncPermissions().getJson();
+      expect(json.permission.bash).toEqual({ "*": "allow" });
+      expect(json.goose).toEqual({
+        permission: { edit: "smart_approve", websearch: "smart_approve" },
+      });
+    });
+  });
+
   describe("round-trip", () => {
     it("maps rulesync -> goose -> rulesync preserving allow/ask/deny", async () => {
       const original = rulesyncPermissions({
