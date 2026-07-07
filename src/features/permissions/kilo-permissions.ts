@@ -11,7 +11,7 @@ import {
 } from "../../constants/kilo-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import { type ValidationResult } from "../../types/ai-file.js";
-import type { PermissionsConfig } from "../../types/permissions.js";
+import type { KiloPermissionsOverride, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -33,6 +33,33 @@ const KiloPermissionsConfigSchema = z.looseObject({
 });
 
 type KiloPermissionsConfig = z.infer<typeof KiloPermissionsConfigSchema>;
+
+/**
+ * Kilo permission keys that share a name with a canonical rulesync category and
+ * therefore stay in the shared `permission` block. Everything else (Kilo-only
+ * keys such as `external_directory`, `doom_loop`, `notebook_edit`, ...) is
+ * routed into the `kilo` override on import so it does not leak into other
+ * tools' configs. Kilo folds `write` into `edit`, uses `notebook_edit`/`task`
+ * rather than the canonical `notebookedit`/`agent`, and has no `mcp` key (MCP is
+ * addressed via `mcp__*` tool-name keys), so those canonical names are not Kilo
+ * keys in practice — they simply never appear on the shared side.
+ */
+const KILO_SHARED_CATEGORIES = new Set([
+  "bash",
+  "read",
+  "edit",
+  "write",
+  "webfetch",
+  "websearch",
+  "grep",
+  "glob",
+  "notebookedit",
+  "agent",
+]);
+
+function isSharedKiloCategory(key: string): boolean {
+  return key === "*" || KILO_SHARED_CATEGORIES.has(key) || key.startsWith("mcp__");
+}
 
 /**
  * Parse a JSONC string and throw on syntax errors. The `jsonc-parser` `parse()` function is
@@ -210,13 +237,25 @@ export class KiloPermissions extends ToolPermissions {
       parsedPermission && typeof parsedPermission === "object" && !Array.isArray(parsedPermission)
         ? { ...parsedPermission }
         : {};
-    const rulesyncPermission = rulesyncPermissions.getJson().permission;
+    const rulesyncJson = rulesyncPermissions.getJson();
 
+    // The full set of keys rulesync owns this generation: the shared `permission`
+    // block plus the Kilo-scoped override (override wins per key). Overlaying the
+    // override here is what makes Kilo-only keys (external_directory, doom_loop,
+    // notebook_edit, ...) authorable from rulesync rather than only pass-through.
+    const kiloOverride = rulesyncJson.kilo;
+    const incomingPermission: Record<string, unknown> = {
+      ...rulesyncJson.permission,
+      ...kiloOverride?.permission,
+    };
+
+    // Detect `deny` patterns that disappear from any key rulesync now owns —
+    // including override keys — so a regenerate that silently weakens a
+    // previously-denied surface is surfaced (fail-closed convention).
     const droppedDenyByKey: Record<string, string[]> = {};
-    for (const key of Object.keys(rulesyncPermission)) {
-      const previous = existingPermission[key];
-      const previousDenyPatterns = collectKiloDenyPatterns(previous);
-      const nextDenyPatterns = new Set(collectKiloDenyPatterns(rulesyncPermission[key]));
+    for (const [key, value] of Object.entries(incomingPermission)) {
+      const previousDenyPatterns = collectKiloDenyPatterns(existingPermission[key]);
+      const nextDenyPatterns = new Set(collectKiloDenyPatterns(value));
       const dropped = previousDenyPatterns.filter((p) => !nextDenyPatterns.has(p));
       if (dropped.length > 0) {
         droppedDenyByKey[key] = dropped;
@@ -234,10 +273,10 @@ export class KiloPermissions extends ToolPermissions {
       );
     }
 
-    const mergedPermission: Record<string, unknown> = { ...existingPermission };
-    for (const [key, value] of Object.entries(rulesyncPermission)) {
-      mergedPermission[key] = value;
-    }
+    const mergedPermission: Record<string, unknown> = {
+      ...existingPermission,
+      ...incomingPermission,
+    };
 
     const nextJson = {
       ...parsed,
@@ -254,9 +293,30 @@ export class KiloPermissions extends ToolPermissions {
   }
 
   toRulesyncPermissions(): RulesyncPermissions {
-    const permission = this.normalizePermission(this.json.permission);
+    const rawPermission = this.json.permission ?? {};
+
+    // Split Kilo keys into the shared canonical block and the Kilo-only override.
+    // Shared keys are normalized into the canonical pattern-to-action shape;
+    // Kilo-only keys keep their original shape (bare action string or pattern
+    // map) under the `kilo` override so a subsequent generate does not leak them
+    // into other tools' configs.
+    const shared: PermissionsConfig["permission"] = {};
+    const overrideOnly: NonNullable<KiloPermissionsOverride["permission"]> = {};
+    for (const [key, value] of Object.entries(rawPermission)) {
+      if (isSharedKiloCategory(key)) {
+        shared[key] = typeof value === "string" ? { "*": value } : value;
+      } else {
+        overrideOnly[key] = value;
+      }
+    }
+
+    const json: PermissionsConfig =
+      Object.keys(overrideOnly).length > 0
+        ? { permission: shared, kilo: { permission: overrideOnly } }
+        : { permission: shared };
+
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify({ permission }, null, 2),
+      fileContent: JSON.stringify(json, null, 2),
     });
   }
 
@@ -288,20 +348,5 @@ export class KiloPermissions extends ToolPermissions {
       fileContent: JSON.stringify({ permission: {} }, null, 2),
       validate: false,
     });
-  }
-
-  private normalizePermission(
-    permission: KiloPermissionsConfig["permission"] | undefined,
-  ): PermissionsConfig["permission"] {
-    if (!permission) {
-      return {};
-    }
-
-    return Object.fromEntries(
-      Object.entries(permission).map(([tool, value]) => [
-        tool,
-        typeof value === "string" ? { "*": value } : value,
-      ]),
-    );
   }
 }
