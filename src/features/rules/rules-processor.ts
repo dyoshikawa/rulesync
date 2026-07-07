@@ -711,7 +711,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
         // No additionalConventions.skills needed: Devin auto-discovers skills
-        // from .devin/skills/ and ~/.codeium/windsurf/skills/ directories.
+        // from .devin/skills/ (project) and ~/.config/devin/skills/ (global).
       },
     },
   ],

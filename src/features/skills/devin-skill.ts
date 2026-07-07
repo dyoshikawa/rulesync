@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import {
-  CODEIUM_WINDSURF_SKILLS_DIR_PATH,
+  DEVIN_GLOBAL_SKILLS_DIR_PATH,
   DEVIN_SKILLS_DIR_PATH,
 } from "../../constants/devin-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
@@ -41,8 +41,9 @@ export type DevinSkillParams = {
  * Represents a Devin (now Devin Desktop) skill directory.
  * Devin supports skills in both project mode under .devin/skills/
  * (preferred since the Devin Desktop rebrand; .devin/skills/ is the legacy
- * fallback the tool still reads) and global mode under ~/.codeium/windsurf/skills/
- * (unchanged by the rebrand).
+ * fallback the tool still reads) and global mode under the Devin-native
+ * ~/.config/devin/skills/ (consistent with Devin's global agents/rules paths;
+ * the legacy channel-dependent ~/.codeium/<channel>/skills/ is no longer emitted).
  */
 export class DevinSkill extends ToolSkill {
   constructor({
@@ -80,10 +81,10 @@ export class DevinSkill extends ToolSkill {
     // Devin skills use different paths for project and global modes:
     // - Project mode: {process.cwd()}/.devin/skills/ (preferred since the Devin
     //   Desktop rebrand; .devin/skills/ is the legacy fallback)
-    // - Global mode: {getHomeDirectory()}/.codeium/windsurf/skills/
+    // - Global mode: {getHomeDirectory()}/.config/devin/skills/ (Devin-native)
     if (global) {
       return {
-        relativeDirPath: CODEIUM_WINDSURF_SKILLS_DIR_PATH,
+        relativeDirPath: DEVIN_GLOBAL_SKILLS_DIR_PATH,
       };
     }
     return {

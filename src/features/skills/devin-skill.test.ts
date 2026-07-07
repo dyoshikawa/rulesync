@@ -31,9 +31,9 @@ describe("DevinSkill", () => {
       expect(paths.relativeDirPath).toBe(join(".devin", "skills"));
     });
 
-    it("should return .codeium/windsurf/skills as relativeDirPath for global mode", () => {
+    it("should return .config/devin/skills as relativeDirPath for global mode", () => {
       const paths = DevinSkill.getSettablePaths({ global: true });
-      expect(paths.relativeDirPath).toBe(join(".codeium", "windsurf", "skills"));
+      expect(paths.relativeDirPath).toBe(join(".config", "devin", "skills"));
     });
   });
 
@@ -133,7 +133,7 @@ Missing description field.`;
     });
 
     it("should create instance from global skill directory", async () => {
-      const skillDir = join(testDir, ".codeium", "windsurf", "skills", "global-skill");
+      const skillDir = join(testDir, ".config", "devin", "skills", "global-skill");
       await ensureDir(skillDir);
       const skillContent = `---
 name: Global Skill
@@ -155,7 +155,7 @@ Global skill body content.`;
         name: "Global Skill",
         description: "A global devin skill",
       });
-      expect(skill.getRelativeDirPath()).toBe(join(".codeium", "windsurf", "skills"));
+      expect(skill.getRelativeDirPath()).toBe(join(".config", "devin", "skills"));
     });
   });
 
@@ -205,7 +205,7 @@ Global skill body content.`;
         global: true,
       });
 
-      expect(devinSkill.getRelativeDirPath()).toBe(join(".codeium", "windsurf", "skills"));
+      expect(devinSkill.getRelativeDirPath()).toBe(join(".config", "devin", "skills"));
     });
   });
 
@@ -326,11 +326,11 @@ Global skill body content.`;
     it("should use global path when global is true", () => {
       const skill = DevinSkill.forDeletion({
         dirName: "cleanup",
-        relativeDirPath: join(".codeium", "windsurf", "skills"),
+        relativeDirPath: join(".config", "devin", "skills"),
         global: true,
       });
 
-      expect(skill.getRelativeDirPath()).toBe(join(".codeium", "windsurf", "skills"));
+      expect(skill.getRelativeDirPath()).toBe(join(".config", "devin", "skills"));
       expect(skill.getGlobal()).toBe(true);
     });
   });

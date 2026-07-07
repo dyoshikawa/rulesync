@@ -238,7 +238,7 @@ rulesync.local.jsonc
 **/.augment-guidelines
 **/.agents/skills/
 **/.rovodev/prompts.yml
-**/.codeium/windsurf/skills/
+**/.config/devin/skills/
 **/.copilot/agents/
 **/.copilot/mcp-config.json
 **/.copilot/hooks/

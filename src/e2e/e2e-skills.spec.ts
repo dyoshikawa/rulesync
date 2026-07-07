@@ -402,7 +402,7 @@ const skillsGlobalTargets = [
   },
   {
     target: "devin",
-    outputPath: join(".codeium", "windsurf", "skills", "test-skill", "SKILL.md"),
+    outputPath: join(".config", "devin", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "warp",

@@ -83,7 +83,7 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
   // not `getSettablePaths` (only the sibling `.rovodev/prompts/` content-file
   // directory is derived automatically), so it needs a hand-maintained entry.
   { target: "rovodev", feature: "commands", entry: "**/.rovodev/prompts.yml" },
-  { target: "devin", feature: "skills", entry: "**/.codeium/windsurf/skills/" },
+  { target: "devin", feature: "skills", entry: "**/.config/devin/skills/" },
   { target: "copilotcli", feature: "subagents", entry: "**/.copilot/agents/" },
   { target: "copilotcli", feature: "mcp", entry: "**/.copilot/mcp-config.json" },
   { target: "copilotcli", feature: "hooks", entry: "**/.copilot/hooks/" },
