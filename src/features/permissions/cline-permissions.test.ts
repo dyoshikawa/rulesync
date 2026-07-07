@@ -145,6 +145,70 @@ describe("ClinePermissions", () => {
     expect(content.allowRedirects).toBe(true);
   });
 
+  it("should set allowRedirects from the cline override", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { bash: { "git *": "allow" } },
+        cline: { allowRedirects: true },
+      }),
+    });
+
+    const instance = await ClinePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    expect(JSON.parse(instance.getFileContent()).allowRedirects).toBe(true);
+  });
+
+  it("should let the cline override win over an existing file value", async () => {
+    const dir = join(testDir, ".cline");
+    await ensureDir(dir);
+    await writeFileContent(
+      join(dir, "command-permissions.json"),
+      JSON.stringify({ allowRedirects: true }),
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { bash: { ls: "allow" } },
+        cline: { allowRedirects: false },
+      }),
+    });
+
+    const instance = await ClinePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    expect(JSON.parse(instance.getFileContent()).allowRedirects).toBe(false);
+  });
+
+  it("should round-trip allowRedirects into the cline override", () => {
+    const instance = new ClinePermissions({
+      relativeDirPath: ".cline",
+      relativeFilePath: "command-permissions.json",
+      fileContent: JSON.stringify({ allow: ["git *"], allowRedirects: true }),
+    });
+
+    const config = instance.toRulesyncPermissions().getJson();
+    expect(config.cline).toEqual({ allowRedirects: true });
+  });
+
+  it("should not emit a cline override when allowRedirects is the default false", () => {
+    const instance = new ClinePermissions({
+      relativeDirPath: ".cline",
+      relativeFilePath: "command-permissions.json",
+      fileContent: JSON.stringify({ allow: ["git *"], allowRedirects: false }),
+    });
+
+    expect(instance.toRulesyncPermissions().getJson().cline).toBeUndefined();
+  });
+
   it("should round-trip permissions back to rulesync bash format", () => {
     const instance = new ClinePermissions({
       relativeDirPath: ".cline",
