@@ -103,6 +103,123 @@ describe("VibePermissions", () => {
     });
   });
 
+  it("should author per-tool sensitive_patterns from the vibe override", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: { bash: { "*": "allow" } },
+        vibe: { permission: { bash: { sensitive_patterns: ["sudo *", "rm *"] } } },
+      }),
+    });
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+    // Base permission still ALWAYS, with an escalation list layered on top.
+    expect(parsed.tools.bash.permission).toBe("always");
+    expect(parsed.tools.bash.sensitive_patterns).toEqual(["rm *", "sudo *"]);
+  });
+
+  it("should route Vibe sensitive_patterns back into the vibe override on import", () => {
+    const fileContent = [
+      "[tools.bash]",
+      'permission = "always"',
+      'sensitive_patterns = ["sudo *", "rm *"]',
+    ].join("\n");
+
+    const vibePermissions = new VibePermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".vibe",
+      relativeFilePath: "config.toml",
+      fileContent,
+    });
+
+    const json = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+    expect(json.permission.bash).toEqual({ "*": "allow" });
+    expect(json.vibe).toEqual({
+      permission: { bash: { sensitive_patterns: ["sudo *", "rm *"] } },
+    });
+  });
+
+  it("does not add an empty shared category for a sensitive_patterns-only tool", () => {
+    const vibePermissions = new VibePermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".vibe",
+      relativeFilePath: "config.toml",
+      // No permission/allow/deny — only sensitive_patterns.
+      fileContent: '[tools.bash]\nsensitive_patterns = ["rm *"]\n',
+    });
+
+    const json = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+    // The shared block must not carry an empty `bash: {}`.
+    expect(json.permission.bash).toBeUndefined();
+    expect(json.vibe).toEqual({ permission: { bash: { sensitive_patterns: ["rm *"] } } });
+  });
+
+  it("should not emit a vibe override when no sensitive_patterns are present", () => {
+    const vibePermissions = new VibePermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".vibe",
+      relativeFilePath: "config.toml",
+      fileContent: '[tools.bash]\npermission = "always"\n',
+    });
+
+    expect(
+      JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent()).vibe,
+    ).toBeUndefined();
+  });
+
+  it("clears an existing sensitive_patterns when the override lists an empty array", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      '[tools.bash]\npermission = "always"\nsensitive_patterns = ["rm *"]\n',
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "*": "allow" } },
+          vibe: { permission: { bash: { sensitive_patterns: [] } } },
+        }),
+      }),
+    });
+
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+    expect(parsed.tools.bash.sensitive_patterns).toBeUndefined();
+  });
+
+  it("preserves an existing sensitive_patterns for a category not named in the override", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      '[tools.bash]\npermission = "always"\nsensitive_patterns = ["rm *"]\n',
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        // Only `read` is configured; `bash` is not named anywhere.
+        fileContent: JSON.stringify({ permission: { read: { "*": "allow" } } }),
+      }),
+    });
+
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+    expect(parsed.tools.bash.sensitive_patterns).toEqual(["rm *"]);
+  });
+
   it("should not be deletable because config.toml is shared", () => {
     const vibePermissions = VibePermissions.forDeletion({
       outputRoot: testDir,

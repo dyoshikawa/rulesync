@@ -115,11 +115,31 @@ const ClaudecodePermissionsOverrideSchema = z.looseObject({
 export type ClaudecodePermissionsOverride = z.infer<typeof ClaudecodePermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for Mistral Vibe. Vibe's per-tool `BaseToolConfig`
+ * carries a `sensitive_patterns` list — patterns that escalate to ASK even when
+ * the tool's base permission is ALWAYS (allow). The canonical model can only set
+ * a pattern to a single `allow`/`ask`/`deny`, so an "allow by default but ask on
+ * these patterns" escalation cannot be expressed. Entries under
+ * `vibe.permission.<category>.sensitive_patterns` carry that list per canonical
+ * category; the shared `permission` block still drives the base permission and
+ * allow/deny lists. Keyed by canonical category (e.g. `bash`, `edit`).
+ *
+ * @example
+ * { "permission": { "bash": { "sensitive_patterns": ["rm *", "sudo *"] } } }
+ */
+const VibePermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(
+    z.record(z.string(), z.looseObject({ sensitive_patterns: z.optional(z.array(z.string())) })),
+  ),
+});
+export type VibePermissionsOverride = z.infer<typeof VibePermissionsOverrideSchema>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
- * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode` keys are
+ * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode`/`vibe` keys are
  * tool-scoped overrides consumed only by their respective translator (see the
  * matching `*PermissionsOverrideSchema`); every other tool reads the shared
  * `permission` block and ignores them.
@@ -137,6 +157,7 @@ const PermissionsConfigSchema = z.looseObject({
   cline: z.optional(ClinePermissionsOverrideSchema),
   kilo: z.optional(KiloPermissionsOverrideSchema),
   claudecode: z.optional(ClaudecodePermissionsOverrideSchema),
+  vibe: z.optional(VibePermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 
