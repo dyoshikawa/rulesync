@@ -50,10 +50,12 @@ function resolveHermesTimeout(config: Record<string, unknown>): number | undefin
  *
  * Hermes is close to the MCP spec but not identical: `command` must be a single
  * executable string (an array's tail folds into `args`), a server is disabled
- * via `enabled: false` (not the canonical `disabled: true`), and remote servers
- * use `url`/`headers`. Only fields Hermes understands are emitted, so the shared
- * `config.yaml` is not polluted with canonical-only aliases (`type`, `transport`,
- * `httpUrl`, `networkTimeout`, tool-filter keys, ...).
+ * via `enabled: false` (not the canonical `disabled: true`), remote servers use
+ * `url`/`headers`, and per-server tool scoping lives under a `tools: { include,
+ * exclude }` block (from the canonical `enabledTools`/`disabledTools`). Only
+ * fields Hermes understands are emitted, so the shared `config.yaml` is not
+ * polluted with canonical-only aliases (`type`, `transport`, `httpUrl`,
+ * `networkTimeout`, ...).
  */
 function convertServerToHermes(config: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -82,6 +84,13 @@ function convertServerToHermes(config: Record<string, unknown>): Record<string, 
 
   const timeout = resolveHermesTimeout(config);
   if (timeout !== undefined) out.timeout = timeout;
+
+  // Per-server selective tool loading. Canonical `enabledTools`/`disabledTools`
+  // map to Hermes's `tools: { include, exclude }` block (see hermes-agent mcp.md).
+  const tools: Record<string, unknown> = {};
+  if (isStringArray(config.enabledTools)) tools.include = config.enabledTools;
+  if (isStringArray(config.disabledTools)) tools.exclude = config.disabledTools;
+  if (Object.keys(tools).length > 0) out.tools = tools;
 
   return out;
 }
@@ -135,6 +144,10 @@ function convertFromHermesFormat(mcpServers: Record<string, unknown>): McpServer
     if (isPlainObject(config.headers)) server.headers = omitPrototypePollutionKeys(config.headers);
     if (config.enabled === false) server.disabled = true;
     if (typeof config.timeout === "number") server.networkTimeout = config.timeout;
+    if (isRecord(config.tools)) {
+      if (isStringArray(config.tools.include)) server.enabledTools = config.tools.include;
+      if (isStringArray(config.tools.exclude)) server.disabledTools = config.tools.exclude;
+    }
 
     result[name] = server;
   }
