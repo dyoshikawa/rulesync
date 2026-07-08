@@ -73,11 +73,15 @@ export const RulesyncRuleFrontmatterSchema = z.object({
   ),
   kiro: z.optional(
     z.looseObject({
-      // Steering inclusion mode: always | fileMatch | manual (string for forward compat).
+      // Steering inclusion mode: always | fileMatch | manual | auto (string for forward compat).
       inclusion: z.optional(z.string()),
       // Glob(s) used when `inclusion: fileMatch`. Kiro accepts a single string or
       // a YAML array of globs.
       fileMatchPattern: z.optional(z.union([z.string(), z.array(z.string())])),
+      // Companion fields required by `inclusion: auto`: Kiro auto-includes the
+      // steering file when a request matches `description` (skill-like), keyed by `name`.
+      name: z.optional(z.string()),
+      description: z.optional(z.string()),
     }),
   ),
   takt: z.optional(
