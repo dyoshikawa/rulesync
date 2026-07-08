@@ -119,6 +119,7 @@ describe("shared-file write derivation", () => {
           "hooks",
           "mcp",
           "permissions",
+          "subagents",
         ],
         ".kiro/agents/default.json": [
           "hooks",

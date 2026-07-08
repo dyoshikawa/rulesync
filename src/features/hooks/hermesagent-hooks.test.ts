@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
-import { parseHermesConfig } from "../hermes-config.js";
+import { parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { HermesagentHooks } from "./hermesagent-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
@@ -41,7 +41,7 @@ describe("HermesagentHooks", () => {
         rulesyncHooks,
       });
 
-      const config = parseHermesConfig(hooks.getFileContent());
+      const config = parseSharedConfig({ format: "yaml", fileContent: hooks.getFileContent() });
       expect(config.hooks).toEqual({
         pre_tool_call: [{ command: "guard.sh", matcher: "terminal" }],
         post_tool_call: [{ command: "format.sh" }],
@@ -62,7 +62,7 @@ describe("HermesagentHooks", () => {
         rulesyncHooks,
       });
 
-      const config = parseHermesConfig(hooks.getFileContent());
+      const config = parseSharedConfig({ format: "yaml", fileContent: hooks.getFileContent() });
       expect(config.hooks).toEqual({
         on_session_start: [{ command: "init.sh" }],
         on_session_end: [{ command: "cleanup.sh" }],
@@ -83,7 +83,7 @@ describe("HermesagentHooks", () => {
         rulesyncHooks,
       });
 
-      const config = parseHermesConfig(hooks.getFileContent());
+      const config = parseSharedConfig({ format: "yaml", fileContent: hooks.getFileContent() });
       expect(config.hooks).toEqual({
         pre_llm_call: [{ command: "inject-context.sh" }],
         post_llm_call: [{ command: "sync.sh" }],
@@ -104,7 +104,7 @@ describe("HermesagentHooks", () => {
         rulesyncHooks,
       });
 
-      const config = parseHermesConfig(hooks.getFileContent());
+      const config = parseSharedConfig({ format: "yaml", fileContent: hooks.getFileContent() });
       expect(config.hooks).toEqual({
         subagent_start: [{ command: "log-start.sh" }],
         subagent_stop: [{ command: "log-stop.sh" }],
@@ -124,7 +124,7 @@ describe("HermesagentHooks", () => {
         rulesyncHooks,
       });
 
-      const config = parseHermesConfig(hooks.getFileContent());
+      const config = parseSharedConfig({ format: "yaml", fileContent: hooks.getFileContent() });
       expect(config.hooks).toEqual({
         pre_tool_call: [{ command: "guard.sh", timeout: 5 }],
       });
@@ -146,7 +146,7 @@ describe("HermesagentHooks", () => {
         rulesyncHooks,
       });
 
-      const config = parseHermesConfig(hooks.getFileContent());
+      const config = parseSharedConfig({ format: "yaml", fileContent: hooks.getFileContent() });
       expect(config.hooks).toEqual({
         pre_tool_call: [{ command: "guard.sh" }],
       });
@@ -169,7 +169,7 @@ describe("HermesagentHooks", () => {
         rulesyncHooks,
       });
 
-      const config = parseHermesConfig(hooks.getFileContent());
+      const config = parseSharedConfig({ format: "yaml", fileContent: hooks.getFileContent() });
       expect(config.hooks).toEqual({
         pre_tool_call: [{ command: "guard.sh" }],
       });
@@ -190,7 +190,7 @@ describe("HermesagentHooks", () => {
         logger,
       });
 
-      const config = parseHermesConfig(hooks.getFileContent());
+      const config = parseSharedConfig({ format: "yaml", fileContent: hooks.getFileContent() });
       expect(config.hooks).toEqual({
         on_session_start: [{ command: "init.sh" }],
       });
@@ -218,7 +218,7 @@ describe("HermesagentHooks", () => {
         rulesyncHooks,
       });
 
-      const config = parseHermesConfig(hooks.getFileContent());
+      const config = parseSharedConfig({ format: "yaml", fileContent: hooks.getFileContent() });
       expect(config.hooks).toEqual({
         pre_tool_call: [{ command: "hermes-override.sh" }],
         post_tool_call: [{ command: "post.sh" }],
@@ -247,7 +247,7 @@ hooks:
     - command: stale.sh
 `);
 
-      const config = parseHermesConfig(hooks.getFileContent());
+      const config = parseSharedConfig({ format: "yaml", fileContent: hooks.getFileContent() });
       expect(config.model).toBe("hermes-3");
       expect(config.mcp_servers).toEqual({
         docs: { url: "https://example.com/mcp" },

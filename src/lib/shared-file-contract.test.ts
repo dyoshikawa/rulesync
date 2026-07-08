@@ -12,6 +12,7 @@ import {
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
+  RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
@@ -91,7 +92,7 @@ const candidateFileNames = (relativeFilePath: string): string[] => {
  * an array it merges into (e.g. permissions overriding ignore-derived
  * `Read(...)` denies in `.claude/settings.json`), but the key path holding it
  * must survive. Ownership rules *within* such arrays are per-tool policy and
- * are covered by the tool-specific tests (e.g. `claudecode-settings-gateway`).
+ * are covered by the gateway tests (`shared-config-gateway.test.ts`).
  */
 describe("shared-file cross-feature write contract", () => {
   let projectDir: string;
@@ -155,6 +156,10 @@ describe("shared-file cross-feature write contract", () => {
           read: { ".env.production": "deny" },
         },
       }),
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+      '---\nname: planner\ndescription: "Plans implementation tasks"\n---\n\nPlan the work.\n',
     );
     await writeFileContent(
       join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "overview.md"),

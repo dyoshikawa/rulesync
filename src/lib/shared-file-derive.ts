@@ -27,6 +27,7 @@ export type SharedFileWriter = {
  */
 export const SHARED_WRITE_FEATURE_ORDER = [
   "ignore",
+  "subagents",
   "mcp",
   "hooks",
   "permissions",

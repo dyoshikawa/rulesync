@@ -1,13 +1,15 @@
 import { join } from "node:path";
 
-import { dump } from "js-yaml";
-
 import { TAKT_CONFIG_FILE_NAME, TAKT_DIR } from "../../constants/takt-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionsConfig } from "../../types/permissions.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { isPlainObject } from "../../utils/type-guards.js";
-import { parseTaktConfig } from "../shared/takt-config.js";
+import {
+  applySharedConfigPatch,
+  parseSharedConfig,
+  TAKT_CONFIG_SHARED_FILE_KEY,
+} from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -128,19 +130,17 @@ export class TaktPermissions extends ToolPermissions {
     // Read without initializing so a dry-run/check does not create the user's
     // config.yaml as a side effect (mirrors the Goose/Grok adapters).
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
-    const config = parseTaktConfig(existingContent, paths.relativeDirPath, paths.relativeFilePath);
+    const config = parseSharedConfig({
+      format: "yaml",
+      fileContent: existingContent,
+      filePath,
+      invalidRootPolicy: "error",
+    });
 
     const rulesyncJson = rulesyncPermissions.getJson();
     const provider = resolveActiveProvider(config);
     const mode = deriveTaktPermissionMode(rulesyncJson);
     const override = isPlainObject(rulesyncJson.takt) ? rulesyncJson.takt : undefined;
-
-    const existingProfiles = isPlainObject(config[TAKT_PROVIDER_PROFILES_KEY])
-      ? config[TAKT_PROVIDER_PROFILES_KEY]
-      : {};
-    const existingProfile = isPlainObject(existingProfiles[provider])
-      ? existingProfiles[provider]
-      : {};
 
     // `step_permission_overrides` lives inside the active provider profile,
     // alongside the derived coarse `default_permission_mode`; Takt layers the
@@ -148,43 +148,27 @@ export class TaktPermissions extends ToolPermissions {
     const stepOverrides = isPlainObject(override?.[TAKT_STEP_PERMISSION_OVERRIDES_KEY])
       ? override[TAKT_STEP_PERMISSION_OVERRIDES_KEY]
       : undefined;
-    const existingStepOverrides = isPlainObject(existingProfile[TAKT_STEP_PERMISSION_OVERRIDES_KEY])
-      ? existingProfile[TAKT_STEP_PERMISSION_OVERRIDES_KEY]
-      : undefined;
-    const mergedStepOverrides =
-      stepOverrides || existingStepOverrides
-        ? { ...existingStepOverrides, ...stepOverrides }
-        : undefined;
-
     // `provider_options` is a top-level table keyed by provider name, each
-    // holding an options object orthogonal to the permission mode. Merge
-    // per-provider (one level deeper than the profile merge) so authoring one
-    // key (e.g. `codex.network_access`) does not drop sibling keys the user set
-    // directly on the same provider (e.g. `codex.reasoning_effort`).
+    // holding an options object orthogonal to the permission mode.
     const overrideProviderOptions = isPlainObject(override?.[TAKT_PROVIDER_OPTIONS_KEY])
       ? override[TAKT_PROVIDER_OPTIONS_KEY]
       : undefined;
-    const existingProviderOptions = isPlainObject(config[TAKT_PROVIDER_OPTIONS_KEY])
-      ? config[TAKT_PROVIDER_OPTIONS_KEY]
-      : undefined;
-    const mergedProviderOptions = overrideProviderOptions
-      ? mergeProviderOptions(existingProviderOptions, overrideProviderOptions)
-      : existingProviderOptions;
 
-    const merged: Record<string, unknown> = {
-      ...config,
+    // The gateway's declared deep-merge policy preserves every sibling key the
+    // user set at any depth (other provider profiles, other keys in the active
+    // profile, sibling per-provider options), so only the authored values are
+    // stated here.
+    const patch: Record<string, unknown> = {
       [TAKT_PROVIDER_PROFILES_KEY]: {
-        ...existingProfiles,
         [provider]: {
-          ...existingProfile,
           [TAKT_DEFAULT_PERMISSION_MODE_KEY]: mode,
-          ...(mergedStepOverrides !== undefined && {
-            [TAKT_STEP_PERMISSION_OVERRIDES_KEY]: mergedStepOverrides,
+          ...(stepOverrides !== undefined && {
+            [TAKT_STEP_PERMISSION_OVERRIDES_KEY]: stepOverrides,
           }),
         },
       },
-      ...(mergedProviderOptions !== undefined && {
-        [TAKT_PROVIDER_OPTIONS_KEY]: mergedProviderOptions,
+      ...(overrideProviderOptions !== undefined && {
+        [TAKT_PROVIDER_OPTIONS_KEY]: overrideProviderOptions,
       }),
     };
 
@@ -192,18 +176,25 @@ export class TaktPermissions extends ToolPermissions {
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: dump(merged),
+      fileContent: applySharedConfigPatch({
+        fileKey: TAKT_CONFIG_SHARED_FILE_KEY,
+        feature: "permissions",
+        existingContent,
+        patch,
+        filePath,
+      }),
       validate: true,
       global,
     });
   }
 
   toRulesyncPermissions(): RulesyncPermissions {
-    const config = parseTaktConfig(
-      this.getFileContent(),
-      this.getRelativeDirPath(),
-      this.getRelativeFilePath(),
-    );
+    const config = parseSharedConfig({
+      format: "yaml",
+      fileContent: this.getFileContent(),
+      filePath: join(this.getRelativeDirPath(), this.getRelativeFilePath()),
+      invalidRootPolicy: "error",
+    });
 
     const provider = resolveActiveProvider(config);
     const profiles = isPlainObject(config[TAKT_PROVIDER_PROFILES_KEY])
@@ -260,26 +251,6 @@ export class TaktPermissions extends ToolPermissions {
       global,
     });
   }
-}
-
-/**
- * Merge an authored `provider_options` override onto the existing table
- * per-provider: for each provider the override touches, its options object is
- * shallow-merged onto the existing one so sibling keys the user set directly on
- * that same provider are preserved. Providers absent from the override are kept
- * untouched.
- */
-function mergeProviderOptions(
-  existing: Record<string, unknown> | undefined,
-  override: Record<string, unknown>,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = { ...existing };
-  for (const [providerName, options] of Object.entries(override)) {
-    const existingOptions = isPlainObject(result[providerName]) ? result[providerName] : undefined;
-    result[providerName] =
-      isPlainObject(options) && existingOptions ? { ...existingOptions, ...options } : options;
-  }
-  return result;
 }
 
 /**

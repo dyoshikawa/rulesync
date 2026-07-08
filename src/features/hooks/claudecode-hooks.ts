@@ -11,6 +11,10 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import {
+  applySharedConfigPatch,
+  CLAUDE_SETTINGS_SHARED_FILE_KEY,
+} from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import { canonicalToToolHooks, toolHooksToCanonical } from "./tool-hooks-converter.js";
@@ -95,15 +99,6 @@ export class ClaudecodeHooks extends ToolHooks {
       filePath,
       JSON.stringify({}, null, 2),
     );
-    let settings: Record<string, unknown>;
-    try {
-      settings = JSON.parse(existingContent);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse existing Claude settings at ${filePath}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
     const config = rulesyncHooks.getJson();
     const claudeHooks = canonicalToToolHooks({
       config,
@@ -111,8 +106,15 @@ export class ClaudecodeHooks extends ToolHooks {
       converterConfig: CLAUDE_CONVERTER_CONFIG,
       logger,
     });
-    const merged = { ...settings, hooks: claudeHooks };
-    const fileContent = JSON.stringify(merged, null, 2);
+    // The gateway owns the shared settings.json merge; hooks' declared
+    // ownership is the top-level `hooks` key.
+    const fileContent = applySharedConfigPatch({
+      fileKey: CLAUDE_SETTINGS_SHARED_FILE_KEY,
+      feature: "hooks",
+      existingContent,
+      patch: { hooks: claudeHooks },
+      filePath,
+    });
     return new ClaudecodeHooks({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,

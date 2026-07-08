@@ -328,7 +328,7 @@ export const GENERATION_STEP_GRAPH: readonly GenerationStepMeta[] = [
   { id: "ignore", ...sharedWriteMeta("ignore") },
   { id: "mcp", ...sharedWriteMeta("mcp") },
   { id: "commands" },
-  { id: "subagents" },
+  { id: "subagents", ...sharedWriteMeta("subagents") },
   { id: "skills" },
   { id: "hooks", ...sharedWriteMeta("hooks") },
   { id: "permissions", ...sharedWriteMeta("permissions") },

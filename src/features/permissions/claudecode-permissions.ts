@@ -6,7 +6,7 @@ import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
-import { applyPermissions } from "../claudecode-settings-gateway.js";
+import { applyPermissions } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,

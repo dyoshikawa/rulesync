@@ -1,0 +1,448 @@
+import { uniq } from "es-toolkit";
+import { dump, load } from "js-yaml";
+import { parse as parseJsonc } from "jsonc-parser";
+
+import { TAKT_WORKFLOW_MCP_SERVERS_KEY } from "../../constants/takt-paths.js";
+import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
+import type { Feature } from "../../types/features.js";
+import { formatError } from "../../utils/error.js";
+import type { Logger } from "../../utils/logger.js";
+import {
+  omitPrototypePollutionKeys,
+  PROTOTYPE_POLLUTION_KEYS,
+} from "../../utils/prototype-pollution.js";
+import { isPlainObject } from "../../utils/type-guards.js";
+
+/**
+ * Single gateway for the shared config files that several rulesync features
+ * read-modify-write (`.claude/settings.json`, `.hermes/config.yaml`,
+ * `.takt/config.yaml`, `opencode.json`, ...). It unifies the three concerns
+ * that used to be scattered across per-file helper modules
+ * (claudecode-settings-gateway / hermes-config / takt-config / opencode-config):
+ *
+ * 1. **Format codecs** — parsing and serializing YAML/JSON/JSONC with one
+ *    empty-file rule and one prototype-pollution hardening pass.
+ * 2. **Conflict policies** — the named merge semantics a feature can declare
+ *    (`replace-owned-keys`, `deep-merge`), implemented once instead of being
+ *    re-spelled per tool (the takt `provider_options` sibling-clobber and the
+ *    hermes-class merge bugs were re-implementations going subtly wrong).
+ * 3. **Ownership declarations** — {@link SHARED_CONFIG_OWNERSHIP} states, per
+ *    file and per feature, which keys the feature owns and which policy
+ *    resolves conflicts. {@link applySharedConfigPatch} executes the declared
+ *    policy, and rejects writes outside the declared ownership.
+ *
+ * The cross-feature *order* in which these writers run is derived from the
+ * registry in `src/lib/shared-file-derive.ts` (`SHARED_WRITE_FEATURE_ORDER`),
+ * and the no-data-loss contract is enforced end-to-end by
+ * `src/lib/shared-file-contract.test.ts`.
+ */
+
+// ---------------------------------------------------------------------------
+// Format codecs
+// ---------------------------------------------------------------------------
+
+export type SharedConfigFormat = "yaml" | "json" | "jsonc";
+
+export type SharedConfigDocument = Record<string, unknown>;
+
+/**
+ * How {@link parseSharedConfig} treats a syntactically valid document whose
+ * root is not a mapping: coerce it to `{}` (tolerant readers) or throw
+ * (writers that would otherwise silently discard the user's file).
+ */
+export type SharedConfigInvalidRootPolicy = "coerce-empty" | "error";
+
+function sanitizeSharedConfigValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sanitizeSharedConfigValue);
+  }
+  if (!isPlainObject(value)) {
+    return value;
+  }
+  const result: SharedConfigDocument = {};
+  for (const [key, nested] of Object.entries(omitPrototypePollutionKeys(value))) {
+    result[key] = sanitizeSharedConfigValue(nested);
+  }
+  return result;
+}
+
+/**
+ * Parse a shared config file into a plain document: an empty/whitespace file
+ * is `{}`, prototype-pollution keys are dropped recursively, and a non-mapping
+ * root follows `invalidRootPolicy`. Syntax errors are wrapped with the file
+ * path when one is given.
+ */
+export function parseSharedConfig({
+  format,
+  fileContent,
+  filePath,
+  invalidRootPolicy = "coerce-empty",
+}: {
+  format: SharedConfigFormat;
+  fileContent: string;
+  filePath?: string | undefined;
+  invalidRootPolicy?: SharedConfigInvalidRootPolicy;
+}): SharedConfigDocument {
+  if (fileContent.trim() === "") {
+    return {};
+  }
+
+  const at = filePath === undefined ? "" : ` at ${filePath}`;
+  let parsed: unknown;
+  try {
+    if (format === "yaml") {
+      parsed = load(fileContent);
+    } else if (format === "json") {
+      parsed = JSON.parse(fileContent);
+    } else {
+      parsed = parseJsonc(fileContent);
+    }
+  } catch (error) {
+    throw new Error(`Failed to parse shared config${at}: ${formatError(error)}`, { cause: error });
+  }
+
+  if (parsed === undefined || parsed === null) {
+    return {};
+  }
+  if (!isPlainObject(parsed)) {
+    if (invalidRootPolicy === "error") {
+      throw new Error(`Failed to parse shared config${at}: expected a mapping at the root`);
+    }
+    return {};
+  }
+  return sanitizeSharedConfigValue(parsed) as SharedConfigDocument;
+}
+
+/**
+ * Serialize a shared config document. YAML output always ends with exactly one
+ * newline; JSON output matches the 2-space `JSON.stringify` shape the JSON
+ * writers have always emitted (no trailing newline).
+ */
+export function stringifySharedConfig({
+  format,
+  document,
+}: {
+  format: SharedConfigFormat;
+  document: SharedConfigDocument;
+}): string {
+  if (format === "yaml") {
+    return dump(document, { noRefs: true, sortKeys: false }).trimEnd() + "\n";
+  }
+  return JSON.stringify(document, null, 2);
+}
+
+// ---------------------------------------------------------------------------
+// Conflict policies
+// ---------------------------------------------------------------------------
+
+/**
+ * Shallow merge: every top-level key in `patch` replaces the base key
+ * wholesale; all other base keys are preserved. The policy for a feature that
+ * owns a fixed set of top-level keys.
+ */
+export function mergeSharedConfigShallow({
+  base,
+  patch,
+}: {
+  base: SharedConfigDocument;
+  patch: SharedConfigDocument;
+}): SharedConfigDocument {
+  return { ...base, ...(sanitizeSharedConfigValue(patch) as SharedConfigDocument) };
+}
+
+/**
+ * Deep merge (`patch` wins): nested plain objects are merged key-by-key; every
+ * other value (arrays, scalars) is replaced wholesale. The policy for a
+ * feature whose contribution interleaves with user-authored siblings at any
+ * depth (e.g. permissions overlays onto `approvals`/`security` structures, or
+ * per-provider option tables) — nested sibling keys are preserved by
+ * construction instead of by per-tool re-implementation. Prototype-pollution
+ * keys are dropped.
+ */
+export function mergeSharedConfigDeep({
+  base,
+  patch,
+}: {
+  base: SharedConfigDocument;
+  patch: SharedConfigDocument;
+}): SharedConfigDocument {
+  const result: SharedConfigDocument = { ...base };
+  for (const [key, patchValue] of Object.entries(patch)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+    const baseValue = result[key];
+    if (isPlainObject(baseValue) && isPlainObject(patchValue)) {
+      result[key] = mergeSharedConfigDeep({ base: baseValue, patch: patchValue });
+    } else {
+      result[key] = sanitizeSharedConfigValue(patchValue);
+    }
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Ownership declarations
+// ---------------------------------------------------------------------------
+
+export type SharedConfigConflictPolicy =
+  | {
+      /** The feature owns `ownedKeys` outright; a patch may only set those. */
+      readonly kind: "replace-owned-keys";
+      readonly ownedKeys: readonly string[];
+    }
+  | {
+      /**
+       * The feature's patch deep-merges into the document; `replaceKeys` are
+       * authoritative snapshots replaced wholesale (a deep merge would
+       * resurrect entries the user deleted from the rulesync source).
+       */
+      readonly kind: "deep-merge";
+      readonly replaceKeys?: readonly string[];
+    }
+  | {
+      /**
+       * The merge needs entry-level ownership rules that the generic policies
+       * cannot express; `policyFunction` names the exported function in this
+       * module that implements it.
+       */
+      readonly kind: "custom";
+      readonly policyFunction: string;
+    };
+
+export type SharedConfigFileDeclaration = {
+  readonly format: SharedConfigFormat;
+  readonly invalidRootPolicy?: SharedConfigInvalidRootPolicy;
+  readonly features: Partial<Record<Feature, SharedConfigConflictPolicy>>;
+};
+
+// `dir/file` tokens matching `deriveSharedFileWriters()` — always POSIX
+// separators, independent of the platform-specific path constants.
+export const CLAUDE_SETTINGS_SHARED_FILE_KEY = ".claude/settings.json";
+export const HERMES_CONFIG_SHARED_FILE_KEY = ".hermes/config.yaml";
+export const TAKT_CONFIG_SHARED_FILE_KEY = ".takt/config.yaml";
+
+/**
+ * Who owns what in each gateway-managed shared config file, and which policy
+ * resolves conflicts. Keys are `dir/file` tokens matching
+ * `deriveSharedFileWriters()`; a test keeps each entry's feature set in
+ * lock-step with the writers derived from the processor registry, so an
+ * undeclared writer fails CI instead of merging by accident.
+ */
+export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDeclaration>> = {
+  [CLAUDE_SETTINGS_SHARED_FILE_KEY]: {
+    format: "json",
+    features: {
+      // `Read(...)` deny entries inside `permissions.deny` are owned by ignore;
+      // the permissions feature's explicit rules win over them (with a warning).
+      // That entry-level rule lives in applyIgnoreReadDenies/applyPermissions.
+      ignore: { kind: "custom", policyFunction: "applyIgnoreReadDenies" },
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      permissions: { kind: "custom", policyFunction: "applyPermissions" },
+    },
+  },
+  [HERMES_CONFIG_SHARED_FILE_KEY]: {
+    format: "yaml",
+    features: {
+      // The plugins block is recomputed from the existing file (enabled list
+      // appended) before being applied, so the whole key is owned here.
+      subagents: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] },
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      // Deep-merged so `approvals.mode`-style user keys coexist with generated
+      // `approvals.deny`; the `permissions` round-trip blob is an authoritative
+      // snapshot and must not resurrect deleted rules.
+      permissions: { kind: "deep-merge", replaceKeys: ["permissions"] },
+    },
+  },
+  [TAKT_CONFIG_SHARED_FILE_KEY]: {
+    format: "yaml",
+    // config.yaml is the user's primary Takt config; refusing to parse a
+    // non-mapping beats silently replacing their file with generated output.
+    invalidRootPolicy: "error",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: [TAKT_WORKFLOW_MCP_SERVERS_KEY] },
+      // provider_profiles.<provider>.default_permission_mode plus the takt
+      // override's step/provider tables merge into user config at depth;
+      // deep-merge preserves nested sibling keys by construction.
+      permissions: { kind: "deep-merge" },
+    },
+  },
+};
+
+/**
+ * Execute a feature's declared write to a gateway-managed shared file: parse
+ * the existing content, merge the patch under the feature's declared policy,
+ * and serialize. Throws when the file or feature is undeclared, when a
+ * `replace-owned-keys` patch strays outside its owned keys, or when the
+ * feature's policy is `custom` (those calls go to the named policy function
+ * instead).
+ */
+export function applySharedConfigPatch({
+  fileKey,
+  feature,
+  existingContent,
+  patch,
+  filePath,
+}: {
+  fileKey: string;
+  feature: Feature;
+  existingContent: string;
+  patch: SharedConfigDocument;
+  filePath?: string | undefined;
+}): string {
+  const declaration = SHARED_CONFIG_OWNERSHIP[fileKey];
+  if (!declaration) {
+    throw new Error(
+      `Shared config file '${fileKey}' has no SHARED_CONFIG_OWNERSHIP declaration; ` +
+        `declare its writers and policies before writing it through the gateway.`,
+    );
+  }
+  const policy = declaration.features[feature];
+  if (!policy) {
+    throw new Error(
+      `Feature '${feature}' declares no ownership of '${fileKey}'; ` +
+        `add it to SHARED_CONFIG_OWNERSHIP before writing.`,
+    );
+  }
+  if (policy.kind === "custom") {
+    throw new Error(
+      `Feature '${feature}' writes '${fileKey}' through its dedicated policy function ` +
+        `'${policy.policyFunction}' in shared-config-gateway.ts, not applySharedConfigPatch.`,
+    );
+  }
+
+  const base = parseSharedConfig({
+    format: declaration.format,
+    fileContent: existingContent,
+    filePath,
+    ...(declaration.invalidRootPolicy !== undefined && {
+      invalidRootPolicy: declaration.invalidRootPolicy,
+    }),
+  });
+
+  if (policy.kind === "replace-owned-keys") {
+    const unowned = Object.keys(patch).filter((key) => !policy.ownedKeys.includes(key));
+    if (unowned.length > 0) {
+      throw new Error(
+        `Feature '${feature}' tried to write undeclared keys [${unowned.join(", ")}] to ` +
+          `'${fileKey}'; extend its ownedKeys declaration if that ownership is intended.`,
+      );
+    }
+    return stringifySharedConfig({
+      format: declaration.format,
+      document: mergeSharedConfigShallow({ base, patch }),
+    });
+  }
+
+  const merged = mergeSharedConfigDeep({ base, patch });
+  for (const key of policy.replaceKeys ?? []) {
+    if (patch[key] !== undefined) {
+      merged[key] = sanitizeSharedConfigValue(patch[key]);
+    }
+  }
+  return stringifySharedConfig({ format: declaration.format, document: merged });
+}
+
+// ---------------------------------------------------------------------------
+// `.claude/settings.json` custom policy
+// ---------------------------------------------------------------------------
+// Both `ignore` (writes `Read(...)` into `permissions.deny`) and `permissions`
+// (writes the whole `allow`/`ask`/`deny`) read-modify-write the `permissions`
+// block. The entry format, the merge, and the cross-feature ownership rule
+// (permissions' explicit `Read` rules win over ignore-derived `Read` denies)
+// live here once so each feature just states its intent and never reasons
+// about the other's existence.
+
+const READ_TOOL_NAME = "Read";
+
+export const isReadDenyEntry = (entry: string): boolean =>
+  entry.startsWith(`${READ_TOOL_NAME}(`) && entry.endsWith(")");
+
+export const buildReadDenyEntry = (pattern: string): string => `${READ_TOOL_NAME}(${pattern})`;
+
+const parsePermissionsBlock = (
+  settings: ClaudeSettingsJson,
+): { allow: string[]; ask: string[]; deny: string[] } => {
+  const permissions = settings.permissions ?? {};
+  return {
+    allow: permissions.allow ?? [],
+    ask: permissions.ask ?? [],
+    deny: permissions.deny ?? [],
+  };
+};
+
+// Empty arrays are omitted so the file never carries an empty allow/ask/deny key.
+// Other top-level keys (e.g. `hooks`) and other keys under `permissions` are kept.
+const withPermissions = (
+  settings: ClaudeSettingsJson,
+  next: { allow: string[]; ask: string[]; deny: string[] },
+): ClaudeSettingsJson => {
+  const permissions: Record<string, unknown> = { ...settings.permissions };
+  const assign = (key: "allow" | "ask" | "deny", values: string[]): void => {
+    if (values.length > 0) {
+      permissions[key] = values;
+    } else {
+      delete permissions[key];
+    }
+  };
+  assign("allow", next.allow);
+  assign("ask", next.ask);
+  assign("deny", next.deny);
+  return { ...settings, permissions };
+};
+
+// Non-`Read` deny entries belong to the permissions feature and are preserved;
+// `Read(...)` denies are replaced wholesale since the ignore source owns them.
+export const applyIgnoreReadDenies = (params: {
+  settings: ClaudeSettingsJson;
+  readDenies: string[];
+}): ClaudeSettingsJson => {
+  const { settings, readDenies } = params;
+  const current = parsePermissionsBlock(settings);
+  const preservedDeny = current.deny.filter(
+    (entry) => !isReadDenyEntry(entry) || readDenies.includes(entry),
+  );
+  return withPermissions(settings, {
+    allow: current.allow,
+    ask: current.ask,
+    deny: uniq([...preservedDeny, ...readDenies].toSorted()),
+  });
+};
+
+// Entries for managed tools are replaced; entries for unmanaged tools are kept.
+// When `Read` is managed, permissions' rules win over ignore-derived `Read(...)`
+// denies — those are overwritten, and the overwrite is warned about if a logger
+// is given.
+export const applyPermissions = (params: {
+  settings: ClaudeSettingsJson;
+  managedToolNames: ReadonlySet<string>;
+  toolNameOf: (entry: string) => string;
+  allow: string[];
+  ask: string[];
+  deny: string[];
+  logger?: Logger | undefined;
+}): ClaudeSettingsJson => {
+  const { settings, managedToolNames, toolNameOf, allow, ask, deny, logger } = params;
+  const current = parsePermissionsBlock(settings);
+
+  const keepUnmanaged = (entries: string[]): string[] =>
+    entries.filter((entry) => !managedToolNames.has(toolNameOf(entry)));
+
+  if (logger && managedToolNames.has(READ_TOOL_NAME)) {
+    const overwrittenReadDenies = current.deny.filter(
+      (entry) => toolNameOf(entry) === READ_TOOL_NAME,
+    );
+    if (overwrittenReadDenies.length > 0) {
+      logger.warn(
+        `Permissions feature manages '${READ_TOOL_NAME}' tool and will overwrite ` +
+          `${overwrittenReadDenies.length} existing ${READ_TOOL_NAME} deny entries. ` +
+          `Permissions take precedence.`,
+      );
+    }
+  }
+
+  return withPermissions(settings, {
+    allow: uniq([...keepUnmanaged(current.allow), ...allow].toSorted()),
+    ask: uniq([...keepUnmanaged(current.ask), ...ask].toSorted()),
+    deny: uniq([...keepUnmanaged(current.deny), ...deny].toSorted()),
+  });
+};

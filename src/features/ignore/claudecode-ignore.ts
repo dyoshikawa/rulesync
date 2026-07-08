@@ -15,7 +15,7 @@ import {
   applyIgnoreReadDenies,
   buildReadDenyEntry,
   isReadDenyEntry,
-} from "../claudecode-settings-gateway.js";
+} from "../shared/shared-config-gateway.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
   ToolIgnore,

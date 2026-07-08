@@ -12,7 +12,11 @@ import {
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
 import { isPlainObject, isRecord, isStringArray } from "../../utils/type-guards.js";
-import { parseHermesConfig, stringifyHermesConfig } from "../hermes-config.js";
+import {
+  applySharedConfigPatch,
+  HERMES_CONFIG_SHARED_FILE_KEY,
+  parseSharedConfig,
+} from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -172,7 +176,10 @@ export class HermesagentMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    this.config = this.fileContent !== undefined ? parseHermesConfig(this.fileContent) : {};
+    this.config =
+      this.fileContent !== undefined
+        ? parseSharedConfig({ format: "yaml", fileContent: this.fileContent })
+        : {};
   }
 
   getConfig(): Record<string, unknown> {
@@ -184,7 +191,7 @@ export class HermesagentMcp extends ToolMcp {
   }
 
   override setFileContent(fileContent: string): void {
-    const config = parseHermesConfig(fileContent);
+    const config = parseSharedConfig({ format: "yaml", fileContent });
     const mcpServers = isRecord(this.config.mcp_servers) ? this.config.mcp_servers : {};
     const merged = mergeHermesMcpServers(
       config,
@@ -192,7 +199,14 @@ export class HermesagentMcp extends ToolMcp {
     );
 
     this.config = merged;
-    super.setFileContent(stringifyHermesConfig(merged));
+    super.setFileContent(
+      applySharedConfigPatch({
+        fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
+        feature: "mcp",
+        existingContent: fileContent,
+        patch: { mcp_servers: merged.mcp_servers },
+      }),
+    );
   }
 
   override isDeletable(): boolean {
@@ -245,7 +259,7 @@ export class HermesagentMcp extends ToolMcp {
       join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       "",
     );
-    const config = parseHermesConfig(fileContent);
+    const config = parseSharedConfig({ format: "yaml", fileContent });
 
     // Merge the `mcp_servers:` block into the shared config, preserving other
     // keys (model, terminal, ...).
@@ -258,7 +272,12 @@ export class HermesagentMcp extends ToolMcp {
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: stringifyHermesConfig(merged),
+      fileContent: applySharedConfigPatch({
+        fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
+        feature: "mcp",
+        existingContent: fileContent,
+        patch: { mcp_servers: merged.mcp_servers },
+      }),
       validate,
       global,
     });
