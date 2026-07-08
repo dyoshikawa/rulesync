@@ -15,13 +15,25 @@ export type SharedFileWriter = {
   readonly toolsByFeature: ReadonlyMap<Feature, ReadonlyArray<ToolTarget>>;
 };
 
-const SHARED_WRITE_FEATURES: ReadonlySet<Feature> = new Set([
+/**
+ * The single declaration of the cross-feature write order for shared
+ * (read-modify-write) config files: when two features write the same on-disk
+ * file, the earlier one writes first and the later one merges on top, so the
+ * later feature's conflict policy decides what survives (e.g. `permissions`
+ * overriding `ignore`-derived `Read(...)` denies in `.claude/settings.json`).
+ * The generation step graph's `dependsOn` edges are derived from this list
+ * plus the registry's `getSettablePaths` declarations — adding a tool or a
+ * shared path never requires touching the graph by hand.
+ */
+export const SHARED_WRITE_FEATURE_ORDER = [
   "ignore",
   "mcp",
   "hooks",
   "permissions",
   "rules",
-]);
+] as const satisfies readonly Feature[];
+
+const SHARED_WRITE_FEATURES: ReadonlySet<Feature> = new Set(SHARED_WRITE_FEATURE_ORDER);
 
 // Deprecated aliases; a guard for the day one diverges from its canonical
 // target's paths. A no-op today since they reuse the canonical class and paths.
@@ -132,4 +144,71 @@ export const deriveSharedFileWriters = (): SharedFileWriter[] => {
   }
 
   return writers.toSorted((a, b) => a.key.localeCompare(b.key));
+};
+
+export type SharedWriteStep = {
+  readonly writesSharedFile: readonly string[];
+  readonly dependsOn: readonly Feature[];
+};
+
+/**
+ * Derive, per shared-write feature, the shared files it writes and the
+ * `dependsOn` edges that fix a safe write order: for every shared file, each
+ * writer depends on all writers that precede it in
+ * {@link SHARED_WRITE_FEATURE_ORDER}. This is the source the generation step
+ * graph consumes, so registry changes (a new tool, a new settable path)
+ * propagate into the execution order without a hand-maintained declaration.
+ *
+ * @throws Error if a feature writes a shared file but has no position in
+ *   `SHARED_WRITE_FEATURE_ORDER` — ordering it is a deliberate decision about
+ *   whose merge policy wins, so it must be made explicitly there.
+ */
+export const deriveSharedWriteSteps = (): ReadonlyMap<Feature, SharedWriteStep> => {
+  const orderIndex = new Map<Feature, number>(
+    SHARED_WRITE_FEATURE_ORDER.map((feature, index) => [feature, index]),
+  );
+  const filesByFeature = new Map<Feature, Set<string>>();
+  const depsByFeature = new Map<Feature, Set<Feature>>();
+
+  for (const writer of deriveSharedFileWriters()) {
+    for (const feature of writer.features) {
+      if (!orderIndex.has(feature)) {
+        throw new Error(
+          `Feature '${feature}' writes the shared file '${writer.key}' but has no position ` +
+            `in SHARED_WRITE_FEATURE_ORDER. Decide where its writes merge relative to the ` +
+            `other features and add it to the order.`,
+        );
+      }
+    }
+    const ordered = [...writer.features].toSorted(
+      (a, b) => orderIndex.get(a)! - orderIndex.get(b)!,
+    );
+    for (const [position, feature] of ordered.entries()) {
+      let files = filesByFeature.get(feature);
+      if (!files) {
+        files = new Set();
+        filesByFeature.set(feature, files);
+      }
+      files.add(writer.key);
+      let deps = depsByFeature.get(feature);
+      if (!deps) {
+        deps = new Set();
+        depsByFeature.set(feature, deps);
+      }
+      for (const earlier of ordered.slice(0, position)) {
+        deps.add(earlier);
+      }
+    }
+  }
+
+  const steps = new Map<Feature, SharedWriteStep>();
+  for (const [feature, files] of filesByFeature) {
+    steps.set(feature, {
+      writesSharedFile: [...files].toSorted(),
+      dependsOn: [...(depsByFeature.get(feature) ?? [])].toSorted(
+        (a, b) => orderIndex.get(a)! - orderIndex.get(b)!,
+      ),
+    });
+  }
+  return steps;
 };
