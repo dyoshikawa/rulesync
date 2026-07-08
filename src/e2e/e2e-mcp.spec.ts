@@ -417,6 +417,7 @@ describe("E2E: mcp (import)", () => {
   const { getTestDir } = useTestDirectory();
 
   it.each([
+    { target: "augmentcode", sourcePath: join(".augment", "settings.json") },
     { target: "claudecode", sourcePath: ".mcp.json" },
     { target: "cursor", sourcePath: join(".cursor", "mcp.json") },
     // copilot MCP uses VS Code-specific format — excluded from import test
