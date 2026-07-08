@@ -30,6 +30,8 @@ export type KiroRuleSettablePaths =
  *   is present, so rulesync omits the block in this case).
  * - `fileMatch` — loaded only when the open file matches `fileMatchPattern`.
  * - `manual` — loaded on demand via `#steering-file-name`.
+ * - `auto` — auto-included when a request matches `description` (skill-like);
+ *   requires companion `name` and `description` fields.
  *
  * @see https://kiro.dev/docs/steering/
  */
@@ -38,6 +40,9 @@ export type KiroSteeringInclusion = {
   // A single glob is emitted as a string; multiple globs as a YAML array, both of
   // which Kiro accepts for `fileMatchPattern`.
   fileMatchPattern?: string | string[];
+  // Companion fields Kiro requires for `inclusion: auto` (ignored otherwise).
+  name?: string;
+  description?: string;
 };
 
 const WILDCARD_GLOBS = new Set(["**/*", "**", "*"]);
@@ -59,7 +64,8 @@ function toFileMatchPattern(globs: string[]): string | string[] | undefined {
  *
  * Precedence:
  * 1. An explicit `kiro.inclusion` block round-trips as-is (with `fileMatchPattern`
- *    taken from the block, or derived from `globs` when omitted for `fileMatch`).
+ *    taken from the block, or derived from `globs` when omitted for `fileMatch`;
+ *    and with the companion `name`/`description` carried through for `auto`).
  * 2. Otherwise specific (non-wildcard) globs map to `fileMatch`, scoping the rule
  *    to matching files instead of leaving it implicitly always-on.
  * 3. Otherwise the rule stays `always` — represented by omitting the block so the
@@ -71,7 +77,12 @@ export function deriveKiroInclusion({
   kiro,
   globs,
 }: {
-  kiro?: { inclusion?: string; fileMatchPattern?: string | string[] };
+  kiro?: {
+    inclusion?: string;
+    fileMatchPattern?: string | string[];
+    name?: string;
+    description?: string;
+  };
   globs?: string[];
 }): KiroSteeringInclusion | undefined {
   const specificGlobs = (globs ?? []).filter((g) => !WILDCARD_GLOBS.has(g));
@@ -82,6 +93,15 @@ export function deriveKiroInclusion({
       return fileMatchPattern
         ? { inclusion: "fileMatch", fileMatchPattern }
         : { inclusion: "fileMatch" };
+    }
+    // `auto` relies on the companion `name`/`description` to decide relevance, so
+    // carry them through when present.
+    if (kiro.inclusion === "auto") {
+      return {
+        inclusion: "auto",
+        ...(kiro.name !== undefined ? { name: kiro.name } : {}),
+        ...(kiro.description !== undefined ? { description: kiro.description } : {}),
+      };
     }
     return { inclusion: kiro.inclusion };
   }
@@ -223,6 +243,12 @@ export class KiroRule extends ToolRule {
           : [fileMatchPattern];
     const globs = inclusion === "fileMatch" ? patternGlobs : [];
 
+    // `auto` mode carries companion `name`/`description` fields that Kiro uses to
+    // decide relevance; round-trip them so re-generating reproduces the file.
+    const name = typeof frontmatter.name === "string" ? frontmatter.name : undefined;
+    const description =
+      typeof frontmatter.description === "string" ? frontmatter.description : undefined;
+
     return new RulesyncRule({
       outputRoot: process.cwd(),
       relativeDirPath: RulesyncRule.getSettablePaths().recommended.relativeDirPath,
@@ -231,7 +257,12 @@ export class KiroRule extends ToolRule {
         root: false,
         targets: ["*"],
         globs,
-        kiro: { inclusion, ...(fileMatchPattern !== undefined ? { fileMatchPattern } : {}) },
+        kiro: {
+          inclusion,
+          ...(fileMatchPattern !== undefined ? { fileMatchPattern } : {}),
+          ...(inclusion === "auto" && name !== undefined ? { name } : {}),
+          ...(inclusion === "auto" && description !== undefined ? { description } : {}),
+        },
       },
       body,
     });
