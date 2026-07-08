@@ -279,11 +279,9 @@ export class AmpPermissions extends ToolPermissions {
     const override = config.amp;
 
     // Extra `amp.permissions` entries the canonical model can't express are
-    // authored through the `amp` override and appended AFTER the
-    // rulesync-generated entries. Amp is first-match-wins, so the generated
-    // allow/ask/reject rules take precedence and the authored entries (non-`cmd`
-    // matchers, `context`, `delegate`, `reject`+`message`) act as later
-    // fallbacks. When the override authors these it becomes the source of truth;
+    // authored through the `amp` override (non-`cmd` matchers, `context`,
+    // `delegate`, `reject`+`message`) and merged with the rulesync-generated
+    // entries. When the override authors these it becomes the source of truth;
     // otherwise fall back to preserving any hand-authored `delegate` entries
     // from the existing file (legacy behavior). rulesync OWNS and
     // wholesale-replaces the canonical allow/ask/reject entries either way.
@@ -294,7 +292,17 @@ export class AmpPermissions extends ToolPermissions {
 
     const newJson: Record<string, unknown> = { ...json, [AMP_TOOLS_DISABLE_KEY]: disable };
 
-    const mergedPermissions = [...permissions, ...authoredExtras, ...preservedDelegates];
+    // Merge fail-closed: every `reject` leads, then `ask`, then `allow`, with
+    // `delegate` as the final fallback. Because Amp is first-match-wins, an
+    // authored `reject` must not sit behind a generated catch-all `allow` (or it
+    // would be shadowed). The sort is stable, so generated entries (already
+    // action-ordered) keep their order and authored entries keep author order
+    // within each action class.
+    const mergedPermissions = mergeAmpPermissions([
+      ...permissions,
+      ...authoredExtras,
+      ...preservedDelegates,
+    ]);
     if (mergedPermissions.length > 0) {
       newJson[AMP_PERMISSIONS_KEY] = mergedPermissions;
     } else {
@@ -412,6 +420,36 @@ const ACTION_PRIORITY: Record<AmpManagedAction, number> = {
   ask: 1,
   allow: 2,
 };
+
+/**
+ * Fail-closed action priority for merging the full `amp.permissions` list
+ * (generated + authored/preserved). `reject` leads so no `allow` can shadow it
+ * under first-match-wins; `delegate` (which defers to an external approver, so
+ * it never auto-allows) trails as the final fallback.
+ */
+const MERGE_ACTION_PRIORITY: Record<AmpAction, number> = {
+  reject: 0,
+  ask: 1,
+  allow: 2,
+  delegate: 3,
+};
+
+/**
+ * Stable fail-closed merge of generated and authored `amp.permissions` entries:
+ * order by {@link MERGE_ACTION_PRIORITY} only, preserving each source's relative
+ * order within an action class. Guarantees an authored `reject` cannot be
+ * shadowed by a generated catch-all `allow`.
+ */
+function mergeAmpPermissions(entries: AmpPermissionEntry[]): AmpPermissionEntry[] {
+  const decorated = entries.map((entry, index) => ({ entry, index }));
+  decorated.sort((a, b) => {
+    const ap = MERGE_ACTION_PRIORITY[a.entry.action] ?? MERGE_ACTION_PRIORITY.allow;
+    const bp = MERGE_ACTION_PRIORITY[b.entry.action] ?? MERGE_ACTION_PRIORITY.allow;
+    if (ap !== bp) return ap - bp;
+    return a.index - b.index;
+  });
+  return decorated.map((d) => d.entry);
+}
 
 /**
  * Convert a rulesync permissions config into Amp's two permission surfaces.

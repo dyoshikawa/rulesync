@@ -359,11 +359,35 @@ describe("AmpPermissions", () => {
       expect(json["amp.mcpPermissions"]).toEqual([
         { matches: { command: "playwright" }, action: "allow" },
       ]);
-      // Generated canonical entry first, then the authored extras in author order.
+      // Fail-closed merge: the authored reject leads (so it can't be shadowed by
+      // the generated catch-all allow), then the generated allow, then delegate
+      // as the final fallback.
       expect(json["amp.permissions"]).toEqual([
+        { tool: "Read", action: "reject", message: "blocked", context: "subagent" },
         { tool: "bash", action: "allow", matches: { cmd: "git *" } },
         { tool: "Bash", action: "delegate", to: "approve.sh", matches: { path: "/etc/**" } },
-        { tool: "Read", action: "reject", message: "blocked", context: "subagent" },
+      ]);
+    });
+
+    it("orders an authored reject before a generated catch-all allow on the same tool (fail-closed)", async () => {
+      const rulesyncPermissions = makeRulesyncPermissionsJson(testDir, {
+        permission: { bash: { "*": "allow" } },
+        amp: {
+          permissions: [{ tool: "bash", action: "reject", matches: { path: "/etc/**" } }],
+        },
+      });
+
+      const instance = await AmpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+      const entries = JSON.parse(instance.getFileContent())["amp.permissions"];
+
+      // The authored reject must precede the generated catch-all allow, or Amp's
+      // first-match-wins would let the allow shadow it.
+      expect(entries).toEqual([
+        { tool: "bash", action: "reject", matches: { path: "/etc/**" } },
+        { tool: "bash", action: "allow" },
       ]);
     });
 
