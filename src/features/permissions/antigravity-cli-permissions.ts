@@ -113,6 +113,11 @@ function buildPermissionEntry(toolName: string, pattern: string): string {
  * Permissions are written to the global `~/.gemini/antigravity-cli/settings.json`
  * file (global scope only). The file holds other CLI settings besides
  * permissions, so it is never deleted.
+ *
+ * Two CLI-only autonomy/sandbox knobs outside the allow/ask/deny arrays —
+ * `toolPermission` (the global autonomy preset) and `enableTerminalSandbox` — are
+ * authored and round-tripped through the `antigravity-cli` permissions override
+ * (see `AntigravityCliPermissionsOverrideSchema`).
  */
 export class AntigravityCliPermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
@@ -214,7 +219,20 @@ export class AntigravityCliPermissions extends ToolPermissions {
       delete mergedPermissions.deny;
     }
 
-    const merged = { ...settings, permissions: mergedPermissions };
+    const merged: Record<string, unknown> = { ...settings, permissions: mergedPermissions };
+
+    // Author the CLI-only autonomy/sandbox knobs from the `antigravity-cli`
+    // override. These are top-level siblings of `permissions`; Antigravity
+    // applies the allow/deny lists as runtime exceptions to `toolPermission`, so
+    // they pass through verbatim with no precedence modeling here.
+    const override = config["antigravity-cli"];
+    if (override?.toolPermission !== undefined) {
+      merged.toolPermission = override.toolPermission;
+    }
+    if (override?.enableTerminalSandbox !== undefined) {
+      merged.enableTerminalSandbox = override.enableTerminalSandbox;
+    }
+
     const fileContent = JSON.stringify(merged, null, 2);
 
     return new AntigravityCliPermissions({
@@ -245,8 +263,23 @@ export class AntigravityCliPermissions extends ToolPermissions {
       deny: permissions.deny ?? [],
     });
 
+    // Round-trip the CLI-only autonomy/sandbox knobs into the `antigravity-cli`
+    // override — they have no canonical category.
+    const override: Record<string, unknown> = {};
+    if (typeof settings.toolPermission === "string") {
+      override.toolPermission = settings.toolPermission;
+    }
+    if (typeof settings.enableTerminalSandbox === "boolean") {
+      override.enableTerminalSandbox = settings.enableTerminalSandbox;
+    }
+
+    const result: Record<string, unknown> = { ...config };
+    if (Object.keys(override).length > 0) {
+      result["antigravity-cli"] = override;
+    }
+
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify(config, null, 2),
+      fileContent: JSON.stringify(result, null, 2),
     });
   }
 
