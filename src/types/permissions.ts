@@ -317,15 +317,42 @@ const AmpPermissionsOverrideSchema = z.looseObject({
 export type AmpPermissionsOverride = z.infer<typeof AmpPermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for the Google Antigravity CLI. Antigravity's CLI
+ * `settings.json` carries two global autonomy/sandbox knobs outside the
+ * `permissions.allow/ask/deny` arrays rulesync manages: `toolPermission` (the
+ * global autonomy preset — `request-review` (default) / `proceed-in-sandbox` /
+ * `always-proceed` / `strict`) and `enableTerminalSandbox` (a boolean confining
+ * agent-run commands to OS containment). Antigravity applies the allow/deny
+ * lists as per-rule exceptions to the preset at runtime, so rulesync only
+ * authors these keys verbatim — no precedence modeling is needed on our side.
+ * Fields placed here are merged onto the top level of
+ * `~/.gemini/antigravity-cli/settings.json` (global-only) and emitted only for
+ * the CLI. The Antigravity IDE exposes the same concepts through a GUI (no
+ * documented JSON schema), so this override does NOT apply to `antigravity-ide`.
+ * Verified against https://antigravity.google/docs/cli/reference and
+ * https://antigravity.google/docs/cli/sandbox.
+ *
+ * @example
+ * { "toolPermission": "strict", "enableTerminalSandbox": true }
+ */
+const AntigravityCliPermissionsOverrideSchema = z.looseObject({
+  toolPermission: z.optional(z.string()),
+  enableTerminalSandbox: z.optional(z.boolean()),
+});
+export type AntigravityCliPermissionsOverride = z.infer<
+  typeof AntigravityCliPermissionsOverrideSchema
+>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
  * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode`/`vibe`/`cursor`/
- * `qwencode`/`reasonix`/`factorydroid`/`warp`/`junie`/`takt`/`amp` keys are
- * tool-scoped overrides consumed only by their respective translator (see the
- * matching `*PermissionsOverrideSchema`); every other tool reads the shared
- * `permission` block and ignores them.
+ * `qwencode`/`reasonix`/`factorydroid`/`warp`/`junie`/`takt`/`amp`/
+ * `antigravity-cli` keys are tool-scoped overrides consumed only by their
+ * respective translator (see the matching `*PermissionsOverrideSchema`); every
+ * other tool reads the shared `permission` block and ignores them.
  *
  * @example
  * {
@@ -349,6 +376,7 @@ const PermissionsConfigSchema = z.looseObject({
   junie: z.optional(JuniePermissionsOverrideSchema),
   takt: z.optional(TaktPermissionsOverrideSchema),
   amp: z.optional(AmpPermissionsOverrideSchema),
+  "antigravity-cli": z.optional(AntigravityCliPermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 
