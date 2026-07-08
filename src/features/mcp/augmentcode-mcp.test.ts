@@ -49,16 +49,31 @@ describe("AugmentcodeMcp", () => {
   });
 
   describe("fromRulesyncMcp", () => {
-    it("should throw in non-global mode", async () => {
+    it("should merge mcpServers into the workspace settings.json at project scope", async () => {
+      await writeFileContent(
+        settingsPath(),
+        JSON.stringify({ toolPermissions: [{ "tool-name": "shell", permission: "allow" }] }),
+      );
+
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
         relativeDirPath: ".rulesync",
         relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify({ mcpServers: {} }),
+        fileContent: JSON.stringify({ mcpServers: { fs: { command: "fs" } } }),
       });
-      await expect(
-        AugmentcodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, global: false }),
-      ).rejects.toThrow(/global-only/);
+
+      const mcp = await AugmentcodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: false,
+      });
+
+      // Project-scope MCP is written to the same shared workspace file, keeping
+      // the committed toolPermissions intact.
+      expect(mcp.getJson().toolPermissions).toEqual([
+        { "tool-name": "shell", permission: "allow" },
+      ]);
+      expect(mcp.getJson().mcpServers).toEqual({ fs: { command: "fs" } });
     });
 
     it("should merge mcpServers preserving hooks and permissions keys", async () => {
@@ -119,12 +134,6 @@ describe("AugmentcodeMcp", () => {
   });
 
   describe("fromFile", () => {
-    it("should throw in non-global mode", async () => {
-      await expect(AugmentcodeMcp.fromFile({ outputRoot: testDir, global: false })).rejects.toThrow(
-        /global-only/,
-      );
-    });
-
     it("should read existing settings and surface mcpServers", async () => {
       await writeFileContent(
         settingsPath(),
@@ -138,6 +147,36 @@ describe("AugmentcodeMcp", () => {
     it("should default to empty mcpServers when file is missing", async () => {
       const mcp = await AugmentcodeMcp.fromFile({ outputRoot: testDir, global: true });
       expect(mcp.getJson()).toEqual({ mcpServers: {} });
+    });
+
+    it("should overlay settings.local.json on top of settings.json at project scope", async () => {
+      await writeFileContent(
+        settingsPath(),
+        JSON.stringify({ mcpServers: { base: { command: "base" } } }),
+      );
+      await writeFileContent(
+        join(testDir, ".augment", "settings.local.json"),
+        JSON.stringify({ mcpServers: { local: { command: "local" } } }),
+      );
+
+      const mcp = await AugmentcodeMcp.fromFile({ outputRoot: testDir, global: false });
+      // `mcpServers` is a replace-key: the higher-precedence local file wins
+      // wholesale over the base workspace settings.
+      expect(mcp.getJson().mcpServers).toEqual({ local: { command: "local" } });
+    });
+
+    it("should not overlay settings.local.json in global mode", async () => {
+      await writeFileContent(
+        settingsPath(),
+        JSON.stringify({ mcpServers: { base: { command: "base" } } }),
+      );
+      await writeFileContent(
+        join(testDir, ".augment", "settings.local.json"),
+        JSON.stringify({ mcpServers: { local: { command: "local" } } }),
+      );
+
+      const mcp = await AugmentcodeMcp.fromFile({ outputRoot: testDir, global: true });
+      expect(mcp.getJson().mcpServers).toEqual({ base: { command: "base" } });
     });
   });
 

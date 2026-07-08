@@ -124,13 +124,13 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
   [
     "augmentcode",
     {
-      // AugmentCode (Auggie CLI) persists MCP servers in the shared user
-      // settings file `~/.augment/settings.json`. The docs only document a
-      // global location, so MCP is global-only here.
-      // https://docs.augmentcode.com/cli/integrations
+      // AugmentCode (Auggie CLI) persists MCP servers in the shared settings
+      // file `.augment/settings.json` at either scope: the committed workspace
+      // file for team-shared servers (project) or `~/.augment/settings.json`
+      // (global). https://docs.augmentcode.com/cli/config
       class: AugmentcodeMcp,
       meta: {
-        supportsProject: false,
+        supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
