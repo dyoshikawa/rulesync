@@ -222,6 +222,27 @@ export const HERMES_CONFIG_SHARED_FILE_KEY = ".hermes/config.yaml";
 export const TAKT_CONFIG_SHARED_FILE_KEY = ".takt/config.yaml";
 
 /**
+ * Build the `SHARED_CONFIG_OWNERSHIP` lookup key from a tool's settable paths.
+ * Mirrors `sharedFileKey` in `src/lib/shared-file-derive.ts` (kept separate so
+ * feature classes don't pull the processor registry through this module and
+ * create an import cycle); the ownership lock-step test keeps the two aligned.
+ * Lets a tool whose file lives at a scope-dependent path (`.zed/settings.json`
+ * vs `.config/zed/settings.json`) resolve its declaration from the settable
+ * paths it already holds.
+ */
+export const sharedConfigFileKey = ({
+  relativeDirPath,
+  relativeFilePath,
+}: {
+  relativeDirPath: string;
+  relativeFilePath: string;
+}): string => {
+  const dir = relativeDirPath.replace(/\\/g, "/").replace(/\/$/, "");
+  const file = relativeFilePath.replace(/\\/g, "/");
+  return dir === "" || dir === "." ? file : `${dir}/${file}`;
+};
+
+/**
  * Who owns what in each gateway-managed shared config file, and which policy
  * resolves conflicts. Keys are `dir/file` tokens matching
  * `deriveSharedFileWriters()`; a test keeps each entry's feature set in
@@ -265,6 +286,81 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       // override's step/provider tables merge into user config at depth;
       // deep-merge preserves nested sibling keys by construction.
       permissions: { kind: "deep-merge" },
+    },
+  },
+  // Zed settings: each feature holds an exclusive top-level key. Blocks whose
+  // final value depends on existing entries (`private_files` appends patterns,
+  // `agent.tool_permissions.tools` keeps user entries for unmanaged tools and
+  // `agent` siblings) are recomputed from the existing file before being
+  // applied, so the whole key is owned here.
+  ".zed/settings.json": {
+    format: "json",
+    features: {
+      ignore: { kind: "replace-owned-keys", ownedKeys: ["private_files"] },
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["context_servers"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
+    },
+  },
+  // Global scope of the Zed settings above (ignore is project-scope-only).
+  ".config/zed/settings.json": {
+    format: "json",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["context_servers"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
+    },
+  },
+  // Qwen Code settings: `permissions` is recomputed from the existing file
+  // (unmanaged-tool entries preserved, managed ones replaced) before being
+  // applied, and so are the `tools`/`security` override groups. Keys like
+  // `disableAllHooks` are only present in the patch when authored, so an
+  // existing user value survives an unrelated regeneration.
+  ".qwen/settings.json": {
+    format: "json",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks", "disableAllHooks"] },
+      permissions: {
+        kind: "replace-owned-keys",
+        ownedKeys: ["permissions", "tools", "security"],
+      },
+    },
+  },
+  // AugmentCode settings: `toolPermissions` is recomputed from the existing
+  // file (special entries and fail-closed denies preserved) before being
+  // applied.
+  ".augment/settings.json": {
+    format: "json",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["toolPermissions"] },
+    },
+  },
+  // Devin config: `permissions` is recomputed from the existing file
+  // (unmanaged-scope entries preserved) before being applied. Hooks are
+  // global-scope-only, so they appear only under `.config/devin/`.
+  ".devin/config.json": {
+    format: "json",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions"] },
+    },
+  },
+  ".config/devin/config.json": {
+    format: "json",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions"] },
+    },
+  },
+  // Kiro agent config: `allowedTools`/`toolsSettings` are recomputed from the
+  // existing file (existing tools and settings folded in) before being applied.
+  ".kiro/agents/default.json": {
+    format: "json",
+    features: {
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["allowedTools", "toolsSettings"] },
     },
   },
 };

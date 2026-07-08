@@ -9,6 +9,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { ConsoleLogger, type Logger } from "../../utils/logger.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -262,7 +263,7 @@ export class QwencodePermissions extends ToolPermissions {
       delete mergedPermissions.deny;
     }
 
-    const merged: Record<string, unknown> = { ...settings, permissions: mergedPermissions };
+    const patch: Record<string, unknown> = { permissions: mergedPermissions };
 
     // Overlay the Qwen-scoped override's `tools`/`security` groups (autonomy and
     // sandbox settings). Shallow-merged at the top level of each group, so an
@@ -271,16 +272,22 @@ export class QwencodePermissions extends ToolPermissions {
     // replaces the existing one wholesale rather than being deep-merged.
     const override = config.qwencode;
     if (override?.tools !== undefined) {
-      merged.tools = { ...asPlainRecord(settings.tools), ...asPlainRecord(override.tools) };
+      patch.tools = { ...asPlainRecord(settings.tools), ...asPlainRecord(override.tools) };
     }
     if (override?.security !== undefined) {
-      merged.security = {
+      patch.security = {
         ...asPlainRecord(settings.security),
         ...asPlainRecord(override.security),
       };
     }
 
-    const fileContent = JSON.stringify(merged, null, 2);
+    const fileContent = applySharedConfigPatch({
+      fileKey: sharedConfigFileKey(paths),
+      feature: "permissions",
+      existingContent,
+      patch,
+      filePath,
+    });
 
     return new QwencodePermissions({
       outputRoot,

@@ -13,6 +13,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -213,13 +214,17 @@ export class DevinPermissions extends ToolPermissions {
     if (mergedDeny.length > 0) mergedPermissions.deny = mergedDeny;
     else delete mergedPermissions.deny;
 
-    const merged = { ...settings, permissions: mergedPermissions };
-
     return new DevinPermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: JSON.stringify(merged, null, 2),
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(paths),
+        feature: "permissions",
+        existingContent,
+        patch: { permissions: mergedPermissions },
+        filePath,
+      }),
       validate,
     });
   }
