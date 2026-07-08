@@ -286,15 +286,46 @@ const TaktPermissionsOverrideSchema = z.looseObject({
 export type TaktPermissionsOverride = z.infer<typeof TaktPermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for Amp. Amp's `amp.permissions` array and sibling
+ * settings carry shapes the canonical per-command allow/ask/deny model can't
+ * express, so they are authored here and merged into the shared Amp settings
+ * file, while the shared `permission` block continues to drive the canonical
+ * `amp.permissions` (allow/ask/reject) + `amp.tools.disable` entries:
+ * - `permissions` — extra `amp.permissions` entries with non-`cmd` matchers
+ *   (`path`/`url`/`query`/…), regex/array match values, `context`
+ *   (`thread`/`subagent`), `delegate` (+`to`), or `reject` (+`message`). These
+ *   are appended AFTER the canonical-generated entries (Amp is first-match-wins,
+ *   so generated allow/ask/reject rules take precedence; authored entries act as
+ *   later fallbacks), preserving author order.
+ * - `mcpPermissions` — Amp's `amp.mcpPermissions` array (`{ matches, action }`).
+ * - `guardedFiles` — `amp.guardedFiles.allowlist` (globs allowed without
+ *   confirmation).
+ * - `dangerouslyAllowAll` — `amp.dangerouslyAllowAll` (disable all confirmation).
+ * Kept `looseObject` (verbatim passthrough). Both project and global scope are
+ * supported.
+ *
+ * @example
+ * { "dangerouslyAllowAll": false, "guardedFiles": { "allowlist": ["docs/**"] },
+ *   "permissions": [{ "tool": "Bash", "action": "delegate", "to": "approve.sh" }] }
+ */
+const AmpPermissionsOverrideSchema = z.looseObject({
+  permissions: z.optional(z.array(z.looseObject({ tool: z.string(), action: z.string() }))),
+  mcpPermissions: z.optional(z.array(z.looseObject({}))),
+  guardedFiles: z.optional(z.looseObject({ allowlist: z.optional(z.array(z.string())) })),
+  dangerouslyAllowAll: z.optional(z.boolean()),
+});
+export type AmpPermissionsOverride = z.infer<typeof AmpPermissionsOverrideSchema>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
  * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode`/`vibe`/`cursor`/
- * `qwencode`/`reasonix`/`factorydroid`/`warp`/`junie`/`takt` keys are tool-scoped
- * overrides consumed only by their respective translator (see the matching
- * `*PermissionsOverrideSchema`); every other tool reads the shared `permission`
- * block and ignores them.
+ * `qwencode`/`reasonix`/`factorydroid`/`warp`/`junie`/`takt`/`amp` keys are
+ * tool-scoped overrides consumed only by their respective translator (see the
+ * matching `*PermissionsOverrideSchema`); every other tool reads the shared
+ * `permission` block and ignores them.
  *
  * @example
  * {
@@ -317,6 +348,7 @@ const PermissionsConfigSchema = z.looseObject({
   warp: z.optional(WarpPermissionsOverrideSchema),
   junie: z.optional(JuniePermissionsOverrideSchema),
   takt: z.optional(TaktPermissionsOverrideSchema),
+  amp: z.optional(AmpPermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 
