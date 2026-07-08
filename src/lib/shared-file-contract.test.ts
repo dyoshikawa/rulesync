@@ -47,13 +47,21 @@ const sharedWriteTargets = (writers: SharedFileWriter[]): ToolTarget[] => [
   ...new Set(writers.flatMap((writer) => [...writer.toolsByFeature.values()].flat())),
 ];
 
+const USER_SENTINEL_KEY = "rulesyncContractSentinel";
+
 const expectFilesSeen = (seenKeyPaths: Map<string, Set<string>>, keys: string[]): void => {
-  // Sanity guard: the fixture must actually exercise the multi-format core
-  // of the shared-write surface; an empty pass would prove nothing.
-  const missing = keys.filter((key) => !seenKeyPaths.has(key));
+  // Sanity guard: the fixture must actually exercise the multi-format core of
+  // the shared-write surface; an empty pass would prove nothing. Every shared
+  // file is pre-seeded with the sentinel, so "generated" means the final key
+  // paths hold more than the sentinel alone.
+  const missing = keys.filter((key) => (seenKeyPaths.get(key)?.size ?? 0) <= 1);
   expect(
     missing,
-    `expected shared files to be generated; observed: ${[...seenKeyPaths.keys()].toSorted().join(", ")}`,
+    `expected shared files to be generated on top of the seeded sentinel; observed: ${[
+      ...seenKeyPaths.keys(),
+    ]
+      .toSorted()
+      .join(", ")}`,
   ).toEqual([]);
 };
 
@@ -159,9 +167,38 @@ describe("shared-file cross-feature write contract", () => {
   };
 
   /**
+   * Pre-seed every shared file with a user-authored sentinel key, so the
+   * contract also covers "read-modify-write must not drop keys the *user* put
+   * in the file" (the other half of the key-preservation semantics, alongside
+   * cross-feature preservation).
+   */
+  const seedUserSentinels = async ({
+    writers,
+    fileRoot,
+  }: {
+    writers: SharedFileWriter[];
+    fileRoot: string;
+  }): Promise<void> => {
+    for (const writer of writers) {
+      const filePath = join(fileRoot, writer.relativeDirPath, writer.relativeFilePath);
+      if (writer.relativeFilePath.endsWith(".toml")) {
+        await writeFileContent(filePath, `${USER_SENTINEL_KEY} = "keep"\n`);
+      } else if (
+        writer.relativeFilePath.endsWith(".yaml") ||
+        writer.relativeFilePath.endsWith(".yml")
+      ) {
+        await writeFileContent(filePath, `${USER_SENTINEL_KEY}: keep\n`);
+      } else {
+        await writeFileContent(filePath, `{ "${USER_SENTINEL_KEY}": "keep" }\n`);
+      }
+    }
+  };
+
+  /**
    * Run one shared-write feature at a time in the canonical order and return,
    * per shared file (under `fileRoot`), the key paths observed after the final
-   * step. Fails the test as soon as a step deletes a previously seen key path.
+   * step. Fails the test as soon as a step deletes a previously seen key path —
+   * including the pre-seeded user sentinel.
    */
   const runContract = async ({
     global,
@@ -174,7 +211,10 @@ describe("shared-file cross-feature write contract", () => {
 
     const writers = deriveSharedFileWriters();
     const targets = sharedWriteTargets(writers);
-    const seenKeyPaths = new Map<string, Set<string>>();
+    await seedUserSentinels({ writers, fileRoot });
+    const seenKeyPaths = new Map<string, Set<string>>(
+      writers.map((writer) => [writer.key, new Set([USER_SENTINEL_KEY])]),
+    );
 
     for (const feature of SHARED_WRITE_FEATURE_ORDER) {
       const config = new Config({
