@@ -30,6 +30,7 @@ import {
   PartialConfigParams,
   RequiredConfigParams,
 } from "./config.js";
+import type { OutputRoots } from "./config.js";
 
 /**
  * CLI-resolvable params exclude `sources` — sources are config-file-only.
@@ -372,9 +373,9 @@ function getOutputRootsInLightOfGlobal({
   outputRoots,
   global,
 }: {
-  outputRoots: string[];
+  outputRoots: OutputRoots;
   global: boolean;
-}): string[] {
+}): OutputRoots {
   if (global) {
     // When global is true, the base directory is always the home directory
     return [getHomeDirectory()];
@@ -383,11 +384,26 @@ function getOutputRootsInLightOfGlobal({
   // Validate the *raw* user input first so traversal patterns like
   // `/foo/../bar` cannot slip through `resolve()`'s normalization. Then
   // resolve to absolute for downstream consumers.
-  outputRoots.forEach((outputRoot) => {
-    validateOutputRoot(outputRoot);
-  });
+  if (Array.isArray(outputRoots)) {
+    outputRoots.forEach((outputRoot) => {
+      validateOutputRoot(outputRoot);
+    });
 
-  return outputRoots.map((outputRoot) => resolve(outputRoot));
+    return outputRoots.map((outputRoot) => resolve(outputRoot));
+  }
+
+  const resolvedOutputRoots: OutputRoots = {};
+  for (const [target, targetOutputRoots] of Object.entries(outputRoots)) {
+    const roots = Array.isArray(targetOutputRoots) ? targetOutputRoots : [targetOutputRoots];
+    roots.forEach((outputRoot) => {
+      validateOutputRoot(outputRoot);
+    });
+    resolvedOutputRoots[target as ToolTarget] = Array.isArray(targetOutputRoots)
+      ? roots.map((outputRoot) => resolve(outputRoot))
+      : resolve(targetOutputRoots);
+  }
+
+  return resolvedOutputRoots;
 }
 
 function extractConfigFileTargets(

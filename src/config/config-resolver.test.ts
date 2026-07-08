@@ -226,6 +226,32 @@ describe("config-resolver", () => {
       expect(config.getOutputRoots()).toContain(resolve("./app2"));
       expect(config.getOutputRoots()).toContain(resolve("./app3"));
     });
+
+    it("should resolve outputRoots configured per target", async () => {
+      const configContent = JSON.stringify({
+        targets: ["copilot", "claudecode"],
+        outputRoots: {
+          copilot: "./build/copilot",
+          claudecode: ["./build/claudecode", "./build/claude-extra"],
+        },
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getOutputRoots("copilot")).toEqual([resolve("./build/copilot")]);
+      expect(config.getOutputRoots("claudecode")).toEqual([
+        resolve("./build/claudecode"),
+        resolve("./build/claude-extra"),
+      ]);
+      expect(config.getOutputRoots()).toEqual([
+        resolve("./build/copilot"),
+        resolve("./build/claudecode"),
+        resolve("./build/claude-extra"),
+      ]);
+    });
   });
 
   describe("local configuration (rulesync.local.jsonc)", () => {
