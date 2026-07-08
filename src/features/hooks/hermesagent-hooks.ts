@@ -12,7 +12,12 @@ import {
 } from "../../types/hooks.js";
 import type { Logger } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
-import { mergeHermesConfig, parseHermesConfig, stringifyHermesConfig } from "../hermes-config.js";
+import {
+  applySharedConfigPatch,
+  HERMES_CONFIG_SHARED_FILE_KEY,
+  parseSharedConfig,
+  stringifySharedConfig,
+} from "../shared/shared-config-gateway.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import { ToolHooks, type ToolHooksFromRulesyncHooksParams } from "./tool-hooks.js";
 
@@ -212,11 +217,16 @@ export class HermesagentHooks extends ToolHooks {
   }
 
   setFileContent(fileContent: string): void {
-    this.fileContent = mergeHermesConfig(fileContent, parseHermesConfig(this.fileContent));
+    this.fileContent = applySharedConfigPatch({
+      fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
+      feature: "hooks",
+      existingContent: fileContent,
+      patch: parseSharedConfig({ format: "yaml", fileContent: this.fileContent }),
+    });
   }
 
   toRulesyncHooks(): RulesyncHooks {
-    const config = parseHermesConfig(this.getFileContent());
+    const config = parseSharedConfig({ format: "yaml", fileContent: this.getFileContent() });
     const hooks = hermesHooksToCanonical(config.hooks);
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify({ version: 1, hooks }, null, 2),
@@ -237,8 +247,9 @@ export class HermesagentHooks extends ToolHooks {
 
     return new HermesagentHooks({
       outputRoot,
-      fileContent: stringifyHermesConfig({
-        hooks: hermesHooks,
+      fileContent: stringifySharedConfig({
+        format: "yaml",
+        document: { hooks: hermesHooks },
       }),
     });
   }

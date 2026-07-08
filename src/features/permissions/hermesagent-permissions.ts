@@ -5,10 +5,12 @@ import {
 import { type AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction } from "../../types/permissions.js";
 import {
-  deepMergeHermesConfig,
-  parseHermesConfig,
-  stringifyHermesConfig,
-} from "../hermes-config.js";
+  applySharedConfigPatch,
+  HERMES_CONFIG_SHARED_FILE_KEY,
+  mergeSharedConfigDeep,
+  parseSharedConfig,
+  stringifySharedConfig,
+} from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -51,25 +53,16 @@ export class HermesagentPermissions extends ToolPermissions {
   }
 
   setFileContent(fileContent: string): void {
-    // Deep-merge the freshly generated config over the existing file so that
-    // hand-edited sibling keys under `approvals`/`security` (e.g. `approvals.mode`,
-    // `security.allow_private_urls`) survive instead of being clobbered by a
-    // shallow top-level merge now that generation emits those top-level blocks.
-    const existing = parseHermesConfig(fileContent);
-    const generated = parseHermesConfig(this.fileContent);
-    const merged = deepMergeHermesConfig(existing, generated);
-    // The `permissions.rulesync` blob is an authoritative snapshot of the current
-    // canonical config, so replace it wholesale rather than deep-merging — a
-    // deep merge would resurrect a rule that was deleted from
-    // `.rulesync/permissions.json` but still lingered in the existing blob.
-    if (generated.permissions !== undefined) {
-      merged.permissions = generated.permissions;
-    }
-    this.fileContent = stringifyHermesConfig(merged);
+    this.fileContent = applySharedConfigPatch({
+      fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
+      feature: "permissions",
+      existingContent: fileContent,
+      patch: parseSharedConfig({ format: "yaml", fileContent: this.fileContent }),
+    });
   }
 
   toRulesyncPermissions(): RulesyncPermissions {
-    const config = parseHermesConfig(this.getFileContent());
+    const config = parseSharedConfig({ format: "yaml", fileContent: this.getFileContent() });
     const permissions =
       config.permissions && typeof config.permissions === "object"
         ? (config.permissions as Record<string, unknown>).rulesync
@@ -116,7 +109,10 @@ export class HermesagentPermissions extends ToolPermissions {
     // skills.write_approval, ...). Deep-merged so it coexists with the natively
     // emitted `approvals`/`security` structures instead of clobbering them.
     if (permissions.hermes && typeof permissions.hermes === "object") {
-      config = deepMergeHermesConfig(config, permissions.hermes as Record<string, unknown>);
+      config = mergeSharedConfigDeep({
+        base: config,
+        patch: permissions.hermes as Record<string, unknown>,
+      });
     }
 
     // Keep the full canonical config under the rulesync-private key for a
@@ -125,7 +121,7 @@ export class HermesagentPermissions extends ToolPermissions {
 
     return new HermesagentPermissions({
       outputRoot,
-      fileContent: stringifyHermesConfig(config),
+      fileContent: stringifySharedConfig({ format: "yaml", document: config }),
     });
   }
 }

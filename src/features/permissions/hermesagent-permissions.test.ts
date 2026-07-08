@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseHermesConfig } from "../hermes-config.js";
+import { parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { HermesagentPermissions } from "./hermesagent-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
@@ -26,7 +26,7 @@ describe("HermesagentPermissions", () => {
       rulesyncPermissions,
     });
 
-    const config = parseHermesConfig(permissions.getFileContent());
+    const config = parseSharedConfig({ format: "yaml", fileContent: permissions.getFileContent() });
     expect(config.command_allowlist).toEqual(["git *", "pnpm *"]);
   });
 
@@ -54,7 +54,7 @@ mcp_servers:
     url: https://example.com/mcp
 `);
 
-    const config = parseHermesConfig(permissions.getFileContent());
+    const config = parseSharedConfig({ format: "yaml", fileContent: permissions.getFileContent() });
     expect(config.model).toBe("hermes-3");
     expect(config.mcp_servers).toEqual({
       docs: { url: "https://example.com/mcp" },
@@ -94,7 +94,7 @@ security:
   allow_private_urls: false
 `);
 
-    const config = parseHermesConfig(permissions.getFileContent());
+    const config = parseSharedConfig({ format: "yaml", fileContent: permissions.getFileContent() });
     // The generated approvals.deny and the hand-edited approvals.mode coexist.
     expect(config.approvals).toEqual({ mode: "smart", deny: ["rm -rf *"] });
     expect(config.security).toEqual({ allow_private_urls: false });
@@ -124,7 +124,7 @@ security:
         "old-cmd": deny
 `);
 
-    const config = parseHermesConfig(permissions.getFileContent());
+    const config = parseSharedConfig({ format: "yaml", fileContent: permissions.getFileContent() });
     expect(config.permissions).toEqual({
       rulesync: { permission: { bash: { "git *": "allow" } } },
     });
@@ -150,7 +150,7 @@ security:
       rulesyncPermissions,
     });
 
-    const config = parseHermesConfig(permissions.getFileContent());
+    const config = parseSharedConfig({ format: "yaml", fileContent: permissions.getFileContent() });
     expect(config.approvals).toEqual({ deny: ["rm -rf *", "curl *"] });
     expect(config.command_allowlist).toEqual(["git *"]);
   });
@@ -174,7 +174,7 @@ security:
       rulesyncPermissions,
     });
 
-    const config = parseHermesConfig(permissions.getFileContent());
+    const config = parseSharedConfig({ format: "yaml", fileContent: permissions.getFileContent() });
     expect(config.security).toEqual({
       website_blocklist: { enabled: true, domains: ["evil.example.com", "tracker.example.net"] },
     });
@@ -201,7 +201,7 @@ security:
       rulesyncPermissions,
     });
 
-    const config = parseHermesConfig(permissions.getFileContent());
+    const config = parseSharedConfig({ format: "yaml", fileContent: permissions.getFileContent() });
     // The override's `approvals.mode` coexists with the deny-derived `approvals.deny`.
     expect(config.approvals).toEqual({ deny: ["rm -rf *"], mode: "smart" });
     expect(config.security).toEqual({ allow_private_urls: false });

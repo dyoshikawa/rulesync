@@ -25,6 +25,7 @@ import { formatError } from "../utils/error.js";
 import { fileExists, toPosixPath } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
+import { deriveSharedWriteSteps } from "./shared-file-derive.js";
 
 export type GenerateResult = {
   rulesCount: number;
@@ -302,99 +303,41 @@ export function resolveExecutionOrder(steps: GenerationStep[]): GenerationStep[]
 
 type GenerationStepMeta = Readonly<Omit<GenerationStep, "run">>;
 
+const SHARED_WRITE_STEPS = deriveSharedWriteSteps();
+
+const sharedWriteMeta = (
+  id: GenerationStepId,
+): Pick<GenerationStepMeta, "writesSharedFile" | "dependsOn"> => {
+  const step = SHARED_WRITE_STEPS.get(id);
+  return step ? { writesSharedFile: step.writesSharedFile, dependsOn: step.dependsOn } : {};
+};
+
 /**
  * The static shape of the generation step graph: which steps write which shared
  * (read-modify-write) config files, and the `dependsOn` edges that fix a safe order
- * for those writers. Exported (separately from the `run` closures, which need a
- * live `config`/`logger`) so `resolveExecutionOrder`'s ordering guarantee can be
- * tested directly against the real graph rather than a hand-copied one. Readonly
- * so a consumer can't mutate this module-level singleton and affect every
- * subsequent `generate()` call in the process.
+ * for those writers. Both are derived from the processor registry's settable
+ * paths and `SHARED_WRITE_FEATURE_ORDER` (see `shared-file-derive.ts`), so a new
+ * tool or shared path never requires editing this graph. Exported (separately
+ * from the `run` closures, which need a live `config`/`logger`) so
+ * `resolveExecutionOrder`'s ordering guarantee can be tested directly against
+ * the real graph rather than a hand-copied one. Readonly so a consumer can't
+ * mutate this module-level singleton and affect every subsequent `generate()`
+ * call in the process.
  */
 export const GENERATION_STEP_GRAPH: readonly GenerationStepMeta[] = [
-  {
-    id: "ignore",
-    writesSharedFile: [".claude/settings.json", ".zed/settings.json"],
-  },
-  {
-    id: "mcp",
-    writesSharedFile: [
-      ".amp/settings.json",
-      ".augment/settings.json",
-      ".codex/config.toml",
-      ".config/amp/settings.json",
-      ".config/devin/config.json",
-      ".config/opencode/opencode.json",
-      ".config/zed/settings.json",
-      ".devin/config.json",
-      ".grok/config.toml",
-      ".hermes/config.yaml",
-      ".qwen/settings.json",
-      ".reasonix/config.toml",
-      ".takt/config.yaml",
-      ".vibe/config.toml",
-      ".zed/settings.json",
-      "kilo.json",
-      "opencode.json",
-      "reasonix.toml",
-    ],
-    // Both ignore and mcp write .zed/settings.json; ignore must run first so
-    // mcp's read-modify-write doesn't drop the ignore keys it wrote.
-    dependsOn: ["ignore"],
-  },
+  { id: "ignore", ...sharedWriteMeta("ignore") },
+  { id: "mcp", ...sharedWriteMeta("mcp") },
   { id: "commands" },
-  { id: "subagents" },
+  { id: "subagents", ...sharedWriteMeta("subagents") },
   { id: "skills" },
-  {
-    id: "hooks",
-    writesSharedFile: [
-      ".augment/settings.json",
-      ".claude/settings.json",
-      ".codex/config.toml",
-      ".config/devin/config.json",
-      ".hermes/config.yaml",
-      ".kiro/agents/default.json",
-      ".qwen/settings.json",
-      ".vibe/config.toml",
-    ],
-    // Shares .claude/settings.json with ignore and several config files with mcp;
-    // both must run first so hooks' read-modify-write doesn't drop their keys.
-    dependsOn: ["ignore", "mcp"],
-  },
-  {
-    id: "permissions",
-    writesSharedFile: [
-      ".amp/settings.json",
-      ".augment/settings.json",
-      ".claude/settings.json",
-      ".codex/config.toml",
-      ".config/amp/settings.json",
-      ".config/devin/config.json",
-      ".config/opencode/opencode.json",
-      ".config/zed/settings.json",
-      ".devin/config.json",
-      ".grok/config.toml",
-      ".hermes/config.yaml",
-      ".kiro/agents/default.json",
-      ".qwen/settings.json",
-      ".reasonix/config.toml",
-      ".takt/config.yaml",
-      ".vibe/config.toml",
-      ".zed/settings.json",
-      "opencode.json",
-      "reasonix.toml",
-    ],
-    // Shares files with ignore, and with every file hooks and mcp write; all
-    // three must run first so permissions' read-modify-write doesn't drop keys.
-    dependsOn: ["ignore", "hooks", "mcp"],
-  },
+  { id: "hooks", ...sharedWriteMeta("hooks") },
+  { id: "permissions", ...sharedWriteMeta("permissions") },
   {
     id: "rules",
-    writesSharedFile: ["kilo.json", "opencode.json"],
-    // Shares kilo.json/opencode.json with mcp and permissions (both must run
-    // first), and reads the skills list the skills step produces (a value
-    // dependency, not a shared-file one).
-    dependsOn: ["mcp", "skills", "permissions"],
+    ...sharedWriteMeta("rules"),
+    // On top of the derived shared-file edges, rules reads the skills list the
+    // skills step produces (a value dependency, not a shared-file one).
+    dependsOn: [...(sharedWriteMeta("rules").dependsOn ?? []), "skills"],
   },
 ];
 

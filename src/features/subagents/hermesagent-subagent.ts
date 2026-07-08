@@ -11,7 +11,11 @@ import {
 } from "../../constants/hermesagent-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { type ValidationResult } from "../../types/ai-file.js";
-import { parseHermesConfig, stringifyHermesConfig } from "../hermes-config.js";
+import {
+  applySharedConfigPatch,
+  HERMES_CONFIG_SHARED_FILE_KEY,
+  parseSharedConfig,
+} from "../shared/shared-config-gateway.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
@@ -112,19 +116,24 @@ def register(ctx):
 }
 
 function getEnabledPluginConfigContent(currentContent: string): string {
-  const config = parseHermesConfig(currentContent);
+  const config = parseSharedConfig({ format: "yaml", fileContent: currentContent });
   const plugins =
     config.plugins && typeof config.plugins === "object"
       ? (config.plugins as Record<string, unknown>)
       : {};
   const enabled = Array.isArray(plugins.enabled) ? plugins.enabled : [];
 
-  config.plugins = {
-    ...plugins,
-    enabled: Array.from(new Set([...enabled, "rulesync-subagents"])),
-  };
-
-  return stringifyHermesConfig(config);
+  return applySharedConfigPatch({
+    fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
+    feature: "subagents",
+    existingContent: currentContent,
+    patch: {
+      plugins: {
+        ...plugins,
+        enabled: Array.from(new Set([...enabled, "rulesync-subagents"])),
+      },
+    },
+  });
 }
 
 function getSubagentSpec(rulesyncSubagent: RulesyncSubagent): Record<string, unknown> {
@@ -240,6 +249,20 @@ export class HermesagentSubagent extends ToolSubagent {
     return {
       relativeDirPath: HERMESAGENT_RULESYNC_SUBAGENTS_DIR_PATH,
     };
+  }
+
+  /**
+   * Beyond the subagent spec files, generation also read-modify-writes the
+   * shared `~/.hermes/config.yaml` (enabling the `rulesync-subagents` plugin),
+   * so the write must be declared for the shared-file order derivation.
+   */
+  static getExtraSharedWritePaths(): { relativeDirPath: string; relativeFilePath: string }[] {
+    return [
+      {
+        relativeDirPath: HERMESAGENT_GLOBAL_DIR,
+        relativeFilePath: basename(HERMESAGENT_CONFIG_FILE_PATH),
+      },
+    ];
   }
 
   static getSettablePathsForRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): string[] {

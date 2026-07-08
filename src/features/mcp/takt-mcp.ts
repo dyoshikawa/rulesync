@@ -1,7 +1,5 @@
 import { join } from "node:path";
 
-import { dump } from "js-yaml";
-
 import {
   TAKT_CONFIG_FILE_NAME,
   TAKT_DIR,
@@ -11,7 +9,10 @@ import type { ValidationResult } from "../../types/ai-file.js";
 import type { McpServer, McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { isRecord } from "../../utils/type-guards.js";
-import { parseTaktConfig } from "../shared/takt-config.js";
+import {
+  applySharedConfigPatch,
+  TAKT_CONFIG_SHARED_FILE_KEY,
+} from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -116,20 +117,20 @@ export class TaktMcp extends ToolMcp {
     // Read without initializing so a dry-run/check does not create the user's
     // config.yaml as a side effect (mirrors the permissions adapter).
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
-    const config = parseTaktConfig(existingContent, paths.relativeDirPath, paths.relativeFilePath);
 
     const allowlist = deriveTransportAllowlist(rulesyncMcp.getMcpServers());
-
-    const merged: Record<string, unknown> = {
-      ...config,
-      [TAKT_WORKFLOW_MCP_SERVERS_KEY]: allowlist,
-    };
 
     return new TaktMcp({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: dump(merged),
+      fileContent: applySharedConfigPatch({
+        fileKey: TAKT_CONFIG_SHARED_FILE_KEY,
+        feature: "mcp",
+        existingContent,
+        patch: { [TAKT_WORKFLOW_MCP_SERVERS_KEY]: allowlist },
+        filePath,
+      }),
       validate,
       global,
     });

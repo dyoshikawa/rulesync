@@ -325,7 +325,7 @@ describe("ClaudecodeHooks", () => {
           rulesyncHooks,
           validate: false,
         }),
-      ).rejects.toThrow(/Failed to parse existing Claude settings/);
+      ).rejects.toThrow(/Failed to parse shared config at .*settings\.json/);
     });
 
     it("should merge rulesync hooks into existing .claude/settings.json content", async () => {

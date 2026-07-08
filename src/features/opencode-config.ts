@@ -1,13 +1,12 @@
 import { join } from "node:path";
 
-import { parse as parseJsonc } from "jsonc-parser";
-
 import {
   OPENCODE_GLOBAL_DIR,
   OPENCODE_JSON_FILE_NAME,
   OPENCODE_JSONC_FILE_NAME,
 } from "../constants/opencode-paths.js";
 import { readFileContentOrNull } from "../utils/file.js";
+import { parseSharedConfig } from "./shared/shared-config-gateway.js";
 
 /**
  * Reads and parses the OpenCode config (`opencode.jsonc` preferred, then
@@ -49,11 +48,7 @@ export async function readOpencodeConfig({
     return {};
   }
 
-  const parsed = parseJsonc(fileContent) as unknown;
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return {};
-  }
-  return parsed as Record<string, unknown>;
+  return parseSharedConfig({ format: "jsonc", fileContent });
 }
 
 /**
