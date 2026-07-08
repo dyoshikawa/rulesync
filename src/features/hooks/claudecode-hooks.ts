@@ -106,8 +106,6 @@ export class ClaudecodeHooks extends ToolHooks {
       converterConfig: CLAUDE_CONVERTER_CONFIG,
       logger,
     });
-    // The gateway owns the shared settings.json merge; hooks' declared
-    // ownership is the top-level `hooks` key.
     const fileContent = applySharedConfigPatch({
       fileKey: CLAUDE_SETTINGS_SHARED_FILE_KEY,
       feature: "hooks",

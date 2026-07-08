@@ -53,10 +53,6 @@ export class HermesagentPermissions extends ToolPermissions {
   }
 
   setFileContent(fileContent: string): void {
-    // Deep-merge (with the `permissions` round-trip blob replaced wholesale) is
-    // the gateway-declared policy for this feature: hand-edited sibling keys
-    // under `approvals`/`security` survive, while the authoritative
-    // `permissions.rulesync` snapshot never resurrects deleted rules.
     this.fileContent = applySharedConfigPatch({
       fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
       feature: "permissions",

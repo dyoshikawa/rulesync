@@ -154,10 +154,6 @@ export class TaktPermissions extends ToolPermissions {
       ? override[TAKT_PROVIDER_OPTIONS_KEY]
       : undefined;
 
-    // The gateway's declared deep-merge policy preserves every sibling key the
-    // user set at any depth (other provider profiles, other keys in the active
-    // profile, sibling per-provider options), so only the authored values are
-    // stated here.
     const patch: Record<string, unknown> = {
       [TAKT_PROVIDER_PROFILES_KEY]: {
         [provider]: {
