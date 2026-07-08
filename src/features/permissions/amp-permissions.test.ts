@@ -19,6 +19,14 @@ const makeRulesyncPermissions = (testDir: string, permission: unknown): Rulesync
     fileContent: JSON.stringify({ permission }),
   });
 
+const makeRulesyncPermissionsJson = (testDir: string, json: unknown): RulesyncPermissions =>
+  new RulesyncPermissions({
+    outputRoot: testDir,
+    relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+    relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+    fileContent: JSON.stringify(json),
+  });
+
 describe("AmpPermissions", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -285,12 +293,12 @@ describe("AmpPermissions", () => {
       expect(config.permission.bash).toEqual({ "rm *": "deny", "git *": "allow" });
     });
 
-    it("skips delegate entries on import (no canonical equivalent)", async () => {
+    it("routes delegate entries into the amp override on import (no canonical equivalent)", async () => {
       await writeFileContent(
         join(testDir, ".amp", "settings.json"),
         JSON.stringify({
           "amp.permissions": [
-            { tool: "bash", action: "delegate", matches: { cmd: "deploy *" } },
+            { tool: "bash", action: "delegate", matches: { cmd: "deploy *" }, to: "approve.sh" },
             { tool: "bash", action: "allow", matches: { cmd: "git *" } },
           ],
         }),
@@ -299,7 +307,12 @@ describe("AmpPermissions", () => {
       const instance = await AmpPermissions.fromFile({ outputRoot: testDir });
       const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
 
+      // Canonical entry drives the shared permission block.
       expect(config.permission.bash).toEqual({ "git *": "allow" });
+      // The delegate entry is preserved verbatim in the amp override, not dropped.
+      expect(config.amp.permissions).toEqual([
+        { tool: "bash", action: "delegate", matches: { cmd: "deploy *" }, to: "approve.sh" },
+      ]);
     });
 
     it("merges both sources and lets deny/reject win on conflict (fail-closed)", async () => {
@@ -317,6 +330,81 @@ describe("AmpPermissions", () => {
 
       // disable → bash:{"*":"deny"}; the allow on the same key loses to deny.
       expect(config.permission.bash).toEqual({ "*": "deny" });
+    });
+  });
+
+  describe("amp override (non-cmd matchers / guardedFiles / dangerouslyAllowAll / mcpPermissions)", () => {
+    it("authors sibling settings and appends override permissions after generated entries", async () => {
+      const rulesyncPermissions = makeRulesyncPermissionsJson(testDir, {
+        permission: { bash: { "git *": "allow" } },
+        amp: {
+          dangerouslyAllowAll: false,
+          guardedFiles: { allowlist: ["docs/**", "README.md"] },
+          mcpPermissions: [{ matches: { command: "playwright" }, action: "allow" }],
+          permissions: [
+            { tool: "Bash", action: "delegate", to: "approve.sh", matches: { path: "/etc/**" } },
+            { tool: "Read", action: "reject", message: "blocked", context: "subagent" },
+          ],
+        },
+      });
+
+      const instance = await AmpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+      const json = JSON.parse(instance.getFileContent());
+
+      expect(json["amp.dangerouslyAllowAll"]).toBe(false);
+      expect(json["amp.guardedFiles.allowlist"]).toEqual(["docs/**", "README.md"]);
+      expect(json["amp.mcpPermissions"]).toEqual([
+        { matches: { command: "playwright" }, action: "allow" },
+      ]);
+      // Generated canonical entry first, then the authored extras in author order.
+      expect(json["amp.permissions"]).toEqual([
+        { tool: "bash", action: "allow", matches: { cmd: "git *" } },
+        { tool: "Bash", action: "delegate", to: "approve.sh", matches: { path: "/etc/**" } },
+        { tool: "Read", action: "reject", message: "blocked", context: "subagent" },
+      ]);
+    });
+
+    it("round-trips the override through import", async () => {
+      await writeFileContent(
+        join(testDir, ".amp", "settings.json"),
+        JSON.stringify({
+          "amp.permissions": [
+            { tool: "bash", action: "allow", matches: { cmd: "git *" } },
+            { tool: "Read", action: "reject", message: "blocked", context: "subagent" },
+          ],
+          "amp.guardedFiles.allowlist": ["docs/**"],
+          "amp.dangerouslyAllowAll": true,
+          "amp.mcpPermissions": [{ matches: { url: "https://x" }, action: "reject" }],
+        }),
+      );
+
+      const instance = await AmpPermissions.fromFile({ outputRoot: testDir });
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+
+      // The cmd entry is canonical; the message/context entry goes to the override.
+      expect(config.permission.bash).toEqual({ "git *": "allow" });
+      expect(config.amp).toEqual({
+        permissions: [{ tool: "Read", action: "reject", message: "blocked", context: "subagent" }],
+        mcpPermissions: [{ matches: { url: "https://x" }, action: "reject" }],
+        guardedFiles: { allowlist: ["docs/**"] },
+        dangerouslyAllowAll: true,
+      });
+    });
+
+    it("omits the amp override when no non-canonical settings exist", async () => {
+      await writeFileContent(
+        join(testDir, ".amp", "settings.json"),
+        JSON.stringify({
+          "amp.permissions": [{ tool: "bash", action: "allow", matches: { cmd: "git *" } }],
+        }),
+      );
+
+      const instance = await AmpPermissions.fromFile({ outputRoot: testDir });
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+      expect(config.amp).toBeUndefined();
     });
   });
 

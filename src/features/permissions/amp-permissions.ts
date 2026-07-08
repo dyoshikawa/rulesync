@@ -62,9 +62,47 @@ type AmpAction = AmpManagedAction | "delegate";
 type AmpPermissionEntry = {
   tool: string;
   action: AmpAction;
-  matches?: { cmd?: string };
+  matches?: Record<string, unknown>;
   [key: string]: unknown;
 };
+
+/**
+ * The `amp.guardedFiles.allowlist` array (file globs allowed without
+ * confirmation), `amp.dangerouslyAllowAll` boolean (disable all confirmation),
+ * and `amp.mcpPermissions` array — sibling settings authored through the `amp`
+ * permissions override. Reference: https://ampcode.com/manual.
+ */
+const AMP_GUARDED_FILES_ALLOWLIST_KEY = "amp.guardedFiles.allowlist";
+const AMP_DANGEROUSLY_ALLOW_ALL_KEY = "amp.dangerouslyAllowAll";
+const AMP_MCP_PERMISSIONS_KEY = "amp.mcpPermissions";
+
+/**
+ * The read-only `cmd` string of an entry's `matches`, or `undefined` when the
+ * matcher is absent or uses a non-`cmd` key / non-string value.
+ */
+function ampMatchesCmd(entry: AmpPermissionEntry): string | undefined {
+  const cmd = entry.matches?.cmd;
+  return typeof cmd === "string" ? cmd : undefined;
+}
+
+/**
+ * Whether an `amp.permissions` entry is fully expressible in the canonical
+ * per-command allow/ask/deny model: a plain `allow`/`ask`/`reject` action with
+ * no `context`/`message`/`to` and a matcher that is either absent or exactly a
+ * single string `cmd`. Everything else (non-`cmd` matchers, regex/array match
+ * values, `delegate`, `reject`+`message`, `context`) is routed to the `amp`
+ * override verbatim instead of being flattened with loss or dropped.
+ */
+function isCanonicalAmpEntry(entry: AmpPermissionEntry): boolean {
+  if (entry.action === "delegate") return false;
+  if (entry.context !== undefined || entry.message !== undefined || entry.to !== undefined) {
+    return false;
+  }
+  const matches = entry.matches;
+  if (matches === undefined) return true;
+  const keys = Object.keys(matches);
+  return keys.length === 0 || (keys.length === 1 && typeof matches.cmd === "string");
+}
 
 function parseAmpSettings(fileContent: string): Record<string, unknown> {
   const errors: ParseError[] = [];
@@ -92,10 +130,21 @@ function toDisableList(value: unknown): string[] {
 }
 
 /**
+ * Read `amp.guardedFiles.allowlist` (an array of file glob strings) from parsed
+ * settings, returning `undefined` when the key is absent or not an array so the
+ * override omits it.
+ */
+function extractAmpGuardedAllowlist(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+/**
  * Read an `amp.permissions` array from untrusted parsed settings. Only entries
- * whose shape rulesync understands are retained; the original objects are kept
- * by reference (with a normalized `action`) so unknown sibling keys survive a
- * round-trip when the entry is preserved.
+ * whose `tool`/`action` rulesync understands are retained; every other key —
+ * including the full `matches` object (so non-`cmd` matchers, regex/array
+ * values, `context`, `to`, `message`) — is kept verbatim so it survives a
+ * round-trip.
  */
 function toPermissionsList(value: unknown): AmpPermissionEntry[] {
   if (!Array.isArray(value)) return [];
@@ -107,16 +156,11 @@ function toPermissionsList(value: unknown): AmpPermissionEntry[] {
     if (action !== "allow" && action !== "reject" && action !== "ask" && action !== "delegate") {
       continue;
     }
-    const matches = raw.matches;
-    let normalizedMatches: { cmd?: string } | undefined;
-    if (isPlainObject(matches) && typeof matches.cmd === "string") {
-      normalizedMatches = { cmd: matches.cmd };
-    }
     entries.push({
       ...raw,
       tool,
       action,
-      ...(normalizedMatches ? { matches: normalizedMatches } : {}),
+      ...(isPlainObject(raw.matches) ? { matches: raw.matches } : {}),
     } as AmpPermissionEntry);
   }
   return entries;
@@ -142,6 +186,13 @@ function toPermissionsList(value: unknown): AmpPermissionEntry[] {
  * The settings file is shared with the MCP feature (`amp.mcpServers`), so reads
  * and writes merge into the existing JSON rather than overwriting it, and the
  * file is never deleted.
+ *
+ * Amp shapes with no canonical category are authored and round-tripped through
+ * the `amp` permissions override (see `AmpPermissionsOverrideSchema`): extra
+ * `amp.permissions` entries with non-`cmd` matchers / `context` / `delegate` /
+ * `reject`+`message` (appended after the generated canonical entries), plus the
+ * sibling `amp.mcpPermissions`, `amp.guardedFiles.allowlist`, and
+ * `amp.dangerouslyAllowAll` settings.
  */
 export class AmpPermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
@@ -225,22 +276,40 @@ export class AmpPermissions extends ToolPermissions {
 
     const config = rulesyncPermissions.getJson();
     const { disable, permissions } = convertRulesyncToAmp(config);
+    const override = config.amp;
 
-    // Preserve user-authored `delegate` entries (no canonical equivalent), and
-    // place them AFTER the rulesync-generated entries. Amp is first-match-wins,
-    // so rulesync's regenerated allow/ask/reject rules take precedence; the
-    // surviving delegate entries act as later fallbacks. rulesync OWNS and
-    // wholesale-replaces the allow/ask/reject entries.
-    const existingPermissions = toPermissionsList(json[AMP_PERMISSIONS_KEY]);
-    const preservedDelegates = existingPermissions.filter((entry) => entry.action === "delegate");
+    // Extra `amp.permissions` entries the canonical model can't express are
+    // authored through the `amp` override and appended AFTER the
+    // rulesync-generated entries. Amp is first-match-wins, so the generated
+    // allow/ask/reject rules take precedence and the authored entries (non-`cmd`
+    // matchers, `context`, `delegate`, `reject`+`message`) act as later
+    // fallbacks. When the override authors these it becomes the source of truth;
+    // otherwise fall back to preserving any hand-authored `delegate` entries
+    // from the existing file (legacy behavior). rulesync OWNS and
+    // wholesale-replaces the canonical allow/ask/reject entries either way.
+    const authoredExtras = override?.permissions ? toPermissionsList(override.permissions) : [];
+    const preservedDelegates = override?.permissions
+      ? []
+      : toPermissionsList(json[AMP_PERMISSIONS_KEY]).filter((entry) => entry.action === "delegate");
 
     const newJson: Record<string, unknown> = { ...json, [AMP_TOOLS_DISABLE_KEY]: disable };
 
-    const mergedPermissions = [...permissions, ...preservedDelegates];
+    const mergedPermissions = [...permissions, ...authoredExtras, ...preservedDelegates];
     if (mergedPermissions.length > 0) {
       newJson[AMP_PERMISSIONS_KEY] = mergedPermissions;
     } else {
       delete newJson[AMP_PERMISSIONS_KEY];
+    }
+
+    // Author the sibling settings that have no canonical category.
+    if (override?.guardedFiles?.allowlist !== undefined) {
+      newJson[AMP_GUARDED_FILES_ALLOWLIST_KEY] = override.guardedFiles.allowlist;
+    }
+    if (override?.dangerouslyAllowAll !== undefined) {
+      newJson[AMP_DANGEROUSLY_ALLOW_ALL_KEY] = override.dangerouslyAllowAll;
+    }
+    if (override?.mcpPermissions !== undefined) {
+      newJson[AMP_MCP_PERMISSIONS_KEY] = override.mcpPermissions;
     }
 
     return new AmpPermissions({
@@ -254,13 +323,41 @@ export class AmpPermissions extends ToolPermissions {
 
   toRulesyncPermissions(): RulesyncPermissions {
     const json = parseAmpSettings(this.getFileContent());
+    const allPermissions = toPermissionsList(json[AMP_PERMISSIONS_KEY]);
+
+    // Canonical-expressible entries drive the shared `permission` block; the rest
+    // (non-`cmd` matchers, `delegate`, `reject`+`message`, `context`) round-trip
+    // verbatim through the `amp` override so they are not lost.
+    const canonicalEntries = allPermissions.filter(isCanonicalAmpEntry);
+    const overrideEntries = allPermissions.filter((entry) => !isCanonicalAmpEntry(entry));
+
     const config = convertAmpToRulesync({
       disable: toDisableList(json[AMP_TOOLS_DISABLE_KEY]),
-      permissions: toPermissionsList(json[AMP_PERMISSIONS_KEY]),
+      permissions: canonicalEntries,
     });
 
+    const ampOverride: Record<string, unknown> = {};
+    if (overrideEntries.length > 0) {
+      ampOverride.permissions = overrideEntries;
+    }
+    if (Array.isArray(json[AMP_MCP_PERMISSIONS_KEY])) {
+      ampOverride.mcpPermissions = json[AMP_MCP_PERMISSIONS_KEY];
+    }
+    const allowlist = extractAmpGuardedAllowlist(json[AMP_GUARDED_FILES_ALLOWLIST_KEY]);
+    if (allowlist !== undefined) {
+      ampOverride.guardedFiles = { allowlist };
+    }
+    if (typeof json[AMP_DANGEROUSLY_ALLOW_ALL_KEY] === "boolean") {
+      ampOverride.dangerouslyAllowAll = json[AMP_DANGEROUSLY_ALLOW_ALL_KEY];
+    }
+
+    const result: Record<string, unknown> = { ...config };
+    if (Object.keys(ampOverride).length > 0) {
+      result.amp = ampOverride;
+    }
+
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify(config, null, 2),
+      fileContent: JSON.stringify(result, null, 2),
     });
   }
 
@@ -400,16 +497,16 @@ function sortAmpPermissions(entries: AmpPermissionEntry[]): AmpPermissionEntry[]
     if (ap !== bp) return ap - bp;
 
     // Within the same action, specific (with `matches.cmd`) before catch-all.
-    const aHasCmd = a.entry.matches?.cmd !== undefined ? 0 : 1;
-    const bHasCmd = b.entry.matches?.cmd !== undefined ? 0 : 1;
+    const aHasCmd = ampMatchesCmd(a.entry) !== undefined ? 0 : 1;
+    const bHasCmd = ampMatchesCmd(b.entry) !== undefined ? 0 : 1;
     if (aHasCmd !== bHasCmd) return aHasCmd - bHasCmd;
 
     const at = a.entry.tool;
     const bt = b.entry.tool;
     if (at !== bt) return at < bt ? -1 : 1;
 
-    const ac = a.entry.matches?.cmd ?? "";
-    const bc = b.entry.matches?.cmd ?? "";
+    const ac = ampMatchesCmd(a.entry) ?? "";
+    const bc = ampMatchesCmd(b.entry) ?? "";
     if (ac !== bc) return ac < bc ? -1 : 1;
 
     return a.index - b.index;
@@ -463,7 +560,7 @@ function convertAmpToRulesync({
 
   for (const entry of permissions) {
     if (entry.action === "delegate") continue;
-    const pattern = entry.matches?.cmd ?? "*";
+    const pattern = ampMatchesCmd(entry) ?? "*";
     const action: PermissionAction =
       entry.action === "reject" ? "deny" : entry.action === "ask" ? "ask" : "allow";
     assign(entry.tool, pattern, action);
