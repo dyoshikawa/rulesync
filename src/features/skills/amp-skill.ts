@@ -16,7 +16,7 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const AmpSkillFrontmatterSchema = z.looseObject({
+const AmpSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
 });

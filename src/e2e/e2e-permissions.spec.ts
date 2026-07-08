@@ -5,16 +5,137 @@ import * as smolToml from "smol-toml";
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
+import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
 import {
+  assertGenerateMatrixCoversTargets,
   runGenerate,
   runImport,
   useGlobalTestDirectories,
   useTestDirectory,
 } from "./e2e-helper.js";
 
+// Permissions targets exercised by the project-scope generate `it`s below. Each
+// tool has a bespoke serialization, so tests stay hand-written rather than
+// table-driven; this explicit list feeds the completeness check. Note the check
+// only enforces that this enumeration matches the processor's declared target
+// set — it does NOT verify that a dedicated `it` body exists for each name, so a
+// tool's `it` could be deleted while its name lingers here and the check stays
+// green. Keep this list in sync with the actual `it`s by hand.
+const permissionsGenerateTargets = [
+  "opencode",
+  "zed",
+  "amp",
+  "devin",
+  "codexcli",
+  "junie",
+  "cursor",
+  "kiro",
+  "kiro-cli",
+  "kiro-ide",
+  "kilo",
+  "antigravity-ide",
+  "augmentcode",
+  "cline",
+  "factorydroid",
+  "qwencode",
+  "vibe",
+  "reasonix",
+  "takt",
+  "claudecode",
+] as const;
+
+// Permissions targets exercised by the global-scope generate `it`s below.
+const permissionsGlobalTargets = [
+  "claudecode",
+  "opencode",
+  "codexcli",
+  "cursor",
+  "kilo",
+  "augmentcode",
+  "qwencode",
+  "antigravity-cli",
+  "warp",
+  "zed",
+  "amp",
+  "vibe",
+  "rovodev",
+  "goose",
+  "grokcli",
+  "takt",
+  "hermesagent",
+  "reasonix",
+  "devin",
+  "factorydroid",
+  "junie",
+] as const;
+
 describe("E2E: permissions", () => {
   const { getTestDir } = useTestDirectory();
+
+  it("generate matrix must cover every native permissions tool target", () => {
+    assertGenerateMatrixCoversTargets({
+      processor: PermissionsProcessor,
+      testedTargets: permissionsGenerateTargets,
+    });
+  });
+
+  it("should generate claudecode permissions into .claude/settings.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git status *": "allow", "rm *": "deny" },
+            read: { ".env": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "claudecode", features: "permissions" });
+
+    const content = JSON.parse(await readFileContent(join(testDir, ".claude", "settings.json")));
+    expect(content.permissions.allow).toContain("Bash(git status *)");
+    expect(content.permissions.deny).toContain("Bash(rm *)");
+    expect(content.permissions.deny).toContain("Read(.env)");
+  });
+
+  it.each([{ target: "kiro-cli" }, { target: "kiro-ide" }])(
+    "should generate $target permissions into .kiro/agents/default.json",
+    async ({ target }) => {
+      const testDir = getTestDir();
+
+      await writeFileContent(
+        join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+        JSON.stringify(
+          {
+            permission: {
+              bash: { "git *": "allow", "rm *": "deny" },
+              read: { "src/**": "allow" },
+            },
+          },
+          null,
+          2,
+        ),
+      );
+
+      // kiro-cli and kiro-ide reuse the same .kiro/agents/default.json format as
+      // the kiro alias.
+      await runGenerate({ target, features: "permissions" });
+
+      const content = JSON.parse(
+        await readFileContent(join(testDir, ".kiro", "agents", "default.json")),
+      );
+      expect(content.toolsSettings.shell.allowedCommands).toContain("git *");
+      expect(content.toolsSettings.shell.deniedCommands).toContain("rm *");
+      expect(content.toolsSettings.read.allowedPaths).toContain("src/**");
+    },
+  );
 
   it("should generate opencode permissions from .rulesync/permissions.json", async () => {
     const testDir = getTestDir();
@@ -95,6 +216,37 @@ describe("E2E: permissions", () => {
     expect(content["amp.tools.disable"]).toEqual(["builtin:Bash", "edit_file"]);
   });
 
+  it("should generate devin permissions into .devin/config.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            read: { "src/**": "allow" },
+            write: { "*.lock": "deny" },
+            bash: { git: "allow", "rm *": "deny", "*": "ask" },
+            webfetch: { "https://api.github.com/*": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "devin", features: "permissions" });
+
+    const content = JSON.parse(await readFileContent(join(testDir, ".devin", "config.json")));
+    // Canonical categories map to Devin scope matchers; `*` collapses to the bare scope.
+    expect(content.permissions.allow).toContain("Read(src/**)");
+    expect(content.permissions.allow).toContain("Exec(git)");
+    expect(content.permissions.allow).toContain("Fetch(https://api.github.com/*)");
+    expect(content.permissions.deny).toContain("Write(*.lock)");
+    expect(content.permissions.deny).toContain("Exec(rm *)");
+    expect(content.permissions.ask).toContain("Exec");
+  });
+
   it("should generate codexcli permissions into .codex/config.toml", async () => {
     const testDir = getTestDir();
 
@@ -146,6 +298,43 @@ describe("E2E: permissions", () => {
     expect(rulesContent).toContain('decision = "prompt"');
     expect(rulesContent).toContain('pattern = ["rm", "-rf"]');
     expect(rulesContent).toContain('decision = "forbidden"');
+  });
+
+  it("should generate junie permissions into .junie/allowlist.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git ": "allow", "rm *": "deny" },
+            edit: { "src/**": "allow" },
+            read: { "/etc/**": "deny" },
+            mcp: { search: "ask" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "junie", features: "permissions" });
+
+    const content = JSON.parse(await readFileContent(join(testDir, ".junie", "allowlist.json")));
+    // Literal patterns become `prefix`; glob patterns become `pattern`. Junie
+    // has no `deny`, so canonical deny rules are downgraded to `ask`.
+    expect(content.rules.executables).toEqual([
+      { prefix: "git ", action: "allow" },
+      { pattern: "rm *", action: "ask" },
+    ]);
+    expect(content.rules.fileEditing).toEqual([{ pattern: "src/**", action: "allow" }]);
+    expect(content.rules.readOutsideProject).toEqual([{ pattern: "/etc/**", action: "ask" }]);
+    expect(content.rules.mcpTools).toEqual([{ prefix: "search", action: "ask" }]);
+    // defaultBehavior is not fabricated on a fresh generate (Junie's own
+    // default is "ask"); it is only written when authored via the junie
+    // override or pre-existing in the file.
+    expect(content.defaultBehavior).toBeUndefined();
   });
 
   it("should generate cursor permissions into .cursor/cli.json", async () => {
@@ -440,6 +629,68 @@ describe("E2E: permissions", () => {
     expect(bash.denylist).toEqual(["rm *"]);
     expect(readFile.permission).toBe("always");
     expect(parsed.disabled_tools).toContain("write_file");
+  });
+
+  it("should generate reasonix permissions into reasonix.toml and preserve MCP plugins", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, "reasonix.toml"),
+      [
+        'default_model = "deepseek"',
+        "",
+        "[[plugins]]",
+        'name = "filesystem"',
+        'command = "npx"',
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "*": "ask", "git *": "allow", "rm -rf *": "deny" },
+            edit: { "docs/**": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "reasonix", features: "permissions" });
+
+    const parsed = toTable(smolToml.parse(await readFileContent(join(testDir, "reasonix.toml"))));
+    const permissions = toTable(parsed.permissions);
+    expect(permissions.allow).toContain("Bash(git *)");
+    expect(permissions.allow).toContain("Edit(docs/**)");
+    expect(permissions.ask).toContain("Bash");
+    expect(permissions.deny).toContain("Bash(rm -rf *)");
+    // The MCP [[plugins]] table (written by the MCP adapter) must survive.
+    expect(toTableArray(parsed.plugins)).toMatchObject([{ name: "filesystem", command: "npx" }]);
+    expect(parsed.default_model).toBe("deepseek");
+  });
+
+  it("should import reasonix permissions from reasonix.toml", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, "reasonix.toml"),
+      [
+        "[permissions]",
+        'allow = ["Bash(git *)", "Edit(docs/**)"]',
+        'deny = ["Bash(rm -rf *)"]',
+      ].join("\n"),
+    );
+
+    await runImport({ target: "reasonix", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.bash["git *"]).toBe("allow");
+    expect(content.permission.bash["rm -rf *"]).toBe("deny");
+    expect(content.permission.edit["docs/**"]).toBe("allow");
   });
 
   it("should generate takt permissions into .takt/config.yaml", async () => {
@@ -844,6 +1095,53 @@ enabled = true
 
 describe("E2E: permissions (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
+
+  it("global matrix must cover every native global permissions tool target", () => {
+    assertGenerateMatrixCoversTargets({
+      processor: PermissionsProcessor,
+      testedTargets: permissionsGlobalTargets,
+      global: true,
+    });
+  });
+
+  it.each([
+    { target: "devin", outputPath: join(".config", "devin", "config.json") },
+    { target: "factorydroid", outputPath: join(".factory", "settings.json") },
+    { target: "junie", outputPath: join(".junie", "allowlist.json") },
+  ])(
+    "should generate $target permissions in home directory with --global",
+    async ({ target, outputPath }) => {
+      const projectDir = getProjectDir();
+      const homeDir = getHomeDir();
+
+      await writeFileContent(
+        join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+        JSON.stringify(
+          {
+            root: true,
+            permission: {
+              bash: { "git status *": "allow", "rm *": "deny" },
+            },
+          },
+          null,
+          2,
+        ),
+      );
+
+      await runGenerate({
+        target,
+        features: "permissions",
+        global: true,
+        env: { HOME_DIR: homeDir },
+      });
+
+      // Event mapping/serialization differs per tool, so assert the canonical
+      // command patterns survive somewhere in the generated file.
+      const generated = await readFileContent(join(homeDir, outputPath));
+      expect(generated).toContain("git status *");
+      expect(generated).toContain("rm *");
+    },
+  );
 
   it("should generate claudecode permissions in home directory with --global", async () => {
     const projectDir = getProjectDir();
@@ -1533,6 +1831,8 @@ describe("E2E: permissions (global mode)", () => {
     // under `permissions.rulesync` for round-tripping.
     const parsed = toTable(load(await readFileContent(join(homeDir, ".hermes", "config.yaml"))));
     expect(parsed.command_allowlist).toEqual(["git status *"]);
+    // The bash deny reaches Hermes's hard denylist (previously silently dropped).
+    expect(toTable(parsed.approvals).deny).toEqual(["rm -rf *"]);
     const permissions = toTable(parsed.permissions);
     const rulesyncProfile = toTable(permissions.rulesync);
     const permissionMap = toTable(rulesyncProfile.permission);
@@ -1542,6 +1842,48 @@ describe("E2E: permissions (global mode)", () => {
     // Unrelated user settings preserved by the non-destructive merge.
     expect(parsed.model).toBe("hermes-large");
     expect(parsed.terminal).toBe("tmux");
+  });
+
+  it("should generate reasonix permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          root: true,
+          permission: {
+            bash: { "git status *": "allow" },
+            read: { ".env": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    // Pre-seed ~/.reasonix/config.toml with the MCP [[plugins]] table to verify
+    // the non-destructive merge into the shared global config.
+    await writeFileContent(
+      join(homeDir, ".reasonix", "config.toml"),
+      ["[[plugins]]", 'name = "existing"', 'command = "node"'].join("\n"),
+    );
+
+    await runGenerate({
+      target: "reasonix",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const parsed = toTable(
+      smolToml.parse(await readFileContent(join(homeDir, ".reasonix", "config.toml"))),
+    );
+    const permissions = toTable(parsed.permissions);
+    expect(permissions.allow).toContain("Bash(git status *)");
+    expect(permissions.deny).toContain("Read(.env)");
+    expect(toTableArray(parsed.plugins)).toMatchObject([{ name: "existing", command: "node" }]);
   });
 });
 

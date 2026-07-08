@@ -1,13 +1,15 @@
 import { join } from "node:path";
 
-import { dump, load } from "js-yaml";
-
 import { TAKT_CONFIG_FILE_NAME, TAKT_DIR } from "../../constants/takt-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionsConfig } from "../../types/permissions.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { isPlainObject } from "../../utils/type-guards.js";
+import {
+  applySharedConfigPatch,
+  parseSharedConfig,
+  TAKT_CONFIG_SHARED_FILE_KEY,
+} from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -22,6 +24,12 @@ import {
 const TAKT_PROVIDER_KEY = "provider";
 const TAKT_PROVIDER_PROFILES_KEY = "provider_profiles";
 const TAKT_DEFAULT_PERMISSION_MODE_KEY = "default_permission_mode";
+// Per-workflow-step mode map inside a provider profile (`<step>` →
+// readonly/edit/full); routed through the `takt` override.
+const TAKT_STEP_PERMISSION_OVERRIDES_KEY = "step_permission_overrides";
+// Top-level, per-provider sandbox/network options table; routed through the
+// `takt` override.
+const TAKT_PROVIDER_OPTIONS_KEY = "provider_options";
 
 // Takt's three coarse permission modes, ordered readonly < edit < full.
 type TaktPermissionMode = "readonly" | "edit" | "full";
@@ -60,10 +68,16 @@ const CATCH_ALL_PATTERN = "*";
  *     `bash: { "*": "deny" }`. These round-trip the generate mapping.
  *
  * Both project and global scope are supported. The shared config is merged in
- * place: only `provider_profiles.<provider>.default_permission_mode` is set;
- * the active provider's other keys (e.g. `step_permission_overrides`), every
- * other provider profile, and all other top-level keys are preserved. The file
- * is never deleted.
+ * place: `provider_profiles.<provider>.default_permission_mode` is set from the
+ * derived mode; every other provider profile and all other top-level keys are
+ * preserved. The file is never deleted.
+ *
+ * Two Takt-specific surfaces with no canonical category round-trip through the
+ * `takt` override (see `TaktPermissionsOverrideSchema`):
+ * `step_permission_overrides` (a per-step mode map inside the active provider
+ * profile, layered on top of `default_permission_mode`) and `provider_options`
+ * (a top-level per-provider sandbox/network table). Both are authored on
+ * generate and re-extracted on import.
  */
 export class TaktPermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
@@ -116,45 +130,67 @@ export class TaktPermissions extends ToolPermissions {
     // Read without initializing so a dry-run/check does not create the user's
     // config.yaml as a side effect (mirrors the Goose/Grok adapters).
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
-    const config = parseTaktConfig(existingContent, paths.relativeDirPath, paths.relativeFilePath);
+    const config = parseSharedConfig({
+      format: "yaml",
+      fileContent: existingContent,
+      filePath,
+      invalidRootPolicy: "error",
+    });
 
+    const rulesyncJson = rulesyncPermissions.getJson();
     const provider = resolveActiveProvider(config);
-    const mode = deriveTaktPermissionMode(rulesyncPermissions.getJson());
+    const mode = deriveTaktPermissionMode(rulesyncJson);
+    const override = isPlainObject(rulesyncJson.takt) ? rulesyncJson.takt : undefined;
 
-    const existingProfiles = isPlainObject(config[TAKT_PROVIDER_PROFILES_KEY])
-      ? config[TAKT_PROVIDER_PROFILES_KEY]
-      : {};
-    const existingProfile = isPlainObject(existingProfiles[provider])
-      ? existingProfiles[provider]
-      : {};
+    // `step_permission_overrides` lives inside the active provider profile,
+    // alongside the derived coarse `default_permission_mode`; Takt layers the
+    // per-step mode on top of the default, so the two coexist without conflict.
+    const stepOverrides = isPlainObject(override?.[TAKT_STEP_PERMISSION_OVERRIDES_KEY])
+      ? override[TAKT_STEP_PERMISSION_OVERRIDES_KEY]
+      : undefined;
+    // `provider_options` is a top-level table keyed by provider name, each
+    // holding an options object orthogonal to the permission mode.
+    const overrideProviderOptions = isPlainObject(override?.[TAKT_PROVIDER_OPTIONS_KEY])
+      ? override[TAKT_PROVIDER_OPTIONS_KEY]
+      : undefined;
 
-    const merged: Record<string, unknown> = {
-      ...config,
+    const patch: Record<string, unknown> = {
       [TAKT_PROVIDER_PROFILES_KEY]: {
-        ...existingProfiles,
         [provider]: {
-          ...existingProfile,
           [TAKT_DEFAULT_PERMISSION_MODE_KEY]: mode,
+          ...(stepOverrides !== undefined && {
+            [TAKT_STEP_PERMISSION_OVERRIDES_KEY]: stepOverrides,
+          }),
         },
       },
+      ...(overrideProviderOptions !== undefined && {
+        [TAKT_PROVIDER_OPTIONS_KEY]: overrideProviderOptions,
+      }),
     };
 
     return new TaktPermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: dump(merged),
+      fileContent: applySharedConfigPatch({
+        fileKey: TAKT_CONFIG_SHARED_FILE_KEY,
+        feature: "permissions",
+        existingContent,
+        patch,
+        filePath,
+      }),
       validate: true,
       global,
     });
   }
 
   toRulesyncPermissions(): RulesyncPermissions {
-    const config = parseTaktConfig(
-      this.getFileContent(),
-      this.getRelativeDirPath(),
-      this.getRelativeFilePath(),
-    );
+    const config = parseSharedConfig({
+      format: "yaml",
+      fileContent: this.getFileContent(),
+      filePath: join(this.getRelativeDirPath(), this.getRelativeFilePath()),
+      invalidRootPolicy: "error",
+    });
 
     const provider = resolveActiveProvider(config);
     const profiles = isPlainObject(config[TAKT_PROVIDER_PROFILES_KEY])
@@ -165,8 +201,30 @@ export class TaktPermissions extends ToolPermissions {
 
     const rulesyncConfig: PermissionsConfig = taktModeToRulesyncConfig(mode);
 
+    // Route Takt's step-permission map and provider-options table into the
+    // `takt` override — neither has a canonical category. The step map is lifted
+    // from the active provider profile; `provider_options` round-trips whole.
+    const stepOverrides = isPlainObject(profile[TAKT_STEP_PERMISSION_OVERRIDES_KEY])
+      ? profile[TAKT_STEP_PERMISSION_OVERRIDES_KEY]
+      : undefined;
+    const providerOptions = isPlainObject(config[TAKT_PROVIDER_OPTIONS_KEY])
+      ? config[TAKT_PROVIDER_OPTIONS_KEY]
+      : undefined;
+    const taktOverride: Record<string, unknown> = {};
+    if (stepOverrides && Object.keys(stepOverrides).length > 0) {
+      taktOverride[TAKT_STEP_PERMISSION_OVERRIDES_KEY] = stepOverrides;
+    }
+    if (providerOptions && Object.keys(providerOptions).length > 0) {
+      taktOverride[TAKT_PROVIDER_OPTIONS_KEY] = providerOptions;
+    }
+
+    const result: Record<string, unknown> = { ...rulesyncConfig };
+    if (Object.keys(taktOverride).length > 0) {
+      result.takt = taktOverride;
+    }
+
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify(rulesyncConfig, null, 2),
+      fileContent: JSON.stringify(result, null, 2),
     });
   }
 
@@ -189,35 +247,6 @@ export class TaktPermissions extends ToolPermissions {
       global,
     });
   }
-}
-
-/**
- * Parse a Takt `config.yaml` into a plain object, treating an empty file as `{}`.
- */
-function parseTaktConfig(
-  fileContent: string,
-  relativeDirPath: string,
-  relativeFilePath: string,
-): Record<string, unknown> {
-  const configPath = join(relativeDirPath, relativeFilePath);
-  let parsed: unknown;
-  try {
-    parsed = fileContent.trim() === "" ? {} : load(fileContent);
-  } catch (error) {
-    throw new Error(`Failed to parse Takt config at ${configPath}: ${formatError(error)}`, {
-      cause: error,
-    });
-  }
-  // An empty config.yaml parses to undefined/null; treat it as an empty object.
-  if (parsed === undefined || parsed === null) {
-    return {};
-  }
-  // `isPlainObject` (not `isRecord`) rejects class instances for
-  // prototype-pollution hardening; a YAML mapping always parses to a plain object.
-  if (!isPlainObject(parsed)) {
-    throw new Error(`Failed to parse Takt config at ${configPath}: expected a YAML mapping`);
-  }
-  return parsed;
 }
 
 /**

@@ -4,7 +4,6 @@ import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { ROVODEV_DIR, ROVODEV_RULE_FILE_NAME } from "../../constants/rovodev-paths.js";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import type { FeatureOptions } from "../../types/features.js";
@@ -208,6 +207,22 @@ type ToolRuleFactory = {
     getSettablePaths(options?: {
       global?: boolean;
     }): ToolRuleSettablePaths | ToolRuleSettablePathsGlobal;
+    /** Set alongside `meta.mirrorsRootToAgentsMd`. See {@link RovodevRule.getRootMirrorFiles}. */
+    getRootMirrorFiles?(params: {
+      outputRoot: string;
+      rootRule: ToolRule;
+      content: string;
+    }): ToolRule[];
+    /** Set alongside `meta.mirrorsRootToAgentsMd`. See {@link RovodevRule.getRootMirrorDeletionGlobs}. */
+    getRootMirrorDeletionGlobs?(params: { outputRoot: string }): {
+      primaryGlob: string;
+      mirrorGlob: string;
+    };
+    /**
+     * Override where the `separate-local-file` deletion glob points when the tool
+     * writes its local file outside its root dir. See {@link RovodevRule.getLocalRootDeletionGlob}.
+     */
+    getLocalRootDeletionGlob?(params: { outputRoot: string; fileName: string }): string;
   };
   meta: {
     /** File extension for the rule file */
@@ -691,13 +706,12 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       class: DevinRule,
       meta: {
         extension: "md",
-        // Project rules live under `.devin/rules/*.md` (preferred since the Devin
-        // Desktop rebrand; `.devin/rules/*.md` is the legacy fallback); global
-        // rules are a single plain `~/.codeium/windsurf/memories/global_rules.md` file.
+        // Project rules live under `.devin/rules/*.md`; global always-on rules
+        // are a single plain `~/.config/devin/AGENTS.md` file.
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
-        // No additionalConventions.skills needed: Devin Cascade auto-discovers
-        // skills from .devin/skills/ and ~/.codeium/windsurf/skills/ directories.
+        // No additionalConventions.skills needed: Devin auto-discovers skills
+        // from .devin/skills/ (project) and ~/.config/devin/skills/ (global).
       },
     },
   ],
@@ -721,7 +735,7 @@ const allToolTargetKeys = [...toolRuleFactories.keys()];
 
 const rulesProcessorToolTargets: ToolTarget[] = allToolTargetKeys;
 
-export const rulesProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
+const rulesProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
   const factory = toolRuleFactories.get(target);
   return factory?.meta.supportsGlobal ?? false;
 });
@@ -845,7 +859,7 @@ export class RulesProcessor extends FeatureProcessor {
 
     const extraFiles = await this.buildMcpInstructionFiles({ toolRules, meta });
 
-    this.applyRootRuleSections({ toolRules, meta });
+    this.applyRootRuleSections({ toolRules, factory });
 
     return [...toolRules, ...extraFiles];
   }
@@ -954,63 +968,33 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private applyRootRuleSections({
     toolRules,
-    meta,
+    factory,
   }: {
     toolRules: ToolRule[];
-    meta: ToolRuleFactory["meta"];
+    factory: ToolRuleFactory;
   }): void {
+    const { meta } = factory;
     const rootRule = toolRules.find((rule) => rule.isRoot());
     if (!rootRule) {
       return;
     }
 
-    // Generate reference section based on meta configuration
     const referenceSection = this.generateReferenceSectionFromMeta(meta, toolRules);
 
-    // Generate additional conventions section (only if not creating a separate rule)
     const conventionsSection =
       !meta.createsSeparateConventionsRule && meta.additionalConventions
         ? this.generateAdditionalConventionsSectionFromMeta(meta)
         : "";
 
-    // Prepend sections to root rule content
     const newContent = referenceSection + conventionsSection + rootRule.getFileContent();
     rootRule.setFileContent(newContent);
 
-    if (meta.mirrorsRootToAgentsMd && !this.global) {
-      this.mirrorRootRuleToAgentsMd({ toolRules, rootRule, content: newContent });
-    }
-  }
-
-  /**
-   * Mirror the primary root rule to a project-root `AGENTS.md` for tools whose
-   * primary root lives in a subdirectory (rovodev: `.rovodev/AGENTS.md`).
-   */
-  private mirrorRootRuleToAgentsMd({
-    toolRules,
-    rootRule,
-    content,
-  }: {
-    toolRules: ToolRule[];
-    rootRule: ToolRule;
-    content: string;
-  }): void {
-    if (!(rootRule instanceof RovodevRule)) {
-      return;
-    }
-    const primary = RovodevRule.getSettablePaths({ global: false }).root;
-    if (
-      rootRule.getRelativeDirPath() === primary.relativeDirPath &&
-      rootRule.getRelativeFilePath() === primary.relativeFilePath
-    ) {
+    if (meta.mirrorsRootToAgentsMd && !this.global && factory.class.getRootMirrorFiles) {
       toolRules.push(
-        new RovodevRule({
+        ...factory.class.getRootMirrorFiles({
           outputRoot: this.outputRoot,
-          relativeDirPath: ".",
-          relativeFilePath: "AGENTS.md",
-          fileContent: content,
-          validate: true,
-          root: true,
+          rootRule,
+          content: newContent,
         }),
       );
     }
@@ -1442,9 +1426,10 @@ As this project's AI coding tool, you must follow the additional conventions bel
         }
         const fileName = factory.meta.localRootFileName;
 
-        // rovodev writes its local file at the project root, not under its root dir.
-        if (factory.class === RovodevRule) {
-          const filePaths = await findFilesByGlobs(join(this.outputRoot, fileName));
+        if (factory.class.getLocalRootDeletionGlob) {
+          const filePaths = await findFilesByGlobs(
+            factory.class.getLocalRootDeletionGlob({ outputRoot: this.outputRoot, fileName }),
+          );
           return buildDeletionRulesFromPaths(filePaths);
         }
 
@@ -1467,17 +1452,18 @@ As this project's AI coding tool, you must follow the additional conventions bel
           !forDeletion ||
           this.global ||
           !factory.meta.mirrorsRootToAgentsMd ||
-          factory.class !== RovodevRule
+          !factory.class.getRootMirrorDeletionGlobs
         ) {
           return [];
         }
-        const primaryPaths = await findFilesByGlobs(
-          join(this.outputRoot, ROVODEV_DIR, ROVODEV_RULE_FILE_NAME),
-        );
+        const { primaryGlob, mirrorGlob } = factory.class.getRootMirrorDeletionGlobs({
+          outputRoot: this.outputRoot,
+        });
+        const primaryPaths = await findFilesByGlobs(primaryGlob);
         if (primaryPaths.length === 0) {
           return [];
         }
-        const mirrorPaths = await findFilesByGlobs(join(this.outputRoot, "AGENTS.md"));
+        const mirrorPaths = await findFilesByGlobs(mirrorGlob);
         return buildDeletionRulesFromPaths(mirrorPaths);
       })();
 

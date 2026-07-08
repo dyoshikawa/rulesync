@@ -185,8 +185,10 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
   [
     "copilot",
     {
+      // GitHub Copilot reads project skills from `.github/skills/` and personal
+      // skills from `~/.copilot/skills/`, so it supports both project and global.
       class: CopilotSkill,
-      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
   [
@@ -269,17 +271,19 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     },
   ],
   [
+    // Kiro reads skills from `.kiro/skills/` (project) and `~/.kiro/skills/`
+    // (global). https://kiro.dev/docs/skills/
     "kiro-cli",
     {
       class: KiroCliSkill,
-      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
   [
     "kiro-ide",
     {
       class: KiroIdeSkill,
-      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
   [
@@ -393,12 +397,10 @@ const skillsProcessorToolTargetsProject: ToolTarget[] = allToolTargetKeys.filter
   return factory?.meta.supportsProject ?? true;
 });
 
-export const skillsProcessorToolTargetsSimulated: ToolTarget[] = allToolTargetKeys.filter(
-  (target) => {
-    const factory = toolSkillFactories.get(target);
-    return factory?.meta.supportsSimulated ?? false;
-  },
-);
+const skillsProcessorToolTargetsSimulated: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolSkillFactories.get(target);
+  return factory?.meta.supportsSimulated ?? false;
+});
 
 export const skillsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
   const factory = toolSkillFactories.get(target);

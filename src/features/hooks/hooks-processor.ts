@@ -11,13 +11,17 @@ import {
   COPILOTCLI_HOOK_EVENTS,
   CURSOR_HOOK_EVENTS,
   DEEPAGENTS_HOOK_EVENTS,
+  DEVIN_HOOK_EVENTS,
   FACTORYDROID_HOOK_EVENTS,
   GOOSE_HOOK_EVENTS,
+  HERMESAGENT_HOOK_EVENTS,
   JUNIE_HOOK_EVENTS,
   KILO_HOOK_EVENTS,
   KIRO_HOOK_EVENTS,
+  KIRO_IDE_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
   QWENCODE_HOOK_EVENTS,
+  REASONIX_HOOK_EVENTS,
   VIBE_HOOK_EVENTS,
   type HookEvent,
   type HookType,
@@ -36,7 +40,7 @@ import { CopilotHooks } from "./copilot-hooks.js";
 import { CopilotcliHooks } from "./copilotcli-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { DeepagentsHooks } from "./deepagents-hooks.js";
-import { DEVIN_HOOK_EVENTS, DevinHooks } from "./devin-hooks.js";
+import { DevinHooks } from "./devin-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
 import { GooseHooks } from "./goose-hooks.js";
 import { HermesagentHooks } from "./hermesagent-hooks.js";
@@ -44,8 +48,10 @@ import { JunieHooks } from "./junie-hooks.js";
 import { KiloHooks } from "./kilo-hooks.js";
 import { KiroCliHooks } from "./kiro-cli-hooks.js";
 import { KiroHooks } from "./kiro-hooks.js";
+import { KiroIdeHooks } from "./kiro-ide-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { QwencodeHooks } from "./qwencode-hooks.js";
+import { ReasonixHooks } from "./reasonix-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import type {
   ToolHooksForDeletionParams,
@@ -84,7 +90,34 @@ type ToolHooksFactory = {
   supportedEvents: readonly HookEvent[];
   supportedHookTypes: readonly HookType[];
   supportsMatcher: boolean;
+  /**
+   * When true, keys in the tool-specific override block (`config[target].hooks`)
+   * are passed through verbatim by the adapter even if they are not in
+   * `supportedEvents` (e.g. Kiro IDE's `PostFileSave`/`PreTaskExec` triggers),
+   * so they must not be reported as skipped/unsupported.
+   */
+  passthroughOverrideEvents?: boolean;
 };
+
+/**
+ * Event names present in the config that the target's adapter cannot emit.
+ *
+ * When the factory passes override-block keys through verbatim
+ * (`passthroughOverrideEvents`), those keys are excluded from the check so
+ * documented passthrough triggers aren't falsely reported as skipped.
+ */
+function unsupportedEventNames(params: {
+  factory: ToolHooksFactory;
+  sharedHooks: Record<string, unknown>;
+  effectiveHooks: Record<string, unknown>;
+}): string[] {
+  const { factory, sharedHooks, effectiveHooks } = params;
+  const supportedEvents: Set<string> = new Set(factory.supportedEvents);
+  const eventNames = factory.passthroughOverrideEvents
+    ? Object.keys(sharedHooks)
+    : Object.keys(effectiveHooks);
+  return [...new Set(eventNames)].filter((e) => !supportedEvents.has(e));
+}
 
 export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
   [
@@ -253,8 +286,14 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     {
       class: HermesagentHooks,
       meta: { supportsProject: false, supportsGlobal: true, supportsImport: true },
-      supportedEvents: CLAUDE_HOOK_EVENTS,
-      supportedHookTypes: ["command", "prompt", "http"],
+      // Hermes validates hooks against a fixed `VALID_HOOKS` event set and only
+      // runs shell commands (shlex.split, shell=False) — `prompt`/`http` hooks
+      // and unmapped canonical events have no native equivalent.
+      // https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/hooks.md
+      supportedEvents: HERMESAGENT_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      // `matcher` is only valid on pre_tool_call/post_tool_call; the adapter
+      // itself drops it (with a warning) on the other supported events.
       supportsMatcher: true,
     },
   ],
@@ -285,10 +324,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     },
   ],
   [
-    // The Kiro CLI uses the same `.kiro/agents/default.json` agent-hook format.
-    // (Kiro IDE hooks use multi-file `.kiro/hooks/*.kiro.hook`, which the
-    // single-file hooks architecture does not yet emit, so `kiro-ide` does not
-    // register a hooks adapter.)
+    // The Kiro CLI uses the same `.kiro/agents/default.json` agent-hook format
+    // as the legacy `kiro` alias. (Kiro IDE hooks use the structured
+    // `.kiro/hooks/*.json` v1 format — see the `kiro-ide` entry below.)
     "kiro-cli",
     {
       class: KiroCliHooks,
@@ -303,20 +341,44 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     },
   ],
   [
+    // Kiro IDE 1.0 reads structured JSON hooks from `.kiro/hooks/` (workspace)
+    // and `~/.kiro/hooks/` (user). A single file may declare multiple hooks in
+    // its `hooks` array, so rulesync emits all hooks into one `rulesync.json`
+    // file ({ "version": "v1", "hooks": [ ... ] }). The IDE supports both
+    // `agent` (prompt) and `command` actions.
+    // Reference: https://kiro.dev/docs/hooks/
+    "kiro-ide",
+    {
+      class: KiroIdeHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: KIRO_IDE_HOOK_EVENTS,
+      supportedHookTypes: ["command", "prompt"],
+      supportsMatcher: true,
+      // IDE-only triggers (PostFileSave, PreTaskExec, …) supplied via the
+      // `kiro-ide` override block are emitted verbatim, so don't warn on them.
+      passthroughOverrideEvents: true,
+    },
+  ],
+  [
     "devin",
     {
       class: DevinHooks,
       meta: {
-        // Devin Cascade Hooks (GA) live in `.windsurf/hooks.json` (project)
-        // and `~/.codeium/windsurf/hooks.json` (global). Each event maps to a
-        // flat array of command/powershell hook objects with no matcher.
+        // Devin Local hooks live in the standalone `.devin/hooks.v1.json`
+        // (project) and under the `hooks` key of `~/.config/devin/config.json`
+        // (global). Each event maps to Claude-style
+        // `{ matcher?, hooks: [{ type, command|prompt, timeout? }] }` groups.
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,
       },
       supportedEvents: DEVIN_HOOK_EVENTS,
-      supportedHookTypes: ["command"],
-      supportsMatcher: false,
+      supportedHookTypes: ["command", "prompt"],
+      supportsMatcher: true,
     },
   ],
   [
@@ -387,6 +449,28 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       },
       supportedEvents: QWENCODE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "reasonix",
+    {
+      // Reasonix hooks live in a Claude-Code-style but standalone JSON file:
+      // `.reasonix/settings.json` (project) / `~/.reasonix/settings.json`
+      // (global) — separate from the `[permissions]`/`[[plugins]]` TOML config
+      // the MCP/permissions adapters share. Only the four documented events
+      // (PreToolUse/PostToolUse/UserPromptSubmit/Stop) are mapped; the
+      // .mcp.json/rules/skills scope is deferred per the upstream issue.
+      class: ReasonixHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: REASONIX_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      // Only PreToolUse/PostToolUse honor `match`; the adapter itself drops it
+      // (with a warning) on UserPromptSubmit/Stop.
       supportsMatcher: true,
     },
   ],
@@ -512,9 +596,7 @@ export class HooksProcessor extends FeatureProcessor {
 
     // Warn about unsupported events
     {
-      const supportedEvents: Set<string> = new Set(factory.supportedEvents);
-      const configEventNames = new Set<string>(Object.keys(effectiveHooks));
-      const skipped = [...configEventNames].filter((e) => !supportedEvents.has(e));
+      const skipped = unsupportedEventNames({ factory, sharedHooks, effectiveHooks });
       if (skipped.length > 0) {
         this.logger.warn(
           `Skipped hook event(s) for ${this.toolTarget} (not supported): ${skipped.join(", ")}`,

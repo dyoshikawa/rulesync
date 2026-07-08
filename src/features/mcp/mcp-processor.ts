@@ -33,6 +33,7 @@ import { ReasonixMcp } from "./reasonix-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
 import { RovodevMcp } from "./rovodev-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
+import { TaktMcp } from "./takt-mcp.js";
 import {
   ToolMcp,
   ToolMcpForDeletionParams,
@@ -123,13 +124,13 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
   [
     "augmentcode",
     {
-      // AugmentCode (Auggie CLI) persists MCP servers in the shared user
-      // settings file `~/.augment/settings.json`. The docs only document a
-      // global location, so MCP is global-only here.
-      // https://docs.augmentcode.com/cli/integrations
+      // AugmentCode (Auggie CLI) persists MCP servers in the shared settings
+      // file `.augment/settings.json` at either scope: the committed workspace
+      // file for team-shared servers (project) or `~/.augment/settings.json`
+      // (global). https://docs.augmentcode.com/cli/config
       class: AugmentcodeMcp,
       meta: {
-        supportsProject: false,
+        supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
@@ -251,12 +252,15 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
   [
     "goose",
     {
-      // Goose reads MCP servers as "extensions" only from the global user config
-      // `~/.config/goose/config.yaml`; it has no project-scoped MCP location.
+      // Goose reads MCP servers as "extensions" from the global user config
+      // `~/.config/goose/config.yaml`, and (since v1.39.0) discovers stdio-only
+      // MCP extensions in open plugins at project scope
+      // `.agents/plugins/rulesync/.mcp.json` (Claude-style `mcpServers`).
       // https://block.github.io/goose/docs/getting-started/using-extensions/
+      // https://github.com/block/goose/pull/9471
       class: GooseMcp,
       meta: {
-        supportsProject: false,
+        supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
@@ -435,6 +439,25 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     },
   ],
   [
+    "takt",
+    {
+      // Takt has no project/global registry of MCP server *definitions* — those
+      // live per-step in workflow YAML. `.takt/config.yaml` (project) /
+      // `~/.takt/config.yaml` (global) only hold the default-deny transport
+      // allowlist `workflow_mcp_servers: { stdio, sse, http }`. TaktMcp emits
+      // that allowlist (derived from the rulesync servers' transports); the
+      // concrete server map is intentionally not representable here.
+      // https://github.com/nrslib/takt/blob/main/docs/configuration.md
+      class: TaktMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
     "vibe",
     {
       class: VibeMcp,
@@ -463,8 +486,9 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     {
       class: DevinMcp,
       meta: {
-        // Devin reads `mcp_config.json` from `.devin/` (project) and
-        // `~/.codeium/windsurf/` (global). Each server may carry a
+        // Devin Local reads MCP servers from the `mcpServers` key of its native
+        // config file: `.devin/config.json` (project) and
+        // `~/.config/devin/config.json` (global). Each server may carry a
         // `disabledTools` array, but Devin has no `enabledTools` concept.
         supportsProject: true,
         supportsGlobal: true,
@@ -490,12 +514,12 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
 // Derive tool target arrays from factory metadata
 const allToolTargetKeys = [...toolMcpFactories.keys()];
 
-export const mcpProcessorToolTargets: ToolTarget[] = allToolTargetKeys.filter((target) => {
+const mcpProcessorToolTargets: ToolTarget[] = allToolTargetKeys.filter((target) => {
   const factory = toolMcpFactories.get(target);
   return factory?.meta.supportsProject ?? false;
 });
 
-export const mcpProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
+const mcpProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
   const factory = toolMcpFactories.get(target);
   return factory?.meta.supportsGlobal ?? false;
 });
@@ -636,6 +660,7 @@ export class McpProcessor extends FeatureProcessor {
           outputRoot: this.outputRoot,
           rulesyncMcp: filteredRulesyncMcp,
           global: this.global,
+          logger: this.logger,
         });
       }),
     );

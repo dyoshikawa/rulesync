@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-export const GOOSE_DIR = ".goose";
+const GOOSE_DIR = ".goose";
 export const GOOSE_GLOBAL_DIR = join(".config", "goose");
 export const GOOSE_RULE_FILE_NAME = ".goosehints";
 export const GOOSE_IGNORE_FILE_NAME = ".gooseignore";
@@ -10,6 +10,17 @@ export const GOOSE_MCP_FILE_NAME = "config.yaml";
 export const GOOSE_PERMISSIONS_FILE_NAME = "permission.yaml";
 export const GOOSE_HOOKS_DIR_PATH = join(".agents", "plugins", "rulesync", "hooks");
 export const GOOSE_HOOKS_FILE_NAME = "hooks.json";
+
+// Goose v1.39.0 (2026-06-25) discovers MCP extensions in open plugins at
+// project scope `<project>/.agents/plugins/<name>/.mcp.json` and user scope
+// `~/.agents/plugins/<name>/.mcp.json`, using the Claude-style manifest shape
+// `{ "mcpServers": { "<name>": { command, args, env, cwd } } }`. The manifest is
+// stdio-only (no `url`/`headers`). rulesync reuses the same `.agents/plugins/rulesync/`
+// tree already used for Goose hooks.
+// @see https://github.com/block/goose/pull/9471
+// @see https://github.com/block/goose/releases/tag/v1.39.0
+export const GOOSE_PLUGIN_MCP_DIR_PATH = join(".agents", "plugins", "rulesync");
+export const GOOSE_PLUGIN_MCP_FILE_NAME = ".mcp.json";
 
 // Goose discovers skills under `.goose/skills/<name>/SKILL.md`, each a directory
 // containing a SKILL.md with `name`+`description` frontmatter. rulesync emits

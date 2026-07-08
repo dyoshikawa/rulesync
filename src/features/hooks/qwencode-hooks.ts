@@ -13,6 +13,7 @@ import {
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { compact } from "../../utils/object.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import {
   ToolHooks,
@@ -21,6 +22,41 @@ import {
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
+
+/**
+ * Build a single Qwen Code hook object from a canonical hook definition.
+ * Command-only fields (`async`/`env`/`shell`) are emitted only on command hooks
+ * and http-only fields (`headers`/`allowedEnvVars`/`once`) only on http hooks,
+ * matching upstream. `statusMessage` applies to both.
+ * https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/hooks.md
+ */
+function canonicalDefToQwencodeHook(
+  def: HooksConfig["hooks"][string][number],
+): Record<string, unknown> {
+  const type = def.type ?? "command";
+  const isHttp = type === "http";
+  const isCommand = type === "command";
+  return {
+    type,
+    ...compact({
+      command: def.command,
+      url: def.url,
+      timeout: def.timeout,
+      name: def.name,
+      description: def.description,
+      statusMessage: def.statusMessage,
+      // Command-only per-hook fields (Qwen Code PR #2827) — upstream documents
+      // these for command hooks only, so gate on the command type explicitly.
+      async: isCommand ? def.async : undefined,
+      env: isCommand ? def.env : undefined,
+      shell: isCommand ? def.shell : undefined,
+      // Http-only per-hook fields (Qwen Code PR #2827).
+      headers: isHttp ? def.headers : undefined,
+      allowedEnvVars: isHttp ? def.allowedEnvVars : undefined,
+      once: isHttp ? def.once : undefined,
+    }),
+  };
+}
 
 /**
  * Convert canonical hooks config to Qwen Code format.
@@ -54,17 +90,7 @@ function canonicalToQwencodeHooks(config: HooksConfig): Record<string, unknown[]
     }
     const entries: unknown[] = [];
     for (const [matcherKey, defs] of byMatcher) {
-      const hooks = defs.map((def) => {
-        return {
-          type: def.type ?? "command",
-          ...(def.command !== undefined && def.command !== null && { command: def.command }),
-          ...(def.url !== undefined && def.url !== null && { url: def.url }),
-          ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
-          ...(def.name !== undefined && def.name !== null && { name: def.name }),
-          ...(def.description !== undefined &&
-            def.description !== null && { description: def.description }),
-        };
-      });
+      const hooks = defs.map(canonicalDefToQwencodeHook);
       // A matcher group runs sequentially when any of its definitions opt in.
       // Qwen Code defaults to parallel execution, so only emit when true.
       const sequential = defs.some((def) => def.sequential === true);
@@ -94,6 +120,18 @@ const QwencodeHookEntrySchema = z.looseObject({
   timeout: z.optional(z.number()),
   name: z.optional(z.string()),
   description: z.optional(z.string()),
+  // Progress text shown while the hook runs (command and http hooks).
+  statusMessage: z.optional(z.string()),
+  // Command-hook fields (Qwen Code PR #2827): background execution, extra
+  // subprocess env vars, and shell interpreter selection.
+  async: z.optional(z.boolean()),
+  env: z.optional(z.record(z.string(), z.string())),
+  shell: z.optional(z.string()),
+  // Http-hook fields (Qwen Code PR #2827): request headers, env-var allowlist
+  // for `${VAR}` interpolation, and once-per-session execution.
+  headers: z.optional(z.record(z.string(), z.string())),
+  allowedEnvVars: z.optional(z.array(z.string())),
+  once: z.optional(z.boolean()),
 });
 
 /**
@@ -116,23 +154,38 @@ function qwencodeMatcherEntryToCanonical(
   const defs: HooksConfig["hooks"][string] = [];
   const hooks = entry.hooks ?? [];
   const sequential = entry.sequential === true;
+  const matcher =
+    entry.matcher !== undefined && entry.matcher !== null && entry.matcher !== ""
+      ? entry.matcher
+      : undefined;
   for (const h of hooks) {
-    const command = h.command;
     // Preserve the `http` transport (and its target URL) instead of
     // collapsing every non-prompt hook to `command`.
     const hookType =
       h.type === "command" || h.type === "prompt" || h.type === "http" ? h.type : "command";
+    const isHttp = hookType === "http";
+    const isCommand = hookType === "command";
     defs.push({
       type: hookType,
-      ...(command !== undefined && command !== null && { command }),
-      ...(h.url !== undefined && h.url !== null && { url: h.url }),
-      ...(h.timeout !== undefined && h.timeout !== null && { timeout: h.timeout }),
-      ...(h.name !== undefined && h.name !== null && { name: h.name }),
-      ...(h.description !== undefined && h.description !== null && { description: h.description }),
-      ...(sequential && { sequential: true }),
-      ...(entry.matcher !== undefined &&
-        entry.matcher !== null &&
-        entry.matcher !== "" && { matcher: entry.matcher }),
+      ...compact({
+        command: h.command,
+        url: h.url,
+        timeout: h.timeout,
+        name: h.name,
+        description: h.description,
+        // `statusMessage` applies to both command and http hooks.
+        statusMessage: h.statusMessage,
+        // Command-only per-hook fields (Qwen Code PR #2827) — command type only.
+        async: isCommand ? h.async : undefined,
+        env: isCommand ? h.env : undefined,
+        shell: isCommand ? h.shell : undefined,
+        // Http-only per-hook fields (Qwen Code PR #2827).
+        headers: isHttp ? h.headers : undefined,
+        allowedEnvVars: isHttp ? h.allowedEnvVars : undefined,
+        once: isHttp ? h.once : undefined,
+        sequential: sequential ? true : undefined,
+        matcher,
+      }),
     });
   }
   return defs;

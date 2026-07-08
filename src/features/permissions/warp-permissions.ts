@@ -32,6 +32,15 @@ const WARP_GLOBAL_ONLY_MESSAGE =
 const ALLOWLIST_KEY = "agent_mode_command_execution_allowlist";
 const DENYLIST_KEY = "agent_mode_command_execution_denylist";
 
+// File-read/read-only autonomy keys under `[agents.profiles]` that the `warp`
+// override authors and that round-trip back into it on import. rulesync still
+// fully owns the command allow/denylist arrays via the shared block.
+const WARP_OVERRIDE_KEYS = [
+  "agent_mode_coding_permissions",
+  "agent_mode_coding_file_read_allowlist",
+  "agent_mode_execute_readonly_commands",
+] as const;
+
 /**
  * Warp's `settings.toml` lives in a different directory per platform (Stable
  * channel). The home directory is resolved by the processor through
@@ -71,8 +80,16 @@ function warpSettingsDir(): string {
  * patterns as regexes when targeting Warp (mirrors the Zed permissions
  * adapter). Warp has no per-command "ask" list, so `ask` rules are dropped; and
  * the command lists only model shell commands, so non-`bash` categories are
- * skipped (with a warning when they carry `deny` rules). MCP allow/deny and the
- * file-read permissions are separate surfaces not modeled here.
+ * skipped (with a warning when they carry `deny` rules).
+ *
+ * Warp's `[agents.profiles]` table also exposes file-read/read-only autonomy
+ * knobs that do not fit the canonical `allow | ask | deny` per-command model:
+ * `agent_mode_coding_permissions`, `agent_mode_coding_file_read_allowlist`, and
+ * `agent_mode_execute_readonly_commands`. These are authored and round-tripped
+ * through the `warp` override namespace (see `WarpPermissionsOverrideSchema`):
+ * on **import** they are lifted from `settings.toml` into the override, and on
+ * **export** they are merged back into `[agents.profiles]` (the override wins).
+ * MCP allow/deny is a separate surface not modeled here.
  *
  * The `settings.toml` file holds all of Warp's settings, so the
  * `[agents.profiles]` block is merged in place and the file is never deleted.
@@ -150,6 +167,14 @@ export class WarpPermissions extends ToolPermissions {
     const agents = isRecord(settings.agents) ? { ...settings.agents } : {};
     const profiles = isRecord(agents.profiles) ? { ...agents.profiles } : {};
 
+    // Overlay the Warp-scoped override's autonomy keys onto `[agents.profiles]`
+    // first (verbatim, so forward-compat keys pass through), then set the
+    // rulesync-owned command lists below so they always win over the override.
+    const override = config.warp;
+    if (isRecord(override)) {
+      Object.assign(profiles, override);
+    }
+
     const mergedAllow = uniq(allow.toSorted());
     const mergedDeny = uniq(deny.toSorted());
     if (mergedAllow.length > 0) {
@@ -193,8 +218,21 @@ export class WarpPermissions extends ToolPermissions {
     const deny = isStringArray(profiles[DENYLIST_KEY]) ? profiles[DENYLIST_KEY] : [];
 
     const config = convertWarpToRulesyncPermissions({ allow, deny });
+
+    // Route Warp's file-read/read-only autonomy keys into the `warp` override —
+    // they have no canonical category and would otherwise be dropped.
+    const warpOverride: Record<string, unknown> = {};
+    for (const key of WARP_OVERRIDE_KEYS) {
+      if (profiles[key] !== undefined) warpOverride[key] = profiles[key];
+    }
+
+    const result: Record<string, unknown> = { ...config };
+    if (Object.keys(warpOverride).length > 0) {
+      result.warp = warpOverride;
+    }
+
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify(config, null, 2),
+      fileContent: JSON.stringify(result, null, 2),
     });
   }
 

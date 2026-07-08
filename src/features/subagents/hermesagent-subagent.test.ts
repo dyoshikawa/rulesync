@@ -6,7 +6,7 @@ import {
   HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH,
 } from "../../constants/hermesagent-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import { parseHermesConfig } from "../hermes-config.js";
+import { parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { HermesagentSubagent } from "./hermesagent-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 
@@ -96,7 +96,10 @@ plugins:
     - existing-plugin
 `);
 
-    const parsed = parseHermesConfig(config?.getFileContent() ?? "");
+    const parsed = parseSharedConfig({
+      format: "yaml",
+      fileContent: config?.getFileContent() ?? "",
+    });
     expect(parsed.model).toBe("hermes-3");
     expect(parsed.mcp_servers).toEqual({
       docs: { url: "https://example.com/mcp" },

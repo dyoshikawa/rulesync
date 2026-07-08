@@ -137,7 +137,7 @@ async function deletePermissionsFile(): Promise<{
 /**
  * Schema for permissions-related tool parameters
  */
-export const permissionsToolSchemas = {
+const permissionsToolSchemas = {
   getPermissionsFile: z.object({}),
   putPermissionsFile: z.object({
     content: z.string(),

@@ -3,10 +3,9 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import {
-  CODEIUM_DIR,
   DEVIN_DIR,
-  DEVIN_GLOBAL_RULES_FILE_NAME,
-  WINDSURF_MEMORIES_SUBDIR,
+  DEVIN_GLOBAL_AGENTS_FILE_NAME,
+  DEVIN_GLOBAL_CONFIG_DIR_PATH,
 } from "../../constants/devin-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
@@ -76,7 +75,7 @@ export type DevinRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
  * @param globs - Comma-separated globs string (e.g., "*.ts,*.js") or array of globs
  * @returns Array of glob patterns
  */
-export function parseGlobsString(globs: string | string[] | undefined): string[] {
+function parseGlobsString(globs: string | string[] | undefined): string[] {
   if (!globs) {
     return [];
   }
@@ -106,7 +105,7 @@ function stringifyGlobs(globs: string[] | undefined): string | undefined {
  * frontmatter block. `globs` may be stored as an array there but is normalized
  * to a comma-separated string for the Devin rule file.
  */
-export type StoredDevin =
+type StoredDevin =
   | (Omit<DevinRuleFrontmatter, "globs"> & { globs?: string | string[] })
   | undefined;
 
@@ -114,7 +113,7 @@ export type StoredDevin =
  * Normalizes a StoredDevin value to DevinRuleFrontmatter format by
  * converting globs from array to string if needed.
  */
-export function normalizeStoredDevin(stored: StoredDevin): DevinRuleFrontmatter | undefined {
+function normalizeStoredDevin(stored: StoredDevin): DevinRuleFrontmatter | undefined {
   if (!stored) {
     return undefined;
   }
@@ -269,7 +268,7 @@ const inferenceStrategy: TriggerStrategy = {
  *
  * DO NOT reorder without understanding the matching logic.
  */
-export const STRATEGIES: TriggerStrategy[] = [
+const STRATEGIES: TriggerStrategy[] = [
   globStrategy,
   manualStrategy,
   alwaysOnStrategy,
@@ -288,7 +287,7 @@ export const STRATEGIES: TriggerStrategy[] = [
  *   plus companion `globs`/`description` fields. (`.devin/rules/` is the
  *   pre-rebrand legacy location the tool still reads.)
  * - Global scope: a single plain-markdown, always-on file (no frontmatter) at
- *   `~/.codeium/windsurf/memories/global_rules.md` (unchanged by the rebrand).
+ *   `~/.config/devin/AGENTS.md` (Devin Local global always-on rules).
  *
  * Trigger inference (when no explicit devin trigger is persisted):
  * - Specific globs (non wildcard) → glob
@@ -327,8 +326,8 @@ export class DevinRule extends ToolRule {
     relativeFilePath: string;
   } {
     return {
-      relativeDirPath: buildToolPath(CODEIUM_DIR, WINDSURF_MEMORIES_SUBDIR, excludeToolDir),
-      relativeFilePath: DEVIN_GLOBAL_RULES_FILE_NAME,
+      relativeDirPath: buildToolPath(DEVIN_GLOBAL_CONFIG_DIR_PATH, ".", excludeToolDir),
+      relativeFilePath: DEVIN_GLOBAL_AGENTS_FILE_NAME,
     };
   }
 
@@ -362,7 +361,7 @@ export class DevinRule extends ToolRule {
       const fileContent = await readFileContent(
         join(outputRoot, rootPath.relativeDirPath, rootPath.relativeFilePath),
       );
-      // global_rules.md is plain markdown without Devin frontmatter.
+      // The global AGENTS.md is plain markdown without Devin frontmatter.
       return new DevinRule({
         outputRoot,
         relativeDirPath: rootPath.relativeDirPath,
@@ -409,7 +408,7 @@ export class DevinRule extends ToolRule {
     global = false,
   }: ToolRuleFromRulesyncRuleParams): DevinRule {
     if (global) {
-      // Global scope is a single plain global_rules.md root file.
+      // Global scope is a single plain ~/.config/devin/AGENTS.md root file.
       const rootPath = DevinRule.getGlobalRootPath();
       return new DevinRule({
         outputRoot,
@@ -451,7 +450,7 @@ export class DevinRule extends ToolRule {
 
   toRulesyncRule(): RulesyncRule {
     if (this.root) {
-      // Global global_rules.md round-trips as a plain root rule.
+      // The global AGENTS.md round-trips as a plain root rule.
       return this.toRulesyncRuleDefault();
     }
 

@@ -263,17 +263,22 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     },
   ],
   [
+    // Kiro CLI loads agent configs from both `.kiro/agents/` (workspace) and
+    // `~/.kiro/agents/` (global); local agents take precedence over global
+    // ones with the same name. https://kiro.dev/docs/cli/custom-agents/configuration-reference/
     "kiro-cli",
     {
       class: KiroCliSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.json" },
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.json" },
     },
   ],
   [
+    // Kiro IDE loads custom agents from `.kiro/agents/` (workspace) and
+    // `~/.kiro/agents/` (global). https://kiro.dev/docs/chat/subagents/
     "kiro-ide",
     {
       class: KiroIdeSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
     },
   ],
   [
@@ -359,12 +364,10 @@ export const subagentsProcessorToolTargetsSimulated: ToolTarget[] = allToolTarge
   },
 );
 
-export const subagentsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter(
-  (target) => {
-    const factory = toolSubagentFactories.get(target);
-    return factory?.meta.supportsGlobal ?? false;
-  },
-);
+const subagentsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolSubagentFactories.get(target);
+  return factory?.meta.supportsGlobal ?? false;
+});
 
 export class SubagentsProcessor extends FeatureProcessor {
   private readonly toolTarget: SubagentsProcessorToolTarget;

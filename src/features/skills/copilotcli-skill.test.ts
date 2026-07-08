@@ -230,6 +230,26 @@ Skill content goes here.`,
       const roundTripped = CopilotcliSkill.fromRulesyncSkill({ rulesyncSkill });
       expect(roundTripped.getFrontmatter()["allowed-tools"]).toBe("shell");
     });
+
+    it("should round-trip the argument-hint skill frontmatter", () => {
+      const skill = new CopilotcliSkill({
+        dirName: "hint-skill",
+        frontmatter: {
+          name: "hint-skill",
+          description: "Takes an argument",
+          "argument-hint": "[message]",
+        },
+        body: "body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().copilotcli).toEqual({
+        "argument-hint": "[message]",
+      });
+
+      const roundTripped = CopilotcliSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(roundTripped.getFrontmatter()["argument-hint"]).toBe("[message]");
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {

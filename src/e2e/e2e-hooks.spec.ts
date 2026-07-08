@@ -3,8 +3,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
+import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
 import {
+  assertGenerateMatrixCoversTargets,
   runGenerate,
   runImport,
   useGlobalTestDirectories,
@@ -24,30 +26,53 @@ function assertHookCommandsPreserved(parsed: { hooks?: unknown }): void {
   expect(serialized).toContain(".rulesync/hooks/audit.sh");
 }
 
+// Tools whose event mapping/serialization needs a
+// bespoke assertion (vibe, devin, reasonix) live in their own standalone `it`s
+// below; `hooksProjectStandaloneTargets` lists them so the completeness check
+// still accounts for them. The check only enforces that this enumeration matches
+// the processor's declared target set — it does NOT verify a matching standalone
+// `it` exists for each name, so keep this list in sync with the actual `it`s by hand.
+const hooksGenerateTargets = [
+  { target: "claudecode", outputPath: join(".claude", "settings.json") },
+  { target: "cursor", outputPath: join(".cursor", "hooks.json") },
+  { target: "opencode", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
+  { target: "kilo", outputPath: join(".kilo", "plugins", "rulesync-hooks.js") },
+  { target: "codexcli", outputPath: join(".codex", "hooks.json") },
+  { target: "qwencode", outputPath: join(".qwen", "settings.json") },
+  {
+    target: "goose",
+    outputPath: join(".agents", "plugins", "rulesync", "hooks", "hooks.json"),
+  },
+  { target: "copilot", outputPath: join(".github", "hooks", "copilot-hooks.json") },
+  { target: "copilotcli", outputPath: join(".github", "hooks", "copilotcli-hooks.json") },
+  { target: "factorydroid", outputPath: join(".factory", "hooks.json") },
+  { target: "kiro", outputPath: join(".kiro", "agents", "default.json") },
+  { target: "kiro-cli", outputPath: join(".kiro", "agents", "default.json") },
+  { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
+  { target: "antigravity-ide", outputPath: join(".agents", "hooks.json") },
+  { target: "antigravity-cli", outputPath: join(".agents", "hooks.json") },
+  { target: "augmentcode", outputPath: join(".augment", "settings.json") },
+] as const;
+
+// Targets exercised by dedicated `it`s (bespoke per-tool serialization).
+const hooksProjectStandaloneTargets = ["vibe", "devin", "reasonix"] as const;
+
 describe("E2E: hooks", () => {
   const { getTestDir } = useTestDirectory();
 
-  it.each([
-    { target: "claudecode", outputPath: join(".claude", "settings.json") },
-    { target: "cursor", outputPath: join(".cursor", "hooks.json") },
-    { target: "opencode", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
-    { target: "codexcli", outputPath: join(".codex", "hooks.json") },
-    { target: "qwencode", outputPath: join(".qwen", "settings.json") },
-    {
-      target: "goose",
-      outputPath: join(".agents", "plugins", "rulesync", "hooks", "hooks.json"),
-    },
-    { target: "copilot", outputPath: join(".github", "hooks", "copilot-hooks.json") },
-    { target: "copilotcli", outputPath: join(".github", "hooks", "copilotcli-hooks.json") },
-    { target: "factorydroid", outputPath: join(".factory", "hooks.json") },
-    { target: "kiro", outputPath: join(".kiro", "agents", "default.json") },
-    { target: "antigravity-ide", outputPath: join(".agents", "hooks.json") },
-    { target: "antigravity-cli", outputPath: join(".agents", "hooks.json") },
-    { target: "augmentcode", outputPath: join(".augment", "settings.json") },
-  ])("should generate $target hooks", async ({ target, outputPath }) => {
+  it("generate matrix must cover every native hooks tool target", () => {
+    assertGenerateMatrixCoversTargets({
+      processor: HooksProcessor,
+      testedTargets: [
+        ...hooksGenerateTargets.map((e) => e.target),
+        ...hooksProjectStandaloneTargets,
+      ],
+    });
+  });
+
+  it.each(hooksGenerateTargets)("should generate $target hooks", async ({ target, outputPath }) => {
     const testDir = getTestDir();
 
-    // Setup: Create .rulesync/hooks.json
     const hooksContent = JSON.stringify(
       {
         version: 1,
@@ -61,10 +86,8 @@ describe("E2E: hooks", () => {
     );
     await writeFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
 
-    // Execute: Generate hooks for the target
     await runGenerate({ target, features: "hooks" });
 
-    // Verify that the expected output file was generated
     const generatedContent = await readFileContent(join(testDir, outputPath));
 
     if (target === "opencode") {
@@ -72,6 +95,11 @@ describe("E2E: hooks", () => {
       expect(generatedContent).toContain("export const RulesyncHooksPlugin");
       expect(generatedContent).toContain('"session.created"');
       expect(generatedContent).toContain('"session.idle"');
+      expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
+      expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+    } else if (target === "kilo") {
+      // Kilo also emits a JavaScript plugin (.kilo/plugins/rulesync-hooks.js),
+      // so assert the canonical command paths survive rather than parsing JSON.
       expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
       expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
     } else {
@@ -82,14 +110,16 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks).toBeDefined();
         expect(parsed.hooks.SessionStart).toBeDefined();
         expect(parsed.hooks.Stop).toBeDefined();
-        expect(JSON.stringify(parsed.hooks)).toContain("$CLAUDE_PROJECT_DIR/");
+        expect(parsed.hooks.SessionStart[0].hooks[0].command).toContain('"$CLAUDE_PROJECT_DIR"/');
       } else if (target === "cursor") {
         // Cursor uses camelCase event names
         expect(parsed.hooks).toBeDefined();
         expect(parsed.hooks.sessionStart).toBeDefined();
         expect(parsed.hooks.stop).toBeDefined();
-      } else if (target === "kiro") {
-        // Kiro CLI uses its own event names: sessionStart → agentSpawn, stop → stop
+      } else if (target === "kiro" || target === "kiro-cli") {
+        // Kiro (and the kiro-cli alias, which reuses KiroHooks) share the
+        // .kiro/agents/default.json agent-hook format and event mapping:
+        // sessionStart → agentSpawn, stop → stop.
         expect(parsed.hooks).toBeDefined();
         expect(parsed.hooks.agentSpawn).toBeDefined();
         expect(parsed.hooks.stop).toBeDefined();
@@ -129,6 +159,17 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks).toBeDefined();
         expect(parsed.hooks.SessionStart).toBeDefined();
         expect(parsed.hooks.Stop).toBeDefined();
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "kiro-ide") {
+        // Kiro IDE emits a `{ version: "v1", hooks: [...] }` envelope with one
+        // entry per hook. Canonical `sessionStart` → `SessionStart`,
+        // `stop` → `Stop` (PascalCase triggers). See
+        // CANONICAL_TO_KIRO_IDE_EVENT_NAMES in src/types/hooks.ts.
+        expect(parsed.version).toBe("v1");
+        const triggers = (parsed.hooks as Array<{ trigger: string }>).map((h) => h.trigger);
+        expect(triggers).toContain("SessionStart");
+        expect(triggers).toContain("Stop");
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
       } else {
@@ -225,14 +266,14 @@ describe("E2E: hooks", () => {
   it("should generate devin hooks", async () => {
     const testDir = getTestDir();
 
-    // Devin supports file/command/MCP lifecycle events but not sessionStart/stop,
-    // so this dedicated case uses devin-supported canonical events.
+    // Devin Local uses Claude-style lifecycle events. The standalone
+    // .devin/hooks.v1.json holds the event map directly (no wrapper key).
     const hooksContent = JSON.stringify(
       {
         version: 1,
         hooks: {
-          beforeShellExecution: [{ command: ".rulesync/hooks/pre-run.sh" }],
-          afterFileEdit: [{ command: ".rulesync/hooks/post-edit.sh" }],
+          preToolUse: [{ matcher: "exec", command: ".rulesync/hooks/pre-run.sh" }],
+          stop: [{ command: ".rulesync/hooks/on-stop.sh" }],
         },
       },
       null,
@@ -242,13 +283,68 @@ describe("E2E: hooks", () => {
 
     await runGenerate({ target: "devin", features: "hooks" });
 
-    const generatedContent = await readFileContent(join(testDir, ".windsurf", "hooks.json"));
+    const generatedContent = await readFileContent(join(testDir, ".devin", "hooks.v1.json"));
     const parsed = JSON.parse(generatedContent);
-    // Devin maps beforeShellExecution → pre_run_command and afterFileEdit → post_write_code.
-    expect(parsed.hooks.pre_run_command).toBeDefined();
-    expect(parsed.hooks.post_write_code).toBeDefined();
-    expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/pre-run.sh");
-    expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/post-edit.sh");
+    // Events live at the top level (no "hooks" wrapper key).
+    expect(parsed.hooks).toBeUndefined();
+    expect(parsed.PreToolUse).toBeDefined();
+    expect(parsed.Stop).toBeDefined();
+    expect(JSON.stringify(parsed)).toContain(".rulesync/hooks/pre-run.sh");
+    expect(JSON.stringify(parsed)).toContain(".rulesync/hooks/on-stop.sh");
+  });
+
+  it("should generate reasonix hooks (.reasonix/settings.json, flat per-event arrays)", async () => {
+    const testDir = getTestDir();
+
+    // Reasonix only maps four events (PreToolUse/PostToolUse/UserPromptSubmit/Stop);
+    // sessionStart has no mapped Reasonix equivalent in rulesync's scoped surface.
+    const hooksContent = JSON.stringify(
+      {
+        version: 1,
+        hooks: {
+          preToolUse: [{ command: ".rulesync/hooks/pre-tool.sh", matcher: "bash", timeout: 5 }],
+          stop: [{ command: ".rulesync/hooks/audit.sh" }],
+          sessionStart: [{ command: ".rulesync/hooks/session-start.sh" }],
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
+
+    await runGenerate({ target: "reasonix", features: "hooks" });
+
+    const generatedContent = await readFileContent(join(testDir, ".reasonix", "settings.json"));
+    const parsed = JSON.parse(generatedContent);
+    // Flat array of hook objects per event, no matcher-group wrapper.
+    expect(parsed.hooks.PreToolUse).toEqual([
+      { match: "bash", command: ".rulesync/hooks/pre-tool.sh", timeout: 5000 },
+    ]);
+    expect(parsed.hooks.Stop).toEqual([{ command: ".rulesync/hooks/audit.sh" }]);
+    expect(parsed.hooks.SessionStart).toBeUndefined();
+  });
+
+  it("should import reasonix hooks from .reasonix/settings.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".reasonix", "settings.json"),
+      JSON.stringify({
+        hooks: {
+          PreToolUse: [{ match: "bash", command: "echo audit", timeout: 5000 }],
+          Stop: [{ command: "echo done" }],
+        },
+      }),
+    );
+
+    await runImport({ target: "reasonix", features: "hooks" });
+
+    const importedContent = await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
+    const parsed = JSON.parse(importedContent);
+    expect(parsed.hooks.preToolUse[0].command).toBe("echo audit");
+    expect(parsed.hooks.preToolUse[0].matcher).toBe("bash");
+    expect(parsed.hooks.preToolUse[0].timeout).toBe(5);
+    expect(parsed.hooks.stop[0].command).toBe("echo done");
   });
 
   it.each([
@@ -408,17 +504,15 @@ describe("E2E: hooks (import)", () => {
       expectedEvent: "preToolUse",
     },
     {
-      // Devin hooks.json maps each Devin event name to a flat array of
-      // command/powershell hook objects. `pre_run_command` round-trips to the
-      // canonical `beforeShellExecution` event.
+      // Devin Local's standalone .devin/hooks.v1.json holds the Claude-style
+      // event map directly (no wrapper key). PreToolUse round-trips to the
+      // canonical `preToolUse` event.
       target: "devin",
-      sourcePath: join(".windsurf", "hooks.json"),
+      sourcePath: join(".devin", "hooks.v1.json"),
       sourceContent: {
-        hooks: {
-          pre_run_command: [{ command: "echo session started" }],
-        },
+        PreToolUse: [{ matcher: "exec", hooks: [{ type: "command", command: "echo pre tool" }] }],
       },
-      expectedEvent: "beforeShellExecution",
+      expectedEvent: "preToolUse",
     },
     {
       // AugmentCode stores hooks under the `hooks` key of the shared settings
@@ -462,106 +556,131 @@ describe("E2E: hooks (import)", () => {
   );
 });
 
+const hooksGlobalTargets = [
+  { target: "claudecode", outputPath: join(".claude", "settings.json") },
+  { target: "codexcli", outputPath: join(".codex", "hooks.json") },
+  { target: "qwencode", outputPath: join(".qwen", "settings.json") },
+  {
+    target: "goose",
+    outputPath: join(".agents", "plugins", "rulesync", "hooks", "hooks.json"),
+  },
+  { target: "opencode", outputPath: join(".config", "opencode", "plugins", "rulesync-hooks.js") },
+  { target: "kilo", outputPath: join(".config", "kilo", "plugins", "rulesync-hooks.js") },
+  { target: "factorydroid", outputPath: join(".factory", "hooks.json") },
+  { target: "deepagents", outputPath: join(".deepagents", "hooks.json") },
+  { target: "junie", outputPath: join(".junie", "config.json") },
+  { target: "cursor", outputPath: join(".cursor", "hooks.json") },
+  { target: "copilotcli", outputPath: join(".copilot", "hooks", "copilot-hooks.json") },
+  { target: "antigravity-ide", outputPath: join(".gemini", "config", "hooks.json") },
+  { target: "antigravity-cli", outputPath: join(".gemini", "config", "hooks.json") },
+  { target: "augmentcode", outputPath: join(".augment", "settings.json") },
+  { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
+] as const;
+
+// Global targets exercised by dedicated `it`s (bespoke per-tool serialization).
+// As with the project-scope list, the completeness check only enforces that this
+// enumeration matches the processor's declared set — not that a matching `it`
+// exists for each name; keep it in sync with the actual `it`s by hand.
+const hooksGlobalStandaloneTargets = ["devin", "vibe", "hermesagent", "reasonix"] as const;
+
 describe("E2E: hooks (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
 
-  it.each([
-    { target: "claudecode", outputPath: join(".claude", "settings.json") },
-    { target: "codexcli", outputPath: join(".codex", "hooks.json") },
-    { target: "qwencode", outputPath: join(".qwen", "settings.json") },
-    {
-      target: "goose",
-      outputPath: join(".agents", "plugins", "rulesync", "hooks", "hooks.json"),
-    },
-    { target: "opencode", outputPath: join(".config", "opencode", "plugins", "rulesync-hooks.js") },
-    { target: "factorydroid", outputPath: join(".factory", "hooks.json") },
-    { target: "deepagents", outputPath: join(".deepagents", "hooks.json") },
-    { target: "junie", outputPath: join(".junie", "config.json") },
-    { target: "cursor", outputPath: join(".cursor", "hooks.json") },
-    { target: "copilotcli", outputPath: join(".copilot", "hooks", "copilot-hooks.json") },
-    { target: "antigravity-ide", outputPath: join(".gemini", "config", "hooks.json") },
-    { target: "antigravity-cli", outputPath: join(".gemini", "config", "hooks.json") },
-    { target: "augmentcode", outputPath: join(".augment", "settings.json") },
-  ])("should generate $target hooks in home directory", async ({ target, outputPath }) => {
-    const projectDir = getProjectDir();
-    const homeDir = getHomeDir();
-
-    const hooksContent = JSON.stringify(
-      {
-        version: 1,
-        root: true,
-        hooks: {
-          sessionStart: [{ type: "command", command: ".rulesync/hooks/session-start.sh" }],
-          stop: [{ command: ".rulesync/hooks/audit.sh" }],
-        },
-      },
-      null,
-      2,
-    );
-    await writeFileContent(join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
-
-    await runGenerate({
-      target,
-      features: "hooks",
+  it("global matrix must cover every native global hooks tool target", () => {
+    assertGenerateMatrixCoversTargets({
+      processor: HooksProcessor,
+      testedTargets: [...hooksGlobalTargets.map((e) => e.target), ...hooksGlobalStandaloneTargets],
       global: true,
-      env: { HOME_DIR: homeDir },
     });
-
-    const generatedContent = await readFileContent(join(homeDir, outputPath));
-    if (target === "opencode") {
-      expect(generatedContent).toContain("RulesyncHooksPlugin");
-      expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
-      expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
-    } else if (target === "copilotcli") {
-      // Copilot CLI does not support the `stop` hook event, so audit.sh is
-      // intentionally dropped during generation.
-      const parsed = JSON.parse(generatedContent);
-      expect(parsed.hooks.sessionStart).toBeDefined();
-      expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
-    } else if (target === "junie") {
-      // Junie CLI supports SessionStart, UserPromptSubmit, Stop, and SessionEnd
-      // (PascalCase), so both `sessionStart` and `stop` (audit.sh) survive.
-      const parsed = JSON.parse(generatedContent);
-      expect(parsed.hooks.SessionStart).toBeDefined();
-      expect(parsed.hooks.Stop).toBeDefined();
-      expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
-      expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
-    } else if (target === "antigravity-ide" || target === "antigravity-cli") {
-      // Antigravity nests the event map under a generated `rulesync` hook name
-      // and supports preToolUse/postToolUse/preModelInvocation/
-      // postModelInvocation/stop, so `sessionStart` is dropped and only audit.sh
-      // (mapped to `Stop`) survives generation.
-      const parsed = JSON.parse(generatedContent);
-      expect(parsed.rulesync.Stop).toBeDefined();
-      expect(JSON.stringify(parsed)).toContain(".rulesync/hooks/audit.sh");
-    } else if (target === "qwencode") {
-      // Qwen Code emits Claude-style PascalCase event names under the `hooks`
-      // key of .qwen/settings.json: canonical `sessionStart` → `SessionStart`,
-      // `stop` → `Stop`. See CANONICAL_TO_QWENCODE_EVENT_NAMES in
-      // src/types/hooks.ts.
-      const parsed = JSON.parse(generatedContent);
-      expect(parsed.hooks.SessionStart).toBeDefined();
-      expect(parsed.hooks.Stop).toBeDefined();
-      expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
-      expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
-    } else {
-      assertHookCommandsPreserved(JSON.parse(generatedContent));
-    }
   });
+
+  it.each(hooksGlobalTargets)(
+    "should generate $target hooks in home directory",
+    async ({ target, outputPath }) => {
+      const projectDir = getProjectDir();
+      const homeDir = getHomeDir();
+
+      const hooksContent = JSON.stringify(
+        {
+          version: 1,
+          root: true,
+          hooks: {
+            sessionStart: [{ type: "command", command: ".rulesync/hooks/session-start.sh" }],
+            stop: [{ command: ".rulesync/hooks/audit.sh" }],
+          },
+        },
+        null,
+        2,
+      );
+      await writeFileContent(join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
+
+      await runGenerate({
+        target,
+        features: "hooks",
+        global: true,
+        env: { HOME_DIR: homeDir },
+      });
+
+      const generatedContent = await readFileContent(join(homeDir, outputPath));
+      if (target === "opencode") {
+        expect(generatedContent).toContain("RulesyncHooksPlugin");
+        expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
+        expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "kilo") {
+        // Kilo's JS plugin differs from OpenCode's shape; assert command paths.
+        expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
+        expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "copilotcli") {
+        // Copilot CLI does not support the `stop` hook event, so audit.sh is
+        // intentionally dropped during generation.
+        const parsed = JSON.parse(generatedContent);
+        expect(parsed.hooks.sessionStart).toBeDefined();
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+      } else if (target === "junie") {
+        // Junie CLI supports SessionStart, UserPromptSubmit, Stop, and SessionEnd
+        // (PascalCase), so both `sessionStart` and `stop` (audit.sh) survive.
+        const parsed = JSON.parse(generatedContent);
+        expect(parsed.hooks.SessionStart).toBeDefined();
+        expect(parsed.hooks.Stop).toBeDefined();
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "antigravity-ide" || target === "antigravity-cli") {
+        // Antigravity nests the event map under a generated `rulesync` hook name
+        // and supports preToolUse/postToolUse/preModelInvocation/
+        // postModelInvocation/stop, so `sessionStart` is dropped and only audit.sh
+        // (mapped to `Stop`) survives generation.
+        const parsed = JSON.parse(generatedContent);
+        expect(parsed.rulesync.Stop).toBeDefined();
+        expect(JSON.stringify(parsed)).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "qwencode") {
+        // Qwen Code emits Claude-style PascalCase event names under the `hooks`
+        // key of .qwen/settings.json: canonical `sessionStart` → `SessionStart`,
+        // `stop` → `Stop`. See CANONICAL_TO_QWENCODE_EVENT_NAMES in
+        // src/types/hooks.ts.
+        const parsed = JSON.parse(generatedContent);
+        expect(parsed.hooks.SessionStart).toBeDefined();
+        expect(parsed.hooks.Stop).toBeDefined();
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
+      } else {
+        assertHookCommandsPreserved(JSON.parse(generatedContent));
+      }
+    },
+  );
 
   it("should generate devin hooks in home directory", async () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
 
-    // Devin does not support sessionStart/stop, so this dedicated global case
-    // uses devin-supported canonical events.
+    // In global mode Devin hooks live under the `hooks` key of
+    // ~/.config/devin/config.json (shared with mcp/permissions).
     const hooksContent = JSON.stringify(
       {
         version: 1,
         root: true,
         hooks: {
-          beforeShellExecution: [{ command: ".rulesync/hooks/pre-run.sh" }],
-          afterFileEdit: [{ command: ".rulesync/hooks/post-edit.sh" }],
+          preToolUse: [{ matcher: "exec", command: ".rulesync/hooks/pre-run.sh" }],
+          stop: [{ command: ".rulesync/hooks/on-stop.sh" }],
         },
       },
       null,
@@ -577,13 +696,13 @@ describe("E2E: hooks (global mode)", () => {
     });
 
     const generatedContent = await readFileContent(
-      join(homeDir, ".codeium", "windsurf", "hooks.json"),
+      join(homeDir, ".config", "devin", "config.json"),
     );
     const parsed = JSON.parse(generatedContent);
-    expect(parsed.hooks.pre_run_command).toBeDefined();
-    expect(parsed.hooks.post_write_code).toBeDefined();
+    expect(parsed.hooks.PreToolUse).toBeDefined();
+    expect(parsed.hooks.Stop).toBeDefined();
     expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/pre-run.sh");
-    expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/post-edit.sh");
+    expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/on-stop.sh");
   });
 
   it("should generate vibe hooks in home directory", async () => {
@@ -624,16 +743,21 @@ describe("E2E: hooks (global mode)", () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
 
-    // Hermes Agent has no project-scoped hooks location; hooks are merged under
-    // the `hooks.rulesync` key of the shared global ~/.hermes/config.yaml (YAML,
-    // global only).
+    // Hermes Agent has no project-scoped hooks location; hooks are merged into
+    // the shared global ~/.hermes/config.yaml (YAML, global only) under
+    // Hermes's real `VALID_HOOKS` event keys — NOT a `hooks.rulesync` blob,
+    // which Hermes would silently ignore.
     const hooksContent = JSON.stringify(
       {
         version: 1,
         root: true,
         hooks: {
           sessionStart: [{ type: "command", command: ".rulesync/hooks/session-start.sh" }],
-          stop: [{ command: ".rulesync/hooks/audit.sh" }],
+          preToolUse: [
+            { type: "command", command: ".rulesync/hooks/audit.sh", matcher: "terminal" },
+          ],
+          // Not part of Hermes's VALID_HOOKS mapping table — must be dropped.
+          worktreeCreate: [{ command: ".rulesync/hooks/wt.sh" }],
         },
       },
       null,
@@ -648,11 +772,44 @@ describe("E2E: hooks (global mode)", () => {
       env: { HOME_DIR: homeDir },
     });
 
-    // The config is YAML; assert the canonical hook command paths survive
-    // generation under the nested `hooks.rulesync` block.
+    // The config is YAML; assert the canonical hooks survive generation under
+    // Hermes's real, functioning event keys.
     const generatedContent = await readFileContent(join(homeDir, ".hermes", "config.yaml"));
-    expect(generatedContent).toContain("rulesync");
+    expect(generatedContent).not.toContain("rulesync:");
+    expect(generatedContent).toContain("on_session_start");
+    expect(generatedContent).toContain("pre_tool_call");
     expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
     expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+    expect(generatedContent).toContain("matcher: terminal");
+    expect(generatedContent).not.toContain(".rulesync/hooks/wt.sh");
+  });
+
+  it("should generate reasonix hooks in home directory", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    const hooksContent = JSON.stringify(
+      {
+        version: 1,
+        root: true,
+        hooks: {
+          stop: [{ command: ".rulesync/hooks/audit.sh" }],
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
+
+    await runGenerate({
+      target: "reasonix",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generatedContent = await readFileContent(join(homeDir, ".reasonix", "settings.json"));
+    const parsed = JSON.parse(generatedContent);
+    expect(parsed.hooks.Stop).toEqual([{ command: ".rulesync/hooks/audit.sh" }]);
   });
 });

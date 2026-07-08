@@ -28,6 +28,7 @@ export const DERIVED_PATHS_NOT_GITIGNORED: ReadonlySet<string> = new Set([
   "**/.antigravity/settings.json",
   "**/.claude/settings.json",
   "**/.claude/settings.local.json",
+  "**/.devin/config.json",
   "**/.factory/settings.json",
   "**/.gemini/settings.json",
   "**/.zed/settings.json",
@@ -132,7 +133,7 @@ const deriveRulesEntries = (): GitignoreEntryTag[] => {
 const DIR_FEATURES = new Set<Feature>(["commands", "skills", "subagents"]);
 const FILE_FEATURES = new Set<Feature>(["mcp", "hooks", "permissions", "ignore"]);
 
-export const deriveFeatureGitignoreEntries = (feature: Feature): GitignoreEntryTag[] => {
+const deriveFeatureGitignoreEntries = (feature: Feature): GitignoreEntryTag[] => {
   if (feature === "rules") return deriveRulesEntries();
   const factory = getProcessorRegistryEntry(feature).factory as unknown as FactoryMap;
   if (DIR_FEATURES.has(feature)) return deriveDirEntries(factory, feature);

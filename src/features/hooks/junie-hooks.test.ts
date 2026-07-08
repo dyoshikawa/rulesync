@@ -45,10 +45,13 @@ describe("JunieHooks", () => {
         hooks: {
           sessionStart: [{ type: "command", command: ".rulesync/hooks/session-start.sh" }],
           beforeSubmitPrompt: [{ type: "command", command: ".rulesync/hooks/prompt.sh" }],
-          stop: [{ type: "command", command: ".rulesync/hooks/audit.sh" }],
-          sessionEnd: [{ type: "command", command: ".rulesync/hooks/session-end.sh" }],
-          // preToolUse is not a Junie-supported event and must be dropped.
           preToolUse: [{ type: "command", command: ".rulesync/hooks/pre-tool.sh" }],
+          stop: [{ type: "command", command: ".rulesync/hooks/audit.sh" }],
+          stopFailure: [{ type: "command", command: ".rulesync/hooks/stop-failure.sh" }],
+          permissionRequest: [{ type: "command", command: ".rulesync/hooks/permission.sh" }],
+          sessionEnd: [{ type: "command", command: ".rulesync/hooks/session-end.sh" }],
+          // postToolUse is not a Junie-supported event and must be dropped.
+          postToolUse: [{ type: "command", command: ".rulesync/hooks/post-tool.sh" }],
         },
       };
       const rulesyncHooks = new RulesyncHooks({
@@ -70,15 +73,24 @@ describe("JunieHooks", () => {
       expect(JSON.stringify(parsed.hooks.SessionStart)).toContain(
         ".rulesync/hooks/session-start.sh",
       );
-      // UserPromptSubmit, Stop, and SessionEnd are now supported.
+      // UserPromptSubmit, PreToolUse, Stop, StopFailure, PermissionRequest, and
+      // SessionEnd are all supported.
       expect(parsed.hooks.UserPromptSubmit).toBeDefined();
       expect(JSON.stringify(parsed.hooks.UserPromptSubmit)).toContain(".rulesync/hooks/prompt.sh");
+      expect(parsed.hooks.PreToolUse).toBeDefined();
+      expect(JSON.stringify(parsed.hooks.PreToolUse)).toContain(".rulesync/hooks/pre-tool.sh");
       expect(parsed.hooks.Stop).toBeDefined();
       expect(JSON.stringify(parsed.hooks.Stop)).toContain(".rulesync/hooks/audit.sh");
+      expect(parsed.hooks.StopFailure).toBeDefined();
+      expect(JSON.stringify(parsed.hooks.StopFailure)).toContain(".rulesync/hooks/stop-failure.sh");
+      expect(parsed.hooks.PermissionRequest).toBeDefined();
+      expect(JSON.stringify(parsed.hooks.PermissionRequest)).toContain(
+        ".rulesync/hooks/permission.sh",
+      );
       expect(parsed.hooks.SessionEnd).toBeDefined();
       expect(JSON.stringify(parsed.hooks.SessionEnd)).toContain(".rulesync/hooks/session-end.sh");
-      // preToolUse is not supported by Junie, so it is dropped.
-      expect(parsed.hooks.PreToolUse).toBeUndefined();
+      // postToolUse is not supported by Junie, so it is dropped.
+      expect(parsed.hooks.PostToolUse).toBeUndefined();
     });
 
     it("should drop matchers on matcher-less events (UserPromptSubmit, Stop) but keep them on SessionStart", async () => {

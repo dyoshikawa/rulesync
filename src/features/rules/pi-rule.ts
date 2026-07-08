@@ -28,7 +28,7 @@ export type PiRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
 /**
  * Rule generator for Pi Coding Agent.
  *
- * Pi loads instruction context only from the `AGENTS.md` / `CLAUDE.md` family —
+ * Pi loads instruction context from the `AGENTS.md` / `CLAUDE.md` family —
  * the global `~/.pi/agent/AGENTS.md` plus files discovered by walking up the
  * directory tree from the current working directory. It does NOT resolve
  * `@`-imports or a TOON file list, and has no `.agents/memories/` concept, so
@@ -39,6 +39,15 @@ export type PiRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
  * to map onto; their bodies are folded into the single root `AGENTS.md` by the
  * RulesProcessor (there is no separate non-root output location — `nonRoot` is
  * `undefined`). This mirrors the codexcli, grokcli, warp, and deepagents targets.
+ *
+ * Pi also loads two system-prompt instruction files that rulesync does NOT emit:
+ * `.pi/SYSTEM.md` (global `~/.pi/agent/SYSTEM.md`) *replaces* the default system
+ * prompt entirely, and `.pi/APPEND_SYSTEM.md` (global
+ * `~/.pi/agent/APPEND_SYSTEM.md`) *appends* to it. rulesync's rules model only
+ * routes a designated `root` rule to a single context file and has no convention
+ * for marking a rule as "replace" vs "append" the system prompt, so these
+ * surfaces are documented in docs/reference/file-formats.md and left to be
+ * authored by hand rather than mapped to a speculative new frontmatter flag.
  */
 export class PiRule extends ToolRule {
   constructor({ fileContent, root, ...rest }: PiRuleParams) {

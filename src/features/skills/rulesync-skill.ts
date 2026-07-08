@@ -80,7 +80,9 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
     z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
       license: z.optional(z.string()),
-      compatibility: z.optional(z.looseObject({})),
+      // OpenCode documents `compatibility` as a free-form string; the object
+      // form stays accepted for back-compat. See https://opencode.ai/docs/skills/
+      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
       metadata: z.optional(z.looseObject({})),
     }),
   ),
@@ -114,6 +116,7 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
     z.looseObject({
       license: z.optional(z.string()),
       "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+      "argument-hint": z.optional(z.string()),
     }),
   ),
   pi: z.optional(
@@ -246,7 +249,7 @@ export type RulesyncSkillFrontmatterInput = {
   opencode?: {
     "allowed-tools"?: string[];
     license?: string;
-    compatibility?: Record<string, unknown>;
+    compatibility?: string | Record<string, unknown>;
     metadata?: Record<string, unknown>;
   };
   kilo?: {
@@ -265,6 +268,7 @@ export type RulesyncSkillFrontmatterInput = {
   copilotcli?: {
     license?: string;
     "allowed-tools"?: string | string[];
+    "argument-hint"?: string;
   };
   pi?: {
     "allowed-tools"?: string[];

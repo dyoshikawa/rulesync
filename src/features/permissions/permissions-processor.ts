@@ -16,14 +16,17 @@ import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { ClinePermissions } from "./cline-permissions.js";
 import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
 import { CursorPermissions } from "./cursor-permissions.js";
+import { DevinPermissions } from "./devin-permissions.js";
 import { FactorydroidPermissions } from "./factorydroid-permissions.js";
 import { GoosePermissions } from "./goose-permissions.js";
 import { GrokcliPermissions } from "./grokcli-permissions.js";
 import { HermesagentPermissions } from "./hermesagent-permissions.js";
+import { JuniePermissions } from "./junie-permissions.js";
 import { KiloPermissions } from "./kilo-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
 import { QwencodePermissions } from "./qwencode-permissions.js";
+import { ReasonixPermissions } from "./reasonix-permissions.js";
 import { RovodevPermissions } from "./rovodev-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { TaktPermissions } from "./takt-permissions.js";
@@ -161,6 +164,20 @@ export const toolPermissionsFactories = new Map<
     },
   ],
   [
+    "devin",
+    {
+      class: DevinPermissions,
+      meta: {
+        // Devin Local maps permissions onto the `permissions` block (allow/deny/
+        // ask scope matchers) in the shared config file: `.devin/config.json`
+        // (project) and `~/.config/devin/config.json` (global).
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
     "factorydroid",
     {
       class: FactorydroidPermissions,
@@ -209,6 +226,19 @@ export const toolPermissionsFactories = new Map<
       class: HermesagentPermissions,
       meta: {
         supportsProject: false,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "junie",
+    {
+      class: JuniePermissions,
+      meta: {
+        // Junie reads the Action Allowlist from both the project
+        // `.junie/allowlist.json` and the user `~/.junie/allowlist.json`.
+        supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,
       },
@@ -275,6 +305,20 @@ export const toolPermissionsFactories = new Map<
     {
       class: QwencodePermissions,
       meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "reasonix",
+    {
+      class: ReasonixPermissions,
+      meta: {
+        // Reasonix reads the `[permissions]` table from the same shared TOML
+        // config the MCP adapter already writes: `./reasonix.toml` (project) /
+        // `~/.reasonix/config.toml` (global).
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,

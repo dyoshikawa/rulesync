@@ -18,11 +18,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Close pull requests inactive for more than 30 days
+      - name: Close pull requests inactive for more than 14 days
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
-            const STALE_DAYS = 30;
+            const STALE_DAYS = 14;
             const staleThresholdMs = STALE_DAYS * 24 * 60 * 60 * 1000;
             const now = Date.now();
             const { owner, repo } = context.repo;

@@ -111,7 +111,7 @@ function buildSuccessResponse(params: {
   };
 }
 
-export const importToolSchemas = {
+const importToolSchemas = {
   executeImport: importOptionsSchema,
 };
 

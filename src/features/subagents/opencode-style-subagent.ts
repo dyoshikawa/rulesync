@@ -9,7 +9,7 @@ import { formatError } from "../../utils/error.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import { ToolSubagent } from "./tool-subagent.js";
 
-export const OpenCodeStyleSubagentFrontmatterSchema = z.looseObject({
+const OpenCodeStyleSubagentFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   mode: z._default(z.string(), "subagent"),
   name: z.optional(z.string()),

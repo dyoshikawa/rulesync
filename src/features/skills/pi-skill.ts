@@ -24,7 +24,7 @@ import {
  * Additional fields are preserved via `looseObject` so Pi-specific metadata
  * passes through unchanged.
  */
-export const PiSkillFrontmatterSchema = z.looseObject({
+const PiSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
   "allowed-tools": z.optional(z.array(z.string())),

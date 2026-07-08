@@ -19,7 +19,7 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const DeepagentsSkillFrontmatterSchema = z.looseObject({
+const DeepagentsSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
   // dcode's `_parse_allowed_tools` only accepts a space-delimited string; a YAML

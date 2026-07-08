@@ -20,7 +20,7 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
-export const DeepagentsSubagentFrontmatterSchema = z.looseObject({
+const DeepagentsSubagentFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.optional(z.string()),
   model: z.optional(z.string()),

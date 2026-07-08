@@ -25,7 +25,7 @@ import {
  *
  * @see https://kiro.dev/docs/chat/subagents/
  */
-export const KiroIdeSubagentFrontmatterSchema = z.looseObject({
+const KiroIdeSubagentFrontmatterSchema = z.looseObject({
   name: z.optional(z.string()),
   description: z.optional(z.string()),
   tools: z.optional(z.union([z.string(), z.array(z.string())])),

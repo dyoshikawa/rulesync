@@ -156,6 +156,7 @@ describe("CopilotcliHooks", () => {
           preCompact: [{ command: "echo compact" }],
           permissionRequest: [{ command: "echo perm" }],
           notification: [{ command: "echo notify" }],
+          beforeMCPExecution: [{ command: "echo mcp" }],
         },
       };
       const rulesyncHooks = new RulesyncHooks({
@@ -177,6 +178,47 @@ describe("CopilotcliHooks", () => {
       expect(parsed.hooks.preCompact).toBeDefined();
       expect(parsed.hooks.permissionRequest).toBeDefined();
       expect(parsed.hooks.notification).toBeDefined();
+      // `beforeMCPExecution` maps to Copilot CLI's `preMcpToolCall` (v1.0.51).
+      expect(parsed.hooks.preMcpToolCall).toBeDefined();
+    });
+
+    it("round-trips the preMcpToolCall hook event", async () => {
+      const copilotConfig = {
+        version: 1,
+        hooks: {
+          preMcpToolCall: [{ type: "command", bash: "echo mcp" }],
+        },
+      };
+      const imported = new CopilotcliHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".github/hooks",
+        relativeFilePath: "copilotcli-hooks.json",
+        fileContent: JSON.stringify(copilotConfig),
+        validate: false,
+      });
+
+      // Import maps `preMcpToolCall` back to canonical `beforeMCPExecution`.
+      const canonical = JSON.parse(imported.toRulesyncHooks().getFileContent());
+      expect(canonical.hooks.beforeMCPExecution).toBeDefined();
+      expect(canonical.hooks.beforeMCPExecution[0]).toMatchObject({
+        type: "command",
+        command: "echo mcp",
+      });
+
+      // Re-export emits the Copilot CLI event name again.
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(canonical),
+        validate: false,
+      });
+      const reExported = await CopilotcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+      });
+      const parsed = JSON.parse(reExported.getFileContent());
+      expect(parsed.hooks.preMcpToolCall).toBeDefined();
     });
 
     it("emits prompt and http hook types and preserves cwd/env", async () => {

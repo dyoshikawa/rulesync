@@ -656,18 +656,4 @@ describe("AugmentcodeLegacyRule", () => {
       expect(rootRule.isRoot()).toBe(true);
     });
   });
-
-  describe("type exports", () => {
-    it("should export AugmentcodeLegacyRuleParams type", () => {
-      // This test ensures the type is properly exported and can be used
-      const params: import("./augmentcode-legacy-rule.js").AugmentcodeLegacyRuleParams = {
-        relativeDirPath: ".augment/rules",
-        relativeFilePath: "test.md",
-        fileContent: "test content",
-      };
-
-      const rule = new AugmentcodeLegacyRule(params);
-      expect(rule).toBeInstanceOf(AugmentcodeLegacyRule);
-    });
-  });
 });

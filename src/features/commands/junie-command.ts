@@ -17,7 +17,7 @@ import {
 } from "./tool-command.js";
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
-export const JunieCommandFrontmatterSchema = z.looseObject({
+const JunieCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
 });
 

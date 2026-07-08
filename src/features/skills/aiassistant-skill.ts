@@ -16,7 +16,7 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const AiassistantSkillFrontmatterSchema = z.looseObject({
+const AiassistantSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
 });

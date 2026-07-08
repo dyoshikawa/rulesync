@@ -57,6 +57,26 @@ describe("deriveKiroInclusion", () => {
       }),
     ).toEqual({ inclusion: "fileMatch", fileMatchPattern: "explicit/**" });
   });
+
+  it("carries name/description through for inclusion: auto", () => {
+    expect(
+      deriveKiroInclusion({
+        kiro: {
+          inclusion: "auto",
+          name: "api-design",
+          description: "REST API design patterns. Use when creating or modifying API endpoints.",
+        },
+      }),
+    ).toEqual({
+      inclusion: "auto",
+      name: "api-design",
+      description: "REST API design patterns. Use when creating or modifying API endpoints.",
+    });
+  });
+
+  it("emits inclusion: auto without companions when they are omitted", () => {
+    expect(deriveKiroInclusion({ kiro: { inclusion: "auto" } })).toEqual({ inclusion: "auto" });
+  });
 });
 
 describe("KiroRule", () => {
@@ -440,6 +460,57 @@ describe("KiroRule", () => {
         fileMatchPattern: ["**/*.ts", "**/*.tsx"],
       });
       expect(roundTrip.getBody()).toContain("# Authored");
+    });
+
+    it("imports a hand-authored auto-inclusion steering file, round-tripping name/description", async () => {
+      const steeringDir = join(testDir, ".kiro/steering");
+      await ensureDir(steeringDir);
+      await writeFileContent(
+        join(steeringDir, "api-design.md"),
+        "---\ninclusion: auto\nname: api-design\ndescription: REST API design patterns. Use when creating or modifying API endpoints.\n---\n# API Design\n",
+      );
+
+      const kiroRule = await KiroRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "api-design.md",
+      });
+      const roundTrip = kiroRule.toRulesyncRule();
+
+      expect(roundTrip.getFrontmatter().globs).toEqual([]);
+      expect(roundTrip.getFrontmatter().kiro).toEqual({
+        inclusion: "auto",
+        name: "api-design",
+        description: "REST API design patterns. Use when creating or modifying API endpoints.",
+      });
+      expect(roundTrip.getBody()).toContain("# API Design");
+    });
+
+    it("emits inclusion: auto with name/description from the kiro override", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "api-design.md",
+        frontmatter: {
+          root: false,
+          targets: ["kiro"],
+          description: "",
+          globs: [],
+          kiro: {
+            inclusion: "auto",
+            name: "api-design",
+            description: "REST API design patterns. Use when creating or modifying API endpoints.",
+          },
+        },
+        body: "# API Design",
+      });
+
+      const generated = KiroRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule });
+      const content = generated.getFileContent();
+
+      expect(content).toContain("inclusion: auto");
+      expect(content).toContain("name: api-design");
+      expect(content).toContain(
+        "description: REST API design patterns. Use when creating or modifying API endpoints.",
+      );
     });
 
     it("should use custom outputRoot", () => {

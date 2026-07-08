@@ -42,9 +42,9 @@ export const DEFAULT_TAKT_RULE_DIR = "policies";
  * `instructions`, `knowledge`) are owned by the subagents, commands, and skills
  * features respectively and are intentionally not selectable here.
  */
-export const TAKT_RULE_FACETS = ["policies", "output-contracts"] as const;
+const TAKT_RULE_FACETS = ["policies", "output-contracts"] as const;
 
-export type TaktRuleFacet = (typeof TAKT_RULE_FACETS)[number];
+type TaktRuleFacet = (typeof TAKT_RULE_FACETS)[number];
 
 function resolveTaktRuleFacet(facet: unknown): TaktRuleFacet {
   return facet === "output-contracts" ? "output-contracts" : DEFAULT_TAKT_RULE_DIR;

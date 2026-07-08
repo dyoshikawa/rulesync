@@ -13,16 +13,16 @@ export const ALL_FEATURES = [
 
 export const ALL_FEATURES_WITH_WILDCARD = [...ALL_FEATURES, "*"] as const;
 
-export const FeatureSchema = z.enum(ALL_FEATURES);
+const FeatureSchema = z.enum(ALL_FEATURES);
 
 export type Feature = z.infer<typeof FeatureSchema>;
 
-export const FeaturesSchema = z.array(FeatureSchema);
+const FeaturesSchema = z.array(FeatureSchema);
 
 export type Features = z.infer<typeof FeaturesSchema>;
 
 // Type for individual feature array with wildcard support
-export type FeatureWithWildcard = Feature | "*";
+type FeatureWithWildcard = Feature | "*";
 export const GitignoreDestinationSchema = z.enum(["gitignore", "gitattributes"]);
 export type GitignoreDestination = z.infer<typeof GitignoreDestinationSchema>;
 
@@ -35,18 +35,14 @@ export type FeatureOptions = Record<string, unknown>;
 // Object format (array per target): { "copilot": ["commands"], "agentsmd": ["rules", "mcp"] }
 // Object format (per-feature options per target):
 //   { "claudecode": { "ignore": { "fileMode": "local" }, "rules": true } }
-export const FeatureOptionsSchema = z.record(z.string(), z.unknown());
-export const FeatureValueSchema = z.union([
-  z.boolean(),
-  FeatureOptionsSchema,
-  GitignoreDestinationSchema,
-]);
+const FeatureOptionsSchema = z.record(z.string(), z.unknown());
+const FeatureValueSchema = z.union([z.boolean(), FeatureOptionsSchema, GitignoreDestinationSchema]);
 // NOTE: We use `z.string()` as the key schema instead of `z.enum(...)` because
 // `z.record(z.enum(...))` requires ALL enum members to be present, which
 // rejects valid partial configs like `{ ignore: { fileMode: "local" } }`.
 // Unknown feature names (typos) are caught at runtime by
 // `warnInvalidFeatures` in gitignore-entries.ts instead of at parse time.
-export const PerFeatureConfigSchema = z.record(z.string(), FeatureValueSchema);
+const PerFeatureConfigSchema = z.record(z.string(), FeatureValueSchema);
 export const PerTargetFeaturesValueSchema = z.union([
   z.array(z.enum(ALL_FEATURES_WITH_WILDCARD)),
   PerFeatureConfigSchema,

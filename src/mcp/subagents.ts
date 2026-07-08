@@ -212,7 +212,7 @@ async function deleteSubagent({ relativePathFromCwd }: { relativePathFromCwd: st
 /**
  * Schema for subagent-related tool parameters
  */
-export const subagentToolSchemas = {
+const subagentToolSchemas = {
   listSubagents: z.object({}),
   getSubagent: z.object({
     relativePathFromCwd: z.string(),

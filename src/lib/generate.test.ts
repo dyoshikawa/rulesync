@@ -12,7 +12,12 @@ import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { fileExists, readFileContentOrNull } from "../utils/file.js";
-import { checkRulesyncDirExists, generate } from "./generate.js";
+import {
+  checkRulesyncDirExists,
+  generate,
+  GENERATION_STEP_GRAPH,
+  resolveExecutionOrder,
+} from "./generate.js";
 
 const logger = createMockLogger();
 
@@ -1060,5 +1065,135 @@ describe("generate", () => {
         "Target 'cursor' does not support the feature 'mcp'. Skipping.",
       );
     });
+  });
+});
+
+const stubRun = async () => ({ count: 0, paths: [], hasDiff: false });
+
+const executionStep = (
+  id: string,
+  opts: { writesSharedFile?: string[]; dependsOn?: string[] } = {},
+) =>
+  ({
+    id,
+    ...opts,
+    run: stubRun,
+  }) as never;
+
+describe("resolveExecutionOrder", () => {
+  const step = executionStep;
+
+  it("orders a dependent step after its dependency regardless of array order", () => {
+    const ordered = resolveExecutionOrder([
+      step("rules", { writesSharedFile: ["f"], dependsOn: ["mcp"] }),
+      step("mcp", { writesSharedFile: ["f"] }),
+    ]);
+    expect(ordered.map((s) => s.id)).toEqual(["mcp", "rules"]);
+  });
+
+  it("orders a value-only dependency (no shared file) before its dependent", () => {
+    const ordered = resolveExecutionOrder([
+      step("rules", { dependsOn: ["skills"] }),
+      step("skills"),
+    ]);
+    expect(ordered.map((s) => s.id)).toEqual(["skills", "rules"]);
+  });
+
+  it("throws when two steps write the same shared file without a declared order", () => {
+    expect(() =>
+      resolveExecutionOrder([
+        step("ignore", { writesSharedFile: ["claude-settings"] }),
+        step("permissions", { writesSharedFile: ["claude-settings"] }),
+      ]),
+    ).toThrow(/both write the shared file 'claude-settings'/);
+  });
+
+  it("does not throw when shared-file writers are ordered by dependsOn", () => {
+    expect(() =>
+      resolveExecutionOrder([
+        step("ignore", { writesSharedFile: ["claude-settings"] }),
+        step("permissions", {
+          writesSharedFile: ["claude-settings"],
+          dependsOn: ["ignore"],
+        }),
+      ]),
+    ).not.toThrow();
+  });
+
+  it("throws when one of three writers is not ordered against the others", () => {
+    expect(() =>
+      resolveExecutionOrder([
+        step("ignore", { writesSharedFile: ["claude-settings"] }),
+        step("hooks", { writesSharedFile: ["claude-settings"], dependsOn: ["ignore"] }),
+        step("permissions", { writesSharedFile: ["claude-settings"], dependsOn: ["ignore"] }),
+      ]),
+    ).toThrow(/both write the shared file 'claude-settings'/);
+  });
+
+  it("does not throw when all three writers are totally ordered", () => {
+    expect(() =>
+      resolveExecutionOrder([
+        step("ignore", { writesSharedFile: ["claude-settings"] }),
+        step("hooks", { writesSharedFile: ["claude-settings"], dependsOn: ["ignore"] }),
+        step("permissions", {
+          writesSharedFile: ["claude-settings"],
+          dependsOn: ["ignore", "hooks"],
+        }),
+      ]),
+    ).not.toThrow();
+  });
+
+  it("throws on an unknown dependency", () => {
+    expect(() => resolveExecutionOrder([step("rules", { dependsOn: ["mcp"] })])).toThrow(
+      /unknown step 'mcp'/,
+    );
+  });
+
+  it("throws on a cyclic dependency", () => {
+    expect(() =>
+      resolveExecutionOrder([step("a", { dependsOn: ["b"] }), step("b", { dependsOn: ["a"] })]),
+    ).toThrow(/cyclic/);
+  });
+});
+
+const asRunnableSteps = () =>
+  GENERATION_STEP_GRAPH.map((meta) => ({ ...meta, run: stubRun }) as never);
+
+describe("GENERATION_STEP_GRAPH", () => {
+  it("is well-formed: every shared-file writer pair is ordered by dependsOn", () => {
+    expect(() => resolveExecutionOrder(asRunnableSteps())).not.toThrow();
+  });
+
+  it("declares every dependsOn edge for a reason: an overlapping writesSharedFile token, or the known rules->skills value dependency", () => {
+    const byId = new Map(GENERATION_STEP_GRAPH.map((meta) => [meta.id, meta]));
+    const knownValueDependencies = new Set(["rules->skills"]);
+
+    for (const step of GENERATION_STEP_GRAPH) {
+      for (const dep of step.dependsOn ?? []) {
+        const edgeKey = `${step.id}->${dep}`;
+        const depFiles = new Set(byId.get(dep)?.writesSharedFile ?? []);
+        const sharesFile = (step.writesSharedFile ?? []).some((file) => depFiles.has(file));
+
+        expect(
+          sharesFile || knownValueDependencies.has(edgeKey),
+          `dependsOn edge '${edgeKey}' has no overlapping writesSharedFile token and is not a ` +
+            `documented value dependency; either it's stale or the known-value-dependency list ` +
+            `needs updating`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("pins the full execution order of the real generation step graph", () => {
+    expect(resolveExecutionOrder(asRunnableSteps()).map((s) => s.id)).toEqual([
+      "ignore",
+      "commands",
+      "subagents",
+      "skills",
+      "mcp",
+      "hooks",
+      "permissions",
+      "rules",
+    ]);
   });
 });

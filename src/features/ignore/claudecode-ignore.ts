@@ -1,6 +1,5 @@
 import { join } from "node:path";
 
-import { uniq } from "es-toolkit";
 import { z } from "zod/mini";
 
 import {
@@ -10,7 +9,13 @@ import {
 } from "../../constants/claudecode-paths.js";
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import { FeatureOptions } from "../../types/features.js";
+import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
+import {
+  applyIgnoreReadDenies,
+  buildReadDenyEntry,
+  isReadDenyEntry,
+} from "../shared/shared-config-gateway.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
   ToolIgnore,
@@ -36,7 +41,7 @@ export type ClaudecodeIgnoreParams = ToolIgnoreParams;
  * see issue #1094 for the move to shared `settings.json` and #1374 for the
  * follow-up that added this opt-out.
  */
-export type ClaudecodeIgnoreFileMode = "shared" | "local";
+type ClaudecodeIgnoreFileMode = "shared" | "local";
 
 const DEFAULT_FILE_MODE: ClaudecodeIgnoreFileMode = "shared";
 
@@ -104,7 +109,7 @@ export class ClaudecodeIgnore extends ToolIgnore {
     const rulesyncPatterns = this.patterns
       .map((pattern) => {
         // Remove "Read(" prefix and ")" suffix if present
-        if (pattern.startsWith("Read(") && pattern.endsWith(")")) {
+        if (isReadDenyEntry(pattern)) {
           return pattern.slice(5, -1);
         }
         return pattern;
@@ -133,30 +138,28 @@ export class ClaudecodeIgnore extends ToolIgnore {
       .split(/\r?\n|\r/)
       .map((line: string) => line.trim())
       .filter((line) => line.length > 0 && !line.startsWith("#"));
-    const deniedValues = patterns.map((pattern) => `Read(${pattern})`);
+    const deniedValues = patterns.map((pattern) => buildReadDenyEntry(pattern));
 
     const paths = this.getSettablePaths({ options });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const exists = await fileExists(filePath);
     const existingFileContent = exists ? await readFileContent(filePath) : "{}";
-    const existingJsonValue: ClaudeSettingsJson = JSON.parse(existingFileContent);
-    const existingDenies = existingJsonValue.permissions?.deny ?? [];
-    const preservedDenies = existingDenies.filter((deny) => {
-      const isReadPattern = deny.startsWith("Read(") && deny.endsWith(")");
-      if (isReadPattern) {
-        return deniedValues.includes(deny);
-      }
+    let existingJsonValue: ClaudeSettingsJson;
+    try {
+      existingJsonValue = JSON.parse(existingFileContent);
+    } catch (error) {
+      throw new Error(
+        `Failed to parse existing Claude settings at ${filePath}: ${formatError(error)}`,
+        { cause: error },
+      );
+    }
 
-      return true;
+    // The gateway owns the `permissions.deny` merge shared with the permissions
+    // feature; here we only state the intent (deny these Read patterns).
+    const jsonValue = applyIgnoreReadDenies({
+      settings: existingJsonValue,
+      readDenies: deniedValues,
     });
-
-    const jsonValue: ClaudeSettingsJson = {
-      ...existingJsonValue,
-      permissions: {
-        ...existingJsonValue.permissions,
-        deny: uniq([...preservedDenies, ...deniedValues].toSorted()),
-      },
-    };
 
     return new ClaudecodeIgnore({
       outputRoot,

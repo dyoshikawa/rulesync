@@ -2,7 +2,10 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
-import { COPILOT_SKILLS_DIR_PATH } from "../../constants/copilot-paths.js";
+import {
+  COPILOT_SKILLS_DIR_PATH,
+  COPILOT_SKILLS_GLOBAL_DIR_PATH,
+} from "../../constants/copilot-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
@@ -40,7 +43,11 @@ export type CopilotSkillParams = {
 
 /**
  * Represents a GitHub Copilot skill directory.
- * Skills are stored under the .github/skills directory with SKILL.md files.
+ *
+ * Copilot discovers project skills from `.github/skills/` and personal/global
+ * skills from `~/.copilot/skills/`. Each skill is a directory containing a
+ * `SKILL.md` file with `name`/`description` frontmatter.
+ * https://docs.github.com/en/copilot/concepts/agents/about-agent-skills
  */
 export class CopilotSkill extends ToolSkill {
   constructor({
@@ -76,7 +83,9 @@ export class CopilotSkill extends ToolSkill {
 
   static getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths {
     if (options?.global) {
-      throw new Error("CopilotSkill does not support global mode.");
+      return {
+        relativeDirPath: COPILOT_SKILLS_GLOBAL_DIR_PATH,
+      };
     }
     return {
       relativeDirPath: COPILOT_SKILLS_DIR_PATH,

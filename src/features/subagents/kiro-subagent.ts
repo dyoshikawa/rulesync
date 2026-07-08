@@ -63,6 +63,11 @@ export class KiroSubagent extends ToolSubagent {
     this.body = body;
   }
 
+  // Kiro reads agent configs from `.kiro/agents/` (workspace) and, for the
+  // Kiro CLI, also from `~/.kiro/agents/` (global, local takes precedence).
+  // Both scopes share the same relative path; the home-directory root is
+  // applied by the generate pipeline in global mode.
+  // https://kiro.dev/docs/cli/custom-agents/configuration-reference/
   static getSettablePaths(_options: { global?: boolean } = {}): ToolSubagentSettablePaths {
     return {
       relativeDirPath: KIRO_AGENTS_DIR_PATH,

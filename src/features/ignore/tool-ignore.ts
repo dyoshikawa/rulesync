@@ -14,7 +14,7 @@ export type ToolIgnoreParams = AiFileParams;
  * (e.g. `features.<target>.ignore = { ... }`). Each tool decides how to
  * interpret its own keys; unknown keys are ignored.
  */
-export type ToolIgnoreFeatureOptions = FeatureOptions;
+type ToolIgnoreFeatureOptions = FeatureOptions;
 
 export type ToolIgnoreFromRulesyncIgnoreParams = Omit<
   AiFileParams,

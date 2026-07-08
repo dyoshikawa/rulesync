@@ -86,6 +86,66 @@ describe("KiroPermissions", () => {
     expect(json.permission.webfetch?.["*"]).toBe("allow");
   });
 
+  it("should map grep/glob categories to Kiro toolsSettings", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          grep: { "src/**": "allow", "secrets/**": "deny" },
+          glob: { "**/*.ts": "allow" },
+        },
+      }),
+    });
+
+    const kiroPermissions = await KiroPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const content = JSON.parse(kiroPermissions.getFileContent());
+    expect(content.toolsSettings.grep.allowedPaths).toEqual(["src/**"]);
+    expect(content.toolsSettings.grep.deniedPaths).toEqual(["secrets/**"]);
+    expect(content.toolsSettings.glob.allowedPaths).toEqual(["**/*.ts"]);
+  });
+
+  it("should not emit empty grep/glob tables when unused", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({ permission: { bash: { "git *": "allow" } } }),
+    });
+
+    const kiroPermissions = await KiroPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const content = JSON.parse(kiroPermissions.getFileContent());
+    expect(content.toolsSettings.grep).toBeUndefined();
+    expect(content.toolsSettings.glob).toBeUndefined();
+  });
+
+  it("should round-trip grep/glob from Kiro toolsSettings", () => {
+    const kiroPermissions = new KiroPermissions({
+      outputRoot: testDir,
+      relativeDirPath: join(".kiro", "agents"),
+      relativeFilePath: "default.json",
+      fileContent: JSON.stringify({
+        toolsSettings: {
+          grep: { allowedPaths: ["src/**"], deniedPaths: ["secrets/**"] },
+          glob: { allowedPaths: ["**/*.ts"], deniedPaths: [] },
+        },
+      }),
+    });
+
+    const json = kiroPermissions.toRulesyncPermissions().getJson();
+    expect(json.permission.grep).toEqual({ "src/**": "allow", "secrets/**": "deny" });
+    expect(json.permission.glob).toEqual({ "**/*.ts": "allow" });
+  });
+
   it("should load existing .kiro/agents/default.json", async () => {
     const kiroDir = join(testDir, ".kiro", "agents");
     await ensureDir(kiroDir);

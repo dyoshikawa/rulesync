@@ -13,6 +13,7 @@ export const JUNIE_ALT_AGENTS_DIR_PATH = ".agents";
 export const JUNIE_MCP_DIR_PATH = join(JUNIE_DIR, "mcp");
 export const JUNIE_MCP_FILE_NAME = "mcp.json";
 export const JUNIE_HOOKS_FILE_NAME = "config.json";
+export const JUNIE_PERMISSIONS_FILE_NAME = "allowlist.json";
 export const JUNIE_IGNORE_FILE_NAME = ".aiignore";
 export const JUNIE_RULE_FILE_NAME = "AGENTS.md";
 export const JUNIE_LEGACY_RULE_FILE_NAME = "guidelines.md";

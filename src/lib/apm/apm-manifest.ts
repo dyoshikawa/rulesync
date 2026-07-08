@@ -5,7 +5,7 @@ import { optional, z } from "zod/mini";
 
 import { fileExists, readFileContent } from "../../utils/file.js";
 
-export const APM_MANIFEST_FILE_NAME = "apm.yml";
+const APM_MANIFEST_FILE_NAME = "apm.yml";
 
 /**
  * Parsed representation of a single APM `dependencies.apm` entry after

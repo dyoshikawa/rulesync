@@ -110,6 +110,13 @@ export class CodexcliPermissions extends ToolPermissions {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? smolToml.stringify({});
+    // `parsed` is a shallow copy of the FULL top-level config.toml table (see toMutableTable),
+    // and only its `permissions` and `default_permissions` keys are overwritten below. This means
+    // Codex config keys rulesync does not model — e.g. the granular tool-approval surface
+    // (`default_tools_approval_mode`, `approval_policy`, `approvals_reviewer`, and their
+    // `apps.<id>.*` / `mcp_servers.<id>.*` variants) — survive a read-modify-write round-trip
+    // untouched, the same way amp/devin permissions preserve sibling settings they don't manage.
+    // https://developers.openai.com/codex/config-reference
     const parsed = toMutableTable(smolToml.parse(existingContent));
 
     const newProfile = convertRulesyncToCodexProfile({

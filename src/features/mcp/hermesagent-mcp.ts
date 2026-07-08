@@ -12,7 +12,11 @@ import {
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
 import { isPlainObject, isRecord, isStringArray } from "../../utils/type-guards.js";
-import { parseHermesConfig, stringifyHermesConfig } from "../hermes-config.js";
+import {
+  applySharedConfigPatch,
+  HERMES_CONFIG_SHARED_FILE_KEY,
+  parseSharedConfig,
+} from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -50,10 +54,12 @@ function resolveHermesTimeout(config: Record<string, unknown>): number | undefin
  *
  * Hermes is close to the MCP spec but not identical: `command` must be a single
  * executable string (an array's tail folds into `args`), a server is disabled
- * via `enabled: false` (not the canonical `disabled: true`), and remote servers
- * use `url`/`headers`. Only fields Hermes understands are emitted, so the shared
- * `config.yaml` is not polluted with canonical-only aliases (`type`, `transport`,
- * `httpUrl`, `networkTimeout`, tool-filter keys, ...).
+ * via `enabled: false` (not the canonical `disabled: true`), remote servers use
+ * `url`/`headers`, and per-server tool scoping lives under a `tools: { include,
+ * exclude }` block (from the canonical `enabledTools`/`disabledTools`). Only
+ * fields Hermes understands are emitted, so the shared `config.yaml` is not
+ * polluted with canonical-only aliases (`type`, `transport`, `httpUrl`,
+ * `networkTimeout`, ...).
  */
 function convertServerToHermes(config: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -82,6 +88,15 @@ function convertServerToHermes(config: Record<string, unknown>): Record<string, 
 
   const timeout = resolveHermesTimeout(config);
   if (timeout !== undefined) out.timeout = timeout;
+
+  // Per-server selective tool loading. Canonical `enabledTools`/`disabledTools`
+  // map to Hermes's `tools: { include, exclude }` block (include = whitelist,
+  // exclude = denylist; see hermes-agent `apps/desktop/src/lib/mcp-tool-filter.ts`
+  // and `tools/mcp_tool.py`'s `_register_server_tools`).
+  const tools: Record<string, unknown> = {};
+  if (isStringArray(config.enabledTools)) tools.include = config.enabledTools;
+  if (isStringArray(config.disabledTools)) tools.exclude = config.disabledTools;
+  if (Object.keys(tools).length > 0) out.tools = tools;
 
   return out;
 }
@@ -135,6 +150,10 @@ function convertFromHermesFormat(mcpServers: Record<string, unknown>): McpServer
     if (isPlainObject(config.headers)) server.headers = omitPrototypePollutionKeys(config.headers);
     if (config.enabled === false) server.disabled = true;
     if (typeof config.timeout === "number") server.networkTimeout = config.timeout;
+    if (isRecord(config.tools)) {
+      if (isStringArray(config.tools.include)) server.enabledTools = config.tools.include;
+      if (isStringArray(config.tools.exclude)) server.disabledTools = config.tools.exclude;
+    }
 
     result[name] = server;
   }
@@ -157,7 +176,10 @@ export class HermesagentMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    this.config = this.fileContent !== undefined ? parseHermesConfig(this.fileContent) : {};
+    this.config =
+      this.fileContent !== undefined
+        ? parseSharedConfig({ format: "yaml", fileContent: this.fileContent })
+        : {};
   }
 
   getConfig(): Record<string, unknown> {
@@ -169,7 +191,7 @@ export class HermesagentMcp extends ToolMcp {
   }
 
   override setFileContent(fileContent: string): void {
-    const config = parseHermesConfig(fileContent);
+    const config = parseSharedConfig({ format: "yaml", fileContent });
     const mcpServers = isRecord(this.config.mcp_servers) ? this.config.mcp_servers : {};
     const merged = mergeHermesMcpServers(
       config,
@@ -177,7 +199,14 @@ export class HermesagentMcp extends ToolMcp {
     );
 
     this.config = merged;
-    super.setFileContent(stringifyHermesConfig(merged));
+    super.setFileContent(
+      applySharedConfigPatch({
+        fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
+        feature: "mcp",
+        existingContent: fileContent,
+        patch: { mcp_servers: merged.mcp_servers },
+      }),
+    );
   }
 
   override isDeletable(): boolean {
@@ -230,7 +259,7 @@ export class HermesagentMcp extends ToolMcp {
       join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       "",
     );
-    const config = parseHermesConfig(fileContent);
+    const config = parseSharedConfig({ format: "yaml", fileContent });
 
     // Merge the `mcp_servers:` block into the shared config, preserving other
     // keys (model, terminal, ...).
@@ -243,7 +272,12 @@ export class HermesagentMcp extends ToolMcp {
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: stringifyHermesConfig(merged),
+      fileContent: applySharedConfigPatch({
+        fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
+        feature: "mcp",
+        existingContent: fileContent,
+        patch: { mcp_servers: merged.mcp_servers },
+      }),
       validate,
       global,
     });

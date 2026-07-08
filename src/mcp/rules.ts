@@ -207,7 +207,7 @@ async function deleteRule({ relativePathFromCwd }: { relativePathFromCwd: string
 /**
  * Schema for rule-related tool parameters
  */
-export const ruleToolSchemas = {
+const ruleToolSchemas = {
   listRules: z.object({}),
   getRule: z.object({
     relativePathFromCwd: z.string(),

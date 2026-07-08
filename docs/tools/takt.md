@@ -38,9 +38,17 @@ Output files are **plain Markdown** — the source frontmatter is dropped entire
 .rulesync/skills/oncall/SKILL.md →  .takt/facets/knowledge/oncall.md
 ```
 
+## MCP (partial — transport allowlist only)
+
+Takt has no project- or global-level registry of MCP server _definitions_: the concrete `mcp_servers` map (`command`/`args`/`env` or `type`/`url`/`headers`) is declared **per workflow step** inside individual workflow YAML files, and Takt's `config.yaml` loader rejects unknown top-level keys. The one MCP knob `config.yaml` does expose is the **default-deny transport allowlist** `workflow_mcp_servers: { stdio, sse, http }`; until a transport is enabled there, every workflow-defined MCP server using it is refused.
+
+Rulesync therefore emits **only** this allowlist into the shared `.takt/config.yaml` (project) / `~/.takt/config.yaml` (global), turning on exactly the transports the servers in `.rulesync/mcp.json` use (`local`/`stdio` → `stdio`, `sse` → `sse`, `http`/`streamable-http`/`ws` → `http`). The merge is in place, so the active provider, provider profiles, and all other config keys are preserved; the file is never deleted.
+
+**Lossiness:** the per-server names, commands, env, URLs, and headers are not representable in `config.yaml` and are intentionally not written — you still declare the concrete servers in your workflow YAML steps; Rulesync only opens the transport gate that permits them. Because of this, reverse import cannot reconstruct server definitions and yields an empty `mcpServers` map.
+
 ## Scope
 
-Both project mode (`.takt/facets/...`) and global mode (`~/.takt/facets/...`) are supported.
+Both project mode (`.takt/facets/...`, `.takt/config.yaml`) and global mode (`~/.takt/facets/...`, `~/.takt/config.yaml`) are supported.
 
 ## Importing existing TAKT files into rulesync
 

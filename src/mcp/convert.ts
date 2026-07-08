@@ -148,7 +148,7 @@ function buildSuccessResponse(params: {
   };
 }
 
-export const convertToolSchemas = {
+const convertToolSchemas = {
   executeConvert: convertOptionsSchema,
 };
 

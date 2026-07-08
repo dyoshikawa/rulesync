@@ -22,7 +22,7 @@
 //                                `simple-git-hooks`
 //   - `pnpm-workspace.yaml`      (`allowBuilds` entries — re-enabling a
 //                                postinstall opens a code-execution path)
-//   - `vitest.config.*`, `tsup.config.*`, `eslint.config.*`, `scripts/**`
+//   - `vitest.config.*`, `tsdown.config.*`, `eslint.config.*`, `scripts/**`
 //   - Test files that import/execute shell commands or write to the filesystem
 // When in doubt, check out the PR locally in a sandbox first and inspect what
 // runs during `pnpm install`, `pnpm test`, and `pnpm build`.

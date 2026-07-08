@@ -4,7 +4,7 @@ import { z } from "zod/mini";
 
 import { KIRO_AGENTS_DIR_PATH, KIRO_HOOKS_FILE_NAME } from "../../constants/kiro-paths.js";
 import type { ValidationResult } from "../../types/ai-file.js";
-import type { PermissionsConfig } from "../../types/permissions.js";
+import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -95,31 +95,22 @@ export class KiroPermissions extends ToolPermissions {
     const permission: PermissionsConfig["permission"] = {};
     const toolsSettings = parsed.toolsSettings ?? {};
 
-    const shellSettings = asRecord(toolsSettings.shell);
-    const shellAllow = asStringArray(shellSettings.allowedCommands);
-    const shellDeny = asStringArray(shellSettings.deniedCommands);
-    if (shellAllow.length > 0 || shellDeny.length > 0) {
-      permission.bash = {};
-      for (const pattern of shellAllow) permission.bash[pattern] = "allow";
-      for (const pattern of shellDeny) permission.bash[pattern] = "deny";
-    }
+    const shellRules = rulesFromArrays(
+      asRecord(toolsSettings.shell),
+      "allowedCommands",
+      "deniedCommands",
+    );
+    if (Object.keys(shellRules).length > 0) permission.bash = shellRules;
 
-    const readSettings = asRecord(toolsSettings.read);
-    const readAllow = asStringArray(readSettings.allowedPaths);
-    const readDeny = asStringArray(readSettings.deniedPaths);
-    if (readAllow.length > 0 || readDeny.length > 0) {
-      permission.read = {};
-      for (const pattern of readAllow) permission.read[pattern] = "allow";
-      for (const pattern of readDeny) permission.read[pattern] = "deny";
-    }
-
-    const writeSettings = asRecord(toolsSettings.write);
-    const writeAllow = asStringArray(writeSettings.allowedPaths);
-    const writeDeny = asStringArray(writeSettings.deniedPaths);
-    if (writeAllow.length > 0 || writeDeny.length > 0) {
-      permission.write = {};
-      for (const pattern of writeAllow) permission.write[pattern] = "allow";
-      for (const pattern of writeDeny) permission.write[pattern] = "deny";
+    // read/write/grep/glob all use `{ allowedPaths, deniedPaths }` under their
+    // own toolsSettings key, mapping 1:1 to the canonical category name.
+    for (const category of ["read", "write", "grep", "glob"] as const) {
+      const rules = rulesFromArrays(
+        asRecord(toolsSettings[category]),
+        "allowedPaths",
+        "deniedPaths",
+      );
+      if (Object.keys(rules).length > 0) permission[category] = rules;
     }
 
     const allowedTools = new Set(parsed.allowedTools ?? []);
@@ -166,18 +157,14 @@ function buildKiroPermissionsFromRulesync({
   const nextAllowedTools = new Set(existing.allowedTools ?? []);
   const nextToolsSettings = { ...asRecord(existing.toolsSettings) };
 
-  const shell: { allowedCommands: string[]; deniedCommands: string[] } = {
-    allowedCommands: [],
-    deniedCommands: [],
+  // Path/command categories map to a `{ <allowKey>: [], <denyKey>: [] }` table
+  // under a `toolsSettings` key. `edit` and `write` both fold into `write`.
+  const pathBuckets: Record<string, { allow: string[]; deny: string[] }> = {};
+  const pushPath = (key: string, action: PermissionAction, pattern: string): void => {
+    const bucket = (pathBuckets[key] ??= { allow: [], deny: [] });
+    (action === "allow" ? bucket.allow : bucket.deny).push(pattern);
   };
-  const read: { allowedPaths: string[]; deniedPaths: string[] } = {
-    allowedPaths: [],
-    deniedPaths: [],
-  };
-  const write: { allowedPaths: string[]; deniedPaths: string[] } = {
-    allowedPaths: [],
-    deniedPaths: [],
-  };
+  const shell = { allowedCommands: [] as string[], deniedCommands: [] as string[] };
 
   for (const [category, rules] of Object.entries(config.permission)) {
     for (const [pattern, action] of Object.entries(rules)) {
@@ -187,38 +174,70 @@ function buildKiroPermissionsFromRulesync({
       }
       if (category === "bash") {
         (action === "allow" ? shell.allowedCommands : shell.deniedCommands).push(pattern);
-      } else if (category === "read") {
-        (action === "allow" ? read.allowedPaths : read.deniedPaths).push(pattern);
+      } else if (category === "read" || category === "grep" || category === "glob") {
+        pushPath(category, action, pattern);
       } else if (category === "edit" || category === "write") {
-        (action === "allow" ? write.allowedPaths : write.deniedPaths).push(pattern);
+        pushPath("write", action, pattern);
       } else if (category === "webfetch" || category === "websearch") {
-        if (pattern !== "*") {
-          logger?.warn(
-            `Kiro ${category} supports only wildcard (*) via allowedTools. Skipping rule: ${pattern}`,
-          );
-          continue;
-        }
-        const toolName = category === "webfetch" ? "web_fetch" : "web_search";
-        if (action === "allow") {
-          nextAllowedTools.add(toolName);
-        } else {
-          nextAllowedTools.delete(toolName);
-        }
+        applyKiroWebPermission({ category, pattern, action, nextAllowedTools, logger });
       } else {
         logger?.warn(`Kiro permissions do not support category: ${category}. Skipping.`);
       }
     }
   }
 
+  // `shell`/`read`/`write` are always emitted (even empty) to match the prior
+  // behavior; `grep`/`glob` are only emitted when they carry a rule so existing
+  // configs do not gain empty tables.
   nextToolsSettings.shell = shell;
-  nextToolsSettings.read = read;
-  nextToolsSettings.write = write;
+  nextToolsSettings.read = pathTable(pathBuckets.read);
+  nextToolsSettings.write = pathTable(pathBuckets.write);
+  for (const key of ["grep", "glob"] as const) {
+    const bucket = pathBuckets[key];
+    if (bucket && (bucket.allow.length > 0 || bucket.deny.length > 0)) {
+      nextToolsSettings[key] = pathTable(bucket);
+    }
+  }
 
   return {
     ...existing,
     allowedTools: [...nextAllowedTools].toSorted(),
     toolsSettings: nextToolsSettings,
   };
+}
+
+function pathTable(bucket: { allow: string[]; deny: string[] } | undefined): {
+  allowedPaths: string[];
+  deniedPaths: string[];
+} {
+  return { allowedPaths: bucket?.allow ?? [], deniedPaths: bucket?.deny ?? [] };
+}
+
+function applyKiroWebPermission({
+  category,
+  pattern,
+  action,
+  nextAllowedTools,
+  logger,
+}: {
+  category: "webfetch" | "websearch";
+  pattern: string;
+  action: PermissionAction;
+  nextAllowedTools: Set<string>;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): void {
+  if (pattern !== "*") {
+    logger?.warn(
+      `Kiro ${category} supports only wildcard (*) via allowedTools. Skipping rule: ${pattern}`,
+    );
+    return;
+  }
+  const toolName = category === "webfetch" ? "web_fetch" : "web_search";
+  if (action === "allow") {
+    nextAllowedTools.add(toolName);
+  } else {
+    nextAllowedTools.delete(toolName);
+  }
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -230,4 +249,20 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
+}
+
+/**
+ * Build a canonical `{ pattern: action }` map from a Kiro tool settings record's
+ * allow/deny string arrays (e.g. `allowedPaths`/`deniedPaths` or
+ * `allowedCommands`/`deniedCommands`).
+ */
+function rulesFromArrays(
+  settings: Record<string, unknown>,
+  allowKey: string,
+  denyKey: string,
+): Record<string, PermissionAction> {
+  const rules: Record<string, PermissionAction> = {};
+  for (const pattern of asStringArray(settings[allowKey])) rules[pattern] = "allow";
+  for (const pattern of asStringArray(settings[denyKey])) rules[pattern] = "deny";
+  return rules;
 }

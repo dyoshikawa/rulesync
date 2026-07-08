@@ -43,6 +43,26 @@ export const HookDefinitionSchema = z.looseObject({
   // round-tripped through the canonical, flat list of definitions.
   // https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/hooks.md
   sequential: z.optional(z.boolean()),
+  // Qwen Code per-hook fields (PR https://github.com/QwenLM/qwen-code/pull/2827).
+  // Command hooks: `async` runs the command in the background without blocking;
+  // `env` supplies extra environment variables to the subprocess; `shell`
+  // selects the interpreter (`"bash"` | `"powershell"`).
+  async: z.optional(z.boolean()),
+  // Map/string values use `safeString` so control characters (newline/CR/NUL)
+  // can't ride into a generated shell env var or HTTP header (header-splitting
+  // shape), consistent with how `command`/`url` are guarded.
+  env: z.optional(z.record(z.string(), safeString)),
+  shell: z.optional(safeString),
+  // `statusMessage` is the progress text shown while the hook runs; Qwen Code
+  // accepts it on both command and http hooks.
+  statusMessage: z.optional(safeString),
+  // HTTP hooks: `headers` sets request headers (with `${VAR}` interpolation);
+  // `allowedEnvVars` whitelists the env vars usable in URL/headers; `once`
+  // limits execution to a single invocation per event per session.
+  // https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/hooks.md
+  headers: z.optional(z.record(z.string(), safeString)),
+  allowedEnvVars: z.optional(z.array(z.string())),
+  once: z.optional(z.boolean()),
 });
 
 export type HookDefinition = z.infer<typeof HookDefinitionSchema>;
@@ -170,6 +190,31 @@ export const CLAUDE_HOOK_EVENTS: readonly HookEvent[] = [
   "elicitationResult",
 ];
 
+/**
+ * Hook events supported by Devin Local (native `.devin/` hooks).
+ *
+ * Devin Local adopts a Claude-Code-style lifecycle hooks surface. It documents
+ * seven events: `PreToolUse`, `PostToolUse`, `PermissionRequest`,
+ * `UserPromptSubmit`, `Stop`, `SessionStart`, and `SessionEnd`. The
+ * tool/permission events (`PreToolUse`/`PostToolUse`/`PermissionRequest`) carry
+ * a `matcher` (regex against `tool_name`); the session/turn events do not.
+ *
+ * Hooks live in `.devin/hooks.v1.json` (project, standalone — the hooks object
+ * is the entire file) or under the `"hooks"` key of `.devin/config.json` /
+ * `~/.config/devin/config.json`.
+ *
+ * @see https://docs.devin.ai/cli/extensibility/hooks/overview
+ */
+export const DEVIN_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "preToolUse",
+  "postToolUse",
+  "beforeSubmitPrompt",
+  "stop",
+  "permissionRequest",
+];
+
 /** Hook events supported by OpenCode. */
 export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -215,7 +260,11 @@ export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
  * `sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`,
  * `postToolUse`, `postToolUseFailure`, `agentStop`, `subagentStart`,
  * `subagentStop`, `errorOccurred`, `preCompact`, `permissionRequest`,
- * `notification`.
+ * `notification`, `preMcpToolCall` ← `beforeMCPExecution`.
+ *
+ * `preMcpToolCall` (canonical `beforeMCPExecution`) was added in Copilot CLI
+ * v1.0.51 (2026-05-20) for hook providers to control outgoing MCP request
+ * metadata. https://github.com/github/copilot-cli/blob/main/changelog.md
  *
  * @see https://docs.github.com/en/copilot/reference/hooks-configuration
  */
@@ -233,6 +282,7 @@ export const COPILOTCLI_HOOK_EVENTS: readonly HookEvent[] = [
   "preCompact",
   "permissionRequest",
   "notification",
+  "beforeMCPExecution",
 ];
 
 /**
@@ -267,6 +317,8 @@ export const DEEPAGENTS_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionEnd",
   "beforeSubmitPrompt",
   "permissionRequest",
+  "preToolUse",
+  "postToolUse",
   "postToolUseFailure",
   "stop",
   "preCompact",
@@ -294,7 +346,13 @@ export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = [
  * Goose adopts the Open Plugins hooks spec: each plugin's `hooks/hooks.json`
  * maps PascalCase event names to matcher/handler arrays. Every Goose event has a
  * 1:1 canonical equivalent, so no new canonical events are required.
- * @see https://goose-docs.ai/blog/2026/05/14/goose-hooks/
+ *
+ * Goose's `HookEvent` enum defines exactly these 11 events (v1.41.0). Notably it
+ * has NO `SubagentStart`/`SubagentStop` arms — emitting them would write keys
+ * Goose silently ignores, so `subagentStart`/`subagentStop` are intentionally
+ * excluded here and from `CANONICAL_TO_GOOSE_EVENT_NAMES`.
+ * @see https://github.com/block/goose/blob/v1.41.0/crates/goose/src/hooks/mod.rs
+ * @see https://block.github.io/goose/docs/guides/context-engineering/hooks/
  */
 export const GOOSE_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -308,14 +366,32 @@ export const GOOSE_HOOK_EVENTS: readonly HookEvent[] = [
   "afterFileEdit",
   "beforeShellExecution",
   "afterShellExecution",
-  "subagentStart",
-  "subagentStop",
 ];
 
 /** Hook events supported by Kiro CLI. */
 export const KIRO_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
   "sessionEnd",
+  "beforeSubmitPrompt",
+  "preToolUse",
+  "postToolUse",
+  "stop",
+];
+
+/**
+ * Hook events supported by the Kiro IDE (`.kiro/hooks/*.json` v1).
+ *
+ * Kiro IDE 1.0 exposes PascalCase triggers. rulesync maps the canonical
+ * lifecycle events that have a clean 1:1 IDE equivalent: `SessionStart`,
+ * `Stop`, `UserPromptSubmit`, `PreToolUse`, and `PostToolUse`. The IDE also
+ * documents file-event (`PostFileCreate`/`PostFileSave`/`PostFileDelete`) and
+ * spec-task (`PreTaskExec`/`PostTaskExec`) triggers that have no canonical
+ * equivalent; those can still be emitted verbatim via a `kiro-ide` override
+ * block (unknown event keys pass through unchanged).
+ * @see https://kiro.dev/docs/hooks/types/
+ */
+export const KIRO_IDE_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
   "beforeSubmitPrompt",
   "preToolUse",
   "postToolUse",
@@ -372,18 +448,23 @@ export const VIBE_HOOK_EVENTS: readonly HookEvent[] = ["preToolUse", "postToolUs
 /**
  * Hook events supported by JetBrains Junie CLI.
  *
- * Junie CLI exposes four lifecycle events under the `"hooks"` key of
- * `~/.junie/config.json`: `SessionStart`, `UserPromptSubmit`, `Stop`, and
- * `SessionEnd`. Matchers apply only to `SessionStart` / `SessionEnd`
- * (e.g. `startup` / `resume`); `UserPromptSubmit` and `Stop` are
- * matcher-less. Only `type: "command"` hooks are supported. Project-local
- * hooks are ignored for safety.
+ * Junie CLI exposes seven lifecycle events under the `"hooks"` key of
+ * `~/.junie/config.json`: `SessionStart`, `UserPromptSubmit`, `PreToolUse`,
+ * `Stop`, `StopFailure`, `PermissionRequest`, and `SessionEnd`. Matchers apply
+ * to `SessionStart` (source), `PreToolUse` (tool name), `StopFailure` (error
+ * type), `PermissionRequest` (tool name), and `SessionEnd` (reason);
+ * `UserPromptSubmit` and `Stop` are matcher-less and always run. Only
+ * `type: "command"` hooks are supported. Project-local hooks are ignored for
+ * safety.
  * @see https://junie.jetbrains.com/docs/junie-cli-hooks.html
  */
 export const JUNIE_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
   "beforeSubmitPrompt",
+  "preToolUse",
   "stop",
+  "stopFailure",
+  "permissionRequest",
   "sessionEnd",
 ];
 
@@ -417,6 +498,75 @@ export const QWENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "todoCompleted",
 ];
 
+/**
+ * Hook events supported by Reasonix.
+ *
+ * Reasonix's `.reasonix/settings.json` (project) / `~/.reasonix/settings.json`
+ * (global) documents a ten-event surface (`PreToolUse`, `PostToolUse`,
+ * `UserPromptSubmit`, `Stop`, `PostLLMCall`, `SessionStart`, `SessionEnd`,
+ * `SubagentStop`, `Notification`, `PreCompact`), but only the four events the
+ * upstream issue scoped in are mapped here: `PreToolUse`, `PostToolUse`,
+ * `UserPromptSubmit` ← `beforeSubmitPrompt`, and `Stop`. `match` (Reasonix's
+ * matcher field name) is honored only on `PreToolUse`/`PostToolUse`, matching
+ * the canonical `matcher` field's tool-event scoping used by other adapters.
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/DESKTOP_HOOKS.zh-CN.md
+ */
+export const REASONIX_HOOK_EVENTS: readonly HookEvent[] = [
+  "preToolUse",
+  "postToolUse",
+  "beforeSubmitPrompt",
+  "stop",
+];
+
+/**
+ * Hook events supported by Hermes Agent's native Shell Hooks system.
+ *
+ * Hermes validates hook events against a fixed `VALID_HOOKS` set:
+ * `pre_tool_call`, `post_tool_call`, `pre_llm_call`, `post_llm_call`,
+ * `pre_verify`, `on_session_start`, `on_session_end`, `on_session_finalize`,
+ * `on_session_reset`, `subagent_start`, `subagent_stop`, `pre_gateway_dispatch`,
+ * `pre_approval_request`, `post_approval_response`, `transform_tool_result`,
+ * `transform_terminal_output`, `transform_llm_output`. Only the events with a
+ * clean 1:1 canonical equivalent are mapped here; the remaining `VALID_HOOKS`
+ * entries (`pre_verify`, `on_session_finalize`, `on_session_reset`,
+ * `pre_gateway_dispatch`, `pre_approval_request`, `post_approval_response`, the
+ * `transform_*` result-rewriting hooks) have no canonical rulesync equivalent,
+ * so no canonical event maps to them.
+ * @see https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/hooks.md
+ */
+export const HERMESAGENT_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "preToolUse",
+  "postToolUse",
+  "preModelInvocation",
+  "postModelInvocation",
+  "subagentStart",
+  "subagentStop",
+];
+
+/**
+ * Map canonical camelCase event names to Hermes Agent's native `VALID_HOOKS`
+ * snake_case keys under the `hooks:` block of `~/.hermes/config.yaml`.
+ */
+export const CANONICAL_TO_HERMESAGENT_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "on_session_start",
+  sessionEnd: "on_session_end",
+  preToolUse: "pre_tool_call",
+  postToolUse: "post_tool_call",
+  preModelInvocation: "pre_llm_call",
+  postModelInvocation: "post_llm_call",
+  subagentStart: "subagent_start",
+  subagentStop: "subagent_stop",
+};
+
+/**
+ * Map Hermes Agent's native `VALID_HOOKS` keys back to canonical camelCase.
+ */
+export const HERMESAGENT_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_HERMESAGENT_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
 const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
 
 /**
@@ -437,12 +587,15 @@ export const HooksConfigSchema = z.looseObject({
   deepagents: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   kiro: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "kiro-cli": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  "kiro-ide": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   devin: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   augmentcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "antigravity-ide": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "antigravity-cli": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  hermesagent: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   junie: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   vibe: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  reasonix: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   qwencode: z.optional(
     z.looseObject({
       hooks: z.optional(hooksRecordSchema),
@@ -495,6 +648,30 @@ export const CANONICAL_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
  */
 export const CLAUDE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_CLAUDE_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to Devin Local PascalCase.
+ *
+ * Devin Local reuses the same Claude-style PascalCase event names for the
+ * subset of events it supports.
+ * @see https://docs.devin.ai/cli/extensibility/hooks/overview
+ */
+export const CANONICAL_TO_DEVIN_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  stop: "Stop",
+  permissionRequest: "PermissionRequest",
+};
+
+/**
+ * Map Devin Local PascalCase event names to canonical camelCase.
+ */
+export const DEVIN_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_DEVIN_EVENT_NAMES).map(([k, v]) => [v, k]),
 );
 
 /**
@@ -652,6 +829,9 @@ export const CANONICAL_TO_COPILOTCLI_EVENT_NAMES: Record<string, string> = {
   preCompact: "preCompact",
   permissionRequest: "permissionRequest",
   notification: "notification",
+  // Added in Copilot CLI v1.0.51 (2026-05-20). The canonical MCP pre-call event
+  // maps to the CLI's `preMcpToolCall` hook.
+  beforeMCPExecution: "preMcpToolCall",
 };
 
 /** Map GitHub Copilot CLI event names back to canonical camelCase. */
@@ -697,8 +877,6 @@ export const CANONICAL_TO_GOOSE_EVENT_NAMES: Record<string, string> = {
   afterFileEdit: "AfterFileEdit",
   beforeShellExecution: "BeforeShellExecution",
   afterShellExecution: "AfterShellExecution",
-  subagentStart: "SubagentStart",
-  subagentStop: "SubagentStop",
 };
 
 /**
@@ -716,6 +894,9 @@ export const CANONICAL_TO_DEEPAGENTS_EVENT_NAMES: Record<string, string> = {
   sessionEnd: "session.end",
   beforeSubmitPrompt: "user.prompt",
   permissionRequest: "permission.request",
+  // Tool lifecycle events added upstream in deepagents-code 0.1.32.
+  preToolUse: "tool.use",
+  postToolUse: "tool.result",
   postToolUseFailure: "tool.error",
   stop: "task.complete",
   preCompact: "context.compact",
@@ -754,13 +935,39 @@ export const KIRO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.from
 );
 
 /**
+ * Map canonical camelCase event names to Kiro IDE PascalCase triggers.
+ *
+ * Only the canonical lifecycle events with a clean IDE equivalent are mapped.
+ * Unknown keys (e.g. IDE-only `PostFileSave`/`PreTaskExec` set via a `kiro-ide`
+ * override) pass through unchanged.
+ * @see https://kiro.dev/docs/hooks/types/
+ */
+export const CANONICAL_TO_KIRO_IDE_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  stop: "Stop",
+};
+
+/**
+ * Map Kiro IDE PascalCase trigger names to canonical camelCase.
+ */
+export const KIRO_IDE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_KIRO_IDE_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
  * Map canonical camelCase event names to Junie PascalCase.
  * Junie reuses the same PascalCase names as Claude for the events it supports.
  */
 export const CANONICAL_TO_JUNIE_EVENT_NAMES: Record<string, string> = {
   sessionStart: "SessionStart",
   beforeSubmitPrompt: "UserPromptSubmit",
+  preToolUse: "PreToolUse",
   stop: "Stop",
+  stopFailure: "StopFailure",
+  permissionRequest: "PermissionRequest",
   sessionEnd: "SessionEnd",
 };
 
@@ -823,4 +1030,24 @@ export const CANONICAL_TO_QWENCODE_EVENT_NAMES: Record<string, string> = {
  */
 export const QWENCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_QWENCODE_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to Reasonix PascalCase.
+ * Reasonix explicitly mirrors Claude Code's hooks model, so it reuses the same
+ * PascalCase names for the four events rulesync maps.
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/DESKTOP_HOOKS.zh-CN.md
+ */
+export const CANONICAL_TO_REASONIX_EVENT_NAMES: Record<string, string> = {
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  stop: "Stop",
+};
+
+/**
+ * Map Reasonix PascalCase event names to canonical camelCase.
+ */
+export const REASONIX_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_REASONIX_EVENT_NAMES).map(([k, v]) => [v, k]),
 );

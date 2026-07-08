@@ -109,6 +109,36 @@ function buildQwenPermissionEntry(toolName: string, pattern: string): string {
   return `${toolName}(${pattern})`;
 }
 
+// The `tools`/`security` sub-keys that the `qwencode` override authors and that
+// round-trip back into it on import. Kept explicit so unrelated `tools`/
+// `security` keys are not pulled into the canonical model on import. The
+// deprecated `tools.exclude` is intentionally excluded — Qwen recommends
+// expressing those denials via `permissions.deny`, which the shared block owns.
+const QWEN_OVERRIDE_TOOLS_KEYS = [
+  "approvalMode",
+  "autoAccept",
+  "sandbox",
+  "sandboxImage",
+  "disabled",
+] as const;
+const QWEN_OVERRIDE_SECURITY_KEYS = ["folderTrust"] as const;
+
+function asPlainRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+/** Pick the override-managed keys out of a settings group into a fresh record. */
+function pickQwenOverrideKeys(group: unknown, keys: readonly string[]): Record<string, unknown> {
+  const source = asPlainRecord(group);
+  const picked: Record<string, unknown> = {};
+  for (const key of keys) {
+    if (source[key] !== undefined) picked[key] = source[key];
+  }
+  return picked;
+}
+
 export class QwencodePermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
     super({
@@ -232,7 +262,24 @@ export class QwencodePermissions extends ToolPermissions {
       delete mergedPermissions.deny;
     }
 
-    const merged = { ...settings, permissions: mergedPermissions };
+    const merged: Record<string, unknown> = { ...settings, permissions: mergedPermissions };
+
+    // Overlay the Qwen-scoped override's `tools`/`security` groups (autonomy and
+    // sandbox settings). Shallow-merged at the top level of each group, so an
+    // unrelated sibling key (e.g. `tools.core`) is preserved while an override
+    // key wins; a nested object the override supplies (e.g. `security.folderTrust`)
+    // replaces the existing one wholesale rather than being deep-merged.
+    const override = config.qwencode;
+    if (override?.tools !== undefined) {
+      merged.tools = { ...asPlainRecord(settings.tools), ...asPlainRecord(override.tools) };
+    }
+    if (override?.security !== undefined) {
+      merged.security = {
+        ...asPlainRecord(settings.security),
+        ...asPlainRecord(override.security),
+      };
+    }
+
     const fileContent = JSON.stringify(merged, null, 2);
 
     return new QwencodePermissions({
@@ -267,8 +314,21 @@ export class QwencodePermissions extends ToolPermissions {
       deny: permissions.deny ?? [],
     });
 
+    // Route Qwen's autonomy/sandbox settings into the `qwencode` override — they
+    // have no canonical category and would otherwise be dropped on round-trip.
+    const overrideTools = pickQwenOverrideKeys(settings.tools, QWEN_OVERRIDE_TOOLS_KEYS);
+    const overrideSecurity = pickQwenOverrideKeys(settings.security, QWEN_OVERRIDE_SECURITY_KEYS);
+    const qwencodeOverride: Record<string, unknown> = {};
+    if (Object.keys(overrideTools).length > 0) qwencodeOverride.tools = overrideTools;
+    if (Object.keys(overrideSecurity).length > 0) qwencodeOverride.security = overrideSecurity;
+
+    const result: Record<string, unknown> = { ...config };
+    if (Object.keys(qwencodeOverride).length > 0) {
+      result.qwencode = qwencodeOverride;
+    }
+
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify(config, null, 2),
+      fileContent: JSON.stringify(result, null, 2),
     });
   }
 

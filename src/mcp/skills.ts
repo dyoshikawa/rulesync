@@ -305,7 +305,7 @@ const McpSkillFileSchema = z.object({
 /**
  * Schema for skill-related tool parameters
  */
-export const skillToolSchemas = {
+const skillToolSchemas = {
   listSkills: z.object({}),
   getSkill: z.object({
     relativeDirPathFromCwd: z.string(),

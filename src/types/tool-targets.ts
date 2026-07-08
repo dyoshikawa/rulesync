@@ -1,7 +1,7 @@
 import { z } from "zod/mini";
 
 import { PerTargetFeaturesValueSchema } from "./features.js";
-import type { PerFeatureConfig, PerTargetFeaturesValue } from "./features.js";
+import type { PerTargetFeaturesValue } from "./features.js";
 import { ALL_TOOL_TARGET_TUPLES } from "./tool-target-tuples.js";
 
 // A tool exists iff at least one feature supports it, so the master list is the
@@ -40,7 +40,7 @@ export type RulesyncTargets = z.infer<typeof RulesyncTargetsSchema>;
 // ALL enum members to be present. Unknown target names (and the `*` key) are
 // rejected at runtime by `Config#validateObjectFormTargetKeys`, which throws
 // with a descriptive message listing the valid targets.
-export const RulesyncConfigTargetsObjectSchema = z.record(z.string(), PerTargetFeaturesValueSchema);
+const RulesyncConfigTargetsObjectSchema = z.record(z.string(), PerTargetFeaturesValueSchema);
 export const RulesyncConfigTargetsSchema = z.union([
   RulesyncTargetsSchema,
   RulesyncConfigTargetsObjectSchema,
@@ -62,7 +62,3 @@ export const isRulesyncConfigTargetsObject = (
 ): value is RulesyncConfigTargetsObject => {
   return !Array.isArray(value);
 };
-
-// Re-export for callers that consume per-target values from the targets
-// object form without also pulling from features.ts directly.
-export type { PerFeatureConfig, PerTargetFeaturesValue };

@@ -13,12 +13,9 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
-  ToolRuleParams,
   ToolRuleSettablePaths,
   buildToolPath,
 } from "./tool-rule.js";
-
-export type AugmentcodeLegacyRuleParams = ToolRuleParams;
 
 export type AugmentcodeLegacyRuleSettablePaths = ToolRuleSettablePaths & {
   root: {

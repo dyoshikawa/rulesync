@@ -16,7 +16,7 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const RooSkillFrontmatterSchema = z.looseObject({
+const RooSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
 });

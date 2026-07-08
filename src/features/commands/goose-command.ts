@@ -35,7 +35,7 @@ const RECIPE_VERSION = "1.0.0";
  *
  * @see https://block.github.io/goose/docs/guides/recipes/recipe-reference/
  */
-export const GooseCommandRecipeSchema = z.looseObject({
+const GooseCommandRecipeSchema = z.looseObject({
   version: z.optional(z.string()),
   title: z.optional(z.string()),
   description: z.optional(z.string()),

@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import * as smolToml from "smol-toml";
 
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_VIBE_EVENT_NAMES,
@@ -254,6 +255,12 @@ export class VibeHooks extends ToolHooks {
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
     return { relativeDirPath: VIBE_DIR, relativeFilePath: VIBE_HOOKS_FILE_NAME };
+  }
+
+  // Vibe enables hooks by also writing `.vibe/config.toml`, a file the MCP and
+  // permissions features share. Declared here because it is not a settable path.
+  static getExtraSharedWritePaths(): SharedWritePath[] {
+    return [{ relativeDirPath: VIBE_DIR, relativeFilePath: VIBE_CONFIG_FILE_NAME }];
   }
 
   static async fromFile({

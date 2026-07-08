@@ -55,9 +55,14 @@ describe("KiroSkill", () => {
       }).toThrow(/frontmatter name \(wrong-name\) must match directory name \(test-skill\)/);
     });
 
-    it("should throw error when global mode is requested", () => {
-      expect(() => KiroSkill.getSettablePaths({ global: true })).toThrow(
-        "KiroSkill does not support global mode.",
+    it("should return the skills path in both project and global mode", () => {
+      // Kiro reads skills from `.kiro/skills/` (project) and `~/.kiro/skills/`
+      // (global); both scopes share the same relative path.
+      expect(KiroSkill.getSettablePaths({ global: false }).relativeDirPath).toBe(
+        join(".kiro", "skills"),
+      );
+      expect(KiroSkill.getSettablePaths({ global: true }).relativeDirPath).toBe(
+        join(".kiro", "skills"),
       );
     });
   });

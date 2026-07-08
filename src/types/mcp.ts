@@ -44,7 +44,7 @@ export const McpServerSchema = z.looseObject({
   disabledTools: z.optional(z.array(z.string())),
 });
 
-export const McpServersSchema = z.record(z.string(), McpServerSchema);
+const McpServersSchema = z.record(z.string(), McpServerSchema);
 export type McpServers = z.infer<typeof McpServersSchema>;
 export type McpServer = z.infer<typeof McpServerSchema>;
 

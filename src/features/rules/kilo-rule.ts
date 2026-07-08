@@ -6,8 +6,10 @@ import {
   KILO_RULE_FILE_NAME,
   KILO_RULES_DIR_NAME,
 } from "../../constants/kilo-paths.js";
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
+import { KiloMcp } from "../mcp/kilo-mcp.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -53,6 +55,14 @@ export class KiloRule extends ToolRule {
         relativeDirPath: buildToolPath(KILO_DIR, KILO_RULES_DIR_NAME, excludeToolDir),
       },
     };
+  }
+
+  // Only project-scope rule generation writes the shared kilo.json (global skips
+  // the MCP instructions registrar).
+  static getExtraSharedWritePaths({
+    global = false,
+  }: { global?: boolean } = {}): SharedWritePath[] {
+    return global ? [] : [KiloMcp.getSettablePaths({ global: false })];
   }
 
   static async fromFile({

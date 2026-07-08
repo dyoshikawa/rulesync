@@ -3,39 +3,114 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
+import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
 import {
+  assertGenerateMatrixCoversTargets,
   runGenerate,
   runImport,
   useGlobalTestDirectories,
   useTestDirectory,
 } from "./e2e-helper.js";
 
+const commandsGenerateTargets = [
+  { target: "claudecode", outputPath: join(".claude", "commands", "review-pr.md") },
+  { target: "cursor", outputPath: join(".cursor", "commands", "review-pr.md") },
+  { target: "augmentcode", outputPath: join(".augment", "commands", "review-pr.md") },
+  { target: "copilot", outputPath: join(".github", "prompts", "review-pr.prompt.md") },
+  { target: "opencode", outputPath: join(".opencode", "commands", "review-pr.md") },
+  { target: "cline", outputPath: join(".clinerules", "workflows", "review-pr.md") },
+  { target: "kilo", outputPath: join(".kilo", "commands", "review-pr.md") },
+  { target: "roo", outputPath: join(".roo", "commands", "review-pr.md") },
+  { target: "kiro", outputPath: join(".kiro", "prompts", "review-pr.md") },
+  { target: "kiro-cli", outputPath: join(".kiro", "prompts", "review-pr.md") },
+  { target: "kiro-ide", outputPath: join(".kiro", "prompts", "review-pr.md") },
+  { target: "antigravity-ide", outputPath: join(".agents", "workflows", "review-pr.md") },
+  { target: "antigravity-cli", outputPath: join(".agents", "workflows", "review-pr.md") },
+  { target: "junie", outputPath: join(".junie", "commands", "review-pr.md") },
+  { target: "takt", outputPath: join(".takt", "facets", "instructions", "review-pr.md") },
+  { target: "pi", outputPath: join(".pi", "prompts", "review-pr.md") },
+  { target: "devin", outputPath: join(".devin", "workflows", "review-pr.md") },
+  { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
+  { target: "goose", outputPath: join(".goose", "recipes", "review-pr.yaml") },
+  { target: "qwencode", outputPath: join(".qwen", "commands", "review-pr.md") },
+  { target: "reasonix", outputPath: join(".reasonix", "commands", "review-pr.md") },
+  { target: "rovodev", outputPath: join(".rovodev", "prompts", "review-pr.md") },
+] as const;
+
+const commandsGlobalTargets = [
+  { target: "claudecode", outputPath: join(".claude", "commands", "review-pr.md") },
+  { target: "cursor", outputPath: join(".cursor", "commands", "review-pr.md") },
+  { target: "augmentcode", outputPath: join(".augment", "commands", "review-pr.md") },
+  { target: "opencode", outputPath: join(".config", "opencode", "commands", "review-pr.md") },
+  { target: "codexcli", outputPath: join(".codex", "prompts", "review-pr.md") },
+  { target: "cline", outputPath: join("Documents", "Cline", "Workflows", "review-pr.md") },
+  { target: "kilo", outputPath: join(".config", "kilo", "commands", "review-pr.md") },
+  { target: "junie", outputPath: join(".junie", "commands", "review-pr.md") },
+  { target: "kiro-cli", outputPath: join(".kiro", "prompts", "review-pr.md") },
+  {
+    target: "antigravity-ide",
+    outputPath: join(".gemini", "antigravity", "global_workflows", "review-pr.md"),
+  },
+  {
+    target: "antigravity-cli",
+    outputPath: join(".gemini", "antigravity-cli", "global_workflows", "review-pr.md"),
+  },
+  {
+    target: "takt",
+    outputPath: join(".takt", "facets", "instructions", "review-pr.md"),
+  },
+  { target: "pi", outputPath: join(".pi", "agent", "prompts", "review-pr.md") },
+  {
+    target: "devin",
+    outputPath: join(".codeium", "windsurf", "global_workflows", "review-pr.md"),
+  },
+  { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
+  { target: "goose", outputPath: join(".config", "goose", "recipes", "review-pr.yaml") },
+  { target: "qwencode", outputPath: join(".qwen", "commands", "review-pr.md") },
+  // Hermes Agent has no project-scoped command location; commands are emitted
+  // as Hermes skills under ~/.hermes/skills/<slug>/SKILL.md (global only).
+  { target: "hermesagent", outputPath: join(".hermes", "skills", "review-pr", "SKILL.md") },
+  { target: "reasonix", outputPath: join(".reasonix", "commands", "review-pr.md") },
+  { target: "rovodev", outputPath: join(".rovodev", "prompts", "review-pr.md") },
+] as const;
+
 describe("E2E: commands", () => {
   const { getTestDir } = useTestDirectory();
 
-  it.each([
-    { target: "claudecode", outputPath: join(".claude", "commands", "review-pr.md") },
-    { target: "cursor", outputPath: join(".cursor", "commands", "review-pr.md") },
-    { target: "augmentcode", outputPath: join(".augment", "commands", "review-pr.md") },
-    { target: "copilot", outputPath: join(".github", "prompts", "review-pr.prompt.md") },
-    { target: "opencode", outputPath: join(".opencode", "commands", "review-pr.md") },
-    { target: "cline", outputPath: join(".clinerules", "workflows", "review-pr.md") },
-    { target: "kilo", outputPath: join(".kilo", "commands", "review-pr.md") },
-    { target: "roo", outputPath: join(".roo", "commands", "review-pr.md") },
-    { target: "kiro", outputPath: join(".kiro", "prompts", "review-pr.md") },
-    { target: "antigravity-ide", outputPath: join(".agents", "workflows", "review-pr.md") },
-    { target: "junie", outputPath: join(".junie", "commands", "review-pr.md") },
-    { target: "takt", outputPath: join(".takt", "facets", "instructions", "review-pr.md") },
-    { target: "pi", outputPath: join(".pi", "prompts", "review-pr.md") },
-    { target: "devin", outputPath: join(".devin", "workflows", "review-pr.md") },
-    { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
-    { target: "goose", outputPath: join(".goose", "recipes", "review-pr.yaml") },
-    { target: "qwencode", outputPath: join(".qwen", "commands", "review-pr.md") },
-  ])("should generate $target commands", async ({ target, outputPath }) => {
+  it("generate matrix must cover every native commands tool target", () => {
+    assertGenerateMatrixCoversTargets({
+      processor: CommandsProcessor,
+      testedTargets: commandsGenerateTargets.map((e) => e.target),
+    });
+  });
+
+  it.each(commandsGenerateTargets)(
+    "should generate $target commands",
+    async ({ target, outputPath }) => {
+      const testDir = getTestDir();
+
+      const commandContent = `---
+description: "Review a pull request"
+targets: ["*"]
+---
+Check the PR diff and provide feedback.
+`;
+      await writeFileContent(
+        join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
+        commandContent,
+      );
+
+      await runGenerate({ target, features: "commands" });
+
+      const generatedContent = await readFileContent(join(testDir, outputPath));
+      expect(generatedContent).toContain("Check the PR diff and provide feedback.");
+    },
+  );
+
+  it("should generate a rovodev prompts.yml manifest alongside the content file", async () => {
     const testDir = getTestDir();
 
-    // Setup: Create .rulesync/commands/review-pr.md
     const commandContent = `---
 description: "Review a pull request"
 targets: ["*"]
@@ -47,12 +122,17 @@ Check the PR diff and provide feedback.
       commandContent,
     );
 
-    // Execute: Generate commands for the target
-    await runGenerate({ target, features: "commands" });
+    await runGenerate({ target: "rovodev", features: "commands" });
 
-    // Verify that the expected output file was generated
-    const generatedContent = await readFileContent(join(testDir, outputPath));
-    expect(generatedContent).toContain("Check the PR diff and provide feedback.");
+    // The content file holds the raw prompt body (no frontmatter).
+    const contentFile = await readFileContent(join(testDir, ".rovodev", "prompts", "review-pr.md"));
+    expect(contentFile.trim()).toBe("Check the PR diff and provide feedback.");
+
+    // The manifest indexes the prompt by name/description/content_file.
+    const manifest = await readFileContent(join(testDir, ".rovodev", "prompts.yml"));
+    expect(manifest).toContain("name: review-pr");
+    expect(manifest).toContain("description: Review a pull request");
+    expect(manifest).toContain("content_file: prompts/review-pr.md");
   });
 
   it.each([{ target: "agentsmd", outputPath: join(".agents", "commands", "review-pr.md") }])(
@@ -89,11 +169,13 @@ Check the PR diff and provide feedback.
     { target: "roo", orphanPath: join(".roo", "commands", "orphan.md") },
     { target: "kiro", orphanPath: join(".kiro", "prompts", "orphan.md") },
     { target: "antigravity-ide", orphanPath: join(".agents", "workflows", "orphan.md") },
+    { target: "antigravity-cli", orphanPath: join(".agents", "workflows", "orphan.md") },
     { target: "junie", orphanPath: join(".junie", "commands", "orphan.md") },
     { target: "pi", orphanPath: join(".pi", "prompts", "orphan.md") },
     { target: "devin", orphanPath: join(".devin", "workflows", "orphan.md") },
     { target: "factorydroid", orphanPath: join(".factory", "commands", "orphan.md") },
     { target: "goose", orphanPath: join(".goose", "recipes", "orphan.yaml") },
+    { target: "rovodev", orphanPath: join(".rovodev", "prompts", "orphan.md") },
   ])(
     "should fail in check mode when delete would remove an orphan $target command file",
     async ({ target, orphanPath }) => {
@@ -136,10 +218,13 @@ describe("E2E: commands (import)", () => {
     { target: "roo", sourcePath: join(".roo", "commands", "review-pr.md") },
     { target: "kiro", sourcePath: join(".kiro", "prompts", "review-pr.md") },
     { target: "antigravity-ide", sourcePath: join(".agents", "workflows", "review-pr.md") },
+    { target: "antigravity-cli", sourcePath: join(".agents", "workflows", "review-pr.md") },
     { target: "junie", sourcePath: join(".junie", "commands", "review-pr.md") },
     { target: "pi", sourcePath: join(".pi", "prompts", "review-pr.md") },
     { target: "devin", sourcePath: join(".devin", "workflows", "review-pr.md") },
     { target: "factorydroid", sourcePath: join(".factory", "commands", "review-pr.md") },
+    { target: "reasonix", sourcePath: join(".reasonix", "commands", "review-pr.md") },
+    { target: "rovodev", sourcePath: join(".rovodev", "prompts", "review-pr.md") },
   ])("should import $target commands", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
@@ -177,63 +262,43 @@ describe("E2E: commands (import)", () => {
 describe("E2E: commands (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
 
-  it.each([
-    { target: "claudecode", outputPath: join(".claude", "commands", "review-pr.md") },
-    { target: "cursor", outputPath: join(".cursor", "commands", "review-pr.md") },
-    { target: "augmentcode", outputPath: join(".augment", "commands", "review-pr.md") },
-    { target: "opencode", outputPath: join(".config", "opencode", "commands", "review-pr.md") },
-    { target: "codexcli", outputPath: join(".codex", "prompts", "review-pr.md") },
-    { target: "cline", outputPath: join("Documents", "Cline", "Workflows", "review-pr.md") },
-    { target: "kilo", outputPath: join(".config", "kilo", "commands", "review-pr.md") },
-    { target: "junie", outputPath: join(".junie", "commands", "review-pr.md") },
-    {
-      target: "antigravity-ide",
-      outputPath: join(".gemini", "antigravity", "global_workflows", "review-pr.md"),
-    },
-    {
-      target: "takt",
-      outputPath: join(".takt", "facets", "instructions", "review-pr.md"),
-    },
-    { target: "pi", outputPath: join(".pi", "agent", "prompts", "review-pr.md") },
-    {
-      target: "devin",
-      outputPath: join(".codeium", "windsurf", "global_workflows", "review-pr.md"),
-    },
-    { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
-    { target: "goose", outputPath: join(".config", "goose", "recipes", "review-pr.yaml") },
-    { target: "qwencode", outputPath: join(".qwen", "commands", "review-pr.md") },
-    // Hermes Agent has no project-scoped command location; commands are emitted
-    // as Hermes skills under ~/.hermes/skills/<slug>/SKILL.md (global only).
-    { target: "hermesagent", outputPath: join(".hermes", "skills", "review-pr", "SKILL.md") },
-  ])("should generate $target commands in home directory", async ({ target, outputPath }) => {
-    const projectDir = getProjectDir();
-    const homeDir = getHomeDir();
+  it("global matrix must cover every native global commands tool target", () => {
+    assertGenerateMatrixCoversTargets({
+      processor: CommandsProcessor,
+      testedTargets: commandsGlobalTargets.map((e) => e.target),
+      global: true,
+    });
+  });
 
-    // Setup: Create .rulesync/commands/review-pr.md with root: true
-    const commandContent = `---
+  it.each(commandsGlobalTargets)(
+    "should generate $target commands in home directory",
+    async ({ target, outputPath }) => {
+      const projectDir = getProjectDir();
+      const homeDir = getHomeDir();
+
+      const commandContent = `---
 root: true
 description: "Review a pull request"
 targets: ["*"]
 ---
 Check the PR diff and provide feedback.
 `;
-    await writeFileContent(
-      join(projectDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
-      commandContent,
-    );
+      await writeFileContent(
+        join(projectDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
+        commandContent,
+      );
 
-    // Execute: Generate commands in global mode with HOME pointed to temp dir
-    await runGenerate({
-      target,
-      features: "commands",
-      global: true,
-      env: { HOME_DIR: homeDir },
-    });
+      await runGenerate({
+        target,
+        features: "commands",
+        global: true,
+        env: { HOME_DIR: homeDir },
+      });
 
-    // Verify that the expected output file was generated
-    const generatedContent = await readFileContent(join(homeDir, outputPath));
-    expect(generatedContent).toContain("Check the PR diff and provide feedback.");
-  });
+      const generatedContent = await readFileContent(join(homeDir, outputPath));
+      expect(generatedContent).toContain("Check the PR diff and provide feedback.");
+    },
+  );
 
   it("should ignore non-root commands in global mode", async () => {
     const projectDir = getProjectDir();

@@ -23,11 +23,14 @@ jobs:
         with:
           experimental: true
 
+      - name: Setup Takumi Guard npm registry
+        uses: flatt-security/setup-takumi-guard-npm@9a5d797c2085b6326d3a2985c08e3a114b9b88c1 # v1
+
       - name: Install dependencies
         run: pnpm install
 
-      - name: Generate toon files
-        run: pnpm exec tsx scripts/generate-repomix-toon.ts
+      - name: Generate repomix XML files
+        run: pnpm exec tsx scripts/generate-repomix-xml.ts
 
       - name: Run security scan
         env:
@@ -37,4 +40,4 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
           SECURITY_SCAN_RECIPIENT: ${{ secrets.SECURITY_SCAN_RECIPIENT }}
-        run: pnpm exec tsx scripts/security-scan-toon.ts
+        run: pnpm exec tsx scripts/security-scan-xml.ts

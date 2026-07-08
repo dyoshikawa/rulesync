@@ -16,7 +16,7 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const ClineSkillFrontmatterSchema = z.looseObject({
+const ClineSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
 });

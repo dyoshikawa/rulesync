@@ -137,7 +137,7 @@ async function deleteHooksFile(): Promise<{
 /**
  * Schema for hooks-related tool parameters
  */
-export const hooksToolSchemas = {
+const hooksToolSchemas = {
   getHooksFile: z.object({}),
   putHooksFile: z.object({
     content: z.string(),

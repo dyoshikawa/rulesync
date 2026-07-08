@@ -12,6 +12,7 @@ import { formatError } from "../../utils/error.js";
 import { checkPathTraversal, findFilesByGlobs } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "./agentsmd-command.js";
+import { AntigravityCliCommand } from "./antigravity-cli-command.js";
 import { AntigravityIdeCommand } from "./antigravity-ide-command.js";
 import { AugmentcodeCommand } from "./augmentcode-command.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
@@ -31,7 +32,9 @@ import { KiroIdeCommand } from "./kiro-ide-command.js";
 import { OpenCodeCommand } from "./opencode-command.js";
 import { PiCommand } from "./pi-command.js";
 import { QwencodeCommand } from "./qwencode-command.js";
+import { ReasonixCommand } from "./reasonix-command.js";
 import { RooCommand } from "./roo-command.js";
+import { RovodevCommand } from "./rovodev-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { TaktCommand } from "./takt-command.js";
 import {
@@ -63,6 +66,16 @@ type ToolCommandFactory = {
       outputRoot: string;
       global: boolean;
     }): Promise<ToolCommand[]>;
+    /**
+     * Optional hook for tools that need a shared/aggregate file alongside the
+     * per-command files (e.g. Rovo Dev's `prompts.yml` manifest). See
+     * {@link ToolCommand.getAuxiliaryFiles}.
+     */
+    getAuxiliaryFiles?(params: {
+      toolCommands: ToolCommand[];
+      outputRoot?: string;
+      global?: boolean;
+    }): Promise<ToolFile[]> | ToolFile[];
   };
   meta: {
     /** File extension for the command file */
@@ -102,6 +115,22 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsProject: true,
         supportsGlobal: false,
         isSimulated: true,
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "antigravity-cli",
+    {
+      class: AntigravityCliCommand,
+      meta: {
+        // The Antigravity CLI (`agy`) reads workflow slash commands from the
+        // shared `.agents/workflows/` directory (project) and its own
+        // `~/.gemini/antigravity-cli/global_workflows/` tree (global).
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
         supportsSubdirectory: false,
       },
     },
@@ -295,13 +324,16 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     },
   ],
   [
+    // Kiro CLI reads user-wide prompts from `~/.kiro/prompts/` in addition to
+    // the project-scope `.kiro/prompts/` (local takes precedence over global).
+    // https://kiro.dev/docs/cli/chat/manage-prompts/
     "kiro-cli",
     {
       class: KiroCliCommand,
       meta: {
         extension: "md",
         supportsProject: true,
-        supportsGlobal: false,
+        supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: false,
       },
@@ -363,6 +395,23 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     },
   ],
   [
+    "reasonix",
+    {
+      // Reasonix custom slash commands are Markdown files under
+      // `.reasonix/commands/` (project) / `~/.reasonix/commands/` (global),
+      // directly analogous to Claude Code's `.claude/commands/` (subdirectory
+      // namespacing included, e.g. `git/commit.md` -> `/git:commit`).
+      class: ReasonixCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
+      },
+    },
+  ],
+  [
     "roo",
     {
       class: RooCommand,
@@ -372,6 +421,26 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsGlobal: false,
         isSimulated: false,
         supportsSubdirectory: true,
+      },
+    },
+  ],
+  [
+    // Rovo Dev CLI "saved prompts": a `prompts.yml` manifest (one entry per
+    // prompt: `{ name, description, content_file }`) plus per-prompt Markdown
+    // content files. Discovered in repo-root `.rovodev/`, cwd `.rovodev/`, and
+    // global `~/.rovodev/`. Content files live under `.rovodev/prompts/`
+    // (project) / `~/.rovodev/prompts/` (global); the manifest is regenerated
+    // via `RovodevCommand.getAuxiliaryFiles`.
+    // https://support.atlassian.com/rovo/docs/save-and-reuse-a-prompt-in-rovo-dev-cli/
+    "rovodev",
+    {
+      class: RovodevCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
       },
     },
   ],
@@ -433,12 +502,10 @@ const commandsProcessorToolTargetsSimulated: ToolTarget[] = allToolTargetKeys.fi
   return factory?.meta.isSimulated ?? false;
 });
 
-export const commandsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter(
-  (target) => {
-    const factory = toolCommandFactories.get(target);
-    return factory?.meta.supportsGlobal ?? false;
-  },
-);
+const commandsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolCommandFactories.get(target);
+  return factory?.meta.supportsGlobal ?? false;
+});
 
 export class CommandsProcessor extends FeatureProcessor {
   private readonly toolTarget: CommandsProcessorToolTarget;
@@ -510,7 +577,18 @@ export class CommandsProcessor extends FeatureProcessor {
       })
       .filter((command): command is ToolCommand => command !== null);
 
-    return toolCommands;
+    const auxiliaryFiles = await factory.class.getAuxiliaryFiles?.({
+      toolCommands,
+      outputRoot: this.outputRoot,
+      global: this.global,
+    });
+
+    const result: ToolFile[] = [...toolCommands];
+    if (auxiliaryFiles && auxiliaryFiles.length > 0) {
+      result.push(...auxiliaryFiles);
+    }
+
+    return result;
   }
 
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {

@@ -119,6 +119,7 @@ RUN curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/
 
 # Install global packages
 ENV PNPM_HOME=/home/node/.pnpm
+ENV npm_config_registry=https://npm.flatt.tech/
 ENV PATH=$PNPM_HOME/bin:$PATH
 RUN mkdir -p "$PNPM_HOME" && \
     mise exec -- pnpm add -g \

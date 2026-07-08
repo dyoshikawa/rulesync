@@ -46,6 +46,9 @@ jobs:
         with:
           experimental: true
 
+      - name: Setup Takumi Guard npm registry
+        uses: flatt-security/setup-takumi-guard-npm@9a5d797c2085b6326d3a2985c08e3a114b9b88c1 # v1
+
       - name: Install dependencies
         run: bun install
 
@@ -67,11 +70,11 @@ jobs:
       - name: Generate JSON Schemas
         run: pnpm generate:schema
 
-      - name: Generate repomix TOON variants
-        run: bun scripts/generate-repomix-toon.ts
+      - name: Generate repomix XML variants
+        run: bun scripts/generate-repomix-xml.ts
 
-      - name: Bundle TOON files into zip
-        run: zip repomix-toon.zip repomix-output-*.toon
+      - name: Bundle XML files into zip
+        run: zip repomix-xml.zip repomix-output-*.xml
 
       - name: Determine tag name
         id: tag
@@ -136,7 +139,7 @@ jobs:
           TAG: ${{ steps.tag.outputs.tag }}
 
       - name: Upload assets to release
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           draft: true
@@ -148,7 +151,7 @@ jobs:
             dist-bun/rulesync-darwin-x64
             dist-bun/rulesync-windows-x64.exe
             dist-bun/SHA256SUMS
-            repomix-toon.zip
+            repomix-xml.zip
             config-schema.json
             permissions-schema.json
             mcp-schema.json

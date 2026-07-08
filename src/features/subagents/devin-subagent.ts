@@ -27,7 +27,7 @@ import {
 //   - `name`, `description`: identity fields.
 //   - `model`, `allowed-tools`, `permissions`, `max-nesting`: optional
 //     configuration fields, passed through verbatim when present.
-export const DevinSubagentFrontmatterSchema = z.looseObject({
+const DevinSubagentFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.optional(z.string()),
   model: z.optional(z.string()),

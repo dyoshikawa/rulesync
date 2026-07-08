@@ -16,7 +16,7 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-export const ReplitSkillFrontmatterSchema = z.looseObject({
+const ReplitSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
   "allowed-tools": z.optional(z.array(z.string())),

@@ -381,4 +381,72 @@ describe("AntigravityCliPermissions", () => {
     const json = loaded.toRulesyncPermissions().getJson();
     expect(json.permission).toEqual({});
   });
+
+  describe("antigravity-cli override (toolPermission / enableTerminalSandbox)", () => {
+    it("authors the autonomy/sandbox knobs as top-level siblings of permissions", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          "antigravity-cli": { toolPermission: "strict", enableTerminalSandbox: true },
+        }),
+      });
+
+      const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const settings = JSON.parse(permissions.getFileContent()) as SettingsJson & {
+        toolPermission?: string;
+        enableTerminalSandbox?: boolean;
+      };
+      expect(settings.toolPermission).toBe("strict");
+      expect(settings.enableTerminalSandbox).toBe(true);
+      // The permissions arrays are unaffected.
+      expect(settings.permissions?.allow).toContain("command(git *)");
+    });
+
+    it("round-trips the override through import", async () => {
+      const dir = join(testDir, ".gemini", "antigravity-cli");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "settings.json"),
+        JSON.stringify({
+          toolPermission: "always-proceed",
+          enableTerminalSandbox: false,
+          permissions: { deny: ["command(rm -rf *)"] },
+        }),
+      );
+
+      const loaded = await AntigravityCliPermissions.fromFile({ outputRoot: testDir });
+      const json = loaded.toRulesyncPermissions().getJson() as {
+        permission: Record<string, unknown>;
+        "antigravity-cli"?: { toolPermission?: string; enableTerminalSandbox?: boolean };
+      };
+
+      expect(json["antigravity-cli"]).toEqual({
+        toolPermission: "always-proceed",
+        enableTerminalSandbox: false,
+      });
+      expect((json.permission.bash as Record<string, string>)["rm -rf *"]).toBe("deny");
+    });
+
+    it("omits the override when neither knob is present", async () => {
+      const dir = join(testDir, ".gemini", "antigravity-cli");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "settings.json"),
+        JSON.stringify({ permissions: { allow: ["command(git *)"] } }),
+      );
+
+      const loaded = await AntigravityCliPermissions.fromFile({ outputRoot: testDir });
+      const json = loaded.toRulesyncPermissions().getJson() as {
+        "antigravity-cli"?: unknown;
+      };
+      expect(json["antigravity-cli"]).toBeUndefined();
+    });
+  });
 });

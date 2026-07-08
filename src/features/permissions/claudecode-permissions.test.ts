@@ -488,7 +488,92 @@ describe("ClaudecodePermissions", () => {
     });
   });
 
+  describe("claudecode override (defaultMode / additionalDirectories)", () => {
+    it("merges the override's non-list permissions fields into settings.permissions", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: {
+            permissions: {
+              defaultMode: "acceptEdits",
+              additionalDirectories: ["../shared"],
+            },
+          },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.permissions.defaultMode).toBe("acceptEdits");
+      expect(content.permissions.additionalDirectories).toEqual(["../shared"]);
+      // Managed arrays are still driven by the shared block.
+      expect(content.permissions.allow).toContain("Bash(git *)");
+    });
+
+    it("ignores allow/ask/deny inside the override (rulesync owns them)", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: {
+            permissions: {
+              defaultMode: "plan",
+              // These must NOT leak into the managed arrays.
+              deny: ["Bash(should-be-ignored)"],
+            },
+          },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.permissions.defaultMode).toBe("plan");
+      expect(content.permissions.deny ?? []).not.toContain("Bash(should-be-ignored)");
+    });
+  });
+
   describe("toRulesyncPermissions", () => {
+    it("routes non-list permissions fields into the claudecode override on import", () => {
+      const instance = new ClaudecodePermissions({
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          permissions: {
+            allow: ["Bash(git *)"],
+            defaultMode: "acceptEdits",
+            additionalDirectories: ["../shared"],
+          },
+        }),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+      expect(config.permission.bash).toEqual({ "git *": "allow" });
+      expect(config.claudecode).toEqual({
+        permissions: { defaultMode: "acceptEdits", additionalDirectories: ["../shared"] },
+      });
+    });
+
+    it("does not emit a claudecode override when only allow/ask/deny are present", () => {
+      const instance = new ClaudecodePermissions({
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ permissions: { allow: ["Bash(git *)"] } }),
+      });
+
+      expect(instance.toRulesyncPermissions().getJson().claudecode).toBeUndefined();
+    });
+
     it("should convert Claude Code permissions to rulesync format", () => {
       const instance = new ClaudecodePermissions({
         relativeDirPath: ".claude",

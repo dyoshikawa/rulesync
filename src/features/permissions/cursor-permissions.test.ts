@@ -318,6 +318,112 @@ describe("CursorPermissions", () => {
     });
   });
 
+  describe("cursor override (approvalMode / sandbox)", () => {
+    it("merges approvalMode and sandbox from the cursor override into cli.json", async () => {
+      const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            cursor: { approvalMode: "auto-review", sandbox: { mode: "workspace-write" } },
+          }),
+        }),
+      });
+
+      const parsed = JSON.parse(cursorPermissions.getFileContent());
+      expect(parsed.approvalMode).toBe("auto-review");
+      expect(parsed.sandbox).toEqual({ mode: "workspace-write" });
+      // The managed permissions block is still driven by the shared block.
+      expect(parsed.permissions.allow).toContain("Shell(git *)");
+    });
+
+    it("does not let the override clobber the managed permissions block", async () => {
+      const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            // A stray `permissions` in the override must be ignored.
+            cursor: { approvalMode: "unrestricted", permissions: { allow: ["Shell(evil)"] } },
+          }),
+        }),
+      });
+
+      const parsed = JSON.parse(cursorPermissions.getFileContent());
+      expect(parsed.approvalMode).toBe("unrestricted");
+      expect(parsed.permissions.allow).toEqual(["Shell(git *)"]);
+    });
+
+    it("does not let the override clobber managed version/editor", async () => {
+      const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            cursor: { approvalMode: "auto-review", version: 99, editor: { vimMode: true } },
+          }),
+        }),
+      });
+
+      const parsed = JSON.parse(cursorPermissions.getFileContent());
+      expect(parsed.approvalMode).toBe("auto-review");
+      // rulesync-managed fields win over the override.
+      expect(parsed.version).toBe(1);
+      expect(parsed.editor).toEqual({ vimMode: false });
+    });
+
+    it("routes cli.json approvalMode/sandbox back into the cursor override on import", () => {
+      const cursorPermissions = new CursorPermissions({
+        relativeDirPath: ".cursor",
+        relativeFilePath: "cli.json",
+        fileContent: JSON.stringify({
+          approvalMode: "auto-review",
+          sandbox: { mode: "workspace-write" },
+          permissions: { allow: ["Shell(git *)"] },
+        }),
+      });
+
+      const json = cursorPermissions.toRulesyncPermissions().getJson();
+      expect(json.permission.bash?.["git *"]).toBe("allow");
+      expect(json.cursor).toEqual({
+        approvalMode: "auto-review",
+        sandbox: { mode: "workspace-write" },
+      });
+    });
+
+    it("skips a malformed non-object sandbox on import", () => {
+      const cursorPermissions = new CursorPermissions({
+        relativeDirPath: ".cursor",
+        relativeFilePath: "cli.json",
+        fileContent: JSON.stringify({
+          approvalMode: "auto-review",
+          sandbox: "not-an-object",
+          permissions: { allow: ["Shell(git *)"] },
+        }),
+      });
+
+      const json = cursorPermissions.toRulesyncPermissions().getJson();
+      // approvalMode is still carried; the malformed sandbox is dropped.
+      expect(json.cursor).toEqual({ approvalMode: "auto-review" });
+    });
+
+    it("does not emit a cursor override when no autonomy settings are present", () => {
+      const cursorPermissions = new CursorPermissions({
+        relativeDirPath: ".cursor",
+        relativeFilePath: "cli.json",
+        fileContent: JSON.stringify({ permissions: { allow: ["Shell(git *)"] } }),
+      });
+
+      expect(cursorPermissions.toRulesyncPermissions().getJson().cursor).toBeUndefined();
+    });
+  });
+
   describe("toRulesyncPermissions", () => {
     it("should convert Cursor allow/deny entries back to rulesync permissions", () => {
       const cursorPermissions = new CursorPermissions({

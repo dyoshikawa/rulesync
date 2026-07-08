@@ -117,7 +117,8 @@ describe("registry derivation", () => {
       "codexcli::ignore::**/.codexignore",
       // Shared trees and global-scope outputs (emitted under the home dir).
       "rovodev::skills::**/.agents/skills/",
-      "devin::skills::**/.codeium/windsurf/skills/",
+      "rovodev::commands::**/.rovodev/prompts.yml",
+      "devin::skills::**/.config/devin/skills/",
       "copilotcli::subagents::**/.copilot/agents/",
       "copilotcli::mcp::**/.copilot/mcp-config.json",
       "copilotcli::hooks::**/.copilot/hooks/",
