@@ -150,6 +150,36 @@ describe("mergeSharedConfigDeep", () => {
   });
 });
 
+/**
+ * Registry-derived shared files whose writers still merge in their own tool
+ * classes instead of routing through applySharedConfigPatch. This is a
+ * conscious, shrinking boundary: migrating a file's writers onto the gateway
+ * removes it from this list, and a NEW shared file must either get an
+ * ownership declaration or be added here deliberately — it can no longer
+ * appear without anyone deciding who owns its merge. (These writers are
+ * already covered by the derived execution order and by the cross-feature
+ * write contract in `src/lib/shared-file-contract.test.ts`.)
+ */
+const GATEWAY_PENDING_SHARED_FILES: ReadonlySet<string> = new Set([
+  ".amp/settings.json",
+  ".augment/settings.json",
+  ".codex/config.toml",
+  ".config/amp/settings.json",
+  ".config/devin/config.json",
+  ".config/opencode/opencode.json",
+  ".config/zed/settings.json",
+  ".devin/config.json",
+  ".grok/config.toml",
+  ".kiro/agents/default.json",
+  ".qwen/settings.json",
+  ".reasonix/config.toml",
+  ".vibe/config.toml",
+  ".zed/settings.json",
+  "kilo.json",
+  "opencode.json",
+  "reasonix.toml",
+]);
+
 describe("SHARED_CONFIG_OWNERSHIP", () => {
   it("declares exactly the writer features the processor registry derives per file", () => {
     const derived = new Map(deriveSharedFileWriters().map((w) => [w.key, [...w.features]]));
@@ -159,6 +189,26 @@ describe("SHARED_CONFIG_OWNERSHIP", () => {
         `ownership declaration for '${fileKey}' out of sync with the registry-derived writers`,
       ).toEqual(derived.get(fileKey) ?? []);
     }
+  });
+
+  it("accounts for every registry-derived shared file: declared or explicitly pending", () => {
+    const unaccounted = deriveSharedFileWriters()
+      .map((writer) => writer.key)
+      .filter((key) => SHARED_CONFIG_OWNERSHIP[key] === undefined)
+      .filter((key) => !GATEWAY_PENDING_SHARED_FILES.has(key));
+    expect(
+      unaccounted,
+      "a shared file appeared without an ownership decision; declare it in " +
+        "SHARED_CONFIG_OWNERSHIP (preferred) or consciously add it to GATEWAY_PENDING_SHARED_FILES",
+    ).toEqual([]);
+  });
+
+  it("keeps the pending list free of files that are declared or no longer shared", () => {
+    const derivedKeys = new Set(deriveSharedFileWriters().map((writer) => writer.key));
+    const stale = [...GATEWAY_PENDING_SHARED_FILES].filter(
+      (key) => SHARED_CONFIG_OWNERSHIP[key] !== undefined || !derivedKeys.has(key),
+    );
+    expect(stale, "remove these entries from GATEWAY_PENDING_SHARED_FILES").toEqual([]);
   });
 });
 
