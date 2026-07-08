@@ -24,6 +24,7 @@ import {
 
 // Native MCP tools that emit "test-server" (takt writes a transport allowlist instead).
 const mcpGenerateTargets = [
+  { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   { target: "amp", outputPath: join(".amp", "settings.json") },
   { target: "claudecode", outputPath: ".mcp.json" },
   { target: "cursor", outputPath: join(".cursor", "mcp.json") },
@@ -416,6 +417,7 @@ describe("E2E: mcp (import)", () => {
   const { getTestDir } = useTestDirectory();
 
   it.each([
+    { target: "augmentcode", sourcePath: join(".augment", "settings.json") },
     { target: "claudecode", sourcePath: ".mcp.json" },
     { target: "cursor", sourcePath: join(".cursor", "mcp.json") },
     // copilot MCP uses VS Code-specific format — excluded from import test

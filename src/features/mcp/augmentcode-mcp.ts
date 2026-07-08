@@ -6,8 +6,9 @@ import {
 } from "../../constants/augmentcode-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers } from "../../types/mcp.js";
+import { readAugmentcodeSettingsWithLocalOverlay } from "../../utils/augmentcode-settings.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readOrInitializeFileContent } from "../../utils/file.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -18,9 +19,6 @@ import {
   ToolMcpParams,
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
-
-const AUGMENTCODE_GLOBAL_ONLY_MESSAGE =
-  "AugmentCode MCP is global-only; use --global to sync ~/.augment/settings.json";
 
 function parseAugmentcodeSettings(
   fileContent: string,
@@ -50,13 +48,15 @@ function parseAugmentcodeSettings(
 /**
  * AugmentCode (Auggie CLI) MCP servers.
  *
- * MCP servers are persisted in the shared user settings file
- * `~/.augment/settings.json` (global only — the docs do not document a
- * project-level MCP location). That same file also holds `hooks` and
+ * MCP servers are persisted in the shared settings file `.augment/settings.json`
+ * at either scope: the committed workspace file for team-shared servers (project)
+ * or `~/.augment/settings.json` (global). That same file also holds `hooks` and
  * `toolPermissions`, so generation merges the `mcpServers` block into the
- * existing settings instead of overwriting it, and the file is never deleted.
+ * existing settings instead of overwriting it, and the file is never deleted. On
+ * project-scope import the gitignored `.augment/settings.local.json` overrides
+ * file is overlaid on top (the same layering the hooks/permissions adapters use).
  *
- * @see https://docs.augmentcode.com/cli/integrations
+ * @see https://docs.augmentcode.com/cli/config
  */
 export class AugmentcodeMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
@@ -97,17 +97,19 @@ export class AugmentcodeMcp extends ToolMcp {
     validate = true,
     global = false,
   }: ToolMcpFromFileParams): Promise<AugmentcodeMcp> {
-    if (!global) {
-      throw new Error(AUGMENTCODE_GLOBAL_ONLY_MESSAGE);
-    }
-    // No `settings.local.json` overlay here: AugmentCode MCP is global-only
-    // (this method throws above for project mode), and the layered
-    // `settings.local.json` overrides file exists ONLY at the project
-    // (workspace) level — there is no global `~/.augment/settings.local.json`.
-    // So there is nothing to overlay in the only mode this import path supports.
     const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? "{}";
+    // On project-scope import, overlay the gitignored
+    // `.augment/settings.local.json` ON TOP of `settings.json` so machine-local
+    // MCP overrides are picked up. The overrides file is project-only (there is
+    // no global `~/.augment/settings.local.json`), so it is skipped in global
+    // mode.
+    const fileContent = await readAugmentcodeSettingsWithLocalOverlay({
+      outputRoot,
+      relativeDirPath: paths.relativeDirPath,
+      baseFileName: paths.relativeFilePath,
+      baseFallbackContent: "{}",
+      includeLocalOverlay: !global,
+    });
     const json = parseAugmentcodeSettings(
       fileContent,
       paths.relativeDirPath,
@@ -131,9 +133,6 @@ export class AugmentcodeMcp extends ToolMcp {
     validate = true,
     global = false,
   }: ToolMcpFromRulesyncMcpParams): Promise<AugmentcodeMcp> {
-    if (!global) {
-      throw new Error(AUGMENTCODE_GLOBAL_ONLY_MESSAGE);
-    }
     const paths = this.getSettablePaths({ global });
 
     const fileContent = await readOrInitializeFileContent(

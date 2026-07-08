@@ -22,8 +22,8 @@ import { RulesyncMcp } from "./rulesync-mcp.js";
  * scope), per the testing guidelines.
  */
 
-// `getHomeDirectory()` must be mocked so global-only tools (e.g. augmentcode)
-// resolve their config under the test directory instead of the real home dir.
+// `getHomeDirectory()` must be mocked so tools whose config lives under the home
+// dir in global mode resolve it under the test directory instead of the real home dir.
 const { getHomeDirectoryMock } = vi.hoisted(() => {
   return { getHomeDirectoryMock: vi.fn() };
 });
