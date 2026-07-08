@@ -15,6 +15,13 @@ const makeRulesyncPermissions = (permission: Record<string, Record<string, strin
     fileContent: JSON.stringify({ permission }),
   });
 
+const makeRulesyncPermissionsJson = (json: Record<string, unknown>) =>
+  new RulesyncPermissions({
+    relativeDirPath: ".rulesync",
+    relativeFilePath: "permissions.json",
+    fileContent: JSON.stringify(json),
+  });
+
 const toRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -138,6 +145,86 @@ describe("TaktPermissions", () => {
       expect(toRecord(codex.step_permission_overrides).review).toBe("full");
       // Other provider profile preserved untouched.
       expect(toRecord(profiles.claude).default_permission_mode).toBe("edit");
+    });
+  });
+
+  describe("takt override (step_permission_overrides + provider_options)", () => {
+    it("authors step_permission_overrides into the active provider profile", async () => {
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: { bash: { "*": "allow" } },
+          takt: { step_permission_overrides: { ai_review: "readonly", build: "full" } },
+        }),
+      });
+
+      const parsed = toRecord(load(permissions.getFileContent()));
+      const claude = toRecord(toRecord(parsed.provider_profiles).claude);
+      // Derived coarse mode and per-step overrides coexist in the profile.
+      expect(claude.default_permission_mode).toBe("full");
+      expect(toRecord(claude.step_permission_overrides)).toEqual({
+        ai_review: "readonly",
+        build: "full",
+      });
+    });
+
+    it("authors provider_options as a top-level table and preserves existing entries", async () => {
+      await writeFileContent(
+        join(testDir, ".takt", "config.yaml"),
+        ["provider: codex", "provider_options:", "  claude:", "    reasoning_effort: high"].join(
+          "\n",
+        ),
+      );
+
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: { bash: { "*": "allow" } },
+          takt: { provider_options: { codex: { network_access: true } } },
+        }),
+      });
+
+      const parsed = toRecord(load(permissions.getFileContent()));
+      const providerOptions = toRecord(parsed.provider_options);
+      // Authored provider entry merged on top of the pre-existing one.
+      expect(toRecord(providerOptions.codex).network_access).toBe(true);
+      expect(toRecord(providerOptions.claude).reasoning_effort).toBe("high");
+    });
+
+    it("round-trips the override through export then import", async () => {
+      const generated = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: { bash: { "*": "allow" } },
+          takt: {
+            step_permission_overrides: { ai_review: "readonly" },
+            provider_options: { codex: { network_access: true } },
+          },
+        }),
+      });
+      await writeFileContent(join(testDir, ".takt", "config.yaml"), generated.getFileContent());
+
+      const reimported = await TaktPermissions.fromFile({ outputRoot: testDir });
+      const json = JSON.parse(reimported.toRulesyncPermissions().getFileContent());
+
+      expect(json.takt.step_permission_overrides).toEqual({ ai_review: "readonly" });
+      expect(json.takt.provider_options).toEqual({ codex: { network_access: true } });
+    });
+
+    it("omits the takt override when the config has neither surface", async () => {
+      await writeFileContent(
+        join(testDir, ".takt", "config.yaml"),
+        [
+          "provider: codex",
+          "provider_profiles:",
+          "  codex:",
+          "    default_permission_mode: full",
+        ].join("\n"),
+      );
+
+      const tool = await TaktPermissions.fromFile({ outputRoot: testDir });
+      const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
+      expect(json.takt).toBeUndefined();
     });
   });
 

@@ -22,6 +22,12 @@ import {
 const TAKT_PROVIDER_KEY = "provider";
 const TAKT_PROVIDER_PROFILES_KEY = "provider_profiles";
 const TAKT_DEFAULT_PERMISSION_MODE_KEY = "default_permission_mode";
+// Per-workflow-step mode map inside a provider profile (`<step>` →
+// readonly/edit/full); routed through the `takt` override.
+const TAKT_STEP_PERMISSION_OVERRIDES_KEY = "step_permission_overrides";
+// Top-level, per-provider sandbox/network options table; routed through the
+// `takt` override.
+const TAKT_PROVIDER_OPTIONS_KEY = "provider_options";
 
 // Takt's three coarse permission modes, ordered readonly < edit < full.
 type TaktPermissionMode = "readonly" | "edit" | "full";
@@ -60,10 +66,16 @@ const CATCH_ALL_PATTERN = "*";
  *     `bash: { "*": "deny" }`. These round-trip the generate mapping.
  *
  * Both project and global scope are supported. The shared config is merged in
- * place: only `provider_profiles.<provider>.default_permission_mode` is set;
- * the active provider's other keys (e.g. `step_permission_overrides`), every
- * other provider profile, and all other top-level keys are preserved. The file
- * is never deleted.
+ * place: `provider_profiles.<provider>.default_permission_mode` is set from the
+ * derived mode; every other provider profile and all other top-level keys are
+ * preserved. The file is never deleted.
+ *
+ * Two Takt-specific surfaces with no canonical category round-trip through the
+ * `takt` override (see `TaktPermissionsOverrideSchema`):
+ * `step_permission_overrides` (a per-step mode map inside the active provider
+ * profile, layered on top of `default_permission_mode`) and `provider_options`
+ * (a top-level per-provider sandbox/network table). Both are authored on
+ * generate and re-extracted on import.
  */
 export class TaktPermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
@@ -118,8 +130,10 @@ export class TaktPermissions extends ToolPermissions {
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const config = parseTaktConfig(existingContent, paths.relativeDirPath, paths.relativeFilePath);
 
+    const rulesyncJson = rulesyncPermissions.getJson();
     const provider = resolveActiveProvider(config);
-    const mode = deriveTaktPermissionMode(rulesyncPermissions.getJson());
+    const mode = deriveTaktPermissionMode(rulesyncJson);
+    const override = isPlainObject(rulesyncJson.takt) ? rulesyncJson.takt : undefined;
 
     const existingProfiles = isPlainObject(config[TAKT_PROVIDER_PROFILES_KEY])
       ? config[TAKT_PROVIDER_PROFILES_KEY]
@@ -128,6 +142,32 @@ export class TaktPermissions extends ToolPermissions {
       ? existingProfiles[provider]
       : {};
 
+    // `step_permission_overrides` lives inside the active provider profile,
+    // alongside the derived coarse `default_permission_mode`; Takt layers the
+    // per-step mode on top of the default, so the two coexist without conflict.
+    const stepOverrides = isPlainObject(override?.[TAKT_STEP_PERMISSION_OVERRIDES_KEY])
+      ? override[TAKT_STEP_PERMISSION_OVERRIDES_KEY]
+      : undefined;
+    const existingStepOverrides = isPlainObject(existingProfile[TAKT_STEP_PERMISSION_OVERRIDES_KEY])
+      ? existingProfile[TAKT_STEP_PERMISSION_OVERRIDES_KEY]
+      : undefined;
+    const mergedStepOverrides =
+      stepOverrides || existingStepOverrides
+        ? { ...existingStepOverrides, ...stepOverrides }
+        : undefined;
+
+    // `provider_options` is a top-level, per-provider table orthogonal to the
+    // permission mode; shallow-merge the override on top of any existing table.
+    const overrideProviderOptions = isPlainObject(override?.[TAKT_PROVIDER_OPTIONS_KEY])
+      ? override[TAKT_PROVIDER_OPTIONS_KEY]
+      : undefined;
+    const existingProviderOptions = isPlainObject(config[TAKT_PROVIDER_OPTIONS_KEY])
+      ? config[TAKT_PROVIDER_OPTIONS_KEY]
+      : undefined;
+    const mergedProviderOptions = overrideProviderOptions
+      ? { ...existingProviderOptions, ...overrideProviderOptions }
+      : existingProviderOptions;
+
     const merged: Record<string, unknown> = {
       ...config,
       [TAKT_PROVIDER_PROFILES_KEY]: {
@@ -135,8 +175,14 @@ export class TaktPermissions extends ToolPermissions {
         [provider]: {
           ...existingProfile,
           [TAKT_DEFAULT_PERMISSION_MODE_KEY]: mode,
+          ...(mergedStepOverrides !== undefined && {
+            [TAKT_STEP_PERMISSION_OVERRIDES_KEY]: mergedStepOverrides,
+          }),
         },
       },
+      ...(mergedProviderOptions !== undefined && {
+        [TAKT_PROVIDER_OPTIONS_KEY]: mergedProviderOptions,
+      }),
     };
 
     return new TaktPermissions({
@@ -165,8 +211,30 @@ export class TaktPermissions extends ToolPermissions {
 
     const rulesyncConfig: PermissionsConfig = taktModeToRulesyncConfig(mode);
 
+    // Route Takt's step-permission map and provider-options table into the
+    // `takt` override — neither has a canonical category. The step map is lifted
+    // from the active provider profile; `provider_options` round-trips whole.
+    const stepOverrides = isPlainObject(profile[TAKT_STEP_PERMISSION_OVERRIDES_KEY])
+      ? profile[TAKT_STEP_PERMISSION_OVERRIDES_KEY]
+      : undefined;
+    const providerOptions = isPlainObject(config[TAKT_PROVIDER_OPTIONS_KEY])
+      ? config[TAKT_PROVIDER_OPTIONS_KEY]
+      : undefined;
+    const taktOverride: Record<string, unknown> = {};
+    if (stepOverrides && Object.keys(stepOverrides).length > 0) {
+      taktOverride[TAKT_STEP_PERMISSION_OVERRIDES_KEY] = stepOverrides;
+    }
+    if (providerOptions && Object.keys(providerOptions).length > 0) {
+      taktOverride[TAKT_PROVIDER_OPTIONS_KEY] = providerOptions;
+    }
+
+    const result: Record<string, unknown> = { ...rulesyncConfig };
+    if (Object.keys(taktOverride).length > 0) {
+      result.takt = taktOverride;
+    }
+
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify(rulesyncConfig, null, 2),
+      fileContent: JSON.stringify(result, null, 2),
     });
   }
 
