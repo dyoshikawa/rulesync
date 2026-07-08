@@ -257,12 +257,41 @@ const JuniePermissionsOverrideSchema = z.looseObject({
 export type JuniePermissionsOverride = z.infer<typeof JuniePermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for Takt. Takt's `config.yaml` carries two
+ * permission surfaces the canonical coarse-mode mapping can't express:
+ * `step_permission_overrides` — a per-workflow-step map (`<step>` →
+ * `readonly`/`edit`/`full`) that lives inside the active provider profile
+ * alongside `default_permission_mode` and layers on top of it at that step; and
+ * `provider_options` — a top-level, per-provider table of sandbox/network knobs
+ * orthogonal to the permission mode (e.g. `codex.network_access`,
+ * `claude.sandbox.allow_unsandboxed_commands`, `opencode.allowed_tools`). Fields
+ * placed here are merged into `config.yaml` and emitted only for Takt, while the
+ * shared `permission` block continues to drive `default_permission_mode`. Kept
+ * `looseObject` (verbatim passthrough); Takt validates its own value sets (e.g.
+ * `provider_options.<p>.base_url` must be loopback). Both project and global
+ * scope are supported.
+ *
+ * Note: Takt's config loader hard-rejects unknown top-level keys, so only keys
+ * Takt actually recognizes belong here. `required_permission_mode` is NOT one —
+ * it is a per-step field of the workflow YAML (not `config.yaml`), so it is out
+ * of scope for this override.
+ *
+ * @example
+ * { "step_permission_overrides": { "ai_review": "readonly" }, "provider_options": { "codex": { "network_access": true } } }
+ */
+const TaktPermissionsOverrideSchema = z.looseObject({
+  step_permission_overrides: z.optional(z.record(z.string(), z.string())),
+  provider_options: z.optional(z.looseObject({})),
+});
+export type TaktPermissionsOverride = z.infer<typeof TaktPermissionsOverrideSchema>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
  * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode`/`vibe`/`cursor`/
- * `qwencode`/`reasonix`/`factorydroid`/`warp`/`junie` keys are tool-scoped
+ * `qwencode`/`reasonix`/`factorydroid`/`warp`/`junie`/`takt` keys are tool-scoped
  * overrides consumed only by their respective translator (see the matching
  * `*PermissionsOverrideSchema`); every other tool reads the shared `permission`
  * block and ignores them.
@@ -287,6 +316,7 @@ const PermissionsConfigSchema = z.looseObject({
   factorydroid: z.optional(FactorydroidPermissionsOverrideSchema),
   warp: z.optional(WarpPermissionsOverrideSchema),
   junie: z.optional(JuniePermissionsOverrideSchema),
+  takt: z.optional(TaktPermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 
