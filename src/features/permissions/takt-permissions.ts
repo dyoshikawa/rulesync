@@ -156,8 +156,11 @@ export class TaktPermissions extends ToolPermissions {
         ? { ...existingStepOverrides, ...stepOverrides }
         : undefined;
 
-    // `provider_options` is a top-level, per-provider table orthogonal to the
-    // permission mode; shallow-merge the override on top of any existing table.
+    // `provider_options` is a top-level table keyed by provider name, each
+    // holding an options object orthogonal to the permission mode. Merge
+    // per-provider (one level deeper than the profile merge) so authoring one
+    // key (e.g. `codex.network_access`) does not drop sibling keys the user set
+    // directly on the same provider (e.g. `codex.reasoning_effort`).
     const overrideProviderOptions = isPlainObject(override?.[TAKT_PROVIDER_OPTIONS_KEY])
       ? override[TAKT_PROVIDER_OPTIONS_KEY]
       : undefined;
@@ -165,7 +168,7 @@ export class TaktPermissions extends ToolPermissions {
       ? config[TAKT_PROVIDER_OPTIONS_KEY]
       : undefined;
     const mergedProviderOptions = overrideProviderOptions
-      ? { ...existingProviderOptions, ...overrideProviderOptions }
+      ? mergeProviderOptions(existingProviderOptions, overrideProviderOptions)
       : existingProviderOptions;
 
     const merged: Record<string, unknown> = {
@@ -257,6 +260,26 @@ export class TaktPermissions extends ToolPermissions {
       global,
     });
   }
+}
+
+/**
+ * Merge an authored `provider_options` override onto the existing table
+ * per-provider: for each provider the override touches, its options object is
+ * shallow-merged onto the existing one so sibling keys the user set directly on
+ * that same provider are preserved. Providers absent from the override are kept
+ * untouched.
+ */
+function mergeProviderOptions(
+  existing: Record<string, unknown> | undefined,
+  override: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...existing };
+  for (const [providerName, options] of Object.entries(override)) {
+    const existingOptions = isPlainObject(result[providerName]) ? result[providerName] : undefined;
+    result[providerName] =
+      isPlainObject(options) && existingOptions ? { ...existingOptions, ...options } : options;
+  }
+  return result;
 }
 
 /**

@@ -171,9 +171,14 @@ describe("TaktPermissions", () => {
     it("authors provider_options as a top-level table and preserves existing entries", async () => {
       await writeFileContent(
         join(testDir, ".takt", "config.yaml"),
-        ["provider: codex", "provider_options:", "  claude:", "    reasoning_effort: high"].join(
-          "\n",
-        ),
+        [
+          "provider: codex",
+          "provider_options:",
+          "  claude:",
+          "    reasoning_effort: high",
+          "  codex:",
+          "    base_url: http://127.0.0.1:8080",
+        ].join("\n"),
       );
 
       const permissions = await TaktPermissions.fromRulesyncPermissions({
@@ -186,8 +191,10 @@ describe("TaktPermissions", () => {
 
       const parsed = toRecord(load(permissions.getFileContent()));
       const providerOptions = toRecord(parsed.provider_options);
-      // Authored provider entry merged on top of the pre-existing one.
+      // Authored key merged into the same provider without dropping its sibling keys.
       expect(toRecord(providerOptions.codex).network_access).toBe(true);
+      expect(toRecord(providerOptions.codex).base_url).toBe("http://127.0.0.1:8080");
+      // Untouched provider preserved.
       expect(toRecord(providerOptions.claude).reasoning_effort).toBe("high");
     });
 
