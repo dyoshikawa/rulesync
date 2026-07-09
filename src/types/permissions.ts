@@ -430,15 +430,59 @@ const KiroPermissionsOverrideSchema = z.looseObject({
 export type KiroPermissionsOverride = z.infer<typeof KiroPermissionsOverrideSchema>;
 
 /**
+ * Codex CLI-scoped permission override.
+ *
+ * Codex CLI's permission surface is richer than the canonical allow/ask/deny
+ * model: its approval workflow, classic sandbox system, and per-app tool gating
+ * have no canonical category. Author them through a tool-scoped `codexcli`
+ * override whose fields are written verbatim as top-level `.codex/config.toml`
+ * keys (the override wins per key; existing sibling keys the user set directly
+ * are preserved):
+ * - `approval_policy` — `untrusted` | `on-request` | `never`, or a
+ *   `{ granular = { … } }` table (kept verbatim; the granular schema has
+ *   required fields that are brittle to model as typed keys).
+ * - `sandbox_mode` — `read-only` | `workspace-write` | `danger-full-access`,
+ *   with the sibling `sandbox_workspace_write` table (`network_access`,
+ *   `writable_roots`, …).
+ * - `apps` — per-app tool gating (`apps.<id>.tools.<tool>.approval_mode` /
+ *   `.enabled`, `apps.<id>.default_tools_approval_mode`).
+ * - `approvals_reviewer` — the reviewer-approval surface.
+ *
+ * Two surfaces are deliberately NOT authorable here so the override can never
+ * clobber a feature-owned key: `mcp_servers.*` per-MCP gating is owned by the
+ * MCP feature (`codexcli-mcp.ts` already writes the `mcp_servers` tables in the
+ * same `config.toml`), and `permissions` / `default_permissions` are owned by
+ * the canonical model. Any such key placed in the override is skipped with a
+ * warning. Kept `looseObject` (verbatim passthrough) so future top-level Codex
+ * config keys can be authored without Rulesync modeling each one.
+ *
+ * @see https://developers.openai.com/codex/config-reference
+ * @see https://developers.openai.com/codex/permissions
+ *
+ * @example
+ * { "approval_policy": "on-request", "sandbox_mode": "workspace-write",
+ *   "sandbox_workspace_write": { "network_access": true } }
+ */
+const CodexcliPermissionsOverrideSchema = z.looseObject({
+  approval_policy: z.optional(z.union([z.string(), z.looseObject({})])),
+  sandbox_mode: z.optional(z.string()),
+  sandbox_workspace_write: z.optional(z.looseObject({})),
+  apps: z.optional(z.looseObject({})),
+  approvals_reviewer: z.optional(z.union([z.string(), z.looseObject({})])),
+});
+export type CodexcliPermissionsOverride = z.infer<typeof CodexcliPermissionsOverrideSchema>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
  * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode`/`vibe`/`cursor`/
  * `qwencode`/`reasonix`/`factorydroid`/`warp`/`junie`/`takt`/`amp`/
- * `antigravity-cli`/`augmentcode`/`kiro` keys are tool-scoped overrides consumed
- * only by their respective translator (see the matching `*PermissionsOverrideSchema`);
- * every other tool reads the shared `permission` block and ignores them.
+ * `antigravity-cli`/`augmentcode`/`kiro`/`codexcli` keys are tool-scoped
+ * overrides consumed only by their respective translator (see the matching
+ * `*PermissionsOverrideSchema`); every other tool reads the shared `permission`
+ * block and ignores them.
  *
  * @example
  * {
@@ -465,6 +509,7 @@ const PermissionsConfigSchema = z.looseObject({
   "antigravity-cli": z.optional(AntigravityCliPermissionsOverrideSchema),
   augmentcode: z.optional(AugmentcodePermissionsOverrideSchema),
   kiro: z.optional(KiroPermissionsOverrideSchema),
+  codexcli: z.optional(CodexcliPermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 
