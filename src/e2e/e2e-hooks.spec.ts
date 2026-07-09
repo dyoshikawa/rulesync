@@ -296,8 +296,9 @@ describe("E2E: hooks", () => {
   it("should generate reasonix hooks (.reasonix/settings.json, flat per-event arrays)", async () => {
     const testDir = getTestDir();
 
-    // Reasonix only maps four events (PreToolUse/PostToolUse/UserPromptSubmit/Stop);
-    // sessionStart has no mapped Reasonix equivalent in rulesync's scoped surface.
+    // Reasonix maps eight events; sessionStart ⇄ SessionStart and
+    // postModelInvocation ⇄ PostLLMCall are among them, while preCompact has no
+    // mapped Reasonix equivalent in rulesync's scoped surface and is dropped.
     const hooksContent = JSON.stringify(
       {
         version: 1,
@@ -305,6 +306,8 @@ describe("E2E: hooks", () => {
           preToolUse: [{ command: ".rulesync/hooks/pre-tool.sh", matcher: "bash", timeout: 5 }],
           stop: [{ command: ".rulesync/hooks/audit.sh" }],
           sessionStart: [{ command: ".rulesync/hooks/session-start.sh" }],
+          postModelInvocation: [{ command: ".rulesync/hooks/post-llm.sh" }],
+          preCompact: [{ command: ".rulesync/hooks/pre-compact.sh" }],
         },
       },
       null,
@@ -321,7 +324,9 @@ describe("E2E: hooks", () => {
       { match: "bash", command: ".rulesync/hooks/pre-tool.sh", timeout: 5000 },
     ]);
     expect(parsed.hooks.Stop).toEqual([{ command: ".rulesync/hooks/audit.sh" }]);
-    expect(parsed.hooks.SessionStart).toBeUndefined();
+    expect(parsed.hooks.SessionStart).toEqual([{ command: ".rulesync/hooks/session-start.sh" }]);
+    expect(parsed.hooks.PostLLMCall).toEqual([{ command: ".rulesync/hooks/post-llm.sh" }]);
+    expect(parsed.hooks.PreCompact).toBeUndefined();
   });
 
   it("should import reasonix hooks from .reasonix/settings.json", async () => {

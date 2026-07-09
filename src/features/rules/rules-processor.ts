@@ -54,6 +54,7 @@ import { KiroRule } from "./kiro-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
 import { PiRule } from "./pi-rule.js";
 import { QwencodeRule } from "./qwencode-rule.js";
+import { ReasonixRule } from "./reasonix-rule.js";
 import { ReplitRule } from "./replit-rule.js";
 import { RooRule } from "./roo-rule.js";
 import { RovodevRule } from "./rovodev-rule.js";
@@ -609,6 +610,21 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         additionalConventions: {
           subagents: { subagentClass: QwencodeSubagent },
         },
+      },
+    },
+  ],
+  [
+    "reasonix",
+    {
+      class: ReasonixRule,
+      meta: {
+        // Reasonix reads a single root `REASONIX.md` (project root or
+        // `~/.reasonix/REASONIX.md` global) and has no non-root instruction
+        // directory, so topic rules fold into the root file (mirrors codexcli).
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        foldsNonRootIntoRoot: true,
       },
     },
   ],

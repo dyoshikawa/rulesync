@@ -504,11 +504,14 @@ export const QWENCODE_HOOK_EVENTS: readonly HookEvent[] = [
  * Reasonix's `.reasonix/settings.json` (project) / `~/.reasonix/settings.json`
  * (global) documents a ten-event surface (`PreToolUse`, `PostToolUse`,
  * `UserPromptSubmit`, `Stop`, `PostLLMCall`, `SessionStart`, `SessionEnd`,
- * `SubagentStop`, `Notification`, `PreCompact`), but only the four events the
- * upstream issue scoped in are mapped here: `PreToolUse`, `PostToolUse`,
- * `UserPromptSubmit` ← `beforeSubmitPrompt`, and `Stop`. `match` (Reasonix's
- * matcher field name) is honored only on `PreToolUse`/`PostToolUse`, matching
- * the canonical `matcher` field's tool-event scoping used by other adapters.
+ * `SubagentStop`, `Notification`, `PreCompact`). The eight events with a clean
+ * canonical equivalent are mapped: `PreToolUse`, `PostToolUse`,
+ * `UserPromptSubmit` ← `beforeSubmitPrompt`, `Stop`, `SessionStart`,
+ * `SessionEnd`, `SubagentStop`, and `PostLLMCall` ← `postModelInvocation`.
+ * (`Notification` and `PreCompact` have no canonical event and are left out.)
+ * `match` (Reasonix's matcher field name) is honored only on
+ * `PreToolUse`/`PostToolUse`, matching the canonical `matcher` field's
+ * tool-event scoping used by other adapters.
  * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/DESKTOP_HOOKS.zh-CN.md
  */
 export const REASONIX_HOOK_EVENTS: readonly HookEvent[] = [
@@ -516,6 +519,10 @@ export const REASONIX_HOOK_EVENTS: readonly HookEvent[] = [
   "postToolUse",
   "beforeSubmitPrompt",
   "stop",
+  "sessionStart",
+  "sessionEnd",
+  "subagentStop",
+  "postModelInvocation",
 ];
 
 /**
@@ -1035,7 +1042,7 @@ export const QWENCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.
 /**
  * Map canonical camelCase event names to Reasonix PascalCase.
  * Reasonix explicitly mirrors Claude Code's hooks model, so it reuses the same
- * PascalCase names for the four events rulesync maps.
+ * PascalCase names for the events rulesync maps.
  * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/DESKTOP_HOOKS.zh-CN.md
  */
 export const CANONICAL_TO_REASONIX_EVENT_NAMES: Record<string, string> = {
@@ -1043,6 +1050,10 @@ export const CANONICAL_TO_REASONIX_EVENT_NAMES: Record<string, string> = {
   postToolUse: "PostToolUse",
   beforeSubmitPrompt: "UserPromptSubmit",
   stop: "Stop",
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  subagentStop: "SubagentStop",
+  postModelInvocation: "PostLLMCall",
 };
 
 /**
