@@ -42,6 +42,20 @@ const CODEX_MINIMAL_KEY = ":minimal";
 // while allowed domains accept it for denylist-only setups (openai/codex#15549).
 const GLOBAL_WILDCARD_DOMAIN = "*";
 
+// Top-level `.codex/config.toml` keys the `codexcli` permission override may
+// author and round-trip. Everything else is refused (see applyCodexcliOverride)
+// so the override can never clobber a feature-owned surface: `permissions` /
+// `default_permissions` are owned by the canonical model written below, and
+// `mcp_servers.*` per-MCP gating is owned by the MCP feature (codexcli-mcp.ts).
+// https://developers.openai.com/codex/config-reference
+const CODEXCLI_OVERRIDE_KEYS = [
+  "approval_policy",
+  "sandbox_mode",
+  "sandbox_workspace_write",
+  "apps",
+  "approvals_reviewer",
+] as const;
+
 // `none` is accepted on import for configs generated before Codex CLI v0.131.0.
 type CodexFilesystemAccess = "read" | "write" | "deny" | "none";
 type CodexFilesystemRuleTable = Record<string, CodexFilesystemAccess>;
@@ -111,11 +125,11 @@ export class CodexcliPermissions extends ToolPermissions {
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? smolToml.stringify({});
     // `parsed` is a shallow copy of the FULL top-level config.toml table (see toMutableTable),
-    // and only its `permissions` and `default_permissions` keys are overwritten below. This means
-    // Codex config keys rulesync does not model — e.g. the granular tool-approval surface
-    // (`default_tools_approval_mode`, `approval_policy`, `approvals_reviewer`, and their
-    // `apps.<id>.*` / `mcp_servers.<id>.*` variants) — survive a read-modify-write round-trip
-    // untouched, the same way amp/devin permissions preserve sibling settings they don't manage.
+    // and only its `permissions` and `default_permissions` keys are overwritten below (plus any
+    // keys the `codexcli` override authors). Codex config keys rulesync neither models nor
+    // overrides — e.g. `mcp_servers.<id>.*` gating (owned by the MCP feature) — survive a
+    // read-modify-write round-trip untouched, the same way amp/devin permissions preserve
+    // sibling settings they don't manage.
     // https://developers.openai.com/codex/config-reference
     const parsed = toMutableTable(smolToml.parse(existingContent));
 
@@ -152,6 +166,8 @@ export class CodexcliPermissions extends ToolPermissions {
     parsed.permissions = permissionsTable;
     parsed.default_permissions = RULESYNC_PROFILE_NAME;
 
+    applyCodexcliOverride({ parsed, override: rulesyncPermissions.getJson().codexcli, logger });
+
     return new CodexcliPermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
@@ -184,8 +200,12 @@ export class CodexcliPermissions extends ToolPermissions {
 
     const config = convertCodexProfileToRulesync({ profile, domainsHadUnknown });
 
+    const override = extractCodexcliOverride(table);
+    const result: Record<string, unknown> =
+      Object.keys(override).length > 0 ? { ...config, codexcli: override } : config;
+
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify(config, null, 2),
+      fileContent: JSON.stringify(result, null, 2),
     });
   }
 
@@ -524,6 +544,53 @@ function toMutableTable(value: unknown): UnknownTable {
     return {};
   }
   return { ...value };
+}
+
+function isPlainObject(value: unknown): value is UnknownTable {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+// Overlay the `codexcli` override onto the top-level config.toml table. Only the
+// whitelisted CODEXCLI_OVERRIDE_KEYS are applied (override wins per key, with
+// table values shallow-merged so unrelated sibling entries survive); any other
+// key is refused so the override can never write a feature-owned surface such as
+// `permissions` / `default_permissions` (canonical model) or `mcp_servers`
+// (MCP feature).
+function applyCodexcliOverride({
+  parsed,
+  override,
+  logger,
+}: {
+  parsed: UnknownTable;
+  override: PermissionsConfig["codexcli"];
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): void {
+  if (!override) return;
+  const allowed = new Set<string>(CODEXCLI_OVERRIDE_KEYS);
+  for (const [key, value] of Object.entries(override)) {
+    if (!allowed.has(key)) {
+      logger?.warn(
+        `Codex CLI permission override key "${key}" is not managed and was skipped. "permissions"/"default_permissions" are owned by the canonical permission model and "mcp_servers" gating by the MCP feature.`,
+      );
+      continue;
+    }
+    if (value === undefined) continue;
+    const existing = parsed[key];
+    parsed[key] =
+      isPlainObject(existing) && isPlainObject(value) ? { ...existing, ...value } : value;
+  }
+}
+
+// Lift the whitelisted top-level keys back into the `codexcli` override so they
+// round-trip through `.rulesync/permissions.json`.
+function extractCodexcliOverride(table: UnknownTable): Record<string, unknown> {
+  const override: Record<string, unknown> = {};
+  for (const key of CODEXCLI_OVERRIDE_KEYS) {
+    if (table[key] !== undefined) {
+      override[key] = table[key];
+    }
+  }
+  return override;
 }
 
 function toFilesystemRecord(value: unknown): CodexFilesystem | undefined {

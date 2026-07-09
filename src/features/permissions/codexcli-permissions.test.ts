@@ -1170,4 +1170,142 @@ command = "node"
     expect(content).toContain('pattern = ["rm", "-rf", "/"]');
     expect(content).toContain('decision = "forbidden"');
   });
+
+  describe("codexcli override (approval_policy / sandbox_mode / apps)", () => {
+    it("authors override keys as top-level config.toml keys on generate", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { read: { "src/**": "allow" } },
+          codexcli: {
+            approval_policy: "on-request",
+            sandbox_mode: "workspace-write",
+            sandbox_workspace_write: { network_access: true },
+            apps: { web: { default_tools_approval_mode: "prompt" } },
+          },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+      expect(parsed.approval_policy).toBe("on-request");
+      expect(parsed.sandbox_mode).toBe("workspace-write");
+      expect(parsed.sandbox_workspace_write).toEqual({ network_access: true });
+      expect(parsed.apps).toEqual({ web: { default_tools_approval_mode: "prompt" } });
+      // The canonical profile is still managed alongside the override.
+      expect(parsed.default_permissions).toBe("rulesync");
+    });
+
+    it("shallow-merges override table values with existing sibling keys", async () => {
+      const codexDir = join(testDir, ".codex");
+      await ensureDir(codexDir);
+      await writeFileContent(
+        join(codexDir, "config.toml"),
+        [
+          'default_permissions = "rulesync"',
+          "[apps.editor]",
+          'default_tools_approval_mode = "auto"',
+        ].join("\n"),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { read: { "src/**": "allow" } },
+          codexcli: { apps: { web: { default_tools_approval_mode: "prompt" } } },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+      expect(parsed.apps).toEqual({
+        editor: { default_tools_approval_mode: "auto" },
+        web: { default_tools_approval_mode: "prompt" },
+      });
+    });
+
+    it("refuses non-whitelisted override keys (mcp_servers / permissions) with a warning", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { read: { "src/**": "allow" } },
+          codexcli: {
+            sandbox_mode: "read-only",
+            mcp_servers: { evil: { disabled_tools: ["*"] } },
+            default_permissions: "attacker",
+          },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+      expect(parsed.sandbox_mode).toBe("read-only");
+      // mcp_servers must never be written by the permissions override.
+      expect(parsed.mcp_servers).toBeUndefined();
+      // default_permissions stays the canonical-managed value, not the injected one.
+      expect(parsed.default_permissions).toBe("rulesync");
+      const warnMessages = logger.warn.mock.calls.map((call) => String(call[0]));
+      expect(warnMessages.some((line) => line.includes("mcp_servers"))).toBe(true);
+      expect(warnMessages.some((line) => line.includes("default_permissions"))).toBe(true);
+    });
+
+    it("round-trips override keys back into the codexcli override on import", () => {
+      const codexPermissions = new CodexcliPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: [
+          'default_permissions = "rulesync"',
+          'approval_policy = "never"',
+          'sandbox_mode = "danger-full-access"',
+          "[sandbox_workspace_write]",
+          "network_access = false",
+          "[apps.web.tools.browse]",
+          'approval_mode = "prompt"',
+        ].join("\n"),
+      });
+
+      const json = codexPermissions.toRulesyncPermissions().getJson();
+      expect(json.codexcli?.approval_policy).toBe("never");
+      expect(json.codexcli?.sandbox_mode).toBe("danger-full-access");
+      expect(json.codexcli?.sandbox_workspace_write).toEqual({ network_access: false });
+      expect(json.codexcli?.apps).toEqual({
+        web: { tools: { browse: { approval_mode: "prompt" } } },
+      });
+    });
+
+    it("omits the codexcli override when no override keys are present", () => {
+      const codexPermissions = new CodexcliPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: 'default_permissions = "rulesync"',
+      });
+
+      const json = codexPermissions.toRulesyncPermissions().getJson();
+      expect(json.codexcli).toBeUndefined();
+    });
+  });
 });
