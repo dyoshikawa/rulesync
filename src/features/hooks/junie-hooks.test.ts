@@ -163,6 +163,46 @@ describe("JunieHooks", () => {
       expect(parsed.hooks.SessionStart).toBeDefined();
     });
 
+    it("should emit blockOnError/async from canonical failClosed/async", async () => {
+      await ensureDir(join(testDir, ".junie"));
+      await writeFileContent(join(testDir, ".junie", "config.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          sessionStart: [
+            {
+              type: "command",
+              command: ".rulesync/hooks/session-start.sh",
+              failClosed: true,
+              async: false,
+            },
+          ],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const junieHooks = await JunieHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(junieHooks.getFileContent());
+      const hook = parsed.hooks.SessionStart[0].hooks[0];
+      // Canonical failClosed → Junie blockOnError; async stays async.
+      expect(hook.blockOnError).toBe(true);
+      expect(hook.async).toBe(false);
+      // The canonical field name must not leak into the Junie output.
+      expect(hook.failClosed).toBeUndefined();
+    });
+
     it("should throw error with descriptive message when existing config.json contains invalid JSON", async () => {
       await ensureDir(join(testDir, ".junie"));
       await writeFileContent(join(testDir, ".junie", "config.json"), "invalid json {");
@@ -232,6 +272,39 @@ describe("JunieHooks", () => {
       const json = rulesyncHooks.getJson();
       expect(json.hooks.sessionStart).toHaveLength(1);
       expect(json.hooks.sessionStart?.[0]?.command).toContain("session-start.sh");
+    });
+
+    it("should import blockOnError/async back into canonical failClosed/async", () => {
+      const junieHooks = new JunieHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".junie",
+        relativeFilePath: "config.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            SessionStart: [
+              {
+                hooks: [
+                  {
+                    type: "command",
+                    command: "session-start.sh",
+                    blockOnError: true,
+                    async: false,
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const rulesyncHooks = junieHooks.toRulesyncHooks();
+      const def = rulesyncHooks.getJson().hooks.sessionStart?.[0];
+      // Junie blockOnError → canonical failClosed; async stays async.
+      expect(def?.failClosed).toBe(true);
+      expect(def?.async).toBe(false);
+      // The Junie field name must not survive into the canonical model.
+      expect((def as Record<string, unknown>).blockOnError).toBeUndefined();
     });
 
     it("should throw error with descriptive message when content contains invalid JSON", () => {
