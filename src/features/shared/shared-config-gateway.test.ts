@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { deriveSharedFileWriters } from "../../lib/shared-file-derive.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
+import * as sharedConfigGateway from "./shared-config-gateway.js";
 import {
   applyIgnoreReadDenies,
   applyPermissions,
@@ -209,6 +210,23 @@ describe("SHARED_CONFIG_OWNERSHIP", () => {
       (key) => SHARED_CONFIG_OWNERSHIP[key] !== undefined || !derivedKeys.has(key),
     );
     expect(stale, "remove these entries from GATEWAY_PENDING_SHARED_FILES").toEqual([]);
+  });
+
+  it("resolves every custom policyFunction name to an exported function", () => {
+    // The `custom` policy references its implementation by string name; a rename
+    // that misses the declaration would otherwise stale silently. Pin the names
+    // so they must resolve to a real exported function of this module.
+    const exports = sharedConfigGateway as Record<string, unknown>;
+    for (const [fileKey, declaration] of Object.entries(SHARED_CONFIG_OWNERSHIP)) {
+      for (const [feature, policy] of Object.entries(declaration.features)) {
+        if (policy?.kind !== "custom") continue;
+        expect(
+          typeof exports[policy.policyFunction],
+          `policyFunction '${policy.policyFunction}' declared for feature '${feature}' on ` +
+            `'${fileKey}' does not resolve to an exported function in shared-config-gateway.ts`,
+        ).toBe("function");
+      }
+    }
   });
 });
 

@@ -32,9 +32,22 @@ const sortedFeatures = (writers: Map<string, Set<Feature>>): Record<string, stri
 
 describe("shared-file write derivation", () => {
   it("every feature that writes a shared file has a position in SHARED_WRITE_FEATURE_ORDER", () => {
+    // deriveSharedFileWriters considers every feature (not just the ordered
+    // ones), so a feature that starts returning a shared path surfaces here and
+    // must get an explicit precedence decision, not a silent arbitrary order.
+    // This asserts the property directly rather than relying only on the throw,
+    // which was unreachable while writers were pre-filtered by the order set.
+    const ordered = [...SHARED_WRITE_FEATURE_ORDER];
+    for (const writer of deriveSharedFileWriters()) {
+      for (const feature of writer.features) {
+        expect(
+          ordered,
+          `feature '${feature}' writes shared file '${writer.key}' but has no position in SHARED_WRITE_FEATURE_ORDER`,
+        ).toContain(feature);
+      }
+    }
     // deriveSharedWriteSteps throws when a shared-file writer feature is not
-    // ordered — a new feature entering the shared-write set must get an
-    // explicit precedence decision, not a silent arbitrary order.
+    // ordered; with the pre-filter gone this guard is now genuinely reachable.
     expect(() => deriveSharedWriteSteps()).not.toThrow();
   });
 
