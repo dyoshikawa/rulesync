@@ -1,12 +1,12 @@
 import { extname } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
-import { load } from "js-yaml";
 import { parse as parseJsonc, type ParseError } from "jsonc-parser";
 import * as smolToml from "smol-toml";
 
 import { addTrailingNewline } from "./file.js";
 import { parseFrontmatter } from "./frontmatter.js";
+import { loadYaml } from "./yaml.js";
 
 /**
  * Structural equality for JSON and JSONC using jsonc-parser (valid JSON parses the same as JSONC).
@@ -26,7 +26,7 @@ function tryJsonEquivalent(a: string, b: string): boolean | undefined {
 
 function tryYamlEquivalent(a: string, b: string): boolean | undefined {
   try {
-    return isDeepStrictEqual(load(a), load(b));
+    return isDeepStrictEqual(loadYaml(a), loadYaml(b));
   } catch {
     return undefined;
   }

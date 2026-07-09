@@ -1,9 +1,10 @@
 import { join } from "node:path";
 
-import { dump, load } from "js-yaml";
+import { dump } from "js-yaml";
 import { optional, refine, z } from "zod/mini";
 
 import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
+import { loadYaml } from "../../utils/yaml.js";
 
 /**
  * Filename of the rulesync-managed gh-skill-compatible lockfile. Distinct
@@ -85,7 +86,7 @@ export function parseGhLock(content: string): GhLock | null {
   }
   let loaded: unknown;
   try {
-    loaded = load(content);
+    loaded = loadYaml(content);
   } catch {
     return null;
   }

@@ -1,8 +1,9 @@
 import matter from "gray-matter";
-import { dump, load } from "js-yaml";
+import { dump } from "js-yaml";
 
 import { formatError } from "./error.js";
 import { isPlainObject } from "./type-guards.js";
+import { loadYaml } from "./yaml.js";
 
 function deepRemoveNullishValue(value: unknown): unknown {
   if (value === null || value === undefined) {
@@ -121,7 +122,7 @@ export function stringifyFrontmatter(
     return matter.stringify(body, cleanFrontmatter, {
       engines: {
         yaml: {
-          parse: (input: string) => load(input) ?? {},
+          parse: (input: string) => loadYaml(input) ?? {},
           stringify: (data: object) => dump(data, { lineWidth: -1 }),
         },
       },

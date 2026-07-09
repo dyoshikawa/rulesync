@@ -1,4 +1,6 @@
-import { dump, load } from "js-yaml";
+import { dump } from "js-yaml";
+
+import { loadYaml } from "../../utils/yaml.js";
 
 const FRONTMATTER_FENCE = "---";
 
@@ -71,7 +73,7 @@ export function injectSourceMetadata(params: {
 
   let loaded: unknown;
   try {
-    loaded = load(fmBody);
+    loaded = loadYaml(fmBody);
   } catch {
     throw new Error("invalid frontmatter");
   }

@@ -1,9 +1,9 @@
 import { join } from "node:path";
 
-import { load } from "js-yaml";
 import { optional, z } from "zod/mini";
 
 import { fileExists, readFileContent } from "../../utils/file.js";
+import { loadYaml } from "../../utils/yaml.js";
 
 const APM_MANIFEST_FILE_NAME = "apm.yml";
 
@@ -80,7 +80,7 @@ export async function apmManifestExists(projectRoot: string): Promise<boolean> {
  * or any dependency entry fails normalization.
  */
 export function parseApmManifest(content: string): ApmManifest {
-  const loaded = load(content);
+  const loaded = loadYaml(content);
   if (loaded === undefined || loaded === null) {
     return { dependencies: [] };
   }

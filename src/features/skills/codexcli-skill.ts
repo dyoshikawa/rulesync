@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { dump, load } from "js-yaml";
+import { dump } from "js-yaml";
 import { z } from "zod/mini";
 
 import {
@@ -12,6 +12,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { toPosixPath } from "../../utils/file.js";
+import { loadYaml } from "../../utils/yaml.js";
 import {
   RulesyncSkill,
   RulesyncSkillFrontmatter,
@@ -102,7 +103,7 @@ function extractOpenaiYamlFile(otherFiles: SkillFile[]): {
   for (const file of otherFiles) {
     if (toPosixPath(file.relativeFilePathToDirPath) === target) {
       try {
-        const loaded = load(file.fileBuffer.toString("utf-8"));
+        const loaded = loadYaml(file.fileBuffer.toString("utf-8"));
         if (loaded !== null && typeof loaded === "object" && !Array.isArray(loaded)) {
           parsed = loaded as Record<string, unknown>;
           continue;

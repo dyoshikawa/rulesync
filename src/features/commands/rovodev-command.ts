@@ -1,6 +1,6 @@
 import { basename, join } from "node:path";
 
-import { dump, load } from "js-yaml";
+import { dump } from "js-yaml";
 
 import {
   ROVODEV_DIR,
@@ -12,6 +12,7 @@ import { ToolFile } from "../../types/tool-file.js";
 import { readFileContent, readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import { stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { isPlainObject, isRecord } from "../../utils/type-guards.js";
+import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -210,7 +211,7 @@ export class RovodevCommand extends ToolCommand {
     let existing: Record<string, unknown> = {};
     if (existingContent) {
       try {
-        const parsed = load(existingContent);
+        const parsed = loadYaml(existingContent);
         // `isPlainObject` (not `isRecord`) rejects class instances / non-plain
         // objects for prototype-pollution hardening before this gets spread
         // into a new object below, mirroring rovodev-mcp.ts's convention.
@@ -266,7 +267,7 @@ async function lookupPromptDescription({
 
   let parsed: unknown;
   try {
-    parsed = load(manifestContent);
+    parsed = loadYaml(manifestContent);
   } catch {
     return "";
   }

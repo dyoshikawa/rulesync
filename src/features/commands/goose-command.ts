@@ -1,6 +1,6 @@
 import { basename, join } from "node:path";
 
-import { dump, load } from "js-yaml";
+import { dump } from "js-yaml";
 import { z } from "zod/mini";
 
 import {
@@ -11,6 +11,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -73,7 +74,7 @@ export class GooseCommand extends ToolCommand {
     const where = join(this.relativeDirPath, this.relativeFilePath);
     let parsed: unknown;
     try {
-      parsed = load(content);
+      parsed = loadYaml(content);
     } catch (error) {
       throw new Error(`Failed to parse Goose recipe (${where}): ${formatError(error)}`, {
         cause: error,
