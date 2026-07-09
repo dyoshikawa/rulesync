@@ -34,8 +34,6 @@ export const SHARED_WRITE_FEATURE_ORDER = [
   "rules",
 ] as const satisfies readonly Feature[];
 
-const SHARED_WRITE_FEATURES: ReadonlySet<Feature> = new Set(SHARED_WRITE_FEATURE_ORDER);
-
 // Deprecated aliases; a guard for the day one diverges from its canonical
 // target's paths. A no-op today since they reuse the canonical class and paths.
 const TARGETS_NOT_DERIVED: ReadonlySet<string> = new Set([
@@ -81,7 +79,19 @@ const settablePathsForScope = (cls: FactoryClass, global: boolean): SharedWriteP
     paths.push(settable.root);
     for (const alt of settable.alternativeRoots ?? []) paths.push(alt);
   }
-  for (const path of cls.getExtraSharedWritePaths?.({ global }) ?? []) {
+  // Deliberately fail-open here, mirroring the getSettablePaths() catch above:
+  // this derivation runs at module load (SHARED_WRITE_STEPS in generate.ts), so
+  // a throwing tool implementation must not take down every generate. The
+  // trade-off is that a broken getExtraSharedWritePaths silently drops that
+  // tool's extra shared paths from the write order — acceptable because every
+  // current implementation returns a static constant that cannot throw.
+  let extra: SharedWritePath[];
+  try {
+    extra = cls.getExtraSharedWritePaths?.({ global }) ?? [];
+  } catch {
+    return paths;
+  }
+  for (const path of extra) {
     if (path.relativeFilePath) paths.push(path);
   }
   return paths;
@@ -104,8 +114,12 @@ export const deriveSharedFileWriters = (): SharedFileWriter[] => {
   const byKey = new Map<string, Map<Feature, Set<ToolTarget>>>();
   const pathByKey = new Map<string, SharedWritePath>();
 
+  // Consider every feature, not just those already in SHARED_WRITE_FEATURE_ORDER:
+  // a feature that starts returning a shared path (2+ writers of the same file)
+  // must surface here so deriveSharedWriteSteps can reject it for lacking an
+  // explicit precedence position, instead of being silently dropped from the
+  // write order. Files a single feature writes are excluded below (features < 2).
   for (const entry of PROCESSOR_REGISTRY) {
-    if (!SHARED_WRITE_FEATURES.has(entry.feature)) continue;
     const factories = entry.factory as unknown as FactoryMap;
     for (const [tool, factory] of factories) {
       if (TARGETS_NOT_DERIVED.has(tool)) continue;
