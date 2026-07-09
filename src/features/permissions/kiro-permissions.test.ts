@@ -156,6 +156,147 @@ describe("KiroPermissions", () => {
     expect(JSON.parse(loaded.getFileContent()).model).toBe("x");
   });
 
+  it("should author kiro-scoped toolsSettings (shell flags, aws, web_fetch) from the override", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: { bash: { "git *": "allow" } },
+        kiro: {
+          toolsSettings: {
+            shell: { autoAllowReadonly: true, denyByDefault: false },
+            aws: { allowedServices: ["s3"], deniedServices: ["eks"] },
+            web_fetch: { trusted: [".*github\\.com.*"], blocked: [".*blocked\\.example\\.com.*"] },
+          },
+        },
+      }),
+    });
+
+    const kiroPermissions = await KiroPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const content = JSON.parse(kiroPermissions.getFileContent());
+    // The override's shell flags merge WITH the canonical-generated command list.
+    expect(content.toolsSettings.shell.allowedCommands).toContain("git *");
+    expect(content.toolsSettings.shell.autoAllowReadonly).toBe(true);
+    expect(content.toolsSettings.shell.denyByDefault).toBe(false);
+    expect(content.toolsSettings.aws).toEqual({
+      allowedServices: ["s3"],
+      deniedServices: ["eks"],
+    });
+    expect(content.toolsSettings.web_fetch).toEqual({
+      trusted: [".*github\\.com.*"],
+      blocked: [".*blocked\\.example\\.com.*"],
+    });
+  });
+
+  it("should extract kiro-specific toolsSettings into the kiro override on import", () => {
+    const kiroPermissions = new KiroPermissions({
+      outputRoot: testDir,
+      relativeDirPath: join(".kiro", "agents"),
+      relativeFilePath: "default.json",
+      fileContent: JSON.stringify({
+        toolsSettings: {
+          shell: {
+            allowedCommands: ["git *"],
+            deniedCommands: ["rm *"],
+            autoAllowReadonly: true,
+            denyByDefault: true,
+          },
+          aws: { allowedServices: ["s3"], deniedServices: ["eks"] },
+          web_fetch: { trusted: [".*github\\.com.*"] },
+        },
+      }),
+    });
+
+    const json = kiroPermissions.toRulesyncPermissions().getJson();
+    // Canonical command lists still drive the bash category.
+    expect(json.permission.bash).toEqual({ "git *": "allow", "rm *": "deny" });
+    // Non-canonical shell flags + aws + web_fetch round-trip through the override.
+    expect(json.kiro?.toolsSettings).toEqual({
+      shell: { autoAllowReadonly: true, denyByDefault: true },
+      aws: { allowedServices: ["s3"], deniedServices: ["eks"] },
+      web_fetch: { trusted: [".*github\\.com.*"] },
+    });
+  });
+
+  it("should omit the kiro override when no kiro-specific toolsSettings are present", () => {
+    const kiroPermissions = new KiroPermissions({
+      outputRoot: testDir,
+      relativeDirPath: join(".kiro", "agents"),
+      relativeFilePath: "default.json",
+      fileContent: JSON.stringify({
+        toolsSettings: { shell: { allowedCommands: ["git *"] } },
+      }),
+    });
+
+    const json = kiroPermissions.toRulesyncPermissions().getJson();
+    expect(json.permission.bash).toEqual({ "git *": "allow" });
+    expect(json.kiro).toBeUndefined();
+  });
+
+  it("should preserve existing shell auto-trust flags across regenerate without an override", async () => {
+    const kiroDir = join(testDir, ".kiro", "agents");
+    await ensureDir(kiroDir);
+    await writeFileContent(
+      join(kiroDir, "default.json"),
+      JSON.stringify({
+        toolsSettings: { shell: { allowedCommands: ["old"], autoAllowReadonly: true } },
+      }),
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({ permission: { bash: { "git *": "allow" } } }),
+    });
+
+    const kiroPermissions = await KiroPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const content = JSON.parse(kiroPermissions.getFileContent());
+    // The canonical list is regenerated, but the hand-set flag is not dropped.
+    expect(content.toolsSettings.shell.allowedCommands).toEqual(["git *"]);
+    expect(content.toolsSettings.shell.autoAllowReadonly).toBe(true);
+  });
+
+  it("should round-trip kiro override: import then re-generate keeps the specific surfaces", async () => {
+    const source = new KiroPermissions({
+      outputRoot: testDir,
+      relativeDirPath: join(".kiro", "agents"),
+      relativeFilePath: "default.json",
+      fileContent: JSON.stringify({
+        toolsSettings: {
+          shell: { allowedCommands: ["git *"], denyByDefault: true },
+          aws: { deniedServices: ["eks"] },
+        },
+      }),
+    });
+    const imported = source.toRulesyncPermissions().getJson();
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify(imported),
+    });
+    const regenerated = await KiroPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const content = JSON.parse(regenerated.getFileContent());
+    expect(content.toolsSettings.shell.allowedCommands).toEqual(["git *"]);
+    expect(content.toolsSettings.shell.denyByDefault).toBe(true);
+    expect(content.toolsSettings.aws).toEqual({ deniedServices: ["eks"] });
+  });
+
   it("should remove web tools from allowedTools when denied", async () => {
     const kiroDir = join(testDir, ".kiro", "agents");
     await ensureDir(kiroDir);

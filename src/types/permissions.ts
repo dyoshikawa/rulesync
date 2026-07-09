@@ -378,14 +378,66 @@ const AugmentcodePermissionsOverrideSchema = z.looseObject({
 export type AugmentcodePermissionsOverride = z.infer<typeof AugmentcodePermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for Kiro. Kiro's agent config (`.kiro/agents/<name>.json`)
+ * exposes per-tool `toolsSettings` knobs with no canonical allow/ask/deny
+ * category: the shell auto-trust flags `shell.autoAllowReadonly` /
+ * `shell.denyByDefault`, the `aws` built-in tool's `allowedServices` /
+ * `deniedServices` (+ `autoAllowReadonly`), and the `web_fetch` domain trust
+ * arrays `trusted` / `blocked` (regex host patterns; documented for `web_fetch`
+ * only — `web_search` has no such surface). Fields placed here are deep-merged
+ * (per `toolsSettings` key, override wins at the leaf) into the shared agent
+ * config, while the canonical `permission` block continues to drive
+ * `shell.{allowed,denied}Commands`, `read`/`write`/`grep`/`glob` paths, and the
+ * `web_fetch`/`web_search` `allowedTools` toggles. Kept `looseObject` at every
+ * level (verbatim passthrough) so future Kiro `toolsSettings` fields survive.
+ *
+ * Kiro's MCP `autoApprove` / `disabledTools` lists are intentionally NOT modeled
+ * here: they live in a SEPARATE file (`.kiro/settings/mcp.json`, under
+ * `mcpServers.<name>`), not the agent config this permissions translator writes,
+ * and reconciling them with the canonical `mcp__*` model is a distinct design
+ * question left out of scope.
+ *
+ * @example
+ * { "toolsSettings": { "shell": { "autoAllowReadonly": true },
+ *     "aws": { "allowedServices": ["s3"], "deniedServices": ["eks"] },
+ *     "web_fetch": { "trusted": [".*github\\.com.*"] } } }
+ */
+const KiroPermissionsOverrideSchema = z.looseObject({
+  toolsSettings: z.optional(
+    z.looseObject({
+      shell: z.optional(
+        z.looseObject({
+          autoAllowReadonly: z.optional(z.boolean()),
+          denyByDefault: z.optional(z.boolean()),
+        }),
+      ),
+      aws: z.optional(
+        z.looseObject({
+          allowedServices: z.optional(z.array(z.string())),
+          deniedServices: z.optional(z.array(z.string())),
+          autoAllowReadonly: z.optional(z.boolean()),
+        }),
+      ),
+      web_fetch: z.optional(
+        z.looseObject({
+          trusted: z.optional(z.array(z.string())),
+          blocked: z.optional(z.array(z.string())),
+        }),
+      ),
+    }),
+  ),
+});
+export type KiroPermissionsOverride = z.infer<typeof KiroPermissionsOverrideSchema>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
  * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode`/`vibe`/`cursor`/
  * `qwencode`/`reasonix`/`factorydroid`/`warp`/`junie`/`takt`/`amp`/
- * `antigravity-cli`/`augmentcode` keys are tool-scoped overrides consumed only
- * by their respective translator (see the matching `*PermissionsOverrideSchema`);
+ * `antigravity-cli`/`augmentcode`/`kiro` keys are tool-scoped overrides consumed
+ * only by their respective translator (see the matching `*PermissionsOverrideSchema`);
  * every other tool reads the shared `permission` block and ignores them.
  *
  * @example
@@ -412,6 +464,7 @@ const PermissionsConfigSchema = z.looseObject({
   amp: z.optional(AmpPermissionsOverrideSchema),
   "antigravity-cli": z.optional(AntigravityCliPermissionsOverrideSchema),
   augmentcode: z.optional(AugmentcodePermissionsOverrideSchema),
+  kiro: z.optional(KiroPermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 
