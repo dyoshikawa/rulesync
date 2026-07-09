@@ -1247,6 +1247,72 @@ describe("resolveAndFetchSources", () => {
     );
   });
 
+  it("installs the root SKILL.md under the requested name when real skill dirs coexist and the requested skill is absent", async () => {
+    // Locks the (intended) widened-fallback behavior: when the repository has
+    // real skill dirs plus an incidental root SKILL.md and the caller requests a
+    // skill name that matches no dir, the root is installed under the requested
+    // name.
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === ".") {
+          return [
+            { name: "other-skill", path: "other-skill", type: "dir", size: 0 },
+            { name: "SKILL.md", path: "SKILL.md", type: "file", size: 50 },
+            { name: "README.md", path: "README.md", type: "file", size: 20 },
+          ];
+        }
+        return [];
+      },
+    );
+    mockClientInstance.getFileContent.mockImplementation(
+      async (_o: string, _r: string, path: string) => {
+        if (path === "SKILL.md") return "# Root Skill";
+        if (path === "README.md") return "docs";
+        return "";
+      },
+    );
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo:.", skills: ["nonexistent"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(1);
+    expect(writeFileContent).toHaveBeenCalledWith(
+      join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "nonexistent", "SKILL.md"),
+      "# Root Skill",
+    );
+  });
+
+  it("does not fetch root files when the requested skill is absent and there is no root SKILL.md", async () => {
+    // The fallback (and its full root-file fetch) must be short-circuited when the
+    // directory listing shows no root SKILL.md — nothing would be installed, so no
+    // root content should be fetched.
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === ".") {
+          return [
+            { name: "other-skill", path: "other-skill", type: "dir", size: 0 },
+            { name: "README.md", path: "README.md", type: "file", size: 20 },
+          ];
+        }
+        return [];
+      },
+    );
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo:.", skills: ["nonexistent"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(0);
+    expect(writeFileContent).not.toHaveBeenCalled();
+    // No root file contents are fetched because the fallback is short-circuited.
+    expect(mockClientInstance.getFileContent).not.toHaveBeenCalled();
+  });
+
   it("should treat backslash-separated git paths as nested skill files", async () => {
     const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
     vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "d".repeat(40) });
