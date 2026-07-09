@@ -1,5 +1,5 @@
 import { uniq } from "es-toolkit";
-import { dump, load } from "js-yaml";
+import { dump } from "js-yaml";
 import { parse as parseJsonc } from "jsonc-parser";
 
 import { TAKT_WORKFLOW_MCP_SERVERS_KEY } from "../../constants/takt-paths.js";
@@ -12,6 +12,7 @@ import {
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
 import { isPlainObject } from "../../utils/type-guards.js";
+import { loadYaml } from "../../utils/yaml.js";
 
 /**
  * Single gateway for the shared config files that several rulesync features
@@ -91,7 +92,7 @@ export function parseSharedConfig({
   let parsed: unknown;
   try {
     if (format === "yaml") {
-      parsed = load(fileContent);
+      parsed = loadYaml(fileContent);
     } else if (format === "json") {
       parsed = JSON.parse(fileContent);
     } else {

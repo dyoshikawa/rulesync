@@ -1,6 +1,6 @@
 import { basename, join } from "node:path";
 
-import { dump, load } from "js-yaml";
+import { dump } from "js-yaml";
 import { z } from "zod/mini";
 
 import {
@@ -11,6 +11,7 @@ import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-p
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
+import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
@@ -204,7 +205,7 @@ export class GooseSubagent extends ToolSubagent {
 
     let parsed: unknown;
     try {
-      parsed = load(fileContent);
+      parsed = loadYaml(fileContent);
     } catch (error) {
       throw new Error(`Failed to parse Goose recipe (${filePath}): ${formatError(error)}`, {
         cause: error,

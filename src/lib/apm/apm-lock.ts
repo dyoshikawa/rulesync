@@ -1,9 +1,10 @@
 import { join } from "node:path";
 
-import { dump, load } from "js-yaml";
+import { dump } from "js-yaml";
 import { nonnegative, optional, refine, z } from "zod/mini";
 
 import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
+import { loadYaml } from "../../utils/yaml.js";
 
 /**
  * Filename of the rulesync-managed apm-compatible lockfile. Rulesync uses a
@@ -108,7 +109,7 @@ export function parseApmLock(content: string): ApmLock | null {
   }
   let loaded: unknown;
   try {
-    loaded = load(content);
+    loaded = loadYaml(content);
   } catch {
     return null;
   }

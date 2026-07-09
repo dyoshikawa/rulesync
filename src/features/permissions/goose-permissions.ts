@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { dump, load } from "js-yaml";
+import { dump } from "js-yaml";
 
 import { GOOSE_GLOBAL_DIR, GOOSE_PERMISSIONS_FILE_NAME } from "../../constants/goose-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
@@ -9,6 +9,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -162,7 +163,7 @@ export class GoosePermissions extends ToolPermissions {
 
     let parsed: unknown;
     try {
-      parsed = existingContent.trim() === "" ? {} : load(existingContent);
+      parsed = existingContent.trim() === "" ? {} : loadYaml(existingContent);
     } catch (error) {
       throw new Error(
         `Failed to parse existing Goose permission.yaml at ${filePath}: ${formatError(error)}`,
@@ -194,7 +195,7 @@ export class GoosePermissions extends ToolPermissions {
     let parsed: unknown;
     try {
       const content = this.getFileContent();
-      parsed = content.trim() === "" ? {} : load(content);
+      parsed = content.trim() === "" ? {} : loadYaml(content);
     } catch (error) {
       throw new Error(
         `Failed to parse Goose permissions content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,

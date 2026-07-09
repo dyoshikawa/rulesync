@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { dump, load } from "js-yaml";
+import { dump } from "js-yaml";
 
 import {
   GOOSE_GLOBAL_DIR,
@@ -19,6 +19,7 @@ import {
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
 import { isPlainObject, isRecord, isStringArray } from "../../utils/type-guards.js";
+import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -39,7 +40,7 @@ function parseGooseConfig(
   const configPath = join(relativeDirPath, relativeFilePath);
   let parsed: unknown;
   try {
-    parsed = load(fileContent);
+    parsed = loadYaml(fileContent);
   } catch (error) {
     throw new Error(`Failed to parse Goose config at ${configPath}: ${formatError(error)}`, {
       cause: error,
