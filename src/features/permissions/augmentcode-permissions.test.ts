@@ -349,6 +349,46 @@ describe("AugmentcodePermissions", () => {
     expect(firstBasicIndex).toBeGreaterThan(1);
   });
 
+  it("must NOT let a basic entry mis-authored in the override shadow a generated deny (fail-closed)", async () => {
+    // A user mistakenly puts a BASIC catch-all `allow` in the augmentcode override (which is meant
+    // for special entries only). It must not be prepended verbatim ahead of a generated deny, or
+    // first-match-wins would bypass the deny. Instead it joins the basic pool and is fail-closed
+    // sorted, so the generated `rm -rf` deny still wins.
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { bash: { "rm -rf *": "deny" } },
+        augmentcode: {
+          toolPermissions: [{ toolName: "launch-process", permission: { type: "allow" } }],
+        },
+      }),
+    });
+
+    const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const entries = JSON.parse(instance.getFileContent()).toolPermissions as Array<{
+      toolName: string;
+      shellInputRegex?: string;
+      permission: { type: string };
+    }>;
+
+    const denyIndex = entries.findIndex((e) => e.permission.type === "deny");
+    const catchAllAllowIndex = entries.findIndex(
+      (e) =>
+        e.toolName === "launch-process" &&
+        e.permission.type === "allow" &&
+        e.shellInputRegex === undefined,
+    );
+    // The generated `rm -rf` deny (specific, has shellInputRegex) precedes the mis-authored
+    // catch-all allow — the deny is not shadowed.
+    expect(denyIndex).toBeGreaterThanOrEqual(0);
+    expect(catchAllAllowIndex).toBeGreaterThan(denyIndex);
+  });
+
   it("round-trips special entries: authored override on import survives re-generate without double-emit", async () => {
     // Import a file with a mix of special + basic entries.
     const importInstance = new AugmentcodePermissions({

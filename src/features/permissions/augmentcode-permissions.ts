@@ -145,14 +145,17 @@ function isSpecialEntry(entry: AugmentToolPermission): boolean {
  * distinguish two special entries is included.
  */
 function specialEntryKey(entry: AugmentToolPermission): string {
-  return [
+  // JSON-encode the tuple (rather than join a delimiter) so a value that itself
+  // contains the delimiter — e.g. a `webhookUrl` with a `|` — cannot collide with
+  // a different entry's key and cause one to be wrongly de-duplicated away.
+  return JSON.stringify([
     entry.toolName,
     entry.shellInputRegex ?? "",
     entry.eventType ?? "",
     entry.permission.type,
     entry.permission.webhookUrl ?? "",
     entry.permission.script ?? "",
-  ].join("|");
+  ]);
 }
 
 /**
@@ -174,17 +177,25 @@ function dedupeSpecialEntries(entries: AugmentToolPermission[]): AugmentToolPerm
 
 /**
  * Validate/normalize the `augmentcode` override's `toolPermissions` array into
- * typed `AugmentToolPermission` entries, dropping any malformed item. The
- * override schema is intentionally loose (verbatim passthrough), so entries are
- * re-parsed through the full entry schema here to guarantee shape before they
- * are written into the shared settings file.
+ * typed `AugmentToolPermission` entries, dropping any malformed item (with a
+ * warning so a typo is not lost silently). The override schema is intentionally
+ * loose (verbatim passthrough), so entries are re-parsed through the full entry
+ * schema here to guarantee shape before they are written into the shared
+ * settings file.
  */
-function coerceAuthoredEntries(entries: readonly unknown[]): AugmentToolPermission[] {
+function coerceAuthoredEntries(
+  entries: readonly unknown[],
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"],
+): AugmentToolPermission[] {
   const out: AugmentToolPermission[] = [];
   for (const item of entries) {
     const parsed = AugmentToolPermissionSchema.safeParse(item);
     if (parsed.success) {
       out.push(parsed.data);
+    } else {
+      logger?.warn(
+        `AugmentCode permissions: dropping malformed 'augmentcode.toolPermissions' override entry: ${formatError(parsed.error)}.`,
+      );
     }
   }
   return out;
@@ -390,12 +401,20 @@ export class AugmentcodePermissions extends ToolPermissions {
     // INTO the override on import, so preserving them too would double-emit. Without an override,
     // fall back to preserving the existing file's specials verbatim (legacy round-trip behavior).
     const authoredEntries = override?.toolPermissions
-      ? coerceAuthoredEntries(override.toolPermissions)
+      ? coerceAuthoredEntries(override.toolPermissions, logger)
       : [];
+    // Only genuinely special entries are allowed to LEAD (ahead of all basic rules). A basic
+    // allow/deny/ask-user entry mistakenly authored in the override must NOT be prepended verbatim,
+    // or a catch-all `allow` could shadow a generated `deny` under first-match-wins. Route such
+    // basic authored entries into the basic pool below so they go through the same fail-closed sort
+    // (deny-first, specific-before-catch-all) as canonical-generated entries — matching Amp's
+    // guarantee that no authored entry can shadow a generated deny.
+    const authoredSpecials = authoredEntries.filter((entry) => isSpecialEntry(entry));
+    const authoredBasics = authoredEntries.filter((entry) => !isSpecialEntry(entry));
     const preservedSpecials = override?.toolPermissions
       ? []
       : existingEntries.filter((entry) => isSpecialEntry(entry));
-    const specialEntries = dedupeSpecialEntries([...authoredEntries, ...preservedSpecials]);
+    const specialEntries = dedupeSpecialEntries([...authoredSpecials, ...preservedSpecials]);
     const basicExistingEntries = existingEntries.filter((entry) => !isSpecialEntry(entry));
 
     // Preservation policy (fail-closed) for basic entries:
@@ -426,10 +445,15 @@ export class AugmentcodePermissions extends ToolPermissions {
       return false;
     });
 
-    // Sort the COMBINED basic list (generated + preserved) so that preserved `deny` entries cannot
-    // be shadowed by a generated catch-all `allow`/`ask` under AugmentCode's first-match-wins
-    // evaluation. Special entries are then prepended verbatim, ahead of all basic rules.
-    const sortedBasic = sortAugmentEntries([...generated, ...preservedBasicEntries]);
+    // Sort the COMBINED basic list (generated + preserved + any basic entries mis-authored in the
+    // override) so that `deny` entries cannot be shadowed by a catch-all `allow`/`ask` under
+    // AugmentCode's first-match-wins evaluation. Special entries are then prepended verbatim, ahead
+    // of all basic rules.
+    const sortedBasic = sortAugmentEntries([
+      ...generated,
+      ...preservedBasicEntries,
+      ...authoredBasics,
+    ]);
 
     const merged: AugmentSettings = {
       ...settings,
