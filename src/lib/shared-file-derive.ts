@@ -79,6 +79,12 @@ const settablePathsForScope = (cls: FactoryClass, global: boolean): SharedWriteP
     paths.push(settable.root);
     for (const alt of settable.alternativeRoots ?? []) paths.push(alt);
   }
+  // Deliberately fail-open here, mirroring the getSettablePaths() catch above:
+  // this derivation runs at module load (SHARED_WRITE_STEPS in generate.ts), so
+  // a throwing tool implementation must not take down every generate. The
+  // trade-off is that a broken getExtraSharedWritePaths silently drops that
+  // tool's extra shared paths from the write order — acceptable because every
+  // current implementation returns a static constant that cannot throw.
   let extra: SharedWritePath[];
   try {
     extra = cls.getExtraSharedWritePaths?.({ global }) ?? [];

@@ -35,8 +35,9 @@ describe("shared-file write derivation", () => {
     // deriveSharedFileWriters considers every feature (not just the ordered
     // ones), so a feature that starts returning a shared path surfaces here and
     // must get an explicit precedence decision, not a silent arbitrary order.
-    // This asserts the property directly rather than relying only on the throw,
-    // which was unreachable while writers were pre-filtered by the order set.
+    // Assert the property directly for a clear failure message; before the
+    // pre-filter was removed this could never fail because writers were
+    // restricted to the order set.
     const ordered = [...SHARED_WRITE_FEATURE_ORDER];
     for (const writer of deriveSharedFileWriters()) {
       for (const feature of writer.features) {
@@ -46,8 +47,9 @@ describe("shared-file write derivation", () => {
         ).toContain(feature);
       }
     }
-    // deriveSharedWriteSteps throws when a shared-file writer feature is not
-    // ordered; with the pre-filter gone this guard is now genuinely reachable.
+    // The same guard also throws inside deriveSharedWriteSteps (which generate.ts
+    // evaluates at module load), so an unordered writer fails loudly at runtime,
+    // not just here.
     expect(() => deriveSharedWriteSteps()).not.toThrow();
   });
 
