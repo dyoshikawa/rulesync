@@ -255,4 +255,80 @@ describe("ReasonixMcp", () => {
       expect(parsed.plugins[0].trusted_read_only_tools).toBeUndefined();
     });
   });
+
+  describe("plugin timeout fields round-trip", () => {
+    it("should export call_timeout_seconds (per-server) and tool_timeout_seconds (per-tool table)", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            media: {
+              command: "reasonix-plugin-media",
+              call_timeout_seconds: 600,
+              tool_timeout_seconds: { generate_video: 1800 },
+            },
+          },
+        }),
+      });
+
+      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const parsed = smolToml.parse(reasonixMcp.getFileContent()) as any;
+
+      expect(parsed.plugins[0]).toMatchObject({
+        name: "media",
+        call_timeout_seconds: 600,
+        tool_timeout_seconds: { generate_video: 1800 },
+      });
+    });
+
+    it("should import both timeout fields from an existing [[plugins]] entry", () => {
+      const fileContent = [
+        "[[plugins]]",
+        'name = "media"',
+        'command = "reasonix-plugin-media"',
+        "call_timeout_seconds = 600",
+        "tool_timeout_seconds = { generate_video = 1800 }",
+      ].join("\n");
+
+      const reasonixMcp = new ReasonixMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent,
+      });
+
+      const parsed = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
+
+      expect(parsed.mcpServers.media.call_timeout_seconds).toBe(600);
+      expect(parsed.mcpServers.media.tool_timeout_seconds).toEqual({ generate_video: 1800 });
+    });
+
+    it("should round-trip both timeout fields through export then import unchanged", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            media: {
+              command: "reasonix-plugin-media",
+              call_timeout_seconds: 300,
+              tool_timeout_seconds: { generate_video: 1800, transcribe: 120 },
+            },
+          },
+        }),
+      });
+
+      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const roundTripped = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
+
+      expect(roundTripped.mcpServers.media.call_timeout_seconds).toBe(300);
+      expect(roundTripped.mcpServers.media.tool_timeout_seconds).toEqual({
+        generate_video: 1800,
+        transcribe: 120,
+      });
+    });
+  });
 });
