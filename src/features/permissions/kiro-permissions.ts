@@ -7,6 +7,8 @@ import type { ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
+import { isPlainObject } from "../../utils/type-guards.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -23,6 +25,20 @@ const KiroAgentSchema = z.looseObject({
 
 type KiroAgent = z.infer<typeof KiroAgentSchema>;
 const UnknownRecordSchema = z.record(z.string(), z.unknown());
+
+// Shell settings driven by the canonical `bash` category (allow/deny command
+// lists). Every OTHER `toolsSettings.shell` key (e.g. the auto-trust flags
+// `autoAllowReadonly` / `denyByDefault`) has no canonical home and is authored /
+// round-tripped through the `kiro` override instead.
+const CANONICAL_SHELL_KEYS = new Set(["allowedCommands", "deniedCommands"]);
+
+// `toolsSettings` keys fully driven by the canonical `permission` block (path
+// allow/deny tables). The `kiro` override must NOT be able to author these, or
+// it could silently clobber a canonical-generated `deniedPaths` and weaken a
+// reviewed deny. `shell` is deliberately NOT here: it is partly canonical
+// (command lists) and partly override (auto-trust flags), so it is allowed
+// through with only its canonical leaves stripped.
+const CANONICAL_TOOL_SETTINGS_KEYS = new Set(["read", "write", "grep", "glob"]);
 
 export class KiroPermissions extends ToolPermissions {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
@@ -121,8 +137,18 @@ export class KiroPermissions extends ToolPermissions {
       permission.websearch = { "*": "allow" };
     }
 
+    // Extract the Kiro-specific `toolsSettings` knobs with no canonical category
+    // (shell auto-trust flags, the `aws` service lists, the `web_fetch` domain
+    // trust arrays) into the `kiro` override so they round-trip and are authorable.
+    const kiroOverride = extractKiroOverride(toolsSettings);
+
+    const result: Record<string, unknown> = { permission };
+    if (kiroOverride !== undefined) {
+      result.kiro = kiroOverride;
+    }
+
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify({ permission }, null, 2),
+      fileContent: JSON.stringify(result, null, 2),
     });
   }
 
@@ -188,8 +214,11 @@ function buildKiroPermissionsFromRulesync({
 
   // `shell`/`read`/`write` are always emitted (even empty) to match the prior
   // behavior; `grep`/`glob` are only emitted when they carry a rule so existing
-  // configs do not gain empty tables.
-  nextToolsSettings.shell = shell;
+  // configs do not gain empty tables. For `shell`, preserve any non-canonical
+  // flags already in the file (e.g. `autoAllowReadonly` / `denyByDefault`) rather
+  // than clobbering the whole object with just the command lists — the `kiro`
+  // override below then wins over them when it authors those flags.
+  nextToolsSettings.shell = { ...preservedShellFlags(existing), ...shell };
   nextToolsSettings.read = pathTable(pathBuckets.read);
   nextToolsSettings.write = pathTable(pathBuckets.write);
   for (const key of ["grep", "glob"] as const) {
@@ -199,11 +228,79 @@ function buildKiroPermissionsFromRulesync({
     }
   }
 
+  // Apply the `kiro` override: Kiro-specific `toolsSettings` knobs with no
+  // canonical category (shell auto-trust flags, the `aws` service lists, the
+  // `web_fetch` domain trust arrays). Deep-merge per `toolsSettings` key so the
+  // override's leaf values win without discarding the canonical-generated
+  // siblings (e.g. authoring `shell.autoAllowReadonly` keeps the generated
+  // `shell.allowedCommands`).
+  applyKiroOverride({ override: config.kiro, nextToolsSettings, logger });
+
   return {
     ...existing,
     allowedTools: [...nextAllowedTools].toSorted(),
     toolsSettings: nextToolsSettings,
   };
+}
+
+/**
+ * Non-canonical `toolsSettings.shell` keys already present in the existing agent
+ * config (everything except the canonical `allowed`/`deniedCommands`), so a
+ * regenerate does not silently drop a hand-set `autoAllowReadonly` /
+ * `denyByDefault` when no `kiro` override re-authors it.
+ */
+function preservedShellFlags(existing: KiroAgent): Record<string, unknown> {
+  const existingShell = asRecord(asRecord(existing.toolsSettings).shell);
+  const flags: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(existingShell)) {
+    if (!CANONICAL_SHELL_KEYS.has(key)) flags[key] = value;
+  }
+  return flags;
+}
+
+/**
+ * Deep-merge the `kiro` override's `toolsSettings` block into the generated
+ * settings, one `toolsSettings` key at a time so the override's leaf fields win
+ * without clobbering canonical-generated siblings.
+ *
+ * Guards, so the override can only author the non-canonical surfaces it is meant
+ * for and can never weaken a canonical-generated deny:
+ * - prototype-pollution keys are skipped before being used as object keys;
+ * - fully-canonical `toolsSettings` keys (`read`/`write`/`grep`/`glob`) are
+ *   rejected outright with a warning (their paths are owned by the canonical
+ *   `permission` block);
+ * - for `shell` (partly canonical), the canonical command-list leaves
+ *   (`allowed`/`deniedCommands`) are stripped from the override value so only the
+ *   auto-trust flags merge.
+ */
+function applyKiroOverride({
+  override,
+  nextToolsSettings,
+  logger,
+}: {
+  override: PermissionsConfig["kiro"];
+  nextToolsSettings: Record<string, unknown>;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): void {
+  const overrideToolsSettings = override?.toolsSettings;
+  if (!isPlainObject(overrideToolsSettings)) return;
+  for (const [key, value] of Object.entries(overrideToolsSettings)) {
+    if (isPrototypePollutionKey(key)) continue;
+    if (!isPlainObject(value)) continue;
+    if (CANONICAL_TOOL_SETTINGS_KEYS.has(key)) {
+      logger?.warn(
+        `Kiro permissions: ignoring 'kiro.toolsSettings.${key}' override; '${key}' paths are driven by the canonical permission block.`,
+      );
+      continue;
+    }
+    const mergeValue =
+      key === "shell"
+        ? Object.fromEntries(
+            Object.entries(value).filter(([leaf]) => !CANONICAL_SHELL_KEYS.has(leaf)),
+          )
+        : value;
+    nextToolsSettings[key] = { ...asRecord(nextToolsSettings[key]), ...mergeValue };
+  }
 }
 
 function pathTable(bucket: { allow: string[]; deny: string[] } | undefined): {
@@ -243,6 +340,38 @@ function applyKiroWebPermission({
 function asRecord(value: unknown): Record<string, unknown> {
   const result = UnknownRecordSchema.safeParse(value);
   return result.success ? result.data : {};
+}
+
+/**
+ * Build the `kiro` permissions override from a parsed agent config's
+ * `toolsSettings`, lifting the Kiro-specific knobs with no canonical category:
+ * - `shell.*` flags other than the canonical `allowed`/`deniedCommands`
+ *   (e.g. `autoAllowReadonly`, `denyByDefault`), verbatim.
+ * - the whole `aws` object (`allowedServices` / `deniedServices` / …), verbatim.
+ * - the whole `web_fetch` object (`trusted` / `blocked`), verbatim.
+ *
+ * Returns `undefined` when none are present so the override key is omitted.
+ */
+function extractKiroOverride(
+  toolsSettings: Record<string, unknown>,
+): { toolsSettings: Record<string, unknown> } | undefined {
+  const overrideToolsSettings: Record<string, unknown> = {};
+
+  const shellFlags: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(asRecord(toolsSettings.shell))) {
+    if (isPrototypePollutionKey(key)) continue;
+    if (!CANONICAL_SHELL_KEYS.has(key)) shellFlags[key] = value;
+  }
+  if (Object.keys(shellFlags).length > 0) overrideToolsSettings.shell = shellFlags;
+
+  const aws = asRecord(toolsSettings.aws);
+  if (Object.keys(aws).length > 0) overrideToolsSettings.aws = aws;
+
+  const webFetch = asRecord(toolsSettings.web_fetch);
+  if (Object.keys(webFetch).length > 0) overrideToolsSettings.web_fetch = webFetch;
+
+  if (Object.keys(overrideToolsSettings).length === 0) return undefined;
+  return { toolsSettings: overrideToolsSettings };
 }
 
 function asStringArray(value: unknown): string[] {
