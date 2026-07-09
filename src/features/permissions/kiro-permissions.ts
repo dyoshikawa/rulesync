@@ -32,6 +32,14 @@ const UnknownRecordSchema = z.record(z.string(), z.unknown());
 // round-tripped through the `kiro` override instead.
 const CANONICAL_SHELL_KEYS = new Set(["allowedCommands", "deniedCommands"]);
 
+// `toolsSettings` keys fully driven by the canonical `permission` block (path
+// allow/deny tables). The `kiro` override must NOT be able to author these, or
+// it could silently clobber a canonical-generated `deniedPaths` and weaken a
+// reviewed deny. `shell` is deliberately NOT here: it is partly canonical
+// (command lists) and partly override (auto-trust flags), so it is allowed
+// through with only its canonical leaves stripped.
+const CANONICAL_TOOL_SETTINGS_KEYS = new Set(["read", "write", "grep", "glob"]);
+
 export class KiroPermissions extends ToolPermissions {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return {
@@ -226,7 +234,7 @@ function buildKiroPermissionsFromRulesync({
   // override's leaf values win without discarding the canonical-generated
   // siblings (e.g. authoring `shell.autoAllowReadonly` keeps the generated
   // `shell.allowedCommands`).
-  applyKiroOverride({ override: config.kiro, nextToolsSettings });
+  applyKiroOverride({ override: config.kiro, nextToolsSettings, logger });
 
   return {
     ...existing,
@@ -253,22 +261,45 @@ function preservedShellFlags(existing: KiroAgent): Record<string, unknown> {
 /**
  * Deep-merge the `kiro` override's `toolsSettings` block into the generated
  * settings, one `toolsSettings` key at a time so the override's leaf fields win
- * without clobbering canonical-generated siblings. Prototype-pollution keys are
- * skipped defensively before being used as object keys.
+ * without clobbering canonical-generated siblings.
+ *
+ * Guards, so the override can only author the non-canonical surfaces it is meant
+ * for and can never weaken a canonical-generated deny:
+ * - prototype-pollution keys are skipped before being used as object keys;
+ * - fully-canonical `toolsSettings` keys (`read`/`write`/`grep`/`glob`) are
+ *   rejected outright with a warning (their paths are owned by the canonical
+ *   `permission` block);
+ * - for `shell` (partly canonical), the canonical command-list leaves
+ *   (`allowed`/`deniedCommands`) are stripped from the override value so only the
+ *   auto-trust flags merge.
  */
 function applyKiroOverride({
   override,
   nextToolsSettings,
+  logger,
 }: {
   override: PermissionsConfig["kiro"];
   nextToolsSettings: Record<string, unknown>;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): void {
   const overrideToolsSettings = override?.toolsSettings;
   if (!isPlainObject(overrideToolsSettings)) return;
   for (const [key, value] of Object.entries(overrideToolsSettings)) {
     if (isPrototypePollutionKey(key)) continue;
     if (!isPlainObject(value)) continue;
-    nextToolsSettings[key] = { ...asRecord(nextToolsSettings[key]), ...value };
+    if (CANONICAL_TOOL_SETTINGS_KEYS.has(key)) {
+      logger?.warn(
+        `Kiro permissions: ignoring 'kiro.toolsSettings.${key}' override; '${key}' paths are driven by the canonical permission block.`,
+      );
+      continue;
+    }
+    const mergeValue =
+      key === "shell"
+        ? Object.fromEntries(
+            Object.entries(value).filter(([leaf]) => !CANONICAL_SHELL_KEYS.has(leaf)),
+          )
+        : value;
+    nextToolsSettings[key] = { ...asRecord(nextToolsSettings[key]), ...mergeValue };
   }
 }
 
@@ -328,6 +359,7 @@ function extractKiroOverride(
 
   const shellFlags: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(asRecord(toolsSettings.shell))) {
+    if (isPrototypePollutionKey(key)) continue;
     if (!CANONICAL_SHELL_KEYS.has(key)) shellFlags[key] = value;
   }
   if (Object.keys(shellFlags).length > 0) overrideToolsSettings.shell = shellFlags;

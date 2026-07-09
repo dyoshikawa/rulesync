@@ -193,6 +193,41 @@ describe("KiroPermissions", () => {
     });
   });
 
+  it("must NOT let the kiro override clobber canonical deny lists", async () => {
+    // Guard: the override is for non-canonical knobs only. An attempt to author
+    // shell.deniedCommands / read.deniedPaths through the override must be ignored so a
+    // canonical-generated deny cannot be silently weakened.
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          bash: { "rm *": "deny" },
+          read: { ".env": "deny" },
+        },
+        kiro: {
+          toolsSettings: {
+            shell: { deniedCommands: [], autoAllowReadonly: true },
+            read: { deniedPaths: [] },
+          },
+        },
+      }),
+    });
+
+    const kiroPermissions = await KiroPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const content = JSON.parse(kiroPermissions.getFileContent());
+    // Canonical denies survive; the override's clobbering leaves/keys are ignored.
+    expect(content.toolsSettings.shell.deniedCommands).toEqual(["rm *"]);
+    expect(content.toolsSettings.read.deniedPaths).toEqual([".env"]);
+    // ...but the legitimate non-canonical shell flag still applies.
+    expect(content.toolsSettings.shell.autoAllowReadonly).toBe(true);
+  });
+
   it("should extract kiro-specific toolsSettings into the kiro override on import", () => {
     const kiroPermissions = new KiroPermissions({
       outputRoot: testDir,
