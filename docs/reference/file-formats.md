@@ -123,7 +123,8 @@ Example:
 - `type` (optional): Either `"command"` (default) or `"prompt"`. Not all tools support `prompt`; see notes below.
 - `matcher` (optional): Regex used by tools that scope hooks to specific tool names (e.g. `preToolUse`, `postToolUse`, `notification`). Ignored by events that do not take a matcher (e.g. `sessionStart`, `worktreeCreate`, `worktreeRemove`).
 - `timeout` (optional): Per-hook timeout in seconds, forwarded to tools that support it.
-- `failClosed` (optional): Cursor-specific boolean. When `true`, a hook failure (crash, timeout, invalid JSON) blocks the action instead of allowing it through. Passed through to Cursor's `.cursor/hooks.json`.
+- `failClosed` (optional): Boolean. When `true`, a hook failure (crash, timeout, invalid JSON) blocks the action instead of allowing it through. Passed through to Cursor's `.cursor/hooks.json` and to JetBrains Junie's `~/.junie/config.json` (as Junie's equivalently-named `blockOnError` flag).
+- `async` (optional): Boolean. When `true`, the hook command runs in the background without blocking. Forwarded to Qwen Code (`.qwen/settings.json`) and JetBrains Junie (`~/.junie/config.json`, same field name).
 
 Events present in the shared `hooks` block but unsupported by a given tool are skipped for that tool (a warning is logged at generate time). The canonical `notification` event maps to deepagents-cli's `input.required` (human-in-the-loop interrupt).
 

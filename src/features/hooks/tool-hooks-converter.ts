@@ -27,6 +27,17 @@ export type ToolHooksConverterConfig = {
   supportedHookTypes?: ReadonlySet<"command" | "prompt" | "http">;
   passthroughFields?: ReadonlyArray<"name" | "description">;
   /**
+   * Per-hook boolean fields to carry through the round-trip, each mapping a
+   * canonical {@link HookDefinitionSchema} boolean field to its tool-side field
+   * name (which may differ — e.g. Junie's `blockOnError` ↔ canonical
+   * `failClosed`). Only boolean values are emitted on export and imported back;
+   * any other value is ignored so a malformed field can't leak through.
+   */
+  booleanPassthroughFields?: ReadonlyArray<{
+    readonly canonical: "failClosed" | "async";
+    readonly tool: string;
+  }>;
+  /**
    * When true, only dot-relative commands (e.g. ./script.sh, ../script.sh, .rulesync/hooks/x.sh)
    * are prefixed with projectDirVar. Bare executable commands like `npx prettier ...` are left intact.
    */
@@ -107,6 +118,43 @@ function applyCommandPrefix({
 }
 
 /**
+ * Emit the configured boolean passthrough fields on the tool side, mapping each
+ * canonical field name to its (possibly renamed) tool field name. Only boolean
+ * values are carried through.
+ */
+function emitBooleanPassthroughFields({
+  def,
+  converterConfig,
+}: {
+  def: HooksConfig["hooks"][string][number];
+  converterConfig: ToolHooksConverterConfig;
+}): Record<string, boolean> {
+  return Object.fromEntries(
+    (converterConfig.booleanPassthroughFields ?? [])
+      .filter(({ canonical }) => typeof def[canonical] === "boolean")
+      .map(({ canonical, tool }) => [tool, def[canonical] as boolean]),
+  );
+}
+
+/**
+ * Import the configured boolean passthrough fields back into canonical fields,
+ * reversing {@link emitBooleanPassthroughFields}. Only boolean values are read.
+ */
+function importBooleanPassthroughFields({
+  h,
+  converterConfig,
+}: {
+  h: Record<string, unknown>;
+  converterConfig: ToolHooksConverterConfig;
+}): Record<string, boolean> {
+  return Object.fromEntries(
+    (converterConfig.booleanPassthroughFields ?? [])
+      .filter(({ tool }) => typeof h[tool] === "boolean")
+      .map(({ canonical, tool }) => [canonical, h[tool] as boolean]),
+  );
+}
+
+/**
  * Convert the definitions of a single matcher group into tool hook entries,
  * honoring supported hook types and passthrough fields.
  */
@@ -135,6 +183,7 @@ function buildToolHooks({
       ...(converterConfig.passthroughFields?.includes("description") &&
         def.description !== undefined &&
         def.description !== null && { description: def.description }),
+      ...emitBooleanPassthroughFields({ def, converterConfig }),
     });
   }
   return hooks;
@@ -248,6 +297,7 @@ function toolHookToCanonical({
       typeof h.name === "string" && { name: h.name }),
     ...(converterConfig.passthroughFields?.includes("description") &&
       typeof h.description === "string" && { description: h.description }),
+    ...importBooleanPassthroughFields({ h, converterConfig }),
     ...(rawEntry.matcher !== undefined &&
       rawEntry.matcher !== null &&
       rawEntry.matcher !== "" && { matcher: rawEntry.matcher }),

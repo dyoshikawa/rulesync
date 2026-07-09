@@ -37,6 +37,14 @@ const JUNIE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // hooks so generation matches the declared capability.
   supportedHookTypes: new Set(["command"]),
   noMatcherEvents: JUNIE_NO_MATCHER_EVENTS,
+  // Junie hook objects support `blockOnError` (block the action on hook failure)
+  // and `async` (run in the background). `blockOnError` maps onto the canonical
+  // `failClosed` field (shared with Cursor's identical semantics); `async` maps
+  // onto the canonical `async` field. https://junie.jetbrains.com/docs/junie-cli-hooks.html
+  booleanPassthroughFields: [
+    { canonical: "failClosed", tool: "blockOnError" },
+    { canonical: "async", tool: "async" },
+  ],
 };
 
 export class JunieHooks extends ToolHooks {
