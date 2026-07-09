@@ -162,21 +162,21 @@ describe("mergeSharedConfigDeep", () => {
  * write contract in `src/lib/shared-file-contract.test.ts`.)
  */
 const GATEWAY_PENDING_SHARED_FILES: ReadonlySet<string> = new Set([
-  ".amp/settings.json",
   ".codex/config.toml",
-  ".config/amp/settings.json",
-  ".config/opencode/opencode.json",
   ".grok/config.toml",
   ".reasonix/config.toml",
   ".vibe/config.toml",
-  "kilo.json",
-  "opencode.json",
   "reasonix.toml",
 ]);
 
 describe("SHARED_CONFIG_OWNERSHIP", () => {
   it("declares exactly the writer features the processor registry derives per file", () => {
-    const derived = new Map(deriveSharedFileWriters().map((w) => [w.key, [...w.features]]));
+    // minWriters: 1 so declarations for gateway-managed files with a single
+    // writer (e.g. the global kilo config) are validated against the registry
+    // too, not just the cross-feature shared ones.
+    const derived = new Map(
+      deriveSharedFileWriters({ minWriters: 1 }).map((w) => [w.key, [...w.features]]),
+    );
     for (const [fileKey, declaration] of Object.entries(SHARED_CONFIG_OWNERSHIP)) {
       expect(
         Object.keys(declaration.features).toSorted(),

@@ -11,6 +11,7 @@ import {
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import {
   convertEnvVarRefsFromToolFormat,
   convertEnvVarRefsToToolFormat,
@@ -354,12 +355,6 @@ export class OpencodeMcp extends ToolMcp {
       }
     }
 
-    // If neither exists, default to jsonc and empty mcp object
-    if (!fileContent) {
-      fileContent = JSON.stringify({ mcp: {} }, null, 2);
-    }
-
-    const json = parseJsonc(fileContent);
     const mcpServers = rulesyncMcp.getMcpServers();
     const transformedServers = convertEnvVarRefsToToolFormat({
       mcpServers,
@@ -367,18 +362,23 @@ export class OpencodeMcp extends ToolMcp {
     });
     const { mcp: convertedMcp, tools: mcpTools } = convertToOpencodeFormat(transformedServers);
 
-    const { tools: _existingTools, ...jsonWithoutTools } = json;
-    const newJson = {
-      ...jsonWithoutTools,
-      mcp: convertedMcp,
-      ...(Object.keys(mcpTools).length > 0 && { tools: mcpTools }),
-    };
-
     return new OpencodeMcp({
       outputRoot,
       relativeDirPath: basePaths.relativeDirPath,
       relativeFilePath,
-      fileContent: JSON.stringify(newJson, null, 2),
+      // Keyed by the base settable paths: a resolved `.jsonc` twin shares the
+      // `.json` ownership declaration. `tools` is retracted when the generated
+      // servers carry no tool filters.
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(basePaths),
+        feature: "mcp",
+        existingContent: fileContent ?? "",
+        patch: {
+          mcp: convertedMcp,
+          tools: Object.keys(mcpTools).length > 0 ? mcpTools : undefined,
+        },
+        filePath: join(jsonDir, relativeFilePath),
+      }),
       validate,
     });
   }
@@ -437,18 +437,17 @@ export class OpencodeMcp extends ToolMcp {
       new Set([...existingInstructions, ...instructions]),
     ).toSorted();
 
-    // Spread the existing config first so mcp/tools/$schema and any other keys
-    // are preserved; only the instructions key is added/replaced.
-    const newJson = {
-      ...json,
-      instructions: mergedInstructions,
-    };
-
     return new OpencodeMcp({
       outputRoot,
       relativeDirPath: basePaths.relativeDirPath,
       relativeFilePath,
-      fileContent: JSON.stringify(newJson, null, 2),
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(basePaths),
+        feature: "rules",
+        existingContent: fileContent ?? "",
+        patch: { instructions: mergedInstructions },
+        filePath: join(jsonDir, relativeFilePath),
+      }),
       validate,
     });
   }

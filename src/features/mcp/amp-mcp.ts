@@ -12,6 +12,7 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isPlainObject, isRecord } from "../../utils/type-guards.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -149,18 +150,19 @@ export class AmpMcp extends ToolMcp {
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
     const { fileContent, relativeFilePath } = await this.resolveSettingsFile(jsonDir);
 
-    // If neither exists, use default config
-    const json = fileContent ? parseAmpSettingsJsonc(fileContent) : { [AMP_MCP_SERVERS_KEY]: {} };
-
-    const filteredMcpServers = filterMcpServers(rulesyncMcp.getMcpServers());
-
-    const newJson = { ...json, [AMP_MCP_SERVERS_KEY]: filteredMcpServers };
-
     return new AmpMcp({
       outputRoot,
       relativeDirPath: basePaths.relativeDirPath,
       relativeFilePath,
-      fileContent: JSON.stringify(newJson, null, 2),
+      // Keyed by the base settable paths: a resolved `settings.jsonc` twin
+      // shares the `settings.json` ownership declaration.
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(basePaths),
+        feature: "mcp",
+        existingContent: fileContent ?? "",
+        patch: { [AMP_MCP_SERVERS_KEY]: filterMcpServers(rulesyncMcp.getMcpServers()) },
+        filePath: join(jsonDir, relativeFilePath),
+      }),
       validate,
       global,
     });
