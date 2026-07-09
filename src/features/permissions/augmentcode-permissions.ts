@@ -139,6 +139,69 @@ function isSpecialEntry(entry: AugmentToolPermission): boolean {
 }
 
 /**
+ * A composite identity for a special entry, used to de-duplicate authored
+ * (`augmentcode` override) and preserved (existing-file) special entries so the
+ * same policy is not emitted twice into `toolPermissions`. Every field that can
+ * distinguish two special entries is included.
+ */
+function specialEntryKey(entry: AugmentToolPermission): string {
+  // JSON-encode the tuple (rather than join a delimiter) so a value that itself
+  // contains the delimiter — e.g. a `webhookUrl` with a `|` — cannot collide with
+  // a different entry's key and cause one to be wrongly de-duplicated away.
+  return JSON.stringify([
+    entry.toolName,
+    entry.shellInputRegex ?? "",
+    entry.eventType ?? "",
+    entry.permission.type,
+    entry.permission.webhookUrl ?? "",
+    entry.permission.script ?? "",
+  ]);
+}
+
+/**
+ * Stable de-duplication of special entries by {@link specialEntryKey}, keeping
+ * the first occurrence (authored entries lead, so an authored policy wins over
+ * an identical preserved one).
+ */
+function dedupeSpecialEntries(entries: AugmentToolPermission[]): AugmentToolPermission[] {
+  const seen = new Set<string>();
+  const out: AugmentToolPermission[] = [];
+  for (const entry of entries) {
+    const key = specialEntryKey(entry);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(entry);
+  }
+  return out;
+}
+
+/**
+ * Validate/normalize the `augmentcode` override's `toolPermissions` array into
+ * typed `AugmentToolPermission` entries, dropping any malformed item (with a
+ * warning so a typo is not lost silently). The override schema is intentionally
+ * loose (verbatim passthrough), so entries are re-parsed through the full entry
+ * schema here to guarantee shape before they are written into the shared
+ * settings file.
+ */
+function coerceAuthoredEntries(
+  entries: readonly unknown[],
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"],
+): AugmentToolPermission[] {
+  const out: AugmentToolPermission[] = [];
+  for (const item of entries) {
+    const parsed = AugmentToolPermissionSchema.safeParse(item);
+    if (parsed.success) {
+      out.push(parsed.data);
+    } else {
+      logger?.warn(
+        `AugmentCode permissions: dropping malformed 'augmentcode.toolPermissions' override entry: ${formatError(parsed.error)}.`,
+      );
+    }
+  }
+  return out;
+}
+
+/**
  * Convert a glob-like pattern into a regex string for AugmentCode's `shellInputRegex`.
  * Maps glob `*` to `.*`, `?` to `.`, escapes other regex metacharacters, and anchors at both ends.
  */
@@ -325,13 +388,33 @@ export class AugmentcodePermissions extends ToolPermissions {
     const generated = convertRulesyncToAugmentEntries({ config, logger });
 
     const existingEntries = settings.toolPermissions ?? [];
+    const override = config.augmentcode;
 
     // Special entries (custom policies / non-default eventType / webhookUrl / script) cannot be
-    // expressed in rulesync's canonical model, so they are always preserved verbatim and placed
-    // first. Under AugmentCode's first-match-wins evaluation, keeping them ahead of the generated
-    // basic rules means a user's webhook/script gate or tool-response check is never shadowed by a
-    // regenerated allow/deny/ask entry. Their relative order is preserved.
-    const specialEntries = existingEntries.filter((entry) => isSpecialEntry(entry));
+    // expressed in rulesync's canonical model, so they are placed first. Under AugmentCode's
+    // first-match-wins evaluation, keeping them ahead of the generated basic rules means a user's
+    // webhook/script gate or tool-response check is never shadowed by a regenerated allow/deny/ask
+    // entry.
+    //
+    // Source of truth: when the `augmentcode` override authors `toolPermissions`, those authored
+    // entries lead and rulesync stops preserving the existing file's specials — they were extracted
+    // INTO the override on import, so preserving them too would double-emit. Without an override,
+    // fall back to preserving the existing file's specials verbatim (legacy round-trip behavior).
+    const authoredEntries = override?.toolPermissions
+      ? coerceAuthoredEntries(override.toolPermissions, logger)
+      : [];
+    // Only genuinely special entries are allowed to LEAD (ahead of all basic rules). A basic
+    // allow/deny/ask-user entry mistakenly authored in the override must NOT be prepended verbatim,
+    // or a catch-all `allow` could shadow a generated `deny` under first-match-wins. Route such
+    // basic authored entries into the basic pool below so they go through the same fail-closed sort
+    // (deny-first, specific-before-catch-all) as canonical-generated entries — matching Amp's
+    // guarantee that no authored entry can shadow a generated deny.
+    const authoredSpecials = authoredEntries.filter((entry) => isSpecialEntry(entry));
+    const authoredBasics = authoredEntries.filter((entry) => !isSpecialEntry(entry));
+    const preservedSpecials = override?.toolPermissions
+      ? []
+      : existingEntries.filter((entry) => isSpecialEntry(entry));
+    const specialEntries = dedupeSpecialEntries([...authoredSpecials, ...preservedSpecials]);
     const basicExistingEntries = existingEntries.filter((entry) => !isSpecialEntry(entry));
 
     // Preservation policy (fail-closed) for basic entries:
@@ -362,10 +445,15 @@ export class AugmentcodePermissions extends ToolPermissions {
       return false;
     });
 
-    // Sort the COMBINED basic list (generated + preserved) so that preserved `deny` entries cannot
-    // be shadowed by a generated catch-all `allow`/`ask` under AugmentCode's first-match-wins
-    // evaluation. Special entries are then prepended verbatim, ahead of all basic rules.
-    const sortedBasic = sortAugmentEntries([...generated, ...preservedBasicEntries]);
+    // Sort the COMBINED basic list (generated + preserved + any basic entries mis-authored in the
+    // override) so that `deny` entries cannot be shadowed by a catch-all `allow`/`ask` under
+    // AugmentCode's first-match-wins evaluation. Special entries are then prepended verbatim, ahead
+    // of all basic rules.
+    const sortedBasic = sortAugmentEntries([
+      ...generated,
+      ...preservedBasicEntries,
+      ...authoredBasics,
+    ]);
 
     const merged: AugmentSettings = {
       ...settings,
@@ -399,13 +487,27 @@ export class AugmentcodePermissions extends ToolPermissions {
       );
     }
 
+    const allEntries = settings.toolPermissions ?? [];
+
+    // Special entries (custom policies / non-default eventType / webhookUrl / script) have no
+    // canonical representation. Rather than warn-and-drop them, extract them verbatim into the
+    // `augmentcode` override so they round-trip and become user-authorable. Basic entries drive the
+    // shared `permission` block as before.
+    const specialEntries = allEntries.filter((entry) => isSpecialEntry(entry));
+    const basicEntries = allEntries.filter((entry) => !isSpecialEntry(entry));
+
     const config = convertAugmentToRulesyncPermissions({
-      entries: settings.toolPermissions ?? [],
+      entries: basicEntries,
       logger: moduleLogger,
     });
 
+    const result: Record<string, unknown> = { ...config };
+    if (specialEntries.length > 0) {
+      result.augmentcode = { toolPermissions: specialEntries };
+    }
+
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify(config, null, 2),
+      fileContent: JSON.stringify(result, null, 2),
     });
   }
 
@@ -610,17 +712,11 @@ function convertAugmentToRulesyncPermissions({
   const permission: Record<string, Record<string, PermissionAction>> = {};
 
   for (const entry of entries) {
-    // Special entries (custom policies / non-default eventType / webhookUrl / script) cannot be
-    // represented in rulesync's canonical model. They are preserved verbatim on the generate side,
-    // but there is nothing to import them into here, so skip them with an explanatory warning.
+    // Special entries (custom policies / non-default eventType / webhookUrl / script) are extracted
+    // into the `augmentcode` override by the caller (`toRulesyncPermissions`), so they should not
+    // reach here. Guard defensively — skip any that slip through rather than misclassify them as a
+    // basic allow/deny/ask.
     if (isSpecialEntry(entry)) {
-      logger?.warn(
-        `AugmentCode permissions: skipping advanced entry for tool '${entry.toolName}' ` +
-          `(type '${entry.permission.type}'${
-            entry.eventType !== undefined ? `, eventType '${entry.eventType}'` : ""
-          }) on import; rulesync's permission model cannot represent custom policies, eventType, ` +
-          `webhookUrl, or script. Such entries are preserved on generate but not imported.`,
-      );
       continue;
     }
 

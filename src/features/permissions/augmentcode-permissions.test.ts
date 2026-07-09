@@ -224,7 +224,7 @@ describe("AugmentcodePermissions", () => {
     expect(lastSpecialIndex).toBeLessThan(firstBasicIndex);
   });
 
-  it("should skip special entries on import while importing basic entries", () => {
+  it("should extract special entries into the augmentcode override on import while importing basic entries", () => {
     const instance = new AugmentcodePermissions({
       relativeDirPath: ".augment",
       relativeFilePath: "settings.json",
@@ -257,8 +257,191 @@ describe("AugmentcodePermissions", () => {
     expect(config.permission.bash).toEqual({ "git *": "allow" });
     // The webhook-policy entry (github-api) is not imported into any canonical category.
     expect(config.permission["github-api"]).toBeUndefined();
-    // The tool-response view entry is skipped (special), so `read` is not present.
+    // The tool-response view entry is not imported as a canonical `read` category.
     expect(config.permission.read).toBeUndefined();
+
+    // Instead, the two special entries round-trip verbatim through the `augmentcode` override.
+    expect(config.augmentcode?.toolPermissions).toEqual([
+      {
+        toolName: "github-api",
+        permission: {
+          type: "webhook-policy",
+          webhookUrl: "https://api.company.com/validate-tool",
+        },
+      },
+      {
+        toolName: "view",
+        eventType: "tool-response",
+        permission: { type: "deny" },
+      },
+    ]);
+  });
+
+  it("should omit the augmentcode override when there are no special entries", () => {
+    const instance = new AugmentcodePermissions({
+      relativeDirPath: ".augment",
+      relativeFilePath: "settings.json",
+      fileContent: JSON.stringify({
+        toolPermissions: [
+          {
+            toolName: "launch-process",
+            shellInputRegex: "^git .*$",
+            permission: { type: "allow" },
+          },
+        ],
+      }),
+    });
+
+    const config = instance.toRulesyncPermissions().getJson();
+    expect(config.permission.bash).toEqual({ "git *": "allow" });
+    expect(config.augmentcode).toBeUndefined();
+  });
+
+  it("should author special entries from the augmentcode override, placing them ahead of basic rules", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { bash: { "git *": "allow" } },
+        augmentcode: {
+          toolPermissions: [
+            {
+              toolName: "github-api",
+              permission: {
+                type: "webhook-policy",
+                webhookUrl: "https://api.example.com/validate",
+              },
+            },
+            {
+              toolName: "view",
+              eventType: "tool-response",
+              permission: { type: "allow" },
+            },
+          ],
+        },
+      }),
+    });
+
+    const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const entries = JSON.parse(instance.getFileContent()).toolPermissions as Array<{
+      toolName: string;
+      eventType?: string;
+      permission: { type: string; webhookUrl?: string };
+    }>;
+
+    // Authored special entries are present verbatim.
+    expect(entries[0]).toEqual({
+      toolName: "github-api",
+      permission: { type: "webhook-policy", webhookUrl: "https://api.example.com/validate" },
+    });
+    expect(entries[1]).toEqual({
+      toolName: "view",
+      eventType: "tool-response",
+      permission: { type: "allow" },
+    });
+
+    // ...and they precede the generated basic launch-process rule.
+    const firstBasicIndex = entries.findIndex((e) => e.toolName === "launch-process");
+    expect(firstBasicIndex).toBeGreaterThan(1);
+  });
+
+  it("must NOT let a basic entry mis-authored in the override shadow a generated deny (fail-closed)", async () => {
+    // A user mistakenly puts a BASIC catch-all `allow` in the augmentcode override (which is meant
+    // for special entries only). It must not be prepended verbatim ahead of a generated deny, or
+    // first-match-wins would bypass the deny. Instead it joins the basic pool and is fail-closed
+    // sorted, so the generated `rm -rf` deny still wins.
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { bash: { "rm -rf *": "deny" } },
+        augmentcode: {
+          toolPermissions: [{ toolName: "launch-process", permission: { type: "allow" } }],
+        },
+      }),
+    });
+
+    const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const entries = JSON.parse(instance.getFileContent()).toolPermissions as Array<{
+      toolName: string;
+      shellInputRegex?: string;
+      permission: { type: string };
+    }>;
+
+    const denyIndex = entries.findIndex((e) => e.permission.type === "deny");
+    const catchAllAllowIndex = entries.findIndex(
+      (e) =>
+        e.toolName === "launch-process" &&
+        e.permission.type === "allow" &&
+        e.shellInputRegex === undefined,
+    );
+    // The generated `rm -rf` deny (specific, has shellInputRegex) precedes the mis-authored
+    // catch-all allow — the deny is not shadowed.
+    expect(denyIndex).toBeGreaterThanOrEqual(0);
+    expect(catchAllAllowIndex).toBeGreaterThan(denyIndex);
+  });
+
+  it("round-trips special entries: authored override on import survives re-generate without double-emit", async () => {
+    // Import a file with a mix of special + basic entries.
+    const importInstance = new AugmentcodePermissions({
+      relativeDirPath: ".augment",
+      relativeFilePath: "settings.json",
+      fileContent: JSON.stringify({
+        toolPermissions: [
+          {
+            toolName: "github-api",
+            permission: {
+              type: "webhook-policy",
+              webhookUrl: "https://api.company.com/validate-tool",
+            },
+          },
+          {
+            toolName: "launch-process",
+            shellInputRegex: "^git .*$",
+            permission: { type: "allow" },
+          },
+        ],
+      }),
+    });
+    const imported = importInstance.toRulesyncPermissions().getJson();
+
+    // Re-generate from the imported canonical config (which carries the augmentcode override).
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify(imported),
+    });
+    const regenerated = await AugmentcodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const entries = JSON.parse(regenerated.getFileContent()).toolPermissions as Array<{
+      toolName: string;
+      permission: { type: string; webhookUrl?: string };
+    }>;
+
+    // The webhook-policy special entry survives exactly once (no double-emit).
+    const webhooks = entries.filter((e) => e.permission.type === "webhook-policy");
+    expect(webhooks).toEqual([
+      {
+        toolName: "github-api",
+        permission: {
+          type: "webhook-policy",
+          webhookUrl: "https://api.company.com/validate-tool",
+        },
+      },
+    ]);
+    // The basic bash allow is regenerated too.
+    expect(entries.some((e) => e.toolName === "launch-process")).toBe(true);
   });
 
   it("preserved launch-process deny must NOT be shadowed by a generated catch-all allow under first-match-wins", async () => {

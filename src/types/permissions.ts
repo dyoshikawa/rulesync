@@ -344,15 +344,49 @@ export type AntigravityCliPermissionsOverride = z.infer<
 >;
 
 /**
+ * Tool-scoped override block for AugmentCode. AugmentCode's `toolPermissions[]`
+ * array supports "custom policy" entries the canonical allow/ask/deny model
+ * cannot express: `permission.type` of `webhook-policy` / `script-policy`
+ * (delegating the decision to a `webhookUrl` / `script`) and an `eventType` of
+ * `tool-response` (a post-execution check rather than the default pre-execution
+ * `tool-call`). These are authored here as verbatim `toolPermissions` entries
+ * and prepended — ahead of the canonical-generated basic rules — into the shared
+ * `.augment/settings.json`, so a webhook/script gate or tool-response check is
+ * never shadowed by a regenerated allow/deny/ask entry under AugmentCode's
+ * first-match-wins evaluation. The shared `permission` block continues to drive
+ * the basic `allow` / `deny` / `ask-user` entries. Kept `looseObject` (verbatim
+ * passthrough) so `shellInputRegex`, `eventType`, `webhookUrl`, `script`, and
+ * any future policy field survive untouched. Both project and global scope are
+ * supported.
+ *
+ * @example
+ * { "toolPermissions": [
+ *     { "toolName": "github-api",
+ *       "permission": { "type": "webhook-policy", "webhookUrl": "https://api.example.com/validate" } },
+ *     { "toolName": "view", "eventType": "tool-response", "permission": { "type": "allow" } } ] }
+ */
+const AugmentcodePermissionsOverrideSchema = z.looseObject({
+  toolPermissions: z.optional(
+    z.array(
+      z.looseObject({
+        toolName: z.string(),
+        permission: z.looseObject({ type: z.string() }),
+      }),
+    ),
+  ),
+});
+export type AugmentcodePermissionsOverride = z.infer<typeof AugmentcodePermissionsOverrideSchema>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
  * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode`/`vibe`/`cursor`/
  * `qwencode`/`reasonix`/`factorydroid`/`warp`/`junie`/`takt`/`amp`/
- * `antigravity-cli` keys are tool-scoped overrides consumed only by their
- * respective translator (see the matching `*PermissionsOverrideSchema`); every
- * other tool reads the shared `permission` block and ignores them.
+ * `antigravity-cli`/`augmentcode` keys are tool-scoped overrides consumed only
+ * by their respective translator (see the matching `*PermissionsOverrideSchema`);
+ * every other tool reads the shared `permission` block and ignores them.
  *
  * @example
  * {
@@ -377,6 +411,7 @@ const PermissionsConfigSchema = z.looseObject({
   takt: z.optional(TaktPermissionsOverrideSchema),
   amp: z.optional(AmpPermissionsOverrideSchema),
   "antigravity-cli": z.optional(AntigravityCliPermissionsOverrideSchema),
+  augmentcode: z.optional(AugmentcodePermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 
