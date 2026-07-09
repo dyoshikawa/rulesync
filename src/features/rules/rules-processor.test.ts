@@ -959,6 +959,7 @@ Content that would fail parsing`;
         "opencode",
         "pi",
         "qwencode",
+        "reasonix",
         "roo",
         "rovodev",
         "takt",
@@ -1012,7 +1013,8 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("kiro");
       expect(globalTargets).toContain("kiro-cli");
       expect(globalTargets).toContain("kiro-ide");
-      expect(globalTargets.length).toBe(28);
+      expect(globalTargets).toContain("reasonix");
+      expect(globalTargets.length).toBe(29);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

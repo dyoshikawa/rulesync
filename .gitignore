@@ -269,6 +269,7 @@ rulesync.local.jsonc
 **/.opencode/memories/
 **/QWEN.md
 **/.qwen/rules/
+**/REASONIX.md
 **/replit.md
 **/.roo/rules/
 **/.rovodev/AGENTS.md
@@ -311,6 +312,7 @@ rulesync.local.jsonc
 **/.opencode/skills/
 **/.pi/skills/
 **/.qwen/skills/
+**/.reasonix/skills/
 **/.roo/skills/
 **/.rovodev/skills/
 **/.takt/facets/knowledge/

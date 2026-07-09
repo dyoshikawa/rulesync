@@ -43,6 +43,7 @@ describe("tool targets", () => {
         "opencode",
         "pi",
         "qwencode",
+        "reasonix",
         "replit",
         "roo",
         "rovodev",
@@ -51,7 +52,6 @@ describe("tool targets", () => {
         "warp",
         "devin",
         "zed",
-        "reasonix",
         "agentsskills",
       ];
 

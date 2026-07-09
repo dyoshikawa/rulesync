@@ -25,3 +25,15 @@ export const REASONIX_SETTINGS_FILE_NAME = "settings.json";
 // Custom slash commands: Markdown files under `.reasonix/commands/` (project) /
 // `~/.reasonix/commands/` (global).
 export const REASONIX_COMMANDS_DIR_PATH = join(REASONIX_DIR, "commands");
+
+// Reasonix reads `REASONIX.md` as its primary vendor instruction/rules file,
+// discovered hierarchically (user-home → ancestors → project root/local). It
+// also recognizes the cross-tool `AGENTS.md`/`CLAUDE.md`, but rulesync emits the
+// vendor-specific `REASONIX.md` at the project root (project scope) and
+// `~/.reasonix/REASONIX.md` (global scope, via the processor's home-relative
+// outputRoot under REASONIX_GLOBAL_DIR).
+export const REASONIX_RULE_FILE_NAME = "REASONIX.md";
+
+// Skills: Anthropic-style directory-layout skills under `.reasonix/skills/`
+// (project) / `~/.reasonix/skills/` (global), each `<name>/SKILL.md`.
+export const REASONIX_SKILLS_DIR_PATH = join(REASONIX_DIR, "skills");

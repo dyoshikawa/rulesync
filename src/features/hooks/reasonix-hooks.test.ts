@@ -39,7 +39,7 @@ describe("ReasonixHooks", () => {
   });
 
   describe("fromRulesyncHooks", () => {
-    it("should filter shared hooks to the four documented Reasonix events", async () => {
+    it("should map the eight supported Reasonix events and drop unsupported ones", async () => {
       await ensureDir(join(testDir, ".reasonix"));
       await writeFileContent(join(testDir, ".reasonix", "settings.json"), JSON.stringify({}));
 
@@ -51,6 +51,11 @@ describe("ReasonixHooks", () => {
           beforeSubmitPrompt: [{ command: ".rulesync/hooks/prompt.sh" }],
           stop: [{ command: ".rulesync/hooks/audit.sh" }],
           sessionStart: [{ command: ".rulesync/hooks/session-start.sh" }],
+          sessionEnd: [{ command: ".rulesync/hooks/session-end.sh" }],
+          subagentStop: [{ command: ".rulesync/hooks/subagent-stop.sh" }],
+          postModelInvocation: [{ command: ".rulesync/hooks/post-llm.sh" }],
+          // preCompact has no canonical mapping in the scoped event set.
+          preCompact: [{ command: ".rulesync/hooks/pre-compact.sh" }],
         },
       };
       const rulesyncHooks = new RulesyncHooks({
@@ -72,8 +77,13 @@ describe("ReasonixHooks", () => {
       expect(parsed.hooks.PostToolUse).toBeDefined();
       expect(parsed.hooks.UserPromptSubmit).toBeDefined();
       expect(parsed.hooks.Stop).toBeDefined();
-      // sessionStart has no Reasonix mapping in the scoped event set.
-      expect(parsed.hooks.SessionStart).toBeUndefined();
+      // postModelInvocation ← PostLLMCall, plus the session/subagent lifecycle.
+      expect(parsed.hooks.SessionStart).toBeDefined();
+      expect(parsed.hooks.SessionEnd).toBeDefined();
+      expect(parsed.hooks.SubagentStop).toBeDefined();
+      expect(parsed.hooks.PostLLMCall).toBeDefined();
+      // preCompact is not in the mapped canonical set, so it is dropped.
+      expect(parsed.hooks.PreCompact).toBeUndefined();
     });
 
     it("should emit a flat array of hook objects per event (no matcher-group wrapper)", async () => {

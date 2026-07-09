@@ -45,6 +45,7 @@ const rulesRootTargets = [
   { target: "pi", outputPath: "AGENTS.md" },
   { target: "zed", outputPath: ".rules" },
   { target: "vibe", outputPath: "AGENTS.md" },
+  { target: "reasonix", outputPath: "REASONIX.md" },
 ] as const;
 
 // Tools that emit every rule as a directory entry.
@@ -688,6 +689,7 @@ const rulesGlobalTargets = [
   { target: "kiro", outputPath: join(".kiro", "steering", "product.md") },
   { target: "kiro-cli", outputPath: join(".kiro", "steering", "product.md") },
   { target: "kiro-ide", outputPath: join(".kiro", "steering", "product.md") },
+  { target: "reasonix", outputPath: join(".reasonix", "REASONIX.md") },
 ] as const;
 
 describe("E2E: rules (global mode)", () => {

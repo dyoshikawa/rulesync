@@ -38,6 +38,7 @@ import { KiroSkill } from "./kiro-skill.js";
 import { OpenCodeSkill } from "./opencode-skill.js";
 import { PiSkill } from "./pi-skill.js";
 import { QwencodeSkill } from "./qwencode-skill.js";
+import { ReasonixSkill } from "./reasonix-skill.js";
 import { ReplitSkill } from "./replit-skill.js";
 import { RooSkill } from "./roo-skill.js";
 import { RovodevSkill } from "./rovodev-skill.js";
@@ -306,6 +307,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // Qwen Code Agent Skills are directories (`<name>/SKILL.md`) under
       // `.qwen/skills/` (project) / `~/.qwen/skills/` (personal/global).
       class: QwencodeSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "reasonix",
+    {
+      // DeepSeek-Reasonix discovers directory-layout skills (<name>/SKILL.md)
+      // under .reasonix/skills/ (project) and ~/.reasonix/skills/ (global).
+      // https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/GUIDE.md
+      class: ReasonixSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

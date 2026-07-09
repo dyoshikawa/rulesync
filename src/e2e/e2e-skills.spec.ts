@@ -143,6 +143,10 @@ const skillsGenerateTargets = [
     target: "kiro-ide",
     outputPath: join(".kiro", "skills", "test-skill", "SKILL.md"),
   },
+  {
+    target: "reasonix",
+    outputPath: join(".reasonix", "skills", "test-skill", "SKILL.md"),
+  },
 ] as const;
 
 describe("E2E: skills", () => {
@@ -453,6 +457,11 @@ const skillsGlobalTargets = [
   {
     target: "kiro-ide",
     outputPath: join(".kiro", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    // Reasonix reads global skills from ~/.reasonix/skills/.
+    target: "reasonix",
+    outputPath: join(".reasonix", "skills", "test-skill", "SKILL.md"),
   },
 ] as const;
 
