@@ -74,6 +74,20 @@ function mapOauthFromCodex(oauth: Record<string, unknown>): Record<string, unkno
   return result;
 }
 
+const CODEX_MCP_SERVER_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+function normalizeCodexMcpServerName(name: string): string | null {
+  if (PROTOTYPE_POLLUTION_KEYS.has(name)) return null;
+  if (CODEX_MCP_SERVER_NAME_PATTERN.test(name)) return name;
+
+  const normalizedName = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  return normalizedName && !PROTOTYPE_POLLUTION_KEYS.has(normalizedName) ? normalizedName : null;
+}
+
 function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
   const result: McpServers = {};
 
@@ -111,9 +125,17 @@ function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
 
 function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
   const result: Record<string, Record<string, unknown>> = {};
+  const originalNames = new Map<string, string>();
 
   for (const [name, config] of Object.entries(mcpServers)) {
-    if (PROTOTYPE_POLLUTION_KEYS.has(name)) continue;
+    const codexName = normalizeCodexMcpServerName(name);
+    if (codexName === null) {
+      warnWithFallback(
+        undefined,
+        `MCP server "${name}" could not be normalized to a valid Codex MCP server name and was skipped.`,
+      );
+      continue;
+    }
     if (!isRecord(config)) continue;
     const converted: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(config)) {
@@ -141,7 +163,15 @@ function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
       }
     }
 
-    result[name] = converted;
+    const previousName = originalNames.get(codexName);
+    if (previousName !== undefined) {
+      warnWithFallback(
+        undefined,
+        `Codex MCP server name collision: "${previousName}" and "${name}" both normalize to "${codexName}". Only the last processed server will be used.`,
+      );
+    }
+    originalNames.set(codexName, name);
+    result[codexName] = converted;
   }
 
   return result;
