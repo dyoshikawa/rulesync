@@ -460,7 +460,7 @@ function computeRootFileOwnership(params: {
     // be attributed to the target too, otherwise ownership/skip decisions invert.
     // (For rovodev this overlaps its `alternativeRoots` today; the explicit
     // block keeps ownership correct even if that alt root is ever removed.)
-    if (!params.global && factory.meta.mirrorsRootToAgentsMd) {
+    if (!params.global && factory.class.getRootMirror) {
       register(".", AGENTSMD_RULE_FILE_NAME, target);
     }
   }
