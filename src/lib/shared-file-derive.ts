@@ -74,7 +74,13 @@ type FactoryClass = {
 
 type FactoryMap = ReadonlyMap<ToolTarget, { readonly class: FactoryClass }>;
 
-export const settablePathsForScope = (cls: FactoryClass, global: boolean): SharedWritePath[] => {
+export const settablePathsForScope = ({
+  cls,
+  global,
+}: {
+  cls: FactoryClass;
+  global: boolean;
+}): SharedWritePath[] => {
   const paths: SharedWritePath[] = [];
   let settable:
     | {
@@ -126,8 +132,8 @@ export const settablePathsForScope = (cls: FactoryClass, global: boolean): Share
 // `.config/opencode/opencode.json`), so a feature's writes are the union across
 // both scopes; the step graph declares that union.
 const collectFactoryPaths = (factory: { class: FactoryClass }): SharedWritePath[] => [
-  ...settablePathsForScope(factory.class, false),
-  ...settablePathsForScope(factory.class, true),
+  ...settablePathsForScope({ cls: factory.class, global: false }),
+  ...settablePathsForScope({ cls: factory.class, global: true }),
 ];
 
 /**

@@ -78,7 +78,7 @@ describe("shared-file write derivation", () => {
       ],
     };
 
-    expect(settablePathsForScope(cls, true)).toEqual([
+    expect(settablePathsForScope({ cls, global: true })).toEqual([
       { relativeDirPath: ".config/example", relativeFilePath: "example.json" },
     ]);
   });
