@@ -34,6 +34,26 @@ export const SHARED_WRITE_FEATURE_ORDER = [
   "rules",
 ] as const satisfies readonly Feature[];
 
+/**
+ * Features that deliberately never participate in shared read-modify-write
+ * config files: each writes its own dedicated per-item artifact, never a file
+ * another feature also writes.
+ *
+ * - `commands`: standalone per-command files (e.g. `.claude/commands/*.md`).
+ * - `skills`: standalone per-skill directories (e.g. `.claude/skills/<name>/`).
+ *
+ * Kept as an explicit list — not an implicit "everything not in
+ * {@link SHARED_WRITE_FEATURE_ORDER}" — so that adding a new `Feature` forces a
+ * conscious classification: the exhaustiveness test in
+ * `shared-file-derive.test.ts` fails until the new feature is placed in either
+ * this list or `SHARED_WRITE_FEATURE_ORDER`. That closes the drift where a
+ * feature which later starts writing a shared file is silently forgotten.
+ */
+export const NON_SHARED_WRITE_FEATURES = [
+  "commands",
+  "skills",
+] as const satisfies readonly Feature[];
+
 // Deprecated aliases; a guard for the day one diverges from its canonical
 // target's paths. A no-op today since they reuse the canonical class and paths.
 const TARGETS_NOT_DERIVED: ReadonlySet<string> = new Set([
@@ -54,7 +74,7 @@ type FactoryClass = {
 
 type FactoryMap = ReadonlyMap<ToolTarget, { readonly class: FactoryClass }>;
 
-const settablePathsForScope = (cls: FactoryClass, global: boolean): SharedWritePath[] => {
+export const settablePathsForScope = (cls: FactoryClass, global: boolean): SharedWritePath[] => {
   const paths: SharedWritePath[] = [];
   let settable:
     | {
@@ -67,7 +87,12 @@ const settablePathsForScope = (cls: FactoryClass, global: boolean): SharedWriteP
   try {
     settable = cls.getSettablePaths?.({ global }) as typeof settable;
   } catch {
-    return paths;
+    // Fail-open (see the extra-paths note below), but do NOT early-return: the
+    // two hooks are independent, so a throwing getSettablePaths must not also
+    // suppress this tool's getExtraSharedWritePaths — otherwise a tool whose
+    // global getSettablePaths throws while it has a global-only extra shared
+    // path would silently drop that path from the write order.
+    settable = undefined;
   }
   if (settable?.relativeFilePath) {
     paths.push({
@@ -85,11 +110,11 @@ const settablePathsForScope = (cls: FactoryClass, global: boolean): SharedWriteP
   // trade-off is that a broken getExtraSharedWritePaths silently drops that
   // tool's extra shared paths from the write order — acceptable because every
   // current implementation returns a static constant that cannot throw.
-  let extra: SharedWritePath[];
+  let extra: SharedWritePath[] = [];
   try {
     extra = cls.getExtraSharedWritePaths?.({ global }) ?? [];
   } catch {
-    return paths;
+    extra = [];
   }
   for (const path of extra) {
     if (path.relativeFilePath) paths.push(path);
