@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import type { Feature } from "../types/features.js";
+import { ALL_FEATURES, type Feature } from "../types/features.js";
 import { GENERATION_STEP_GRAPH } from "./generate.js";
 import {
   deriveSharedFileWriters,
   deriveSharedWriteSteps,
+  NON_SHARED_WRITE_FEATURES,
   SHARED_WRITE_FEATURE_ORDER,
+  settablePathsForScope,
 } from "./shared-file-derive.js";
 
 const graphWritersByFile = (): Map<string, Set<Feature>> => {
@@ -51,6 +53,34 @@ describe("shared-file write derivation", () => {
     // evaluates at module load), so an unordered writer fails loudly at runtime,
     // not just here.
     expect(() => deriveSharedWriteSteps()).not.toThrow();
+  });
+
+  it("classifies every Feature as either a shared writer or an explicit non-shared-writer", () => {
+    // Guards #2110 mid#1: SHARED_WRITE_FEATURE_ORDER is hand-maintained, so a
+    // feature that later starts writing a shared file could be silently
+    // forgotten. Requiring the two lists to partition ALL_FEATURES exactly means
+    // adding a Feature forces classifying it in one of them (a duplicate would
+    // make `classified` longer than ALL_FEATURES, so this also rejects overlap).
+    const classified = [...SHARED_WRITE_FEATURE_ORDER, ...NON_SHARED_WRITE_FEATURES].toSorted();
+    expect(classified).toEqual([...ALL_FEATURES].toSorted());
+  });
+
+  it("collects getExtraSharedWritePaths even when getSettablePaths throws", () => {
+    // Guards #2110 mid#2: the two hooks are independent, so a throwing
+    // getSettablePaths must not suppress a tool's (possibly scope-only) extra
+    // shared path.
+    const cls = {
+      getSettablePaths: () => {
+        throw new Error("boom");
+      },
+      getExtraSharedWritePaths: () => [
+        { relativeDirPath: ".config/example", relativeFilePath: "example.json" },
+      ],
+    };
+
+    expect(settablePathsForScope({ cls, global: true })).toEqual([
+      { relativeDirPath: ".config/example", relativeFilePath: "example.json" },
+    ]);
   });
 
   it("orders every writer pair of every shared file by dependsOn edges", () => {
