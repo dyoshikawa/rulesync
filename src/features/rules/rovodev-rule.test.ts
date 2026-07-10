@@ -472,4 +472,68 @@ describe("RovodevRule", () => {
       expect(RovodevRule.isTargetedByRulesyncRule(rulesyncRule)).toBe(true);
     });
   });
+
+  describe("getRootMirror", () => {
+    const primaryRoot = () =>
+      new RovodevRule({
+        outputRoot: testDir,
+        relativeDirPath: ".rovodev",
+        relativeFilePath: "AGENTS.md",
+        fileContent: "root body",
+        validate: true,
+        root: true,
+      });
+
+    it("getMirrorFiles mirrors the primary root to a project-root ./AGENTS.md", () => {
+      const mirrors = RovodevRule.getRootMirror().getMirrorFiles({
+        outputRoot: testDir,
+        rootRule: primaryRoot(),
+        content: "mirrored content",
+      });
+
+      expect(mirrors).toHaveLength(1);
+      const [mirror] = mirrors;
+      expect(mirror).toBeInstanceOf(RovodevRule);
+      expect(mirror?.isRoot()).toBe(true);
+      expect(mirror?.getRelativeDirPath()).toBe(".");
+      expect(mirror?.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(mirror?.getFileContent()).toBe("mirrored content");
+    });
+
+    it("getMirrorFiles returns empty when the rule is not the primary root", () => {
+      const nonPrimary = new RovodevRule({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
+        fileContent: "already at root",
+        validate: true,
+        root: true,
+      });
+
+      expect(
+        RovodevRule.getRootMirror().getMirrorFiles({
+          outputRoot: testDir,
+          rootRule: nonPrimary,
+          content: "content",
+        }),
+      ).toEqual([]);
+    });
+
+    it("getMirrorDeletionGlobs points primary at .rovodev/AGENTS.md and mirror at ./AGENTS.md", () => {
+      const globs = RovodevRule.getRootMirror().getMirrorDeletionGlobs({ outputRoot: testDir });
+
+      expect(globs).toEqual({
+        primaryGlob: join(testDir, ".rovodev", "AGENTS.md"),
+        mirrorGlob: join(testDir, "AGENTS.md"),
+      });
+    });
+  });
+
+  describe("getLocalRootDeletionGlob", () => {
+    it("points the separate-local-file glob at the project root, not under .rovodev/", () => {
+      expect(
+        RovodevRule.getLocalRootDeletionGlob({ outputRoot: testDir, fileName: "AGENTS.local.md" }),
+      ).toBe(join(testDir, "AGENTS.local.md"));
+    });
+  });
 });

@@ -208,16 +208,24 @@ type ToolRuleFactory = {
     getSettablePaths(options?: {
       global?: boolean;
     }): ToolRuleSettablePaths | ToolRuleSettablePathsGlobal;
-    /** Set alongside `meta.mirrorsRootToAgentsMd`. See {@link RovodevRule.getRootMirrorFiles}. */
-    getRootMirrorFiles?(params: {
-      outputRoot: string;
-      rootRule: ToolRule;
-      content: string;
-    }): ToolRule[];
-    /** Set alongside `meta.mirrorsRootToAgentsMd`. See {@link RovodevRule.getRootMirrorDeletionGlobs}. */
-    getRootMirrorDeletionGlobs?(params: { outputRoot: string }): {
-      primaryGlob: string;
-      mirrorGlob: string;
+    /**
+     * When present, this tool mirrors its generated root rule to a project-root
+     * `AGENTS.md` (project scope only). Presence of this single method — not a
+     * separate `meta` flag — is the source of truth for "this tool mirrors": it
+     * returns one contract that bundles the mirror's generation and deletion so
+     * the two cannot drift out of symmetry (a tool cannot define one without the
+     * other). See {@link RovodevRule.getRootMirror}.
+     */
+    getRootMirror?(): {
+      getMirrorFiles(params: {
+        outputRoot: string;
+        rootRule: ToolRule;
+        content: string;
+      }): ToolRule[];
+      getMirrorDeletionGlobs(params: { outputRoot: string }): {
+        primaryGlob: string;
+        mirrorGlob: string;
+      };
     };
     /**
      * Override where the `separate-local-file` deletion glob points when the tool
@@ -251,8 +259,6 @@ type ToolRuleFactory = {
     localRootMode?: LocalRootMode;
     /** File name for the `separate-local-file` local-root file. */
     localRootFileName?: string;
-    /** Mirror the generated root rule to a project-root `AGENTS.md` (project scope only). */
-    mirrorsRootToAgentsMd?: boolean;
   };
 };
 
@@ -672,7 +678,6 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         },
         localRootMode: "separate-local-file",
         localRootFileName: "AGENTS.local.md",
-        mirrorsRootToAgentsMd: true,
       },
     },
   ],
@@ -1005,9 +1010,10 @@ export class RulesProcessor extends FeatureProcessor {
     const newContent = referenceSection + conventionsSection + rootRule.getFileContent();
     rootRule.setFileContent(newContent);
 
-    if (meta.mirrorsRootToAgentsMd && !this.global && factory.class.getRootMirrorFiles) {
+    const rootMirror = factory.class.getRootMirror?.();
+    if (rootMirror && !this.global) {
       toolRules.push(
-        ...factory.class.getRootMirrorFiles({
+        ...rootMirror.getMirrorFiles({
           outputRoot: this.outputRoot,
           rootRule,
           content: newContent,
@@ -1464,15 +1470,11 @@ As this project's AI coding tool, you must follow the additional conventions bel
       );
 
       const rootMirrorDeletionRules = await (async () => {
-        if (
-          !forDeletion ||
-          this.global ||
-          !factory.meta.mirrorsRootToAgentsMd ||
-          !factory.class.getRootMirrorDeletionGlobs
-        ) {
+        const rootMirror = factory.class.getRootMirror?.();
+        if (!forDeletion || this.global || !rootMirror) {
           return [];
         }
-        const { primaryGlob, mirrorGlob } = factory.class.getRootMirrorDeletionGlobs({
+        const { primaryGlob, mirrorGlob } = rootMirror.getMirrorDeletionGlobs({
           outputRoot: this.outputRoot,
         });
         const primaryPaths = await findFilesByGlobs(primaryGlob);

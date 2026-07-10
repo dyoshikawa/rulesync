@@ -329,51 +329,53 @@ export class RovodevRule extends ToolRule {
   }
 
   /**
-   * Mirror the primary `.rovodev/AGENTS.md` root rule to `./AGENTS.md` so project
-   * memory stays discoverable at the repo root. Empty when `rootRule` is not the primary root.
+   * Root-mirror contract: rovodev mirrors its primary `.rovodev/AGENTS.md` root
+   * rule to `./AGENTS.md` so project memory stays discoverable at the repo root.
+   * Generation (`getMirrorFiles`) and deletion (`getMirrorDeletionGlobs`) are
+   * bundled in one object so they cannot drift out of symmetry. The processor
+   * keys off this method's mere presence to decide the tool mirrors at all.
    */
-  static getRootMirrorFiles({
-    outputRoot,
-    rootRule,
-    content,
-  }: {
-    outputRoot: string;
-    rootRule: ToolRule;
-    content: string;
-  }): RovodevRule[] {
-    if (!(rootRule instanceof RovodevRule)) {
-      return [];
-    }
-    const primary = this.getSettablePaths({ global: false }).root;
-    if (
-      rootRule.getRelativeDirPath() !== primary.relativeDirPath ||
-      rootRule.getRelativeFilePath() !== primary.relativeFilePath
-    ) {
-      return [];
-    }
-    return [
-      new RovodevRule({
-        outputRoot,
-        relativeDirPath: ".",
-        relativeFilePath: ROVODEV_RULE_FILE_NAME,
-        fileContent: content,
-        validate: true,
-        root: true,
-      }),
-    ];
-  }
-
-  /**
-   * Globs for mirror deletion: the `./AGENTS.md` mirror (`mirrorGlob`) is deleted
-   * only when the primary `.rovodev/AGENTS.md` (`primaryGlob`) still exists.
-   */
-  static getRootMirrorDeletionGlobs({ outputRoot }: { outputRoot: string }): {
-    primaryGlob: string;
-    mirrorGlob: string;
+  static getRootMirror(): {
+    getMirrorFiles(params: {
+      outputRoot: string;
+      rootRule: ToolRule;
+      content: string;
+    }): RovodevRule[];
+    getMirrorDeletionGlobs(params: { outputRoot: string }): {
+      primaryGlob: string;
+      mirrorGlob: string;
+    };
   } {
     return {
-      primaryGlob: join(outputRoot, ROVODEV_DIR, ROVODEV_RULE_FILE_NAME),
-      mirrorGlob: join(outputRoot, ROVODEV_RULE_FILE_NAME),
+      // Empty when `rootRule` is not the primary root.
+      getMirrorFiles: ({ outputRoot, rootRule, content }) => {
+        if (!(rootRule instanceof RovodevRule)) {
+          return [];
+        }
+        const primary = RovodevRule.getSettablePaths({ global: false }).root;
+        if (
+          rootRule.getRelativeDirPath() !== primary.relativeDirPath ||
+          rootRule.getRelativeFilePath() !== primary.relativeFilePath
+        ) {
+          return [];
+        }
+        return [
+          new RovodevRule({
+            outputRoot,
+            relativeDirPath: ".",
+            relativeFilePath: ROVODEV_RULE_FILE_NAME,
+            fileContent: content,
+            validate: true,
+            root: true,
+          }),
+        ];
+      },
+      // The `./AGENTS.md` mirror (`mirrorGlob`) is deleted only when the primary
+      // `.rovodev/AGENTS.md` (`primaryGlob`) still exists.
+      getMirrorDeletionGlobs: ({ outputRoot }) => ({
+        primaryGlob: join(outputRoot, ROVODEV_DIR, ROVODEV_RULE_FILE_NAME),
+        mirrorGlob: join(outputRoot, ROVODEV_RULE_FILE_NAME),
+      }),
     };
   }
 
