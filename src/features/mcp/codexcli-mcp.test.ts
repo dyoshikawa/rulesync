@@ -325,6 +325,40 @@ args = ["server.js"]
       expect(codexcliMcp.getRelativeFilePath()).toBe("config.toml");
     });
 
+    it("should normalize invalid Codex MCP server names and warn when the last collision wins", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "Postgres MCP - Production - Read Only": { command: "node" },
+            "My Server": { command: "first" },
+            my_server: { command: "second" },
+            "constructor!": { command: "safe" },
+            "already-valid": { command: "unchanged" },
+          },
+        }),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+      });
+
+      expect(codexcliMcp.getToml().mcp_servers).toEqual({
+        postgres_mcp_production_read_only: { command: "node" },
+        my_server: { command: "second" },
+        "already-valid": { command: "unchanged" },
+      });
+      expect(warnSpy).toHaveBeenCalledWith(
+        'MCP server "constructor!" could not be normalized to a valid Codex MCP server name and was skipped.',
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Codex MCP server name collision: "My Server" and "my_server" both normalize to "my_server". Only the last processed server will be used.',
+      );
+    });
+
     it("should preserve existing TOML content when adding MCP servers", async () => {
       // Create existing config.toml with some content
       const existingToml = `[general]
