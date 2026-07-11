@@ -64,11 +64,10 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           ref: main
-          # Prefer a maintainer PAT when present: a branch-protected `main` blocks
-          # auto-merge of a GITHUB_TOKEN-authored PR because that token cannot
-          # trigger the required status checks. Without the PAT we fall back to
-          # GITHUB_TOKEN and leave the PR open for a manual merge.
-          token: ${{ secrets.HOMEBREW_FORMULA_TOKEN || secrets.GITHUB_TOKEN }}
+          # Do not persist any token in the runner's git config: the push/PR step
+          # below authenticates explicitly, so the (potentially powerful) formula
+          # token is never left available to `pnpm install`/`tsx` in between.
+          persist-credentials: false
 
       - name: Configure git
         uses: ./.github/actions/git-config
@@ -114,6 +113,10 @@ jobs:
 
       - name: Open auto-merge pull request
         env:
+          # Prefer a maintainer PAT when present: a branch-protected `main` blocks
+          # auto-merge of a GITHUB_TOKEN-authored PR because that token cannot
+          # trigger the required status checks. Without the PAT we fall back to
+          # GITHUB_TOKEN and leave the PR open for a manual merge.
           GH_TOKEN: ${{ secrets.HOMEBREW_FORMULA_TOKEN || secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
@@ -126,12 +129,22 @@ jobs:
           git switch -c "$BRANCH"
           git add Formula/rulesync.rb
           git commit -m "chore: update Homebrew formula to ${TAG}"
-          git push --force-with-lease origin "$BRANCH"
+          # Authenticate the push here only (checkout persisted no credentials).
+          git push --force-with-lease \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "HEAD:refs/heads/${BRANCH}"
 
-          PR_URL="$(gh pr create --base main --head "$BRANCH" \
-            --title "chore: update Homebrew formula to ${TAG}" \
-            --body "Automated formula update for the ${TAG} release.")"
-          echo "Opened ${PR_URL}"
+          # Reuse an existing open PR for this branch so re-running the job for the
+          # same tag is idempotent rather than failing in `gh pr create`.
+          PR_URL="$(gh pr list --head "$BRANCH" --base main --state open --json url --jq '.[0].url // empty')"
+          if [ -z "$PR_URL" ]; then
+            PR_URL="$(gh pr create --base main --head "$BRANCH" \
+              --title "chore: update Homebrew formula to ${TAG}" \
+              --body "Automated formula update for the ${TAG} release.")"
+            echo "Opened ${PR_URL}"
+          else
+            echo "Reusing existing PR ${PR_URL}"
+          fi
 
           if ! gh pr merge "$PR_URL" --auto --merge; then
             echo "::warning::Could not enable auto-merge; merge the formula PR manually."
