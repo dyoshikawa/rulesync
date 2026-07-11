@@ -4,13 +4,31 @@
 
 ```bash
 npm install -g rulesync
-# or
-brew install rulesync
 
 # And then
 rulesync --version
 rulesync --help
 ```
+
+## Homebrew (macOS and Linux)
+
+rulesync ships a self-contained [Homebrew](https://brew.sh/) tap inside this
+repository. Because the repository is not named `homebrew-rulesync`, you must use
+the two-argument `brew tap <name> <url>` form to add it — the auto-tap shorthand
+`brew install dyoshikawa/rulesync/rulesync` cannot resolve it on its own:
+
+```bash
+brew tap dyoshikawa/rulesync https://github.com/dyoshikawa/rulesync
+brew install rulesync
+
+# And then
+rulesync --version
+```
+
+The formula installs the prebuilt binary for your platform (macOS/Linux, arm64
+and x64), so it does not depend on a Node.js runtime. It is updated
+automatically on every release. Homebrew does not support Windows; use npm or the
+single-binary download below there.
 
 ## Single Binary
 

@@ -24,9 +24,19 @@ A Node.js CLI tool that automatically generates configuration files for various 
 
 ```bash
 npm install -g rulesync
-# or
+```
+
+Or install from our Homebrew tap (macOS and Linux):
+
+```bash
+brew tap dyoshikawa/rulesync https://github.com/dyoshikawa/rulesync
 brew install rulesync
 ```
+
+The tap lives inside this repository, so it does not have a `homebrew-` prefix.
+The two-argument `brew tap <name> <url>` form is therefore required — the
+shorthand `brew install dyoshikawa/rulesync/rulesync` without tapping first does
+not work.
 
 ### Single Binary
 
