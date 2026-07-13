@@ -151,24 +151,6 @@ describe("mergeSharedConfigDeep", () => {
   });
 });
 
-/**
- * Registry-derived shared files whose writers still merge in their own tool
- * classes instead of routing through applySharedConfigPatch. This is a
- * conscious, shrinking boundary: migrating a file's writers onto the gateway
- * removes it from this list, and a NEW shared file must either get an
- * ownership declaration or be added here deliberately — it can no longer
- * appear without anyone deciding who owns its merge. (These writers are
- * already covered by the derived execution order and by the cross-feature
- * write contract in `src/lib/shared-file-contract.test.ts`.)
- */
-const GATEWAY_PENDING_SHARED_FILES: ReadonlySet<string> = new Set([
-  ".codex/config.toml",
-  ".grok/config.toml",
-  ".reasonix/config.toml",
-  ".vibe/config.toml",
-  "reasonix.toml",
-]);
-
 describe("SHARED_CONFIG_OWNERSHIP", () => {
   it("declares exactly the writer features the processor registry derives per file", () => {
     // minWriters: 1 so declarations for gateway-managed files with a single
@@ -185,24 +167,14 @@ describe("SHARED_CONFIG_OWNERSHIP", () => {
     }
   });
 
-  it("accounts for every registry-derived shared file: declared or explicitly pending", () => {
+  it("accounts for every registry-derived shared file with an ownership declaration", () => {
     const unaccounted = deriveSharedFileWriters()
       .map((writer) => writer.key)
-      .filter((key) => SHARED_CONFIG_OWNERSHIP[key] === undefined)
-      .filter((key) => !GATEWAY_PENDING_SHARED_FILES.has(key));
+      .filter((key) => SHARED_CONFIG_OWNERSHIP[key] === undefined);
     expect(
       unaccounted,
-      "a shared file appeared without an ownership decision; declare it in " +
-        "SHARED_CONFIG_OWNERSHIP (preferred) or consciously add it to GATEWAY_PENDING_SHARED_FILES",
+      "a shared file appeared without an ownership decision; declare it in SHARED_CONFIG_OWNERSHIP",
     ).toEqual([]);
-  });
-
-  it("keeps the pending list free of files that are declared or no longer shared", () => {
-    const derivedKeys = new Set(deriveSharedFileWriters().map((writer) => writer.key));
-    const stale = [...GATEWAY_PENDING_SHARED_FILES].filter(
-      (key) => SHARED_CONFIG_OWNERSHIP[key] !== undefined || !derivedKeys.has(key),
-    );
-    expect(stale, "remove these entries from GATEWAY_PENDING_SHARED_FILES").toEqual([]);
   });
 
   it("resolves every custom policyFunction name to an exported function", () => {

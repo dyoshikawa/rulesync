@@ -10,6 +10,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -238,26 +239,32 @@ export class GrokcliPermissions extends ToolPermissions {
       ? parsed[GROKCLI_PERMISSION_KEY]
       : {};
     const buckets = buildGrokPermissionArrays(config, existingPermission, logger);
-    parsed[GROKCLI_PERMISSION_KEY] = {
+    const permission = {
       ...existingPermission,
       allow: buckets.allow,
       deny: buckets.deny,
       ask: buckets.ask,
-    } as smolToml.TomlTable;
+    };
 
     // Coarse `[ui] permission_mode` fallback for older Grok versions.
     const mode = deriveGrokPermissionMode(config);
     const existingUi = isRecord(parsed[GROKCLI_UI_KEY]) ? parsed[GROKCLI_UI_KEY] : {};
-    parsed[GROKCLI_UI_KEY] = {
+    const ui = {
       ...existingUi,
       [GROKCLI_PERMISSION_MODE_KEY]: mode,
-    } as smolToml.TomlTable;
+    };
 
     return new GrokcliPermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: smolToml.stringify(parsed),
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(paths),
+        feature: "permissions",
+        existingContent,
+        patch: { [GROKCLI_PERMISSION_KEY]: permission, [GROKCLI_UI_KEY]: ui },
+        filePath,
+      }),
       validate: true,
       global: true,
     });

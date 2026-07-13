@@ -5,13 +5,14 @@ import * as smolToml from "smol-toml";
 import { CODEXCLI_DIR, CODEXCLI_MCP_FILE_NAME } from "../../constants/codexcli-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import { warnWithFallback } from "../../utils/logger.js";
 import {
   omitPrototypePollutionKeys,
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
 import { isPlainObject, isRecord, isStringArray } from "../../utils/type-guards.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -245,12 +246,9 @@ export class CodexcliMcp extends ToolMcp {
     const paths = this.getSettablePaths({ global });
 
     const configTomlFilePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const configTomlFileContent = await readOrInitializeFileContent(
-      configTomlFilePath,
-      smolToml.stringify({}),
-    );
+    const configTomlFileContent = (await readFileContentOrNull(configTomlFilePath)) ?? "";
 
-    const configToml = smolToml.parse(configTomlFileContent);
+    const configToml = smolToml.parse(configTomlFileContent || smolToml.stringify({}));
 
     const strippedMcpServers = rulesyncMcp.getMcpServers();
     const rawMcpServers = rulesyncMcp.getJson().mcpServers;
@@ -306,13 +304,17 @@ export class CodexcliMcp extends ToolMcp {
       }),
     );
 
-    configToml["mcp_servers"] = mergedMcpServers as smolToml.TomlTable;
-
     return new CodexcliMcp({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: smolToml.stringify(configToml),
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(paths),
+        feature: "mcp",
+        existingContent: configTomlFileContent,
+        patch: { mcp_servers: mergedMcpServers },
+        filePath: configTomlFilePath,
+      }),
       validate,
     });
   }

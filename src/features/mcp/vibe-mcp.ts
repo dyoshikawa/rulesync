@@ -6,6 +6,7 @@ import { ValidationResult } from "../../types/ai-file.js";
 import type { McpServer, McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -103,10 +104,9 @@ export class VibeMcp extends ToolMcp {
   }: ToolMcpFromRulesyncMcpParams): Promise<VibeMcp> {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const existingContent = (await readFileContentOrNull(filePath)) ?? smolToml.stringify({});
-    const config = parseVibeConfig(existingContent);
+    const existingContent = (await readFileContentOrNull(filePath)) ?? "";
 
-    config.mcp_servers = Object.entries(rulesyncMcp.getMcpServers()).map(([name, server]) =>
+    const mcpServers = Object.entries(rulesyncMcp.getMcpServers()).map(([name, server]) =>
       rulesyncMcpServerToVibe(name, server),
     );
 
@@ -114,7 +114,13 @@ export class VibeMcp extends ToolMcp {
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: smolToml.stringify(config),
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(paths),
+        feature: "mcp",
+        existingContent,
+        patch: { mcp_servers: mcpServers },
+        filePath,
+      }),
       validate,
       global,
     });

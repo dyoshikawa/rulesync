@@ -10,6 +10,7 @@ import type {
 } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -105,7 +106,7 @@ export class VibePermissions extends ToolPermissions {
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<VibePermissions> {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const existingContent = (await readFileContentOrNull(filePath)) ?? smolToml.stringify({});
+    const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const config = parseVibeConfig(existingContent);
 
     const permission = rulesyncPermissions.getJson().permission;
@@ -175,23 +176,21 @@ export class VibePermissions extends ToolPermissions {
 
     applyVibeSensitivePatterns(tools, rulesyncPermissions.getJson().vibe);
 
-    config.tools = tools;
-    if (enabledTools.size > 0) {
-      config.enabled_tools = [...enabledTools].toSorted();
-    } else {
-      delete config.enabled_tools;
-    }
-    if (disabledTools.size > 0) {
-      config.disabled_tools = [...disabledTools].toSorted();
-    } else {
-      delete config.disabled_tools;
-    }
-
     return new VibePermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: smolToml.stringify(config),
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(paths),
+        feature: "permissions",
+        existingContent,
+        patch: {
+          tools,
+          enabled_tools: enabledTools.size > 0 ? [...enabledTools].toSorted() : undefined,
+          disabled_tools: disabledTools.size > 0 ? [...disabledTools].toSorted() : undefined,
+        },
+        filePath,
+      }),
       validate,
       global,
     });

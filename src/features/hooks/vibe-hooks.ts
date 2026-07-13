@@ -14,6 +14,7 @@ import {
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import {
   ToolHooks,
@@ -195,18 +196,25 @@ function parseVibeToml(fileContent: string): Record<string, unknown> {
  */
 async function buildVibeConfigTomlContent({ outputRoot }: { outputRoot: string }): Promise<string> {
   const configPath = join(outputRoot, VIBE_DIR, VIBE_CONFIG_FILE_NAME);
-  const existingContent = (await readFileContentOrNull(configPath)) ?? smolToml.stringify({});
-  let config: Record<string, unknown>;
+  const existingContent = (await readFileContentOrNull(configPath)) ?? "";
   try {
-    config = parseVibeToml(existingContent);
+    parseVibeToml(existingContent);
   } catch (error) {
     throw new Error(
       `Failed to parse existing Vibe config at ${configPath}: ${formatError(error)}`,
       { cause: error },
     );
   }
-  config.enable_experimental_hooks = true;
-  return smolToml.stringify(config);
+  return applySharedConfigPatch({
+    fileKey: sharedConfigFileKey({
+      relativeDirPath: VIBE_DIR,
+      relativeFilePath: VIBE_CONFIG_FILE_NAME,
+    }),
+    feature: "hooks",
+    existingContent,
+    patch: { enable_experimental_hooks: true },
+    filePath: configPath,
+  });
 }
 
 /**

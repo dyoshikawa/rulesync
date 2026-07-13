@@ -12,6 +12,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -203,7 +204,7 @@ export class ReasonixPermissions extends ToolPermissions {
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<ReasonixPermissions> {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const existingContent = (await readFileContentOrNull(filePath)) ?? smolToml.stringify({});
+    const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const parsed = parseReasonixConfig(existingContent);
 
     const config = rulesyncPermissions.getJson();
@@ -264,31 +265,33 @@ export class ReasonixPermissions extends ToolPermissions {
       delete mergedPermissions.deny;
     }
 
-    // Preserve every other top-level key (MCP `[[plugins]]`, `[agent]`, `[ui]`,
-    // …) exactly like `reasonix-mcp.ts`'s read-modify-write TOML merge.
-    const merged: ReasonixConfig = { ...parsed, permissions: mergedPermissions };
+    const patch: Record<string, unknown> = { permissions: mergedPermissions };
 
     // Overlay the Reasonix-scoped override's `[sandbox]`/`[agent]` tables. Shallow
     // merged at the table's top level, so the override's keys win while unrelated
     // sibling keys the user set directly (e.g. `[agent].model`) are preserved.
     const override = config.reasonix;
     if (override?.sandbox !== undefined) {
-      merged.sandbox = {
+      patch.sandbox = {
         ...asReasonixRecord(parsed.sandbox),
         ...asReasonixRecord(override.sandbox),
       };
     }
     if (override?.agent !== undefined) {
-      merged.agent = { ...asReasonixRecord(parsed.agent), ...asReasonixRecord(override.agent) };
+      patch.agent = { ...asReasonixRecord(parsed.agent), ...asReasonixRecord(override.agent) };
     }
-
-    const fileContent = smolToml.stringify(merged);
 
     return new ReasonixPermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent,
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(paths),
+        feature: "permissions",
+        existingContent,
+        patch,
+        filePath,
+      }),
       validate,
     });
   }

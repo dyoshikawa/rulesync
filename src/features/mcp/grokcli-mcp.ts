@@ -5,10 +5,11 @@ import * as smolToml from "smol-toml";
 import { GROKCLI_DIR, GROKCLI_MCP_FILE_NAME } from "../../constants/grokcli-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import { warnWithFallback } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import { isPlainObject, isRecord } from "../../utils/type-guards.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -146,12 +147,7 @@ export class GrokcliMcp extends ToolMcp {
     const paths = this.getSettablePaths({ global });
 
     const configTomlFilePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const configTomlFileContent = await readOrInitializeFileContent(
-      configTomlFilePath,
-      smolToml.stringify({}),
-    );
-
-    const configToml = smolToml.parse(configTomlFileContent);
+    const configTomlFileContent = (await readFileContentOrNull(configTomlFilePath)) ?? "";
 
     const strippedMcpServers = rulesyncMcp.getMcpServers();
     const converted = convertToGrokFormat(strippedMcpServers);
@@ -166,13 +162,17 @@ export class GrokcliMcp extends ToolMcp {
       }
     }
 
-    configToml["mcp_servers"] = filteredMcpServers as smolToml.TomlTable;
-
     return new GrokcliMcp({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: smolToml.stringify(configToml),
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(paths),
+        feature: "mcp",
+        existingContent: configTomlFileContent,
+        patch: { mcp_servers: filteredMcpServers },
+        filePath: configTomlFilePath,
+      }),
       validate,
     });
   }
