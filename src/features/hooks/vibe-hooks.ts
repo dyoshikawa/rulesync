@@ -119,10 +119,6 @@ function canonicalToVibeHooks(
   return { hooks };
 }
 
-/**
- * Reverse {@link canonicalToVibeHooks}: parse the flat `[[hooks]]` array back
- * into a canonical event → definition[] record.
- */
 /** Convert one raw `[[hooks]]` entry to a canonical definition, or null to skip. */
 function vibeEntryToCanonicalDef(
   raw: unknown,
@@ -158,6 +154,10 @@ function vibeEntryToCanonicalDef(
   return { canonicalEvent, def };
 }
 
+/**
+ * Reverse {@link canonicalToVibeHooks}: parse the flat `[[hooks]]` array back
+ * into a canonical event → definition[] record.
+ */
 function vibeHooksToCanonical(parsed: unknown): HooksConfig["hooks"] {
   const canonical: HooksConfig["hooks"] = {};
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
