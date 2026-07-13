@@ -131,6 +131,16 @@ const main = async (): Promise<void> => {
   console.log("Email sent successfully");
 };
 
+// Safety net: the OpenRouter SDK can emit a stray unhandled promise rejection
+// (e.g. `SyntaxError: Unexpected end of JSON input` from an empty response body)
+// that escapes the per-file try/catch and would otherwise crash the whole run
+// with a non-zero exit even though the failure was already recorded per file.
+// Log it and keep the batch alive; genuine total failures still surface via the
+// "All scans failed" throw below.
+process.on("unhandledRejection", (reason: unknown) => {
+  console.error(`Unhandled promise rejection (continuing scan): ${formatError(reason)}`);
+});
+
 main().catch((error: unknown) => {
   console.error("Error:", formatError(error));
   process.exit(1);

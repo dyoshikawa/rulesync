@@ -488,6 +488,7 @@ describe("runSecurityScan", () => {
         content: "some code",
         model: "test-model",
         prompt: "analyze this",
+        retryDelayMs: 0,
       }),
     ).rejects.toThrow("No content returned from OpenRouter");
   });
@@ -507,6 +508,7 @@ describe("runSecurityScan", () => {
         content: "some code",
         model: "test-model",
         prompt: "analyze this",
+        retryDelayMs: 0,
       }),
     ).rejects.toThrow();
   });
@@ -526,6 +528,7 @@ describe("runSecurityScan", () => {
         content: "some code",
         model: "test-model",
         prompt: "analyze this",
+        retryDelayMs: 0,
       }),
     ).rejects.toThrow();
   });
@@ -545,8 +548,54 @@ describe("runSecurityScan", () => {
         content: "some code",
         model: "test-model",
         prompt: "analyze this",
+        retryDelayMs: 0,
       }),
     ).rejects.toThrow("No content returned from OpenRouter");
+  });
+
+  it("should retry transient failures and succeed on a later attempt", async () => {
+    const scanResult: SecurityScanResult = {
+      vulnerabilities: [],
+      summary: "No issues",
+    };
+
+    // First call fails with the empty-body symptom that previously crashed the
+    // scan; the second call succeeds.
+    const send = vi
+      .fn()
+      .mockRejectedValueOnce(new SyntaxError("Unexpected end of JSON input"))
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: JSON.stringify(scanResult) } }],
+      });
+    const mockClient: OpenRouterClient = { chat: { send } };
+
+    const result = await runSecurityScan({
+      client: mockClient,
+      content: "some code",
+      model: "test-model",
+      prompt: "analyze this",
+      retryDelayMs: 0,
+    });
+
+    expect(result).toEqual(scanResult);
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it("should give up after exhausting all attempts", async () => {
+    const send = vi.fn().mockRejectedValue(new SyntaxError("Unexpected end of JSON input"));
+    const mockClient: OpenRouterClient = { chat: { send } };
+
+    await expect(
+      runSecurityScan({
+        client: mockClient,
+        content: "some code",
+        model: "test-model",
+        prompt: "analyze this",
+        maxAttempts: 2,
+        retryDelayMs: 0,
+      }),
+    ).rejects.toThrow("OpenRouter request failed after 2 attempts");
+    expect(send).toHaveBeenCalledTimes(2);
   });
 });
 

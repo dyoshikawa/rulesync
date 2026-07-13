@@ -1,8 +1,13 @@
+// oxlint-disable no-console
+
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 
 import { Resend } from "resend";
 import { z } from "zod";
+
+import { formatError } from "../src/utils/error.js";
 
 export const SecurityScanResultSchema = z.object({
   vulnerabilities: z.array(
@@ -82,7 +87,17 @@ export const getXmlFiles = ({ dir }: { dir: string }): string[] => {
 // oxlint-disable-next-line no-explicit-any -- duck-type to decouple from private SDK internals
 export type OpenRouterClient = { chat: { send: (...args: any[]) => Promise<any> } };
 
-export const runSecurityScan = async ({
+// Bound each request so a stalled OpenRouter response cannot hang the whole scan
+// (a single request previously hung for ~18 minutes before failing the job).
+const REQUEST_TIMEOUT_MS = 180_000;
+// Retry transient failures ourselves: OpenRouter occasionally returns an empty
+// body (200 with no content), which makes the SDK throw
+// `SyntaxError: Unexpected end of JSON input`. The SDK's built-in retry only
+// covers HTTP status codes, so it does not cover that case.
+const MAX_ATTEMPTS = 3;
+const RETRY_BASE_DELAY_MS = 2_000;
+
+const sendChatOnce = async ({
   client,
   content: scanContent,
   model,
@@ -93,23 +108,28 @@ export const runSecurityScan = async ({
   model: string;
   prompt: string;
 }): Promise<SecurityScanResult> => {
-  const response = await client.chat.send({
-    chatRequest: {
-      model,
-      messages: [{ role: "user", content: `${prompt}\n\n${scanContent}` }],
-      responseFormat: {
-        type: "json_schema" as const,
-        jsonSchema: {
-          name: "security_scan",
-          strict: true,
-          schema: SECURITY_SCAN_JSON_SCHEMA,
+  const response = await client.chat.send(
+    {
+      chatRequest: {
+        model,
+        messages: [{ role: "user", content: `${prompt}\n\n${scanContent}` }],
+        responseFormat: {
+          type: "json_schema" as const,
+          jsonSchema: {
+            name: "security_scan",
+            strict: true,
+            schema: SECURITY_SCAN_JSON_SCHEMA,
+          },
         },
+        stream: false as const,
       },
-      stream: false as const,
+      httpReferer: "https://github.com/dyoshikawa/rulesync",
+      appTitle: "rulesync security-scan",
     },
-    httpReferer: "https://github.com/dyoshikawa/rulesync",
-    appTitle: "rulesync security-scan",
-  });
+    // Disable the SDK's own retry so our loop is the single source of truth for
+    // retry/backoff behavior, and cap each attempt with a hard timeout.
+    { timeoutMs: REQUEST_TIMEOUT_MS, retries: { strategy: "none" } },
+  );
 
   const content = response.choices?.[0]?.message?.content;
 
@@ -118,6 +138,44 @@ export const runSecurityScan = async ({
   }
 
   return SecurityScanResultSchema.parse(JSON.parse(content));
+};
+
+export const runSecurityScan = async ({
+  client,
+  content: scanContent,
+  model,
+  prompt,
+  maxAttempts = MAX_ATTEMPTS,
+  retryDelayMs = RETRY_BASE_DELAY_MS,
+}: {
+  client: OpenRouterClient;
+  content: string;
+  model: string;
+  prompt: string;
+  maxAttempts?: number;
+  retryDelayMs?: number;
+}): Promise<SecurityScanResult> => {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await sendChatOnce({ client, content: scanContent, model, prompt });
+    } catch (error: unknown) {
+      lastError = error;
+      if (attempt < maxAttempts) {
+        console.warn(
+          `  Attempt ${attempt}/${maxAttempts} failed: ${formatError(error)}. Retrying...`,
+        );
+        if (retryDelayMs > 0) {
+          await sleep(retryDelayMs * attempt);
+        }
+      }
+    }
+  }
+
+  throw new Error(
+    `OpenRouter request failed after ${maxAttempts} attempts: ${formatError(lastError)}`,
+  );
 };
 
 const OVERALL_SUMMARY_PROMPT = `\
