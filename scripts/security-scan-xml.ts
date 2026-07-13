@@ -33,6 +33,10 @@ Report each vulnerability as a JSON object with the following keys:
 - **line**: The line range (e.g., "L10", "L10-L11")
 `;
 
+// Counts stray unhandled rejections (see the handler below) so the run can be
+// marked as failed instead of silently reporting a green, incomplete scan.
+let unhandledRejectionCount = 0;
+
 const main = async (): Promise<void> => {
   const env = validateEnv();
   const {
@@ -100,44 +104,55 @@ const main = async (): Promise<void> => {
 
   if (highSeverityResults.size === 0) {
     console.log("No high+ severity vulnerabilities found. Skipping email notification.");
-    return;
+  } else {
+    const totalHighVulnerabilities = countHighSeverityVulnerabilities({
+      results: highSeverityResults,
+    });
+    const date = new Date().toISOString().split("T")[0];
+    const subject = `Security Scan Report - ${date} (${totalHighVulnerabilities} high+ vulnerabilities found)`;
+
+    // Generate an AI summary from the full scan results to prepend to the email.
+    // Failure here must not block the notification, so fall back to no summary.
+    let overallSummary: string | undefined;
+    try {
+      overallSummary = await generateOverallSummary({ client, model, results });
+      console.log("Generated AI summary");
+    } catch (error: unknown) {
+      console.warn(`Failed to generate AI summary: ${formatError(error)}`);
+    }
+
+    const emailBody = formatEmailBody({ results: highSeverityResults, overallSummary });
+    await sendEmail({
+      apiKey: resendApiKey,
+      from: resendFromEmail,
+      to: securityScanRecipient,
+      subject,
+      body: emailBody,
+    });
+
+    console.log("Email sent successfully");
   }
 
-  const totalHighVulnerabilities = countHighSeverityVulnerabilities({
-    results: highSeverityResults,
-  });
-  const date = new Date().toISOString().split("T")[0];
-  const subject = `Security Scan Report - ${date} (${totalHighVulnerabilities} high+ vulnerabilities found)`;
-
-  // Generate an AI summary from the full scan results to prepend to the email.
-  // Failure here must not block the notification, so fall back to no summary.
-  let overallSummary: string | undefined;
-  try {
-    overallSummary = await generateOverallSummary({ client, model, results });
-    console.log("Generated AI summary");
-  } catch (error: unknown) {
-    console.warn(`Failed to generate AI summary: ${formatError(error)}`);
+  // Fail the job if any file could not be scanned or a stray rejection occurred.
+  // The report above has already been sent, so partial results are not lost, but
+  // an incomplete scan must never be silently reported as a green run.
+  if (errors.length > 0 || unhandledRejectionCount > 0) {
+    throw new Error(
+      `Scan completed with gaps: ${errors.length} file(s) failed to scan, ` +
+        `${unhandledRejectionCount} unhandled rejection(s). ` +
+        "Treating the run as failed so the incomplete scan is visible.",
+    );
   }
-
-  const emailBody = formatEmailBody({ results: highSeverityResults, overallSummary });
-  await sendEmail({
-    apiKey: resendApiKey,
-    from: resendFromEmail,
-    to: securityScanRecipient,
-    subject,
-    body: emailBody,
-  });
-
-  console.log("Email sent successfully");
 };
 
 // Safety net: the OpenRouter SDK can emit a stray unhandled promise rejection
 // (e.g. `SyntaxError: Unexpected end of JSON input` from an empty response body)
 // that escapes the per-file try/catch and would otherwise crash the whole run
-// with a non-zero exit even though the failure was already recorded per file.
-// Log it and keep the batch alive; genuine total failures still surface via the
-// "All scans failed" throw below.
+// mid-batch. Keep the batch alive so already-collected results and the report
+// are not lost, but record the rejection so `main` still marks the run as failed
+// rather than silently reporting a green, incomplete scan.
 process.on("unhandledRejection", (reason: unknown) => {
+  unhandledRejectionCount += 1;
   console.error(`Unhandled promise rejection (continuing scan): ${formatError(reason)}`);
 });
 

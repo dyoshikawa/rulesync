@@ -97,6 +97,14 @@ const REQUEST_TIMEOUT_MS = 180_000;
 const MAX_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 2_000;
 
+// Applied to every OpenRouter request: cap each attempt with a hard timeout and
+// disable the SDK's own retry so our own loop is the single source of truth for
+// retry/backoff behavior.
+const CHAT_SEND_OPTIONS = {
+  timeoutMs: REQUEST_TIMEOUT_MS,
+  retries: { strategy: "none" },
+} as const;
+
 const sendChatOnce = async ({
   client,
   content: scanContent,
@@ -126,9 +134,7 @@ const sendChatOnce = async ({
       httpReferer: "https://github.com/dyoshikawa/rulesync",
       appTitle: "rulesync security-scan",
     },
-    // Disable the SDK's own retry so our loop is the single source of truth for
-    // retry/backoff behavior, and cap each attempt with a hard timeout.
-    { timeoutMs: REQUEST_TIMEOUT_MS, retries: { strategy: "none" } },
+    CHAT_SEND_OPTIONS,
   );
 
   const content = response.choices?.[0]?.message?.content;
@@ -220,15 +226,18 @@ export const generateOverallSummary = async ({
 }): Promise<string> => {
   const input = buildSummaryInput({ results });
 
-  const response = await client.chat.send({
-    chatRequest: {
-      model,
-      messages: [{ role: "user", content: `${OVERALL_SUMMARY_PROMPT}\n\n${input}` }],
-      stream: false as const,
+  const response = await client.chat.send(
+    {
+      chatRequest: {
+        model,
+        messages: [{ role: "user", content: `${OVERALL_SUMMARY_PROMPT}\n\n${input}` }],
+        stream: false as const,
+      },
+      httpReferer: "https://github.com/dyoshikawa/rulesync",
+      appTitle: "rulesync security-scan",
     },
-    httpReferer: "https://github.com/dyoshikawa/rulesync",
-    appTitle: "rulesync security-scan",
-  });
+    CHAT_SEND_OPTIONS,
+  );
 
   const content = response.choices?.[0]?.message?.content;
 

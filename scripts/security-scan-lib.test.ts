@@ -471,6 +471,13 @@ describe("runSecurityScan", () => {
       },
       appTitle: "rulesync security-scan",
     });
+    // Lock in the per-request timeout and SDK-retry-disabled options: dropping
+    // them would reintroduce the ~18-minute stall this change guards against.
+    const sendOptions = vi.mocked(mockClient.chat.send).mock.calls[0]?.[1];
+    expect(sendOptions).toMatchObject({
+      timeoutMs: expect.any(Number),
+      retries: { strategy: "none" },
+    });
   });
 
   it("should throw when no content returned", async () => {
