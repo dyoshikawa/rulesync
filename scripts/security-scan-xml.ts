@@ -100,36 +100,58 @@ const main = async (): Promise<void> => {
 
   if (highSeverityResults.size === 0) {
     console.log("No high+ severity vulnerabilities found. Skipping email notification.");
-    return;
+  } else {
+    const totalHighVulnerabilities = countHighSeverityVulnerabilities({
+      results: highSeverityResults,
+    });
+    const date = new Date().toISOString().split("T")[0];
+    const subject = `Security Scan Report - ${date} (${totalHighVulnerabilities} high+ vulnerabilities found)`;
+
+    // Generate an AI summary from the full scan results to prepend to the email.
+    // Failure here must not block the notification, so fall back to no summary.
+    let overallSummary: string | undefined;
+    try {
+      overallSummary = await generateOverallSummary({ client, model, results });
+      console.log("Generated AI summary");
+    } catch (error: unknown) {
+      console.warn(`Failed to generate AI summary: ${formatError(error)}`);
+    }
+
+    const emailBody = formatEmailBody({ results: highSeverityResults, overallSummary });
+    await sendEmail({
+      apiKey: resendApiKey,
+      from: resendFromEmail,
+      to: securityScanRecipient,
+      subject,
+      body: emailBody,
+    });
+
+    console.log("Email sent successfully");
   }
 
-  const totalHighVulnerabilities = countHighSeverityVulnerabilities({
-    results: highSeverityResults,
-  });
-  const date = new Date().toISOString().split("T")[0];
-  const subject = `Security Scan Report - ${date} (${totalHighVulnerabilities} high+ vulnerabilities found)`;
-
-  // Generate an AI summary from the full scan results to prepend to the email.
-  // Failure here must not block the notification, so fall back to no summary.
-  let overallSummary: string | undefined;
-  try {
-    overallSummary = await generateOverallSummary({ client, model, results });
-    console.log("Generated AI summary");
-  } catch (error: unknown) {
-    console.warn(`Failed to generate AI summary: ${formatError(error)}`);
+  // Fail the job if any file could not be scanned even after retries. The report
+  // above has already been sent, so partial results are not lost, but an
+  // incomplete scan must never be silently reported as a green run. A file is
+  // only counted here once all retries are exhausted, so transient blips that
+  // recover do not fail the run.
+  if (errors.length > 0) {
+    throw new Error(
+      `Scan completed with gaps: ${errors.length} file(s) failed to scan after retries. ` +
+        "Treating the run as failed so the incomplete scan is visible.",
+    );
   }
-
-  const emailBody = formatEmailBody({ results: highSeverityResults, overallSummary });
-  await sendEmail({
-    apiKey: resendApiKey,
-    from: resendFromEmail,
-    to: securityScanRecipient,
-    subject,
-    body: emailBody,
-  });
-
-  console.log("Email sent successfully");
 };
+
+// Safety net: an empty/stalled OpenRouter response makes the SDK emit a stray
+// unhandled promise rejection (e.g. `SyntaxError: Unexpected end of JSON input`)
+// that escapes the per-file try/catch and would otherwise crash the whole run
+// mid-batch. This rejection is emitted even for an attempt that the retry loop
+// then recovers from, so it must NOT fail the run on its own — job success is
+// decided solely by `errors` (files that failed every retry). Here we only keep
+// the batch alive and log the rejection for visibility.
+process.on("unhandledRejection", (reason: unknown) => {
+  console.error(`Unhandled promise rejection (continuing scan): ${formatError(reason)}`);
+});
 
 main().catch((error: unknown) => {
   console.error("Error:", formatError(error));
