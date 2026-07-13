@@ -33,10 +33,6 @@ Report each vulnerability as a JSON object with the following keys:
 - **line**: The line range (e.g., "L10", "L10-L11")
 `;
 
-// Counts stray unhandled rejections (see the handler below) so the run can be
-// marked as failed instead of silently reporting a green, incomplete scan.
-let unhandledRejectionCount = 0;
-
 const main = async (): Promise<void> => {
   const env = validateEnv();
   const {
@@ -133,26 +129,27 @@ const main = async (): Promise<void> => {
     console.log("Email sent successfully");
   }
 
-  // Fail the job if any file could not be scanned or a stray rejection occurred.
-  // The report above has already been sent, so partial results are not lost, but
-  // an incomplete scan must never be silently reported as a green run.
-  if (errors.length > 0 || unhandledRejectionCount > 0) {
+  // Fail the job if any file could not be scanned even after retries. The report
+  // above has already been sent, so partial results are not lost, but an
+  // incomplete scan must never be silently reported as a green run. A file is
+  // only counted here once all retries are exhausted, so transient blips that
+  // recover do not fail the run.
+  if (errors.length > 0) {
     throw new Error(
-      `Scan completed with gaps: ${errors.length} file(s) failed to scan, ` +
-        `${unhandledRejectionCount} unhandled rejection(s). ` +
+      `Scan completed with gaps: ${errors.length} file(s) failed to scan after retries. ` +
         "Treating the run as failed so the incomplete scan is visible.",
     );
   }
 };
 
-// Safety net: the OpenRouter SDK can emit a stray unhandled promise rejection
-// (e.g. `SyntaxError: Unexpected end of JSON input` from an empty response body)
+// Safety net: an empty/stalled OpenRouter response makes the SDK emit a stray
+// unhandled promise rejection (e.g. `SyntaxError: Unexpected end of JSON input`)
 // that escapes the per-file try/catch and would otherwise crash the whole run
-// mid-batch. Keep the batch alive so already-collected results and the report
-// are not lost, but record the rejection so `main` still marks the run as failed
-// rather than silently reporting a green, incomplete scan.
+// mid-batch. This rejection is emitted even for an attempt that the retry loop
+// then recovers from, so it must NOT fail the run on its own — job success is
+// decided solely by `errors` (files that failed every retry). Here we only keep
+// the batch alive and log the rejection for visibility.
 process.on("unhandledRejection", (reason: unknown) => {
-  unhandledRejectionCount += 1;
   console.error(`Unhandled promise rejection (continuing scan): ${formatError(reason)}`);
 });
 
