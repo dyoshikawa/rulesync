@@ -269,6 +269,34 @@ describe("DevinHooks", () => {
       expect(parsed.hooks).toEqual(config.hooks);
     });
 
+    it("should round-trip the postCompact event via the PostCompaction key", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          // Devin's post-context-compaction event; matcher-less lifecycle event.
+          postCompact: [{ type: "command", command: "compact.sh" }],
+        },
+      };
+      const rulesyncHooks = makeRulesyncHooks(config);
+
+      const devinHooks = await DevinHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      // Emitted under Devin's PascalCase `PostCompaction` key (not `PostCompact`),
+      // with no matcher.
+      const generated = JSON.parse(devinHooks.getFileContent());
+      expect(generated.PostCompaction).toEqual([
+        { hooks: [{ type: "command", command: "compact.sh" }] },
+      ]);
+
+      // And it maps back to the canonical `postCompact` event.
+      const parsed = JSON.parse(devinHooks.toRulesyncHooks().getFileContent());
+      expect(parsed.hooks).toEqual(config.hooks);
+    });
+
     it("should throw on invalid JSON content", () => {
       const devinHooks = new DevinHooks({
         outputRoot: testDir,
