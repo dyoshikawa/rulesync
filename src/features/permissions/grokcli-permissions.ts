@@ -20,9 +20,6 @@ import {
   type ToolPermissionsSettablePaths,
 } from "./tool-permissions.js";
 
-const GROKCLI_GLOBAL_ONLY_MESSAGE =
-  "Grok CLI permissions are global-only; use --global to sync ~/.grok/config.toml";
-
 // Grok stores the coarse permission toggle as `[ui] permission_mode` in
 // config.toml (kept as a backward-compatible fallback) and the fine-grained
 // rules as Claude-style entries under the `[permission]` allow/deny/ask arrays.
@@ -153,13 +150,19 @@ function parseGrokEntry(entry: string): { category: string; pattern: string } | 
  * compatibility with older Grok versions: `always-approve` when the config is
  * pure-`allow`, otherwise `ask` (conservative — it is never `always-approve`
  * while any `deny`/`ask` rule exists, so it never contradicts the fine-grained
- * arrays).
+ * arrays). It is a user-level UI setting, so it is only written in global scope
+ * (see below).
  *
- * This surface is **global only** — the adapter syncs the user-level
- * `~/.grok/config.toml`. (Grok also supports a project-scoped `[permission]`
- * file; project scope is not modeled here.) The shared config is merged in
+ * Both scopes are supported: the adapter syncs the project-level
+ * `./.grok/config.toml` (default) and the user-level `~/.grok/config.toml`
+ * (with `--global`). Grok documents that "Project configs are limited to MCP
+ * servers, plugins, and permission rules, not full user configs"
+ * (https://docs.x.ai/build/settings), so the project config carries only the
+ * fine-grained `[permission]` rules; the coarse `[ui] permission_mode` UI toggle
+ * is written in global scope only. The shared config is merged in
  * place: rulesync owns the `[permission]` `allow`/`deny`/`ask` entries for the
- * tools it models and the `[ui] permission_mode` value, while every other key
+ * tools it models and (in global scope) the `[ui] permission_mode` value, while
+ * every other key
  * (e.g. `[mcp_servers]`, `[permission] rules`, `[sandbox]`) and any user-authored
  * entries for tools rulesync cannot model (e.g. `WebSearch`) are preserved. The
  * file is never deleted.
@@ -177,6 +180,9 @@ export class GrokcliPermissions extends ToolPermissions {
   }
 
   static getSettablePaths(_options?: { global?: boolean }): ToolPermissionsSettablePaths {
+    // Both project (./.grok/config.toml) and global (~/.grok/config.toml) use
+    // the same relative path; the scope is resolved by the outputRoot passed to
+    // the processor (mirrors GrokcliMcp.getSettablePaths).
     return {
       relativeDirPath: GROKCLI_DIR,
       relativeFilePath: GROKCLI_CONFIG_FILE_NAME,
@@ -188,9 +194,6 @@ export class GrokcliPermissions extends ToolPermissions {
     validate = true,
     global = false,
   }: ToolPermissionsFromFileParams): Promise<GrokcliPermissions> {
-    if (!global) {
-      throw new Error(GROKCLI_GLOBAL_ONLY_MESSAGE);
-    }
     const paths = GrokcliPermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? "";
@@ -200,7 +203,7 @@ export class GrokcliPermissions extends ToolPermissions {
       relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
-      global: true,
+      global,
     });
   }
 
@@ -210,13 +213,10 @@ export class GrokcliPermissions extends ToolPermissions {
     logger,
     global = false,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<GrokcliPermissions> {
-    if (!global) {
-      throw new Error(GROKCLI_GLOBAL_ONLY_MESSAGE);
-    }
     const paths = GrokcliPermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     // Read without initializing so a dry-run/check does not create the user's
-    // global config.toml as a side effect (mirrors the Goose adapter).
+    // config.toml as a side effect (mirrors the Goose adapter).
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
 
     let parsed: smolToml.TomlTable;
@@ -246,13 +246,20 @@ export class GrokcliPermissions extends ToolPermissions {
       ask: buckets.ask,
     };
 
-    // Coarse `[ui] permission_mode` fallback for older Grok versions.
-    const mode = deriveGrokPermissionMode(config);
-    const existingUi = isRecord(parsed[GROKCLI_UI_KEY]) ? parsed[GROKCLI_UI_KEY] : {};
-    const ui = {
-      ...existingUi,
-      [GROKCLI_PERMISSION_MODE_KEY]: mode,
-    };
+    // Coarse `[ui] permission_mode` fallback for older Grok versions. This is a
+    // user-level UI toggle, so it is only written to the global config: Grok
+    // documents that project configs are limited to MCP servers, plugins, and
+    // permission rules — not full user configs — so the fine-grained
+    // `[permission]` arrays are the only permission surface written in project
+    // scope. In global scope the `ui` key is patched alongside `permission`.
+    const uiPatch = global
+      ? {
+          [GROKCLI_UI_KEY]: {
+            ...(isRecord(parsed[GROKCLI_UI_KEY]) ? parsed[GROKCLI_UI_KEY] : {}),
+            [GROKCLI_PERMISSION_MODE_KEY]: deriveGrokPermissionMode(config),
+          },
+        }
+      : {};
 
     return new GrokcliPermissions({
       outputRoot,
@@ -262,11 +269,11 @@ export class GrokcliPermissions extends ToolPermissions {
         fileKey: sharedConfigFileKey(paths),
         feature: "permissions",
         existingContent,
-        patch: { [GROKCLI_PERMISSION_KEY]: permission, [GROKCLI_UI_KEY]: ui },
+        patch: { [GROKCLI_PERMISSION_KEY]: permission, ...uiPatch },
         filePath,
       }),
       validate: true,
-      global: true,
+      global,
     });
   }
 
@@ -306,6 +313,7 @@ export class GrokcliPermissions extends ToolPermissions {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolPermissionsForDeletionParams): GrokcliPermissions {
     return new GrokcliPermissions({
       outputRoot,
@@ -313,7 +321,7 @@ export class GrokcliPermissions extends ToolPermissions {
       relativeFilePath,
       fileContent: "",
       validate: false,
-      global: true,
+      global,
     });
   }
 }

@@ -211,10 +211,13 @@ export const toolPermissionsFactories = new Map<
     {
       class: GrokcliPermissions,
       meta: {
-        // Grok gates tools with the coarse `[ui] permission_mode` toggle in the
-        // global `~/.grok/config.toml`; there is no project-scoped permission
-        // surface, so it is global-only (mirrors Goose).
-        supportsProject: false,
+        // Grok's fine-grained `[permission]` rules live in `.grok/config.toml`
+        // at both project (`./.grok/config.toml`) and user
+        // (`~/.grok/config.toml`) scope. Grok documents that project configs
+        // support permission rules ("Project configs are limited to MCP
+        // servers, plugins, and permission rules, not full user configs" —
+        // https://docs.x.ai/build/settings), so both scopes are generated.
+        supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,
       },
