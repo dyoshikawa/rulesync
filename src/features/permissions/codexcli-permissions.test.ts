@@ -1307,5 +1307,57 @@ command = "node"
       const json = codexPermissions.toRulesyncPermissions().getJson();
       expect(json.codexcli).toBeUndefined();
     });
+
+    it("accepts every documented enum value for approval_policy / sandbox_mode / approvals_reviewer", () => {
+      const cases = [
+        { approval_policy: "untrusted" },
+        { approval_policy: "on-request" },
+        // `on-failure` is a legacy alias Codex still accepts for `on-request`.
+        { approval_policy: "on-failure" },
+        { approval_policy: "never" },
+        // The granular table form still round-trips through the enum union.
+        { approval_policy: { granular: { sandbox_approval: true } } },
+        { sandbox_mode: "read-only" },
+        { sandbox_mode: "workspace-write" },
+        { sandbox_mode: "danger-full-access" },
+        { approvals_reviewer: "user" },
+        { approvals_reviewer: "auto_review" },
+        { approvals_reviewer: "guardian_subagent" },
+      ];
+
+      for (const codexcli of cases) {
+        expect(
+          () =>
+            new RulesyncPermissions({
+              outputRoot: testDir,
+              relativeDirPath: ".rulesync",
+              relativeFilePath: "permissions.json",
+              fileContent: JSON.stringify({ permission: {}, codexcli }),
+              validate: true,
+            }),
+        ).not.toThrow();
+      }
+    });
+
+    it("rejects out-of-range enum values for approval_policy / sandbox_mode / approvals_reviewer", () => {
+      const cases = [
+        { approval_policy: "on-success" },
+        { sandbox_mode: "read-write" },
+        { approvals_reviewer: "reviewer" },
+      ];
+
+      for (const codexcli of cases) {
+        expect(
+          () =>
+            new RulesyncPermissions({
+              outputRoot: testDir,
+              relativeDirPath: ".rulesync",
+              relativeFilePath: "permissions.json",
+              fileContent: JSON.stringify({ permission: {}, codexcli }),
+              validate: true,
+            }),
+        ).toThrow();
+      }
+    });
   });
 });

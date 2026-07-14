@@ -441,6 +441,31 @@ const KiroPermissionsOverrideSchema = z.looseObject({
 export type KiroPermissionsOverride = z.infer<typeof KiroPermissionsOverrideSchema>;
 
 /**
+ * Codex CLI's approval-workflow policy. Serialized as a kebab-case string in
+ * `.codex/config.toml`. `on-failure` is a legacy alias for `on-request` that
+ * Codex still accepts, so it is included so existing configs round-trip. The
+ * granular table form (`{ granular = { … } }`) is modeled separately in the
+ * override union.
+ * @see https://learn.chatgpt.com/docs/config-file/config-reference
+ */
+const CodexApprovalPolicySchema = z.enum(["untrusted", "on-request", "on-failure", "never"]);
+
+/**
+ * Codex CLI's classic sandbox mode. Serialized as a kebab-case string in
+ * `.codex/config.toml`.
+ * @see https://learn.chatgpt.com/docs/config-file/config-reference
+ */
+const CodexSandboxModeSchema = z.enum(["read-only", "workspace-write", "danger-full-access"]);
+
+/**
+ * Codex CLI's reviewer for approval requests. `guardian_subagent` is a legacy
+ * value Codex still accepts for backward compatibility, so it is included so
+ * existing configs round-trip through the rulesync model.
+ * @see https://learn.chatgpt.com/docs/config-file/config-reference
+ */
+const CodexApprovalsReviewerSchema = z.enum(["user", "auto_review", "guardian_subagent"]);
+
+/**
  * Codex CLI-scoped permission override.
  *
  * Codex CLI's permission surface is richer than the canonical allow/ask/deny
@@ -449,15 +474,16 @@ export type KiroPermissionsOverride = z.infer<typeof KiroPermissionsOverrideSche
  * override whose fields are written verbatim as top-level `.codex/config.toml`
  * keys (the override wins per key; existing sibling keys the user set directly
  * are preserved):
- * - `approval_policy` — `untrusted` | `on-request` | `never`, or a
- *   `{ granular = { … } }` table (kept verbatim; the granular schema has
- *   required fields that are brittle to model as typed keys).
+ * - `approval_policy` — `untrusted` | `on-request` (legacy alias `on-failure`) |
+ *   `never`, or a `{ granular = { … } }` table (kept verbatim; the granular
+ *   schema has required fields that are brittle to model as typed keys).
  * - `sandbox_mode` — `read-only` | `workspace-write` | `danger-full-access`,
  *   with the sibling `sandbox_workspace_write` table (`network_access`,
  *   `writable_roots`, …).
  * - `apps` — per-app tool gating (`apps.<id>.tools.<tool>.approval_mode` /
  *   `.enabled`, `apps.<id>.default_tools_approval_mode`).
- * - `approvals_reviewer` — the reviewer-approval surface.
+ * - `approvals_reviewer` — the reviewer-approval surface (`user` | `auto_review`
+ *   | `guardian_subagent`), or a table for the richer reviewer config.
  *
  * Two surfaces are deliberately NOT authorable here so the override can never
  * clobber a feature-owned key: `mcp_servers.*` per-MCP gating is owned by the
@@ -475,11 +501,11 @@ export type KiroPermissionsOverride = z.infer<typeof KiroPermissionsOverrideSche
  *   "sandbox_workspace_write": { "network_access": true } }
  */
 const CodexcliPermissionsOverrideSchema = z.looseObject({
-  approval_policy: z.optional(z.union([z.string(), z.looseObject({})])),
-  sandbox_mode: z.optional(z.string()),
+  approval_policy: z.optional(z.union([CodexApprovalPolicySchema, z.looseObject({})])),
+  sandbox_mode: z.optional(CodexSandboxModeSchema),
   sandbox_workspace_write: z.optional(z.looseObject({})),
   apps: z.optional(z.looseObject({})),
-  approvals_reviewer: z.optional(z.union([z.string(), z.looseObject({})])),
+  approvals_reviewer: z.optional(z.union([CodexApprovalsReviewerSchema, z.looseObject({})])),
 });
 export type CodexcliPermissionsOverride = z.infer<typeof CodexcliPermissionsOverrideSchema>;
 
