@@ -118,29 +118,18 @@ globs: ["**/*"]
     content: `{
   "$schema": "${RULESYNC_MCP_SCHEMA_URL}",
   "mcpServers": {
-    "serena": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/oraios/serena",
-        "serena",
-        "start-mcp-server",
-        "--context",
-        "ide-assistant",
-        "--enable-web-dashboard",
-        "false",
-        "--project",
-        "."
-      ],
+    "deepwiki": {
+      "type": "http",
+      "url": "https://mcp.deepwiki.com/mcp",
       "env": {}
     },
-    "context7": {
+    "rulesync": {
       "type": "stdio",
-      "command": "npx",
+      "command": "pnpm",
       "args": [
-        "-y",
-        "@upstash/context7-mcp"
+        "dlx",
+        "rulesync",
+        "mcp"
       ],
       "env": {}
     }
