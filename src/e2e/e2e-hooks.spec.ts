@@ -52,6 +52,7 @@ const hooksGenerateTargets = [
   { target: "antigravity-ide", outputPath: join(".agents", "hooks.json") },
   { target: "antigravity-cli", outputPath: join(".agents", "hooks.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
+  { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
 ] as const;
 
 // Targets exercised by dedicated `it`s (bespoke per-tool serialization).
@@ -585,6 +586,7 @@ const hooksGlobalTargets = [
   { target: "antigravity-cli", outputPath: join(".gemini", "config", "hooks.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
+  { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
 ] as const;
 
 // Global targets exercised by dedicated `it`s (bespoke per-tool serialization).

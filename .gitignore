@@ -372,6 +372,7 @@ rulesync.local.jsonc
 **/.devin/hooks.v1.json
 **/.vibe/hooks.toml
 **/.reasonix/settings.json
+**/.grok/hooks/rulesync.json
 **/.cline/command-permissions.json
 **/.cursor/cli.json
 **/.junie/allowlist.json

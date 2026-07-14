@@ -541,6 +541,35 @@ export const REASONIX_HOOK_EVENTS: readonly HookEvent[] = [
 ];
 
 /**
+ * Hook events supported by Grok CLI (xAI Grok Build).
+ *
+ * Grok Build documents a Claude-Code-compatible hooks surface with fourteen
+ * PascalCase events, all of which map 1:1 onto an existing canonical arm:
+ * `SessionStart`, `SessionEnd`, `UserPromptSubmit` ← `beforeSubmitPrompt`,
+ * `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionDenied`,
+ * `Stop`, `StopFailure`, `Notification`, `SubagentStart`, `SubagentStop`,
+ * `PreCompact`, `PostCompact`. Only `PreToolUse` carries a `matcher` (a regex
+ * tested against the tool name); every other event is matcher-less.
+ * @see https://docs.x.ai/build/features/hooks
+ */
+export const GROKCLI_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "beforeSubmitPrompt",
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+  "permissionDenied",
+  "stop",
+  "stopFailure",
+  "notification",
+  "subagentStart",
+  "subagentStop",
+  "preCompact",
+  "postCompact",
+];
+
+/**
  * Hook events supported by Hermes Agent's native Shell Hooks system.
  *
  * Hermes validates hook events against a fixed `VALID_HOOKS` set:
@@ -618,6 +647,7 @@ export const HooksConfigSchema = z.looseObject({
   junie: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   vibe: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   reasonix: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  grokcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   qwencode: z.optional(
     z.looseObject({
       hooks: z.optional(hooksRecordSchema),
@@ -1086,4 +1116,34 @@ export const CANONICAL_TO_REASONIX_EVENT_NAMES: Record<string, string> = {
  */
 export const REASONIX_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_REASONIX_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to Grok CLI PascalCase.
+ * Grok Build reuses the same Claude-style PascalCase event names, so each
+ * canonical arm maps to its PascalCase equivalent.
+ * @see https://docs.x.ai/build/features/hooks
+ */
+export const CANONICAL_TO_GROKCLI_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  postToolUseFailure: "PostToolUseFailure",
+  permissionDenied: "PermissionDenied",
+  stop: "Stop",
+  stopFailure: "StopFailure",
+  notification: "Notification",
+  subagentStart: "SubagentStart",
+  subagentStop: "SubagentStop",
+  preCompact: "PreCompact",
+  postCompact: "PostCompact",
+};
+
+/**
+ * Map Grok CLI PascalCase event names to canonical camelCase.
+ */
+export const GROKCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_GROKCLI_EVENT_NAMES).map(([k, v]) => [v, k]),
 );
