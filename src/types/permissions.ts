@@ -202,9 +202,11 @@ export type ReasonixPermissionsOverride = z.infer<typeof ReasonixPermissionsOver
  * exposes security controls with no canonical per-command allow/ask/deny slot —
  * `commandBlocklist` (a hard-block tier that can never be approved, distinct from
  * an approvable `deny`), `networkPolicy` (`allowedIps`), `sandbox`
- * (`enabled`/`mode`/`filesystem`/`network`), `mcpPolicy`, `enableDroidShield`,
+ * (`enabled`/`mode`/`filesystem`/`network`), `mcpPolicy`,
+ * `mcpAutonomyOverrides` (per-MCP-tool autonomy levels), `enableDroidShield`,
  * and autonomy settings (`sessionDefaultSettings`, `maxAutonomyLevel`,
- * `interactionMode`). Fields placed here are merged into `settings.json` and
+ * `subagentAutonomyLevel`, `interactionMode`). Fields placed here are merged
+ * into `settings.json` and
  * emitted only for Factory Droid, while the shared `permission` block continues
  * to drive `commandAllowlist`/`commandDenylist`. Kept `looseObject` passthrough.
  *

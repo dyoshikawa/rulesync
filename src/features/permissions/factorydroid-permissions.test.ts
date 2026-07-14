@@ -237,6 +237,23 @@ describe("FactorydroidPermissions", () => {
       });
     });
 
+    it("routes the autonomy keys (subagentAutonomyLevel, mcpAutonomyOverrides) into the override on import", () => {
+      const instance = new FactorydroidPermissions({
+        relativeDirPath: ".factory",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          subagentAutonomyLevel: "medium",
+          mcpAutonomyOverrides: { "some-server": "high" },
+        }),
+      });
+
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+      expect(config.factorydroid).toEqual({
+        subagentAutonomyLevel: "medium",
+        mcpAutonomyOverrides: { "some-server": "high" },
+      });
+    });
+
     it("does not emit a factorydroid override when no Factory-specific keys are present", () => {
       const instance = new FactorydroidPermissions({
         relativeDirPath: ".factory",
