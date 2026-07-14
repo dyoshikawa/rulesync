@@ -508,11 +508,11 @@ export const QWENCODE_HOOK_EVENTS: readonly HookEvent[] = [
  * Reasonix's `.reasonix/settings.json` (project) / `~/.reasonix/settings.json`
  * (global) documents a ten-event surface (`PreToolUse`, `PostToolUse`,
  * `UserPromptSubmit`, `Stop`, `PostLLMCall`, `SessionStart`, `SessionEnd`,
- * `SubagentStop`, `Notification`, `PreCompact`). The eight events with a clean
- * canonical equivalent are mapped: `PreToolUse`, `PostToolUse`,
+ * `SubagentStop`, `Notification`, `PreCompact`). All ten have a clean canonical
+ * equivalent and are mapped: `PreToolUse`, `PostToolUse`,
  * `UserPromptSubmit` ← `beforeSubmitPrompt`, `Stop`, `SessionStart`,
- * `SessionEnd`, `SubagentStop`, and `PostLLMCall` ← `postModelInvocation`.
- * (`Notification` and `PreCompact` have no canonical event and are left out.)
+ * `SessionEnd`, `SubagentStop`, `PostLLMCall` ← `postModelInvocation`,
+ * `Notification` ← `notification`, and `PreCompact` ← `preCompact`.
  * `match` (Reasonix's matcher field name) is honored only on
  * `PreToolUse`/`PostToolUse`, matching the canonical `matcher` field's
  * tool-event scoping used by other adapters.
@@ -527,6 +527,8 @@ export const REASONIX_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionEnd",
   "subagentStop",
   "postModelInvocation",
+  "notification",
+  "preCompact",
 ];
 
 /**
@@ -1061,6 +1063,8 @@ export const CANONICAL_TO_REASONIX_EVENT_NAMES: Record<string, string> = {
   sessionEnd: "SessionEnd",
   subagentStop: "SubagentStop",
   postModelInvocation: "PostLLMCall",
+  notification: "Notification",
+  preCompact: "PreCompact",
 };
 
 /**

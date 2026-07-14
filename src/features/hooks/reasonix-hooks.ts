@@ -156,9 +156,9 @@ function reasonixHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
  * Reasonix hooks live in a Claude-Code-style but standalone JSON file —
  * `.reasonix/settings.json` (project) or `~/.reasonix/settings.json`
  * (global) — separate from the `[permissions]`/`[[plugins]]` TOML config.
- * The eight upstream events with a clean canonical equivalent are mapped:
+ * All ten upstream events have a clean canonical equivalent and are mapped:
  * PreToolUse/PostToolUse/UserPromptSubmit/Stop plus SessionStart/SessionEnd/
- * SubagentStop/PostLLMCall (see REASONIX_HOOK_EVENTS).
+ * SubagentStop/PostLLMCall/Notification/PreCompact (see REASONIX_HOOK_EVENTS).
  * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/DESKTOP_HOOKS.zh-CN.md
  */
 export class ReasonixHooks extends ToolHooks {
