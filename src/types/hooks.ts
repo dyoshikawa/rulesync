@@ -194,10 +194,13 @@ export const CLAUDE_HOOK_EVENTS: readonly HookEvent[] = [
  * Hook events supported by Devin Local (native `.devin/` hooks).
  *
  * Devin Local adopts a Claude-Code-style lifecycle hooks surface. It documents
- * seven events: `PreToolUse`, `PostToolUse`, `PermissionRequest`,
- * `UserPromptSubmit`, `Stop`, `SessionStart`, and `SessionEnd`. The
+ * eight events: `PreToolUse`, `PostToolUse`, `PermissionRequest`,
+ * `UserPromptSubmit`, `Stop`, `SessionStart`, `SessionEnd`, and
+ * `PostCompaction` (fires after context compaction; added in the Devin CLI
+ * stable changelog — https://docs.devin.ai/cli/changelog/stable). The
  * tool/permission events (`PreToolUse`/`PostToolUse`/`PermissionRequest`) carry
- * a `matcher` (regex against `tool_name`); the session/turn events do not.
+ * a `matcher` (regex against `tool_name`); the session/turn/compaction events
+ * do not.
  *
  * Hooks live in `.devin/hooks.v1.json` (project, standalone — the hooks object
  * is the entire file) or under the `"hooks"` key of `.devin/config.json` /
@@ -213,6 +216,7 @@ export const DEVIN_HOOK_EVENTS: readonly HookEvent[] = [
   "beforeSubmitPrompt",
   "stop",
   "permissionRequest",
+  "postCompact",
 ];
 
 /** Hook events supported by OpenCode. */
@@ -672,6 +676,9 @@ export const CANONICAL_TO_DEVIN_EVENT_NAMES: Record<string, string> = {
   beforeSubmitPrompt: "UserPromptSubmit",
   stop: "Stop",
   permissionRequest: "PermissionRequest",
+  // Devin's post-context-compaction event uses the `PostCompaction` PascalCase
+  // key (not `PostCompact`). https://docs.devin.ai/cli/changelog/stable
+  postCompact: "PostCompaction",
 };
 
 /**

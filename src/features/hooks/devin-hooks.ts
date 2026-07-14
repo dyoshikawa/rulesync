@@ -33,14 +33,16 @@ import {
  *
  * Devin matches `matcher` against the event's `tool_name`, which is only
  * meaningful for the tool/permission lifecycle events
- * (`PreToolUse`/`PostToolUse`/`PermissionRequest`). The session and turn events
- * are matcher-less; any matcher defined on them is dropped with a warning.
+ * (`PreToolUse`/`PostToolUse`/`PermissionRequest`). The session, turn, and
+ * compaction events are matcher-less; any matcher defined on them is dropped
+ * with a warning.
  */
 const DEVIN_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
   "sessionStart",
   "sessionEnd",
   "stop",
   "beforeSubmitPrompt",
+  "postCompact",
 ]);
 
 const DEVIN_CONVERTER_CONFIG: ToolHooksConverterConfig = {
