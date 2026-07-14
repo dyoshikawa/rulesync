@@ -38,14 +38,19 @@ type FactorydroidSettingsJson = {
 // hard-block tier (distinct from an approvable canonical `deny`); the rest are
 // autonomy/sandbox/network/MCP controls with no canonical slot. rulesync still
 // fully owns `commandAllowlist`/`commandDenylist` via the shared block.
+// `subagentAutonomyLevel` scopes the autonomy granted to spawned subagents and
+// `mcpAutonomyOverrides` configures autonomy levels for individual MCP tools;
+// both are Factory-specific autonomy controls with no canonical slot.
 const FACTORYDROID_OVERRIDE_KEYS = [
   "commandBlocklist",
   "networkPolicy",
   "sandbox",
   "mcpPolicy",
+  "mcpAutonomyOverrides",
   "enableDroidShield",
   "sessionDefaultSettings",
   "maxAutonomyLevel",
+  "subagentAutonomyLevel",
   "interactionMode",
 ] as const;
 
