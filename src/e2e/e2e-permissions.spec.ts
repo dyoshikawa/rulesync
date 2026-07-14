@@ -41,6 +41,7 @@ const permissionsGenerateTargets = [
   "qwencode",
   "vibe",
   "reasonix",
+  "grokcli",
   "takt",
   "claudecode",
 ] as const;
@@ -669,6 +670,43 @@ describe("E2E: permissions", () => {
     // The MCP [[plugins]] table (written by the MCP adapter) must survive.
     expect(toTableArray(parsed.plugins)).toMatchObject([{ name: "filesystem", command: "npx" }]);
     expect(parsed.default_model).toBe("deepseek");
+  });
+
+  it("should generate grokcli permissions into .grok/config.toml and preserve MCP config", async () => {
+    const testDir = getTestDir();
+
+    // Pre-seed the project config.toml with an [mcp_servers] table (written by
+    // the MCP adapter) to verify the fine-grained [permission] arrays coexist
+    // with it in the same shared file without clobbering.
+    await writeFileContent(
+      join(testDir, ".grok", "config.toml"),
+      ["[mcp_servers.example]", 'command = "echo"'].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow", "rm *": "deny" },
+            read: { "src/**": "ask" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "grokcli", features: "permissions" });
+
+    const parsed = toTable(
+      smolToml.parse(await readFileContent(join(testDir, ".grok", "config.toml"))),
+    );
+    const permission = toTable(parsed.permission);
+    expect(permission.allow).toContain("Bash(git *)");
+    expect(permission.deny).toContain("Bash(rm *)");
+    expect(permission.ask).toContain("Read(src/**)");
+    // The MCP [mcp_servers] table (written by the MCP adapter) must survive.
+    expect(toTable(toTable(parsed.mcp_servers).example).command).toBe("echo");
   });
 
   it("should import reasonix permissions from reasonix.toml", async () => {

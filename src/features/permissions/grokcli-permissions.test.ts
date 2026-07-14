@@ -203,14 +203,20 @@ describe("GrokcliPermissions", () => {
       expect(permission.rules).toBeDefined();
     });
 
-    it("throws when not in global mode", async () => {
-      await expect(
-        GrokcliPermissions.fromRulesyncPermissions({
-          outputRoot: testDir,
-          rulesyncPermissions: makeRulesyncPermissions({ bash: { "*": "allow" } }),
-          global: false,
+    it("generates the fine-grained [permission] arrays in project scope", async () => {
+      const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          bash: { "git *": "allow", "rm *": "deny" },
         }),
-      ).rejects.toThrow(/global-only/);
+        global: false,
+      });
+
+      expect(permissions.getRelativeDirPath()).toBe(".grok");
+      expect(permissions.getRelativeFilePath()).toBe("config.toml");
+      const permission = readPermission(permissions.getFileContent());
+      expect(permission.allow).toEqual(["Bash(git *)"]);
+      expect(permission.deny).toEqual(["Bash(rm *)"]);
     });
   });
 
@@ -307,10 +313,14 @@ describe("GrokcliPermissions", () => {
   });
 
   describe("fromFile", () => {
-    it("throws when not in global mode", async () => {
-      await expect(
-        GrokcliPermissions.fromFile({ outputRoot: testDir, global: false }),
-      ).rejects.toThrow(/global-only/);
+    it("reads the project-scoped .grok/config.toml when global is false", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        ["[permission]", 'allow = ["Bash(git *)"]', ""].join("\n"),
+      );
+      const tool = await GrokcliPermissions.fromFile({ outputRoot: testDir, global: false });
+      const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
+      expect(json.permission.bash["git *"]).toBe("allow");
     });
   });
 });

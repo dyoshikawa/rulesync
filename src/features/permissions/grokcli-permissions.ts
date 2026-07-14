@@ -20,9 +20,6 @@ import {
   type ToolPermissionsSettablePaths,
 } from "./tool-permissions.js";
 
-const GROKCLI_GLOBAL_ONLY_MESSAGE =
-  "Grok CLI permissions are global-only; use --global to sync ~/.grok/config.toml";
-
 // Grok stores the coarse permission toggle as `[ui] permission_mode` in
 // config.toml (kept as a backward-compatible fallback) and the fine-grained
 // rules as Claude-style entries under the `[permission]` allow/deny/ask arrays.
@@ -155,9 +152,12 @@ function parseGrokEntry(entry: string): { category: string; pattern: string } | 
  * while any `deny`/`ask` rule exists, so it never contradicts the fine-grained
  * arrays).
  *
- * This surface is **global only** — the adapter syncs the user-level
- * `~/.grok/config.toml`. (Grok also supports a project-scoped `[permission]`
- * file; project scope is not modeled here.) The shared config is merged in
+ * Both scopes are supported: the adapter syncs the project-level
+ * `./.grok/config.toml` (default) and the user-level `~/.grok/config.toml`
+ * (with `--global`). Grok documents that "Project configs are limited to MCP
+ * servers, plugins, and permission rules, not full user configs"
+ * (https://docs.x.ai/build/settings), so the fine-grained `[permission]` rules
+ * are valid in the project config too. The shared config is merged in
  * place: rulesync owns the `[permission]` `allow`/`deny`/`ask` entries for the
  * tools it models and the `[ui] permission_mode` value, while every other key
  * (e.g. `[mcp_servers]`, `[permission] rules`, `[sandbox]`) and any user-authored
@@ -177,6 +177,9 @@ export class GrokcliPermissions extends ToolPermissions {
   }
 
   static getSettablePaths(_options?: { global?: boolean }): ToolPermissionsSettablePaths {
+    // Both project (./.grok/config.toml) and global (~/.grok/config.toml) use
+    // the same relative path; the scope is resolved by the outputRoot passed to
+    // the processor (mirrors GrokcliMcp.getSettablePaths).
     return {
       relativeDirPath: GROKCLI_DIR,
       relativeFilePath: GROKCLI_CONFIG_FILE_NAME,
@@ -188,9 +191,6 @@ export class GrokcliPermissions extends ToolPermissions {
     validate = true,
     global = false,
   }: ToolPermissionsFromFileParams): Promise<GrokcliPermissions> {
-    if (!global) {
-      throw new Error(GROKCLI_GLOBAL_ONLY_MESSAGE);
-    }
     const paths = GrokcliPermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? "";
@@ -200,7 +200,7 @@ export class GrokcliPermissions extends ToolPermissions {
       relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
-      global: true,
+      global,
     });
   }
 
@@ -210,13 +210,10 @@ export class GrokcliPermissions extends ToolPermissions {
     logger,
     global = false,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<GrokcliPermissions> {
-    if (!global) {
-      throw new Error(GROKCLI_GLOBAL_ONLY_MESSAGE);
-    }
     const paths = GrokcliPermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     // Read without initializing so a dry-run/check does not create the user's
-    // global config.toml as a side effect (mirrors the Goose adapter).
+    // config.toml as a side effect (mirrors the Goose adapter).
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
 
     let parsed: smolToml.TomlTable;
@@ -266,7 +263,7 @@ export class GrokcliPermissions extends ToolPermissions {
         filePath,
       }),
       validate: true,
-      global: true,
+      global,
     });
   }
 
