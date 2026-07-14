@@ -362,6 +362,34 @@ describe("QwencodePermissions", () => {
       expect(json.qwencode).toEqual({ autoMode });
     });
 
+    it("replaces an existing settings.json autoMode with the override wholesale (issue #2210)", async () => {
+      const settingsDir = join(testDir, ".qwen");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({
+          permissions: { autoMode: { hints: { allow: ["Old hint"] }, classifyAllShell: false } },
+        }),
+      );
+
+      const overrideAutoMode = { hints: { allow: ["New hint"] }, classifyAllShell: true };
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            qwencode: { autoMode: overrideAutoMode },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      // The override replaces the existing autoMode wholesale (no deep merge).
+      expect(content.permissions.autoMode).toEqual(overrideAutoMode);
+    });
+
     it("round-trips permissions.autoMode through the qwencode override (issue #2210)", async () => {
       const autoMode = {
         hints: {
