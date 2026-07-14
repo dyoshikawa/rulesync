@@ -136,7 +136,7 @@ NODE_ENV = "development"
       }).not.toThrow();
     });
 
-    it("should throw error for invalid TOML content", () => {
+    it("should throw a path-annotated error for invalid TOML content", () => {
       const invalidTomlContent = "[invalid toml\nkey = ";
 
       expect(() => {
@@ -145,7 +145,7 @@ NODE_ENV = "development"
           relativeFilePath: "config.toml",
           fileContent: invalidTomlContent,
         });
-      }).toThrow();
+      }).toThrow(/Failed to parse Codex CLI config at .*config\.toml/);
     });
 
     it("should preserve existing TOML content structure", () => {
@@ -271,6 +271,21 @@ args = ["server.js"]
   });
 
   describe("fromRulesyncMcp", () => {
+    it("should throw a path-annotated error when the existing config.toml is malformed", async () => {
+      await ensureDir(join(testDir, ".codex"));
+      await writeFileContent(join(testDir, ".codex/config.toml"), "[invalid toml\nkey = ");
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { fs: { command: "node" } } }),
+      });
+
+      await expect(
+        CodexcliMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, global: false }),
+      ).rejects.toThrow(/Failed to parse existing Codex CLI config at .*config\.toml/);
+    });
+
     it("should create instance from RulesyncMcp in local mode with new file", async () => {
       const jsonData = {
         mcpServers: {

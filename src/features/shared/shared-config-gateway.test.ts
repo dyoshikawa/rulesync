@@ -24,6 +24,7 @@ describe("parseSharedConfig", () => {
     expect(parseSharedConfig({ format: "yaml", fileContent: "  \n" })).toEqual({});
     expect(parseSharedConfig({ format: "json", fileContent: "" })).toEqual({});
     expect(parseSharedConfig({ format: "jsonc", fileContent: "" })).toEqual({});
+    expect(parseSharedConfig({ format: "toml", fileContent: "  \n" })).toEqual({});
   });
 
   it("parses each format into a plain document", () => {
@@ -34,6 +35,9 @@ describe("parseSharedConfig", () => {
     expect(
       parseSharedConfig({ format: "jsonc", fileContent: '{\n  // comment\n  "a": 1,\n}' }),
     ).toEqual({ a: 1 });
+    expect(parseSharedConfig({ format: "toml", fileContent: 'model = "hermes-3"' })).toEqual({
+      model: "hermes-3",
+    });
   });
 
   it("coerces a non-mapping root to an empty document by default", () => {
@@ -111,6 +115,13 @@ describe("stringifySharedConfig", () => {
 
   it("emits 2-space JSON without a trailing newline", () => {
     expect(stringifySharedConfig({ format: "json", document: { a: 1 } })).toBe('{\n  "a": 1\n}');
+  });
+
+  it("emits TOML matching smol-toml's stringify shape", () => {
+    const toml = stringifySharedConfig({ format: "toml", document: { model: "hermes-3" } });
+    expect(toml).toBe('model = "hermes-3"\n');
+    // Round-trips back through the toml codec.
+    expect(parseSharedConfig({ format: "toml", fileContent: toml })).toEqual({ model: "hermes-3" });
   });
 });
 
@@ -206,6 +217,21 @@ describe("applySharedConfigPatch", () => {
     expect(parseSharedConfig({ format: "yaml", fileContent: result })).toEqual({
       model: "hermes-large",
       hooks: { pre_tool_call: [] },
+    });
+  });
+
+  it("retracts an owned key whose patch value is undefined (replace-owned-keys)", () => {
+    // A feature retracts a key it owns by setting that key to `undefined` in the
+    // patch (e.g. a regeneration that yields no entries). The key is removed from
+    // the merged document, while unowned user keys are preserved untouched.
+    const result = applySharedConfigPatch({
+      fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
+      feature: "hooks",
+      existingContent: "model: hermes-large\nhooks:\n  stale: true\n",
+      patch: { hooks: undefined },
+    });
+    expect(parseSharedConfig({ format: "yaml", fileContent: result })).toEqual({
+      model: "hermes-large",
     });
   });
 
