@@ -442,11 +442,13 @@ export type KiroPermissionsOverride = z.infer<typeof KiroPermissionsOverrideSche
 
 /**
  * Codex CLI's approval-workflow policy. Serialized as a kebab-case string in
- * `.codex/config.toml`. The granular table form (`{ granular = { … } }`) is
- * modeled separately in the override union.
+ * `.codex/config.toml`. `on-failure` is a legacy alias for `on-request` that
+ * Codex still accepts, so it is included so existing configs round-trip. The
+ * granular table form (`{ granular = { … } }`) is modeled separately in the
+ * override union.
  * @see https://learn.chatgpt.com/docs/config-file/config-reference
  */
-const CodexApprovalPolicySchema = z.enum(["untrusted", "on-request", "never"]);
+const CodexApprovalPolicySchema = z.enum(["untrusted", "on-request", "on-failure", "never"]);
 
 /**
  * Codex CLI's classic sandbox mode. Serialized as a kebab-case string in
@@ -472,9 +474,9 @@ const CodexApprovalsReviewerSchema = z.enum(["user", "auto_review", "guardian_su
  * override whose fields are written verbatim as top-level `.codex/config.toml`
  * keys (the override wins per key; existing sibling keys the user set directly
  * are preserved):
- * - `approval_policy` — `untrusted` | `on-request` | `never`, or a
- *   `{ granular = { … } }` table (kept verbatim; the granular schema has
- *   required fields that are brittle to model as typed keys).
+ * - `approval_policy` — `untrusted` | `on-request` (legacy alias `on-failure`) |
+ *   `never`, or a `{ granular = { … } }` table (kept verbatim; the granular
+ *   schema has required fields that are brittle to model as typed keys).
  * - `sandbox_mode` — `read-only` | `workspace-write` | `danger-full-access`,
  *   with the sibling `sandbox_workspace_write` table (`network_access`,
  *   `writable_roots`, …).

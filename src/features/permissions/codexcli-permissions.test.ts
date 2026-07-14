@@ -1312,6 +1312,8 @@ command = "node"
       const cases = [
         { approval_policy: "untrusted" },
         { approval_policy: "on-request" },
+        // `on-failure` is a legacy alias Codex still accepts for `on-request`.
+        { approval_policy: "on-failure" },
         { approval_policy: "never" },
         // The granular table form still round-trips through the enum union.
         { approval_policy: { granular: { sandbox_approval: true } } },
@@ -1339,7 +1341,7 @@ command = "node"
 
     it("rejects out-of-range enum values for approval_policy / sandbox_mode / approvals_reviewer", () => {
       const cases = [
-        { approval_policy: "on-failure" },
+        { approval_policy: "on-success" },
         { sandbox_mode: "read-write" },
         { approvals_reviewer: "reviewer" },
       ];
