@@ -123,6 +123,11 @@ const QWEN_OVERRIDE_TOOLS_KEYS = [
   "disabled",
 ] as const;
 const QWEN_OVERRIDE_SECURITY_KEYS = ["folderTrust"] as const;
+// The `permissions` sub-keys the `qwencode` override authors. `autoMode` (the
+// Auto Mode classifier config) is a sibling of `allow`/`ask`/`deny` under
+// `permissions` with no canonical category, so it round-trips through the
+// override rather than the shared allow/ask/deny arrays.
+const QWEN_OVERRIDE_PERMISSIONS_KEYS = ["autoMode"] as const;
 
 function asPlainRecord(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -263,6 +268,16 @@ export class QwencodePermissions extends ToolPermissions {
       delete mergedPermissions.deny;
     }
 
+    const override = config.qwencode;
+
+    // Overlay the Qwen-scoped override's `permissions.autoMode` (the Auto Mode
+    // classifier config). It has no canonical category and would otherwise be
+    // dropped on round-trip. Replaces the existing `autoMode` wholesale, matching
+    // how the override's nested objects (e.g. `security.folderTrust`) behave.
+    if (override?.autoMode !== undefined) {
+      mergedPermissions.autoMode = override.autoMode;
+    }
+
     const patch: Record<string, unknown> = { permissions: mergedPermissions };
 
     // Overlay the Qwen-scoped override's `tools`/`security` groups (autonomy and
@@ -270,7 +285,6 @@ export class QwencodePermissions extends ToolPermissions {
     // unrelated sibling key (e.g. `tools.core`) is preserved while an override
     // key wins; a nested object the override supplies (e.g. `security.folderTrust`)
     // replaces the existing one wholesale rather than being deep-merged.
-    const override = config.qwencode;
     if (override?.tools !== undefined) {
       patch.tools = { ...asPlainRecord(settings.tools), ...asPlainRecord(override.tools) };
     }
@@ -325,9 +339,16 @@ export class QwencodePermissions extends ToolPermissions {
     // have no canonical category and would otherwise be dropped on round-trip.
     const overrideTools = pickQwenOverrideKeys(settings.tools, QWEN_OVERRIDE_TOOLS_KEYS);
     const overrideSecurity = pickQwenOverrideKeys(settings.security, QWEN_OVERRIDE_SECURITY_KEYS);
+    const overridePermissions = pickQwenOverrideKeys(
+      settings.permissions,
+      QWEN_OVERRIDE_PERMISSIONS_KEYS,
+    );
     const qwencodeOverride: Record<string, unknown> = {};
     if (Object.keys(overrideTools).length > 0) qwencodeOverride.tools = overrideTools;
     if (Object.keys(overrideSecurity).length > 0) qwencodeOverride.security = overrideSecurity;
+    if (overridePermissions.autoMode !== undefined) {
+      qwencodeOverride.autoMode = overridePermissions.autoMode;
+    }
 
     const result: Record<string, unknown> = { ...config };
     if (Object.keys(qwencodeOverride).length > 0) {

@@ -160,18 +160,27 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * Tool-scoped override block for Qwen Code. Qwen's `settings.json` exposes
  * autonomy/sandbox controls with no canonical permission category — under
  * `tools` (`approvalMode` = plan/default/auto-edit/auto/yolo, `autoAccept`,
- * `sandbox`, `sandboxImage`, `disabled`) and `security` (`folderTrust`). Fields
- * placed here are merged into the matching `settings.json` group and emitted
- * only for Qwen, while the shared `permission` block continues to drive the
- * `permissions.allow`/`ask`/`deny` arrays. Kept `looseObject` (verbatim
- * passthrough) so any current or future `tools`/`security` key can be authored.
+ * `sandbox`, `sandboxImage`, `disabled`) and `security` (`folderTrust`). It also
+ * exposes `permissions.autoMode` (the Auto Mode classifier config:
+ * `hints.{allow,softDeny,hardDeny}`, `environment`, `classifyAllShell` — see
+ * https://qwenlm.github.io/qwen-code-docs/en/users/features/auto-mode/), which
+ * likewise has no canonical category. Fields placed here are merged into the
+ * matching `settings.json` group and emitted only for Qwen, while the shared
+ * `permission` block continues to drive the `permissions.allow`/`ask`/`deny`
+ * arrays. Kept `looseObject` (verbatim passthrough) so any current or future
+ * `tools`/`security`/`autoMode` key can be authored.
  *
  * @example
- * { "tools": { "approvalMode": "auto-edit" }, "security": { "folderTrust": { "enabled": true } } }
+ * {
+ *   "tools": { "approvalMode": "auto-edit" },
+ *   "security": { "folderTrust": { "enabled": true } },
+ *   "autoMode": { "hints": { "allow": ["Running tests"] }, "classifyAllShell": true }
+ * }
  */
 const QwencodePermissionsOverrideSchema = z.looseObject({
   tools: z.optional(z.looseObject({})),
   security: z.optional(z.looseObject({})),
+  autoMode: z.optional(z.looseObject({})),
 });
 export type QwencodePermissionsOverride = z.infer<typeof QwencodePermissionsOverrideSchema>;
 

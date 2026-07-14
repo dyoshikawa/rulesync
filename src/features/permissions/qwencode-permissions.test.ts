@@ -314,6 +314,86 @@ describe("QwencodePermissions", () => {
 
       expect(instance.toRulesyncPermissions().getJson().qwencode).toBeUndefined();
     });
+
+    it("merges permissions.autoMode from the qwencode override into settings.json (issue #2210)", async () => {
+      const autoMode = {
+        hints: {
+          allow: ["Running tests"],
+          softDeny: ["Editing settings"],
+          hardDeny: ["Modifying ~/.ssh"],
+        },
+        environment: ["Private monorepo"],
+        classifyAllShell: true,
+      };
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            qwencode: { autoMode },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      // autoMode is emitted alongside the shared allow/ask/deny arrays.
+      expect(content.permissions.autoMode).toEqual(autoMode);
+      expect(content.permissions.allow).toContain("Bash(git *)");
+    });
+
+    it("routes permissions.autoMode back into the qwencode override on import (issue #2210)", () => {
+      const autoMode = {
+        hints: { allow: ["Running tests"] },
+        classifyAllShell: true,
+      };
+      const instance = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          permissions: { allow: ["Bash(git *)"], autoMode },
+        }),
+      });
+
+      const json = instance.toRulesyncPermissions().getJson();
+      // allow/ask/deny stay in the shared block; autoMode moves under the override.
+      expect(json.permission.bash?.["git *"]).toBe("allow");
+      expect(json.qwencode).toEqual({ autoMode });
+    });
+
+    it("round-trips permissions.autoMode through the qwencode override (issue #2210)", async () => {
+      const autoMode = {
+        hints: {
+          allow: ["Running tests"],
+          softDeny: ["Editing settings"],
+          hardDeny: ["Modifying ~/.ssh"],
+        },
+        environment: ["Private monorepo"],
+        classifyAllShell: true,
+      };
+      const generated = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            qwencode: { autoMode },
+          }),
+        }),
+      });
+
+      const settingsDir = join(testDir, ".qwen");
+      await ensureDir(settingsDir);
+      await writeFileContent(join(settingsDir, "settings.json"), generated.getFileContent());
+
+      const imported = await QwencodePermissions.fromFile({ outputRoot: testDir });
+      const json = imported.toRulesyncPermissions().getJson();
+
+      expect(json.permission.bash?.["git *"]).toBe("allow");
+      expect(json.qwencode).toEqual({ autoMode });
+    });
   });
 
   describe("validate()", () => {
