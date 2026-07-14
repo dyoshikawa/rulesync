@@ -50,6 +50,43 @@ function resolveHermesTimeout(config: Record<string, unknown>): number | undefin
 }
 
 /**
+ * Copies the advanced Hermes-recognized per-server fields that have no canonical
+ * alias — `auth` (`oauth` for OAuth 2.1/PKCE), mTLS `client_cert` (string PEM
+ * path, or `[cert, key]`/`[cert, key, password]` list) and `client_key`,
+ * `connect_timeout` (seconds), and `supports_parallel_tool_calls` — verbatim
+ * from `source` to `target`. Field names are identical on both sides (the
+ * canonical `McpServerSchema` is a `looseObject`), so this serves export and
+ * import alike. See the Hermes mcp-config-reference.
+ */
+function copyHermesAdvancedFields(
+  source: Record<string, unknown>,
+  target: Record<string, unknown>,
+): void {
+  if (typeof source.auth === "string") target.auth = source.auth;
+  if (typeof source.client_cert === "string" || isStringArray(source.client_cert)) {
+    target.client_cert = source.client_cert;
+  }
+  if (typeof source.client_key === "string") target.client_key = source.client_key;
+  if (typeof source.connect_timeout === "number") target.connect_timeout = source.connect_timeout;
+  if (typeof source.supports_parallel_tool_calls === "boolean") {
+    target.supports_parallel_tool_calls = source.supports_parallel_tool_calls;
+  }
+}
+
+/**
+ * Copies Hermes's boolean `prompts`/`resources` capability toggles (which have
+ * no canonical alias) verbatim from a source `tools` block to a target `tools`
+ * block. Used in both directions.
+ */
+function copyHermesToolCapabilities(
+  sourceTools: Record<string, unknown>,
+  targetTools: Record<string, unknown>,
+): void {
+  if (typeof sourceTools.prompts === "boolean") targetTools.prompts = sourceTools.prompts;
+  if (typeof sourceTools.resources === "boolean") targetTools.resources = sourceTools.resources;
+}
+
+/**
  * Converts a single rulesync canonical MCP server into a Hermes `mcp_servers:` entry.
  *
  * Hermes is close to the MCP spec but not identical: `command` must be a single
@@ -89,13 +126,19 @@ function convertServerToHermes(config: Record<string, unknown>): Record<string, 
   const timeout = resolveHermesTimeout(config);
   if (timeout !== undefined) out.timeout = timeout;
 
+  // Advanced Hermes-recognized per-server fields (auth/mTLS/timeout/parallel).
+  copyHermesAdvancedFields(config, out);
+
   // Per-server selective tool loading. Canonical `enabledTools`/`disabledTools`
   // map to Hermes's `tools: { include, exclude }` block (include = whitelist,
   // exclude = denylist; see hermes-agent `apps/desktop/src/lib/mcp-tool-filter.ts`
-  // and `tools/mcp_tool.py`'s `_register_server_tools`).
+  // and `tools/mcp_tool.py`'s `_register_server_tools`). Hermes's boolean
+  // `tools.prompts`/`tools.resources` capability toggles have no canonical alias
+  // and pass through verbatim from the canonical `tools` block.
   const tools: Record<string, unknown> = {};
   if (isStringArray(config.enabledTools)) tools.include = config.enabledTools;
   if (isStringArray(config.disabledTools)) tools.exclude = config.disabledTools;
+  if (isRecord(config.tools)) copyHermesToolCapabilities(config.tools, tools);
   if (Object.keys(tools).length > 0) out.tools = tools;
 
   return out;
@@ -150,9 +193,17 @@ function convertFromHermesFormat(mcpServers: Record<string, unknown>): McpServer
     if (isPlainObject(config.headers)) server.headers = omitPrototypePollutionKeys(config.headers);
     if (config.enabled === false) server.disabled = true;
     if (typeof config.timeout === "number") server.networkTimeout = config.timeout;
+    // Advanced Hermes-recognized fields with no canonical alias round-trip
+    // verbatim (see convertServerToHermes).
+    copyHermesAdvancedFields(config, server);
     if (isRecord(config.tools)) {
       if (isStringArray(config.tools.include)) server.enabledTools = config.tools.include;
       if (isStringArray(config.tools.exclude)) server.disabledTools = config.tools.exclude;
+      // `tools.prompts`/`tools.resources` have no canonical alias, so preserve
+      // them under a canonical `tools` block for round-trip.
+      const toolsPassthrough: Record<string, unknown> = {};
+      copyHermesToolCapabilities(config.tools, toolsPassthrough);
+      if (Object.keys(toolsPassthrough).length > 0) server.tools = toolsPassthrough;
     }
 
     result[name] = server;
