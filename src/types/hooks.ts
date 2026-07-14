@@ -422,7 +422,7 @@ export const ANTIGRAVITY_HOOK_EVENTS: readonly HookEvent[] = [
  * Hook events supported by AugmentCode (Auggie CLI).
  * Auggie mirrors Claude Code's lifecycle hooks but exposes a smaller set:
  * PreToolUse / PostToolUse (tool events, matcher-aware) plus the
- * SessionStart / SessionEnd / Stop session events (no matcher).
+ * SessionStart / SessionEnd / Stop / Notification session events (no matcher).
  * @see https://docs.augmentcode.com/cli/hooks
  */
 export const AUGMENTCODE_HOOK_EVENTS: readonly HookEvent[] = [
@@ -431,6 +431,7 @@ export const AUGMENTCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
   "sessionEnd",
   "stop",
+  "notification",
 ];
 
 /**
@@ -708,6 +709,7 @@ export const CANONICAL_TO_AUGMENTCODE_EVENT_NAMES: Record<string, string> = {
   sessionStart: "SessionStart",
   sessionEnd: "SessionEnd",
   stop: "Stop",
+  notification: "Notification",
 };
 
 /**

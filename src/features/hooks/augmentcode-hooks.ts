@@ -28,12 +28,13 @@ import {
 } from "./tool-hooks.js";
 
 // Auggie only attaches a `matcher` to the tool events; the session lifecycle
-// events (SessionStart / SessionEnd / Stop) never carry one. See
+// events (SessionStart / SessionEnd / Stop / Notification) never carry one. See
 // https://docs.augmentcode.com/cli/hooks
 const AUGMENTCODE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
   "sessionStart",
   "sessionEnd",
   "stop",
+  "notification",
 ]);
 
 // `projectDirVar` is intentionally empty: Auggie exposes `AUGMENT_PROJECT_DIR`
