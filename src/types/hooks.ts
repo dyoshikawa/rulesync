@@ -548,8 +548,10 @@ export const REASONIX_HOOK_EVENTS: readonly HookEvent[] = [
  * `SessionStart`, `SessionEnd`, `UserPromptSubmit` ← `beforeSubmitPrompt`,
  * `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionDenied`,
  * `Stop`, `StopFailure`, `Notification`, `SubagentStart`, `SubagentStop`,
- * `PreCompact`, `PostCompact`. Only `PreToolUse` carries a `matcher` (a regex
- * tested against the tool name); every other event is matcher-less.
+ * `PreCompact`, `PostCompact`. A `matcher` (a regex tested against the tool
+ * name) is meaningful only on the tool-name events (`PreToolUse`, `PostToolUse`,
+ * `PostToolUseFailure`, `PermissionDenied`), matching Claude Code's semantics;
+ * the remaining lifecycle events are matcher-less.
  * @see https://docs.x.ai/build/features/hooks
  */
 export const GROKCLI_HOOK_EVENTS: readonly HookEvent[] = [

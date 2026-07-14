@@ -25,18 +25,21 @@ import {
 /**
  * Grok CLI hook events that have no `matcher` field.
  *
- * Grok tests `matcher` (a regex) against the tool name, which is only
- * meaningful for `PreToolUse`. Every other documented event is matcher-less;
- * any matcher defined on them is dropped with a warning during export.
+ * Grok tests `matcher` (a regex) against the tool name — verbatim: "matcher is
+ * a regular expression tested against the tool name … omit it to match
+ * everything." The docs don't enumerate matcher support per event, but since
+ * Grok is Claude-Code-compatible (it also reads `.claude/settings.json`), a
+ * matcher is only meaningful on the events that carry a tool name in their
+ * context: `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, and
+ * `PermissionDenied`. The remaining session/turn/notification/subagent/
+ * compaction events are matcher-less; any matcher defined on them is dropped
+ * with a warning during export (mirroring `CLAUDE_NO_MATCHER_EVENTS`).
  * @see https://docs.x.ai/build/features/hooks
  */
 const GROKCLI_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
   "sessionStart",
   "sessionEnd",
   "beforeSubmitPrompt",
-  "postToolUse",
-  "postToolUseFailure",
-  "permissionDenied",
   "stop",
   "stopFailure",
   "notification",

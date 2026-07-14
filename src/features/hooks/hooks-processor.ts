@@ -482,7 +482,8 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // Grok CLI (xAI Grok Build) hooks live in a standalone, Claude-Code-
       // compatible JSON file: `.grok/hooks/rulesync.json` (project) /
       // `~/.grok/hooks/rulesync.json` (global). All 14 documented events map 1:1
-      // onto existing canonical arms; only PreToolUse honors a `matcher`.
+      // onto existing canonical arms; a `matcher` is honored on the tool-name
+      // events (PreToolUse/PostToolUse/PostToolUseFailure/PermissionDenied).
       // Reference: https://docs.x.ai/build/features/hooks
       class: GrokcliHooks,
       meta: {
@@ -494,8 +495,8 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // Grok also supports `http` hooks natively, but the shared Claude-style
       // converter only round-trips `command` hooks.
       supportedHookTypes: ["command"],
-      // Only PreToolUse honors `matcher`; the adapter drops it (with a warning)
-      // on every other event.
+      // Tool-name events honor `matcher`; the adapter drops it (with a warning)
+      // on the matcher-less lifecycle events.
       supportsMatcher: true,
     },
   ],

@@ -225,9 +225,10 @@ describe("GrokcliHooks", () => {
           sessionEnd: [{ type: "command", command: "end.sh" }],
           beforeSubmitPrompt: [{ type: "command", command: "prompt.sh" }],
           preToolUse: [{ type: "command", command: "tool.sh", matcher: "exec" }],
-          postToolUse: [{ type: "command", command: "after.sh" }],
-          postToolUseFailure: [{ type: "command", command: "fail.sh" }],
-          permissionDenied: [{ type: "command", command: "denied.sh" }],
+          // matcher must survive the round-trip on the tool-name events too.
+          postToolUse: [{ type: "command", command: "after.sh", matcher: "Write" }],
+          postToolUseFailure: [{ type: "command", command: "fail.sh", matcher: "Bash" }],
+          permissionDenied: [{ type: "command", command: "denied.sh", matcher: "Edit" }],
           stop: [{ type: "command", command: "stop.sh" }],
           stopFailure: [{ type: "command", command: "stop-failure.sh" }],
           notification: [{ type: "command", command: "notify.sh" }],
