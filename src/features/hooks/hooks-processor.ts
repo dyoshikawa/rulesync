@@ -14,6 +14,7 @@ import {
   DEVIN_HOOK_EVENTS,
   FACTORYDROID_HOOK_EVENTS,
   GOOSE_HOOK_EVENTS,
+  GROKCLI_HOOK_EVENTS,
   HERMESAGENT_HOOK_EVENTS,
   JUNIE_HOOK_EVENTS,
   KILO_HOOK_EVENTS,
@@ -43,6 +44,7 @@ import { DeepagentsHooks } from "./deepagents-hooks.js";
 import { DevinHooks } from "./devin-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
 import { GooseHooks } from "./goose-hooks.js";
+import { GrokcliHooks } from "./grokcli-hooks.js";
 import { HermesagentHooks } from "./hermesagent-hooks.js";
 import { JunieHooks } from "./junie-hooks.js";
 import { KiloHooks } from "./kilo-hooks.js";
@@ -471,6 +473,30 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedHookTypes: ["command"],
       // Only PreToolUse/PostToolUse honor `match`; the adapter itself drops it
       // (with a warning) on UserPromptSubmit/Stop.
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "grokcli",
+    {
+      // Grok CLI (xAI Grok Build) hooks live in a standalone, Claude-Code-
+      // compatible JSON file: `.grok/hooks/rulesync.json` (project) /
+      // `~/.grok/hooks/rulesync.json` (global). All 14 documented events map 1:1
+      // onto existing canonical arms; a `matcher` is honored on the tool-name
+      // events (PreToolUse/PostToolUse/PostToolUseFailure/PermissionDenied).
+      // Reference: https://docs.x.ai/build/features/hooks
+      class: GrokcliHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: GROKCLI_HOOK_EVENTS,
+      // Grok also supports `http` hooks natively, but the shared Claude-style
+      // converter only round-trips `command` hooks.
+      supportedHookTypes: ["command"],
+      // Tool-name events honor `matcher`; the adapter drops it (with a warning)
+      // on the matcher-less lifecycle events.
       supportsMatcher: true,
     },
   ],
