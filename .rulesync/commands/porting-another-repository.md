@@ -30,7 +30,7 @@ All artifacts in this run go under `${out}/`. Do not recompute the timestamp per
 
 ## Step 1: Analyze the Source (This Repository)
 
-Understand exactly what is being ported. Prefer Serena MCP symbol tools (`mcp__serena__get_symbols_overview`, `mcp__serena__find_symbol`, `mcp__serena__find_referencing_symbols`) over reading whole files.
+Understand exactly what is being ported. Prefer targeted symbol and search tools over reading whole files.
 
 Identify, for the requested `scope`:
 
@@ -45,7 +45,7 @@ Write the result to `${out}/01-source-analysis.md`.
 
 Understand the target's conventions so the port fits in naturally.
 
-- If `target_repo` is a local path, inspect it directly (Serena/grep/read).
+- If `target_repo` is a local path, inspect it directly (grep/read).
 - If it is `owner/repo` or a URL, use `gh repo view`, `gh api repos/<owner/repo>/contents/<path>`, and the deepwiki MCP (`mcp__deepwiki__ask_question`, `mcp__deepwiki__read_wiki_contents`) to learn its structure.
 
 Capture:

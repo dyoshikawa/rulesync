@@ -47,7 +47,7 @@ Ground the proposal in primary sources before writing anything opinionated.
 If the proposal implies work on our side (e.g., a new target, a new integrator, a new feature), inspect this repository's state so the draft is accurate:
 
 - Which features / directories / schemas exist here and will need to map to the target's concepts?
-- Prefer Serena MCP symbol tools (`mcp__serena__find_symbol`, `mcp__serena__get_symbols_overview`) over reading whole files.
+- Prefer targeted symbol and search tools over reading whole files.
 - If the proposal includes popularity / adoption claims, verify the numbers before writing them down. For npm downloads: `curl -s "https://api.npmjs.org/downloads/point/<start>:<end>/<package>"`. For stars/forks: `gh repo view <owner/repo> --json stargazerCount,forkCount`.
 
 ## Step 4: Align with the User on Scope and Tone

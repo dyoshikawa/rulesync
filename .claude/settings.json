@@ -11,9 +11,7 @@
       "Bash(rm -rf ~/**)",
       "Read(.env*)"
     ],
-    "allow": [
-      "mcp__serena"
-    ],
+    "allow": [],
     "defaultMode": "auto"
   },
   "statusLine": {

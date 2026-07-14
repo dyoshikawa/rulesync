@@ -70,8 +70,8 @@ avoid overload; launch the next wave as earlier ones finish.
     project/global scope, new hook events, new MCP transports, metadata fields,
     format changes, or deprecated surfaces that rulesync still emits.
   - Ground every claim in rulesync's actual implementation. Inspect the
-    relevant `src/**` adapters and processor gates (prefer the Serena MCP
-    symbol tools over reading whole files), and validate the generated output
+    relevant `src/**` adapters and processor gates (prefer targeted symbol
+    and search tools over reading whole files), and validate the generated output
     with a dry-run:
 
     ```bash

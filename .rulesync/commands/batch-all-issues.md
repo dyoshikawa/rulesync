@@ -82,8 +82,8 @@ in `/resolve-scrap-issues` Step 4. Combine three angles:
   non-trivial claims against at least one primary source. Capture exact URLs and
   version numbers so they can be cited. Run independent searches in parallel.
 - **Codebase inspection:** Check whether the issue is already resolved,
-  partially handled, or contradicted by the current code. Prefer the Serena MCP
-  symbol tools over reading whole files. Apply the project rules in `CLAUDE.md`,
+  partially handled, or contradicted by the current code. Prefer targeted
+  symbol and search tools over reading whole files. Apply the project rules in `CLAUDE.md`,
   `.claude/rules/**`, and `docs/**`.
 - **Issue discussion:** Honor any maintainer decision already recorded in the
   comments (e.g., "won't do", "superseded by #N").

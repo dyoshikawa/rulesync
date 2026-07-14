@@ -51,7 +51,7 @@ With the web findings in hand, investigate the relevant parts of this repository
 - How do existing, analogous features handle the same concerns (scope, frontmatter, generated output, tests)?
 - Which project-specific rules apply (see `CLAUDE.md`, `.claude/rules/**`, `docs/**`)?
 
-Prefer the Serena MCP symbol tools over reading whole files.
+Prefer targeted symbol and search tools over reading whole files.
 
 ## Step 4: Synthesize the Specification
 
