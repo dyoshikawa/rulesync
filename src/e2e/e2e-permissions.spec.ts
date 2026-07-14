@@ -705,6 +705,10 @@ describe("E2E: permissions", () => {
     expect(permission.allow).toContain("Bash(git *)");
     expect(permission.deny).toContain("Bash(rm *)");
     expect(permission.ask).toContain("Read(src/**)");
+    // The coarse [ui] permission_mode is a user-level UI toggle, so it is not
+    // written in project scope (Grok limits project configs to MCP servers,
+    // plugins, and permission rules).
+    expect(parsed.ui).toBeUndefined();
     // The MCP [mcp_servers] table (written by the MCP adapter) must survive.
     expect(toTable(toTable(parsed.mcp_servers).example).command).toBe("echo");
   });

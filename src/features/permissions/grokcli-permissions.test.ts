@@ -217,6 +217,9 @@ describe("GrokcliPermissions", () => {
       const permission = readPermission(permissions.getFileContent());
       expect(permission.allow).toEqual(["Bash(git *)"]);
       expect(permission.deny).toEqual(["Bash(rm *)"]);
+      // The coarse `[ui] permission_mode` UI toggle is a user-level setting, so
+      // it is not written in project scope.
+      expect(readMode(permissions.getFileContent())).toBeUndefined();
     });
   });
 

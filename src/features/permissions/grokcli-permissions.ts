@@ -150,16 +150,19 @@ function parseGrokEntry(entry: string): { category: string; pattern: string } | 
  * compatibility with older Grok versions: `always-approve` when the config is
  * pure-`allow`, otherwise `ask` (conservative — it is never `always-approve`
  * while any `deny`/`ask` rule exists, so it never contradicts the fine-grained
- * arrays).
+ * arrays). It is a user-level UI setting, so it is only written in global scope
+ * (see below).
  *
  * Both scopes are supported: the adapter syncs the project-level
  * `./.grok/config.toml` (default) and the user-level `~/.grok/config.toml`
  * (with `--global`). Grok documents that "Project configs are limited to MCP
  * servers, plugins, and permission rules, not full user configs"
- * (https://docs.x.ai/build/settings), so the fine-grained `[permission]` rules
- * are valid in the project config too. The shared config is merged in
+ * (https://docs.x.ai/build/settings), so the project config carries only the
+ * fine-grained `[permission]` rules; the coarse `[ui] permission_mode` UI toggle
+ * is written in global scope only. The shared config is merged in
  * place: rulesync owns the `[permission]` `allow`/`deny`/`ask` entries for the
- * tools it models and the `[ui] permission_mode` value, while every other key
+ * tools it models and (in global scope) the `[ui] permission_mode` value, while
+ * every other key
  * (e.g. `[mcp_servers]`, `[permission] rules`, `[sandbox]`) and any user-authored
  * entries for tools rulesync cannot model (e.g. `WebSearch`) are preserved. The
  * file is never deleted.
@@ -243,13 +246,20 @@ export class GrokcliPermissions extends ToolPermissions {
       ask: buckets.ask,
     };
 
-    // Coarse `[ui] permission_mode` fallback for older Grok versions.
-    const mode = deriveGrokPermissionMode(config);
-    const existingUi = isRecord(parsed[GROKCLI_UI_KEY]) ? parsed[GROKCLI_UI_KEY] : {};
-    const ui = {
-      ...existingUi,
-      [GROKCLI_PERMISSION_MODE_KEY]: mode,
-    };
+    // Coarse `[ui] permission_mode` fallback for older Grok versions. This is a
+    // user-level UI toggle, so it is only written to the global config: Grok
+    // documents that project configs are limited to MCP servers, plugins, and
+    // permission rules — not full user configs — so the fine-grained
+    // `[permission]` arrays are the only permission surface written in project
+    // scope. In global scope the `ui` key is patched alongside `permission`.
+    const uiPatch = global
+      ? {
+          [GROKCLI_UI_KEY]: {
+            ...(isRecord(parsed[GROKCLI_UI_KEY]) ? parsed[GROKCLI_UI_KEY] : {}),
+            [GROKCLI_PERMISSION_MODE_KEY]: deriveGrokPermissionMode(config),
+          },
+        }
+      : {};
 
     return new GrokcliPermissions({
       outputRoot,
@@ -259,7 +269,7 @@ export class GrokcliPermissions extends ToolPermissions {
         fileKey: sharedConfigFileKey(paths),
         feature: "permissions",
         existingContent,
-        patch: { [GROKCLI_PERMISSION_KEY]: permission, [GROKCLI_UI_KEY]: ui },
+        patch: { [GROKCLI_PERMISSION_KEY]: permission, ...uiPatch },
         filePath,
       }),
       validate: true,
@@ -303,6 +313,7 @@ export class GrokcliPermissions extends ToolPermissions {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolPermissionsForDeletionParams): GrokcliPermissions {
     return new GrokcliPermissions({
       outputRoot,
@@ -310,7 +321,7 @@ export class GrokcliPermissions extends ToolPermissions {
       relativeFilePath,
       fileContent: "",
       validate: false,
-      global: true,
+      global,
     });
   }
 }
