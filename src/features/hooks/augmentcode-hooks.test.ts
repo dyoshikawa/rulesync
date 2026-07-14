@@ -76,6 +76,41 @@ describe("AugmentcodeHooks", () => {
       expect(parsed.hooks.WorktreeCreate).toBeUndefined();
     });
 
+    it("should round-trip the Notification event as a matcher-less lifecycle event", async () => {
+      await ensureDir(join(testDir, ".augment"));
+      await writeFileContent(join(testDir, ".augment", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          notification: [{ type: "command", command: "notify.sh" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const augmentcodeHooks = await AugmentcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      // Emitted under AugmentCode's PascalCase `Notification` key with no matcher.
+      const parsed = JSON.parse(augmentcodeHooks.getFileContent());
+      expect(parsed.hooks.Notification).toEqual([
+        { hooks: [{ type: "command", command: "notify.sh" }] },
+      ]);
+
+      // And it maps back to the canonical `notification` event.
+      const canonical = JSON.parse(augmentcodeHooks.toRulesyncHooks().getFileContent());
+      expect(canonical.hooks).toEqual(config.hooks);
+    });
+
     it("should emit commands verbatim without a project-directory prefix", async () => {
       await ensureDir(join(testDir, ".augment"));
       await writeFileContent(join(testDir, ".augment", "settings.json"), JSON.stringify({}));
