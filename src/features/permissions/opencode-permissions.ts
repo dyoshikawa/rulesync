@@ -52,6 +52,33 @@ const CANONICAL_PERMISSION_CATEGORIES = new Set([
   "agent",
 ]);
 
+/**
+ * Translate between rulesync's canonical permission category names and
+ * OpenCode's native permission keys. OpenCode has no `agent` key — subagent
+ * launches are gated by the `task` key (see the documented key list at
+ * https://opencode.ai/docs/permissions/). Without this translation a canonical
+ * `agent: deny` would be written verbatim into `opencode.json` and silently
+ * ignored by OpenCode. Unknown names pass through unchanged.
+ */
+const CANONICAL_TO_OPENCODE_PERMISSION_KEYS: Record<string, string> = {
+  agent: "task",
+};
+
+const OPENCODE_TO_CANONICAL_PERMISSION_KEYS: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_OPENCODE_PERMISSION_KEYS).map(([canonical, opencode]) => [
+    opencode,
+    canonical,
+  ]),
+);
+
+function toOpencodePermissionKey(canonical: string): string {
+  return CANONICAL_TO_OPENCODE_PERMISSION_KEYS[canonical] ?? canonical;
+}
+
+function toCanonicalPermissionKey(opencodeKey: string): string {
+  return OPENCODE_TO_CANONICAL_PERMISSION_KEYS[opencodeKey] ?? opencodeKey;
+}
+
 function isSharedPermissionCategory(category: string): boolean {
   // `"*"` is OpenCode's all-tools key and carries a cross-tool meaning in the
   // canonical rulesync model (the string form `"permission": "allow"` normalizes
@@ -161,6 +188,14 @@ export class OpencodePermissions extends ToolPermissions {
     // replaces the shared entry without affecting other tools' outputs.
     const overridePermission = rulesyncJson.opencode?.permission ?? {};
 
+    // Translate canonical category names into OpenCode's native permission keys
+    // (`agent` → `task`) before emitting them, so subagent-launch gating is
+    // written under the key OpenCode actually reads.
+    const sharedPermission: Record<string, unknown> = {};
+    for (const [category, value] of Object.entries(rulesyncJson.permission ?? {})) {
+      sharedPermission[toOpencodePermissionKey(category)] = value;
+    }
+
     return new OpencodePermissions({
       outputRoot,
       relativeDirPath: basePaths.relativeDirPath,
@@ -169,7 +204,7 @@ export class OpencodePermissions extends ToolPermissions {
         fileKey: sharedConfigFileKey(basePaths),
         feature: "permissions",
         existingContent: fileContent ?? "",
-        patch: { permission: { ...rulesyncJson.permission, ...overridePermission } },
+        patch: { permission: { ...sharedPermission, ...overridePermission } },
         filePath: join(jsonDir, relativeFilePath),
       }),
       validate: true,
@@ -196,8 +231,12 @@ export class OpencodePermissions extends ToolPermissions {
     const shared: PermissionsConfig["permission"] = {};
     const overrideOnly: NonNullable<OpencodePermissionsOverride["permission"]> = {};
     for (const [category, value] of Object.entries(rawPermission)) {
-      if (isSharedPermissionCategory(category)) {
-        shared[category] = typeof value === "string" ? { "*": value } : value;
+      // Translate OpenCode's native permission keys back into canonical category
+      // names (`task` → `agent`) so subagent-launch gating lands in the shared
+      // block instead of being treated as an OpenCode-only override.
+      const canonicalCategory = toCanonicalPermissionKey(category);
+      if (isSharedPermissionCategory(canonicalCategory)) {
+        shared[canonicalCategory] = typeof value === "string" ? { "*": value } : value;
       } else {
         overrideOnly[category] = value;
       }

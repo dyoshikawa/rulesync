@@ -122,7 +122,6 @@ describe("OpencodePermissions", () => {
         permission: {
           bash: { "git *": "allow" },
           external_directory: "deny",
-          task: "ask",
         },
       }),
     );
@@ -136,8 +135,77 @@ describe("OpencodePermissions", () => {
     // OpenCode-only categories move under the override, preserving their shape.
     expect(rulesync.opencode?.permission).toEqual({
       external_directory: "deny",
-      task: "ask",
     });
+  });
+
+  it("should translate OpenCode's `task` key into the canonical `agent` category on import (issue #2230)", async () => {
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({
+        permission: {
+          bash: { "git *": "allow" },
+          task: "deny",
+        },
+      }),
+    );
+
+    const instance = await OpencodePermissions.fromFile({ outputRoot: testDir });
+    const rulesync = instance.toRulesyncPermissions().getJson();
+
+    // OpenCode's `task` key is the subagent-launch permission; it maps to the
+    // canonical `agent` category in the shared block (not the override).
+    expect(rulesync.permission.agent).toEqual({ "*": "deny" });
+    expect(rulesync.permission.task).toBeUndefined();
+    expect(rulesync.opencode).toBeUndefined();
+  });
+
+  it("should translate the canonical `agent` category into OpenCode's `task` key on export (issue #2230)", async () => {
+    await writeFileContent(join(testDir, "opencode.json"), JSON.stringify({ model: "x" }));
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          agent: { "*": "deny" },
+        },
+      }),
+    });
+
+    const instance = await OpencodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+    const json = JSON.parse(instance.getFileContent());
+
+    // The canonical `agent` category is written under OpenCode's real `task`
+    // key, and never leaks the non-existent `agent` key into opencode.json.
+    expect(json.permission.task).toEqual({ "*": "deny" });
+    expect(json.permission.agent).toBeUndefined();
+  });
+
+  it("should round-trip the canonical `agent`/OpenCode `task` category (issue #2230)", async () => {
+    await writeFileContent(join(testDir, "opencode.json"), JSON.stringify({}));
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { agent: { "*": "deny" } },
+      }),
+    });
+
+    const generated = await OpencodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+    await writeFileContent(join(testDir, "opencode.json"), generated.getFileContent());
+
+    const imported = await OpencodePermissions.fromFile({ outputRoot: testDir });
+    const rulesync = imported.toRulesyncPermissions().getJson();
+
+    expect(rulesync.permission).toEqual({ agent: { "*": "deny" } });
+    expect(rulesync.opencode).toBeUndefined();
   });
 
   it("should keep the all-tools wildcard category in the shared block on import", async () => {
