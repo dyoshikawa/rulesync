@@ -296,9 +296,10 @@ describe("E2E: hooks", () => {
   it("should generate reasonix hooks (.reasonix/settings.json, flat per-event arrays)", async () => {
     const testDir = getTestDir();
 
-    // Reasonix maps eight events; sessionStart ⇄ SessionStart and
-    // postModelInvocation ⇄ PostLLMCall are among them, while preCompact has no
-    // mapped Reasonix equivalent in rulesync's scoped surface and is dropped.
+    // Reasonix maps ten events; sessionStart ⇄ SessionStart,
+    // postModelInvocation ⇄ PostLLMCall, notification ⇄ Notification, and
+    // preCompact ⇄ PreCompact are among them, while beforeReadFile has no mapped
+    // Reasonix equivalent in rulesync's scoped surface and is dropped.
     const hooksContent = JSON.stringify(
       {
         version: 1,
@@ -307,7 +308,9 @@ describe("E2E: hooks", () => {
           stop: [{ command: ".rulesync/hooks/audit.sh" }],
           sessionStart: [{ command: ".rulesync/hooks/session-start.sh" }],
           postModelInvocation: [{ command: ".rulesync/hooks/post-llm.sh" }],
+          notification: [{ command: ".rulesync/hooks/notify.sh" }],
           preCompact: [{ command: ".rulesync/hooks/pre-compact.sh" }],
+          beforeReadFile: [{ command: ".rulesync/hooks/read.sh" }],
         },
       },
       null,
@@ -326,7 +329,9 @@ describe("E2E: hooks", () => {
     expect(parsed.hooks.Stop).toEqual([{ command: ".rulesync/hooks/audit.sh" }]);
     expect(parsed.hooks.SessionStart).toEqual([{ command: ".rulesync/hooks/session-start.sh" }]);
     expect(parsed.hooks.PostLLMCall).toEqual([{ command: ".rulesync/hooks/post-llm.sh" }]);
-    expect(parsed.hooks.PreCompact).toBeUndefined();
+    expect(parsed.hooks.Notification).toEqual([{ command: ".rulesync/hooks/notify.sh" }]);
+    expect(parsed.hooks.PreCompact).toEqual([{ command: ".rulesync/hooks/pre-compact.sh" }]);
+    expect(parsed.hooks.BeforeReadFile).toBeUndefined();
   });
 
   it("should import reasonix hooks from .reasonix/settings.json", async () => {
