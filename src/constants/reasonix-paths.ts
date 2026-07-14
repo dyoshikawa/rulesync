@@ -37,3 +37,10 @@ export const REASONIX_RULE_FILE_NAME = "REASONIX.md";
 // Skills: Anthropic-style directory-layout skills under `.reasonix/skills/`
 // (project) / `~/.reasonix/skills/` (global), each `<name>/SKILL.md`.
 export const REASONIX_SKILLS_DIR_PATH = join(REASONIX_DIR, "skills");
+
+// Subagents (Skill profiles with `runAs: subagent`) share the skills directory:
+// `.reasonix/skills/<name>/SKILL.md` (project) / `~/.reasonix/skills/<name>/SKILL.md`
+// (global). A subagent is just a Skill whose SKILL.md frontmatter declares
+// `invocation: manual` and `runAs: subagent`.
+// https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SUBAGENT_PROFILES.md
+export const REASONIX_SUBAGENTS_DIR_PATH = REASONIX_SKILLS_DIR_PATH;

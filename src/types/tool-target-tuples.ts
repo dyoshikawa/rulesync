@@ -149,6 +149,7 @@ export const subagentsProcessorToolTargetTuple = [
   "kiro-ide",
   "opencode",
   "qwencode",
+  "reasonix",
   "roo",
   "rovodev",
   "takt",

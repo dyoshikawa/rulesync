@@ -103,6 +103,10 @@ const subagentsGenerateTargets = [
     outputPath: join(".goose", "recipes", "subagents", "planner.yaml"),
   },
   {
+    target: "reasonix",
+    outputPath: join(".reasonix", "skills", "planner", "SKILL.md"),
+  },
+  {
     target: "roo",
     outputPath: ".roomodes",
   },
@@ -138,6 +142,10 @@ const subagentsGlobalTargets = [
   {
     target: "goose",
     outputPath: join(".config", "goose", "recipes", "subagents", "planner.yaml"),
+  },
+  {
+    target: "reasonix",
+    outputPath: join(".reasonix", "skills", "planner", "SKILL.md"),
   },
   {
     // Hermes Agent has no project-scoped subagent location; subagents are

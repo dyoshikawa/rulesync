@@ -32,6 +32,7 @@ import { KiroIdeSubagent } from "./kiro-ide-subagent.js";
 import { KiroSubagent } from "./kiro-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
 import { QwencodeSubagent } from "./qwencode-subagent.js";
+import { ReasonixSubagent } from "./reasonix-subagent.js";
 import { RooSubagent } from "./roo-subagent.js";
 import { RovodevSubagent } from "./rovodev-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
@@ -302,6 +303,22 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // `.qwen/agents/` (project) and `~/.qwen/agents/` (user/global).
       class: QwencodeSubagent,
       meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+    },
+  ],
+  [
+    "reasonix",
+    {
+      // DeepSeek-Reasonix native subagents are Skill profiles: directory-layout
+      // `<name>/SKILL.md` files under `.reasonix/skills/` (project) and
+      // `~/.reasonix/skills/` (global), whose frontmatter declares
+      // `invocation: manual` and `runAs: subagent`.
+      // https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SUBAGENT_PROFILES.md
+      class: ReasonixSubagent,
+      meta: {
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: join("*", "SKILL.md"),
+      },
     },
   ],
   [
