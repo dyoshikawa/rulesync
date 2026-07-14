@@ -313,6 +313,64 @@ describe("HermesagentMcp", () => {
       expect(server?.tools).toBeUndefined();
     });
 
+    it("passes through advanced auth/mTLS/timeout fields (issue #2236)", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            remote: {
+              url: "https://example.com/mcp",
+              auth: "oauth",
+              client_cert: ["~/secrets/client.crt", "~/secrets/client.key", "pass"],
+              client_key: "~/secrets/client.key",
+              connect_timeout: 60,
+              supports_parallel_tool_calls: false,
+            },
+          },
+        }),
+      });
+
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const server = getMcpServers(mcp.getFileContent()).remote;
+
+      expect(server?.auth).toBe("oauth");
+      expect(server?.client_cert).toEqual(["~/secrets/client.crt", "~/secrets/client.key", "pass"]);
+      expect(server?.client_key).toBe("~/secrets/client.key");
+      expect(server?.connect_timeout).toBe(60);
+      expect(server?.supports_parallel_tool_calls).toBe(false);
+    });
+
+    it("maps promptsEnabled/resourcesEnabled to Hermes's boolean tools.prompts/resources (issue #2236)", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            fetch: {
+              command: "uvx",
+              enabledTools: ["search"],
+              promptsEnabled: true,
+              resourcesEnabled: false,
+            },
+          },
+        }),
+      });
+
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const server = getMcpServers(mcp.getFileContent()).fetch;
+
+      expect(server?.tools).toEqual({ include: ["search"], prompts: true, resources: false });
+    });
+
     it("preserves other config.yaml keys when merging", async () => {
       const dir = join(testDir, HERMES_DIR);
       await ensureDir(dir);
@@ -399,6 +457,83 @@ describe("HermesagentMcp", () => {
         command: "uvx",
         enabledTools: ["search", "fetch"],
         disabledTools: ["delete"],
+      });
+    });
+
+    it("round-trips advanced Hermes per-server fields (issue #2236)", async () => {
+      const dir = join(testDir, HERMES_DIR);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, HERMES_FILE),
+        [
+          "mcp_servers:",
+          "  remote:",
+          "    url: https://example.com/mcp",
+          "    auth: oauth",
+          "    client_cert: ~/secrets/mcp-client.pem",
+          "    client_key: ~/secrets/client.key",
+          "    connect_timeout: 60",
+          "    supports_parallel_tool_calls: true",
+          "    tools:",
+          "      include: [search]",
+          "      prompts: true",
+          "      resources: false",
+          "",
+        ].join("\n"),
+      );
+
+      // Import into the canonical model.
+      const imported = await HermesagentMcp.fromFile({ outputRoot: testDir, global: true });
+      const canonical = imported.toRulesyncMcp();
+      const server = JSON.parse(canonical.getFileContent()).mcpServers.remote;
+
+      expect(server).toMatchObject({
+        url: "https://example.com/mcp",
+        auth: "oauth",
+        client_cert: "~/secrets/mcp-client.pem",
+        client_key: "~/secrets/client.key",
+        connect_timeout: 60,
+        supports_parallel_tool_calls: true,
+        enabledTools: ["search"],
+        promptsEnabled: true,
+        resourcesEnabled: false,
+      });
+      // The reserved canonical `tools` key (a string[]) must not be repurposed.
+      expect(server.tools).toBeUndefined();
+
+      // The imported canonical config must survive schema validation, which the
+      // real `generate` load path (`RulesyncMcp.fromFile`) runs — otherwise the
+      // whole MCP generation would be silently dropped.
+      expect(
+        () =>
+          new RulesyncMcp({
+            relativeDirPath: ".rulesync",
+            relativeFilePath: ".mcp.json",
+            fileContent: canonical.getFileContent(),
+            validate: true,
+          }),
+      ).not.toThrow();
+
+      // Re-export back to Hermes and confirm the fields survive unchanged.
+      const regenerated = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: ".mcp.json",
+          fileContent: canonical.getFileContent(),
+        }),
+        global: true,
+      });
+      const hermes = getMcpServers(regenerated.getFileContent()).remote;
+
+      expect(hermes).toMatchObject({
+        url: "https://example.com/mcp",
+        auth: "oauth",
+        client_cert: "~/secrets/mcp-client.pem",
+        client_key: "~/secrets/client.key",
+        connect_timeout: 60,
+        supports_parallel_tool_calls: true,
+        tools: { include: ["search"], prompts: true, resources: false },
       });
     });
 

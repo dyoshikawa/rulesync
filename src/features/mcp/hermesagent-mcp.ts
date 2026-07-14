@@ -50,6 +50,67 @@ function resolveHermesTimeout(config: Record<string, unknown>): number | undefin
 }
 
 /**
+ * Copies the advanced Hermes-recognized per-server fields that have no canonical
+ * alias — `auth` (`oauth` for OAuth 2.1/PKCE), mTLS `client_cert` (string PEM
+ * path, or `[cert, key]`/`[cert, key, password]` list) and `client_key`,
+ * `connect_timeout` (seconds), and `supports_parallel_tool_calls` — verbatim
+ * from `source` to `target`. Field names are identical on both sides (the
+ * canonical `McpServerSchema` is a `looseObject`), so this serves export and
+ * import alike. See the Hermes mcp-config-reference.
+ */
+function copyHermesAdvancedFields(
+  source: Record<string, unknown>,
+  target: Record<string, unknown>,
+): void {
+  if (typeof source.auth === "string") target.auth = source.auth;
+  if (typeof source.client_cert === "string" || isStringArray(source.client_cert)) {
+    target.client_cert = source.client_cert;
+  }
+  if (typeof source.client_key === "string") target.client_key = source.client_key;
+  if (typeof source.connect_timeout === "number") target.connect_timeout = source.connect_timeout;
+  if (typeof source.supports_parallel_tool_calls === "boolean") {
+    target.supports_parallel_tool_calls = source.supports_parallel_tool_calls;
+  }
+}
+
+/**
+ * Builds Hermes's per-server `tools` block from a canonical server config. The
+ * canonical `enabledTools`/`disabledTools` arrays become `include`/`exclude`,
+ * and the boolean `promptsEnabled`/`resourcesEnabled` toggles become Hermes's
+ * `prompts`/`resources` capability flags. Returns an empty object when the
+ * server has no tool scoping (the caller omits the block in that case).
+ *
+ * Note: `promptsEnabled`/`resourcesEnabled` are canonical top-level keys rather
+ * than a nested canonical `tools` object, because canonical `McpServerSchema.tools`
+ * is reserved as a `string[]` (used by other tools) — reusing it for an object
+ * would fail validation on the next `generate`.
+ */
+function buildHermesToolsBlock(config: Record<string, unknown>): Record<string, unknown> {
+  const tools: Record<string, unknown> = {};
+  if (isStringArray(config.enabledTools)) tools.include = config.enabledTools;
+  if (isStringArray(config.disabledTools)) tools.exclude = config.disabledTools;
+  if (typeof config.promptsEnabled === "boolean") tools.prompts = config.promptsEnabled;
+  if (typeof config.resourcesEnabled === "boolean") tools.resources = config.resourcesEnabled;
+  return tools;
+}
+
+/**
+ * Applies a Hermes per-server `tools` block back onto a canonical server config
+ * (inverse of {@link buildHermesToolsBlock}): `include`/`exclude` become
+ * `enabledTools`/`disabledTools`, and `prompts`/`resources` become the boolean
+ * `promptsEnabled`/`resourcesEnabled` top-level toggles.
+ */
+function applyHermesToolsBlock(
+  hermesTools: Record<string, unknown>,
+  server: Record<string, unknown>,
+): void {
+  if (isStringArray(hermesTools.include)) server.enabledTools = hermesTools.include;
+  if (isStringArray(hermesTools.exclude)) server.disabledTools = hermesTools.exclude;
+  if (typeof hermesTools.prompts === "boolean") server.promptsEnabled = hermesTools.prompts;
+  if (typeof hermesTools.resources === "boolean") server.resourcesEnabled = hermesTools.resources;
+}
+
+/**
  * Converts a single rulesync canonical MCP server into a Hermes `mcp_servers:` entry.
  *
  * Hermes is close to the MCP spec but not identical: `command` must be a single
@@ -89,13 +150,15 @@ function convertServerToHermes(config: Record<string, unknown>): Record<string, 
   const timeout = resolveHermesTimeout(config);
   if (timeout !== undefined) out.timeout = timeout;
 
+  // Advanced Hermes-recognized per-server fields (auth/mTLS/timeout/parallel).
+  copyHermesAdvancedFields(config, out);
+
   // Per-server selective tool loading. Canonical `enabledTools`/`disabledTools`
   // map to Hermes's `tools: { include, exclude }` block (include = whitelist,
   // exclude = denylist; see hermes-agent `apps/desktop/src/lib/mcp-tool-filter.ts`
-  // and `tools/mcp_tool.py`'s `_register_server_tools`).
-  const tools: Record<string, unknown> = {};
-  if (isStringArray(config.enabledTools)) tools.include = config.enabledTools;
-  if (isStringArray(config.disabledTools)) tools.exclude = config.disabledTools;
+  // and `tools/mcp_tool.py`'s `_register_server_tools`); the boolean
+  // `promptsEnabled`/`resourcesEnabled` toggles map to Hermes's `prompts`/`resources`.
+  const tools = buildHermesToolsBlock(config);
   if (Object.keys(tools).length > 0) out.tools = tools;
 
   return out;
@@ -150,10 +213,10 @@ function convertFromHermesFormat(mcpServers: Record<string, unknown>): McpServer
     if (isPlainObject(config.headers)) server.headers = omitPrototypePollutionKeys(config.headers);
     if (config.enabled === false) server.disabled = true;
     if (typeof config.timeout === "number") server.networkTimeout = config.timeout;
-    if (isRecord(config.tools)) {
-      if (isStringArray(config.tools.include)) server.enabledTools = config.tools.include;
-      if (isStringArray(config.tools.exclude)) server.disabledTools = config.tools.exclude;
-    }
+    // Advanced Hermes-recognized fields with no canonical alias round-trip
+    // verbatim (see convertServerToHermes).
+    copyHermesAdvancedFields(config, server);
+    if (isRecord(config.tools)) applyHermesToolsBlock(config.tools, server);
 
     result[name] = server;
   }
