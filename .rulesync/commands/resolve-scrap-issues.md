@@ -48,7 +48,7 @@ Keep each summary concise and focused. Present the issues in the order returned 
 Decide, per issue, whether it still describes a real, actionable problem. Combine three angles:
 
 - **Web research (`WebSearch` / `WebFetch`):** Verify any claim that depends on external facts — a tool's current file format, config schema, default location, scope support, deprecation, or recent behavior change. Prefer primary sources (official docs, release notes, source code) over blog posts, and cross-check non-trivial claims against at least one primary source. Capture exact URLs and version numbers; they will be cited. Run independent searches in parallel.
-- **Codebase inspection:** Check whether the issue is already resolved, partially handled, or contradicted by the current code. Prefer the Serena MCP symbol tools over reading whole files. Apply the project rules in `CLAUDE.md`, `.claude/rules/**`, and `docs/**` (for example, the feature-change and frontmatter conventions).
+- **Codebase inspection:** Check whether the issue is already resolved, partially handled, or contradicted by the current code. Prefer targeted symbol and search tools over reading whole files. Apply the project rules in `CLAUDE.md`, `.claude/rules/**`, and `docs/**` (for example, the feature-change and frontmatter conventions).
 - **Issue discussion:** Honor any maintainer decision already recorded in the comments (e.g., "won't do", "superseded by #N").
 
 Classify each issue into exactly one bucket:
