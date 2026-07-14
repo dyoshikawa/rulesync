@@ -140,8 +140,15 @@ const collectFactoryPaths = (factory: { class: FactoryClass }): SharedWritePath[
  * Derive, from the processor registry, every on-disk file that two or more
  * features read-modify-write. Source of truth the generation step graph's
  * `writesSharedFile` declarations must match.
+ *
+ * `minWriters: 1` widens the result to single-feature files as well — used to
+ * validate `SHARED_CONFIG_OWNERSHIP` declarations for files that route through
+ * the gateway without being cross-feature shared (e.g. a global-scope twin
+ * only one feature writes).
  */
-export const deriveSharedFileWriters = (): SharedFileWriter[] => {
+export const deriveSharedFileWriters = ({
+  minWriters = 2,
+}: { minWriters?: number } = {}): SharedFileWriter[] => {
   const byKey = new Map<string, Map<Feature, Set<ToolTarget>>>();
   const pathByKey = new Map<string, SharedWritePath>();
 
@@ -174,7 +181,7 @@ export const deriveSharedFileWriters = (): SharedFileWriter[] => {
 
   const writers: SharedFileWriter[] = [];
   for (const [key, features] of byKey) {
-    if (features.size < 2) continue;
+    if (features.size < minWriters) continue;
     const path = pathByKey.get(key)!;
     const toolsByFeature = new Map<Feature, ReadonlyArray<ToolTarget>>();
     for (const [feature, tools] of features) {

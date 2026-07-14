@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { ZED_DIR, ZED_GLOBAL_DIR, ZED_SETTINGS_FILE_NAME } from "../../constants/zed-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -76,22 +77,22 @@ export class ZedMcp extends ToolMcp {
   }: ToolMcpFromRulesyncMcpParams): Promise<ZedMcp> {
     const paths = this.getSettablePaths({ global });
 
-    // Read and preserve any existing settings (e.g. `private_files` written by
-    // the ignore feature, or unrelated user settings) before writing MCP servers.
-    const fileContent = await readOrInitializeFileContent(
-      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
-      "{}",
-    );
-    const json = JSON.parse(fileContent);
-    // Use getMcpServers() so rulesync-only and codex-only fields are stripped.
-    // Zed reads `env`/`headers` as-is, so no env-var reference conversion is needed.
-    const newJson = { ...json, context_servers: rulesyncMcp.getMcpServers() };
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
+    const existingContent = await readOrInitializeFileContent(filePath, "{}");
 
     return new ZedMcp({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: JSON.stringify(newJson, null, 2),
+      // Use getMcpServers() so rulesync-only and codex-only fields are stripped.
+      // Zed reads `env`/`headers` as-is, so no env-var reference conversion is needed.
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(paths),
+        feature: "mcp",
+        existingContent,
+        patch: { context_servers: rulesyncMcp.getMcpServers() },
+        filePath,
+      }),
       validate,
     });
   }

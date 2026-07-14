@@ -4,6 +4,7 @@ import { QWENCODE_DIR, QWENCODE_SETTINGS_FILE_NAME } from "../../constants/qwenc
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -114,25 +115,27 @@ export class QwencodeMcp extends ToolMcp {
   }: ToolMcpFromRulesyncMcpParams): Promise<QwencodeMcp> {
     const paths = this.getSettablePaths({ global });
 
-    const fileContent = await readOrInitializeFileContent(
-      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
+    const existingContent = await readOrInitializeFileContent(
+      filePath,
       JSON.stringify({ mcpServers: {} }, null, 2),
     );
-    const json = JSON.parse(fileContent);
-    // Use getMcpServers() (not getJson()) so rulesync-only fields and
-    // codex-only fields (`envVars`) are stripped before writing the
-    // qwen settings file. Then map enabledTools/disabledTools to Qwen's
-    // includeTools/excludeTools.
-    const newJson = {
-      ...json,
-      mcpServers: convertToQwencodeFormat(rulesyncMcp.getMcpServers()),
-    };
 
     return new QwencodeMcp({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: JSON.stringify(newJson, null, 2),
+      // Use getMcpServers() (not getJson()) so rulesync-only fields and
+      // codex-only fields (`envVars`) are stripped before writing the
+      // qwen settings file. Then map enabledTools/disabledTools to Qwen's
+      // includeTools/excludeTools.
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(paths),
+        feature: "mcp",
+        existingContent,
+        patch: { mcpServers: convertToQwencodeFormat(rulesyncMcp.getMcpServers()) },
+        filePath,
+      }),
       validate,
     });
   }

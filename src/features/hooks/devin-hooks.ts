@@ -16,6 +16,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import { canonicalToToolHooks, toolHooksToCanonical } from "./tool-hooks-converter.js";
@@ -146,20 +147,13 @@ export class DevinHooks extends ToolHooks {
         filePath,
         JSON.stringify({}, null, 2),
       );
-      let parsedSettings: unknown;
-      try {
-        parsedSettings = JSON.parse(existingContent);
-      } catch (error) {
-        throw new Error(
-          `Failed to parse existing Devin config at ${filePath}: ${formatError(error)}`,
-          { cause: error },
-        );
-      }
-      // Guard against a non-object existing config (array/primitive) so the spread
-      // below can't inject stray keys, mirroring the mcp/permissions adapters.
-      const settings = isRecord(parsedSettings) ? parsedSettings : {};
-      const merged = { ...settings, hooks: devinHooks };
-      fileContent = JSON.stringify(merged, null, 2);
+      fileContent = applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(paths),
+        feature: "hooks",
+        existingContent,
+        patch: { hooks: devinHooks },
+        filePath,
+      });
     } else {
       // The project hooks.v1.json is dedicated to hooks; reading it first keeps a
       // stable round-trip when unchanged.

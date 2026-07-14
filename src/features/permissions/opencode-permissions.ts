@@ -17,6 +17,7 @@ import type {
 } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -153,23 +154,24 @@ export class OpencodePermissions extends ToolPermissions {
       }
     }
 
-    const parsed = parseJsonc(fileContent ?? "{}");
     const rulesyncJson = rulesyncPermissions.getJson();
     // Merge the shared canonical block with the OpenCode-only override. The
     // override wins per category, so an OpenCode-specific value (e.g. an
     // `external_directory` deny, or a `webfetch` value tuned only for OpenCode)
     // replaces the shared entry without affecting other tools' outputs.
     const overridePermission = rulesyncJson.opencode?.permission ?? {};
-    const nextJson = {
-      ...parsed,
-      permission: { ...rulesyncJson.permission, ...overridePermission },
-    };
 
     return new OpencodePermissions({
       outputRoot,
       relativeDirPath: basePaths.relativeDirPath,
       relativeFilePath,
-      fileContent: JSON.stringify(nextJson, null, 2),
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(basePaths),
+        feature: "permissions",
+        existingContent: fileContent ?? "",
+        patch: { permission: { ...rulesyncJson.permission, ...overridePermission } },
+        filePath: join(jsonDir, relativeFilePath),
+      }),
       validate: true,
     });
   }

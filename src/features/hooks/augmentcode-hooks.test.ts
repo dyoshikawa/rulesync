@@ -265,7 +265,7 @@ describe("AugmentcodeHooks", () => {
           rulesyncHooks,
           validate: false,
         }),
-      ).rejects.toThrow(/Failed to parse existing AugmentCode settings/);
+      ).rejects.toThrow(/Failed to parse shared config at .*settings\.json/);
     });
   });
 

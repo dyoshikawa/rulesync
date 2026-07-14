@@ -4,6 +4,7 @@ import { uniq } from "es-toolkit";
 
 import { ZED_DIR, ZED_SETTINGS_FILE_NAME } from "../../constants/zed-paths.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
   ToolIgnore,
@@ -83,16 +84,17 @@ export class ZedIgnore extends ToolIgnore {
     // Merge existing patterns with new ones, removing duplicates and sorting
     const mergedPatterns = uniq([...existingPrivateFiles, ...patterns].toSorted());
 
-    const jsonValue: SettingsJsonValue = {
-      ...existingJsonValue,
-      private_files: mergedPatterns,
-    };
-
     return new ZedIgnore({
       outputRoot,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent: JSON.stringify(jsonValue, null, 2),
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(this.getSettablePaths()),
+        feature: "ignore",
+        existingContent: existingFileContent,
+        patch: { private_files: mergedPatterns },
+        filePath,
+      }),
       validate: true,
     });
   }

@@ -12,6 +12,7 @@ import { readAugmentcodeSettingsWithLocalOverlay } from "../../utils/augmentcode
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { ConsoleLogger, type Logger } from "../../utils/logger.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -455,12 +456,13 @@ export class AugmentcodePermissions extends ToolPermissions {
       ...authoredBasics,
     ]);
 
-    const merged: AugmentSettings = {
-      ...settings,
-      toolPermissions: [...specialEntries, ...sortedBasic],
-    };
-
-    const fileContent = JSON.stringify(merged, null, 2);
+    const fileContent = applySharedConfigPatch({
+      fileKey: sharedConfigFileKey(paths),
+      feature: "permissions",
+      existingContent,
+      patch: { toolPermissions: [...specialEntries, ...sortedBasic] },
+      filePath,
+    });
 
     return new AugmentcodePermissions({
       outputRoot,

@@ -1,6 +1,10 @@
 import { uniq } from "es-toolkit";
 import { dump } from "js-yaml";
-import { parse as parseJsonc } from "jsonc-parser";
+import {
+  parse as parseJsonc,
+  type ParseError as JsoncParseError,
+  printParseErrorCode,
+} from "jsonc-parser";
 
 import { TAKT_WORKFLOW_MCP_SERVERS_KEY } from "../../constants/takt-paths.js";
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
@@ -53,6 +57,15 @@ export type SharedConfigDocument = Record<string, unknown>;
  */
 export type SharedConfigInvalidRootPolicy = "coerce-empty" | "error";
 
+/**
+ * How {@link parseSharedConfig} treats JSONC syntax errors: `tolerate` keeps
+ * jsonc-parser's best-effort recovery (the historical opencode/kilo behavior),
+ * `error` refuses to read-modify-write a file it could not fully parse
+ * (fail-closed, so a partial parse can't silently drop user content on the
+ * write-back).
+ */
+export type SharedConfigJsoncParseErrorsPolicy = "tolerate" | "error";
+
 function sanitizeSharedConfigValue(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map(sanitizeSharedConfigValue);
@@ -78,11 +91,13 @@ export function parseSharedConfig({
   fileContent,
   filePath,
   invalidRootPolicy = "coerce-empty",
+  jsoncParseErrors = "tolerate",
 }: {
   format: SharedConfigFormat;
   fileContent: string;
   filePath?: string | undefined;
   invalidRootPolicy?: SharedConfigInvalidRootPolicy;
+  jsoncParseErrors?: SharedConfigJsoncParseErrorsPolicy;
 }): SharedConfigDocument {
   if (fileContent.trim() === "") {
     return {};
@@ -95,6 +110,15 @@ export function parseSharedConfig({
       parsed = loadYaml(fileContent);
     } else if (format === "json") {
       parsed = JSON.parse(fileContent);
+    } else if (jsoncParseErrors === "error") {
+      const errors: JsoncParseError[] = [];
+      parsed = parseJsonc(fileContent, errors, { allowTrailingComma: true });
+      if (errors.length > 0) {
+        const details = errors
+          .map((error) => `${printParseErrorCode(error.error)} at offset ${error.offset}`)
+          .join(", ");
+        throw new Error(details);
+      }
     } else {
       parsed = parseJsonc(fileContent);
     }
@@ -212,6 +236,7 @@ export type SharedConfigConflictPolicy =
 export type SharedConfigFileDeclaration = {
   readonly format: SharedConfigFormat;
   readonly invalidRootPolicy?: SharedConfigInvalidRootPolicy;
+  readonly jsoncParseErrors?: SharedConfigJsoncParseErrorsPolicy;
   readonly features: Partial<Record<Feature, SharedConfigConflictPolicy>>;
 };
 
@@ -220,6 +245,27 @@ export type SharedConfigFileDeclaration = {
 export const CLAUDE_SETTINGS_SHARED_FILE_KEY = ".claude/settings.json";
 export const HERMES_CONFIG_SHARED_FILE_KEY = ".hermes/config.yaml";
 export const TAKT_CONFIG_SHARED_FILE_KEY = ".takt/config.yaml";
+
+/**
+ * Build the `SHARED_CONFIG_OWNERSHIP` lookup key from a tool's settable paths.
+ * Mirrors `sharedFileKey` in `src/lib/shared-file-derive.ts` (kept separate so
+ * feature classes don't pull the processor registry through this module and
+ * create an import cycle); the ownership lock-step test keeps the two aligned.
+ * Lets a tool whose file lives at a scope-dependent path (`.zed/settings.json`
+ * vs `.config/zed/settings.json`) resolve its declaration from the settable
+ * paths it already holds.
+ */
+export const sharedConfigFileKey = ({
+  relativeDirPath,
+  relativeFilePath,
+}: {
+  relativeDirPath: string;
+  relativeFilePath: string;
+}): string => {
+  const dir = relativeDirPath.replace(/\\/g, "/").replace(/\/$/, "");
+  const file = relativeFilePath.replace(/\\/g, "/");
+  return dir === "" || dir === "." ? file : `${dir}/${file}`;
+};
 
 /**
  * Who owns what in each gateway-managed shared config file, and which policy
@@ -265,6 +311,163 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       // override's step/provider tables merge into user config at depth;
       // deep-merge preserves nested sibling keys by construction.
       permissions: { kind: "deep-merge" },
+    },
+  },
+  // Zed settings: each feature holds an exclusive top-level key. Blocks whose
+  // final value depends on existing entries (`private_files` appends patterns,
+  // `agent.tool_permissions.tools` keeps user entries for unmanaged tools and
+  // `agent` siblings) are recomputed from the existing file before being
+  // applied, so the whole key is owned here.
+  ".zed/settings.json": {
+    format: "json",
+    features: {
+      ignore: { kind: "replace-owned-keys", ownedKeys: ["private_files"] },
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["context_servers"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
+    },
+  },
+  // Global scope of the Zed settings above (ignore is project-scope-only).
+  ".config/zed/settings.json": {
+    format: "json",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["context_servers"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
+    },
+  },
+  // Qwen Code settings: `permissions` is recomputed from the existing file
+  // (unmanaged-tool entries preserved, managed ones replaced) before being
+  // applied, and so are the `tools`/`security` override groups. Keys like
+  // `disableAllHooks` are only present in the patch when authored, so an
+  // existing user value survives an unrelated regeneration.
+  ".qwen/settings.json": {
+    format: "json",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks", "disableAllHooks"] },
+      permissions: {
+        kind: "replace-owned-keys",
+        ownedKeys: ["permissions", "tools", "security"],
+      },
+    },
+  },
+  // AugmentCode settings: `toolPermissions` is recomputed from the existing
+  // file (special entries and fail-closed denies preserved) before being
+  // applied.
+  ".augment/settings.json": {
+    format: "json",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["toolPermissions"] },
+    },
+  },
+  // Devin config: `permissions` is recomputed from the existing file
+  // (unmanaged-scope entries preserved) before being applied. Hooks are
+  // global-scope-only, so they appear only under `.config/devin/`.
+  ".devin/config.json": {
+    format: "json",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions"] },
+    },
+  },
+  ".config/devin/config.json": {
+    format: "json",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions"] },
+    },
+  },
+  // Kiro agent config: `allowedTools`/`toolsSettings` are recomputed from the
+  // existing file (existing tools and settings folded in) before being applied.
+  ".kiro/agents/default.json": {
+    format: "json",
+    features: {
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["allowedTools", "toolsSettings"] },
+    },
+  },
+  // Amp settings (`settings.json`, or a hand-authored `settings.jsonc` twin the
+  // writers probe for — both resolve to this declaration via the settable
+  // paths). Keys are Amp's literal dotted names. `amp.permissions` is
+  // recomputed from the existing file (fail-closed first-match-wins ordering,
+  // authored/delegate entries folded in) before being applied, and is retracted
+  // when the merge yields no entries. Amp's writers have always refused to
+  // write over a file they could not fully parse, hence the strict policies.
+  ".amp/settings.json": {
+    format: "jsonc",
+    invalidRootPolicy: "error",
+    jsoncParseErrors: "error",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["amp.mcpServers"] },
+      permissions: {
+        kind: "replace-owned-keys",
+        ownedKeys: [
+          "amp.tools.disable",
+          "amp.permissions",
+          "amp.guardedFiles.allowlist",
+          "amp.dangerouslyAllowAll",
+          "amp.mcpPermissions",
+        ],
+      },
+    },
+  },
+  ".config/amp/settings.json": {
+    format: "jsonc",
+    invalidRootPolicy: "error",
+    jsoncParseErrors: "error",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["amp.mcpServers"] },
+      permissions: {
+        kind: "replace-owned-keys",
+        ownedKeys: [
+          "amp.tools.disable",
+          "amp.permissions",
+          "amp.guardedFiles.allowlist",
+          "amp.dangerouslyAllowAll",
+          "amp.mcpPermissions",
+        ],
+      },
+    },
+  },
+  // OpenCode config (`opencode.json`, or the preferred `opencode.jsonc` twin —
+  // both resolve here via the settable paths). `tools` is retracted when the
+  // generated MCP servers yield no tool filters; `permission` and
+  // `instructions` are recomputed from source/existing content before being
+  // applied. Rules (`instructions`) are project-scope-only.
+  "opencode.json": {
+    format: "jsonc",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permission"] },
+      rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
+    },
+  },
+  ".config/opencode/opencode.json": {
+    format: "jsonc",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permission"] },
+    },
+  },
+  // Kilo config (`kilo.json` / preferred `kilo.jsonc` twin) — same shape as
+  // OpenCode: `tools` is retracted when empty, `instructions` is recomputed
+  // from the existing list before being applied.
+  "kilo.json": {
+    format: "jsonc",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
+      rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
+    },
+  },
+  // Global Kilo config: mcp is its only writer (rules registers instructions in
+  // project scope only), so this is not cross-feature shared — it is declared
+  // anyway so the write goes through the same codec and ownership enforcement.
+  ".config/kilo/kilo.json": {
+    format: "jsonc",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
     },
   },
 };
@@ -318,6 +521,9 @@ export function applySharedConfigPatch({
     ...(declaration.invalidRootPolicy !== undefined && {
       invalidRootPolicy: declaration.invalidRootPolicy,
     }),
+    ...(declaration.jsoncParseErrors !== undefined && {
+      jsoncParseErrors: declaration.jsoncParseErrors,
+    }),
   });
 
   if (policy.kind === "replace-owned-keys") {
@@ -328,10 +534,16 @@ export function applySharedConfigPatch({
           `'${fileKey}'; extend its ownedKeys declaration if that ownership is intended.`,
       );
     }
-    return stringifySharedConfig({
-      format: declaration.format,
-      document: mergeSharedConfigShallow({ base, patch }),
-    });
+    // An owned key set to `undefined` is removed from the document — the way a
+    // feature retracts a key it owns (e.g. a regeneration that yields no
+    // entries) without ever being able to touch keys it doesn't own.
+    const document = mergeSharedConfigShallow({ base, patch });
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === undefined) {
+        delete document[key];
+      }
+    }
+    return stringifySharedConfig({ format: declaration.format, document });
   }
 
   const merged = mergeSharedConfigDeep({ base, patch });

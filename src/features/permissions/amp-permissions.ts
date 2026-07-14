@@ -15,6 +15,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isPlainObject } from "../../utils/type-guards.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -290,8 +291,6 @@ export class AmpPermissions extends ToolPermissions {
       ? []
       : toPermissionsList(json[AMP_PERMISSIONS_KEY]).filter((entry) => entry.action === "delegate");
 
-    const newJson: Record<string, unknown> = { ...json, [AMP_TOOLS_DISABLE_KEY]: disable };
-
     // Merge fail-closed: every `reject` leads, then `ask`, then `allow`, with
     // `delegate` as the final fallback. Because Amp is first-match-wins, an
     // authored `reject` must not sit behind a generated catch-all `allow` (or it
@@ -303,28 +302,38 @@ export class AmpPermissions extends ToolPermissions {
       ...authoredExtras,
       ...preservedDelegates,
     ]);
-    if (mergedPermissions.length > 0) {
-      newJson[AMP_PERMISSIONS_KEY] = mergedPermissions;
-    } else {
-      delete newJson[AMP_PERMISSIONS_KEY];
-    }
 
-    // Author the sibling settings that have no canonical category.
+    const patch: Record<string, unknown> = {
+      [AMP_TOOLS_DISABLE_KEY]: disable,
+      // Retract the owned key when the merge yields no entries.
+      [AMP_PERMISSIONS_KEY]: mergedPermissions.length > 0 ? mergedPermissions : undefined,
+    };
+
+    // Author the sibling settings that have no canonical category; when not
+    // authored they are absent from the patch, so existing values survive.
     if (override?.guardedFiles?.allowlist !== undefined) {
-      newJson[AMP_GUARDED_FILES_ALLOWLIST_KEY] = override.guardedFiles.allowlist;
+      patch[AMP_GUARDED_FILES_ALLOWLIST_KEY] = override.guardedFiles.allowlist;
     }
     if (override?.dangerouslyAllowAll !== undefined) {
-      newJson[AMP_DANGEROUSLY_ALLOW_ALL_KEY] = override.dangerouslyAllowAll;
+      patch[AMP_DANGEROUSLY_ALLOW_ALL_KEY] = override.dangerouslyAllowAll;
     }
     if (override?.mcpPermissions !== undefined) {
-      newJson[AMP_MCP_PERMISSIONS_KEY] = override.mcpPermissions;
+      patch[AMP_MCP_PERMISSIONS_KEY] = override.mcpPermissions;
     }
 
     return new AmpPermissions({
       outputRoot,
       relativeDirPath: basePaths.relativeDirPath,
       relativeFilePath,
-      fileContent: JSON.stringify(newJson, null, 2),
+      // Keyed by the base settable paths: a resolved `settings.jsonc` twin
+      // shares the `settings.json` ownership declaration.
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(basePaths),
+        feature: "permissions",
+        existingContent: fileContent ?? "",
+        patch,
+        filePath: join(jsonDir, relativeFilePath),
+      }),
       validate: true,
     });
   }

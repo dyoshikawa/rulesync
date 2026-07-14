@@ -14,6 +14,7 @@ import {
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import {
   ToolHooks,
@@ -188,19 +189,15 @@ export class KiroHooks extends ToolHooks {
       filePath,
       JSON.stringify({}, null, 2),
     );
-    let agentConfig: Record<string, unknown>;
-    try {
-      agentConfig = JSON.parse(existingContent);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse existing Kiro agent config at ${filePath}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
     const config = rulesyncHooks.getJson();
     const kiroHooks = canonicalToKiroHooks(config, this.getOverrideKey());
-    const merged = { ...agentConfig, hooks: kiroHooks };
-    const fileContent = JSON.stringify(merged, null, 2);
+    const fileContent = applySharedConfigPatch({
+      fileKey: sharedConfigFileKey(paths),
+      feature: "hooks",
+      existingContent,
+      patch: { hooks: kiroHooks },
+      filePath,
+    });
     return new KiroHooks({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,

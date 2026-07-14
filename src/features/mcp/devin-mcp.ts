@@ -8,6 +8,7 @@ import {
 import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -118,22 +119,26 @@ export class DevinMcp extends ToolMcp {
   }: ToolMcpFromRulesyncMcpParams): Promise<DevinMcp> {
     const paths = this.getSettablePaths({ global });
 
-    const fileContent = await readOrInitializeFileContent(
-      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
+    const existingContent = await readOrInitializeFileContent(
+      filePath,
       JSON.stringify({ mcpServers: {} }, null, 2),
     );
-    const json = this.parseJsonOrThrow(fileContent, paths.relativeDirPath, paths.relativeFilePath);
-
-    // Use getMcpServers() (not getJson()) so rulesync-only fields and
-    // codex-only fields (`envVars`) are stripped before writing the
-    // devin config.
-    const devinConfig = { ...json, mcpServers: rulesyncMcp.getMcpServers() };
 
     return new DevinMcp({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: JSON.stringify(devinConfig, null, 2),
+      // Use getMcpServers() (not getJson()) so rulesync-only fields and
+      // codex-only fields (`envVars`) are stripped before writing the
+      // devin config.
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(paths),
+        feature: "mcp",
+        existingContent,
+        patch: { mcpServers: rulesyncMcp.getMcpServers() },
+        filePath,
+      }),
       validate,
       global,
     });

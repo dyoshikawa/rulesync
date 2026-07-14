@@ -7,6 +7,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -228,22 +229,25 @@ export class ZedPermissions extends ToolPermissions {
       Object.entries(existingTools).filter(([toolName]) => !managedToolNames.has(toolName)),
     );
 
-    const mergedSettings = {
-      ...settings,
-      agent: {
-        ...agent,
-        tool_permissions: {
-          ...toolPermissions,
-          tools: { ...preservedTools, ...managedTools },
-        },
-      },
-    };
-
     return new ZedPermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: JSON.stringify(mergedSettings, null, 2),
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(paths),
+        feature: "permissions",
+        existingContent,
+        patch: {
+          agent: {
+            ...agent,
+            tool_permissions: {
+              ...toolPermissions,
+              tools: { ...preservedTools, ...managedTools },
+            },
+          },
+        },
+        filePath,
+      }),
       validate: true,
     });
   }

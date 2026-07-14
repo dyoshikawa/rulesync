@@ -14,6 +14,7 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import { compact } from "../../utils/object.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import {
   ToolHooks,
@@ -260,24 +261,20 @@ export class QwencodeHooks extends ToolHooks {
       filePath,
       JSON.stringify({}, null, 2),
     );
-    let settings: Record<string, unknown>;
-    try {
-      settings = JSON.parse(existingContent);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse existing Qwen Code settings at ${filePath}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
     const config = rulesyncHooks.getJson();
-    const qwencodeHooks = canonicalToQwencodeHooks(config);
-    const merged: Record<string, unknown> = { ...settings, hooks: qwencodeHooks };
+    const patch: Record<string, unknown> = { hooks: canonicalToQwencodeHooks(config) };
     // Round-trip Qwen Code's top-level switch that disables every hook.
     const disableAllHooks = config.qwencode?.disableAllHooks;
     if (typeof disableAllHooks === "boolean") {
-      merged.disableAllHooks = disableAllHooks;
+      patch.disableAllHooks = disableAllHooks;
     }
-    const fileContent = JSON.stringify(merged, null, 2);
+    const fileContent = applySharedConfigPatch({
+      fileKey: sharedConfigFileKey(paths),
+      feature: "hooks",
+      existingContent,
+      patch,
+      filePath,
+    });
     return new QwencodeHooks({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,

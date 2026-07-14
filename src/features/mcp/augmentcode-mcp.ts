@@ -10,6 +10,7 @@ import { readAugmentcodeSettingsWithLocalOverlay } from "../../utils/augmentcode
 import { formatError } from "../../utils/error.js";
 import { readOrInitializeFileContent } from "../../utils/file.js";
 import { isPlainObject } from "../../utils/type-guards.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -135,25 +136,23 @@ export class AugmentcodeMcp extends ToolMcp {
   }: ToolMcpFromRulesyncMcpParams): Promise<AugmentcodeMcp> {
     const paths = this.getSettablePaths({ global });
 
-    const fileContent = await readOrInitializeFileContent(
-      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
+    const existingContent = await readOrInitializeFileContent(
+      filePath,
       JSON.stringify({}, null, 2),
     );
-    const json = parseAugmentcodeSettings(
-      fileContent,
-      paths.relativeDirPath,
-      paths.relativeFilePath,
-    );
-
-    // Merge `mcpServers` into the shared settings, preserving other keys
-    // (e.g. `hooks`, `toolPermissions`).
-    const merged = { ...json, mcpServers: rulesyncMcp.getMcpServers() };
 
     return new AugmentcodeMcp({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: JSON.stringify(merged, null, 2),
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(paths),
+        feature: "mcp",
+        existingContent,
+        patch: { mcpServers: rulesyncMcp.getMcpServers() },
+        filePath,
+      }),
       validate,
       global,
     });

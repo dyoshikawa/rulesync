@@ -242,7 +242,7 @@ describe("AmpMcp", () => {
       });
 
       await expect(AmpMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp })).rejects.toThrow(
-        "Failed to parse Amp settings",
+        /Failed to parse shared config at .*settings\.jsonc/,
       );
     });
   });
