@@ -5,7 +5,9 @@ import {
   type ParseError as JsoncParseError,
   printParseErrorCode,
 } from "jsonc-parser";
+import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 
+import { CODEXCLI_OVERRIDE_KEYS } from "../../constants/codexcli-paths.js";
 import { TAKT_WORKFLOW_MCP_SERVERS_KEY } from "../../constants/takt-paths.js";
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { Feature } from "../../types/features.js";
@@ -46,7 +48,7 @@ import { loadYaml } from "../../utils/yaml.js";
 // Format codecs
 // ---------------------------------------------------------------------------
 
-export type SharedConfigFormat = "yaml" | "json" | "jsonc";
+export type SharedConfigFormat = "yaml" | "json" | "jsonc" | "toml";
 
 export type SharedConfigDocument = Record<string, unknown>;
 
@@ -108,6 +110,8 @@ export function parseSharedConfig({
   try {
     if (format === "yaml") {
       parsed = loadYaml(fileContent);
+    } else if (format === "toml") {
+      parsed = parseToml(fileContent);
     } else if (format === "json") {
       parsed = JSON.parse(fileContent);
     } else if (jsoncParseErrors === "error") {
@@ -141,7 +145,8 @@ export function parseSharedConfig({
 /**
  * Serialize a shared config document. YAML output always ends with exactly one
  * newline; JSON output matches the 2-space `JSON.stringify` shape the JSON
- * writers have always emitted (no trailing newline).
+ * writers have always emitted (no trailing newline); TOML output matches the
+ * `smol-toml` `stringify` shape the TOML writers have always emitted.
  */
 export function stringifySharedConfig({
   format,
@@ -152,6 +157,9 @@ export function stringifySharedConfig({
 }): string {
   if (format === "yaml") {
     return dump(document, { noRefs: true, sortKeys: false }).trimEnd() + "\n";
+  }
+  if (format === "toml") {
+    return stringifyToml(document);
   }
   return JSON.stringify(document, null, 2);
 }
@@ -245,6 +253,11 @@ export type SharedConfigFileDeclaration = {
 export const CLAUDE_SETTINGS_SHARED_FILE_KEY = ".claude/settings.json";
 export const HERMES_CONFIG_SHARED_FILE_KEY = ".hermes/config.yaml";
 export const TAKT_CONFIG_SHARED_FILE_KEY = ".takt/config.yaml";
+export const CODEXCLI_CONFIG_SHARED_FILE_KEY = ".codex/config.toml";
+export const GROKCLI_CONFIG_SHARED_FILE_KEY = ".grok/config.toml";
+export const VIBE_CONFIG_SHARED_FILE_KEY = ".vibe/config.toml";
+export const REASONIX_PROJECT_CONFIG_SHARED_FILE_KEY = "reasonix.toml";
+export const REASONIX_GLOBAL_CONFIG_SHARED_FILE_KEY = ".reasonix/config.toml";
 
 /**
  * Build the `SHARED_CONFIG_OWNERSHIP` lookup key from a tool's settable paths.
@@ -468,6 +481,67 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     format: "jsonc",
     features: {
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
+    },
+  },
+  // Codex CLI config: hooks/mcp/permissions each own an exclusive top-level
+  // key. `features` (hooks' legacy `codex_hooks` cleanup) and `mcp_servers`
+  // (per-server approval-state preservation) are recomputed from the existing
+  // file before being applied, so the whole key is owned here.
+  [CODEXCLI_CONFIG_SHARED_FILE_KEY]: {
+    format: "toml",
+    features: {
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["features"] },
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] },
+      permissions: {
+        kind: "replace-owned-keys",
+        ownedKeys: ["permissions", "default_permissions", ...CODEXCLI_OVERRIDE_KEYS],
+      },
+    },
+  },
+  // Grok Build CLI config: mcp owns `mcp_servers`; permissions owns the
+  // fine-grained `permission` allow/ask/deny arrays and the coarse `ui`
+  // fallback. Both are recomputed from the existing file (unmanaged entries
+  // preserved) before being applied.
+  [GROKCLI_CONFIG_SHARED_FILE_KEY]: {
+    format: "toml",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permission", "ui"] },
+    },
+  },
+  // Mistral Vibe config: hooks owns the `enable_experimental_hooks` flag; mcp
+  // owns `mcp_servers`; permissions owns `tools`/`enabled_tools`/`disabled_tools`.
+  // `tools` is recomputed from the existing file (unmanaged tool entries and
+  // sensitive-pattern overrides preserved) before being applied.
+  [VIBE_CONFIG_SHARED_FILE_KEY]: {
+    format: "toml",
+    features: {
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["enable_experimental_hooks"] },
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] },
+      permissions: {
+        kind: "replace-owned-keys",
+        ownedKeys: ["tools", "enabled_tools", "disabled_tools"],
+      },
+    },
+  },
+  // Reasonix project config (`./reasonix.toml`): mcp owns `plugins`;
+  // permissions owns `permissions`/`sandbox`/`agent`. All three are recomputed
+  // from the existing file (unmanaged entries and sibling override keys
+  // preserved) before being applied.
+  [REASONIX_PROJECT_CONFIG_SHARED_FILE_KEY]: {
+    format: "toml",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions", "sandbox", "agent"] },
+    },
+  },
+  // Reasonix global config (`~/.reasonix/config.toml`) — same shape as the
+  // project file above.
+  [REASONIX_GLOBAL_CONFIG_SHARED_FILE_KEY]: {
+    format: "toml",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions", "sandbox", "agent"] },
     },
   },
 };

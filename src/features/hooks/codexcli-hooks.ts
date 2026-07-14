@@ -17,6 +17,7 @@ import {
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import { canonicalToToolHooks, toolHooksToCanonical } from "./tool-hooks-converter.js";
@@ -54,10 +55,10 @@ async function buildCodexConfigTomlContent({
   outputRoot: string;
 }): Promise<string> {
   const configPath = join(outputRoot, CODEXCLI_DIR, CODEXCLI_MCP_FILE_NAME);
-  const existingContent = (await readFileContentOrNull(configPath)) ?? smolToml.stringify({});
+  const existingContent = (await readFileContentOrNull(configPath)) ?? "";
   let configToml: smolToml.TomlPrimitive;
   try {
-    configToml = smolToml.parse(existingContent);
+    configToml = smolToml.parse(existingContent || smolToml.stringify({}));
   } catch (error) {
     throw new Error(
       `Failed to parse existing Codex CLI config at ${configPath}: ${formatError(error)}`,
@@ -67,11 +68,22 @@ async function buildCodexConfigTomlContent({
     );
   }
 
+  let features: smolToml.TomlTable | undefined;
   if (typeof configToml.features === "object" && configToml.features !== null) {
-    delete (configToml.features as smolToml.TomlTable).codex_hooks;
+    features = { ...(configToml.features as smolToml.TomlTable) };
+    delete features.codex_hooks;
   }
 
-  return smolToml.stringify(configToml);
+  return applySharedConfigPatch({
+    fileKey: sharedConfigFileKey({
+      relativeDirPath: CODEXCLI_DIR,
+      relativeFilePath: CODEXCLI_MCP_FILE_NAME,
+    }),
+    feature: "hooks",
+    existingContent,
+    patch: { features },
+    filePath: configPath,
+  });
 }
 
 /**

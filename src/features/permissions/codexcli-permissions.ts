@@ -6,6 +6,7 @@ import {
   CODEXCLI_BASH_RULES_FILE_NAME,
   CODEXCLI_DIR,
   CODEXCLI_MCP_FILE_NAME,
+  CODEXCLI_OVERRIDE_KEYS,
   CODEXCLI_RULES_DIR_PATH,
 } from "../../constants/codexcli-paths.js";
 import type { ValidationResult } from "../../types/ai-file.js";
@@ -13,6 +14,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -41,20 +43,6 @@ const CODEX_MINIMAL_KEY = ":minimal";
 // Codex rejects the global `*` wildcard in denied network domains at config load time,
 // while allowed domains accept it for denylist-only setups (openai/codex#15549).
 const GLOBAL_WILDCARD_DOMAIN = "*";
-
-// Top-level `.codex/config.toml` keys the `codexcli` permission override may
-// author and round-trip. Everything else is refused (see applyCodexcliOverride)
-// so the override can never clobber a feature-owned surface: `permissions` /
-// `default_permissions` are owned by the canonical model written below, and
-// `mcp_servers.*` per-MCP gating is owned by the MCP feature (codexcli-mcp.ts).
-// https://developers.openai.com/codex/config-reference
-const CODEXCLI_OVERRIDE_KEYS = [
-  "approval_policy",
-  "sandbox_mode",
-  "sandbox_workspace_write",
-  "apps",
-  "approvals_reviewer",
-] as const;
 
 // `none` is accepted on import for configs generated before Codex CLI v0.131.0.
 type CodexFilesystemAccess = "read" | "write" | "deny" | "none";
@@ -123,56 +111,56 @@ export class CodexcliPermissions extends ToolPermissions {
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<CodexcliPermissions> {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const existingContent = (await readFileContentOrNull(filePath)) ?? smolToml.stringify({});
-    // `parsed` is a shallow copy of the FULL top-level config.toml table (see toMutableTable),
-    // and only its `permissions` and `default_permissions` keys are overwritten below (plus any
-    // keys the `codexcli` override authors). Codex config keys rulesync neither models nor
-    // overrides — e.g. `mcp_servers.<id>.*` gating (owned by the MCP feature) — survive a
-    // read-modify-write round-trip untouched, the same way amp/devin permissions preserve
-    // sibling settings they don't manage.
+    const existingContent = (await readFileContentOrNull(filePath)) ?? "";
+    // `existing` is a shallow copy of the FULL top-level config.toml table (see
+    // toMutableTable), read only to preserve sibling profiles under
+    // `permissions` and to shallow-merge the `codexcli` override's table
+    // values. Codex config keys rulesync neither models nor overrides — e.g.
+    // `mcp_servers.<id>.*` gating (owned by the MCP feature) — survive a
+    // read-modify-write round-trip untouched via the gateway's ownership
+    // declaration, the same way amp/devin permissions preserve sibling
+    // settings they don't manage.
     // https://developers.openai.com/codex/config-reference
-    const parsed = toMutableTable(smolToml.parse(existingContent));
+    const existing = toMutableTable(smolToml.parse(existingContent || smolToml.stringify({})));
 
     const newProfile = convertRulesyncToCodexProfile({
       config: rulesyncPermissions.getJson(),
       logger,
     });
 
-    const permissionsTable = toMutableTable(parsed.permissions);
+    const permissionsTable = toMutableTable(existing.permissions);
     const { profile: existingProfile, domainsHadUnknown: existingDomainsHadUnknown } =
       toCodexProfile(permissionsTable[RULESYNC_PROFILE_NAME]);
-    if (existingProfile?.extends !== undefined && existingProfile.extends !== newProfile.extends) {
-      logger?.warn(
-        `Existing "extends" value "${existingProfile.extends}" will be replaced by Rulesync-managed "${newProfile.extends ?? "(none)"}".`,
-      );
-    }
-    if (existingProfile?.network?.unix_sockets !== undefined) {
-      logger?.warn(
-        `Preserving existing "network.unix_sockets" from config. Review these entries manually as they may grant broad system access.`,
-      );
-    }
-    if (existingProfile?.network?.mode !== undefined) {
-      logger?.warn(
-        `Preserving existing "network.mode" from config. Review this value manually as it may grant broader network access than the Rulesync-managed domain rules.`,
-      );
-    }
-    if (existingDomainsHadUnknown) {
-      logger?.warn(
-        `Existing "network.domains" contained unrecognized values. These entries were skipped and will not be imported.`,
-      );
-    }
+    warnAboutPreservedProfileState({
+      existingProfile,
+      newProfile,
+      existingDomainsHadUnknown,
+      logger,
+    });
     const profile = mergeWithExistingProfile({ newProfile, existingProfile });
     permissionsTable[RULESYNC_PROFILE_NAME] = profile;
-    parsed.permissions = permissionsTable;
-    parsed.default_permissions = RULESYNC_PROFILE_NAME;
 
-    applyCodexcliOverride({ parsed, override: rulesyncPermissions.getJson().codexcli, logger });
+    const overridePatch = computeCodexcliOverridePatch({
+      existing,
+      override: rulesyncPermissions.getJson().codexcli,
+      logger,
+    });
 
     return new CodexcliPermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: smolToml.stringify(parsed),
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(paths),
+        feature: "permissions",
+        existingContent,
+        patch: {
+          permissions: permissionsTable,
+          default_permissions: RULESYNC_PROFILE_NAME,
+          ...overridePatch,
+        },
+        filePath,
+      }),
       validate,
     });
   }
@@ -445,6 +433,42 @@ function toCodexProfile(value: unknown): CodexProfileParseResult {
   return { profile, domainsHadUnknown };
 }
 
+// Surface warnings for existing profile state that fromRulesyncPermissions preserves
+// as-is (network.mode, network.unix_sockets, extends, and unrecognized domain entries)
+// rather than silently carrying it forward.
+function warnAboutPreservedProfileState({
+  existingProfile,
+  newProfile,
+  existingDomainsHadUnknown,
+  logger,
+}: {
+  existingProfile: CodexPermissionProfile | undefined;
+  newProfile: CodexPermissionProfile;
+  existingDomainsHadUnknown: boolean;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): void {
+  if (existingProfile?.extends !== undefined && existingProfile.extends !== newProfile.extends) {
+    logger?.warn(
+      `Existing "extends" value "${existingProfile.extends}" will be replaced by Rulesync-managed "${newProfile.extends ?? "(none)"}".`,
+    );
+  }
+  if (existingProfile?.network?.unix_sockets !== undefined) {
+    logger?.warn(
+      `Preserving existing "network.unix_sockets" from config. Review these entries manually as they may grant broad system access.`,
+    );
+  }
+  if (existingProfile?.network?.mode !== undefined) {
+    logger?.warn(
+      `Preserving existing "network.mode" from config. Review this value manually as it may grant broader network access than the Rulesync-managed domain rules.`,
+    );
+  }
+  if (existingDomainsHadUnknown) {
+    logger?.warn(
+      `Existing "network.domains" contained unrecognized values. These entries were skipped and will not be imported.`,
+    );
+  }
+}
+
 function mergeWithExistingProfile({
   newProfile,
   existingProfile,
@@ -550,22 +574,26 @@ function isPlainObject(value: unknown): value is UnknownTable {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-// Overlay the `codexcli` override onto the top-level config.toml table. Only the
-// whitelisted CODEXCLI_OVERRIDE_KEYS are applied (override wins per key, with
-// table values shallow-merged so unrelated sibling entries survive); any other
-// key is refused so the override can never write a feature-owned surface such as
-// `permissions` / `default_permissions` (canonical model) or `mcp_servers`
-// (MCP feature).
-function applyCodexcliOverride({
-  parsed,
+// Compute the `codexcli` override's contribution to the top-level config.toml
+// table, keyed by CODEXCLI_OVERRIDE_KEYS (override wins per key, with table
+// values shallow-merged against the existing file so unrelated sibling entries
+// survive). Any other key is refused so the override can never write a
+// feature-owned surface such as `permissions` / `default_permissions`
+// (canonical model) or `mcp_servers` (MCP feature). Returned as a patch
+// fragment — the caller folds it into the same patch object that carries
+// `permissions` / `default_permissions` before handing everything to
+// applySharedConfigPatch, so every owned key is set through the one gateway call.
+function computeCodexcliOverridePatch({
+  existing,
   override,
   logger,
 }: {
-  parsed: UnknownTable;
+  existing: UnknownTable;
   override: PermissionsConfig["codexcli"];
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
-}): void {
-  if (!override) return;
+}): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  if (!override) return patch;
   const allowed = new Set<string>(CODEXCLI_OVERRIDE_KEYS);
   for (const [key, value] of Object.entries(override)) {
     if (!allowed.has(key)) {
@@ -575,10 +603,11 @@ function applyCodexcliOverride({
       continue;
     }
     if (value === undefined) continue;
-    const existing = parsed[key];
-    parsed[key] =
-      isPlainObject(existing) && isPlainObject(value) ? { ...existing, ...value } : value;
+    const existingValue = existing[key];
+    patch[key] =
+      isPlainObject(existingValue) && isPlainObject(value) ? { ...existingValue, ...value } : value;
   }
+  return patch;
 }
 
 // Lift the whitelisted top-level keys back into the `codexcli` override so they
