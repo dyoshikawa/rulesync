@@ -345,7 +345,7 @@ describe("HermesagentMcp", () => {
       expect(server?.supports_parallel_tool_calls).toBe(false);
     });
 
-    it("passes through the boolean tools.prompts/resources capability toggles (issue #2236)", async () => {
+    it("maps promptsEnabled/resourcesEnabled to Hermes's boolean tools.prompts/resources (issue #2236)", async () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: ".rulesync",
         relativeFilePath: ".mcp.json",
@@ -354,7 +354,8 @@ describe("HermesagentMcp", () => {
             fetch: {
               command: "uvx",
               enabledTools: ["search"],
-              tools: { prompts: true, resources: false },
+              promptsEnabled: true,
+              resourcesEnabled: false,
             },
           },
         }),
@@ -494,8 +495,24 @@ describe("HermesagentMcp", () => {
         connect_timeout: 60,
         supports_parallel_tool_calls: true,
         enabledTools: ["search"],
-        tools: { prompts: true, resources: false },
+        promptsEnabled: true,
+        resourcesEnabled: false,
       });
+      // The reserved canonical `tools` key (a string[]) must not be repurposed.
+      expect(server.tools).toBeUndefined();
+
+      // The imported canonical config must survive schema validation, which the
+      // real `generate` load path (`RulesyncMcp.fromFile`) runs — otherwise the
+      // whole MCP generation would be silently dropped.
+      expect(
+        () =>
+          new RulesyncMcp({
+            relativeDirPath: ".rulesync",
+            relativeFilePath: ".mcp.json",
+            fileContent: canonical.getFileContent(),
+            validate: true,
+          }),
+      ).not.toThrow();
 
       // Re-export back to Hermes and confirm the fields survive unchanged.
       const regenerated = await HermesagentMcp.fromRulesyncMcp({

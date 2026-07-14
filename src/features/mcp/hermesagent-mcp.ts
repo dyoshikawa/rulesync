@@ -74,16 +74,40 @@ function copyHermesAdvancedFields(
 }
 
 /**
- * Copies Hermes's boolean `prompts`/`resources` capability toggles (which have
- * no canonical alias) verbatim from a source `tools` block to a target `tools`
- * block. Used in both directions.
+ * Builds Hermes's per-server `tools` block from a canonical server config. The
+ * canonical `enabledTools`/`disabledTools` arrays become `include`/`exclude`,
+ * and the boolean `promptsEnabled`/`resourcesEnabled` toggles become Hermes's
+ * `prompts`/`resources` capability flags. Returns an empty object when the
+ * server has no tool scoping (the caller omits the block in that case).
+ *
+ * Note: `promptsEnabled`/`resourcesEnabled` are canonical top-level keys rather
+ * than a nested canonical `tools` object, because canonical `McpServerSchema.tools`
+ * is reserved as a `string[]` (used by other tools) — reusing it for an object
+ * would fail validation on the next `generate`.
  */
-function copyHermesToolCapabilities(
-  sourceTools: Record<string, unknown>,
-  targetTools: Record<string, unknown>,
+function buildHermesToolsBlock(config: Record<string, unknown>): Record<string, unknown> {
+  const tools: Record<string, unknown> = {};
+  if (isStringArray(config.enabledTools)) tools.include = config.enabledTools;
+  if (isStringArray(config.disabledTools)) tools.exclude = config.disabledTools;
+  if (typeof config.promptsEnabled === "boolean") tools.prompts = config.promptsEnabled;
+  if (typeof config.resourcesEnabled === "boolean") tools.resources = config.resourcesEnabled;
+  return tools;
+}
+
+/**
+ * Applies a Hermes per-server `tools` block back onto a canonical server config
+ * (inverse of {@link buildHermesToolsBlock}): `include`/`exclude` become
+ * `enabledTools`/`disabledTools`, and `prompts`/`resources` become the boolean
+ * `promptsEnabled`/`resourcesEnabled` top-level toggles.
+ */
+function applyHermesToolsBlock(
+  hermesTools: Record<string, unknown>,
+  server: Record<string, unknown>,
 ): void {
-  if (typeof sourceTools.prompts === "boolean") targetTools.prompts = sourceTools.prompts;
-  if (typeof sourceTools.resources === "boolean") targetTools.resources = sourceTools.resources;
+  if (isStringArray(hermesTools.include)) server.enabledTools = hermesTools.include;
+  if (isStringArray(hermesTools.exclude)) server.disabledTools = hermesTools.exclude;
+  if (typeof hermesTools.prompts === "boolean") server.promptsEnabled = hermesTools.prompts;
+  if (typeof hermesTools.resources === "boolean") server.resourcesEnabled = hermesTools.resources;
 }
 
 /**
@@ -132,13 +156,9 @@ function convertServerToHermes(config: Record<string, unknown>): Record<string, 
   // Per-server selective tool loading. Canonical `enabledTools`/`disabledTools`
   // map to Hermes's `tools: { include, exclude }` block (include = whitelist,
   // exclude = denylist; see hermes-agent `apps/desktop/src/lib/mcp-tool-filter.ts`
-  // and `tools/mcp_tool.py`'s `_register_server_tools`). Hermes's boolean
-  // `tools.prompts`/`tools.resources` capability toggles have no canonical alias
-  // and pass through verbatim from the canonical `tools` block.
-  const tools: Record<string, unknown> = {};
-  if (isStringArray(config.enabledTools)) tools.include = config.enabledTools;
-  if (isStringArray(config.disabledTools)) tools.exclude = config.disabledTools;
-  if (isRecord(config.tools)) copyHermesToolCapabilities(config.tools, tools);
+  // and `tools/mcp_tool.py`'s `_register_server_tools`); the boolean
+  // `promptsEnabled`/`resourcesEnabled` toggles map to Hermes's `prompts`/`resources`.
+  const tools = buildHermesToolsBlock(config);
   if (Object.keys(tools).length > 0) out.tools = tools;
 
   return out;
@@ -196,15 +216,7 @@ function convertFromHermesFormat(mcpServers: Record<string, unknown>): McpServer
     // Advanced Hermes-recognized fields with no canonical alias round-trip
     // verbatim (see convertServerToHermes).
     copyHermesAdvancedFields(config, server);
-    if (isRecord(config.tools)) {
-      if (isStringArray(config.tools.include)) server.enabledTools = config.tools.include;
-      if (isStringArray(config.tools.exclude)) server.disabledTools = config.tools.exclude;
-      // `tools.prompts`/`tools.resources` have no canonical alias, so preserve
-      // them under a canonical `tools` block for round-trip.
-      const toolsPassthrough: Record<string, unknown> = {};
-      copyHermesToolCapabilities(config.tools, toolsPassthrough);
-      if (Object.keys(toolsPassthrough).length > 0) server.tools = toolsPassthrough;
-    }
+    if (isRecord(config.tools)) applyHermesToolsBlock(config.tools, server);
 
     result[name] = server;
   }
