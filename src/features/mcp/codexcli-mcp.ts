@@ -5,6 +5,7 @@ import * as smolToml from "smol-toml";
 import { CODEXCLI_DIR, CODEXCLI_MCP_FILE_NAME } from "../../constants/codexcli-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
+import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { warnWithFallback } from "../../utils/logger.js";
 import {
@@ -187,7 +188,16 @@ export class CodexcliMcp extends ToolMcp {
       validate: false,
     });
 
-    this.toml = smolToml.parse(this.fileContent);
+    let toml: smolToml.TomlTable;
+    try {
+      toml = smolToml.parse(this.fileContent);
+    } catch (error) {
+      throw new Error(
+        `Failed to parse Codex CLI config at ${this.getFilePath()}: ${formatError(error)}`,
+        { cause: error },
+      );
+    }
+    this.toml = toml;
 
     if (rest.validate) {
       const result = this.validate();
@@ -248,7 +258,15 @@ export class CodexcliMcp extends ToolMcp {
     const configTomlFilePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const configTomlFileContent = (await readFileContentOrNull(configTomlFilePath)) ?? "";
 
-    const configToml = smolToml.parse(configTomlFileContent || smolToml.stringify({}));
+    let configToml: smolToml.TomlTable;
+    try {
+      configToml = smolToml.parse(configTomlFileContent || smolToml.stringify({}));
+    } catch (error) {
+      throw new Error(
+        `Failed to parse existing Codex CLI config at ${configTomlFilePath}: ${formatError(error)}`,
+        { cause: error },
+      );
+    }
 
     const strippedMcpServers = rulesyncMcp.getMcpServers();
     const rawMcpServers = rulesyncMcp.getJson().mcpServers;
