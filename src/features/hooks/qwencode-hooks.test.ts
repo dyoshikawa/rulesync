@@ -213,6 +213,37 @@ describe("QwencodeHooks", () => {
       expect(parsed.hooks.StopFailure[0].hooks[0].command).toBe("echo stop-failure");
     });
 
+    it("should round-trip the PostToolBatch, UserPromptExpansion, PermissionDenied, and InstructionsLoaded events", async () => {
+      const config = {
+        hooks: {
+          postToolBatch: [{ type: "command", command: "echo batch" }],
+          userPromptExpansion: [{ type: "command", command: "echo expansion" }],
+          permissionDenied: [{ type: "command", command: "echo denied" }],
+          instructionsLoaded: [{ type: "command", command: "echo loaded" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({ fileContent: JSON.stringify(config) }),
+      );
+
+      const qwencodeHooks = await QwencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      // Emitted under Qwen Code's PascalCase event keys.
+      const parsed = JSON.parse(qwencodeHooks.getFileContent());
+      expect(parsed.hooks.PostToolBatch[0].hooks[0].command).toBe("echo batch");
+      expect(parsed.hooks.UserPromptExpansion[0].hooks[0].command).toBe("echo expansion");
+      expect(parsed.hooks.PermissionDenied[0].hooks[0].command).toBe("echo denied");
+      expect(parsed.hooks.InstructionsLoaded[0].hooks[0].command).toBe("echo loaded");
+
+      // And map back to the canonical camelCase events.
+      const canonical = JSON.parse(qwencodeHooks.toRulesyncHooks().getFileContent());
+      expect(canonical.hooks).toEqual(config.hooks);
+    });
+
     it("should preserve the http hook type and its url", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({

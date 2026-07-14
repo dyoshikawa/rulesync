@@ -481,6 +481,10 @@ export const JUNIE_HOOK_EVENTS: readonly HookEvent[] = [
  * The Qwen-specific events
  * `TodoCreated`, `TodoCompleted`, and `StopFailure` map to the canonical
  * `todoCreated`, `todoCompleted`, and `stopFailure` events respectively.
+ * Qwen's `HookEventName` enum (`packages/core/src/hooks/types.ts`) also documents
+ * `PostToolBatch`, `UserPromptExpansion`, `PermissionDenied`, and
+ * `InstructionsLoaded`, which map to the canonical `postToolBatch`,
+ * `userPromptExpansion`, `permissionDenied`, and `instructionsLoaded` events.
  * @see https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/hooks.md
  */
 export const QWENCODE_HOOK_EVENTS: readonly HookEvent[] = [
@@ -489,7 +493,9 @@ export const QWENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "preToolUse",
   "postToolUse",
   "postToolUseFailure",
+  "postToolBatch",
   "beforeSubmitPrompt",
+  "userPromptExpansion",
   "stop",
   "stopFailure",
   "subagentStart",
@@ -497,7 +503,9 @@ export const QWENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "preCompact",
   "postCompact",
   "permissionRequest",
+  "permissionDenied",
   "notification",
+  "instructionsLoaded",
   "todoCreated",
   "todoCompleted",
 ];
@@ -1028,7 +1036,9 @@ export const CANONICAL_TO_QWENCODE_EVENT_NAMES: Record<string, string> = {
   preToolUse: "PreToolUse",
   postToolUse: "PostToolUse",
   postToolUseFailure: "PostToolUseFailure",
+  postToolBatch: "PostToolBatch",
   beforeSubmitPrompt: "UserPromptSubmit",
+  userPromptExpansion: "UserPromptExpansion",
   stop: "Stop",
   subagentStart: "SubagentStart",
   subagentStop: "SubagentStop",
@@ -1036,7 +1046,9 @@ export const CANONICAL_TO_QWENCODE_EVENT_NAMES: Record<string, string> = {
   preCompact: "PreCompact",
   postCompact: "PostCompact",
   permissionRequest: "PermissionRequest",
+  permissionDenied: "PermissionDenied",
   notification: "Notification",
+  instructionsLoaded: "InstructionsLoaded",
   todoCreated: "TodoCreated",
   todoCompleted: "TodoCompleted",
 };
