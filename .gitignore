@@ -245,6 +245,7 @@ rulesync.local.jsonc
 **/.deepagents/hooks.json
 **/.roomodes
 **/.codexignore
+**/.codex/rules/
 **/AGENTS.md
 **/.agents/memories/
 **/.aiassistant/rules/
@@ -390,3 +391,4 @@ rulesync.local.jsonc
 **/.vibeignore
 **/.warpindexingignore
 !.rulesync/.aiignore
+# End of Rulesync

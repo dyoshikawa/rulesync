@@ -3,6 +3,7 @@ import {
   RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_MCP_RELATIVE_FILE_PATH,
+  RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { init } from "../../lib/init.js";
@@ -48,7 +49,7 @@ export async function initCommand(logger: Logger): Promise<void> {
   logger.success("rulesync initialized successfully!");
   logger.info("Next steps:");
   logger.info(
-    `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/skills/*/${SKILL_FILE_NAME}, ${RULESYNC_MCP_RELATIVE_FILE_PATH}, ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} and ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
+    `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/skills/*/${SKILL_FILE_NAME}, ${RULESYNC_MCP_RELATIVE_FILE_PATH}, ${RULESYNC_HOOKS_RELATIVE_FILE_PATH}, ${RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH} and ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
   );
   logger.info("2. Run 'rulesync generate' to create configuration files");
 }

@@ -8,6 +8,7 @@ import {
   RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
+  RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
   RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -97,7 +98,7 @@ describe("initCommand", () => {
       expect(mockLogger.success).toHaveBeenCalledWith("rulesync initialized successfully!");
       expect(mockLogger.info).toHaveBeenCalledWith("Next steps:");
       expect(mockLogger.info).toHaveBeenCalledWith(
-        `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/skills/*/${SKILL_FILE_NAME}, ${RULESYNC_RELATIVE_DIR_PATH}/mcp.json, ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} and ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
+        `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/skills/*/${SKILL_FILE_NAME}, ${RULESYNC_RELATIVE_DIR_PATH}/mcp.json, ${RULESYNC_HOOKS_RELATIVE_FILE_PATH}, ${RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH} and ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
       );
       expect(mockLogger.info).toHaveBeenCalledWith(
         "2. Run 'rulesync generate' to create configuration files",
@@ -337,7 +338,7 @@ describe("initCommand", () => {
 
       expect(mockLogger.info).toHaveBeenCalledWith("Next steps:");
       expect(mockLogger.info).toHaveBeenCalledWith(
-        `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/skills/*/${SKILL_FILE_NAME}, ${RULESYNC_RELATIVE_DIR_PATH}/mcp.json, ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} and ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
+        `1. Edit ${RULESYNC_RELATIVE_DIR_PATH}/**/*.md, ${RULESYNC_RELATIVE_DIR_PATH}/skills/*/${SKILL_FILE_NAME}, ${RULESYNC_RELATIVE_DIR_PATH}/mcp.json, ${RULESYNC_HOOKS_RELATIVE_FILE_PATH}, ${RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH} and ${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}`,
       );
       expect(mockLogger.info).toHaveBeenCalledWith(
         "2. Run 'rulesync generate' to create configuration files",
