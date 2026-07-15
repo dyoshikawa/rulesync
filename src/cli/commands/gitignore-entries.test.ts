@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { ALL_TOOL_TARGETS } from "../../types/tool-targets.js";
-import { deriveAllGitignoreEntries, DERIVED_PATHS_NOT_GITIGNORED } from "./gitignore-derive.js";
+import {
+  deriveAllGitignoreEntries,
+  deriveAllGitignoreEntriesUnfiltered,
+  DERIVED_PATHS_NOT_GITIGNORED,
+} from "./gitignore-derive.js";
 import {
   ALL_GITIGNORE_ENTRIES,
   GITIGNORE_ENTRY_REGISTRY,
@@ -80,6 +84,40 @@ describe("registry derivation", () => {
   it("every derived entry that rulesync owns is gitignored, not in the exclusion set", () => {
     for (const tag of deriveAllGitignoreEntries()) {
       expect(DERIVED_PATHS_NOT_GITIGNORED.has(tag.entry)).toBe(false);
+    }
+  });
+
+  // Reverse guard: a typo in DERIVED_PATHS_NOT_GITIGNORED, or a tool path that
+  // is later renamed or dropped, would leave a stale exclusion that silently
+  // stops excluding anything. Every exclusion-set path must keep matching a
+  // path some tool actually emits — except the hand-listed variants a tool
+  // emits only under non-default feature options, which default derivation
+  // cannot see.
+  it("every exclusion-set path matches a real derived output path", () => {
+    const conditionallyEmittedExclusions = new Set([
+      // Runtime probe twin of `.amp/settings.json` (used when the user already
+      // keeps a settings.jsonc).
+      "**/.amp/settings.jsonc",
+      // claudecode ignore feature with `fileMode: "local"`.
+      "**/.claude/settings.local.json",
+    ]);
+    const rawEntries = new Set(deriveAllGitignoreEntriesUnfiltered().map((tag) => tag.entry));
+    const stale = [...DERIVED_PATHS_NOT_GITIGNORED].filter(
+      (entry) => !rawEntries.has(entry) && !conditionallyEmittedExclusions.has(entry),
+    );
+    expect(stale).toEqual([]);
+  });
+
+  // Lock in that user-managed merge-into settings files stay committable: they
+  // must never re-appear in the emitted gitignore entries.
+  it("user-managed tool config files are not gitignored", () => {
+    for (const entry of [
+      "**/.codex/config.toml",
+      "**/.grok/config.toml",
+      "**/.vibe/config.toml",
+      "**/reasonix.toml",
+    ]) {
+      expect(ALL_GITIGNORE_ENTRIES).not.toContain(entry);
     }
   });
 

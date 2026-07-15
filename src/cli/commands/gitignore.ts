@@ -121,6 +121,48 @@ const removeExistingRulesyncEntries = (content: string): string => {
   return result;
 };
 
+// Collect the entries currently sitting inside rulesync-managed blocks (plus
+// stray recognized entries outside them), so the command can report which
+// previously managed paths are about to stop being gitignored.
+const extractRulesyncManagedEntries = (content: string): string[] => {
+  const lines = content.split("\n");
+  const managed: string[] = [];
+  let index = 0;
+
+  const collectBlockLines = (start: number, end: number): void => {
+    for (const blockLine of lines.slice(start, end)) {
+      const trimmed = blockLine.trim();
+      if (trimmed !== "") {
+        managed.push(trimmed);
+      }
+    }
+  };
+
+  while (index < lines.length) {
+    const line = lines[index] ?? "";
+
+    if (isRulesyncHeader(line)) {
+      const footerIndex = findRulesyncFooterIndex(lines, index + 1);
+      if (footerIndex !== -1) {
+        collectBlockLines(index + 1, footerIndex);
+        index = footerIndex + 1;
+        continue;
+      }
+      const legacyEnd = skipLegacyRulesyncBlock(lines, index);
+      collectBlockLines(index + 1, legacyEnd);
+      index = legacyEnd;
+      continue;
+    }
+
+    if (isRulesyncEntry(line)) {
+      managed.push(line.trim());
+    }
+    index++;
+  }
+
+  return managed;
+};
+
 export type GitignoreCommandOptions = {
   readonly targets?: string[];
   readonly features?: RulesyncFeatures;
@@ -197,12 +239,17 @@ export const gitignoreCommand = async (
     updated: boolean;
     alreadyExistedEntries: string[];
     entriesToAdd: string[];
+    entriesRemoved: string[];
   }> => {
     let content = "";
     if (await fileExists(filePath)) {
       content = await readFileContent(filePath);
     }
     const cleanedContent = removeExistingRulesyncEntries(content);
+    const entrySet = new Set(entries);
+    const entriesRemoved = [
+      ...new Set(extractRulesyncManagedEntries(content).filter((entry) => !entrySet.has(entry))),
+    ];
 
     const existingEntries = new Set(
       content
@@ -223,10 +270,10 @@ export const gitignoreCommand = async (
           : `${rulesyncBlock}\n`;
 
     if (content === newContent) {
-      return { updated: false, alreadyExistedEntries, entriesToAdd: [] };
+      return { updated: false, alreadyExistedEntries, entriesToAdd: [], entriesRemoved: [] };
     }
     await writeFileContent(filePath, newContent);
-    return { updated: true, alreadyExistedEntries, entriesToAdd };
+    return { updated: true, alreadyExistedEntries, entriesToAdd, entriesRemoved };
   };
 
   const gitignoreResult = await updateRulesyncFile({
@@ -262,6 +309,19 @@ export const gitignoreCommand = async (
       ...gitignoreResult.alreadyExistedEntries,
       ...gitattributesResult.alreadyExistedEntries,
     ]);
+    logger.captureData("entriesRemoved", gitignoreResult.entriesRemoved);
+  }
+
+  if (gitignoreResult.entriesRemoved.length > 0) {
+    logger.warn(
+      "The following entries were removed from the rulesync-managed block in .gitignore and are no longer gitignored by rulesync:",
+    );
+    for (const entry of gitignoreResult.entriesRemoved) {
+      logger.warn(`  ${entry}`);
+    }
+    logger.warn(
+      "Review these paths before committing — user-managed settings files may contain secrets.",
+    );
   }
 
   if (gitignoreResult.updated) {
