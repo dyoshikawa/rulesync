@@ -57,6 +57,68 @@ describe("CodexcliPermissions", () => {
     expect(fileContent).toContain('"example.com" = "deny"');
   });
 
+  it("should preserve unmanaged config.toml params on regeneration", async () => {
+    const logger = createMockLogger();
+    const codexDir = join(testDir, ".codex");
+    await ensureDir(codexDir);
+    await writeFileContent(
+      join(codexDir, "config.toml"),
+      [
+        'model = "gpt-5.4"',
+        'model_reasoning_effort = "high"',
+        "",
+        "[tools]",
+        "web_search = true",
+        "",
+        "[permissions.custom]",
+        'description = "hand-written sibling profile"',
+        "",
+        "[permissions.rulesync]",
+        'extends = ":workspace"',
+        "",
+        "[permissions.rulesync.workspace_roots]",
+        '"/workspace/extra" = "write"',
+        "",
+        "[permissions.rulesync.network]",
+        'proxy_url = "http://proxy.local:8080"',
+        "enable_socks5 = false",
+        "",
+      ].join("\n"),
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          webfetch: { "github.com": "allow" },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    // Unmanaged top-level keys survive.
+    expect(fileContent).toContain('model = "gpt-5.4"');
+    expect(fileContent).toContain('model_reasoning_effort = "high"');
+    expect(fileContent).toContain("web_search = true");
+    // Sibling profiles survive.
+    expect(fileContent).toContain('description = "hand-written sibling profile"');
+    // Unmanaged keys inside the rulesync profile and its network table survive.
+    expect(fileContent).toContain('"/workspace/extra" = "write"');
+    expect(fileContent).toContain('proxy_url = "http://proxy.local:8080"');
+    expect(fileContent).toContain("enable_socks5 = false");
+    // Managed keys are still regenerated.
+    expect(fileContent).toContain('"github.com" = "allow"');
+    expect(fileContent).toContain('default_permissions = "rulesync"');
+  });
+
   it("should place relative filesystem globs under the Codex workspace roots table", async () => {
     const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({

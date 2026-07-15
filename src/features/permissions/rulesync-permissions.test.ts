@@ -16,6 +16,13 @@ import {
   type RulesyncPermissionsParams,
 } from "./rulesync-permissions.js";
 
+const makeInstance = (json: Record<string, unknown>) =>
+  new RulesyncPermissions({
+    relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+    relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+    fileContent: JSON.stringify(json),
+  });
+
 describe("RulesyncPermissions", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -306,7 +313,153 @@ describe("RulesyncPermissions", () => {
     });
   });
 
+  describe("forTarget", () => {
+    it("should return the same instance when no tool-scoped permission exists", () => {
+      const instance = makeInstance({ permission: { bash: { "*": "ask" } } });
+
+      expect(instance.forTarget({ toolTarget: "claudecode" })).toBe(instance);
+    });
+
+    it("should merge the tool-scoped permission over the shared block per category", () => {
+      const instance = makeInstance({
+        permission: {
+          bash: { "*": "ask", "git *": "allow" },
+          edit: { "src/**": "allow" },
+        },
+        claudecode: {
+          permission: { bash: { "git push *": "deny" } },
+          permissions: { defaultMode: "acceptEdits" },
+        },
+      });
+
+      const effective = instance.forTarget({ toolTarget: "claudecode" });
+      const json = effective.getJson();
+
+      // Tool-scoped category replaces the shared category wholesale.
+      expect(json.permission).toEqual({
+        bash: { "git push *": "deny" },
+        edit: { "src/**": "allow" },
+      });
+      // The consumed `permission` key is stripped; other override keys stay.
+      expect(json.claudecode).toEqual({ permissions: { defaultMode: "acceptEdits" } });
+    });
+
+    it("should not apply another tool's scoped permission", () => {
+      const instance = makeInstance({
+        permission: { bash: { "*": "ask" } },
+        claudecode: { permission: { bash: { "*": "allow" } } },
+      });
+
+      const effective = instance.forTarget({ toolTarget: "cursor" });
+
+      expect(effective).toBe(instance);
+    });
+
+    it("should drop the override block entirely when permission was its only key", () => {
+      const instance = makeInstance({
+        permission: { bash: { "*": "ask" } },
+        zed: { permission: { bash: { "*": "allow" } } },
+      });
+
+      const json = instance.forTarget({ toolTarget: "zed" }).getJson();
+
+      expect(json.permission).toEqual({ bash: { "*": "allow" } });
+      expect(json.zed).toBeUndefined();
+    });
+
+    it("should alias kiro-cli and kiro-ide to the kiro override key", () => {
+      const instance = makeInstance({
+        permission: { bash: { "*": "ask" } },
+        kiro: { permission: { bash: { "*": "deny" } } },
+      });
+
+      expect(instance.forTarget({ toolTarget: "kiro-cli" }).getJson().permission).toEqual({
+        bash: { "*": "deny" },
+      });
+      expect(instance.forTarget({ toolTarget: "kiro-ide" }).getJson().permission).toEqual({
+        bash: { "*": "deny" },
+      });
+      expect(instance.forTarget({ toolTarget: "kiro" }).getJson().permission).toEqual({
+        bash: { "*": "deny" },
+      });
+    });
+
+    it("should warn when a block is authored under an alias source name", () => {
+      const logger = { warn: vi.fn() } as any;
+      const instance = makeInstance({
+        permission: { bash: { "*": "ask" } },
+        "kiro-cli": { permission: { bash: { "*": "allow" } } },
+      });
+
+      const effective = instance.forTarget({ toolTarget: "kiro-cli", logger });
+
+      // The block under the alias SOURCE name is ignored, but not silently.
+      expect(effective.getJson().permission).toEqual({ bash: { "*": "ask" } });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"kiro"'));
+    });
+
+    it("should alias hermesagent to the hermes override key", () => {
+      const instance = makeInstance({
+        permission: { bash: { "*": "ask" } },
+        hermes: { permission: { webfetch: { "*": "deny" } } },
+      });
+
+      const json = instance.forTarget({ toolTarget: "hermesagent" }).getJson();
+
+      expect(json.permission).toEqual({ bash: { "*": "ask" }, webfetch: { "*": "deny" } });
+      expect(json.hermes).toBeUndefined();
+    });
+
+    it("should leave OpenCode/Kilo/Vibe native permission overrides untouched", () => {
+      const instance = makeInstance({
+        permission: { bash: { "*": "ask" } },
+        opencode: { permission: { external_directory: "deny" } },
+        kilo: { permission: { doom_loop: "ask" } },
+        vibe: { permission: { bash: { sensitive_patterns: ["rm *"] } } },
+      });
+
+      expect(instance.forTarget({ toolTarget: "opencode" })).toBe(instance);
+      expect(instance.forTarget({ toolTarget: "kilo" })).toBe(instance);
+      expect(instance.forTarget({ toolTarget: "vibe" })).toBe(instance);
+    });
+  });
+
   describe("fromFile", () => {
+    it("should load permissions.jsonc with comments", async () => {
+      const jsoncPath = join(testDir, RULESYNC_RELATIVE_DIR_PATH, "permissions.jsonc");
+      const jsoncContent = `{
+        // canonical shared permission block
+        "permission": {
+          "bash": { "git *": "allow", },
+        },
+      }`;
+
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+      await writeFileContent(jsoncPath, jsoncContent);
+
+      const instance = await RulesyncPermissions.fromFile({ validate: true });
+
+      expect(instance.getRelativeFilePath()).toBe("permissions.jsonc");
+      expect(instance.getJson()).toEqual({ permission: { bash: { "git *": "allow" } } });
+    });
+
+    it("should prefer permissions.jsonc over permissions.json when both exist", async () => {
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RELATIVE_DIR_PATH, RULESYNC_PERMISSIONS_FILE_NAME),
+        JSON.stringify({ permission: { bash: { "*": "deny" } } }),
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RELATIVE_DIR_PATH, "permissions.jsonc"),
+        JSON.stringify({ permission: { bash: { "*": "allow" } } }),
+      );
+
+      const instance = await RulesyncPermissions.fromFile({ validate: true });
+
+      expect(instance.getRelativeFilePath()).toBe("permissions.jsonc");
+      expect(instance.getJson()).toEqual({ permission: { bash: { "*": "allow" } } });
+    });
+
     it("should create RulesyncPermissions from existing file", async () => {
       const permissionsPath = join(
         testDir,

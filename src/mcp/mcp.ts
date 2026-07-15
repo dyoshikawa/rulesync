@@ -5,7 +5,7 @@ import { z } from "zod/mini";
 import { RULESYNC_MCP_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { RulesyncMcp } from "../features/mcp/rulesync-mcp.js";
 import { formatError } from "../utils/error.js";
-import { ensureDir, removeFile, writeFileContent } from "../utils/file.js";
+import { ensureDir, fileExists, removeFile, writeFileContent } from "../utils/file.js";
 
 const maxMcpSizeBytes = 1024 * 1024; // 1MB
 
@@ -70,6 +70,16 @@ async function putMcpFile({ content }: { content: string }): Promise<{
     const outputRoot = process.cwd();
     const paths = RulesyncMcp.getSettablePaths();
 
+    // A .jsonc variant takes precedence at read time, so writing the .json
+    // variant while it exists would be silently ignored — and rewriting the
+    // .jsonc file here would destroy its comments. Refuse instead.
+    const jsoncRelativePath = join(paths.jsonc.relativeDirPath, paths.jsonc.relativeFilePath);
+    if (await fileExists(join(outputRoot, jsoncRelativePath))) {
+      throw new Error(
+        `${jsoncRelativePath} exists and takes precedence over ${RULESYNC_MCP_RELATIVE_FILE_PATH}. Edit ${jsoncRelativePath} directly instead.`,
+      );
+    }
+
     // Use recommended path
     const relativeDirPath = paths.recommended.relativeDirPath;
     const relativeFilePath = paths.recommended.relativeFilePath;
@@ -130,6 +140,9 @@ async function deleteMcpFile(): Promise<{
 
     // Remove recommended path if it exists
     await removeFile(recommendedPath);
+
+    // Remove the .jsonc variant if it exists
+    await removeFile(join(outputRoot, paths.jsonc.relativeDirPath, paths.jsonc.relativeFilePath));
 
     // Remove legacy path if it exists
     await removeFile(legacyPath);

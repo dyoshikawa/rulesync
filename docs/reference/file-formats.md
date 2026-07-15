@@ -72,6 +72,8 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
 
 ## `.rulesync/hooks.json`
 
+> **JSONC variant:** hooks can also be authored as `.rulesync/hooks.jsonc` (JSON with comments and trailing commas). When both `hooks.json` and `hooks.jsonc` exist, the `.jsonc` file takes precedence.
+
 Hooks run scripts at lifecycle events (e.g. session start, before tool use). Events use **canonical camelCase** in this file, and Rulesync translates them per tool: Cursor uses them as-is; Claude Code, Factory Droid, Codex CLI, Gemini CLI, and Goose get PascalCase (with a few tool-specific name mappings) in their settings files; OpenCode and Kilo hooks are emitted as JavaScript plugins (`.opencode/plugins/rulesync-hooks.js`, `.kilo/plugins/rulesync-hooks.js`); Copilot and Copilot CLI map event names to their own camelCase (e.g. `beforeSubmitPrompt` → `userPromptSubmitted`, `stop` → `agentStop`, `afterError` → `errorOccurred`) and use `powershell`/`bash` command fields — Copilot CLI additionally covers a wider event set and supports `prompt` and `http` hook types beyond `command`; deepagents-cli uses a dot-notation (e.g. `session.start`, `tool.error`); Kiro emits hooks into `.kiro/agents/default.json` using Kiro's CLI event names (`agentSpawn`, `userPromptSubmit`, `preToolUse`, `postToolUse`, `stop`); Qwen Code emits PascalCase events into the `hooks` key of `.qwen/settings.json` (its supported event set differs from Gemini CLI's).
 
 Example:
@@ -579,6 +581,8 @@ When `claudecode.scheduled-task: true` is set, that skill is emitted only as a C
 
 ## `.rulesync/mcp.json`
 
+> **JSONC variant:** MCP servers can also be authored as `.rulesync/mcp.jsonc` (JSON with comments and trailing commas). When both `mcp.json` and `mcp.jsonc` exist, the `.jsonc` file takes precedence.
+
 Example:
 
 ```json
@@ -613,6 +617,32 @@ Example:
   }
 }
 ```
+
+### Tool-scoped server blocks (`{toolname}.mcpServers`)
+
+Servers under the shared `mcpServers` key are emitted to every targeted tool. To scope a server to a single tool, add a tool-scoped `{toolname}` block alongside it — mirroring `{toolname}.hooks` in `.rulesync/hooks.json` and `{toolname}.permission` in `.rulesync/permissions.json`:
+
+```jsonc
+{
+  "mcpServers": {
+    "shared-server": { "type": "stdio", "command": "echo" },
+  },
+  "claudecode": {
+    "mcpServers": {
+      // Added only to Claude Code's MCP config.
+      "claude-only-server": { "type": "http", "url": "https://example.com/mcp" },
+      // `null` removes a shared server for Claude Code only.
+      "shared-server": null,
+    },
+  },
+}
+```
+
+- A tool-scoped entry with the same name as a shared server **replaces it wholesale** for that tool (no field-level merge).
+- A tool-scoped entry set to `null` **removes** the shared server for that tool.
+- Any MCP-capable `--targets` name is accepted as a block key (`claudecode`, `cursor`, `codexcli`, ...). Targets that share one output file resolve identically so the shared file never depends on generation order: the deprecated `claudecode-legacy` target reads the `claudecode` block; the `kiro-cli` / `kiro-ide` targets read the `kiro` block (all three write the same `.kiro/settings/mcp.json`); and the `antigravity-ide` / `antigravity-cli` targets both apply both `antigravity-*` blocks in a fixed order (`antigravity-ide` first, then `antigravity-cli` — the CLI block wins per server) because they share their output file at both scopes (`.agents/mcp_config.json` in project mode, `~/.gemini/config/mcp_config.json` in global mode).
+
+> **Deprecated: per-server `targets`.** The older per-server `"targets": ["tool", ...]` array is still honored as a filter (a missing value or `["*"]` means every tool), but it is deprecated and logs a warning at generate time. Migrate by moving the server into the matching `{toolname}.mcpServers` block(s).
 
 #### JSON Schema Support
 
@@ -804,6 +834,8 @@ If you would rather keep the deny list out of version control, opt into the
 
 ## `.rulesync/permissions.json`
 
+> **JSONC variant:** permissions can also be authored as `.rulesync/permissions.jsonc` (JSON with comments and trailing commas). When both `permissions.json` and `permissions.jsonc` exist, the `.jsonc` file takes precedence.
+
 Permissions define which tool actions are allowed, require confirmation, or are denied. The canonical format uses **lowercase tool category names** and **glob patterns** mapped to permission actions.
 
 **Permission actions:**
@@ -835,6 +867,28 @@ Example:
   }
 }
 ```
+
+### Tool-scoped permission blocks (`{toolname}.permission`)
+
+The shared `permission` block applies to every targeted tool. To scope rules to a single tool, add a tool-scoped `{toolname}` block with a `permission` record of the same shape — mirroring `{toolname}.hooks` in `.rulesync/hooks.json` and `{toolname}.mcpServers` in `.rulesync/mcp.json`:
+
+```jsonc
+{
+  "permission": {
+    "bash": { "git *": "allow", "*": "ask" },
+  },
+  "claudecode": {
+    "permission": {
+      // Replaces the shared `bash` category for Claude Code only.
+      "bash": { "git *": "allow", "git push *": "deny", "*": "ask" },
+    },
+  },
+}
+```
+
+- Categories are merged **per category**: a tool-scoped category replaces the shared category wholesale for that tool; shared categories it does not name still apply.
+- Any permissions-capable `--targets` name is accepted as a block key. `kiro-cli`/`kiro-ide` alias to the `kiro` key and `hermesagent` to `hermes` (matching the shared output file each writes).
+- OpenCode, Kilo, and Vibe keep their existing tool-native `permission` override semantics (bare action strings / tool-only categories / `sensitive_patterns` — see the tool-specific callouts below); their blocks are consumed by their translators instead of the central merge.
 
 #### JSON Schema Support
 

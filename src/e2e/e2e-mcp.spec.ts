@@ -92,6 +92,65 @@ describe("E2E: mcp", () => {
     expect(generatedContent).toContain("test-server");
   });
 
+  it("should apply tool-scoped {toolname}.mcpServers blocks and the deprecated targets filter", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          mcpServers: {
+            shared: { type: "stdio", command: "echo", args: ["shared"] },
+            // DEPRECATED per-server targets: still honored as a filter.
+            cursorOnly: { type: "stdio", command: "echo", args: ["cursor"], targets: ["cursor"] },
+          },
+          claudecode: {
+            mcpServers: {
+              claudeExtra: { type: "stdio", command: "echo", args: ["claude"] },
+              // null removes the shared server for Claude Code only.
+              shared: null,
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "claudecode", features: "mcp" });
+    await runGenerate({ target: "cursor", features: "mcp" });
+
+    const claude = JSON.parse(await readFileContent(join(testDir, ".mcp.json")));
+    expect(Object.keys(claude.mcpServers)).toEqual(["claudeExtra"]);
+
+    const cursor = JSON.parse(await readFileContent(join(testDir, ".cursor", "mcp.json")));
+    expect(Object.keys(cursor.mcpServers).toSorted()).toEqual(["cursorOnly", "shared"]);
+  });
+
+  it("should generate mcp from mcp.jsonc (preferred over mcp.json)", async () => {
+    const testDir = getTestDir();
+
+    // The stale .json variant must lose to the .jsonc variant.
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({ mcpServers: { staleServer: { type: "stdio", command: "echo" } } }),
+    );
+    await writeFileContent(
+      join(testDir, ".rulesync", "mcp.jsonc"),
+      `{
+        "mcpServers": {
+          // JSONC source with comments and trailing commas
+          "jsoncServer": { "type": "stdio", "command": "echo", },
+        },
+      }`,
+    );
+
+    await runGenerate({ target: "claudecode", features: "mcp" });
+
+    const content = JSON.parse(await readFileContent(join(testDir, ".mcp.json")));
+    expect(Object.keys(content.mcpServers)).toEqual(["jsoncServer"]);
+  });
+
   it("should co-locate amp mcp and permissions in a single settings.json on a clean repo", async () => {
     const testDir = getTestDir();
 

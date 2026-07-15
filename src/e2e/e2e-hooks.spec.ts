@@ -181,6 +181,31 @@ describe("E2E: hooks", () => {
     }
   });
 
+  it("should generate hooks from hooks.jsonc (preferred over hooks.json)", async () => {
+    const testDir = getTestDir();
+
+    // The stale .json variant must lose to the .jsonc variant.
+    await writeFileContent(
+      join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+      JSON.stringify({ hooks: { sessionStart: [{ command: "echo stale" }] } }),
+    );
+    await writeFileContent(
+      join(testDir, ".rulesync", "hooks.jsonc"),
+      `{
+        "hooks": {
+          // JSONC source with comments and trailing commas
+          "sessionStart": [{ "command": "echo from-jsonc", }],
+        },
+      }`,
+    );
+
+    await runGenerate({ target: "claudecode", features: "hooks" });
+
+    const generatedContent = await readFileContent(join(testDir, ".claude", "settings.json"));
+    expect(generatedContent).toContain("echo from-jsonc");
+    expect(generatedContent).not.toContain("echo stale");
+  });
+
   it("should map canonical stop/subagentStop to copilot agentStop/subagentStop", async () => {
     const testDir = getTestDir();
 

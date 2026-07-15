@@ -1,4 +1,14 @@
+import { join } from "node:path";
+
 import { Config } from "../config/config.js";
+import {
+  RULESYNC_HOOKS_JSONC_RELATIVE_FILE_PATH,
+  RULESYNC_HOOKS_RELATIVE_FILE_PATH,
+  RULESYNC_MCP_JSONC_RELATIVE_FILE_PATH,
+  RULESYNC_MCP_RELATIVE_FILE_PATH,
+  RULESYNC_PERMISSIONS_JSONC_RELATIVE_FILE_PATH,
+  RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
+} from "../constants/rulesync-paths.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
@@ -8,7 +18,28 @@ import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import type { ToolTarget } from "../types/tool-targets.js";
+import { fileExists } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
+
+/**
+ * Import always writes the `.json` variant of a fixed-path source file, but a
+ * sibling `.jsonc` variant takes precedence at read time — so an import into a
+ * project that authors the `.jsonc` variant would be silently shadowed. Warn
+ * so the user merges (or removes) one of the two by hand.
+ */
+async function warnIfShadowedByJsonc(params: {
+  outputRoot: string;
+  jsonRelativePath: string;
+  jsoncRelativePath: string;
+  logger: Logger;
+}): Promise<void> {
+  const { outputRoot, jsonRelativePath, jsoncRelativePath, logger } = params;
+  if (await fileExists(join(outputRoot, jsoncRelativePath))) {
+    logger.warn(
+      `${jsoncRelativePath} exists and takes precedence over the imported ${jsonRelativePath}. Merge the imported content into ${jsoncRelativePath} (or remove it) so the import takes effect.`,
+    );
+  }
+}
 
 export type ImportResult = {
   rulesCount: number;
@@ -175,6 +206,15 @@ async function importMcpCore(params: {
 
   const rulesyncFiles = await mcpProcessor.convertToolFilesToRulesyncFiles(toolFiles);
   const { count: writtenCount } = await mcpProcessor.writeAiFiles(rulesyncFiles);
+
+  if (writtenCount > 0) {
+    await warnIfShadowedByJsonc({
+      outputRoot: config.getOutputRoots()[0] ?? ".",
+      jsonRelativePath: RULESYNC_MCP_RELATIVE_FILE_PATH,
+      jsoncRelativePath: RULESYNC_MCP_JSONC_RELATIVE_FILE_PATH,
+      logger,
+    });
+  }
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} MCP files`);
@@ -348,6 +388,15 @@ async function importHooksCore(params: {
   const rulesyncFiles = await hooksProcessor.convertToolFilesToRulesyncFiles(toolFiles);
   const { count: writtenCount } = await hooksProcessor.writeAiFiles(rulesyncFiles);
 
+  if (writtenCount > 0) {
+    await warnIfShadowedByJsonc({
+      outputRoot: config.getOutputRoots()[0] ?? ".",
+      jsonRelativePath: RULESYNC_HOOKS_RELATIVE_FILE_PATH,
+      jsoncRelativePath: RULESYNC_HOOKS_JSONC_RELATIVE_FILE_PATH,
+      logger,
+    });
+  }
+
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} hooks file(s)`);
   }
@@ -396,6 +445,15 @@ async function importPermissionsCore(params: {
 
   const rulesyncFiles = await permissionsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
   const { count: writtenCount } = await permissionsProcessor.writeAiFiles(rulesyncFiles);
+
+  if (writtenCount > 0) {
+    await warnIfShadowedByJsonc({
+      outputRoot: config.getOutputRoots()[0] ?? ".",
+      jsonRelativePath: RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
+      jsoncRelativePath: RULESYNC_PERMISSIONS_JSONC_RELATIVE_FILE_PATH,
+      logger,
+    });
+  }
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} permissions file(s)`);
