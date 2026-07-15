@@ -532,6 +532,19 @@ describe("CodexcliConfigToml", () => {
     await cleanup();
   });
 
+  it("should preserve existing model and model_reasoning_effort", async () => {
+    await ensureDir(join(testDir, ".codex"));
+    await writeFileContent(
+      join(testDir, ".codex", "config.toml"),
+      'model = "gpt-5.3-codex"\nmodel_reasoning_effort = "high"\n',
+    );
+
+    const configToml = await CodexcliConfigToml.fromOutputRoot({ outputRoot: testDir });
+    const content = configToml.getFileContent();
+    expect(content).toContain('model = "gpt-5.3-codex"');
+    expect(content).toContain('model_reasoning_effort = "high"');
+  });
+
   it("should not force-write [features] hooks = true (hooks are GA/default-on)", async () => {
     const configToml = await CodexcliConfigToml.fromOutputRoot({ outputRoot: testDir });
     expect(configToml.getFileContent()).not.toContain("hooks = true");

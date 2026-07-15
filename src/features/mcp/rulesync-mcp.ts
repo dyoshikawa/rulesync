@@ -3,7 +3,10 @@ import { join } from "node:path";
 import { omit } from "es-toolkit/object";
 import { z } from "zod/mini";
 
-import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_MCP_JSONC_FILE_NAME,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServerSchema, McpServers } from "../../types/mcp.js";
 import {
@@ -11,12 +14,17 @@ import {
   RulesyncFileFromFileParams,
   RulesyncFileParams,
 } from "../../types/rulesync-file.js";
+import { mcpProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { RulesyncTargetsSchema } from "../../types/tool-targets.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
+import { parseJsonc } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
+import { isPlainObject } from "../../utils/type-guards.js";
 
 // Schema for rulesync MCP server (extends base schema with optional targets)
-// Note: targets defaults to ["*"] when omitted (applied during filtering, not at parse time)
+// Note: `targets` is DEPRECATED — use the tool-scoped `{toolname}.mcpServers`
+// blocks instead. It defaults to ["*"] when omitted and is honored (with a
+// deprecation warning) by the per-target filtering in `forTarget`.
 const RulesyncMcpServerSchema = z.extend(McpServerSchema, {
   targets: z.optional(RulesyncTargetsSchema),
   description: z.optional(z.string()),
@@ -28,9 +36,27 @@ const RulesyncMcpConfigSchema = z.object({
 });
 type RulesyncMcpConfig = z.infer<typeof RulesyncMcpConfigSchema>;
 
+/**
+ * Tool-scoped override block: `{toolname}.mcpServers` carries server entries
+ * that apply ONLY to that tool, mirroring `{toolname}.hooks` in
+ * `.rulesync/hooks.json` and `{toolname}.permission` in
+ * `.rulesync/permissions.json`. A server entry replaces (or adds to) the
+ * shared `mcpServers` entry of the same name wholesale for that tool; a
+ * `null` entry removes the shared server for that tool. This supersedes the
+ * deprecated per-server `targets` field.
+ */
+const RulesyncMcpToolOverrideSchema = z.looseObject({
+  mcpServers: z.optional(z.record(z.string(), z.union([RulesyncMcpServerSchema, z.null()]))),
+});
+
+const toolOverrideShape = Object.fromEntries(
+  mcpProcessorToolTargetTuple.map((target) => [target, z.optional(RulesyncMcpToolOverrideSchema)]),
+);
+
 export const RulesyncMcpFileSchema = z.looseObject({
   $schema: z.optional(z.string()),
   ...RulesyncMcpConfigSchema.shape,
+  ...toolOverrideShape,
 });
 
 export type RulesyncMcpParams = RulesyncFileParams;
@@ -54,7 +80,8 @@ export class RulesyncMcp extends RulesyncFile {
   constructor(params: RulesyncMcpParams) {
     super(params);
 
-    this.json = JSON.parse(this.fileContent);
+    // JSONC is a superset of JSON, so both `.json` and `.jsonc` sources parse here.
+    this.json = parseJsonc(this.fileContent) as RulesyncMcpConfig;
 
     if (params.validate) {
       const result = this.validate();
@@ -101,6 +128,23 @@ export class RulesyncMcp extends RulesyncFile {
       paths.legacy.relativeDirPath,
       paths.legacy.relativeFilePath,
     );
+
+    // The `.jsonc` twin wins over `.json` when both exist.
+    const jsoncPath = join(
+      outputRoot,
+      paths.recommended.relativeDirPath,
+      RULESYNC_MCP_JSONC_FILE_NAME,
+    );
+    if (await fileExists(jsoncPath)) {
+      const fileContent = await readFileContent(jsoncPath);
+      return new RulesyncMcp({
+        outputRoot,
+        relativeDirPath: paths.recommended.relativeDirPath,
+        relativeFilePath: RULESYNC_MCP_JSONC_FILE_NAME,
+        fileContent,
+        validate,
+      });
+    }
 
     // Check if recommended path exists
     if (await fileExists(recommendedPath)) {
@@ -156,6 +200,79 @@ export class RulesyncMcp extends RulesyncFile {
         return [serverName, omit(serverConfig, ["targets", "description", "exposed", "envVars"])];
       }),
     );
+  }
+
+  /**
+   * Resolve the effective server map for a tool target:
+   * 1. Apply the DEPRECATED per-server `targets` filter (a server whose
+   *    `targets` array names neither `"*"` nor the target is excluded), with a
+   *    deprecation warning pointing at the tool-scoped blocks.
+   * 2. Merge the tool-scoped `{toolname}.mcpServers` block: an entry replaces
+   *    (or adds to) the shared server of the same name wholesale; `null`
+   *    removes it for this target.
+   * Every tool-scoped block is stripped from the returned instance so it can
+   * never leak into tool outputs that spread the source JSON. Returns the same
+   * instance when nothing applies.
+   */
+  forTarget({ toolTarget, logger }: { toolTarget: string; logger?: Logger }): RulesyncMcp {
+    const json: Record<string, unknown> = this.json;
+    const sharedServers = this.json.mcpServers ?? {};
+
+    const usesDeprecatedTargets = Object.values(sharedServers).some((server) =>
+      Array.isArray(server.targets),
+    );
+    if (usesDeprecatedTargets) {
+      logger?.warn(
+        `⚠️  The per-server "targets" field in .rulesync/mcp.json is deprecated. ` +
+          `Move tool-specific servers into the tool-scoped "{toolname}.mcpServers" block instead.`,
+      );
+    }
+
+    const filteredServers: McpServers = {};
+    for (const [serverName, serverConfig] of Object.entries(sharedServers)) {
+      const targets: readonly string[] | undefined = serverConfig.targets;
+      if (Array.isArray(targets) && !targets.includes("*") && !targets.includes(toolTarget)) {
+        continue;
+      }
+      filteredServers[serverName] = serverConfig;
+    }
+
+    const overrideBlock = json[toolTarget];
+    const overrideServers =
+      isPlainObject(overrideBlock) && isPlainObject(overrideBlock.mcpServers)
+        ? overrideBlock.mcpServers
+        : undefined;
+
+    const hasToolOverrideKeys = mcpProcessorToolTargetTuple.some(
+      (target) => json[target] !== undefined,
+    );
+    const filteredAnyServer =
+      Object.keys(filteredServers).length !== Object.keys(sharedServers).length;
+    if (!hasToolOverrideKeys && !filteredAnyServer) {
+      return this;
+    }
+
+    const effectiveServers: Record<string, unknown> = { ...filteredServers };
+    for (const [serverName, serverConfig] of Object.entries(overrideServers ?? {})) {
+      if (serverConfig === null) {
+        delete effectiveServers[serverName];
+      } else {
+        effectiveServers[serverName] = serverConfig;
+      }
+    }
+
+    const toolOverrideKeys: ReadonlySet<string> = new Set(mcpProcessorToolTargetTuple);
+    const rest = Object.fromEntries(
+      Object.entries(json).filter(([key]) => !toolOverrideKeys.has(key)),
+    );
+
+    return new RulesyncMcp({
+      outputRoot: this.outputRoot,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+      fileContent: JSON.stringify({ ...rest, mcpServers: effectiveServers }, null, 2),
+      validate: false,
+    });
   }
 
   /**

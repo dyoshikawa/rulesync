@@ -286,6 +286,31 @@ args = ["server.js"]
       ).rejects.toThrow(/Failed to parse existing Codex CLI config at .*config\.toml/);
     });
 
+    it("should preserve existing model and model_reasoning_effort on regeneration", async () => {
+      await ensureDir(join(testDir, ".codex"));
+      await writeFileContent(
+        join(testDir, ".codex/config.toml"),
+        ['model = "gpt-5.3-codex"', 'model_reasoning_effort = "high"'].join("\n"),
+      );
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { fs: { command: "node" } } }),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: false,
+      });
+
+      const toml = codexcliMcp.getToml() as Record<string, unknown>;
+      expect(toml.model).toBe("gpt-5.3-codex");
+      expect(toml.model_reasoning_effort).toBe("high");
+      expect(toml.mcp_servers).toEqual({ fs: { command: "node" } });
+    });
+
     it("should create instance from RulesyncMcp in local mode with new file", async () => {
       const jsonData = {
         mcpServers: {

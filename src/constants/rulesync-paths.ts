@@ -30,6 +30,13 @@ export const RULESYNC_MCP_FILE_NAME = "mcp.json";
 export const RULESYNC_HOOKS_FILE_NAME = "hooks.json";
 export const RULESYNC_PERMISSIONS_FILE_NAME = "permissions.json";
 
+// JSONC twins of the JSON source files above. When both exist, the `.jsonc`
+// file wins so users can migrate by adding the twin without deleting the
+// original in the same commit.
+export const RULESYNC_MCP_JSONC_FILE_NAME = "mcp.jsonc";
+export const RULESYNC_HOOKS_JSONC_FILE_NAME = "hooks.jsonc";
+export const RULESYNC_PERMISSIONS_JSONC_FILE_NAME = "permissions.jsonc";
+
 // JSON Schema URLs (published as GitHub release assets)
 export const RULESYNC_CONFIG_SCHEMA_URL =
   "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json";

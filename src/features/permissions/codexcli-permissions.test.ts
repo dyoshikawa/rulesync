@@ -1171,6 +1171,93 @@ command = "node"
     expect(content).toContain('decision = "forbidden"');
   });
 
+  describe("unmanaged config.toml key preservation", () => {
+    it("preserves existing model and model_reasoning_effort on regeneration", async () => {
+      const codexDir = join(testDir, ".codex");
+      await ensureDir(codexDir);
+      await writeFileContent(
+        join(codexDir, "config.toml"),
+        ['model = "gpt-5.3-codex"', 'model_reasoning_effort = "high"'].join("\n"),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { read: { "src/**": "allow" } },
+          codexcli: { sandbox_mode: "workspace-write" },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+      expect(parsed.model).toBe("gpt-5.3-codex");
+      expect(parsed.model_reasoning_effort).toBe("high");
+      expect(parsed.sandbox_mode).toBe("workspace-write");
+      expect(parsed.default_permissions).toBe("rulesync");
+    });
+
+    it("preserves unmanaged network keys and workspace_roots on the rulesync profile", async () => {
+      const logger = createMockLogger();
+      const codexDir = join(testDir, ".codex");
+      await ensureDir(codexDir);
+      await writeFileContent(
+        join(codexDir, "config.toml"),
+        [
+          'default_permissions = "rulesync"',
+          "[permissions.rulesync.workspace_roots]",
+          '"/workspace/other" = true',
+          "[permissions.rulesync.network]",
+          "enabled = true",
+          'mode = "limited"',
+          'proxy_url = "http://127.0.0.1:3128"',
+          "enable_socks5 = true",
+          "allow_local_binding = true",
+          "[permissions.rulesync.network.unix_sockets]",
+          '"/var/run/docker.sock" = "allow"',
+        ].join("\n"),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { webfetch: { "github.com": "allow" } },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, any>;
+      const profile = parsed.permissions.rulesync;
+      expect(profile.workspace_roots).toEqual({ "/workspace/other": true });
+      expect(profile.network.mode).toBe("limited");
+      expect(profile.network.proxy_url).toBe("http://127.0.0.1:3128");
+      expect(profile.network.enable_socks5).toBe(true);
+      expect(profile.network.allow_local_binding).toBe(true);
+      expect(profile.network.unix_sockets).toEqual({ "/var/run/docker.sock": "allow" });
+      // Managed keys are still regenerated from the canonical model.
+      expect(profile.network.enabled).toBe(true);
+      expect(profile.network.domains).toEqual({ "github.com": "allow" });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Preserving existing "workspace_roots"'),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Preserving existing network keys"),
+      );
+    });
+  });
+
   describe("codexcli override (approval_policy / sandbox_mode / apps)", () => {
     it("authors override keys as top-level config.toml keys on generate", async () => {
       const logger = createMockLogger();
@@ -1269,6 +1356,36 @@ command = "node"
       const warnMessages = logger.warn.mock.calls.map((call) => String(call[0]));
       expect(warnMessages.some((line) => line.includes("mcp_servers"))).toBe(true);
       expect(warnMessages.some((line) => line.includes("default_permissions"))).toBe(true);
+    });
+
+    it("authors include_permissions_instructions and projects and round-trips them", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { read: { "src/**": "allow" } },
+          codexcli: {
+            include_permissions_instructions: true,
+            projects: { "/workspace/project": { trust_level: "trusted" } },
+          },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+      expect(parsed.include_permissions_instructions).toBe(true);
+      expect(parsed.projects).toEqual({ "/workspace/project": { trust_level: "trusted" } });
+
+      const imported = codexPermissions.toRulesyncPermissions().getJson();
+      expect(imported.codexcli?.include_permissions_instructions).toBe(true);
+      expect(imported.codexcli?.projects).toEqual({
+        "/workspace/project": { trust_level: "trusted" },
+      });
     });
 
     it("round-trips override keys back into the codexcli override on import", () => {

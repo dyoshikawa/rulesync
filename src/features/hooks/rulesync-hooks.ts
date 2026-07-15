@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import {
+  RULESYNC_HOOKS_JSONC_FILE_NAME,
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
@@ -9,6 +10,7 @@ import { type HooksConfig, HooksConfigSchema } from "../../types/hooks.js";
 import type { RulesyncFileFromFileParams, RulesyncFileParams } from "../../types/rulesync-file.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
+import { parseJsonc } from "../../utils/jsonc.js";
 
 export type RulesyncHooksParams = RulesyncFileParams;
 
@@ -28,7 +30,8 @@ export class RulesyncHooks extends RulesyncFile {
   constructor(params: RulesyncHooksParams) {
     super({ ...params });
 
-    this.json = JSON.parse(this.fileContent);
+    // JSONC is a superset of JSON, so both `.json` and `.jsonc` sources parse here.
+    this.json = parseJsonc(this.fileContent) as HooksConfig;
     if (params.validate) {
       const result = this.validate();
       if (!result.success) {
@@ -57,6 +60,20 @@ export class RulesyncHooks extends RulesyncFile {
     validate = true,
   }: RulesyncHooksFromFileParams): Promise<RulesyncHooks> {
     const paths = RulesyncHooks.getSettablePaths();
+
+    // The `.jsonc` twin wins over `.json` when both exist.
+    const jsoncFilePath = join(outputRoot, paths.relativeDirPath, RULESYNC_HOOKS_JSONC_FILE_NAME);
+    if (await fileExists(jsoncFilePath)) {
+      const fileContent = await readFileContent(jsoncFilePath);
+      return new RulesyncHooks({
+        outputRoot,
+        relativeDirPath: paths.relativeDirPath,
+        relativeFilePath: RULESYNC_HOOKS_JSONC_FILE_NAME,
+        fileContent,
+        validate,
+      });
+    }
+
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
 
     if (!(await fileExists(filePath))) {

@@ -7,6 +7,7 @@ import {
   RULESYNC_MCP_SCHEMA_URL,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { type ValidationResult } from "../../types/ai-file.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
@@ -15,6 +16,13 @@ import {
   type RulesyncMcpFromFileParams,
   type RulesyncMcpParams,
 } from "./rulesync-mcp.js";
+
+const buildMcp = (config: Record<string, unknown>): RulesyncMcp =>
+  new RulesyncMcp({
+    relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+    relativeFilePath: "mcp.json",
+    fileContent: JSON.stringify(config),
+  });
 
 describe("RulesyncMcp", () => {
   let testDir: string;
@@ -188,19 +196,18 @@ describe("RulesyncMcp", () => {
           relativeFilePath: ".mcp.json",
           fileContent: invalidJsonContent,
         });
-      }).toThrow(SyntaxError);
+      }).toThrow(/Failed to parse JSONC content/);
     });
 
-    it("should throw error for malformed JSON", () => {
-      const malformedJsonContent = '{"key": "value",}'; // trailing comma
+    it("should accept JSONC content (trailing comma and comments)", () => {
+      const jsoncContent = '{"mcpServers": {}, /* comment */ } // eol';
 
-      expect(() => {
-        const _instance = new RulesyncMcp({
-          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-          relativeFilePath: ".mcp.json",
-          fileContent: malformedJsonContent,
-        });
-      }).toThrow(SyntaxError);
+      const instance = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: jsoncContent,
+      });
+      expect(instance.getJson()).toEqual({ mcpServers: {} });
     });
 
     it("should handle non-object JSON content", () => {
@@ -611,7 +618,9 @@ describe("RulesyncMcp", () => {
       await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
       await writeFileContent(mcpJsonPath, invalidJson);
 
-      await expect(RulesyncMcp.fromFile({ validate: true })).rejects.toThrow(SyntaxError);
+      await expect(RulesyncMcp.fromFile({ validate: true })).rejects.toThrow(
+        /Failed to parse JSONC content/,
+      );
     });
 
     it("should handle empty file", async () => {
@@ -620,7 +629,9 @@ describe("RulesyncMcp", () => {
       await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
       await writeFileContent(mcpJsonPath, "");
 
-      await expect(RulesyncMcp.fromFile({ validate: true })).rejects.toThrow(SyntaxError);
+      await expect(RulesyncMcp.fromFile({ validate: true })).rejects.toThrow(
+        /Failed to parse JSONC content/,
+      );
     });
 
     it("should handle file with only whitespace", async () => {
@@ -629,7 +640,9 @@ describe("RulesyncMcp", () => {
       await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
       await writeFileContent(mcpJsonPath, "   \n\t  \n  ");
 
-      await expect(RulesyncMcp.fromFile({ validate: true })).rejects.toThrow(SyntaxError);
+      await expect(RulesyncMcp.fromFile({ validate: true })).rejects.toThrow(
+        /Failed to parse JSONC content/,
+      );
     });
 
     it("should prefer recommended path over legacy when both exist", async () => {
@@ -691,6 +704,40 @@ describe("RulesyncMcp", () => {
 
     it("should use recommended path when neither exists (for error message)", async () => {
       await expect(RulesyncMcp.fromFile({ validate: true })).rejects.toThrow();
+    });
+  });
+
+  describe("fromFile (.jsonc twin)", () => {
+    it("prefers mcp.jsonc over mcp.json when both exist", async () => {
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RELATIVE_DIR_PATH, "mcp.json"),
+        JSON.stringify({ mcpServers: { fromJson: { command: "node" } } }),
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RELATIVE_DIR_PATH, "mcp.jsonc"),
+        [
+          "{",
+          "  // JSONC comment",
+          '  "mcpServers": { "fromJsonc": { "command": "bun", }, },',
+          "}",
+        ].join("\n"),
+      );
+
+      const mcp = await RulesyncMcp.fromFile({ validate: true });
+      expect(mcp.getRelativeFilePath()).toBe("mcp.jsonc");
+      expect(Object.keys(mcp.getJson().mcpServers)).toEqual(["fromJsonc"]);
+    });
+
+    it("reads mcp.jsonc when no json files exist", async () => {
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RELATIVE_DIR_PATH, "mcp.jsonc"),
+        '{ "mcpServers": {} } // comment',
+      );
+
+      const mcp = await RulesyncMcp.fromFile({ validate: true });
+      expect(mcp.getJson().mcpServers).toEqual({});
     });
   });
 
@@ -772,6 +819,95 @@ describe("RulesyncMcp", () => {
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
       expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(jsonData));
+    });
+  });
+
+  describe("forTarget", () => {
+    it("returns the same instance when nothing applies", () => {
+      const mcp = buildMcp({ mcpServers: { fs: { command: "node" } } });
+      expect(mcp.forTarget({ toolTarget: "claudecode" })).toBe(mcp);
+    });
+
+    it("adds tool-scoped servers only for that target", () => {
+      const mcp = buildMcp({
+        mcpServers: { shared: { command: "node" } },
+        codexcli: { mcpServers: { "codex-only": { command: "uvx" } } },
+      });
+
+      const forCodex = mcp.forTarget({ toolTarget: "codexcli" }).getJson();
+      expect(Object.keys(forCodex.mcpServers)).toEqual(["shared", "codex-only"]);
+
+      const forClaude = mcp.forTarget({ toolTarget: "claudecode" }).getJson();
+      expect(Object.keys(forClaude.mcpServers)).toEqual(["shared"]);
+    });
+
+    it("replaces a shared server wholesale for the target", () => {
+      const mcp = buildMcp({
+        mcpServers: { fs: { command: "node", args: ["a.js"], env: { A: "1" } } },
+        cursor: { mcpServers: { fs: { command: "bun" } } },
+      });
+
+      const forCursor = mcp.forTarget({ toolTarget: "cursor" }).getJson();
+      expect(forCursor.mcpServers.fs).toEqual({ command: "bun" });
+    });
+
+    it("removes a shared server for the target when the override entry is null", () => {
+      const mcp = buildMcp({
+        mcpServers: { fs: { command: "node" }, web: { url: "https://example.com/mcp" } },
+        goose: { mcpServers: { web: null } },
+      });
+
+      const forGoose = mcp.forTarget({ toolTarget: "goose" }).getJson();
+      expect(Object.keys(forGoose.mcpServers)).toEqual(["fs"]);
+
+      const forOther = mcp.forTarget({ toolTarget: "claudecode" }).getJson();
+      expect(Object.keys(forOther.mcpServers)).toEqual(["fs", "web"]);
+    });
+
+    it("strips every tool-scoped block from the resolved instance", () => {
+      const mcp = buildMcp({
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        mcpServers: { fs: { command: "node" } },
+        codexcli: { mcpServers: { "codex-only": { command: "uvx" } } },
+        cursor: { mcpServers: { fs: null } },
+      });
+
+      const forCodex = mcp.forTarget({ toolTarget: "codexcli" }).getJson() as Record<
+        string,
+        unknown
+      >;
+      expect(forCodex.codexcli).toBeUndefined();
+      expect(forCodex.cursor).toBeUndefined();
+      expect(forCodex.$schema).toBe(RULESYNC_MCP_SCHEMA_URL);
+    });
+
+    it("honors the deprecated per-server targets filter with a warning", () => {
+      const logger = createMockLogger();
+      const mcp = buildMcp({
+        mcpServers: {
+          everywhere: { command: "node" },
+          "claude-only": { command: "node", targets: ["claudecode"] },
+          wildcard: { command: "node", targets: ["*"] },
+        },
+      });
+
+      const forClaude = mcp.forTarget({ toolTarget: "claudecode", logger }).getJson();
+      expect(Object.keys(forClaude.mcpServers)).toEqual(["everywhere", "claude-only", "wildcard"]);
+
+      const forCursor = mcp.forTarget({ toolTarget: "cursor", logger }).getJson();
+      expect(Object.keys(forCursor.mcpServers)).toEqual(["everywhere", "wildcard"]);
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("deprecated"));
+    });
+
+    it("applies the tool-scoped block on top of the targets filter", () => {
+      const mcp = buildMcp({
+        mcpServers: { fs: { command: "node", targets: ["claudecode"] } },
+        cursor: { mcpServers: { fs: { command: "bun" } } },
+      });
+
+      const forCursor = mcp.forTarget({ toolTarget: "cursor" }).getJson();
+      expect(forCursor.mcpServers.fs).toEqual({ command: "bun" });
     });
   });
 

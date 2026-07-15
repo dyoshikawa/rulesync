@@ -72,6 +72,8 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
 
 ## `.rulesync/hooks.json`
 
+The file may also be authored as `.rulesync/hooks.jsonc` (JSON with comments and trailing commas); when both exist, the `.jsonc` file wins.
+
 Hooks run scripts at lifecycle events (e.g. session start, before tool use). Events use **canonical camelCase** in this file, and Rulesync translates them per tool: Cursor uses them as-is; Claude Code, Factory Droid, Codex CLI, Gemini CLI, and Goose get PascalCase (with a few tool-specific name mappings) in their settings files; OpenCode and Kilo hooks are emitted as JavaScript plugins (`.opencode/plugins/rulesync-hooks.js`, `.kilo/plugins/rulesync-hooks.js`); Copilot and Copilot CLI map event names to their own camelCase (e.g. `beforeSubmitPrompt` → `userPromptSubmitted`, `stop` → `agentStop`, `afterError` → `errorOccurred`) and use `powershell`/`bash` command fields — Copilot CLI additionally covers a wider event set and supports `prompt` and `http` hook types beyond `command`; deepagents-cli uses a dot-notation (e.g. `session.start`, `tool.error`); Kiro emits hooks into `.kiro/agents/default.json` using Kiro's CLI event names (`agentSpawn`, `userPromptSubmit`, `preToolUse`, `postToolUse`, `stop`); Qwen Code emits PascalCase events into the `hooks` key of `.qwen/settings.json` (its supported event set differs from Gemini CLI's).
 
 Example:
@@ -579,6 +581,8 @@ When `claudecode.scheduled-task: true` is set, that skill is emitted only as a C
 
 ## `.rulesync/mcp.json`
 
+The file may also be authored as `.rulesync/mcp.jsonc` (JSON with comments and trailing commas); when both exist, the `.jsonc` file wins.
+
 Example:
 
 ```json
@@ -624,6 +628,33 @@ Rulesync provides a JSON Schema for editor validation and autocompletion. Add th
   "mcpServers": {}
 }
 ```
+
+### Tool-scoped servers (`{toolname}.mcpServers`) and the deprecated `targets` field
+
+A tool-scoped `{toolname}.mcpServers` block carries server entries that apply **only to that tool**, mirroring `{toolname}.hooks` in `.rulesync/hooks.json` and `{toolname}.permission` in `.rulesync/permissions.json`:
+
+- An entry with the same name as a shared server **replaces** it wholesale for that tool.
+- An entry with a new name **adds** a server only for that tool.
+- A `null` entry **removes** the shared server for that tool.
+
+```jsonc
+{
+  "mcpServers": {
+    "serena": { "type": "stdio", "command": "uvx", "args": ["..."] },
+    "context7": { "type": "stdio", "command": "npx", "args": ["-y", "@upstash/context7-mcp"] },
+  },
+  "codexcli": {
+    "mcpServers": {
+      // Codex-only server.
+      "docs": { "type": "http", "url": "https://example.com/mcp" },
+      // Exclude context7 from Codex CLI.
+      "context7": null,
+    },
+  },
+}
+```
+
+The per-server `targets` array (e.g. `"targets": ["claudecode"]`) is **deprecated**: it is still honored (a server whose `targets` names neither `"*"` nor the tool is excluded from that tool's output, and a deprecation warning is logged), but new configurations should express tool-specific servers through the `{toolname}.mcpServers` blocks above.
 
 ### Transport types (`type` / `transport`)
 
@@ -804,7 +835,7 @@ If you would rather keep the deny list out of version control, opt into the
 
 ## `.rulesync/permissions.json`
 
-Permissions define which tool actions are allowed, require confirmation, or are denied. The canonical format uses **lowercase tool category names** and **glob patterns** mapped to permission actions.
+Permissions define which tool actions are allowed, require confirmation, or are denied. The canonical format uses **lowercase tool category names** and **glob patterns** mapped to permission actions. The file may also be authored as `.rulesync/permissions.jsonc` (JSON with comments and trailing commas); when both exist, the `.jsonc` file wins.
 
 **Permission actions:**
 
@@ -846,6 +877,33 @@ Rulesync provides a JSON Schema for editor validation and autocompletion. Add th
   "permission": {}
 }
 ```
+
+#### Tool-scoped `permission` overrides (`{toolname}.permission`)
+
+Every permissions-capable tool accepts a tool-scoped `permission` block that applies **only to that tool**, mirroring `{toolname}.hooks` in `.rulesync/hooks.json` and `{toolname}.mcpServers` in `.rulesync/mcp.json`. Categories under `{toolname}.permission` are merged on top of the shared `permission` block **per category** (the override replaces the shared category wholesale for that tool); a bare action string is shorthand for `{ "*": action }`. Example:
+
+```jsonc
+{
+  "permission": {
+    "bash": { "git *": "allow", "*": "ask" },
+  },
+  // Codex CLI additionally allows webfetch to github.com; other tools are unaffected.
+  "codexcli": {
+    "permission": { "webfetch": { "github.com": "allow" } },
+  },
+  // Devin denies all bash commands, regardless of the shared block.
+  "devin": {
+    "permission": { "bash": "deny" },
+  },
+}
+```
+
+Notes:
+
+- `kiro-cli` / `kiro-ide` read the `kiro` key and `hermesagent` reads the `hermes` key, matching the shared output file each writes.
+- OpenCode and Kilo keep their own native handling of the same key (documented in their override notes below), including tool-specific categories such as `external_directory`.
+- Value shapes that are not a bare action or a pattern-to-action map (e.g. Vibe's `sensitive_patterns` objects) are left to the tool's own translator.
+- The override is applied at generate time; on import, tool-level rules come back into the shared block, so the override is not round-trip stable for overridden categories (same caveat as the OpenCode note below).
 
 For Claude Code, this generates `permissions.allow`, `permissions.ask`, and `permissions.deny` arrays in `.claude/settings.json` (project mode) or `~/.claude/settings.json` (global mode) using PascalCase tool names (e.g., `Bash(git *)`, `Edit(src/**)`, `Read(.env)`).
 
@@ -911,9 +969,11 @@ Codex's built-in `:workspace` baseline grants read access to the whole filesyste
 
 Rulesync always emits `":minimal" = "read"` in the generated filesystem table. This enables `include_platform_defaults()` ([FileSystemSpecialPath::Minimal](https://github.com/openai/codex/pull/13434)), which provides the platform/runtime read access needed for basic sandboxed command execution on macOS, Linux, and Windows. `:minimal` is the only special path treated as a non-user-managed fixed baseline: it is always emitted and is never imported into Rulesync's own permission model. The other special paths `:root`, `:tmpdir`, and `:slash_tmp` are user-managed access rules that are imported into the Rulesync model and re-emitted from it like any ordinary filesystem entry (`:root = "deny"` becomes a read/edit deny, `:tmpdir = "write"` becomes an edit allow, and so on). Because they round-trip through `.rulesync/permissions.json` rather than relying on an existing `.codex/config.toml`, a restrictive value such as `:root = "deny"` survives a fresh-clone `rulesync generate` with no pre-existing Codex config.
 
-`network.mode`, `network.unix_sockets`, and `description` have no equivalent in Rulesync's canonical permissions model and are not generated. If an existing `.codex/config.toml` already contains these fields on the `rulesync` profile, Rulesync preserves them on regeneration. Note that `filesystem`, `network.enabled`, `network.domains`, and `extends` are always managed by Rulesync (derived from `edit`/`write`/`webfetch` rules), so hand-authored values in those fields will be replaced on regeneration.
+`network.mode` (`limited` | `full`), `network.unix_sockets` (`allow` | `deny` per socket path), the proxy/SOCKS/MITM keys (`proxy_url`, `socks_url`, `enable_socks5`, `enable_socks5_udp`, `allow_upstream_proxy`, `allow_local_binding`, `dangerously_allow_non_loopback_proxy`, `dangerously_allow_all_unix_sockets`, `mitm`), the profile-level `workspace_roots` table, and `description` have no equivalent in Rulesync's canonical permissions model and are not generated. If an existing `.codex/config.toml` already contains these fields on the `rulesync` profile, Rulesync preserves them on regeneration (with a warning listing the preserved keys). Note that `filesystem`, `network.enabled`, `network.domains`, and `extends` are always managed by Rulesync (derived from `edit`/`write`/`webfetch` rules), so hand-authored values in those fields will be replaced on regeneration.
 
-> **Codex CLI-only override (`codexcli` key):** Codex CLI's permission surface is richer than the canonical allow/ask/deny model — its approval workflow, classic sandbox system, and per-app tool gating have no canonical category. Add a tool-scoped `codexcli` override to author them: its fields are written verbatim as **top-level `.codex/config.toml` keys** (the override wins per key; existing sibling keys the user set directly are preserved, and table values are shallow-merged) while the shared `permission` block keeps driving the managed `[permissions.rulesync]` profile and `default_permissions`. Supported keys: `approval_policy` (`untrusted` | `on-request` (legacy alias `on-failure`) | `never`, or a `{ granular = { … } }` table kept verbatim), `sandbox_mode` (`read-only` | `workspace-write` | `danger-full-access`) with the sibling `sandbox_workspace_write` table (`network_access`, `writable_roots`, …), `apps` (per-app tool gating — `apps.<id>.tools.<tool>.approval_mode` / `.enabled`, `apps.<id>.default_tools_approval_mode`), and `approvals_reviewer` (`user` | `auto_review` (legacy alias `guardian_subagent`), or a table). On import, these top-level keys round-trip back into the `codexcli` override. It is a `looseObject`, so future top-level Codex config keys can be authored here (merged verbatim on generate; only the listed keys are re-extracted on import). Example: `{ "permission": { … }, "codexcli": { "approval_policy": "on-request", "sandbox_mode": "workspace-write", "sandbox_workspace_write": { "network_access": true } } }`. **Out of scope:** `mcp_servers.*` per-MCP gating is **not** authorable here — it is owned by the MCP feature (`codexcli-mcp.ts` writes the `mcp_servers` tables in the same `config.toml`), and `permissions` / `default_permissions` are owned by the canonical model; any such key placed in the override is skipped with a warning. See the [Codex configuration reference](https://developers.openai.com/codex/config-reference) and [permissions docs](https://developers.openai.com/codex/permissions).
+Unmanaged **top-level** `config.toml` keys such as `model` and `model_reasoning_effort` are never touched: every Rulesync writer of `.codex/config.toml` (permissions, MCP, hooks) reads the existing file and only replaces the keys it owns, so an existing `model` / `model_reasoning_effort` setting always survives regeneration.
+
+> **Codex CLI-only override (`codexcli` key):** Codex CLI's permission surface is richer than the canonical allow/ask/deny model — its approval workflow, classic sandbox system, and per-app tool gating have no canonical category. Add a tool-scoped `codexcli` override to author them: its fields are written verbatim as **top-level `.codex/config.toml` keys** (the override wins per key; existing sibling keys the user set directly are preserved, and table values are shallow-merged) while the shared `permission` block keeps driving the managed `[permissions.rulesync]` profile and `default_permissions`. Supported keys: `approval_policy` (`untrusted` | `on-request` (legacy alias `on-failure`) | `never`, or a `{ granular = { … } }` table kept verbatim), `sandbox_mode` (`read-only` | `workspace-write` | `danger-full-access`) with the sibling `sandbox_workspace_write` table (`writable_roots` (string array), `network_access` (boolean, default `false`), `exclude_tmpdir_env_var` (boolean), `exclude_slash_tmp` (boolean)), `apps` (per-app tool gating — `apps.<id>.tools.<tool>.approval_mode` / `.enabled`, `apps.<id>.default_tools_approval_mode`), `approvals_reviewer` (`user` | `auto_review` (legacy alias `guardian_subagent`), or a table), `include_permissions_instructions` (boolean — whether Codex injects the `<permissions instructions>` developer block), and `projects` (per-project trust — `projects."<absolute path>".trust_level` = `trusted` | `untrusted`). On import, these top-level keys round-trip back into the `codexcli` override. It is a `looseObject`, so future top-level Codex config keys can be authored here (merged verbatim on generate; only the listed keys are re-extracted on import). Example: `{ "permission": { … }, "codexcli": { "approval_policy": "on-request", "sandbox_mode": "workspace-write", "sandbox_workspace_write": { "network_access": true } } }`. **Out of scope:** `mcp_servers.*` per-MCP gating is **not** authorable here — it is owned by the MCP feature (`codexcli-mcp.ts` writes the `mcp_servers` tables in the same `config.toml`), and `permissions` / `default_permissions` are owned by the canonical model; any such key placed in the override is skipped with a warning. See the [Codex configuration reference](https://developers.openai.com/codex/config-reference) and [permissions docs](https://developers.openai.com/codex/permissions).
 
 For Kiro, this generates tool permission settings in `.kiro/agents/default.json` (project mode):
 

@@ -495,9 +495,16 @@ export class PermissionsProcessor extends FeatureProcessor {
     const factory = toolPermissionsFactories.get(this.toolTarget);
     if (!factory) throw new Error(`Unsupported tool target: ${this.toolTarget}`);
 
+    // Resolve the generalized `{toolname}.permission` override into the shared
+    // block for this target before translation (see RulesyncPermissions.forTarget).
+    const targetPermissions = rulesyncPermissions.forTarget({
+      toolTarget: this.toolTarget,
+      logger: this.logger,
+    });
+
     const toolPermissions = await factory.class.fromRulesyncPermissions({
       outputRoot: this.outputRoot,
-      rulesyncPermissions,
+      rulesyncPermissions: targetPermissions,
       logger: this.logger,
       global: this.global,
     });
@@ -507,7 +514,7 @@ export class PermissionsProcessor extends FeatureProcessor {
 
     const bashRulesFile = createCodexcliBashRulesFile({
       outputRoot: this.outputRoot,
-      config: rulesyncPermissions.getJson(),
+      config: targetPermissions.getJson(),
     });
     return [toolPermissions, bashRulesFile];
   }

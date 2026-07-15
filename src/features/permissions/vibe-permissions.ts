@@ -289,6 +289,12 @@ function applyVibeSensitivePatterns(
   vibeOverride: VibePermissionsOverride | undefined,
 ): void {
   for (const [category, toolOverride] of Object.entries(vibeOverride?.permission ?? {})) {
+    // Canonical-shaped values (bare action strings / pattern maps) are consumed
+    // by RulesyncPermissions.forTarget before this translator runs; only the
+    // Vibe-specific sensitive_patterns object shape is handled here.
+    if (typeof toolOverride !== "object" || !("sensitive_patterns" in toolOverride)) {
+      continue;
+    }
     const vibeToolName = toVibeToolName(category);
     const nextTool = toVibeToolConfig(tools[vibeToolName]);
     const patterns = toStringArray(toolOverride.sensitive_patterns);

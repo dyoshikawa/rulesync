@@ -49,17 +49,54 @@ type CodexFilesystemAccess = "read" | "write" | "deny" | "none";
 type CodexFilesystemRuleTable = Record<string, CodexFilesystemAccess>;
 type CodexFilesystem = Record<string, CodexFilesystemAccess | CodexFilesystemRuleTable | number>;
 
+// Profile `network` keys that rulesync does not manage and preserves verbatim
+// on regeneration. Mirrors `NetworkToml` in
+// codex-rs/config/src/permissions_toml.rs: `mode` accepts `limited` | `full`
+// (Codex's NetworkModeSchema), `unix_sockets` values accept `allow` | `deny`,
+// and the remaining keys are the proxy/SOCKS/MITM surfaces. rulesync only
+// manages `enabled` and `domains` (derived from canonical `webfetch` rules).
+const CODEX_NETWORK_PASSTHROUGH_STRING_KEYS = ["mode", "proxy_url", "socks_url"] as const;
+const CODEX_NETWORK_PASSTHROUGH_BOOLEAN_KEYS = [
+  "enable_socks5",
+  "enable_socks5_udp",
+  "allow_upstream_proxy",
+  "allow_local_binding",
+  "dangerously_allow_non_loopback_proxy",
+  "dangerously_allow_all_unix_sockets",
+] as const;
+const CODEX_NETWORK_PASSTHROUGH_TABLE_KEYS = ["unix_sockets", "mitm"] as const;
+const CODEX_NETWORK_PASSTHROUGH_KEYS = [
+  ...CODEX_NETWORK_PASSTHROUGH_STRING_KEYS,
+  ...CODEX_NETWORK_PASSTHROUGH_BOOLEAN_KEYS,
+  ...CODEX_NETWORK_PASSTHROUGH_TABLE_KEYS,
+] as const;
+
 type CodexNetwork = {
   enabled?: boolean;
+  // `limited` | `full` in current Codex; preserved verbatim so an unknown
+  // future value survives a round-trip instead of being dropped.
   mode?: string;
   domains?: Record<string, "allow" | "deny">;
-  // Pass-through only: values are preserved verbatim because Rulesync does not manage them.
+  // Pass-through only: values are preserved verbatim because Rulesync does not
+  // manage them. `unix_sockets` values are `allow` | `deny` in current Codex.
   unix_sockets?: Record<string, string>;
+  proxy_url?: string;
+  socks_url?: string;
+  enable_socks5?: boolean;
+  enable_socks5_udp?: boolean;
+  allow_upstream_proxy?: boolean;
+  allow_local_binding?: boolean;
+  dangerously_allow_non_loopback_proxy?: boolean;
+  dangerously_allow_all_unix_sockets?: boolean;
+  mitm?: UnknownTable;
 };
 
 type CodexPermissionProfile = {
   description?: string;
   extends?: string;
+  // `{ "<path>" = bool }` table adding workspace roots to the profile. Not
+  // user-managed by rulesync; preserved verbatim on regeneration.
+  workspace_roots?: UnknownTable;
   filesystem?: CodexFilesystem;
   network?: CodexNetwork;
 };
@@ -409,23 +446,45 @@ function toCodexProfile(value: unknown): CodexProfileParseResult {
   }
   const table = toMutableTable(value);
   const filesystem = toFilesystemRecord(table.filesystem);
+  const workspaceRoots = isPlainObject(table.workspace_roots)
+    ? toMutableTable(table.workspace_roots)
+    : undefined;
   const networkRaw = toMutableTable(table.network);
   const { record: domains, hadUnknownEntries: domainsHadUnknown } = toDomainRecordResult(
     networkRaw.domains,
   );
-  const unixSockets = toStringRecord(networkRaw.unix_sockets);
 
   const network: CodexNetwork = {
     ...(typeof networkRaw.enabled === "boolean" ? { enabled: networkRaw.enabled } : {}),
-    ...(typeof networkRaw.mode === "string" ? { mode: networkRaw.mode } : {}),
     ...(domains ? { domains } : {}),
-    ...(unixSockets ? { unix_sockets: unixSockets } : {}),
   };
+  for (const key of CODEX_NETWORK_PASSTHROUGH_STRING_KEYS) {
+    if (typeof networkRaw[key] === "string") {
+      network[key] = networkRaw[key];
+    }
+  }
+  for (const key of CODEX_NETWORK_PASSTHROUGH_BOOLEAN_KEYS) {
+    if (typeof networkRaw[key] === "boolean") {
+      network[key] = networkRaw[key];
+    }
+  }
+  if (isPlainObject(networkRaw.unix_sockets)) {
+    const unixSockets = toStringRecord(networkRaw.unix_sockets);
+    if (unixSockets) {
+      network.unix_sockets = unixSockets;
+    }
+  }
+  if (isPlainObject(networkRaw.mitm)) {
+    network.mitm = toMutableTable(networkRaw.mitm);
+  }
   const hasNetwork = Object.keys(network).length > 0;
 
   const profile: CodexPermissionProfile = {
     ...(typeof table.description === "string" ? { description: table.description } : {}),
     ...(typeof table.extends === "string" ? { extends: table.extends } : {}),
+    ...(workspaceRoots && Object.keys(workspaceRoots).length > 0
+      ? { workspace_roots: workspaceRoots }
+      : {}),
     ...(filesystem ? { filesystem } : {}),
     ...(hasNetwork ? { network } : {}),
   };
@@ -433,9 +492,38 @@ function toCodexProfile(value: unknown): CodexProfileParseResult {
   return { profile, domainsHadUnknown };
 }
 
+// Surface warnings for preserved network state (mode, unix_sockets, and the
+// proxy/SOCKS/MITM passthrough keys) rather than silently carrying it forward.
+function warnAboutPreservedNetworkState({
+  existingNetwork,
+  logger,
+}: {
+  existingNetwork: CodexNetwork | undefined;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): void {
+  if (existingNetwork?.unix_sockets !== undefined) {
+    logger?.warn(
+      `Preserving existing "network.unix_sockets" from config. Review these entries manually as they may grant broad system access.`,
+    );
+  }
+  if (existingNetwork?.mode !== undefined) {
+    logger?.warn(
+      `Preserving existing "network.mode" from config. Review this value manually as it may grant broader network access than the Rulesync-managed domain rules.`,
+    );
+  }
+  const otherPreservedNetworkKeys = CODEX_NETWORK_PASSTHROUGH_KEYS.filter(
+    (key) => key !== "mode" && key !== "unix_sockets" && existingNetwork?.[key] !== undefined,
+  );
+  if (otherPreservedNetworkKeys.length > 0) {
+    logger?.warn(
+      `Preserving existing network keys [${otherPreservedNetworkKeys.join(", ")}] from config. Rulesync does not manage them; review them manually.`,
+    );
+  }
+}
+
 // Surface warnings for existing profile state that fromRulesyncPermissions preserves
-// as-is (network.mode, network.unix_sockets, extends, and unrecognized domain entries)
-// rather than silently carrying it forward.
+// as-is (network passthrough keys, workspace_roots, extends, and unrecognized
+// domain entries) rather than silently carrying it forward.
 function warnAboutPreservedProfileState({
   existingProfile,
   newProfile,
@@ -452,14 +540,10 @@ function warnAboutPreservedProfileState({
       `Existing "extends" value "${existingProfile.extends}" will be replaced by Rulesync-managed "${newProfile.extends ?? "(none)"}".`,
     );
   }
-  if (existingProfile?.network?.unix_sockets !== undefined) {
+  warnAboutPreservedNetworkState({ existingNetwork: existingProfile?.network, logger });
+  if (existingProfile?.workspace_roots !== undefined) {
     logger?.warn(
-      `Preserving existing "network.unix_sockets" from config. Review these entries manually as they may grant broad system access.`,
-    );
-  }
-  if (existingProfile?.network?.mode !== undefined) {
-    logger?.warn(
-      `Preserving existing "network.mode" from config. Review this value manually as it may grant broader network access than the Rulesync-managed domain rules.`,
+      `Preserving existing "workspace_roots" from config. Rulesync does not manage it; review it manually.`,
     );
   }
   if (existingDomainsHadUnknown) {
@@ -479,19 +563,24 @@ function mergeWithExistingProfile({
   if (!existingProfile) return newProfile;
 
   const mergedNetwork: CodexNetwork = { ...newProfile.network };
-  if (existingProfile.network?.mode !== undefined && mergedNetwork.mode === undefined) {
-    mergedNetwork.mode = existingProfile.network.mode;
-  }
-  if (
-    existingProfile.network?.unix_sockets !== undefined &&
-    mergedNetwork.unix_sockets === undefined
-  ) {
-    mergedNetwork.unix_sockets = existingProfile.network.unix_sockets;
+  // Preserve every unmanaged network key (mode, unix_sockets, proxy/SOCKS/MITM
+  // surfaces); rulesync only regenerates `enabled` and `domains`.
+  for (const key of CODEX_NETWORK_PASSTHROUGH_KEYS) {
+    const existingValue = existingProfile.network?.[key];
+    if (existingValue !== undefined && mergedNetwork[key] === undefined) {
+      // The passthrough key sets share the CodexNetwork value space per key,
+      // so the verbatim copy is type-safe at each individual key.
+      Object.assign(mergedNetwork, { [key]: existingValue });
+    }
   }
   const hasNetwork = Object.keys(mergedNetwork).length > 0;
 
   // convertRulesyncToCodexProfile never sets description, so the existing value wins.
   const description = newProfile.description ?? existingProfile.description;
+
+  // convertRulesyncToCodexProfile never sets workspace_roots (it is not
+  // user-managed by rulesync), so the existing table is carried forward.
+  const workspaceRoots = newProfile.workspace_roots ?? existingProfile.workspace_roots;
 
   // newProfile.filesystem is authoritative: it always includes the `:minimal` baseline and, since
   // every other special path (`:root`, `:tmpdir`, `:slash_tmp`) now round-trips through the
@@ -503,6 +592,7 @@ function mergeWithExistingProfile({
   return {
     ...(description !== undefined ? { description } : {}),
     ...(newProfile.extends !== undefined ? { extends: newProfile.extends } : {}),
+    ...(workspaceRoots !== undefined ? { workspace_roots: workspaceRoots } : {}),
     ...(mergedFilesystem ? { filesystem: mergedFilesystem } : {}),
     ...(hasNetwork ? { network: mergedNetwork } : {}),
   };
