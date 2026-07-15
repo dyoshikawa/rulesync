@@ -491,7 +491,11 @@ const CodexApprovalPolicySchema = z.enum(["untrusted", "on-request", "on-failure
 
 /**
  * Codex CLI's classic sandbox mode. Serialized as a kebab-case string in
- * `.codex/config.toml`.
+ * `.codex/config.toml`. Deprecated in favor of permission profiles
+ * (`base_permission_profile`): Codex prioritizes these legacy sandbox keys
+ * over permission profiles when both are present, so authoring one disables
+ * the managed `[permissions.rulesync]` profile. Kept so existing configs
+ * round-trip.
  * @see https://learn.chatgpt.com/docs/config-file/config-reference
  */
 const CodexSandboxModeSchema = z.enum(["read-only", "workspace-write", "danger-full-access"]);
@@ -505,6 +509,19 @@ const CodexSandboxModeSchema = z.enum(["read-only", "workspace-write", "danger-f
 const CodexApprovalsReviewerSchema = z.enum(["user", "auto_review", "guardian_subagent"]);
 
 /**
+ * Codex CLI's built-in permission profiles that the managed
+ * `[permissions.rulesync]` profile may extend. Codex ships three built-in
+ * profiles (`:read-only`, `:workspace`, `:danger-full-access`; the leading
+ * colon is reserved for built-ins), but `extends` rejects
+ * `:danger-full-access` at config load time, so only the two extendable
+ * baselines are accepted here. The value list is exported so the Codex CLI
+ * translator derives its import-side baseline check from the same source.
+ * @see https://learn.chatgpt.com/docs/permissions
+ */
+export const CODEX_BASE_PERMISSION_PROFILES = [":read-only", ":workspace"] as const;
+const CodexBasePermissionProfileSchema = z.enum(CODEX_BASE_PERMISSION_PROFILES);
+
+/**
  * Codex CLI-scoped permission override.
  *
  * Codex CLI's permission surface is richer than the canonical allow/ask/deny
@@ -513,16 +530,29 @@ const CodexApprovalsReviewerSchema = z.enum(["user", "auto_review", "guardian_su
  * override whose fields are written verbatim as top-level `.codex/config.toml`
  * keys (the override wins per key; existing sibling keys the user set directly
  * are preserved):
+ * - `base_permission_profile` — the built-in profile the managed
+ *   `[permissions.rulesync]` profile extends (`:read-only` | `:workspace`).
+ *   Unlike the other keys it is not a top-level config key: it is emitted as
+ *   the profile's `extends` value. Defaults to `:workspace` when unspecified.
  * - `approval_policy` — `untrusted` | `on-request` (legacy alias `on-failure`) |
  *   `never`, or a `{ granular = { … } }` table (kept verbatim; the granular
  *   schema has required fields that are brittle to model as typed keys).
- * - `sandbox_mode` — `read-only` | `workspace-write` | `danger-full-access`,
- *   with the sibling `sandbox_workspace_write` table (`network_access`,
- *   `writable_roots`, …).
+ *   Defaults to `on-request` when neither the override nor the existing
+ *   config sets it.
+ * - `sandbox_mode` — **deprecated.** `read-only` | `workspace-write` |
+ *   `danger-full-access`, with the sibling `sandbox_workspace_write` table
+ *   (`network_access`, `writable_roots`, …). Codex has superseded the classic
+ *   sandbox system with permission profiles and prioritizes these legacy keys
+ *   over profiles when both are present, so setting them disables the managed
+ *   `[permissions.rulesync]` profile. Use `base_permission_profile` and the
+ *   shared `permission` block instead. Still accepted so existing configs
+ *   round-trip.
  * - `apps` — per-app tool gating (`apps.<id>.tools.<tool>.approval_mode` /
  *   `.enabled`, `apps.<id>.default_tools_approval_mode`).
  * - `approvals_reviewer` — the reviewer-approval surface (`user` | `auto_review`
  *   | `guardian_subagent`), or a table for the richer reviewer config.
+ *   Defaults to `auto_review` when neither the override nor the existing
+ *   config sets it.
  *
  * Two surfaces are deliberately NOT authorable here so the override can never
  * clobber a feature-owned key: `mcp_servers.*` per-MCP gating is owned by the
@@ -541,8 +571,11 @@ const CodexApprovalsReviewerSchema = z.enum(["user", "auto_review", "guardian_su
  */
 const CodexcliPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
+  base_permission_profile: z.optional(CodexBasePermissionProfileSchema),
   approval_policy: z.optional(z.union([CodexApprovalPolicySchema, z.looseObject({})])),
+  /** @deprecated Superseded by `base_permission_profile` (permission profiles). */
   sandbox_mode: z.optional(CodexSandboxModeSchema),
+  /** @deprecated Superseded by `base_permission_profile` (permission profiles). */
   sandbox_workspace_write: z.optional(z.looseObject({})),
   apps: z.optional(z.looseObject({})),
   approvals_reviewer: z.optional(z.union([CodexApprovalsReviewerSchema, z.looseObject({})])),

@@ -10,7 +10,11 @@ import {
   CODEXCLI_RULES_DIR_PATH,
 } from "../../constants/codexcli-paths.js";
 import type { ValidationResult } from "../../types/ai-file.js";
-import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
+import {
+  CODEX_BASE_PERMISSION_PROFILES,
+  type PermissionAction,
+  type PermissionsConfig,
+} from "../../types/permissions.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -27,10 +31,17 @@ import {
 const RULESYNC_PROFILE_NAME = "rulesync";
 const CODEX_WORKSPACE_ROOTS_KEY = ":workspace_roots";
 const CODEX_WORKSPACE_BASELINE = ":workspace";
+// Built-in profiles the managed profile's `extends` may reference, derived
+// from the schema enum so generate and import share one source. Codex also
+// ships `:danger-full-access`, but `extends` rejects it at config load time,
+// so it is not a valid baseline here. `:workspace` is the default baseline
+// when `codexcli.base_permission_profile` is unspecified.
+const CODEX_EXTENDABLE_BASELINES = new Set<string>(CODEX_BASE_PERMISSION_PROFILES);
+// Defaults emitted when neither the `codexcli` override nor the existing
+// config.toml sets the key (an existing user-set value is never clobbered).
+const CODEX_DEFAULT_APPROVAL_POLICY = "on-request";
+const CODEX_DEFAULT_APPROVALS_REVIEWER = "auto_review";
 const CODEX_GLOB_SCAN_MAX_DEPTH = 8; // Matches Codex CLI default glob_scan_max_depth
-// Codex's `:workspace` baseline grants write to the entire workspace root plus /tmp and
-// $TMPDIR, so it must only be emitted when the user asked for a workspace-wide write.
-const WORKSPACE_WIDE_WRITE_PATTERNS = new Set([".", "./", "**", "./**"]);
 // `:minimal = "read"` enables `include_platform_defaults()` (FileSystemSpecialPath::Minimal,
 // openai/codex#13434), providing platform/runtime read access for basic sandboxed command execution.
 // It is always emitted as a fixed baseline and is the only special filesystem path that rulesync
@@ -193,6 +204,13 @@ export class CodexcliPermissions extends ToolPermissions {
     const config = convertCodexProfileToRulesync({ profile, domainsHadUnknown });
 
     const override = extractCodexcliOverride(table);
+    // The profile's `extends` baseline is modeled as the
+    // `codexcli.base_permission_profile` override (not a top-level key), so it
+    // round-trips explicitly. Non-extendable or custom parents are skipped;
+    // regeneration replaces them with the managed baseline (with a warning).
+    if (typeof profile?.extends === "string" && CODEX_EXTENDABLE_BASELINES.has(profile.extends)) {
+      override.base_permission_profile = profile.extends;
+    }
     const result: Record<string, unknown> =
       Object.keys(override).length > 0 ? { ...config, codexcli: override } : config;
 
@@ -317,11 +335,12 @@ function convertRulesyncToCodexProfile({
     filesystem[CODEX_WORKSPACE_ROOTS_KEY] = workspaceRootFilesystem;
   }
 
-  // Filesystem entries grant access on their own in Codex, so `extends = ":workspace"`
-  // (workspace-wide + /tmp write) is emitted only for explicit workspace-wide write rules.
-  const hasWorkspaceWideWrite = Object.entries(workspaceRootFilesystem).some(
-    ([pattern, access]) => access === "write" && WORKSPACE_WIDE_WRITE_PATTERNS.has(pattern),
-  );
+  // The managed profile always extends a built-in baseline. The baseline comes
+  // from the `codexcli.base_permission_profile` override and defaults to
+  // `:workspace` (workspace-wide + temp-dir write); filesystem entries then
+  // grant or deny access on top of it.
+  const basePermissionProfile =
+    config.codexcli?.base_permission_profile ?? CODEX_WORKSPACE_BASELINE;
 
   // `enabled = true` is emitted only when at least one allow rule exists. Deny-only domain
   // sets are emitted without `enabled` so Codex keeps the network restricted (its default)
@@ -336,7 +355,7 @@ function convertRulesyncToCodexProfile({
       : undefined;
 
   return {
-    ...(hasWorkspaceWideWrite ? { extends: CODEX_WORKSPACE_BASELINE } : {}),
+    extends: basePermissionProfile,
     filesystem,
     ...(network ? { network } : {}),
   };
@@ -376,14 +395,6 @@ function convertCodexProfileToRulesync({
         }
       }
     }
-  }
-
-  // A profile may grant workspace write solely via the `:workspace` baseline. Import it as
-  // a workspace-wide edit rule so regeneration converges back to the same `extends` shape
-  // instead of silently dropping the grant.
-  if (profile?.extends === CODEX_WORKSPACE_BASELINE) {
-    permission.edit ??= {};
-    permission.edit["."] ??= "allow";
   }
 
   // Codex treats a missing `enabled` as restricted (same as false). Rulesync itself emits
@@ -451,9 +462,13 @@ function warnAboutPreservedProfileState({
   existingDomainsHadUnknown: boolean;
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): void {
-  if (existingProfile?.extends !== undefined && existingProfile.extends !== newProfile.extends) {
+  // Also fires when the existing profile has NO `extends` at all (older
+  // rulesync versions and hand-written profiles emitted none): introducing the
+  // `:workspace` baseline broadens the profile's grants, so it must never
+  // happen silently. Once regenerated, `extends` matches and the warning stops.
+  if (existingProfile !== undefined && existingProfile.extends !== newProfile.extends) {
     logger?.warn(
-      `Existing "extends" value "${existingProfile.extends}" will be replaced by Rulesync-managed "${newProfile.extends ?? "(none)"}".`,
+      `Existing "extends" value "${existingProfile.extends ?? "(none)"}" will be replaced by Rulesync-managed "${newProfile.extends ?? "(none)"}".`,
     );
   }
   if (existingProfile?.network?.unix_sockets !== undefined) {
@@ -662,9 +677,11 @@ function computeCodexcliOverridePatch({
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): Record<string, unknown> {
   const patch: Record<string, unknown> = {};
-  if (!override) return patch;
   const allowed = new Set<string>(CODEXCLI_OVERRIDE_KEYS);
-  for (const [key, value] of Object.entries(override)) {
+  for (const [key, value] of Object.entries(override ?? {})) {
+    // Consumed by convertRulesyncToCodexProfile as the managed profile's
+    // `extends` baseline; it is not a top-level config.toml key.
+    if (key === "base_permission_profile") continue;
     if (!allowed.has(key)) {
       logger?.warn(
         `Codex CLI permission override key "${key}" is not managed and was skipped. "permissions"/"default_permissions" are owned by the canonical permission model and "mcp_servers" gating by the MCP feature.`,
@@ -672,9 +689,28 @@ function computeCodexcliOverridePatch({
       continue;
     }
     if (value === undefined) continue;
+    if (key === "sandbox_mode" || key === "sandbox_workspace_write") {
+      logger?.warn(
+        `Codex CLI permission override key "${key}" is deprecated. Codex prioritizes the legacy sandbox settings over permission profiles when both are present, so it disables the generated "${RULESYNC_PROFILE_NAME}" permissions profile. Use "base_permission_profile" and the shared "permission" block instead.`,
+      );
+    }
     const existingValue = existing[key];
     patch[key] =
       isPlainObject(existingValue) && isPlainObject(value) ? { ...existingValue, ...value } : value;
+  }
+
+  // Defaults for keys rulesync recommends always pinning. The override wins,
+  // then an existing user-set value in config.toml; the default fills the key
+  // only when both are absent (the gateway preserves existing keys that are
+  // not in the patch, so leaving them out of the patch keeps user values).
+  const defaults: Record<string, string> = {
+    approval_policy: CODEX_DEFAULT_APPROVAL_POLICY,
+    approvals_reviewer: CODEX_DEFAULT_APPROVALS_REVIEWER,
+  };
+  for (const [key, value] of Object.entries(defaults)) {
+    if (patch[key] === undefined && existing[key] === undefined) {
+      patch[key] = value;
+    }
   }
   return patch;
 }

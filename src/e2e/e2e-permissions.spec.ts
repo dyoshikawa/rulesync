@@ -340,8 +340,11 @@ describe("E2E: permissions", () => {
     const parsed = smolToml.parse(await readFileContent(join(testDir, ".codex", "config.toml")));
     const table = toTable(parsed);
     expect(table.default_permissions).toBe("rulesync");
+    expect(table.approval_policy).toBe("on-request");
+    expect(table.approvals_reviewer).toBe("auto_review");
     const permissions = toTable(table.permissions);
     const rulesyncProfile = toTable(permissions.rulesync);
+    expect(rulesyncProfile.extends).toBe(":workspace");
     const filesystem = toTable(rulesyncProfile.filesystem);
     const network = toTable(rulesyncProfile.network);
     const domains = toTable(network.domains);
@@ -989,6 +992,9 @@ describe("E2E: permissions (import)", () => {
       `
 default_permissions = "rulesync"
 
+[permissions.rulesync]
+extends = ":read-only"
+
 [permissions.rulesync.filesystem]
 "/workspace/project/**" = "read"
 "/workspace/project/src/**" = "write"
@@ -1013,6 +1019,7 @@ enabled = true
     expect(content.permission.read["/workspace/project/.env"]).toBe("deny");
     expect(content.permission.webfetch["github.com"]).toBe("allow");
     expect(content.permission.webfetch["example.com"]).toBe("deny");
+    expect(content.codexcli.base_permission_profile).toBe(":read-only");
   });
 
   it("should import kilo permissions into .rulesync/permissions.json", async () => {
