@@ -514,10 +514,12 @@ const CodexApprovalsReviewerSchema = z.enum(["user", "auto_review", "guardian_su
  * profiles (`:read-only`, `:workspace`, `:danger-full-access`; the leading
  * colon is reserved for built-ins), but `extends` rejects
  * `:danger-full-access` at config load time, so only the two extendable
- * baselines are accepted here.
+ * baselines are accepted here. The value list is exported so the Codex CLI
+ * translator derives its import-side baseline check from the same source.
  * @see https://learn.chatgpt.com/docs/permissions
  */
-const CodexBasePermissionProfileSchema = z.enum([":read-only", ":workspace"]);
+export const CODEX_BASE_PERMISSION_PROFILES = [":read-only", ":workspace"] as const;
+const CodexBasePermissionProfileSchema = z.enum(CODEX_BASE_PERMISSION_PROFILES);
 
 /**
  * Codex CLI-scoped permission override.

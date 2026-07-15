@@ -1531,5 +1531,99 @@ command = "node"
         warnMessages.some((line) => line.includes('"sandbox_workspace_write" is deprecated')),
       ).toBe(true);
     });
+
+    it("warns when regeneration introduces the extends baseline into an existing profile without extends", async () => {
+      const logger = createMockLogger();
+      const codexDir = join(testDir, ".codex");
+      await ensureDir(codexDir);
+      // Older rulesync versions (and hand-written profiles) emitted no
+      // `extends`; introducing the `:workspace` baseline broadens the
+      // profile's grants and must not happen silently.
+      await writeFileContent(
+        join(codexDir, "config.toml"),
+        [
+          'default_permissions = "rulesync"',
+          "[permissions.rulesync.filesystem]",
+          '"src/**" = "read"',
+        ].join("\n"),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { read: { "src/**": "allow" } } }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      expect(codexPermissions.getFileContent()).toContain('extends = ":workspace"');
+      const warnMessages = logger.warn.mock.calls.map((call) => String(call[0]));
+      expect(
+        warnMessages.some(
+          (line) =>
+            line.includes('Existing "extends" value "(none)"') && line.includes(":workspace"),
+        ),
+      ).toBe(true);
+    });
+
+    it("does not warn about unmanaged keys when only base_permission_profile is set", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { read: { "src/**": "allow" } },
+          codexcli: { base_permission_profile: ":read-only" },
+        }),
+      });
+
+      await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const warnMessages = logger.warn.mock.calls.map((call) => String(call[0]));
+      expect(warnMessages.some((line) => line.includes("not managed"))).toBe(false);
+    });
+
+    it("round-trips base_permission_profile = ':read-only' through import and regeneration", async () => {
+      const codexDir = join(testDir, ".codex");
+      await ensureDir(codexDir);
+      await writeFileContent(
+        join(codexDir, "config.toml"),
+        [
+          'default_permissions = "rulesync"',
+          "[permissions.rulesync]",
+          'extends = ":read-only"',
+          "[permissions.rulesync.filesystem]",
+          '"/workspace/project/**" = "read"',
+        ].join("\n"),
+      );
+
+      const imported = await CodexcliPermissions.fromFile({ outputRoot: testDir });
+      const rulesyncPermissions = imported.toRulesyncPermissions();
+      expect(rulesyncPermissions.getJson().codexcli?.base_permission_profile).toBe(":read-only");
+
+      const regenerated = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          outputRoot: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: rulesyncPermissions.getFileContent(),
+        }),
+      });
+
+      const fileContent = regenerated.getFileContent();
+      expect(fileContent).toContain('extends = ":read-only"');
+      expect(fileContent).toContain('"/workspace/project/**" = "read"');
+    });
   });
 });

@@ -10,7 +10,11 @@ import {
   CODEXCLI_RULES_DIR_PATH,
 } from "../../constants/codexcli-paths.js";
 import type { ValidationResult } from "../../types/ai-file.js";
-import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
+import {
+  CODEX_BASE_PERMISSION_PROFILES,
+  type PermissionAction,
+  type PermissionsConfig,
+} from "../../types/permissions.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -27,11 +31,12 @@ import {
 const RULESYNC_PROFILE_NAME = "rulesync";
 const CODEX_WORKSPACE_ROOTS_KEY = ":workspace_roots";
 const CODEX_WORKSPACE_BASELINE = ":workspace";
-// Built-in profiles the managed profile's `extends` may reference. Codex also
+// Built-in profiles the managed profile's `extends` may reference, derived
+// from the schema enum so generate and import share one source. Codex also
 // ships `:danger-full-access`, but `extends` rejects it at config load time,
 // so it is not a valid baseline here. `:workspace` is the default baseline
 // when `codexcli.base_permission_profile` is unspecified.
-const CODEX_EXTENDABLE_BASELINES = new Set([":read-only", CODEX_WORKSPACE_BASELINE]);
+const CODEX_EXTENDABLE_BASELINES = new Set<string>(CODEX_BASE_PERMISSION_PROFILES);
 // Defaults emitted when neither the `codexcli` override nor the existing
 // config.toml sets the key (an existing user-set value is never clobbered).
 const CODEX_DEFAULT_APPROVAL_POLICY = "on-request";
@@ -457,9 +462,13 @@ function warnAboutPreservedProfileState({
   existingDomainsHadUnknown: boolean;
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): void {
-  if (existingProfile?.extends !== undefined && existingProfile.extends !== newProfile.extends) {
+  // Also fires when the existing profile has NO `extends` at all (older
+  // rulesync versions and hand-written profiles emitted none): introducing the
+  // `:workspace` baseline broadens the profile's grants, so it must never
+  // happen silently. Once regenerated, `extends` matches and the warning stops.
+  if (existingProfile !== undefined && existingProfile.extends !== newProfile.extends) {
     logger?.warn(
-      `Existing "extends" value "${existingProfile.extends}" will be replaced by Rulesync-managed "${newProfile.extends ?? "(none)"}".`,
+      `Existing "extends" value "${existingProfile.extends ?? "(none)"}" will be replaced by Rulesync-managed "${newProfile.extends ?? "(none)"}".`,
     );
   }
   if (existingProfile?.network?.unix_sockets !== undefined) {
