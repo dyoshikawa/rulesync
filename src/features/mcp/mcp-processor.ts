@@ -655,7 +655,6 @@ export class McpProcessor extends FeatureProcessor {
         const targetedRulesyncMcp = mcp.forTarget({
           toolTarget: this.toolTarget,
           logger: this.logger,
-          global: this.global,
         });
         // Strip MCP server fields unsupported by the target tool
         const fieldsToStrip: string[] = [];

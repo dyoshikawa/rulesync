@@ -274,20 +274,12 @@ export class RulesyncMcp extends RulesyncFile {
    * Targets that share one output file resolve identically so the shared
    * file's content never depends on which of them generates last — see
    * `resolveMcpTarget` for the alias groups (kiro trio, claudecode/-legacy,
-   * and the Antigravity pair at project scope).
+   * and the Antigravity pair).
    *
    * Returns the same instance when neither mechanism is used.
    */
-  forTarget({
-    toolTarget,
-    logger,
-    global = false,
-  }: {
-    toolTarget: ToolTarget;
-    logger?: Logger;
-    global?: boolean;
-  }): RulesyncMcp {
-    const { blockKeys, acceptedTargetNames } = resolveMcpTarget({ toolTarget, global });
+  forTarget({ toolTarget, logger }: { toolTarget: ToolTarget; logger?: Logger }): RulesyncMcp {
+    const { blockKeys, acceptedTargetNames } = resolveMcpTarget({ toolTarget });
     const json: Record<string, unknown> = this.json;
     const sharedServers = this.json.mcpServers ?? {};
 
@@ -419,20 +411,14 @@ type McpTargetResolution = {
  *
  * - `claudecode-legacy` aliases `claudecode`; the Kiro trio shares `kiro`
  *   (same output file at both scopes).
- * - `antigravity-ide` / `antigravity-cli` share the PROJECT file
- *   `.agents/mcp_config.json`, so at project scope both targets apply both
- *   blocks in a fixed order (`antigravity-ide` first, `antigravity-cli`
- *   second — the CLI block wins per server on conflict). Their GLOBAL
- *   configs are different files, so at global scope each reads only its own
- *   block.
+ * - `antigravity-ide` / `antigravity-cli` share their output file at BOTH
+ *   scopes — `.agents/mcp_config.json` (project) and
+ *   `~/.gemini/config/mcp_config.json` (global; both global subdirs are
+ *   `config`) — so both targets always apply both blocks in a fixed order
+ *   (`antigravity-ide` first, `antigravity-cli` second — the CLI block wins
+ *   per server on conflict).
  */
-function resolveMcpTarget({
-  toolTarget,
-  global,
-}: {
-  toolTarget: ToolTarget;
-  global: boolean;
-}): McpTargetResolution {
+function resolveMcpTarget({ toolTarget }: { toolTarget: ToolTarget }): McpTargetResolution {
   if (toolTarget === "claudecode" || toolTarget === "claudecode-legacy") {
     return {
       blockKeys: ["claudecode"],
@@ -445,7 +431,7 @@ function resolveMcpTarget({
       acceptedTargetNames: new Set(["kiro", "kiro-cli", "kiro-ide"]),
     };
   }
-  if ((toolTarget === "antigravity-ide" || toolTarget === "antigravity-cli") && !global) {
+  if (toolTarget === "antigravity-ide" || toolTarget === "antigravity-cli") {
     return {
       blockKeys: ["antigravity-ide", "antigravity-cli"],
       acceptedTargetNames: new Set(["antigravity-ide", "antigravity-cli"]),

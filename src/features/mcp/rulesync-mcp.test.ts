@@ -943,7 +943,7 @@ describe("RulesyncMcp", () => {
       expect(Object.keys(instance.forTarget({ toolTarget: "cursor" }).getMcpServers())).toEqual([]);
     });
 
-    it("should apply both antigravity blocks at project scope regardless of target", () => {
+    it("should apply both antigravity blocks regardless of target (shared output file)", () => {
       const instance = makeInstance({
         mcpServers: { shared: { command: "node" } },
         "antigravity-ide": {
@@ -952,28 +952,15 @@ describe("RulesyncMcp", () => {
         "antigravity-cli": { mcpServers: { both: { command: "cli-wins" } } },
       });
 
-      // Both targets write the same project file (.agents/mcp_config.json),
-      // so both must resolve to the same deterministic server set: ide block
+      // Both targets write the same file at BOTH scopes
+      // (.agents/mcp_config.json and ~/.gemini/config/mcp_config.json), so
+      // both must resolve to the same deterministic server set: ide block
       // first, cli block second (cli wins per server on conflict).
       for (const toolTarget of ["antigravity-ide", "antigravity-cli"] as const) {
         const servers = instance.forTarget({ toolTarget }).getMcpServers();
         expect(Object.keys(servers).toSorted()).toEqual(["both", "ideExtra", "shared"]);
         expect(servers.both).toEqual({ command: "cli-wins" });
       }
-    });
-
-    it("should keep antigravity blocks separate at global scope", () => {
-      const instance = makeInstance({
-        mcpServers: { shared: { command: "node" } },
-        "antigravity-ide": { mcpServers: { ideExtra: { command: "uvx" } } },
-        "antigravity-cli": { mcpServers: { cliExtra: { command: "deno" } } },
-      });
-
-      const ide = instance.forTarget({ toolTarget: "antigravity-ide", global: true });
-      expect(Object.keys(ide.getMcpServers()).toSorted()).toEqual(["ideExtra", "shared"]);
-
-      const cli = instance.forTarget({ toolTarget: "antigravity-cli", global: true });
-      expect(Object.keys(cli.getMcpServers()).toSorted()).toEqual(["cliExtra", "shared"]);
     });
 
     it("should warn when a block is authored under an alias source name", () => {
