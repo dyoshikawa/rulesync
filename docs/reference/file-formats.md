@@ -640,7 +640,7 @@ Servers under the shared `mcpServers` key are emitted to every targeted tool. To
 
 - A tool-scoped entry with the same name as a shared server **replaces it wholesale** for that tool (no field-level merge).
 - A tool-scoped entry set to `null` **removes** the shared server for that tool.
-- Any MCP-capable `--targets` name is accepted as a block key (`claudecode`, `cursor`, `codexcli`, ...). The deprecated `claudecode-legacy` target reads the `claudecode` block, and the `kiro-cli` / `kiro-ide` targets read the `kiro` block (all three write the same `.kiro/settings/mcp.json`).
+- Any MCP-capable `--targets` name is accepted as a block key (`claudecode`, `cursor`, `codexcli`, ...). Targets that share one output file resolve identically so the shared file never depends on generation order: the deprecated `claudecode-legacy` target reads the `claudecode` block; the `kiro-cli` / `kiro-ide` targets read the `kiro` block (all three write the same `.kiro/settings/mcp.json`); and at **project scope** the `antigravity-ide` / `antigravity-cli` targets both apply both `antigravity-*` blocks in a fixed order (`antigravity-ide` first, then `antigravity-cli` — the CLI block wins per server) because both write `.agents/mcp_config.json`, while at global scope each reads only its own block (their global configs are separate files).
 
 > **Deprecated: per-server `targets`.** The older per-server `"targets": ["tool", ...]` array is still honored as a filter (a missing value or `["*"]` means every tool), but it is deprecated and logs a warning at generate time. Migrate by moving the server into the matching `{toolname}.mcpServers` block(s).
 

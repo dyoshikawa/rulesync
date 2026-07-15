@@ -267,19 +267,27 @@ export class RulesyncMcp extends RulesyncFile {
    * 1. Filter shared servers by the DEPRECATED per-server `targets` field
    *    (missing/`["*"]` means every tool). A deprecation warning points at
    *    the tool-scoped blocks that replace it.
-   * 2. Overlay the tool-scoped `{toolname}.mcpServers` block: a named entry
-   *    replaces/adds the shared server wholesale for this tool; `null`
-   *    removes it. The deprecated `claudecode-legacy` target reads the
-   *    `claudecode` block.
+   * 2. Overlay the tool-scoped `{toolname}.mcpServers` block(s): a named
+   *    entry replaces/adds the shared server wholesale for this tool; `null`
+   *    removes it.
+   *
+   * Targets that share one output file resolve identically so the shared
+   * file's content never depends on which of them generates last — see
+   * `resolveMcpTarget` for the alias groups (kiro trio, claudecode/-legacy,
+   * and the Antigravity pair at project scope).
    *
    * Returns the same instance when neither mechanism is used.
    */
-  forTarget({ toolTarget, logger }: { toolTarget: ToolTarget; logger?: Logger }): RulesyncMcp {
-    const blockKey = MCP_BLOCK_KEY_ALIASES[toolTarget] ?? toolTarget;
-    // Targets that share one output file (or are aliases of one target) must
-    // resolve identically, otherwise the shared file's content would depend
-    // on which target happened to generate last.
-    const acceptedTargetNames = MCP_TARGET_ALIAS_GROUPS[toolTarget] ?? new Set([toolTarget]);
+  forTarget({
+    toolTarget,
+    logger,
+    global = false,
+  }: {
+    toolTarget: ToolTarget;
+    logger?: Logger;
+    global?: boolean;
+  }): RulesyncMcp {
+    const { blockKeys, acceptedTargetNames } = resolveMcpTarget({ toolTarget, global });
     const json: Record<string, unknown> = this.json;
     const sharedServers = this.json.mcpServers ?? {};
 
@@ -290,10 +298,19 @@ export class RulesyncMcp extends RulesyncFile {
       this.warnTargetsDeprecationOnce({ serverNamesWithTargets, logger });
     }
 
+    // Blocks authored under a name that always resolves to another key
+    // (e.g. "kiro-cli" instead of "kiro") are never read — surface that
+    // instead of silently ignoring them.
+    for (const ignoredKey of MCP_IGNORED_ALIAS_SOURCE_KEYS) {
+      if (!isRecord(json[ignoredKey])) continue;
+      this.warnOncePerFile(
+        `alias:${ignoredKey}`,
+        `The "${ignoredKey}" block in ${join(this.relativeDirPath, this.relativeFilePath)} is ignored. Author it under the "${MCP_BLOCK_KEY_ALIASES[ignoredKey]}" key instead.`,
+        logger,
+      );
+    }
+
     const toolBlockKeys = Object.keys(json).filter((key) => MCP_TOOL_BLOCK_KEYS.has(key));
-    const toolBlock = json[blockKey];
-    const toolServers =
-      isRecord(toolBlock) && isRecord(toolBlock.mcpServers) ? toolBlock.mcpServers : undefined;
 
     if (serverNamesWithTargets.length === 0 && toolBlockKeys.length === 0) {
       return this;
@@ -307,14 +324,19 @@ export class RulesyncMcp extends RulesyncFile {
       }),
     );
 
-    for (const [serverName, serverConfig] of Object.entries(toolServers ?? {})) {
-      // Defense in depth: parseJsonc already drops prototype-pollution keys,
-      // but this bracket assignment must never rely on that.
-      if (isPrototypePollutionKey(serverName)) continue;
-      if (serverConfig === null) {
-        delete effectiveServers[serverName];
-      } else {
-        effectiveServers[serverName] = serverConfig;
+    for (const blockKey of blockKeys) {
+      const toolBlock = json[blockKey];
+      const toolServers =
+        isRecord(toolBlock) && isRecord(toolBlock.mcpServers) ? toolBlock.mcpServers : undefined;
+      for (const [serverName, serverConfig] of Object.entries(toolServers ?? {})) {
+        // Defense in depth: parseJsonc already drops prototype-pollution
+        // keys, but this bracket assignment must never rely on that.
+        if (isPrototypePollutionKey(serverName)) continue;
+        if (serverConfig === null) {
+          delete effectiveServers[serverName];
+        } else {
+          effectiveServers[serverName] = serverConfig;
+        }
       }
     }
 
@@ -345,12 +367,18 @@ export class RulesyncMcp extends RulesyncFile {
     serverNamesWithTargets: string[];
     logger?: Logger;
   }): void {
-    const filePath = this.getFilePath();
-    if (warnedTargetsDeprecationPaths.has(filePath)) return;
-    warnedTargetsDeprecationPaths.add(filePath);
-    logger?.warn(
+    this.warnOncePerFile(
+      "targets-deprecation",
       `The per-server "targets" field in ${join(this.relativeDirPath, this.relativeFilePath)} is deprecated (servers: ${serverNamesWithTargets.join(", ")}). Author tool-scoped "{toolname}.mcpServers" blocks instead.`,
+      logger,
     );
+  }
+
+  private warnOncePerFile(kind: string, message: string, logger?: Logger): void {
+    const dedupeKey = `${this.getFilePath()}#${kind}`;
+    if (warnedOnceKeys.has(dedupeKey)) return;
+    warnedOnceKeys.add(dedupeKey);
+    logger?.warn(message);
   }
 }
 
@@ -362,36 +390,74 @@ export class RulesyncMcp extends RulesyncFile {
 const MCP_TOOL_BLOCK_KEYS: ReadonlySet<string> = new Set(mcpProcessorToolTargetTuple);
 
 /**
- * Targets that read another target's `{toolname}.mcpServers` block:
- * `claudecode-legacy` is a deprecated alias of `claudecode`, and the Kiro
- * IDE/CLI targets share the `kiro` block because all three write the same
- * `.kiro/settings/mcp.json`.
+ * Targets whose `{toolname}.mcpServers` block key is ALWAYS another target's
+ * key (at every scope): `claudecode-legacy` is a deprecated alias of
+ * `claudecode`, and the Kiro IDE/CLI targets share the `kiro` block because
+ * all three write the same `.kiro/settings/mcp.json` at both scopes. Blocks
+ * authored under these source names are never read (a warning is emitted).
  */
-const MCP_BLOCK_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
+const MCP_BLOCK_KEY_ALIASES: Partial<Record<string, string>> = {
   "claudecode-legacy": "claudecode",
   "kiro-cli": "kiro",
   "kiro-ide": "kiro",
 };
 
-/**
- * For the deprecated per-server `targets` filter, any name of a target's
- * alias group matches — targets that share one output file must produce the
- * same server set regardless of which of them generates it.
- */
-const MCP_TARGET_ALIAS_GROUPS: Partial<Record<ToolTarget, ReadonlySet<string>>> = (() => {
-  const claudecodeGroup = new Set(["claudecode", "claudecode-legacy"]);
-  const kiroGroup = new Set(["kiro", "kiro-cli", "kiro-ide"]);
-  return {
-    claudecode: claudecodeGroup,
-    "claudecode-legacy": claudecodeGroup,
-    kiro: kiroGroup,
-    "kiro-cli": kiroGroup,
-    "kiro-ide": kiroGroup,
-  };
-})();
+const MCP_IGNORED_ALIAS_SOURCE_KEYS = Object.keys(MCP_BLOCK_KEY_ALIASES);
+
+type McpTargetResolution = {
+  /** Tool-scoped block keys applied in order (a later block wins per server). */
+  blockKeys: readonly string[];
+  /** Names accepted by the deprecated per-server `targets` filter. */
+  acceptedTargetNames: ReadonlySet<string>;
+};
 
 /**
- * Deduplication set for the per-server `targets` deprecation warning, keyed
- * by the absolute source file path.
+ * Resolve which tool-scoped blocks a target reads and which deprecated
+ * `targets` names match it. Targets that share one output file must resolve
+ * identically, otherwise the shared file's content would depend on which
+ * target happened to generate last:
+ *
+ * - `claudecode-legacy` aliases `claudecode`; the Kiro trio shares `kiro`
+ *   (same output file at both scopes).
+ * - `antigravity-ide` / `antigravity-cli` share the PROJECT file
+ *   `.agents/mcp_config.json`, so at project scope both targets apply both
+ *   blocks in a fixed order (`antigravity-ide` first, `antigravity-cli`
+ *   second — the CLI block wins per server on conflict). Their GLOBAL
+ *   configs are different files, so at global scope each reads only its own
+ *   block.
  */
-const warnedTargetsDeprecationPaths = new Set<string>();
+function resolveMcpTarget({
+  toolTarget,
+  global,
+}: {
+  toolTarget: ToolTarget;
+  global: boolean;
+}): McpTargetResolution {
+  if (toolTarget === "claudecode" || toolTarget === "claudecode-legacy") {
+    return {
+      blockKeys: ["claudecode"],
+      acceptedTargetNames: new Set(["claudecode", "claudecode-legacy"]),
+    };
+  }
+  if (toolTarget === "kiro" || toolTarget === "kiro-cli" || toolTarget === "kiro-ide") {
+    return {
+      blockKeys: ["kiro"],
+      acceptedTargetNames: new Set(["kiro", "kiro-cli", "kiro-ide"]),
+    };
+  }
+  if ((toolTarget === "antigravity-ide" || toolTarget === "antigravity-cli") && !global) {
+    return {
+      blockKeys: ["antigravity-ide", "antigravity-cli"],
+      acceptedTargetNames: new Set(["antigravity-ide", "antigravity-cli"]),
+    };
+  }
+  return { blockKeys: [toolTarget], acceptedTargetNames: new Set([toolTarget]) };
+}
+
+/**
+ * Deduplication set for once-per-source-file warnings, keyed by
+ * `<absolute file path>#<warning kind>`. Never cleared: rulesync CLI runs
+ * are one-shot processes, and in a long-lived embedding (the rulesync MCP
+ * server) repeating the same warning per generate would only add noise.
+ */
+const warnedOnceKeys = new Set<string>();
