@@ -7,11 +7,13 @@ import {
   RULESYNC_CONFIG_SCHEMA_URL,
   RULESYNC_MCP_SCHEMA_URL,
   RULESYNC_OVERVIEW_FILE_NAME,
+  RULESYNC_PERMISSIONS_SCHEMA_URL,
 } from "../constants/rulesync-paths.js";
 import { RulesyncCommand } from "../features/commands/rulesync-command.js";
 import { RulesyncHooks } from "../features/hooks/rulesync-hooks.js";
 import { RulesyncIgnore } from "../features/ignore/rulesync-ignore.js";
 import { RulesyncMcp } from "../features/mcp/rulesync-mcp.js";
+import { RulesyncPermissions } from "../features/permissions/rulesync-permissions.js";
 import { RulesyncRule } from "../features/rules/rulesync-rule.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
@@ -54,7 +56,16 @@ async function createConfigFile(): Promise<InitFileResult> {
       {
         $schema: RULESYNC_CONFIG_SCHEMA_URL,
         targets: ["copilot", "cursor", "claudecode", "codexcli"],
-        features: ["rules", "ignore", "mcp", "commands", "subagents", "skills", "hooks"],
+        features: [
+          "rules",
+          "ignore",
+          "mcp",
+          "commands",
+          "subagents",
+          "skills",
+          "hooks",
+          "permissions",
+        ],
         outputRoots: ["."],
         delete: true,
         verbose: false,
@@ -214,6 +225,27 @@ Keep the summary concise and ready to reuse in future tasks.`,
 `,
   };
 
+  const samplePermissionsFile = {
+    content: `{
+  "$schema": "${RULESYNC_PERMISSIONS_SCHEMA_URL}",
+  "permission": {
+    "bash": {
+      "git *": "allow",
+      "npm run *": "allow",
+      "rm -rf *": "deny",
+      "*": "ask"
+    },
+    "edit": {
+      "src/**": "allow"
+    },
+    "read": {
+      ".env": "deny"
+    }
+  }
+}
+`,
+  };
+
   // Get paths from settable paths
   const rulePaths = RulesyncRule.getSettablePaths();
   const mcpPaths = RulesyncMcp.getSettablePaths();
@@ -222,6 +254,7 @@ Keep the summary concise and ready to reuse in future tasks.`,
   const skillPaths = RulesyncSkill.getSettablePaths();
   const ignorePaths = RulesyncIgnore.getSettablePaths();
   const hooksPaths = RulesyncHooks.getSettablePaths();
+  const permissionsPaths = RulesyncPermissions.getSettablePaths();
 
   // Ensure directories
   await ensureDir(rulePaths.recommended.relativeDirPath);
@@ -266,6 +299,13 @@ Keep the summary concise and ready to reuse in future tasks.`,
   // Create hooks sample file
   const hooksFilepath = join(hooksPaths.relativeDirPath, hooksPaths.relativeFilePath);
   results.push(await writeIfNotExists(hooksFilepath, sampleHooksFile.content));
+
+  // Create permissions sample file
+  const permissionsFilepath = join(
+    permissionsPaths.relativeDirPath,
+    permissionsPaths.relativeFilePath,
+  );
+  results.push(await writeIfNotExists(permissionsFilepath, samplePermissionsFile.content));
 
   return results;
 }

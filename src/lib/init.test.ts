@@ -122,6 +122,7 @@ describe("init", () => {
         join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "project-context", SKILL_FILE_NAME),
         join(RULESYNC_RELATIVE_DIR_PATH, RULESYNC_AIIGNORE_FILE_NAME),
         join(RULESYNC_RELATIVE_DIR_PATH, "hooks.json"),
+        join(RULESYNC_RELATIVE_DIR_PATH, "permissions.json"),
       ];
 
       const actualPaths = result.sampleFiles.map((f) => f.path);

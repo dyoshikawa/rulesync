@@ -115,6 +115,9 @@ describe("registry derivation", () => {
       "augmentcode::rules::**/.augment-guidelines",
       "roo::subagents::**/.roomodes",
       "codexcli::ignore::**/.codexignore",
+      // Codex CLI's `.codex/rules/rulesync.rules` bash-permission file is written
+      // by createCodexcliBashRulesFile, outside getSettablePaths.
+      "codexcli::permissions::**/.codex/rules/",
       // Shared trees and global-scope outputs (emitted under the home dir).
       "rovodev::skills::**/.agents/skills/",
       "rovodev::commands::**/.rovodev/prompts.yml",
