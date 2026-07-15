@@ -384,6 +384,20 @@ describe("RulesyncPermissions", () => {
       });
     });
 
+    it("should warn when a block is authored under an alias source name", () => {
+      const logger = { warn: vi.fn() } as any;
+      const instance = makeInstance({
+        permission: { bash: { "*": "ask" } },
+        "kiro-cli": { permission: { bash: { "*": "allow" } } },
+      });
+
+      const effective = instance.forTarget({ toolTarget: "kiro-cli", logger });
+
+      // The block under the alias SOURCE name is ignored, but not silently.
+      expect(effective.getJson().permission).toEqual({ bash: { "*": "ask" } });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"kiro"'));
+    });
+
     it("should alias hermesagent to the hermes override key", () => {
       const instance = makeInstance({
         permission: { bash: { "*": "ask" } },

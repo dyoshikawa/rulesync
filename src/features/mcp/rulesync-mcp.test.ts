@@ -886,6 +886,63 @@ describe("RulesyncMcp", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("claudeOnly"));
     });
 
+    it("should strip every tool-scoped block from the effective json", () => {
+      const instance = makeInstance({
+        $schema: "https://example.com/mcp-schema.json",
+        mcpServers: { shared: { command: "node" } },
+        claudecode: { mcpServers: { claudeExtra: { command: "uvx" } } },
+        cursor: { mcpServers: { cursorExtra: { command: "deno" } } },
+      });
+
+      // Translators like Junie spread the whole rulesync JSON into their
+      // output, so other tools' blocks must not survive forTarget.
+      const effective = instance.forTarget({ toolTarget: "junie" });
+      const json = effective.getJson() as Record<string, unknown>;
+
+      expect(json.claudecode).toBeUndefined();
+      expect(json.cursor).toBeUndefined();
+      expect(json.$schema).toBe("https://example.com/mcp-schema.json");
+      expect(Object.keys(effective.getMcpServers())).toEqual(["shared"]);
+    });
+
+    it("should read the kiro block for kiro-cli and kiro-ide (shared output file)", () => {
+      const instance = makeInstance({
+        mcpServers: { shared: { command: "node" } },
+        kiro: { mcpServers: { kiroExtra: { command: "uvx" } } },
+      });
+
+      for (const toolTarget of ["kiro", "kiro-cli", "kiro-ide"] as const) {
+        const effective = instance.forTarget({ toolTarget });
+        expect(Object.keys(effective.getMcpServers())).toEqual(["shared", "kiroExtra"]);
+      }
+    });
+
+    it("should match deprecated targets across shared-output alias groups", () => {
+      const instance = makeInstance({
+        mcpServers: {
+          kiroServer: { command: "node", targets: ["kiro"] },
+          legacyServer: { command: "deno", targets: ["claudecode-legacy"] },
+        },
+      });
+
+      // All kiro variants write the same file, so a `targets: ["kiro"]`
+      // server must be kept for every variant.
+      for (const toolTarget of ["kiro", "kiro-cli", "kiro-ide"] as const) {
+        expect(Object.keys(instance.forTarget({ toolTarget }).getMcpServers())).toEqual([
+          "kiroServer",
+        ]);
+      }
+
+      // `claudecode-legacy` and `claudecode` form one alias group.
+      for (const toolTarget of ["claudecode", "claudecode-legacy"] as const) {
+        expect(Object.keys(instance.forTarget({ toolTarget }).getMcpServers())).toEqual([
+          "legacyServer",
+        ]);
+      }
+
+      expect(Object.keys(instance.forTarget({ toolTarget: "cursor" }).getMcpServers())).toEqual([]);
+    });
+
     it("should read the claudecode block for the claudecode-legacy target", () => {
       const instance = makeInstance({
         mcpServers: { shared: { command: "node", targets: ["claudecode"] } },

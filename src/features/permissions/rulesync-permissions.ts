@@ -14,6 +14,7 @@ import { RulesyncFile } from "../../types/rulesync-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
+import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 
 export type RulesyncPermissionsParams = RulesyncFileParams;
@@ -116,13 +117,28 @@ export class RulesyncPermissions extends RulesyncFile {
    * `permission` block, or when the target's translator natively consumes its
    * own `permission` override shape (OpenCode / Kilo / Vibe).
    */
-  forTarget({ toolTarget }: { toolTarget: ToolTarget }): RulesyncPermissions {
+  forTarget({
+    toolTarget,
+    logger,
+  }: {
+    toolTarget: ToolTarget;
+    logger?: Logger;
+  }): RulesyncPermissions {
     if (NATIVE_PERMISSION_OVERRIDE_TARGETS.has(toolTarget)) {
       return this;
     }
 
     const overrideKey = PERMISSION_OVERRIDE_KEY_ALIASES[toolTarget] ?? toolTarget;
     const json: Record<string, unknown> = this.json;
+
+    // A block authored under the alias SOURCE name (e.g. "kiro-cli" instead
+    // of "kiro") is not read by anything — surface that instead of silently
+    // ignoring it.
+    if (overrideKey !== toolTarget && isRecord(json[toolTarget])) {
+      logger?.warn(
+        `The "${toolTarget}" block in ${join(this.relativeDirPath, this.relativeFilePath)} is ignored. Author it under the "${overrideKey}" key instead (the ${toolTarget} target reads that block).`,
+      );
+    }
     const overrideBlock = json[overrideKey];
     if (!isRecord(overrideBlock) || !isRecord(overrideBlock.permission)) {
       return this;

@@ -361,6 +361,43 @@ describe("MCP Tools", () => {
     });
   });
 
+  describe("jsonc variant handling", () => {
+    it("should get mcp.jsonc when it exists", async () => {
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      await ensureDir(rulesyncDir);
+      await writeFileContent(
+        join(rulesyncDir, "mcp.jsonc"),
+        '{ "mcpServers": { /* comment */ "serena": { "command": "uvx", } } }',
+      );
+
+      const result = await mcpTools.getMcpFile.execute();
+      const parsed = JSON.parse(result);
+
+      expect(parsed.relativePathFromCwd).toBe(join(RULESYNC_RELATIVE_DIR_PATH, "mcp.jsonc"));
+      expect(parsed.content).toContain("serena");
+    });
+
+    it("should refuse putMcpFile when mcp.jsonc exists", async () => {
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      await ensureDir(rulesyncDir);
+      await writeFileContent(join(rulesyncDir, "mcp.jsonc"), '{ "mcpServers": {} }');
+
+      await expect(
+        mcpTools.putMcpFile.execute({ content: JSON.stringify({ mcpServers: {} }) }),
+      ).rejects.toThrow(/mcp\.jsonc/);
+    });
+
+    it("should delete the mcp.jsonc variant too", async () => {
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      await ensureDir(rulesyncDir);
+      await writeFileContent(join(rulesyncDir, "mcp.jsonc"), '{ "mcpServers": {} }');
+
+      await mcpTools.deleteMcpFile.execute();
+
+      await expect(mcpTools.getMcpFile.execute()).rejects.toThrow();
+    });
+  });
+
   describe("deleteMcpFile", () => {
     it("should delete an existing MCP file", async () => {
       const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);

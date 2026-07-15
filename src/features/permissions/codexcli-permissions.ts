@@ -141,6 +141,7 @@ export class CodexcliPermissions extends ToolPermissions {
     permissionsTable[RULESYNC_PROFILE_NAME] = preserveUnmanagedProfileKeys({
       rawExistingProfile: permissionsTable[RULESYNC_PROFILE_NAME],
       profile,
+      logger,
     });
 
     const overridePatch = computeCodexcliOverridePatch({
@@ -478,8 +479,18 @@ function warnAboutPreservedProfileState({
 // inside its `network` table (e.g. Codex's proxy/SOCKS/MITM keys such as
 // `proxy_url`, `enable_socks5`, `mitm`) — is not modeled by rulesync and must
 // survive a regeneration untouched.
-const MANAGED_PROFILE_KEYS = new Set(["description", "extends", "filesystem", "network"]);
-const MANAGED_NETWORK_KEYS = new Set(["enabled", "mode", "domains", "unix_sockets"]);
+const MANAGED_PROFILE_KEYS: ReadonlySet<string> = new Set<keyof CodexPermissionProfile>([
+  "description",
+  "extends",
+  "filesystem",
+  "network",
+]);
+const MANAGED_NETWORK_KEYS: ReadonlySet<string> = new Set<keyof CodexNetwork>([
+  "enabled",
+  "mode",
+  "domains",
+  "unix_sockets",
+]);
 
 /**
  * Re-attach the keys of the existing rulesync profile that rulesync does not
@@ -491,9 +502,11 @@ const MANAGED_NETWORK_KEYS = new Set(["enabled", "mode", "domains", "unix_socket
 function preserveUnmanagedProfileKeys({
   rawExistingProfile,
   profile,
+  logger,
 }: {
   rawExistingProfile: unknown;
   profile: CodexPermissionProfile;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): UnknownTable {
   const rawProfileTable = toMutableTable(rawExistingProfile);
   const profileExtras = Object.fromEntries(
@@ -503,6 +516,19 @@ function preserveUnmanagedProfileKeys({
   const networkExtras = Object.fromEntries(
     Object.entries(rawNetworkTable).filter(([key]) => !MANAGED_NETWORK_KEYS.has(key)),
   );
+
+  // Mirror warnAboutPreservedProfileState: security-relevant keys rulesync
+  // carries forward verbatim (e.g. network proxy settings) should be visible,
+  // not silent.
+  const preservedKeyNames = [
+    ...Object.keys(profileExtras),
+    ...Object.keys(networkExtras).map((key) => `network.${key}`),
+  ];
+  if (preservedKeyNames.length > 0) {
+    logger?.warn(
+      `Preserving unmanaged keys in the "${RULESYNC_PROFILE_NAME}" permissions profile: ${preservedKeyNames.join(", ")}. Review them manually; rulesync carries them forward verbatim.`,
+    );
+  }
 
   const result: UnknownTable = { ...profileExtras, ...profile };
   const mergedNetwork = { ...networkExtras, ...profile.network };

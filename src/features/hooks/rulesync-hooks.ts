@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import {
+  RULESYNC_HOOKS_FILE_NAME,
   RULESYNC_HOOKS_JSONC_FILE_NAME,
   RULESYNC_HOOKS_JSONC_RELATIVE_FILE_PATH,
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
@@ -49,7 +50,7 @@ export class RulesyncHooks extends RulesyncFile {
   static getSettablePaths(): RulesyncHooksSettablePaths {
     return {
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: "hooks.json",
+      relativeFilePath: RULESYNC_HOOKS_FILE_NAME,
       jsonc: {
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: RULESYNC_HOOKS_JSONC_FILE_NAME,

@@ -15,10 +15,12 @@ import {
   RulesyncFileFromFileParams,
   RulesyncFileParams,
 } from "../../types/rulesync-file.js";
+import { mcpProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { RulesyncTargetsSchema, ToolTarget } from "../../types/tool-targets.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
 
 // Schema for rulesync MCP server (extends base schema with optional targets)
@@ -51,7 +53,10 @@ export const RulesyncMcpFileSchema = z.looseObject({
   $schema: z.optional(z.string()),
   ...RulesyncMcpConfigSchema.shape,
   // One optional tool-scoped block per MCP-capable tool target. The
-  // deprecated `claudecode-legacy` target reads the `claudecode` block.
+  // deprecated `claudecode-legacy` target reads the `claudecode` block, and
+  // the Kiro IDE/CLI targets read the `kiro` block (all three write the same
+  // `.kiro/settings/mcp.json`, so per-variant blocks would make that shared
+  // file depend on generation order).
   amp: z.optional(toolScopedMcpSchema),
   "antigravity-cli": z.optional(toolScopedMcpSchema),
   "antigravity-ide": z.optional(toolScopedMcpSchema),
@@ -71,8 +76,6 @@ export const RulesyncMcpFileSchema = z.looseObject({
   junie: z.optional(toolScopedMcpSchema),
   kilo: z.optional(toolScopedMcpSchema),
   kiro: z.optional(toolScopedMcpSchema),
-  "kiro-cli": z.optional(toolScopedMcpSchema),
-  "kiro-ide": z.optional(toolScopedMcpSchema),
   opencode: z.optional(toolScopedMcpSchema),
   qwencode: z.optional(toolScopedMcpSchema),
   reasonix: z.optional(toolScopedMcpSchema),
@@ -272,7 +275,11 @@ export class RulesyncMcp extends RulesyncFile {
    * Returns the same instance when neither mechanism is used.
    */
   forTarget({ toolTarget, logger }: { toolTarget: ToolTarget; logger?: Logger }): RulesyncMcp {
-    const resolvedTarget = toolTarget === "claudecode-legacy" ? "claudecode" : toolTarget;
+    const blockKey = MCP_BLOCK_KEY_ALIASES[toolTarget] ?? toolTarget;
+    // Targets that share one output file (or are aliases of one target) must
+    // resolve identically, otherwise the shared file's content would depend
+    // on which target happened to generate last.
+    const acceptedTargetNames = MCP_TARGET_ALIAS_GROUPS[toolTarget] ?? new Set([toolTarget]);
     const json: Record<string, unknown> = this.json;
     const sharedServers = this.json.mcpServers ?? {};
 
@@ -280,16 +287,15 @@ export class RulesyncMcp extends RulesyncFile {
       .filter(([, serverConfig]) => serverConfig.targets !== undefined)
       .map(([serverName]) => serverName);
     if (serverNamesWithTargets.length > 0) {
-      logger?.warn(
-        `The per-server "targets" field in ${RULESYNC_MCP_FILE_NAME} is deprecated (servers: ${serverNamesWithTargets.join(", ")}). Author tool-scoped "{toolname}.mcpServers" blocks instead.`,
-      );
+      this.warnTargetsDeprecationOnce({ serverNamesWithTargets, logger });
     }
 
-    const toolBlock = json[resolvedTarget];
+    const toolBlockKeys = Object.keys(json).filter((key) => MCP_TOOL_BLOCK_KEYS.has(key));
+    const toolBlock = json[blockKey];
     const toolServers =
       isRecord(toolBlock) && isRecord(toolBlock.mcpServers) ? toolBlock.mcpServers : undefined;
 
-    if (serverNamesWithTargets.length === 0 && toolServers === undefined) {
+    if (serverNamesWithTargets.length === 0 && toolBlockKeys.length === 0) {
       return this;
     }
 
@@ -297,11 +303,14 @@ export class RulesyncMcp extends RulesyncFile {
       Object.entries(sharedServers).filter(([, serverConfig]) => {
         const targets = serverConfig.targets;
         if (targets === undefined) return true;
-        return targets.includes("*") || targets.includes(resolvedTarget);
+        return targets.some((target) => target === "*" || acceptedTargetNames.has(target));
       }),
     );
 
     for (const [serverName, serverConfig] of Object.entries(toolServers ?? {})) {
+      // Defense in depth: parseJsonc already drops prototype-pollution keys,
+      // but this bracket assignment must never rely on that.
+      if (isPrototypePollutionKey(serverName)) continue;
       if (serverConfig === null) {
         delete effectiveServers[serverName];
       } else {
@@ -309,11 +318,80 @@ export class RulesyncMcp extends RulesyncFile {
       }
     }
 
+    // Strip every tool-scoped block so translators that spread the whole
+    // rulesync JSON into their output (e.g. Junie) never leak other tools'
+    // blocks into a generated config.
+    const rest = Object.fromEntries(
+      Object.entries(json).filter(([key]) => !MCP_TOOL_BLOCK_KEYS.has(key)),
+    );
+
     return new RulesyncMcp({
       outputRoot: this.outputRoot,
       relativeDirPath: this.relativeDirPath,
       relativeFilePath: this.relativeFilePath,
-      fileContent: JSON.stringify({ ...json, mcpServers: effectiveServers }, null, 2),
+      fileContent: JSON.stringify({ ...rest, mcpServers: effectiveServers }, null, 2),
     });
   }
+
+  /**
+   * The deprecation warning would otherwise repeat once per generated tool
+   * target (a full `--targets "*"` run creates one RulesyncMcp per target),
+   * so it is deduplicated per source file path.
+   */
+  private warnTargetsDeprecationOnce({
+    serverNamesWithTargets,
+    logger,
+  }: {
+    serverNamesWithTargets: string[];
+    logger?: Logger;
+  }): void {
+    const filePath = this.getFilePath();
+    if (warnedTargetsDeprecationPaths.has(filePath)) return;
+    warnedTargetsDeprecationPaths.add(filePath);
+    logger?.warn(
+      `The per-server "targets" field in ${join(this.relativeDirPath, this.relativeFilePath)} is deprecated (servers: ${serverNamesWithTargets.join(", ")}). Author tool-scoped "{toolname}.mcpServers" blocks instead.`,
+    );
+  }
 }
+
+/**
+ * All keys that may hold a tool-scoped `{toolname}.mcpServers` block. Derived
+ * from the MCP processor's target tuple so a newly added MCP-capable tool is
+ * covered automatically.
+ */
+const MCP_TOOL_BLOCK_KEYS: ReadonlySet<string> = new Set(mcpProcessorToolTargetTuple);
+
+/**
+ * Targets that read another target's `{toolname}.mcpServers` block:
+ * `claudecode-legacy` is a deprecated alias of `claudecode`, and the Kiro
+ * IDE/CLI targets share the `kiro` block because all three write the same
+ * `.kiro/settings/mcp.json`.
+ */
+const MCP_BLOCK_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
+  "claudecode-legacy": "claudecode",
+  "kiro-cli": "kiro",
+  "kiro-ide": "kiro",
+};
+
+/**
+ * For the deprecated per-server `targets` filter, any name of a target's
+ * alias group matches — targets that share one output file must produce the
+ * same server set regardless of which of them generates it.
+ */
+const MCP_TARGET_ALIAS_GROUPS: Partial<Record<ToolTarget, ReadonlySet<string>>> = (() => {
+  const claudecodeGroup = new Set(["claudecode", "claudecode-legacy"]);
+  const kiroGroup = new Set(["kiro", "kiro-cli", "kiro-ide"]);
+  return {
+    claudecode: claudecodeGroup,
+    "claudecode-legacy": claudecodeGroup,
+    kiro: kiroGroup,
+    "kiro-cli": kiroGroup,
+    "kiro-ide": kiroGroup,
+  };
+})();
+
+/**
+ * Deduplication set for the per-server `targets` deprecation warning, keyed
+ * by the absolute source file path.
+ */
+const warnedTargetsDeprecationPaths = new Set<string>();

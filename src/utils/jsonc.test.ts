@@ -47,4 +47,14 @@ describe("parseJsonc", () => {
   it("should throw SyntaxError for truncated content", () => {
     expect(() => parseJsonc('{"a": ')).toThrow(SyntaxError);
   });
+
+  it("should drop prototype-pollution keys and normalize prototypes", () => {
+    const parsed = parseJsonc(
+      '{"a": 1, "__proto__": {"polluted": true}, "nested": {"constructor": 1, "b": 2}}',
+    );
+
+    expect(parsed).toEqual({ a: 1, nested: { b: 2 } });
+    expect(Object.getPrototypeOf(parsed)).toBe(Object.prototype);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
 });

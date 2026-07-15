@@ -497,7 +497,10 @@ export class PermissionsProcessor extends FeatureProcessor {
 
     // Apply the tool-scoped `{toolname}.permission` block (if any) so the
     // translator only ever sees the effective shared `permission` record.
-    const effectivePermissions = rulesyncPermissions.forTarget({ toolTarget: this.toolTarget });
+    const effectivePermissions = rulesyncPermissions.forTarget({
+      toolTarget: this.toolTarget,
+      logger: this.logger,
+    });
 
     const toolPermissions = await factory.class.fromRulesyncPermissions({
       outputRoot: this.outputRoot,

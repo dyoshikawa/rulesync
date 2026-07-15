@@ -1,5 +1,8 @@
+import { join } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
@@ -9,6 +12,8 @@ import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
+import { setupTestDirectory } from "../test-utils/test-directories.js";
+import { ensureDir, writeFileContent } from "../utils/file.js";
 import { importFromTool } from "./import.js";
 
 const logger = createMockLogger();
@@ -273,6 +278,29 @@ describe("importFromTool", () => {
           global: false,
         }),
       );
+    });
+
+    it("should warn when the imported mcp.json is shadowed by mcp.jsonc", async () => {
+      const { testDir, cleanup } = await setupTestDirectory();
+      try {
+        await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+        await writeFileContent(
+          join(testDir, RULESYNC_RELATIVE_DIR_PATH, "mcp.jsonc"),
+          '{ "mcpServers": {} }',
+        );
+        mockConfig.getFeatures.mockReturnValue(["mcp"]);
+        mockConfig.getOutputRoots.mockReturnValue([testDir]);
+
+        await importFromTool({
+          logger,
+          config: mockConfig as never,
+          tool: "claudecode",
+        });
+
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("mcp.jsonc"));
+      } finally {
+        await cleanup();
+      }
     });
 
     it("should return 0 MCP files when feature is not enabled", async () => {

@@ -125,6 +125,43 @@ describe("Hooks Tools", () => {
     });
   });
 
+  describe("jsonc variant handling", () => {
+    it("should get hooks.jsonc when it exists", async () => {
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      await ensureDir(rulesyncDir);
+      await writeFileContent(
+        join(rulesyncDir, "hooks.jsonc"),
+        '{ "hooks": { /* comment */ "sessionStart": [{ "command": "echo hi", }] } }',
+      );
+
+      const result = await hooksTools.getHooksFile.execute();
+      const parsed = JSON.parse(result);
+
+      expect(parsed.relativePathFromCwd).toBe(join(RULESYNC_RELATIVE_DIR_PATH, "hooks.jsonc"));
+      expect(parsed.content).toContain("echo hi");
+    });
+
+    it("should refuse putHooksFile when hooks.jsonc exists", async () => {
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      await ensureDir(rulesyncDir);
+      await writeFileContent(join(rulesyncDir, "hooks.jsonc"), '{ "hooks": {} }');
+
+      await expect(
+        hooksTools.putHooksFile.execute({ content: JSON.stringify({ hooks: {} }) }),
+      ).rejects.toThrow(/hooks\.jsonc/);
+    });
+
+    it("should delete the hooks.jsonc variant too", async () => {
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      await ensureDir(rulesyncDir);
+      await writeFileContent(join(rulesyncDir, "hooks.jsonc"), '{ "hooks": {} }');
+
+      await hooksTools.deleteHooksFile.execute();
+
+      await expect(hooksTools.getHooksFile.execute()).rejects.toThrow();
+    });
+  });
+
   describe("deleteHooksFile", () => {
     it("should delete an existing hooks file", async () => {
       const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
