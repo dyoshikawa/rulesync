@@ -14,6 +14,17 @@ export const RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH = join(
   RULESYNC_RELATIVE_DIR_PATH,
   "permissions.json",
 );
+// JSONC variants of the fixed-path source files. When both the .jsonc and the
+// .json variant exist, the .jsonc file takes precedence.
+export const RULESYNC_MCP_JSONC_RELATIVE_FILE_PATH = join(RULESYNC_RELATIVE_DIR_PATH, "mcp.jsonc");
+export const RULESYNC_HOOKS_JSONC_RELATIVE_FILE_PATH = join(
+  RULESYNC_RELATIVE_DIR_PATH,
+  "hooks.jsonc",
+);
+export const RULESYNC_PERMISSIONS_JSONC_RELATIVE_FILE_PATH = join(
+  RULESYNC_RELATIVE_DIR_PATH,
+  "permissions.jsonc",
+);
 export const RULESYNC_AIIGNORE_FILE_NAME = ".aiignore";
 export const RULESYNC_AIIGNORE_RELATIVE_FILE_PATH = join(RULESYNC_RELATIVE_DIR_PATH, ".aiignore");
 export const RULESYNC_IGNORE_RELATIVE_FILE_PATH = ".rulesyncignore";
@@ -29,6 +40,9 @@ export const RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH = "rulesync.lock";
 export const RULESYNC_MCP_FILE_NAME = "mcp.json";
 export const RULESYNC_HOOKS_FILE_NAME = "hooks.json";
 export const RULESYNC_PERMISSIONS_FILE_NAME = "permissions.json";
+export const RULESYNC_MCP_JSONC_FILE_NAME = "mcp.jsonc";
+export const RULESYNC_HOOKS_JSONC_FILE_NAME = "hooks.jsonc";
+export const RULESYNC_PERMISSIONS_JSONC_FILE_NAME = "permissions.jsonc";
 
 // JSON Schema URLs (published as GitHub release assets)
 export const RULESYNC_CONFIG_SCHEMA_URL =

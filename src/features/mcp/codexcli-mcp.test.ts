@@ -374,6 +374,41 @@ args = ["server.js"]
       );
     });
 
+    it("should preserve unmanaged scalar params such as model on regeneration", async () => {
+      const existingToml = [
+        'model = "gpt-5.4"',
+        'model_reasoning_effort = "high"',
+        'approval_policy = "on-request"',
+        "",
+        "[mcp_servers.old-server]",
+        'command = "deno"',
+        "",
+      ].join("\n");
+      await ensureDir(join(testDir, ".codex"));
+      await writeFileContent(join(testDir, ".codex/config.toml"), existingToml);
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { "new-server": { command: "node" } },
+        }),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const json = codexcliMcp.getToml();
+      expect(json.model).toBe("gpt-5.4");
+      expect(json.model_reasoning_effort).toBe("high");
+      expect(json.approval_policy).toBe("on-request");
+      // `mcp_servers` is the MCP feature's owned key: replaced wholesale.
+      expect(json.mcp_servers).toEqual({ "new-server": { command: "node" } });
+    });
+
     it("should preserve existing TOML content when adding MCP servers", async () => {
       // Create existing config.toml with some content
       const existingToml = `[general]

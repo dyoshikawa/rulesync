@@ -138,7 +138,10 @@ export class CodexcliPermissions extends ToolPermissions {
       logger,
     });
     const profile = mergeWithExistingProfile({ newProfile, existingProfile });
-    permissionsTable[RULESYNC_PROFILE_NAME] = profile;
+    permissionsTable[RULESYNC_PROFILE_NAME] = preserveUnmanagedProfileKeys({
+      rawExistingProfile: permissionsTable[RULESYNC_PROFILE_NAME],
+      profile,
+    });
 
     const overridePatch = computeCodexcliOverridePatch({
       existing,
@@ -467,6 +470,46 @@ function warnAboutPreservedProfileState({
       `Existing "network.domains" contained unrecognized values. These entries were skipped and will not be imported.`,
     );
   }
+}
+
+// Keys of the rulesync-managed `permissions.rulesync` profile that the
+// canonical model (re)computes or explicitly carries forward on every
+// generation. Everything else inside the profile table — and, one level down,
+// inside its `network` table (e.g. Codex's proxy/SOCKS/MITM keys such as
+// `proxy_url`, `enable_socks5`, `mitm`) — is not modeled by rulesync and must
+// survive a regeneration untouched.
+const MANAGED_PROFILE_KEYS = new Set(["description", "extends", "filesystem", "network"]);
+const MANAGED_NETWORK_KEYS = new Set(["enabled", "mode", "domains", "unix_sockets"]);
+
+/**
+ * Re-attach the keys of the existing rulesync profile that rulesync does not
+ * manage. The managed keys always come from `profile` (the freshly computed
+ * merge result); unmanaged siblings — at the profile level and inside the
+ * `network` table — are preserved verbatim from the existing config so a
+ * regeneration never deletes user-authored Codex settings.
+ */
+function preserveUnmanagedProfileKeys({
+  rawExistingProfile,
+  profile,
+}: {
+  rawExistingProfile: unknown;
+  profile: CodexPermissionProfile;
+}): UnknownTable {
+  const rawProfileTable = toMutableTable(rawExistingProfile);
+  const profileExtras = Object.fromEntries(
+    Object.entries(rawProfileTable).filter(([key]) => !MANAGED_PROFILE_KEYS.has(key)),
+  );
+  const rawNetworkTable = toMutableTable(rawProfileTable.network);
+  const networkExtras = Object.fromEntries(
+    Object.entries(rawNetworkTable).filter(([key]) => !MANAGED_NETWORK_KEYS.has(key)),
+  );
+
+  const result: UnknownTable = { ...profileExtras, ...profile };
+  const mergedNetwork = { ...networkExtras, ...profile.network };
+  if (Object.keys(mergedNetwork).length > 0) {
+    result.network = mergedNetwork;
+  }
+  return result;
 }
 
 function mergeWithExistingProfile({

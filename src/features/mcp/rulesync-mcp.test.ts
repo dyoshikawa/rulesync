@@ -16,6 +16,15 @@ import {
   type RulesyncMcpParams,
 } from "./rulesync-mcp.js";
 
+const makeInstance = (json: Record<string, unknown>) =>
+  new RulesyncMcp({
+    relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+    relativeFilePath: "mcp.json",
+    fileContent: JSON.stringify(json),
+  });
+
+const makeLogger = () => ({ warn: vi.fn() }) as any;
+
 describe("RulesyncMcp", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -191,16 +200,21 @@ describe("RulesyncMcp", () => {
       }).toThrow(SyntaxError);
     });
 
-    it("should throw error for malformed JSON", () => {
-      const malformedJsonContent = '{"key": "value",}'; // trailing comma
+    it("should accept JSONC content (trailing commas and comments)", () => {
+      const jsoncContent = `{
+        // servers
+        "mcpServers": {
+          "test": { "command": "node", },
+        },
+      }`;
 
-      expect(() => {
-        const _instance = new RulesyncMcp({
-          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-          relativeFilePath: ".mcp.json",
-          fileContent: malformedJsonContent,
-        });
-      }).toThrow(SyntaxError);
+      const instance = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.jsonc",
+        fileContent: jsoncContent,
+      });
+
+      expect(instance.getMcpServers()).toEqual({ test: { command: "node" } });
     });
 
     it("should handle non-object JSON content", () => {
@@ -481,6 +495,41 @@ describe("RulesyncMcp", () => {
   });
 
   describe("fromFile", () => {
+    it("should load mcp.jsonc with comments", async () => {
+      const jsoncPath = join(testDir, RULESYNC_RELATIVE_DIR_PATH, "mcp.jsonc");
+      const jsoncContent = `{
+        "mcpServers": {
+          // local stdio server
+          "file-server": { "command": "node", },
+        },
+      }`;
+
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+      await writeFileContent(jsoncPath, jsoncContent);
+
+      const rulesyncMcp = await RulesyncMcp.fromFile({ validate: true });
+
+      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.jsonc");
+      expect(rulesyncMcp.getMcpServers()).toEqual({ "file-server": { command: "node" } });
+    });
+
+    it("should prefer mcp.jsonc over mcp.json when both exist", async () => {
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RELATIVE_DIR_PATH, basename(RULESYNC_MCP_RELATIVE_FILE_PATH)),
+        JSON.stringify({ mcpServers: { fromJson: { command: "a" } } }),
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RELATIVE_DIR_PATH, "mcp.jsonc"),
+        JSON.stringify({ mcpServers: { fromJsonc: { command: "b" } } }),
+      );
+
+      const rulesyncMcp = await RulesyncMcp.fromFile({ validate: true });
+
+      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.jsonc");
+      expect(Object.keys(rulesyncMcp.getMcpServers())).toEqual(["fromJsonc"]);
+    });
+
     it("should create RulesyncMcp from existing file", async () => {
       const mcpJsonPath = join(
         testDir,
@@ -772,6 +821,80 @@ describe("RulesyncMcp", () => {
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncMcp.getRelativeFilePath()).toBe(".mcp.json");
       expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(jsonData));
+    });
+  });
+
+  describe("forTarget", () => {
+    it("should return the same instance when no tool block or targets exist", () => {
+      const instance = makeInstance({ mcpServers: { shared: { command: "node" } } });
+
+      expect(instance.forTarget({ toolTarget: "claudecode" })).toBe(instance);
+    });
+
+    it("should add a tool-scoped server only for that tool", () => {
+      const instance = makeInstance({
+        mcpServers: { shared: { command: "node" } },
+        claudecode: { mcpServers: { extra: { command: "uvx" } } },
+      });
+
+      const forClaudecode = instance.forTarget({ toolTarget: "claudecode" });
+      expect(Object.keys(forClaudecode.getMcpServers())).toEqual(["shared", "extra"]);
+
+      const forCursor = instance.forTarget({ toolTarget: "cursor" });
+      expect(Object.keys(forCursor.getMcpServers())).toEqual(["shared"]);
+    });
+
+    it("should replace a same-named shared server wholesale", () => {
+      const instance = makeInstance({
+        mcpServers: { serena: { command: "uvx", args: ["serena"], env: { A: "1" } } },
+        codexcli: { mcpServers: { serena: { command: "npx" } } },
+      });
+
+      const effective = instance.forTarget({ toolTarget: "codexcli" });
+
+      expect(effective.getMcpServers().serena).toEqual({ command: "npx" });
+    });
+
+    it("should remove a shared server when the tool-scoped entry is null", () => {
+      const instance = makeInstance({
+        mcpServers: { shared: { command: "node" }, other: { command: "deno" } },
+        warp: { mcpServers: { shared: null } },
+      });
+
+      const effective = instance.forTarget({ toolTarget: "warp" });
+
+      expect(Object.keys(effective.getMcpServers())).toEqual(["other"]);
+    });
+
+    it("should honor the deprecated targets filter and warn", () => {
+      const logger = makeLogger();
+      const instance = makeInstance({
+        mcpServers: {
+          all: { command: "node" },
+          claudeOnly: { command: "uvx", targets: ["claudecode"] },
+          wildcard: { command: "deno", targets: ["*"] },
+        },
+      });
+
+      const forClaudecode = instance.forTarget({ toolTarget: "claudecode", logger });
+      expect(Object.keys(forClaudecode.getMcpServers())).toEqual(["all", "claudeOnly", "wildcard"]);
+
+      const forCursor = instance.forTarget({ toolTarget: "cursor", logger });
+      expect(Object.keys(forCursor.getMcpServers())).toEqual(["all", "wildcard"]);
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("deprecated"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("claudeOnly"));
+    });
+
+    it("should read the claudecode block for the claudecode-legacy target", () => {
+      const instance = makeInstance({
+        mcpServers: { shared: { command: "node", targets: ["claudecode"] } },
+        claudecode: { mcpServers: { extra: { command: "uvx" } } },
+      });
+
+      const effective = instance.forTarget({ toolTarget: "claudecode-legacy" });
+
+      expect(Object.keys(effective.getMcpServers())).toEqual(["shared", "extra"]);
     });
   });
 

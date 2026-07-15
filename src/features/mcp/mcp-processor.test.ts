@@ -110,8 +110,10 @@ describe("McpProcessor", () => {
       getRelativeFilePath: () => params.relativeFilePath,
     }));
     (RulesyncMcp as any).fromFile = vi.fn();
-    // stripMcpServerFields returns the same instance by default (no-op for mocked tests)
+    // stripMcpServerFields/forTarget return the same instance by default
+    // (no-op for mocked tests)
     (RulesyncMcp.prototype as any).stripMcpServerFields = vi.fn().mockReturnThis();
+    (RulesyncMcp.prototype as any).forTarget = vi.fn().mockReturnThis();
   });
 
   afterEach(async () => {

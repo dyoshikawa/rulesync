@@ -5,7 +5,7 @@ import { z } from "zod/mini";
 import { RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { RulesyncPermissions } from "../features/permissions/rulesync-permissions.js";
 import { formatError } from "../utils/error.js";
-import { ensureDir, removeFile, writeFileContent } from "../utils/file.js";
+import { ensureDir, fileExists, removeFile, writeFileContent } from "../utils/file.js";
 
 const maxPermissionsSizeBytes = 1024 * 1024; // 1MB
 
@@ -70,6 +70,16 @@ async function putPermissionsFile({ content }: { content: string }): Promise<{
     const outputRoot = process.cwd();
     const paths = RulesyncPermissions.getSettablePaths();
 
+    // A .jsonc variant takes precedence at read time, so writing the .json
+    // variant while it exists would be silently ignored — and rewriting the
+    // .jsonc file here would destroy its comments. Refuse instead.
+    const jsoncRelativePath = join(paths.jsonc.relativeDirPath, paths.jsonc.relativeFilePath);
+    if (await fileExists(join(outputRoot, jsoncRelativePath))) {
+      throw new Error(
+        `${jsoncRelativePath} exists and takes precedence over ${RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH}. Edit ${jsoncRelativePath} directly instead.`,
+      );
+    }
+
     const relativeDirPath = paths.relativeDirPath;
     const relativeFilePath = paths.relativeFilePath;
     const fullPath = join(outputRoot, relativeDirPath, relativeFilePath);
@@ -118,6 +128,9 @@ async function deletePermissionsFile(): Promise<{
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
 
     await removeFile(filePath);
+
+    // Remove the .jsonc variant if it exists
+    await removeFile(join(outputRoot, paths.jsonc.relativeDirPath, paths.jsonc.relativeFilePath));
 
     const relativePathFromCwd = join(paths.relativeDirPath, paths.relativeFilePath);
 

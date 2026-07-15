@@ -162,6 +162,69 @@ describe("E2E: permissions", () => {
     expect(content.permission.read[".env"]).toBe("deny");
   });
 
+  it("should apply a tool-scoped {toolname}.permission block only to that tool", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow" },
+            read: { ".env": "deny" },
+          },
+          claudecode: {
+            // Replaces the shared `bash` category for Claude Code only.
+            permission: { bash: { "rm *": "deny" } },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "claudecode", features: "permissions" });
+    await runGenerate({ target: "zed", features: "permissions" });
+
+    // Claude Code sees the tool-scoped bash category (replaced wholesale)
+    // plus the untouched shared read category.
+    const claude = JSON.parse(await readFileContent(join(testDir, ".claude", "settings.json")));
+    expect(claude.permissions.deny).toContain("Bash(rm *)");
+    expect(claude.permissions.deny).toContain("Read(.env)");
+    expect(claude.permissions.allow ?? []).not.toContain("Bash(git *)");
+
+    // Zed still sees the shared bash category.
+    const zed = JSON.parse(await readFileContent(join(testDir, ".zed", "settings.json")));
+    expect(zed.agent.tool_permissions.tools.terminal.always_allow).toEqual([
+      { pattern: "git *", case_sensitive: false },
+    ]);
+  });
+
+  it("should generate permissions from permissions.jsonc (preferred over permissions.json)", async () => {
+    const testDir = getTestDir();
+
+    // The stale .json variant must lose to the .jsonc variant.
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({ permission: { bash: { "npm *": "allow" } } }),
+    );
+    await writeFileContent(
+      join(testDir, ".rulesync", "permissions.jsonc"),
+      `{
+        // JSONC source with comments and trailing commas
+        "permission": {
+          "bash": { "git *": "allow", },
+        },
+      }`,
+    );
+
+    await runGenerate({ target: "claudecode", features: "permissions" });
+
+    const content = JSON.parse(await readFileContent(join(testDir, ".claude", "settings.json")));
+    expect(content.permissions.allow).toContain("Bash(git *)");
+    expect(content.permissions.allow).not.toContain("Bash(npm *)");
+  });
+
   it("should generate zed permissions into .zed/settings.json", async () => {
     const testDir = getTestDir();
 
