@@ -17,7 +17,7 @@ import {
 import { mcpProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { RulesyncTargetsSchema } from "../../types/tool-targets.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
-import { parseJsonc } from "../../utils/jsonc.js";
+import { parseJsonc, readJsoncTwinOrNull } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 
@@ -52,6 +52,20 @@ const RulesyncMcpToolOverrideSchema = z.looseObject({
 const toolOverrideShape = Object.fromEntries(
   mcpProcessorToolTargetTuple.map((target) => [target, z.optional(RulesyncMcpToolOverrideSchema)]),
 );
+
+/**
+ * Tool targets that fall back to another target's override key because they
+ * write the same output file (`kiro`/`kiro-cli`/`kiro-ide` share
+ * `.kiro/settings/mcp.json`; `claudecode-legacy` shares `.mcp.json` with
+ * `claudecode`). An exact `{toolname}` key still wins over the alias. Without
+ * the fallback, generating several of these targets would write diverging
+ * server sets into the same file in generation order.
+ */
+const MCP_OVERRIDE_KEY_ALIASES: Readonly<Record<string, string>> = {
+  "kiro-cli": "kiro",
+  "kiro-ide": "kiro",
+  "claudecode-legacy": "claudecode",
+};
 
 export const RulesyncMcpFileSchema = z.looseObject({
   $schema: z.optional(z.string()),
@@ -130,18 +144,16 @@ export class RulesyncMcp extends RulesyncFile {
     );
 
     // The `.jsonc` twin wins over `.json` when both exist.
-    const jsoncPath = join(
+    const jsoncTwin = await readJsoncTwinOrNull({
       outputRoot,
-      paths.recommended.relativeDirPath,
-      RULESYNC_MCP_JSONC_FILE_NAME,
-    );
-    if (await fileExists(jsoncPath)) {
-      const fileContent = await readFileContent(jsoncPath);
+      relativeDirPath: paths.recommended.relativeDirPath,
+      jsoncFileName: RULESYNC_MCP_JSONC_FILE_NAME,
+    });
+    if (jsoncTwin) {
       return new RulesyncMcp({
         outputRoot,
         relativeDirPath: paths.recommended.relativeDirPath,
-        relativeFilePath: RULESYNC_MCP_JSONC_FILE_NAME,
-        fileContent,
+        ...jsoncTwin,
         validate,
       });
     }
@@ -217,27 +229,41 @@ export class RulesyncMcp extends RulesyncFile {
   forTarget({ toolTarget, logger }: { toolTarget: string; logger?: Logger }): RulesyncMcp {
     const json: Record<string, unknown> = this.json;
     const sharedServers = this.json.mcpServers ?? {};
-
-    const usesDeprecatedTargets = Object.values(sharedServers).some((server) =>
-      Array.isArray(server.targets),
-    );
-    if (usesDeprecatedTargets) {
-      logger?.warn(
-        `⚠️  The per-server "targets" field in .rulesync/mcp.json is deprecated. ` +
-          `Move tool-specific servers into the tool-scoped "{toolname}.mcpServers" block instead.`,
-      );
-    }
+    const sourcePath = join(this.getRelativeDirPath(), this.getRelativeFilePath());
 
     const filteredServers: McpServers = {};
+    const excludedServerNames: string[] = [];
+    let hasFilteringTargets = false;
     for (const [serverName, serverConfig] of Object.entries(sharedServers)) {
       const targets: readonly string[] | undefined = serverConfig.targets;
-      if (Array.isArray(targets) && !targets.includes("*") && !targets.includes(toolTarget)) {
-        continue;
+      // `["*"]` (the old explicit default) never filters, so it does not
+      // trigger the deprecation warning.
+      if (Array.isArray(targets) && !targets.includes("*")) {
+        hasFilteringTargets = true;
+        if (!targets.includes(toolTarget)) {
+          excludedServerNames.push(serverName);
+          continue;
+        }
       }
       filteredServers[serverName] = serverConfig;
     }
+    if (hasFilteringTargets) {
+      logger?.warn(
+        `⚠️  The per-server "targets" field in ${sourcePath} is deprecated. ` +
+          `Move tool-specific servers into the tool-scoped "{toolname}.mcpServers" block instead.`,
+      );
+    }
+    if (excludedServerNames.length > 0) {
+      logger?.warn(
+        `MCP servers [${excludedServerNames.join(", ")}] are excluded from the "${toolTarget}" output by their "targets" field.`,
+      );
+    }
 
-    const overrideBlock = json[toolTarget];
+    const overrideKey =
+      json[toolTarget] !== undefined
+        ? toolTarget
+        : (MCP_OVERRIDE_KEY_ALIASES[toolTarget] ?? toolTarget);
+    const overrideBlock = json[overrideKey];
     const overrideServers =
       isPlainObject(overrideBlock) && isPlainObject(overrideBlock.mcpServers)
         ? overrideBlock.mcpServers

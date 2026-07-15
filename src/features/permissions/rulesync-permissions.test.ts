@@ -7,10 +7,14 @@ import {
   RULESYNC_PERMISSIONS_SCHEMA_URL,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import type { ValidationResult } from "../../types/ai-file.js";
+import { RulesyncPermissionsFileSchema } from "../../types/permissions.js";
+import { permissionsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import {
+  PERMISSION_OVERRIDE_KEY_ALIASES,
   RulesyncPermissions,
   type RulesyncPermissionsFromFileParams,
   type RulesyncPermissionsParams,
@@ -442,6 +446,19 @@ describe("RulesyncPermissions", () => {
     });
   });
 
+  describe("tool-scoped override key coverage", () => {
+    it("covers every permissions tool target with an override key or alias", () => {
+      const shape = RulesyncPermissionsFileSchema.def.shape as Record<string, unknown>;
+      for (const target of permissionsProcessorToolTargetTuple) {
+        const overrideKey = PERMISSION_OVERRIDE_KEY_ALIASES[target] ?? target;
+        expect(
+          shape[overrideKey],
+          `missing override schema key for target "${target}"`,
+        ).toBeDefined();
+      }
+    });
+  });
+
   describe("forTarget", () => {
     it("returns the same instance when the target has no permission override", () => {
       const permissions = buildPermissions({
@@ -559,6 +576,32 @@ describe("RulesyncPermissions", () => {
       const hermes = merged.hermes as Record<string, unknown>;
       expect(hermes.permission).toBeUndefined();
       expect(hermes.approvals).toEqual({ mode: "smart" });
+    });
+
+    it("drops the override block entirely when consuming permission emptied it", () => {
+      const permissions = buildPermissions({
+        permission: { bash: { "git *": "allow" } },
+        devin: { permission: { bash: "deny" } },
+      });
+
+      const merged = permissions.forTarget({ toolTarget: "devin" }).getJson() as Record<
+        string,
+        unknown
+      >;
+      expect(merged.devin).toBeUndefined();
+    });
+
+    it("warns when a block is authored under an alias target's own name", () => {
+      const logger = createMockLogger();
+      const permissions = buildPermissions({
+        permission: { bash: { "git *": "allow" } },
+        hermesagent: { permission: { bash: "deny" } },
+      });
+
+      const merged = permissions.forTarget({ toolTarget: "hermesagent", logger }).getJson();
+      // The misplaced block is ignored (the hermesagent target reads `hermes`).
+      expect(merged.permission.bash).toEqual({ "git *": "allow" });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"hermes.permission"'));
     });
 
     it("returns opencode and kilo unchanged (native override handling)", () => {

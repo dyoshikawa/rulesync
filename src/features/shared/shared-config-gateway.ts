@@ -1,7 +1,7 @@
 import { uniq } from "es-toolkit";
 import { dump } from "js-yaml";
 import {
-  parse as parseJsonc,
+  parse as parseJsoncContent,
   type ParseError as JsoncParseError,
   printParseErrorCode,
 } from "jsonc-parser";
@@ -116,7 +116,7 @@ export function parseSharedConfig({
       parsed = JSON.parse(fileContent);
     } else if (jsoncParseErrors === "error") {
       const errors: JsoncParseError[] = [];
-      parsed = parseJsonc(fileContent, errors, { allowTrailingComma: true });
+      parsed = parseJsoncContent(fileContent, errors, { allowTrailingComma: true });
       if (errors.length > 0) {
         const details = errors
           .map((error) => `${printParseErrorCode(error.error)} at offset ${error.offset}`)
@@ -124,7 +124,7 @@ export function parseSharedConfig({
         throw new Error(details);
       }
     } else {
-      parsed = parseJsonc(fileContent);
+      parsed = parseJsoncContent(fileContent);
     }
   } catch (error) {
     throw new Error(`Failed to parse shared config${at}: ${formatError(error)}`, { cause: error });

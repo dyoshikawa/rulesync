@@ -898,6 +898,47 @@ describe("RulesyncMcp", () => {
       expect(Object.keys(forCursor.mcpServers)).toEqual(["everywhere", "wildcard"]);
 
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("deprecated"));
+      // The exclusion itself is surfaced with the concrete server name.
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("claude-only"));
+    });
+
+    it("does not warn for the non-filtering wildcard targets form", () => {
+      const logger = createMockLogger();
+      const mcp = buildMcp({
+        mcpServers: { wildcard: { command: "node", targets: ["*"] } },
+      });
+
+      const resolved = mcp.forTarget({ toolTarget: "cursor", logger });
+      expect(Object.keys(resolved.getJson().mcpServers)).toEqual(["wildcard"]);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("resolves shared-output-file aliases (kiro-cli/kiro-ide → kiro, claudecode-legacy → claudecode)", () => {
+      const mcp = buildMcp({
+        mcpServers: { shared: { command: "node" } },
+        kiro: { mcpServers: { "kiro-only": { command: "uvx" } } },
+        claudecode: { mcpServers: { shared: null } },
+      });
+
+      for (const target of ["kiro", "kiro-cli", "kiro-ide"]) {
+        const resolved = mcp.forTarget({ toolTarget: target }).getJson();
+        expect(Object.keys(resolved.mcpServers)).toEqual(["shared", "kiro-only"]);
+      }
+      for (const target of ["claudecode", "claudecode-legacy"]) {
+        const resolved = mcp.forTarget({ toolTarget: target }).getJson();
+        expect(Object.keys(resolved.mcpServers)).toEqual([]);
+      }
+    });
+
+    it("prefers an exact tool key over its alias", () => {
+      const mcp = buildMcp({
+        mcpServers: { shared: { command: "node" } },
+        kiro: { mcpServers: { "kiro-only": { command: "uvx" } } },
+        "kiro-cli": { mcpServers: { "cli-only": { command: "bun" } } },
+      });
+
+      const resolved = mcp.forTarget({ toolTarget: "kiro-cli" }).getJson();
+      expect(Object.keys(resolved.mcpServers)).toEqual(["shared", "cli-only"]);
     });
 
     it("applies the tool-scoped block on top of the targets filter", () => {

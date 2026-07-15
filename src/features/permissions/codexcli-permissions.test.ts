@@ -1358,7 +1358,7 @@ command = "node"
       expect(warnMessages.some((line) => line.includes("default_permissions"))).toBe(true);
     });
 
-    it("authors include_permissions_instructions and projects and round-trips them", async () => {
+    it("authors include_permissions_instructions and projects; projects is generate-only", async () => {
       const rulesyncPermissions = new RulesyncPermissions({
         outputRoot: testDir,
         relativeDirPath: ".rulesync",
@@ -1383,9 +1383,9 @@ command = "node"
 
       const imported = codexPermissions.toRulesyncPermissions().getJson();
       expect(imported.codexcli?.include_permissions_instructions).toBe(true);
-      expect(imported.codexcli?.projects).toEqual({
-        "/workspace/project": { trust_level: "trusted" },
-      });
+      // `projects` carries machine-local trust decisions (absolute paths), so
+      // import must not lift it into the shareable permissions.json.
+      expect(imported.codexcli?.projects).toBeUndefined();
     });
 
     it("round-trips override keys back into the codexcli override on import", () => {

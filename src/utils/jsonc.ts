@@ -1,8 +1,12 @@
+import { join } from "node:path";
+
 import {
   parse as parseJsoncContent,
   type ParseError as JsoncParseError,
   printParseErrorCode,
 } from "jsonc-parser";
+
+import { fileExists, readFileContent } from "./file.js";
 
 /**
  * Parse JSON or JSONC (JSON with comments and trailing commas) content.
@@ -24,4 +28,28 @@ export function parseJsonc(fileContent: string): unknown {
     throw new Error(`Failed to parse JSONC content: ${details}`);
   }
   return parsed;
+}
+
+/**
+ * Read the `.jsonc` twin of a rulesync JSON source file when it exists. When
+ * both `mcp.json` and `mcp.jsonc` (etc.) are present, the `.jsonc` file wins;
+ * callers try this first and fall back to the `.json` path on `null`.
+ */
+export async function readJsoncTwinOrNull({
+  outputRoot,
+  relativeDirPath,
+  jsoncFileName,
+}: {
+  outputRoot: string;
+  relativeDirPath: string;
+  jsoncFileName: string;
+}): Promise<{ relativeFilePath: string; fileContent: string } | null> {
+  const jsoncFilePath = join(outputRoot, relativeDirPath, jsoncFileName);
+  if (!(await fileExists(jsoncFilePath))) {
+    return null;
+  }
+  return {
+    relativeFilePath: jsoncFileName,
+    fileContent: await readFileContent(jsoncFilePath),
+  };
 }

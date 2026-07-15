@@ -10,6 +10,7 @@ import type {
 } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { isPlainObject } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -292,7 +293,7 @@ function applyVibeSensitivePatterns(
     // Canonical-shaped values (bare action strings / pattern maps) are consumed
     // by RulesyncPermissions.forTarget before this translator runs; only the
     // Vibe-specific sensitive_patterns object shape is handled here.
-    if (typeof toolOverride !== "object" || !("sensitive_patterns" in toolOverride)) {
+    if (!isPlainObject(toolOverride) || !("sensitive_patterns" in toolOverride)) {
       continue;
     }
     const vibeToolName = toVibeToolName(category);

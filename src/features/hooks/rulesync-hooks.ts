@@ -10,7 +10,7 @@ import { type HooksConfig, HooksConfigSchema } from "../../types/hooks.js";
 import type { RulesyncFileFromFileParams, RulesyncFileParams } from "../../types/rulesync-file.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
-import { parseJsonc } from "../../utils/jsonc.js";
+import { parseJsonc, readJsoncTwinOrNull } from "../../utils/jsonc.js";
 
 export type RulesyncHooksParams = RulesyncFileParams;
 
@@ -62,14 +62,16 @@ export class RulesyncHooks extends RulesyncFile {
     const paths = RulesyncHooks.getSettablePaths();
 
     // The `.jsonc` twin wins over `.json` when both exist.
-    const jsoncFilePath = join(outputRoot, paths.relativeDirPath, RULESYNC_HOOKS_JSONC_FILE_NAME);
-    if (await fileExists(jsoncFilePath)) {
-      const fileContent = await readFileContent(jsoncFilePath);
+    const jsoncTwin = await readJsoncTwinOrNull({
+      outputRoot,
+      relativeDirPath: paths.relativeDirPath,
+      jsoncFileName: RULESYNC_HOOKS_JSONC_FILE_NAME,
+    });
+    if (jsoncTwin) {
       return new RulesyncHooks({
         outputRoot,
         relativeDirPath: paths.relativeDirPath,
-        relativeFilePath: RULESYNC_HOOKS_JSONC_FILE_NAME,
-        fileContent,
+        ...jsoncTwin,
         validate,
       });
     }

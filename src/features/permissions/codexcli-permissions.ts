@@ -702,9 +702,19 @@ function computeCodexcliOverridePatch({
 
 // Lift the whitelisted top-level keys back into the `codexcli` override so they
 // round-trip through `.rulesync/permissions.json`.
+// `projects.<path>.trust_level` is machine-local state Codex itself writes when
+// the user answers its trust prompt (absolute paths, per-machine decisions).
+// It stays authorable on generate, but lifting it into the potentially
+// committed `.rulesync/permissions.json` on import would push one machine's
+// trust decisions onto every teammate, so it is generate-only.
+const CODEXCLI_IMPORT_EXCLUDED_KEYS: ReadonlySet<string> = new Set(["projects"]);
+
 function extractCodexcliOverride(table: UnknownTable): Record<string, unknown> {
   const override: Record<string, unknown> = {};
   for (const key of CODEXCLI_OVERRIDE_KEYS) {
+    if (CODEXCLI_IMPORT_EXCLUDED_KEYS.has(key)) {
+      continue;
+    }
     if (table[key] !== undefined) {
       override[key] = table[key];
     }

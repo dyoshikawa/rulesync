@@ -16,7 +16,7 @@ import {
 import type { RulesyncFileFromFileParams, RulesyncFileParams } from "../../types/rulesync-file.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
-import { parseJsonc } from "../../utils/jsonc.js";
+import { parseJsonc, readJsoncTwinOrNull } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 
@@ -45,7 +45,7 @@ const NATIVE_PERMISSION_OVERRIDE_TARGETS: ReadonlySet<string> = new Set(["openco
  * same output file (`kiro`/`kiro-cli`/`kiro-ide` share `.kiro/agents/default.json`;
  * `hermesagent`'s override key has always been `hermes`).
  */
-const PERMISSION_OVERRIDE_KEY_ALIASES: Readonly<Record<string, string>> = {
+export const PERMISSION_OVERRIDE_KEY_ALIASES: Readonly<Record<string, string>> = {
   "kiro-cli": "kiro",
   "kiro-ide": "kiro",
   hermesagent: "hermes",
@@ -97,18 +97,16 @@ export class RulesyncPermissions extends RulesyncFile {
     const paths = RulesyncPermissions.getSettablePaths();
 
     // The `.jsonc` twin wins over `.json` when both exist.
-    const jsoncFilePath = join(
+    const jsoncTwin = await readJsoncTwinOrNull({
       outputRoot,
-      paths.relativeDirPath,
-      RULESYNC_PERMISSIONS_JSONC_FILE_NAME,
-    );
-    if (await fileExists(jsoncFilePath)) {
-      const fileContent = await readFileContent(jsoncFilePath);
+      relativeDirPath: paths.relativeDirPath,
+      jsoncFileName: RULESYNC_PERMISSIONS_JSONC_FILE_NAME,
+    });
+    if (jsoncTwin) {
       return new RulesyncPermissions({
         outputRoot,
         relativeDirPath: paths.relativeDirPath,
-        relativeFilePath: RULESYNC_PERMISSIONS_JSONC_FILE_NAME,
-        fileContent,
+        ...jsoncTwin,
         validate,
       });
     }
@@ -152,6 +150,18 @@ export class RulesyncPermissions extends RulesyncFile {
 
     const overrideKey = PERMISSION_OVERRIDE_KEY_ALIASES[toolTarget] ?? toolTarget;
     const json: Record<string, unknown> = this.json;
+
+    // A block under the target's own name is a silent no-op when the target
+    // reads an alias key (e.g. `hermesagent` instead of `hermes`); surface it.
+    if (overrideKey !== toolTarget) {
+      const misplacedBlock = json[toolTarget];
+      if (isPlainObject(misplacedBlock) && isPlainObject(misplacedBlock.permission)) {
+        logger?.warn(
+          `"${toolTarget}.permission" in .rulesync/permissions.json is ignored; use "${overrideKey}.permission" instead (the "${toolTarget}" target reads the "${overrideKey}" key).`,
+        );
+      }
+    }
+
     const overrideBlock = json[overrideKey];
     if (!isPlainObject(overrideBlock) || !isPlainObject(overrideBlock.permission)) {
       return this;
@@ -183,11 +193,16 @@ export class RulesyncPermissions extends RulesyncFile {
       delete remainingOverrideBlock.permission;
     }
 
-    const mergedJson = {
+    const mergedJson: Record<string, unknown> = {
       ...this.json,
       permission: mergedPermission,
       [overrideKey]: remainingOverrideBlock,
     };
+    // Drop the override block entirely when consuming `permission` emptied it,
+    // so downstream passthroughs (e.g. hermes's round-trip blob) stay clean.
+    if (Object.keys(remainingOverrideBlock).length === 0) {
+      delete mergedJson[overrideKey];
+    }
 
     return new RulesyncPermissions({
       outputRoot: this.outputRoot,
