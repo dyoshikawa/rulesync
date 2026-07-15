@@ -21,7 +21,10 @@ const TARGETS_NOT_DERIVED: ReadonlySet<string> = new Set([
 
 // Project-scope outputs that rulesync merges into rather than fully owns
 // (user-managed settings files), so they are deliberately not gitignored even
-// though a feature emits them.
+// though a feature emits them. Most paths come straight from a tool's default
+// getSettablePaths; `.amp/settings.jsonc` (runtime probe twin of
+// `.amp/settings.json`) and `.claude/settings.local.json` (claudecode ignore
+// `fileMode: "local"` variant) are emitted only under non-default options.
 export const DERIVED_PATHS_NOT_GITIGNORED: ReadonlySet<string> = new Set([
   "**/.amp/settings.json",
   "**/.amp/settings.jsonc",
@@ -31,11 +34,10 @@ export const DERIVED_PATHS_NOT_GITIGNORED: ReadonlySet<string> = new Set([
   "**/.codex/config.toml",
   "**/.devin/config.json",
   "**/.factory/settings.json",
-  "**/.gemini/settings.json",
   "**/.grok/config.toml",
   "**/.vibe/config.toml",
+  "**/reasonix.toml",
   "**/.zed/settings.json",
-  "**/.warp/settings.toml",
   "**/kilo.json",
   "**/kilo.jsonc",
   "**/opencode.json",
@@ -70,7 +72,6 @@ const pushEntry = (
   feature: Feature,
   entry: string,
 ): void => {
-  if (DERIVED_PATHS_NOT_GITIGNORED.has(entry)) return;
   entries.push({ target, feature, entry });
 };
 
@@ -155,6 +156,14 @@ const DERIVED_FEATURES: ReadonlyArray<Feature> = [
   "ignore",
 ];
 
+// Every project-scope output path, derived from each tool's getSettablePaths,
+// BEFORE the DERIVED_PATHS_NOT_GITIGNORED exclusion is applied. Exported so
+// tests can verify each exclusion-set path still matches a real output path.
+export const deriveAllGitignoreEntriesUnfiltered = (): GitignoreEntryTag[] =>
+  DERIVED_FEATURES.flatMap((feature) => deriveFeatureGitignoreEntries(feature));
+
 // Every gitignore entry rulesync emits, derived from each tool's getSettablePaths.
 export const deriveAllGitignoreEntries = (): GitignoreEntryTag[] =>
-  DERIVED_FEATURES.flatMap((feature) => deriveFeatureGitignoreEntries(feature));
+  deriveAllGitignoreEntriesUnfiltered().filter(
+    (tag) => !DERIVED_PATHS_NOT_GITIGNORED.has(tag.entry),
+  );

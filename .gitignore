@@ -353,7 +353,6 @@ rulesync.local.jsonc
 **/.kiro/settings/mcp.json
 **/.junie/mcp/mcp.json
 **/.qwen/settings.json
-**/reasonix.toml
 **/.roo/mcp.json
 **/.warp/.mcp.json
 **/.agents/hooks.json
