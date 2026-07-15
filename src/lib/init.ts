@@ -225,13 +225,19 @@ Keep the summary concise and ready to reuse in future tasks.`,
 `,
   };
 
+  // Keep the scaffolded defaults conservative: broad "allow" globs such as
+  // "git *" or "npm run *" are effectively arbitrary code execution (git can run
+  // commands via -c/aliases/hooks; npm run executes package.json scripts), so the
+  // sample allows only a few explicit read-only commands and leaves everything
+  // else to the "*": "ask" catch-all. Users can widen it as they see fit.
   const samplePermissionsFile = {
     content: `{
   "$schema": "${RULESYNC_PERMISSIONS_SCHEMA_URL}",
   "permission": {
     "bash": {
-      "git *": "allow",
-      "npm run *": "allow",
+      "git status": "allow",
+      "git diff": "allow",
+      "ls *": "allow",
       "rm -rf *": "deny",
       "*": "ask"
     },
