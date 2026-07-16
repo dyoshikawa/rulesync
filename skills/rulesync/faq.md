@@ -69,18 +69,19 @@ dangerously_allow_all_unix_sockets = true
   },
   "codexcli": {
     "permission": {
-      "write": { ":tmpdir": "allow", ":slash_tmp": "allow" },
+      "write": { ":root": "allow", ":tmpdir": "allow", ":slash_tmp": "allow" },
       "read": { "~/.codex/**": "allow", "~/.codex/auth.json": "deny" },
     },
   },
 }
 ```
 
-This generates into the profile as `":tmpdir" = "write"`, `":slash_tmp" = "write"`, `"~/.codex/**" = "read"`, and `"~/.codex/auth.json" = "deny"`, and round-trips through `rulesync import`. Note that a tool-scoped category replaces the shared one wholesale for Codex CLI: if your shared `permission` block already has `read`/`write` rules that should also apply to Codex CLI, repeat them inside `codexcli.permission`.
+This generates into the profile as `":root" = "write"`, `":tmpdir" = "write"`, `":slash_tmp" = "write"`, `"~/.codex/**" = "read"`, and `"~/.codex/auth.json" = "deny"`, and round-trips through `rulesync import`. Note that a tool-scoped category replaces the shared one wholesale for Codex CLI: if your shared `permission` block already has `read`/`write` rules that should also apply to Codex CLI, repeat them inside `codexcli.permission`.
 
 What each entry does:
 
 - **Unix socket access**: `git push`/`git fetch` over SSH needs the agent socket. `dangerously_allow_all_unix_sockets = true` is the simple, environment-independent option; a per-socket `unix_sockets` allow entry with the resolved `$SSH_AUTH_SOCK` path is the stricter one.
+- **`:root` write**: package runners such as `npx {package}` unpack into the npm cache under the home directory (`~/.npm/_npx`), and many dev tools write to home-directory caches (`~/.cache`, `~/.local`, corepack/pnpm stores); the `:workspace` baseline denies these writes, which breaks the commands outright. Trade-off: `":root" = "write"` effectively opens filesystem writes system-wide — if you want tighter scoping, grant narrower home-directory patterns instead (e.g. `"~/.npm/**"`, `"~/.cache/**"`) at the cost of chasing each tool's cache path.
 - **`:tmpdir` / `:slash_tmp` write**: many build tools require a writable temp directory (`$TMPDIR` and `/tmp` respectively).
 - **`~/.codex/**` read with `auth.json` deny**: Codex can read its own configuration tree while your credentials stay protected. Tilde paths are expanded by Codex itself, so no manual `$HOME` resolution is needed.
 - **`glob_scan_max_depth`**: no need to add it — rulesync emits the Codex default (`8`) automatically whenever the generated workspace-root rules contain unbounded `**` patterns (the default `.git/**` carve-out already is one).
