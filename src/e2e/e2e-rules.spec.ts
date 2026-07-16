@@ -164,6 +164,45 @@ globs: ["src/**/*"]
     expect(await fileExists(join(testDir, ".agents", "memories", "detail.md"))).toBe(false);
   });
 
+  it("should fold junie non-root rules into the root .junie/AGENTS.md", async () => {
+    const testDir = getTestDir();
+
+    const rootRuleContent = `---
+root: true
+targets: ["junie"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Junie Root Rule
+`;
+    const nonRootRuleContent = `---
+targets: ["junie"]
+description: "Detail rule"
+globs: ["src/**/*"]
+---
+
+# Junie Detail Rule
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      rootRuleContent,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "detail.md"),
+      nonRootRuleContent,
+    );
+
+    await runGenerate({ target: "junie", features: "rules" });
+
+    // Both bodies land in the single root .junie/AGENTS.md; no undocumented
+    // .junie/memories tree is generated.
+    const rootContent = await readFileContent(join(testDir, ".junie", "AGENTS.md"));
+    expect(rootContent).toContain("Junie Root Rule");
+    expect(rootContent).toContain("Junie Detail Rule");
+    expect(await fileExists(join(testDir, ".junie", "memories", "detail.md"))).toBe(false);
+  });
+
   it("should fold goose non-root rules into the root .goosehints", async () => {
     const testDir = getTestDir();
 

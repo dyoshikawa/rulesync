@@ -50,16 +50,16 @@ describe("JunieRule", () => {
       expect(junieRule.getFilePath()).toBe("/custom/path/.junie/guidelines.md");
     });
 
-    it("should create instance for memory files", () => {
+    it("should create instance for the preferred AGENTS.md root file", () => {
       const junieRule = new JunieRule({
-        relativeDirPath: ".junie/memories",
-        relativeFilePath: "memory-rule.md",
-        fileContent: "# Memory Rule\n\nThis is a memory rule.",
+        relativeDirPath: ".junie",
+        relativeFilePath: "AGENTS.md",
+        fileContent: "# Root Rule\n\nThis is the root rule.",
       });
 
-      expect(junieRule.getRelativeDirPath()).toBe(".junie/memories");
-      expect(junieRule.getRelativeFilePath()).toBe("memory-rule.md");
-      expect(junieRule.getFileContent()).toBe("# Memory Rule\n\nThis is a memory rule.");
+      expect(junieRule.getRelativeDirPath()).toBe(".junie");
+      expect(junieRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(junieRule.getFileContent()).toBe("# Root Rule\n\nThis is the root rule.");
     });
 
     it("should validate content by default", () => {
@@ -334,7 +334,7 @@ describe("JunieRule", () => {
     it("should convert JunieRule to RulesyncRule for memory rule", () => {
       const junieRule = new JunieRule({
         outputRoot: testDir,
-        relativeDirPath: ".junie/memories",
+        relativeDirPath: ".junie",
         relativeFilePath: "memory-convert.md",
         fileContent: "# Memory Convert Test\n\nThis memory will be converted.",
         root: false,
@@ -386,7 +386,7 @@ describe("JunieRule", () => {
 
     it("should return success for empty content", () => {
       const junieRule = new JunieRule({
-        relativeDirPath: ".junie/memories",
+        relativeDirPath: ".junie",
         relativeFilePath: "empty.md",
         fileContent: "",
       });

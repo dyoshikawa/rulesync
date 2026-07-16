@@ -61,9 +61,8 @@ export class JunieRule extends ToolRule {
     excludeToolDir?: boolean;
   } = {}): JunieRuleSettablePaths | ToolRuleSettablePathsGlobal {
     if (global) {
-      // Junie merges the user-scope `~/.junie/AGENTS.md` guideline file with the
-      // project `.junie/AGENTS.md`. Global guidelines are a single root file; memory
-      // files (`.junie/memories/`) stay project-scoped.
+      // Junie merges the user-scope `~/.junie/AGENTS.md` guideline file with
+      // the project guidelines. Global guidelines are a single root file.
       return {
         root: {
           relativeDirPath: buildToolPath(JUNIE_DIR, ".", excludeToolDir),
