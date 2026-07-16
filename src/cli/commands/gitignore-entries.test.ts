@@ -154,8 +154,9 @@ describe("registry derivation", () => {
       "roo::subagents::**/.roomodes",
       "codexcli::ignore::**/.codexignore",
       // Codex CLI's `.codex/rules/rulesync.rules` bash-permission file is written
-      // by createCodexcliBashRulesFile, outside getSettablePaths.
-      "codexcli::permissions::**/.codex/rules/",
+      // by createCodexcliBashRulesFile, outside getSettablePaths. Only the
+      // rulesync-owned file is ignored, not the whole user-authorable directory.
+      "codexcli::permissions::**/.codex/rules/rulesync.rules",
       // Shared trees and global-scope outputs (emitted under the home dir).
       "rovodev::skills::**/.agents/skills/",
       "rovodev::commands::**/.rovodev/prompts.yml",

@@ -245,7 +245,7 @@ rulesync.local.jsonc
 **/.deepagents/hooks.json
 **/.roomodes
 **/.codexignore
-**/.codex/rules/
+**/.codex/rules/rulesync.rules
 **/AGENTS.md
 **/.agents/memories/
 **/.aiassistant/rules/
