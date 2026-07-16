@@ -696,6 +696,8 @@ You can control which individual tools from an MCP server are enabled or disable
 
 > **Qwen Code note:** MCP servers are written to the `mcpServers` key of `.qwen/settings.json` (project) / `~/.qwen/settings.json` (global, via `--global`). Qwen supports stdio (`command`/`args`), SSE (`url`), and HTTP (`httpUrl`) transports. Rulesync maps the canonical per-server `enabledTools` ⇄ Qwen's `includeTools` (allowlist) and `disabledTools` ⇄ Qwen's `excludeTools` (denylist). Other top-level keys in `settings.json` are preserved on round-trip.
 
+> **Codex CLI server-name note:** Codex requires MCP server names matching `[a-zA-Z0-9_-]+`, so Rulesync auto-normalizes non-conforming names on generate (lowercase, runs of other characters become `_`, leading/trailing `_` trimmed) — e.g. `Postgres MCP - Production - Read Only` becomes `postgres_mcp_production_read_only`. If two names normalize to the same Codex name, the last processed server overwrites the earlier one (with a warning). A name with no representable characters at all (e.g. a fully Japanese name) falls back to a stable hash-derived name like `mcp_1a2b3c4d` instead of being dropped; rename the server in `.rulesync/mcp.json` to pick a readable Codex name. This normalization is one-way: importing back from the generated `config.toml` yields the normalized name, not the original.
+
 ### Codex-specific: pass shell env vars to MCP servers (`envVars`)
 
 Codex CLI supports a per-server array of shell env var names to inherit when launching the MCP server process. The source schema uses `envVars` (camelCase, matching the project convention used by sibling fields like `enabledTools`/`disabledTools`); the codex generator renames it to `env_vars` (snake_case) for codex's native `config.toml` format.

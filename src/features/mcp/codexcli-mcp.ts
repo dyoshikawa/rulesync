@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 
 import * as smolToml from "smol-toml";
@@ -78,16 +79,26 @@ function mapOauthFromCodex(oauth: Record<string, unknown>): Record<string, unkno
 
 const CODEX_MCP_SERVER_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
-function normalizeCodexMcpServerName(name: string): string | null {
-  if (PROTOTYPE_POLLUTION_KEYS.has(name)) return null;
-  if (CODEX_MCP_SERVER_NAME_PATTERN.test(name)) return name;
+function normalizeCodexMcpServerName(name: string): { codexName: string; usedFallback: boolean } {
+  if (!PROTOTYPE_POLLUTION_KEYS.has(name) && CODEX_MCP_SERVER_NAME_PATTERN.test(name)) {
+    return { codexName: name, usedFallback: false };
+  }
 
   const normalizedName = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
 
-  return normalizedName && !PROTOTYPE_POLLUTION_KEYS.has(normalizedName) ? normalizedName : null;
+  if (normalizedName && !PROTOTYPE_POLLUTION_KEYS.has(normalizedName)) {
+    return { codexName: normalizedName, usedFallback: false };
+  }
+
+  // Names with no ASCII-representable characters at all (e.g. a fully
+  // Japanese name like 日本語サーバー) or that normalize to a
+  // prototype-pollution key fall back to a stable hash-derived name instead
+  // of being dropped, so the server still reaches the Codex config.
+  const hash = createHash("sha256").update(name).digest("hex").slice(0, 8);
+  return { codexName: `mcp_${hash}`, usedFallback: true };
 }
 
 function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
@@ -130,15 +141,14 @@ function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
   const originalNames = new Map<string, string>();
 
   for (const [name, config] of Object.entries(mcpServers)) {
-    const codexName = normalizeCodexMcpServerName(name);
-    if (codexName === null) {
+    if (!isRecord(config)) continue;
+    const { codexName, usedFallback } = normalizeCodexMcpServerName(name);
+    if (usedFallback) {
       warnWithFallback(
         undefined,
-        `MCP server "${name}" could not be normalized to a valid Codex MCP server name and was skipped.`,
+        `MCP server "${name}" cannot be represented as a Codex MCP server name (ASCII [a-zA-Z0-9_-] only), so the stable fallback name "${codexName}" was used. Rename the server in .rulesync/mcp.json to choose a readable Codex name.`,
       );
-      continue;
     }
-    if (!isRecord(config)) continue;
     const converted: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(config)) {
       if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
@@ -167,9 +177,12 @@ function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
 
     const previousName = originalNames.get(codexName);
     if (previousName !== undefined) {
+      // Worded as an overwrite (not "will be used") because the surviving
+      // entry can still be dropped later by removeEmptyEntries when its
+      // config is empty — in that case its own dropped-entry warning fires.
       warnWithFallback(
         undefined,
-        `Codex MCP server name collision: "${previousName}" and "${name}" both normalize to "${codexName}". Only the last processed server will be used.`,
+        `Codex MCP server name collision: "${previousName}" and "${name}" both normalize to "${codexName}"; "${name}" (processed last) overwrites "${previousName}".`,
       );
     }
     originalNames.set(codexName, name);

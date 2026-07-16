@@ -350,7 +350,6 @@ args = ["server.js"]
             "Postgres MCP - Production - Read Only": { command: "node" },
             "My Server": { command: "first" },
             my_server: { command: "second" },
-            "constructor!": { command: "safe" },
             "already-valid": { command: "unchanged" },
           },
         }),
@@ -367,10 +366,39 @@ args = ["server.js"]
         "already-valid": { command: "unchanged" },
       });
       expect(warnSpy).toHaveBeenCalledWith(
-        'MCP server "constructor!" could not be normalized to a valid Codex MCP server name and was skipped.',
+        'Codex MCP server name collision: "My Server" and "my_server" both normalize to "my_server"; "my_server" (processed last) overwrites "My Server".',
       );
+    });
+
+    it("should keep non-representable server names via a stable hash fallback instead of dropping them", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            // Fully non-ASCII: normalizes to an empty string.
+            日本語サーバー: { command: "node", args: ["jp.js"] },
+            // Pure symbols: normalizes to an empty string.
+            "!!!": { command: "node", args: ["bang.js"] },
+            // Normalizes to the prototype-pollution key "constructor".
+            "constructor!": { command: "safe" },
+          },
+        }),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+      });
+
+      expect(codexcliMcp.getToml().mcp_servers).toEqual({
+        mcp_e212d0c9: { command: "node", args: ["jp.js"] },
+        mcp_e84c538e: { command: "node", args: ["bang.js"] },
+        mcp_f3634b38: { command: "safe" },
+      });
       expect(warnSpy).toHaveBeenCalledWith(
-        'Codex MCP server name collision: "My Server" and "my_server" both normalize to "my_server". Only the last processed server will be used.',
+        'MCP server "日本語サーバー" cannot be represented as a Codex MCP server name (ASCII [a-zA-Z0-9_-] only), so the stable fallback name "mcp_e212d0c9" was used. Rename the server in .rulesync/mcp.json to choose a readable Codex name.',
       );
     });
 
