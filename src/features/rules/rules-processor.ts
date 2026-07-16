@@ -520,11 +520,17 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
   [
     "junie",
     {
+      // Junie CLI resolves project guidelines first-match-wins
+      // (`.junie/AGENTS.md` → root `AGENTS.md` → legacy guidelines), reads no
+      // `.junie/memories/` directory, and documents no `@`-reference
+      // mechanism, so non-root rules are folded into the single root
+      // `.junie/AGENTS.md` (same handling as grokcli / warp / deepagents).
       class: JunieRule,
       meta: {
         extension: "md",
         supportsGlobal: true,
-        ruleDiscoveryMode: "toon",
+        ruleDiscoveryMode: "auto",
+        foldsNonRootIntoRoot: true,
       },
     },
   ],
