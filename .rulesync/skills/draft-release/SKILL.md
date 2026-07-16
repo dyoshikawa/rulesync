@@ -29,3 +29,5 @@ Let's resume the release process.
 8. As a precaution, verify that `getVersion()` in `src/cli/index.ts` is updated to the ${new_version}.
 9. Run `gh pr create` to the main branch.
 10. Create a **draft** release using `gh release create v${new_version} --draft --title v${new_version} --notes-file ./tmp/release-notes/*.md` command on the `github.com/dyoshikawa/rulesync` repository. This creates a draft release so that the publish-assets workflow can upload assets later.
+
+Note: the Homebrew tap formula (`Formula/rulesync.rb`) is NOT updated here. It embeds sha256 checksums of the release binaries, which only exist after the release PR merges and the `Publish Assets` workflow uploads them. The `/goal-release` command performs that update as its post-merge step (regenerate with `scripts/generate-homebrew-formula.ts` from the release's `SHA256SUMS` and land it via an immediately merged PR). When releasing manually without `/goal-release`, run that step yourself after the assets are published.
