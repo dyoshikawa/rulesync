@@ -136,6 +136,7 @@
     "Frontmatters",
     "fsevents",
     "fseventsd",
+    "fsmonitor",
     "fullwidth",
     "gemincli",
     "geminiignore",

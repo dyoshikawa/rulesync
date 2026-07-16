@@ -51,6 +51,25 @@ const CODEX_GLOB_SCAN_MAX_DEPTH = 8; // Matches Codex CLI default glob_scan_max_
 // an existing config file being present. Keys mirror parse_special_path in
 // codex-rs/config/src/permissions_toml.rs.
 const CODEX_MINIMAL_KEY = ":minimal";
+// Default `.git` carve-outs emitted into the `:workspace_roots` table unless
+// `codexcli.git_write_rules` is explicitly `false`. Codex's `:workspace`
+// baseline keeps `.git` read-only inside workspace roots
+// (append_default_read_only_project_root_subpath_if_no_explicit_rule in
+// codex-rs), which denies basic git workflows: commit/stage operations write
+// to `.git/index`, `.git/objects`, refs, and logs. `".git/**" = "write"`
+// reopens the subtree, while `".git/config" = "read"` keeps the repository
+// config read-only as a security guard — a writable `.git/config` would let a
+// sandboxed process set keys like `core.fsmonitor` or `core.hooksPath` that
+// execute arbitrary code outside the sandbox. Codex resolves the more
+// specific path with priority, so the `read` rule wins for that one file.
+// Like `:minimal`, these default-valued entries are not imported into the
+// rulesync model (they are re-added on every export); a user-customized value
+// for the same key imports — and generates — normally, winning over the
+// default.
+const CODEX_GIT_WRITE_RULES: Readonly<Record<string, "read" | "write">> = {
+  ".git/**": "write",
+  ".git/config": "read",
+};
 // Codex rejects the global `*` wildcard in denied network domains at config load time,
 // while allowed domains accept it for denylist-only setups (openai/codex#15549).
 const GLOBAL_WILDCARD_DOMAIN = "*";
@@ -323,6 +342,8 @@ function convertRulesyncToCodexProfile({
     );
   }
 
+  applyDefaultGitWriteRules({ config, workspaceRootFilesystem });
+
   if (Object.keys(workspaceRootFilesystem).length > 0) {
     if (typeof filesystem[CODEX_WORKSPACE_ROOTS_KEY] === "string") {
       logger?.warn(
@@ -361,6 +382,24 @@ function convertRulesyncToCodexProfile({
   };
 }
 
+// Fill in the default `.git` carve-outs after the user's rules so a
+// user-specified value for the same key always wins. Suppressed only by an
+// explicit `codexcli.git_write_rules: false`.
+function applyDefaultGitWriteRules({
+  config,
+  workspaceRootFilesystem,
+}: {
+  config: PermissionsConfig;
+  workspaceRootFilesystem: CodexFilesystemRuleTable;
+}): void {
+  if (config.codexcli?.git_write_rules === false) {
+    return;
+  }
+  for (const [pattern, access] of Object.entries(CODEX_GIT_WRITE_RULES)) {
+    workspaceRootFilesystem[pattern] ??= access;
+  }
+}
+
 function convertCodexProfileToRulesync({
   profile,
   domainsHadUnknown,
@@ -391,6 +430,18 @@ function convertCodexProfileToRulesync({
 
       if (isCodexFilesystemRuleTable(access)) {
         for (const [nestedPattern, nestedAccess] of Object.entries(access)) {
+          // Default-emitted `.git` carve-outs are, like `:minimal`, not
+          // user-managed: importing them would leak Codex-specific rules into
+          // the shared canonical model (and other tools' outputs), and they
+          // are re-added on every export anyway. Only the exact default
+          // pattern/value pairs are skipped — a customized value (e.g.
+          // `".git/config" = "write"`) imports normally.
+          if (
+            pattern === CODEX_WORKSPACE_ROOTS_KEY &&
+            CODEX_GIT_WRITE_RULES[nestedPattern] === nestedAccess
+          ) {
+            continue;
+          }
           addRulesyncFilesystemRule(permission, nestedPattern, nestedAccess);
         }
       }
@@ -449,8 +500,8 @@ function toCodexProfile(value: unknown): CodexProfileParseResult {
 }
 
 // Surface warnings for existing profile state that fromRulesyncPermissions preserves
-// as-is (network.mode, network.unix_sockets, extends, and unrecognized domain entries)
-// rather than silently carrying it forward.
+// as-is (network.enabled, network.mode, network.unix_sockets, extends, and unrecognized
+// domain entries) rather than silently carrying it forward.
 function warnAboutPreservedProfileState({
   existingProfile,
   newProfile,
@@ -471,19 +522,41 @@ function warnAboutPreservedProfileState({
       `Existing "extends" value "${existingProfile.extends ?? "(none)"}" will be replaced by Rulesync-managed "${newProfile.extends ?? "(none)"}".`,
     );
   }
+  warnAboutPreservedNetworkState({ existingProfile, newProfile, logger });
+  if (existingDomainsHadUnknown) {
+    logger?.warn(
+      `Existing "network.domains" contained unrecognized values. These entries were skipped and will not be imported.`,
+    );
+  }
+}
+
+// Network settings are user territory (see mergeWithExistingProfile), so the
+// preserved values are surfaced instead of being carried forward silently.
+function warnAboutPreservedNetworkState({
+  existingProfile,
+  newProfile,
+  logger,
+}: {
+  existingProfile: CodexPermissionProfile | undefined;
+  newProfile: CodexPermissionProfile;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): void {
   if (existingProfile?.network?.unix_sockets !== undefined) {
     logger?.warn(
       `Preserving existing "network.unix_sockets" from config. Review these entries manually as they may grant broad system access.`,
     );
   }
+  if (
+    existingProfile?.network?.enabled !== undefined &&
+    newProfile.network?.enabled === undefined
+  ) {
+    logger?.warn(
+      `Preserving existing "network.enabled" from config. Review this value manually as it may enable network access beyond the Rulesync-managed domain rules.`,
+    );
+  }
   if (existingProfile?.network?.mode !== undefined) {
     logger?.warn(
       `Preserving existing "network.mode" from config. Review this value manually as it may grant broader network access than the Rulesync-managed domain rules.`,
-    );
-  }
-  if (existingDomainsHadUnknown) {
-    logger?.warn(
-      `Existing "network.domains" contained unrecognized values. These entries were skipped and will not be imported.`,
     );
   }
 }
@@ -563,6 +636,13 @@ function mergeWithExistingProfile({
   if (!existingProfile) return newProfile;
 
   const mergedNetwork: CodexNetwork = { ...newProfile.network };
+  // Network settings are user territory: rulesync only sets `enabled = true`
+  // itself when the canonical model has an allow domain, so a user-authored
+  // `enabled` (e.g. `enabled = true` to reach the SSH agent socket, see the
+  // FAQ) is preserved whenever the freshly computed profile does not set one.
+  if (existingProfile.network?.enabled !== undefined && mergedNetwork.enabled === undefined) {
+    mergedNetwork.enabled = existingProfile.network.enabled;
+  }
   if (existingProfile.network?.mode !== undefined && mergedNetwork.mode === undefined) {
     mergedNetwork.mode = existingProfile.network.mode;
   }
@@ -679,9 +759,10 @@ function computeCodexcliOverridePatch({
   const patch: Record<string, unknown> = {};
   const allowed = new Set<string>(CODEXCLI_OVERRIDE_KEYS);
   for (const [key, value] of Object.entries(override ?? {})) {
-    // Consumed by convertRulesyncToCodexProfile as the managed profile's
-    // `extends` baseline; it is not a top-level config.toml key.
-    if (key === "base_permission_profile") continue;
+    // Consumed by convertRulesyncToCodexProfile (`base_permission_profile` as
+    // the managed profile's `extends` baseline, `git_write_rules` as the
+    // `.git` carve-out switch); they are not top-level config.toml keys.
+    if (key === "base_permission_profile" || key === "git_write_rules") continue;
     if (!allowed.has(key)) {
       logger?.warn(
         `Codex CLI permission override key "${key}" is not managed and was skipped. "permissions"/"default_permissions" are owned by the canonical permission model and "mcp_servers" gating by the MCP feature.`,

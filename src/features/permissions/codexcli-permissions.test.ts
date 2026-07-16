@@ -9,6 +9,13 @@ import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
+type ParsedToml = Record<string, any>;
+
+const parseWorkspaceRoots = (fileContent: string): Record<string, unknown> => {
+  const parsed = smolToml.parse(fileContent) as ParsedToml;
+  return parsed.permissions?.rulesync?.filesystem?.[":workspace_roots"] ?? {};
+};
+
 describe("CodexcliPermissions", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -202,6 +209,9 @@ enabled = true
             "docs/*": "allow",
           },
         },
+        // The default `.git/**` carve-out would otherwise trigger the depth
+        // key on every generate; disable it to test the wildcard detection.
+        codexcli: { git_write_rules: false },
       }),
     });
 
@@ -1624,6 +1634,242 @@ command = "node"
       const fileContent = regenerated.getFileContent();
       expect(fileContent).toContain('extends = ":read-only"');
       expect(fileContent).toContain('"/workspace/project/**" = "read"');
+    });
+  });
+
+  describe("default .git write carve-outs (git_write_rules)", () => {
+    it("emits '.git/**' = 'write' and '.git/config' = 'read' by default", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: {} }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const workspaceRoots = parseWorkspaceRoots(codexPermissions.getFileContent());
+      expect(workspaceRoots[".git/**"]).toBe("write");
+      expect(workspaceRoots[".git/config"]).toBe("read");
+      // `.git/**` contains a multi-level glob, so the depth bound is emitted.
+      expect(codexPermissions.getFileContent()).toContain("glob_scan_max_depth = 8");
+    });
+
+    it("lets a user-specified rule win over the default for the same key", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: {
+            read: { ".git/**": "deny" },
+            write: { ".git/config": "allow" },
+          },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const workspaceRoots = parseWorkspaceRoots(codexPermissions.getFileContent());
+      expect(workspaceRoots[".git/**"]).toBe("deny");
+      expect(workspaceRoots[".git/config"]).toBe("write");
+    });
+
+    it("suppresses the carve-outs when codexcli.git_write_rules is false", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: {},
+          codexcli: { git_write_rules: false },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const fileContent = codexPermissions.getFileContent();
+      expect(fileContent).not.toContain(".git/**");
+      expect(fileContent).not.toContain(".git/config");
+      expect(fileContent).not.toContain(":workspace_roots");
+    });
+
+    it("does not write git_write_rules as a top-level config.toml key", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: {},
+          codexcli: { git_write_rules: true },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      expect(codexPermissions.getFileContent()).not.toContain("git_write_rules");
+    });
+
+    it("does not import the default-valued carve-outs into the rulesync model", () => {
+      const codexPermissions = new CodexcliPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: `
+default_permissions = "rulesync"
+
+[permissions.rulesync.filesystem.":workspace_roots"]
+".git/**" = "write"
+".git/config" = "read"
+"src/**" = "read"
+`,
+      });
+
+      const json = codexPermissions.toRulesyncPermissions().getJson();
+      expect(json.permission.read?.[".git/**"]).toBeUndefined();
+      expect(json.permission.edit?.[".git/**"]).toBeUndefined();
+      expect(json.permission.read?.[".git/config"]).toBeUndefined();
+      expect(json.permission.read?.["src/**"]).toBe("allow");
+    });
+
+    it("imports customized .git values that differ from the defaults", () => {
+      const codexPermissions = new CodexcliPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: `
+default_permissions = "rulesync"
+
+[permissions.rulesync.filesystem.":workspace_roots"]
+".git/**" = "deny"
+".git/config" = "write"
+`,
+      });
+
+      const json = codexPermissions.toRulesyncPermissions().getJson();
+      expect(json.permission.read?.[".git/**"]).toBe("deny");
+      expect(json.permission.edit?.[".git/**"]).toBe("deny");
+      expect(json.permission.edit?.[".git/config"]).toBe("allow");
+    });
+
+    it("round-trips through import and regeneration without duplicating the carve-outs", async () => {
+      const codexDir = join(testDir, ".codex");
+      await ensureDir(codexDir);
+      await writeFileContent(
+        join(codexDir, "config.toml"),
+        [
+          'default_permissions = "rulesync"',
+          "[permissions.rulesync]",
+          'extends = ":workspace"',
+          '[permissions.rulesync.filesystem.":workspace_roots"]',
+          '".git/**" = "write"',
+          '".git/config" = "read"',
+        ].join("\n"),
+      );
+
+      const imported = await CodexcliPermissions.fromFile({ outputRoot: testDir });
+      const rulesyncPermissions = imported.toRulesyncPermissions();
+
+      const regenerated = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          outputRoot: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: rulesyncPermissions.getFileContent(),
+        }),
+      });
+
+      const workspaceRoots = parseWorkspaceRoots(regenerated.getFileContent());
+      expect(workspaceRoots).toEqual({ ".git/**": "write", ".git/config": "read" });
+    });
+  });
+
+  describe("user-authored network keys survive regeneration", () => {
+    it("preserves dangerously_allow_all_unix_sockets and enabled when rulesync emits no network", async () => {
+      const logger = createMockLogger();
+      const codexDir = join(testDir, ".codex");
+      await ensureDir(codexDir);
+      await writeFileContent(
+        join(codexDir, "config.toml"),
+        [
+          'default_permissions = "rulesync"',
+          "[permissions.rulesync]",
+          'extends = ":workspace"',
+          "[permissions.rulesync.network]",
+          "enabled = true",
+          "dangerously_allow_all_unix_sockets = true",
+        ].join("\n"),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: {} }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, any>;
+      const network = parsed.permissions?.rulesync?.network ?? {};
+      expect(network.enabled).toBe(true);
+      expect(network.dangerously_allow_all_unix_sockets).toBe(true);
+      const warnMessages = logger.warn.mock.calls.map((call) => String(call[0]));
+      expect(warnMessages.some((line) => line.includes('"network.enabled"'))).toBe(true);
+      expect(warnMessages.some((line) => line.includes("dangerously_allow_all_unix_sockets"))).toBe(
+        true,
+      );
+    });
+
+    it("preserves a user-authored enabled = true alongside deny-only managed domains", async () => {
+      const codexDir = join(testDir, ".codex");
+      await ensureDir(codexDir);
+      await writeFileContent(
+        join(codexDir, "config.toml"),
+        [
+          'default_permissions = "rulesync"',
+          "[permissions.rulesync]",
+          'extends = ":workspace"',
+          "[permissions.rulesync.network]",
+          "enabled = true",
+        ].join("\n"),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { webfetch: { "example.com": "deny" } },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, any>;
+      const network = parsed.permissions?.rulesync?.network ?? {};
+      expect(network.enabled).toBe(true);
+      expect(network.domains?.["example.com"]).toBe("deny");
     });
   });
 });
