@@ -204,6 +204,59 @@ Check the PR diff and provide feedback.
   );
 });
 
+describe("E2E: devin commands on the skills surface", () => {
+  const { getTestDir } = useTestDirectory();
+
+  it("should keep command outputs when skills --delete removes orphan skills", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "my-command.md"),
+      `---
+description: "My command"
+targets: ["*"]
+---
+Do the thing.
+`,
+    );
+    await writeFileContent(
+      join(testDir, ".rulesync", "skills", "my-skill", "SKILL.md"),
+      `---
+name: my-skill
+description: "My skill"
+targets: ["*"]
+---
+Skill body.
+`,
+    );
+    // An orphan skill dir no rulesync source produces anymore.
+    await writeFileContent(
+      join(testDir, ".devin", "skills", "orphan-skill", "SKILL.md"),
+      "---\nname: orphan-skill\ndescription: stale\n---\nold\n",
+    );
+
+    await runGenerate({
+      target: "devin",
+      features: "commands,skills",
+      deleteFiles: true,
+      env: { NODE_ENV: "e2e" },
+    });
+
+    // The command-emitted SKILL.md survives the skills feature's orphan
+    // deletion (isDirOwned protection), the real skill is written, and the
+    // genuine orphan is cleaned up.
+    expect(
+      await readFileContent(join(testDir, ".devin", "skills", "my-command", "SKILL.md")),
+    ).toContain("Do the thing.");
+    expect(
+      await readFileContent(join(testDir, ".devin", "skills", "my-skill", "SKILL.md")),
+    ).toContain("Skill body.");
+    await expect(
+      readFileContent(join(testDir, ".devin", "skills", "orphan-skill", "SKILL.md")),
+    ).rejects.toThrow();
+  });
+});
+
 describe("E2E: commands (import)", () => {
   const { getTestDir } = useTestDirectory();
 

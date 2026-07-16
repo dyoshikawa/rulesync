@@ -8,6 +8,7 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { type AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { commandSlug } from "./command-skill-ownership.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -18,10 +19,6 @@ import {
 type DevinCommandParams = AiFileParams & {
   slug?: string;
 };
-
-function commandSlug(relativeFilePath: string): string {
-  return basename(relativeFilePath, ".md").replace(/[^a-zA-Z0-9_-]/g, "-");
-}
 
 function commandSkillContent(rulesyncCommand: RulesyncCommand): string {
   const slug = commandSlug(rulesyncCommand.getRelativeFilePath());
