@@ -297,7 +297,7 @@ rulesync.local.jsonc
 **/.roo/commands/
 **/.rovodev/prompts/
 **/.takt/facets/instructions/
-**/.devin/workflows/
+**/.devin/skills/
 **/.augment/skills/
 **/.claude/skills/
 **/.cline/skills/
@@ -319,7 +319,6 @@ rulesync.local.jsonc
 **/.takt/facets/knowledge/
 **/.vibe/skills/
 **/.warp/skills/
-**/.devin/skills/
 **/.agents/subagents/
 **/.augment/agents/
 **/.claude/agents/

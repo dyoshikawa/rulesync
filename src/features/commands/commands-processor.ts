@@ -462,9 +462,13 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     {
       class: DevinCommand,
       meta: {
-        // Devin workflows live under `.devin/workflows/*.md` (project) and
-        // `~/.codeium/windsurf/global_workflows/*.md` (global). Flat Markdown
-        // files with optional frontmatter; no subdirectory nesting.
+        // Devin has no standalone workflows/commands component anymore —
+        // slash commands are Skills, so commands are emitted as
+        // `.devin/skills/<slug>/SKILL.md` (project) and
+        // `~/.config/devin/skills/<slug>/SKILL.md` (global). Import and
+        // deletion are no-ops (the top-level skills dir holds no flat `*.md`
+        // files) because the skills feature owns that tree — mirrors the
+        // Hermes Agent commands target.
         extension: "md",
         supportsProject: true,
         supportsGlobal: true,

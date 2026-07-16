@@ -4,7 +4,6 @@ export const DEVIN_DIR = ".devin";
 const CODEIUM_DIR = ".codeium";
 const WINDSURF_SUBDIR = "windsurf";
 export const CODEIUM_WINDSURF_DIR = join(CODEIUM_DIR, WINDSURF_SUBDIR);
-export const DEVIN_WORKFLOWS_DIR_PATH = join(DEVIN_DIR, "workflows");
 export const DEVIN_SKILLS_DIR_PATH = join(DEVIN_DIR, "skills");
 export const DEVIN_AGENTS_DIR_PATH = join(DEVIN_DIR, "agents");
 // Devin Local global config directory. On Linux/macOS this is `~/.config/devin`
@@ -20,10 +19,6 @@ export const DEVIN_GLOBAL_AGENTS_DIR_PATH = join(DEVIN_GLOBAL_CONFIG_DIR_PATH, "
 // The legacy `~/.codeium/<channel>/skills/` location is channel-dependent and no
 // longer emitted. https://docs.devin.ai/cli/extensibility/skills
 export const DEVIN_GLOBAL_SKILLS_DIR_PATH = join(DEVIN_GLOBAL_CONFIG_DIR_PATH, "skills");
-export const CODEIUM_WINDSURF_GLOBAL_WORKFLOWS_DIR_PATH = join(
-  CODEIUM_WINDSURF_DIR,
-  "global_workflows",
-);
 // Native Devin Local config file. Holds `mcpServers`, `permissions`, and (in
 // global mode) `hooks`. Project: `.devin/config.json`; user:
 // `~/.config/devin/config.json`. https://docs.devin.ai/cli/extensibility/configuration
