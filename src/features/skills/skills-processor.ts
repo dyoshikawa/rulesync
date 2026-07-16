@@ -81,6 +81,11 @@ type ToolSkillFactory = {
       outputRoot: string;
       relativeDirPath: string;
       dirName: string;
+      /**
+       * The rulesync input root, for hooks that decide ownership by
+       * cross-referencing `.rulesync/` sources (e.g. Devin command slugs).
+       */
+      inputRoot: string;
     }): Promise<boolean>;
   };
   meta: {
@@ -601,6 +606,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
             outputRoot: this.outputRoot,
             relativeDirPath: root,
             dirName,
+            inputRoot: this.inputRoot,
           }))
         ) {
           continue;
@@ -643,13 +649,15 @@ export class SkillsProcessor extends DirFeatureProcessor {
         const dirName = basename(dirPath);
         // Directories owned by another feature (see the `isDirOwned` factory
         // hook) must never be deleted as orphan skills — e.g. a Reasonix
-        // subagent profile generated into the shared `.reasonix/skills/`.
+        // subagent profile generated into the shared `.reasonix/skills/`, or
+        // a Devin command emitted onto the skills surface.
         if (
           factory.class.isDirOwned &&
           !(await factory.class.isDirOwned({
             outputRoot: this.outputRoot,
             relativeDirPath: root,
             dirName,
+            inputRoot: this.inputRoot,
           }))
         ) {
           continue;

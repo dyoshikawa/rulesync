@@ -88,6 +88,14 @@ type ToolCommandFactory = {
     isSimulated: boolean;
     /** Whether the tool supports subdirectory paths in commands */
     supportsSubdirectory: boolean;
+    /**
+     * When true, {@link CommandsProcessor.loadToolFiles} never scans the
+     * tool's output tree: the commands surface is emitted into a directory
+     * owned by another feature (e.g. the skills tree), so import and
+     * generate-delete must be no-ops for this target instead of picking up —
+     * or crashing on — files that feature (or the user) placed there.
+     */
+    skipToolFileScan?: boolean;
   };
 };
 
@@ -281,6 +289,10 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: true,
+        // Commands are emitted into the Hermes skills tree
+        // (`~/.hermes/skills/<slug>/SKILL.md`), which the skills surface owns,
+        // so import and generate-delete never scan it.
+        skipToolFileScan: true,
       },
     },
   ],
@@ -462,14 +474,18 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     {
       class: DevinCommand,
       meta: {
-        // Devin workflows live under `.devin/workflows/*.md` (project) and
-        // `~/.codeium/windsurf/global_workflows/*.md` (global). Flat Markdown
-        // files with optional frontmatter; no subdirectory nesting.
+        // Devin has no standalone workflows/commands component anymore —
+        // slash commands are Skills, so commands are emitted as
+        // `.devin/skills/<slug>/SKILL.md` (project) and
+        // `~/.config/devin/skills/<slug>/SKILL.md` (global). The skills
+        // feature owns that tree, so import and generate-delete never scan
+        // it — mirrors the Hermes Agent commands target.
         extension: "md",
         supportsProject: true,
         supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: false,
+        skipToolFileScan: true,
       },
     },
   ],
@@ -646,6 +662,9 @@ export class CommandsProcessor extends FeatureProcessor {
     forDeletion?: boolean;
   } = {}): Promise<ToolFile[]> {
     const factory = this.getFactory(this.toolTarget);
+    if (factory.meta.skipToolFileScan) {
+      return [];
+    }
     const paths = factory.class.getSettablePaths({ global: this.global });
 
     const outputRootFull = join(this.outputRoot, paths.relativeDirPath);

@@ -854,6 +854,21 @@ describe("CommandsProcessor", () => {
       expect(result).toEqual([mockCommand]);
     });
 
+    it.each([{ toolTarget: "devin" as const }, { toolTarget: "hermesagent" as const }])(
+      "should never scan the skills tree for $toolTarget (import and deletion are no-ops)",
+      async ({ toolTarget }) => {
+        processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget });
+
+        // Even with stray flat .md files in the scanned directory, neither
+        // import nor deletion touches them (skipToolFileScan).
+        mockFindFilesByGlobs.mockResolvedValue([join(testDir, ".devin", "skills", "stray.md")]);
+
+        expect(await processor.loadToolFiles()).toEqual([]);
+        expect(await processor.loadToolFiles({ forDeletion: true })).toEqual([]);
+        expect(mockFindFilesByGlobs).not.toHaveBeenCalled();
+      },
+    );
+
     it("should throw error when file loading fails", async () => {
       processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
 

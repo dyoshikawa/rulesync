@@ -30,7 +30,8 @@ const commandsGenerateTargets = [
   { target: "junie", outputPath: join(".junie", "commands", "review-pr.md") },
   { target: "takt", outputPath: join(".takt", "facets", "instructions", "review-pr.md") },
   { target: "pi", outputPath: join(".pi", "prompts", "review-pr.md") },
-  { target: "devin", outputPath: join(".devin", "workflows", "review-pr.md") },
+  // Devin slash commands are Skills; commands are emitted onto the skills surface.
+  { target: "devin", outputPath: join(".devin", "skills", "review-pr", "SKILL.md") },
   { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
   { target: "goose", outputPath: join(".goose", "recipes", "review-pr.yaml") },
   { target: "qwencode", outputPath: join(".qwen", "commands", "review-pr.md") },
@@ -63,7 +64,7 @@ const commandsGlobalTargets = [
   { target: "pi", outputPath: join(".pi", "agent", "prompts", "review-pr.md") },
   {
     target: "devin",
-    outputPath: join(".codeium", "windsurf", "global_workflows", "review-pr.md"),
+    outputPath: join(".config", "devin", "skills", "review-pr", "SKILL.md"),
   },
   { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
   { target: "goose", outputPath: join(".config", "goose", "recipes", "review-pr.yaml") },
@@ -172,7 +173,6 @@ Check the PR diff and provide feedback.
     { target: "antigravity-cli", orphanPath: join(".agents", "workflows", "orphan.md") },
     { target: "junie", orphanPath: join(".junie", "commands", "orphan.md") },
     { target: "pi", orphanPath: join(".pi", "prompts", "orphan.md") },
-    { target: "devin", orphanPath: join(".devin", "workflows", "orphan.md") },
     { target: "factorydroid", orphanPath: join(".factory", "commands", "orphan.md") },
     { target: "goose", orphanPath: join(".goose", "recipes", "orphan.yaml") },
     { target: "rovodev", orphanPath: join(".rovodev", "prompts", "orphan.md") },
@@ -204,6 +204,59 @@ Check the PR diff and provide feedback.
   );
 });
 
+describe("E2E: devin commands on the skills surface", () => {
+  const { getTestDir } = useTestDirectory();
+
+  it("should keep command outputs when skills --delete removes orphan skills", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "my-command.md"),
+      `---
+description: "My command"
+targets: ["*"]
+---
+Do the thing.
+`,
+    );
+    await writeFileContent(
+      join(testDir, ".rulesync", "skills", "my-skill", "SKILL.md"),
+      `---
+name: my-skill
+description: "My skill"
+targets: ["*"]
+---
+Skill body.
+`,
+    );
+    // An orphan skill dir no rulesync source produces anymore.
+    await writeFileContent(
+      join(testDir, ".devin", "skills", "orphan-skill", "SKILL.md"),
+      "---\nname: orphan-skill\ndescription: stale\n---\nold\n",
+    );
+
+    await runGenerate({
+      target: "devin",
+      features: "commands,skills",
+      deleteFiles: true,
+      env: { NODE_ENV: "e2e" },
+    });
+
+    // The command-emitted SKILL.md survives the skills feature's orphan
+    // deletion (isDirOwned protection), the real skill is written, and the
+    // genuine orphan is cleaned up.
+    expect(
+      await readFileContent(join(testDir, ".devin", "skills", "my-command", "SKILL.md")),
+    ).toContain("Do the thing.");
+    expect(
+      await readFileContent(join(testDir, ".devin", "skills", "my-skill", "SKILL.md")),
+    ).toContain("Skill body.");
+    await expect(
+      readFileContent(join(testDir, ".devin", "skills", "orphan-skill", "SKILL.md")),
+    ).rejects.toThrow();
+  });
+});
+
 describe("E2E: commands (import)", () => {
   const { getTestDir } = useTestDirectory();
 
@@ -221,7 +274,6 @@ describe("E2E: commands (import)", () => {
     { target: "antigravity-cli", sourcePath: join(".agents", "workflows", "review-pr.md") },
     { target: "junie", sourcePath: join(".junie", "commands", "review-pr.md") },
     { target: "pi", sourcePath: join(".pi", "prompts", "review-pr.md") },
-    { target: "devin", sourcePath: join(".devin", "workflows", "review-pr.md") },
     { target: "factorydroid", sourcePath: join(".factory", "commands", "review-pr.md") },
     { target: "reasonix", sourcePath: join(".reasonix", "commands", "review-pr.md") },
     { target: "rovodev", sourcePath: join(".rovodev", "prompts", "review-pr.md") },

@@ -4,6 +4,7 @@ import { HERMESAGENT_SKILLS_DIR_PATH } from "../../constants/hermesagent-paths.j
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { type AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { commandSlug } from "./command-skill-ownership.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { ToolCommand, type ToolCommandFromRulesyncCommandParams } from "./tool-command.js";
 
@@ -12,10 +13,6 @@ const SKILL_FILE_NAME = "SKILL.md";
 type HermesagentCommandParams = AiFileParams & {
   slug?: string;
 };
-
-function commandSlug(relativeFilePath: string): string {
-  return basename(relativeFilePath, ".md").replace(/[^a-zA-Z0-9_-]/g, "-");
-}
 
 function commandSkillContent(rulesyncCommand: RulesyncCommand): string {
   const slug = commandSlug(rulesyncCommand.getRelativeFilePath());
