@@ -180,7 +180,10 @@ export type VibePermissionsOverride = z.infer<typeof VibePermissionsOverrideSche
  */
 const CursorPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
-  approvalMode: z.optional(z.string()),
+  // @see https://cursor.com/docs/cli/reference/configuration
+  approvalMode: z.optional(z.enum(["allowlist", "auto-review", "unrestricted"])),
+  // Deliberately NOT an enum: the CLI config reference documents `mode` and
+  // `networkAccess` as plain strings without enumerating their accepted values.
   sandbox: z.optional(z.looseObject({})),
 });
 export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverrideSchema>;
@@ -276,7 +279,10 @@ export type FactorydroidPermissionsOverride = z.infer<typeof FactorydroidPermiss
  */
 const WarpPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
-  agent_mode_coding_permissions: z.optional(z.string()),
+  // @see https://docs.warp.dev/terminal/settings/all-settings/
+  agent_mode_coding_permissions: z.optional(
+    z.enum(["always_ask_before_reading", "always_allow_reading", "allow_reading_specific_files"]),
+  ),
   agent_mode_coding_file_read_allowlist: z.optional(z.array(z.string())),
   agent_mode_execute_readonly_commands: z.optional(z.boolean()),
 });
@@ -297,6 +303,10 @@ export type WarpPermissionsOverride = z.infer<typeof WarpPermissionsOverrideSche
 const JuniePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   allowReadonlyCommands: z.optional(z.boolean()),
+  // Deliberately NOT an enum: Junie's allowlist docs only show `ask` in
+  // examples and never enumerate the accepted values (`deny` appears only in
+  // third-party material and `allow` is unconfirmed), so the bounds are
+  // undocumented. Do not "helpfully" enum this without an official value list.
   defaultBehavior: z.optional(z.string()),
 });
 export type JuniePermissionsOverride = z.infer<typeof JuniePermissionsOverrideSchema>;
@@ -326,7 +336,8 @@ export type JuniePermissionsOverride = z.infer<typeof JuniePermissionsOverrideSc
  */
 const TaktPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
-  step_permission_overrides: z.optional(z.record(z.string(), z.string())),
+  // @see https://github.com/nrslib/takt/blob/main/docs/configuration.md
+  step_permission_overrides: z.optional(z.record(z.string(), z.enum(["readonly", "edit", "full"]))),
   provider_options: z.optional(z.looseObject({})),
 });
 export type TaktPermissionsOverride = z.infer<typeof TaktPermissionsOverrideSchema>;
@@ -356,8 +367,18 @@ export type TaktPermissionsOverride = z.infer<typeof TaktPermissionsOverrideSche
  */
 const AmpPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
-  permissions: z.optional(z.array(z.looseObject({ tool: z.string(), action: z.string() }))),
-  mcpPermissions: z.optional(z.array(z.looseObject({}))),
+  // @see https://ampcode.com/manual/appendix/legacy-permissions-rules.txt
+  permissions: z.optional(
+    z.array(
+      z.looseObject({
+        tool: z.string(),
+        action: z.enum(["allow", "ask", "reject", "delegate"]),
+        context: z.optional(z.enum(["thread", "subagent"])),
+      }),
+    ),
+  ),
+  // @see https://ampcode.com/manual (amp.mcpPermissions)
+  mcpPermissions: z.optional(z.array(z.looseObject({ action: z.enum(["allow", "reject"]) }))),
   guardedFiles: z.optional(z.looseObject({ allowlist: z.optional(z.array(z.string())) })),
   dangerouslyAllowAll: z.optional(z.boolean()),
 });
@@ -384,7 +405,10 @@ export type AmpPermissionsOverride = z.infer<typeof AmpPermissionsOverrideSchema
  */
 const AntigravityCliPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
-  toolPermission: z.optional(z.string()),
+  // @see https://antigravity.google/docs/cli/reference
+  toolPermission: z.optional(
+    z.enum(["request-review", "proceed-in-sandbox", "always-proceed", "strict"]),
+  ),
   enableTerminalSandbox: z.optional(z.boolean()),
 });
 export type AntigravityCliPermissionsOverride = z.infer<
@@ -415,11 +439,15 @@ export type AntigravityCliPermissionsOverride = z.infer<
  */
 const AugmentcodePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
+  // @see https://docs.augmentcode.com/cli/permissions
   toolPermissions: z.optional(
     z.array(
       z.looseObject({
         toolName: z.string(),
-        permission: z.looseObject({ type: z.string() }),
+        eventType: z.optional(z.enum(["tool-call", "tool-response"])),
+        permission: z.looseObject({
+          type: z.enum(["allow", "deny", "ask-user", "webhook-policy", "script-policy"]),
+        }),
       }),
     ),
   ),
