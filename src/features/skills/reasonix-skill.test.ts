@@ -94,4 +94,55 @@ describe("ReasonixSkill", () => {
       expect(ReasonixSkill.isTargetedByRulesyncSkill(make(["claudecode"]))).toBe(false);
     });
   });
+
+  describe("isDirOwned", () => {
+    const skillsDir = join(".reasonix", "skills");
+
+    it("should own a regular skill directory", async () => {
+      const skillDir = join(testDir, skillsDir, "my-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---\nname: my-skill\ndescription: A regular skill\n---\n\nBody`,
+      );
+
+      await expect(
+        ReasonixSkill.isDirOwned({
+          outputRoot: testDir,
+          relativeDirPath: skillsDir,
+          dirName: "my-skill",
+        }),
+      ).resolves.toBe(true);
+    });
+
+    it("should not own a subagent profile directory", async () => {
+      const agentDir = join(testDir, skillsDir, "reviewer");
+      await ensureDir(agentDir);
+      await writeFileContent(
+        join(agentDir, SKILL_FILE_NAME),
+        `---\nname: reviewer\ndescription: A subagent\ninvocation: manual\nrunAs: subagent\n---\n\nBody`,
+      );
+
+      await expect(
+        ReasonixSkill.isDirOwned({
+          outputRoot: testDir,
+          relativeDirPath: skillsDir,
+          dirName: "reviewer",
+        }),
+      ).resolves.toBe(false);
+    });
+
+    it("should own a directory without a readable SKILL.md", async () => {
+      const emptyDir = join(testDir, skillsDir, "empty");
+      await ensureDir(emptyDir);
+
+      await expect(
+        ReasonixSkill.isDirOwned({
+          outputRoot: testDir,
+          relativeDirPath: skillsDir,
+          dirName: "empty",
+        }),
+      ).resolves.toBe(true);
+    });
+  });
 });

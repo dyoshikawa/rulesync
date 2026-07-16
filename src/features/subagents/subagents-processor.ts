@@ -79,6 +79,19 @@ type ToolSubagentFactory = {
       outputRoot: string;
       global: boolean;
     }): Promise<ToolSubagent[]>;
+    /**
+     * Optional content-aware ownership filter for tools whose subagent files
+     * share a directory with another feature's output (e.g. Reasonix subagent
+     * profiles living in `.reasonix/skills/` next to regular skills). When
+     * present, {@link SubagentsProcessor.loadToolFiles} calls it for every
+     * discovered file — for both import and orphan-deletion enumeration — and
+     * skips files it returns false for.
+     */
+    isFileOwned?(params: {
+      outputRoot: string;
+      relativeDirPath: string;
+      relativeFilePath: string;
+    }): Promise<boolean>;
   };
   meta: {
     /** Whether the tool supports simulated subagents (embedded in rules) */
@@ -574,9 +587,28 @@ export class SubagentsProcessor extends FeatureProcessor {
       // it preserves the subdirectory so the subagent name is not lost.
       const toRelativeFilePath = (path: string): string => relative(baseDir, path);
 
+      // Tools sharing their directory with another feature (see the
+      // `isFileOwned` factory hook) claim only the files that carry their
+      // ownership marker; everything else is skipped for both import and
+      // orphan deletion so foreign files are never mis-imported or removed.
+      let ownedFilePaths = subagentFilePaths;
+      const isFileOwned = factory.class.isFileOwned;
+      if (isFileOwned) {
+        const ownership = await Promise.all(
+          subagentFilePaths.map((path) =>
+            isFileOwned({
+              outputRoot: this.outputRoot,
+              relativeDirPath: dirPath,
+              relativeFilePath: toRelativeFilePath(path),
+            }),
+          ),
+        );
+        ownedFilePaths = subagentFilePaths.filter((_, index) => ownership[index]);
+      }
+
       if (forDeletion) {
         toolSubagents.push(
-          ...subagentFilePaths
+          ...ownedFilePaths
             .map((path) =>
               factory.class.forDeletion({
                 outputRoot: this.outputRoot,
@@ -591,7 +623,7 @@ export class SubagentsProcessor extends FeatureProcessor {
       }
 
       const loaded = await Promise.all(
-        subagentFilePaths.map((path) =>
+        ownedFilePaths.map((path) =>
           factory.class.fromFile({
             outputRoot: this.outputRoot,
             relativeDirPath: dirPath,

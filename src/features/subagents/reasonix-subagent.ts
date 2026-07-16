@@ -3,7 +3,11 @@ import { basename, dirname, extname, join } from "node:path";
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { REASONIX_SUBAGENTS_DIR_PATH } from "../../constants/reasonix-paths.js";
+import {
+  REASONIX_SUBAGENT_INVOCATION,
+  REASONIX_SUBAGENT_RUN_AS,
+  REASONIX_SUBAGENTS_DIR_PATH,
+} from "../../constants/reasonix-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
@@ -45,10 +49,6 @@ export type ReasonixSubagentParams = {
   frontmatter: ReasonixSubagentFrontmatter;
   body: string;
 } & Omit<AiFileParams, "fileContent"> & { fileContent?: string };
-
-// The markers that distinguish a subagent Skill profile from a regular Skill.
-const REASONIX_SUBAGENT_INVOCATION = "manual";
-const REASONIX_SUBAGENT_RUN_AS = "subagent";
 
 /**
  * Represents a DeepSeek-Reasonix subagent profile.
@@ -104,7 +104,16 @@ export class ReasonixSubagent extends ToolSubagent {
   }
 
   toRulesyncSubagent(): RulesyncSubagent {
-    const { name, description, ...restFields } = this.frontmatter;
+    // The `invocation`/`runAs` markers are dropped: generation always re-injects
+    // them, so keeping them in the reasonix section would only add noise that
+    // is ignored (and silently overridden) on the way back.
+    const {
+      name,
+      description,
+      invocation: _invocation,
+      runAs: _runAs,
+      ...restFields
+    } = this.frontmatter;
 
     const reasonixSection: Record<string, unknown> = {
       ...restFields,
@@ -250,6 +259,37 @@ export class ReasonixSubagent extends ToolSubagent {
       validate,
       global,
     });
+  }
+
+  /**
+   * Whether the SKILL.md at the given path is a subagent profile.
+   *
+   * `.reasonix/skills/` is shared with the skills feature: a regular skill and
+   * a subagent profile differ only by their frontmatter markers. Only files
+   * carrying `runAs: subagent` belong to this feature, so regular skills are
+   * neither imported as subagents nor deleted as orphans by the subagents
+   * feature. `runAs` alone is checked (not `invocation`) because it is the
+   * marker that switches the execution mode; generation always emits both.
+   * Unreadable or unparsable files are treated as not owned, erring on the
+   * side of leaving foreign files untouched.
+   */
+  static async isFileOwned({
+    outputRoot,
+    relativeDirPath,
+    relativeFilePath,
+  }: {
+    outputRoot: string;
+    relativeDirPath: string;
+    relativeFilePath: string;
+  }): Promise<boolean> {
+    const filePath = join(outputRoot, relativeDirPath, relativeFilePath);
+    try {
+      const fileContent = await readFileContent(filePath);
+      const { frontmatter } = parseFrontmatter(fileContent, filePath);
+      return frontmatter["runAs"] === REASONIX_SUBAGENT_RUN_AS;
+    } catch {
+      return false;
+    }
   }
 
   static forDeletion({

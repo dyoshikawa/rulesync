@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, extname, join } from "node:path";
 
 import { intersection } from "es-toolkit";
 
@@ -13,6 +13,7 @@ import { PermissionsProcessor } from "../features/permissions/permissions-proces
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
+import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { AiDir } from "../types/ai-dir.js";
 import { AiFile } from "../types/ai-file.js";
@@ -342,6 +343,75 @@ export const GENERATION_STEP_GRAPH: readonly GenerationStepMeta[] = [
 ];
 
 /**
+ * Warn when a rulesync skill and a rulesync subagent share a name for a tool
+ * that emits both features into the same directory (e.g. Reasonix, where both
+ * write `<name>/SKILL.md` under `.reasonix/skills/`). The colliding outputs
+ * target the same on-disk file, so whichever generation step runs later
+ * silently overwrites the other's file.
+ */
+async function warnSkillSubagentNameCollisions(params: {
+  config: Config;
+  logger: Logger;
+}): Promise<void> {
+  const { config, logger } = params;
+  const global = config.getGlobal();
+
+  for (const toolTarget of config.getTargets()) {
+    const features = config.getFeatures(toolTarget);
+    if (!features.includes("skills") || !features.includes("subagents")) {
+      continue;
+    }
+    const subagentFactory = SubagentsProcessor.getFactory(toolTarget);
+    const skillFactory = SkillsProcessor.getFactory(toolTarget);
+    if (!subagentFactory || !skillFactory) {
+      continue;
+    }
+    const subagentsDirPath = subagentFactory.class.getSettablePaths({ global }).relativeDirPath;
+    const skillsDirPath = skillFactory.class.getSettablePaths({ global }).relativeDirPath;
+    if (subagentsDirPath !== skillsDirPath) {
+      continue;
+    }
+
+    const subagentsProcessor = new SubagentsProcessor({
+      inputRoot: config.getInputRoot(),
+      toolTarget,
+      global,
+      logger,
+    });
+    const subagentNames = new Set(
+      (await subagentsProcessor.loadRulesyncFiles())
+        .filter((file): file is RulesyncSubagent => file instanceof RulesyncSubagent)
+        .filter((file) => subagentFactory.class.isTargetedByRulesyncSubagent(file))
+        .map((file) => basename(file.getRelativeFilePath(), extname(file.getRelativeFilePath()))),
+    );
+    if (subagentNames.size === 0) {
+      continue;
+    }
+
+    const skillsProcessor = new SkillsProcessor({
+      inputRoot: config.getInputRoot(),
+      toolTarget,
+      global,
+      logger,
+    });
+    const skillNames = (await skillsProcessor.loadRulesyncDirs())
+      .filter((dir): dir is RulesyncSkill => dir instanceof RulesyncSkill)
+      .filter((skill) => skillFactory.class.isTargetedByRulesyncSkill(skill))
+      .map((skill) => skill.getDirName());
+
+    for (const name of skillNames) {
+      if (subagentNames.has(name)) {
+        logger.warn(
+          `Skill "${name}" and subagent "${name}" both target '${toolTarget}' and write the ` +
+            `same path '${join(subagentsDirPath, name)}'; the later generation step ` +
+            `overwrites the other's output. Rename one of them or narrow their targets.`,
+        );
+      }
+    }
+  }
+}
+
+/**
  * Generate configuration files for AI tools.
  * @throws Error if generation fails
  */
@@ -350,6 +420,8 @@ export async function generate(params: {
   logger: Logger;
 }): Promise<GenerateResult> {
   const { config, logger } = params;
+
+  await warnSkillSubagentNameCollisions({ config, logger });
 
   // Captured by the skills step so the rules step can read the generated skills.
   let skillsResult: Awaited<ReturnType<typeof generateSkillsCore>> | undefined;

@@ -661,6 +661,48 @@ Body from inputRoot`;
     });
   });
 
+  describe("loadReasonixSubagents", () => {
+    let processor: SubagentsProcessor;
+    const reasonixSkillsDir = join(".reasonix", "skills");
+
+    const writeReasonixSkillMd = async (name: string, extraFrontmatter = ""): Promise<void> => {
+      const skillDir = join(testDir, reasonixSkillsDir, name);
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, "SKILL.md"),
+        `---\nname: ${name}\ndescription: ${name} description\n${extraFrontmatter}---\n\n${name} body`,
+      );
+    };
+
+    beforeEach(() => {
+      processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "reasonix",
+      });
+    });
+
+    it("should import only SKILL.md files marked with runAs: subagent", async () => {
+      await writeReasonixSkillMd("plain-skill");
+      await writeReasonixSkillMd("agent-profile", "invocation: manual\nrunAs: subagent\n");
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe(join("agent-profile", "SKILL.md"));
+    });
+
+    it("should enumerate only marked SKILL.md files as deletion candidates", async () => {
+      await writeReasonixSkillMd("plain-skill");
+      await writeReasonixSkillMd("agent-profile", "invocation: manual\nrunAs: subagent\n");
+
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+
+      expect(filesToDelete).toHaveLength(1);
+      expect(filesToDelete[0]?.getRelativeFilePath()).toBe(join("agent-profile", "SKILL.md"));
+    });
+  });
+
   describe("loadJunieSubagents", () => {
     let processor: SubagentsProcessor;
 

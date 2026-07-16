@@ -232,8 +232,68 @@ You are a reviewer.`;
 
       expect(reasonixSection?.model).toBe("deepseek-pro");
       expect(reasonixSection?.effort).toBe("high");
-      expect(reasonixSection?.runAs).toBe("subagent");
-      expect(reasonixSection?.invocation).toBe("manual");
+      // The forced markers are dropped on import: generation always re-injects
+      // them, so keeping them in the reasonix section would only add noise.
+      expect(reasonixSection?.runAs).toBeUndefined();
+      expect(reasonixSection?.invocation).toBeUndefined();
+    });
+  });
+
+  describe("isFileOwned", () => {
+    it("should own a SKILL.md carrying runAs: subagent", async () => {
+      const agentDir = join(testDir, ".reasonix", "skills", "reviewer");
+      await ensureDir(agentDir);
+      await writeFileContent(
+        join(agentDir, "SKILL.md"),
+        `---
+name: reviewer
+description: Reviews changes
+invocation: manual
+runAs: subagent
+---
+
+You are a reviewer.`,
+      );
+
+      await expect(
+        ReasonixSubagent.isFileOwned({
+          outputRoot: testDir,
+          relativeDirPath: SKILLS_DIR,
+          relativeFilePath: join("reviewer", "SKILL.md"),
+        }),
+      ).resolves.toBe(true);
+    });
+
+    it("should not own a regular skill SKILL.md without the marker", async () => {
+      const skillDir = join(testDir, ".reasonix", "skills", "plain-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, "SKILL.md"),
+        `---
+name: plain-skill
+description: A regular skill
+---
+
+Skill body.`,
+      );
+
+      await expect(
+        ReasonixSubagent.isFileOwned({
+          outputRoot: testDir,
+          relativeDirPath: SKILLS_DIR,
+          relativeFilePath: join("plain-skill", "SKILL.md"),
+        }),
+      ).resolves.toBe(false);
+    });
+
+    it("should not own an unreadable file", async () => {
+      await expect(
+        ReasonixSubagent.isFileOwned({
+          outputRoot: testDir,
+          relativeDirPath: SKILLS_DIR,
+          relativeFilePath: join("missing", "SKILL.md"),
+        }),
+      ).resolves.toBe(false);
     });
   });
 

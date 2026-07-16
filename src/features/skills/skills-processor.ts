@@ -69,6 +69,19 @@ type ToolSkillFactory = {
     fromDir(params: ToolSkillFromDirParams): Promise<ToolSkill>;
     forDeletion(params: ToolSkillForDeletionParams): ToolSkill;
     getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths;
+    /**
+     * Optional content-aware ownership filter for tools whose skills directory
+     * is shared with another feature's output (e.g. Reasonix subagent profiles
+     * living in `.reasonix/skills/` next to regular skills). When present, the
+     * processor calls it for every discovered skill directory — for both
+     * import and orphan-deletion enumeration — and skips directories it
+     * returns false for.
+     */
+    isDirOwned?(params: {
+      outputRoot: string;
+      relativeDirPath: string;
+      dirName: string;
+    }): Promise<boolean>;
   };
   meta: {
     /** Whether the tool supports project (workspace-level) skills */
@@ -579,6 +592,19 @@ export class SkillsProcessor extends DirFeatureProcessor {
         if (seenDirNames.has(dirName)) {
           continue;
         }
+        // Directories owned by another feature (see the `isDirOwned` factory
+        // hook) are skipped so e.g. a Reasonix subagent profile is not
+        // imported as a regular skill.
+        if (
+          factory.class.isDirOwned &&
+          !(await factory.class.isDirOwned({
+            outputRoot: this.outputRoot,
+            relativeDirPath: root,
+            dirName,
+          }))
+        ) {
+          continue;
+        }
         seenDirNames.add(dirName);
         loadEntries.push({ root, dirName });
       }
@@ -615,6 +641,19 @@ export class SkillsProcessor extends DirFeatureProcessor {
       const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
       for (const dirPath of dirPaths) {
         const dirName = basename(dirPath);
+        // Directories owned by another feature (see the `isDirOwned` factory
+        // hook) must never be deleted as orphan skills — e.g. a Reasonix
+        // subagent profile generated into the shared `.reasonix/skills/`.
+        if (
+          factory.class.isDirOwned &&
+          !(await factory.class.isDirOwned({
+            outputRoot: this.outputRoot,
+            relativeDirPath: root,
+            dirName,
+          }))
+        ) {
+          continue;
+        }
         const toolSkill = factory.class.forDeletion({
           outputRoot: this.outputRoot,
           relativeDirPath: root,

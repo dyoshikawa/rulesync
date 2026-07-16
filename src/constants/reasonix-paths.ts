@@ -44,3 +44,11 @@ export const REASONIX_SKILLS_DIR_PATH = join(REASONIX_DIR, "skills");
 // `invocation: manual` and `runAs: subagent`.
 // https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SUBAGENT_PROFILES.md
 export const REASONIX_SUBAGENTS_DIR_PATH = REASONIX_SKILLS_DIR_PATH;
+
+// The frontmatter markers that turn a Reasonix Skill into a subagent profile
+// (`invocation: manual`, `runAs: subagent`). Shared between the skills and
+// subagents features so each can tell its own files apart inside the shared
+// `.reasonix/skills/` directory: `runAs` is the discriminator both features
+// check when deciding whether a discovered SKILL.md belongs to them.
+export const REASONIX_SUBAGENT_INVOCATION = "manual";
+export const REASONIX_SUBAGENT_RUN_AS = "subagent";
