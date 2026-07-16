@@ -180,6 +180,35 @@ describe("CodexcliPermissions", () => {
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining('":danger-full-access" removes the sandbox'),
     );
+    // The prune is never silent — hand-written keys may live in the profile.
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('prunes the managed "[permissions.rulesync]" profile'),
+    );
+  });
+
+  it("should not leave an empty [permissions] header when :danger-full-access starts from a clean config", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {},
+        codexcli: { base_permission_profile: ":danger-full-access" },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain('default_permissions = ":danger-full-access"');
+    expect(fileContent).not.toContain("[permissions]");
+    // No managed profile existed, so no prune warning fires.
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("prunes the managed"));
   });
 
   it("should round-trip a directly-selected :danger-full-access baseline on import", async () => {

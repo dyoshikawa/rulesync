@@ -175,16 +175,27 @@ export class CodexcliPermissions extends ToolPermissions {
       // with the sandbox removed there is nothing for filesystem/network rules
       // to refine. Any stale managed profile from a previous generate is
       // pruned; sibling hand-written profiles are preserved.
-      const ignoredCategories = ["read", "edit", "write", "webfetch"].filter(
-        (category) => Object.keys(canonicalConfig.permission[category] ?? {}).length > 0,
-      );
+      // Everything except `bash` (which still generates into the standalone
+      // rules file, an approval-layer surface orthogonal to the sandbox) is
+      // not representable without a sandbox to refine.
+      const ignoredCategories = Object.entries(canonicalConfig.permission)
+        .filter(([category, rules]) => category !== "bash" && Object.keys(rules).length > 0)
+        .map(([category]) => category);
       if (ignoredCategories.length > 0) {
         logger?.warn(
           `Codex CLI baseline ":danger-full-access" removes the sandbox, so canonical ${ignoredCategories.join("/")} rules are not representable and are ignored for Codex CLI.`,
         );
       }
       const permissionsTable = toMutableTable(existing.permissions);
-      delete permissionsTable[RULESYNC_PROFILE_NAME];
+      if (permissionsTable[RULESYNC_PROFILE_NAME] !== undefined) {
+        // Never prune silently: the managed profile may carry hand-written
+        // keys the FAQ recommends (e.g. network.unix_sockets), which the
+        // normal path preserves via preserveUnmanagedProfileKeys.
+        logger?.warn(
+          `Codex CLI baseline ":danger-full-access" prunes the managed "[permissions.${RULESYNC_PROFILE_NAME}]" profile; any hand-written keys inside it (e.g. network settings) are removed. Move them to a sibling profile or re-add them after switching baselines.`,
+        );
+        delete permissionsTable[RULESYNC_PROFILE_NAME];
+      }
       const overridePatch = computeCodexcliOverridePatch({
         existing,
         override: canonicalConfig.codexcli,
@@ -199,7 +210,9 @@ export class CodexcliPermissions extends ToolPermissions {
           feature: "permissions",
           existingContent,
           patch: {
-            permissions: permissionsTable,
+            // `undefined` deletes the owned key, so no empty `[permissions]`
+            // header is left behind when no sibling profiles exist.
+            permissions: Object.keys(permissionsTable).length > 0 ? permissionsTable : undefined,
             default_permissions: CODEX_DANGER_FULL_ACCESS_BASELINE,
             ...overridePatch,
           },
