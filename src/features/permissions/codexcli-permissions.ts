@@ -31,6 +31,7 @@ import {
 const RULESYNC_PROFILE_NAME = "rulesync";
 const CODEX_WORKSPACE_ROOTS_KEY = ":workspace_roots";
 const CODEX_WORKSPACE_BASELINE = ":workspace";
+const CODEX_READ_ONLY_BASELINE = ":read-only";
 // Built-in profiles the managed profile's `extends` may reference, derived
 // from the schema enum so generate and import share one source. Codex also
 // ships `:danger-full-access`, but `extends` rejects it at config load time,
@@ -66,7 +67,7 @@ const CODEX_MINIMAL_KEY = ":minimal";
 // This guard is deliberately partial (a maintainer decision on #2272): a
 // writable `.git/hooks/` (and `.git/modules/**` for submodules) still lets a
 // sandboxed process install a hook directly, because hook managers such as
-// husky/lefthook/simple-git-hooks must write hooks during install and a
+// lefthook and simple-git-hooks must write hooks during install and a
 // read-only hooks dir would reintroduce the deny-on-every-install friction
 // these carve-outs exist to remove. Users who want stricter isolation can
 // author e.g. `read: { ".git/hooks/**": "allow" }` in the canonical
@@ -414,7 +415,7 @@ function applyDefaultGitWriteRules({
   if (config.codexcli?.git_write_rules === false) {
     return;
   }
-  if (config.codexcli?.base_permission_profile === ":read-only") {
+  if (config.codexcli?.base_permission_profile === CODEX_READ_ONLY_BASELINE) {
     return;
   }
   if (typeof filesystem[CODEX_WORKSPACE_ROOTS_KEY] === "string") {
