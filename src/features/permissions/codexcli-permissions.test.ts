@@ -76,6 +76,7 @@ describe("CodexcliPermissions", () => {
             "/data/readable/**": "allow",
             "/data/full/**": "allow",
             "/data/blocked/**": "deny",
+            "/data/asked/**": "allow",
           },
           write: {
             // read allow + write deny → "read" (this was the last-wins bug).
@@ -84,6 +85,8 @@ describe("CodexcliPermissions", () => {
             "/data/full/**": "allow",
             // read deny + write allow → contradiction, warn + "deny".
             "/data/blocked/**": "allow",
+            // read allow + write ask → "read" (ask maps to the deny side).
+            "/data/asked/**": "ask",
           },
         },
       }),
@@ -99,6 +102,7 @@ describe("CodexcliPermissions", () => {
     expect(fileContent).toContain('"/data/readable/**" = "read"');
     expect(fileContent).toContain('"/data/full/**" = "write"');
     expect(fileContent).toContain('"/data/blocked/**" = "deny"');
+    expect(fileContent).toContain('"/data/asked/**" = "read"');
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining('Codex CLI cannot express "writable but not readable"'),
     );
