@@ -32,6 +32,7 @@ import { KiroIdeSubagent } from "./kiro-ide-subagent.js";
 import { KiroSubagent } from "./kiro-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
 import { QwencodeSubagent } from "./qwencode-subagent.js";
+import { ReasonixSubagent } from "./reasonix-subagent.js";
 import { RooSubagent } from "./roo-subagent.js";
 import { RovodevSubagent } from "./rovodev-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
@@ -78,6 +79,19 @@ type ToolSubagentFactory = {
       outputRoot: string;
       global: boolean;
     }): Promise<ToolSubagent[]>;
+    /**
+     * Optional content-aware ownership filter for tools whose subagent files
+     * share a directory with another feature's output (e.g. Reasonix subagent
+     * profiles living in `.reasonix/skills/` next to regular skills). When
+     * present, {@link SubagentsProcessor.loadToolFiles} calls it for every
+     * discovered file — for both import and orphan-deletion enumeration — and
+     * skips files it returns false for.
+     */
+    isFileOwned?(params: {
+      outputRoot: string;
+      relativeDirPath: string;
+      relativeFilePath: string;
+    }): Promise<boolean>;
   };
   meta: {
     /** Whether the tool supports simulated subagents (embedded in rules) */
@@ -302,6 +316,22 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // `.qwen/agents/` (project) and `~/.qwen/agents/` (user/global).
       class: QwencodeSubagent,
       meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+    },
+  ],
+  [
+    "reasonix",
+    {
+      // DeepSeek-Reasonix native subagents are Skill profiles: directory-layout
+      // `<name>/SKILL.md` files under `.reasonix/skills/` (project) and
+      // `~/.reasonix/skills/` (global), whose frontmatter declares
+      // `invocation: manual` and `runAs: subagent`.
+      // https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SUBAGENT_PROFILES.md
+      class: ReasonixSubagent,
+      meta: {
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: join("*", "SKILL.md"),
+      },
     },
   ],
   [
@@ -557,9 +587,29 @@ export class SubagentsProcessor extends FeatureProcessor {
       // it preserves the subdirectory so the subagent name is not lost.
       const toRelativeFilePath = (path: string): string => relative(baseDir, path);
 
+      // Tools sharing their directory with another feature (see the
+      // `isFileOwned` factory hook) claim only the files that carry their
+      // ownership marker; everything else is skipped for both import and
+      // orphan deletion so foreign files are never mis-imported or removed.
+      let ownedFilePaths = subagentFilePaths;
+      if (factory.class.isFileOwned) {
+        const ownership = await Promise.all(
+          subagentFilePaths.map((path) =>
+            // Called through factory.class so a future implementation may
+            // safely reference `this` (its own statics), like the other hooks.
+            factory.class.isFileOwned!({
+              outputRoot: this.outputRoot,
+              relativeDirPath: dirPath,
+              relativeFilePath: toRelativeFilePath(path),
+            }),
+          ),
+        );
+        ownedFilePaths = subagentFilePaths.filter((_, index) => ownership[index]);
+      }
+
       if (forDeletion) {
         toolSubagents.push(
-          ...subagentFilePaths
+          ...ownedFilePaths
             .map((path) =>
               factory.class.forDeletion({
                 outputRoot: this.outputRoot,
@@ -574,7 +624,7 @@ export class SubagentsProcessor extends FeatureProcessor {
       }
 
       const loaded = await Promise.all(
-        subagentFilePaths.map((path) =>
+        ownedFilePaths.map((path) =>
           factory.class.fromFile({
             outputRoot: this.outputRoot,
             relativeDirPath: dirPath,

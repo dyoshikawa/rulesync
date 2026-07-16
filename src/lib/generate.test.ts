@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import { intersection } from "es-toolkit";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,6 +11,7 @@ import { PermissionsProcessor } from "../features/permissions/permissions-proces
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
+import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { fileExists, readFileContentOrNull } from "../utils/file.js";
@@ -78,6 +81,25 @@ const createMockAiFile = (filePath: string, content: string) => ({
   getFilePath: () => filePath,
   getFileContent: () => content,
 });
+
+// Real rulesync instances (not mocks) for the skill/subagent collision-warning
+// tests: generate.ts filters loaded files by instanceof, so plain objects
+// would be silently dropped.
+const makeRulesyncSubagent = (name: string) =>
+  new RulesyncSubagent({
+    frontmatter: { name, description: "d", targets: ["*"] },
+    body: "subagent body",
+    relativeDirPath: join(".rulesync", "subagents"),
+    relativeFilePath: `${name}.md`,
+  });
+
+const makeRulesyncSkill = (name: string) =>
+  new RulesyncSkill({
+    dirName: name,
+    frontmatter: { name, description: "d", targets: ["*"] },
+    body: "skill body",
+    validate: false,
+  });
 
 /**
  * Build a minimal processor mock whose `writeAiFiles` is the supplied spy, used
@@ -1064,6 +1086,109 @@ describe("generate", () => {
       expect(mockLogger.warn).toHaveBeenCalledWith(
         "Target 'cursor' does not support the feature 'mcp'. Skipping.",
       );
+    });
+  });
+
+  describe("skill/subagent output collision warning", () => {
+    const sharedDir = join(".reasonix", "skills");
+
+    const setupCollisionScenario = (params: {
+      subagentName: string;
+      skillName: string;
+      skillsDirPath?: string;
+    }) => {
+      mockConfig.getTargets.mockReturnValue(["reasonix"]);
+      mockConfig.getFeatures.mockReturnValue(["skills", "subagents"]);
+      vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["reasonix"]);
+      vi.mocked(SkillsProcessor.getToolTargets).mockReturnValue(["reasonix"]);
+
+      vi.mocked(SubagentsProcessor.getFactory).mockReturnValue({
+        class: {
+          getSettablePaths: () => ({ relativeDirPath: sharedDir }),
+          isTargetedByRulesyncSubagent: () => true,
+        },
+      } as unknown as ReturnType<typeof SubagentsProcessor.getFactory>);
+      vi.mocked(SkillsProcessor.getFactory).mockReturnValue({
+        class: {
+          getSettablePaths: () => ({ relativeDirPath: params.skillsDirPath ?? sharedDir }),
+          isTargetedByRulesyncSkill: () => true,
+        },
+      } as unknown as ReturnType<typeof SkillsProcessor.getFactory>);
+
+      vi.mocked(SubagentsProcessor).mockImplementation(function () {
+        return {
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+          loadRulesyncFiles: vi.fn().mockResolvedValue([makeRulesyncSubagent(params.subagentName)]),
+          convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
+        } as unknown as SubagentsProcessor;
+      });
+      vi.mocked(SkillsProcessor).mockImplementation(function () {
+        return {
+          loadToolDirsToDelete: vi.fn().mockResolvedValue([]),
+          removeAiDirs: vi.fn().mockResolvedValue(undefined),
+          loadRulesyncDirs: vi.fn().mockResolvedValue([makeRulesyncSkill(params.skillName)]),
+          convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),
+          writeAiDirs: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
+        } as unknown as SkillsProcessor;
+      });
+    };
+
+    it("should warn when a skill and a subagent share a name for a shared-directory target", async () => {
+      setupCollisionScenario({ subagentName: "reviewer", skillName: "reviewer" });
+
+      const mockLogger = createMockLogger();
+      await generate({ logger: mockLogger, config: mockConfig as never });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Skill "reviewer" and subagent "reviewer"'),
+      );
+    });
+
+    it("should not warn when names do not collide", async () => {
+      setupCollisionScenario({ subagentName: "reviewer", skillName: "other-skill" });
+
+      const mockLogger = createMockLogger();
+      await generate({ logger: mockLogger, config: mockConfig as never });
+
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(expect.stringContaining("and subagent"));
+    });
+
+    it("should not warn when the tool does not share its skills directory", async () => {
+      setupCollisionScenario({
+        subagentName: "reviewer",
+        skillName: "reviewer",
+        skillsDirPath: join(".other", "skills"),
+      });
+
+      const mockLogger = createMockLogger();
+      await generate({ logger: mockLogger, config: mockConfig as never });
+
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(expect.stringContaining("and subagent"));
+    });
+
+    it("should not consult getSettablePaths for a target a feature does not support in the scope", async () => {
+      // agentsmd-like case: the target enables both features but is not in the
+      // feature's global target list, and its getSettablePaths throws for the
+      // unsupported scope. The collision check must skip it instead of crashing.
+      setupCollisionScenario({ subagentName: "reviewer", skillName: "reviewer" });
+      mockConfig.getGlobal.mockReturnValue(true);
+      vi.mocked(SkillsProcessor.getToolTargets).mockReturnValue([]);
+      vi.mocked(SkillsProcessor.getFactory).mockReturnValue({
+        class: {
+          getSettablePaths: () => {
+            throw new Error("does not support global mode");
+          },
+          isTargetedByRulesyncSkill: () => true,
+        },
+      } as unknown as ReturnType<typeof SkillsProcessor.getFactory>);
+
+      const mockLogger = createMockLogger();
+      await expect(
+        generate({ logger: mockLogger, config: mockConfig as never }),
+      ).resolves.toBeDefined();
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(expect.stringContaining("and subagent"));
     });
   });
 });

@@ -3,10 +3,15 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { REASONIX_SKILLS_DIR_PATH } from "../../constants/reasonix-paths.js";
+import {
+  REASONIX_SKILLS_DIR_PATH,
+  REASONIX_SUBAGENT_RUN_AS,
+} from "../../constants/reasonix-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
+import { readFileContent } from "../../utils/file.js";
+import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -195,6 +200,34 @@ export class ReasonixSkill extends ToolSkill {
       validate: true,
       global: loaded.global,
     });
+  }
+
+  /**
+   * Whether the skill directory belongs to the skills feature.
+   *
+   * `.reasonix/skills/` is shared with the subagents feature: a directory whose
+   * SKILL.md declares `runAs: subagent` is a subagent profile, not a regular
+   * skill, so it must be neither imported as a skill nor deleted as an orphan
+   * skill. Directories without a readable/parsable SKILL.md keep the default
+   * skills-feature ownership, matching the previous behavior for such dirs.
+   */
+  static async isDirOwned({
+    outputRoot,
+    relativeDirPath,
+    dirName,
+  }: {
+    outputRoot: string;
+    relativeDirPath: string;
+    dirName: string;
+  }): Promise<boolean> {
+    const skillFilePath = join(outputRoot, relativeDirPath, dirName, SKILL_FILE_NAME);
+    try {
+      const fileContent = await readFileContent(skillFilePath);
+      const { frontmatter } = parseFrontmatter(fileContent, skillFilePath);
+      return frontmatter["runAs"] !== REASONIX_SUBAGENT_RUN_AS;
+    } catch {
+      return true;
+    }
   }
 
   static forDeletion({

@@ -620,6 +620,48 @@ ${body}`,
     });
   });
 
+  describe("loadReasonixSkills", () => {
+    let processor: SkillsProcessor;
+    const reasonixSkillsDir = join(".reasonix", "skills");
+
+    const writeReasonixSkillMd = async (name: string, extraFrontmatter = ""): Promise<void> => {
+      const skillDir = join(testDir, reasonixSkillsDir, name);
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, "SKILL.md"),
+        `---\nname: ${name}\ndescription: ${name} description\n${extraFrontmatter}---\n\n${name} body`,
+      );
+    };
+
+    beforeEach(() => {
+      processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "reasonix",
+      });
+    });
+
+    it("should not import subagent profile directories as skills", async () => {
+      await writeReasonixSkillMd("plain-skill");
+      await writeReasonixSkillMd("agent-profile", "invocation: manual\nrunAs: subagent\n");
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs).toHaveLength(1);
+      expect(toolDirs[0]?.getDirName()).toBe("plain-skill");
+    });
+
+    it("should not enumerate subagent profile directories as deletion candidates", async () => {
+      await writeReasonixSkillMd("plain-skill");
+      await writeReasonixSkillMd("agent-profile", "invocation: manual\nrunAs: subagent\n");
+
+      const dirsToDelete = await processor.loadToolDirsToDelete();
+
+      expect(dirsToDelete).toHaveLength(1);
+      expect(dirsToDelete[0]?.getDirName()).toBe("plain-skill");
+    });
+  });
+
   describe("loadClaudecodeSkills", () => {
     let processor: SkillsProcessor;
 
