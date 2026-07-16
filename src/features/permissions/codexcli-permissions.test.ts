@@ -133,6 +133,68 @@ describe("CodexcliPermissions", () => {
     expect(fileContent).toContain('"/data/open/**" = "write"');
   });
 
+  it("should select :danger-full-access via default_permissions and skip the managed profile", async () => {
+    const logger = createMockLogger();
+    const codexDir = join(testDir, ".codex");
+    await ensureDir(codexDir);
+    // A previous generate left a managed profile behind; a hand-written
+    // sibling profile must survive while the managed one is pruned.
+    await writeFileContent(
+      join(codexDir, "config.toml"),
+      [
+        'default_permissions = "rulesync"',
+        "",
+        "[permissions.custom]",
+        'description = "hand-written sibling profile"',
+        "",
+        "[permissions.rulesync]",
+        'extends = ":workspace"',
+        "",
+      ].join("\n"),
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          read: { "/workspace/project/**": "allow" },
+        },
+        codexcli: { base_permission_profile: ":danger-full-access" },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain('default_permissions = ":danger-full-access"');
+    expect(fileContent).not.toContain("[permissions.rulesync]");
+    expect(fileContent).toContain("[permissions.custom]");
+    // Canonical filesystem rules are not representable without a sandbox.
+    expect(fileContent).not.toContain("/workspace/project/**");
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('":danger-full-access" removes the sandbox'),
+    );
+  });
+
+  it("should round-trip a directly-selected :danger-full-access baseline on import", async () => {
+    const codexPermissions = new CodexcliPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".codex",
+      relativeFilePath: "config.toml",
+      fileContent: 'default_permissions = ":danger-full-access"\n',
+    });
+
+    const rulesyncPermissions = codexPermissions.toRulesyncPermissions();
+    const parsed = JSON.parse(rulesyncPermissions.getFileContent());
+    expect(parsed.codexcli.base_permission_profile).toBe(":danger-full-access");
+  });
+
   it("should preserve unmanaged config.toml params on regeneration", async () => {
     const logger = createMockLogger();
     const codexDir = join(testDir, ".codex");
@@ -1491,8 +1553,8 @@ command = "node"
         { approval_policy: "on-success" },
         { sandbox_mode: "read-write" },
         { approvals_reviewer: "reviewer" },
-        // `extends` rejects `:danger-full-access` at Codex config load time.
-        { base_permission_profile: ":danger-full-access" },
+        // `:danger-full-access` IS accepted (selected via default_permissions
+        // rather than `extends`), so only unknown profiles are rejected here.
         { base_permission_profile: "my-custom-profile" },
       ];
 

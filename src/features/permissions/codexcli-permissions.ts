@@ -11,7 +11,7 @@ import {
 } from "../../constants/codexcli-paths.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import {
-  CODEX_BASE_PERMISSION_PROFILES,
+  CODEX_EXTENDABLE_BASELINE_PROFILES,
   type PermissionAction,
   type PermissionsConfig,
 } from "../../types/permissions.js";
@@ -32,12 +32,16 @@ const RULESYNC_PROFILE_NAME = "rulesync";
 const CODEX_WORKSPACE_ROOTS_KEY = ":workspace_roots";
 const CODEX_WORKSPACE_BASELINE = ":workspace";
 const CODEX_READ_ONLY_BASELINE = ":read-only";
+// Codex rejects `extends = ":danger-full-access"`, but the built-in can be
+// SELECTED directly via `default_permissions`, which is how the
+// `codexcli.base_permission_profile: ":danger-full-access"` override is
+// honored (the managed profile is skipped entirely in that mode).
+const CODEX_DANGER_FULL_ACCESS_BASELINE = ":danger-full-access";
 // Built-in profiles the managed profile's `extends` may reference, derived
-// from the schema enum so generate and import share one source. Codex also
-// ships `:danger-full-access`, but `extends` rejects it at config load time,
-// so it is not a valid baseline here. `:workspace` is the default baseline
-// when `codexcli.base_permission_profile` is unspecified.
-const CODEX_EXTENDABLE_BASELINES = new Set<string>(CODEX_BASE_PERMISSION_PROFILES);
+// from the schema constant so generate and import share one source.
+// `:workspace` is the default baseline when
+// `codexcli.base_permission_profile` is unspecified.
+const CODEX_EXTENDABLE_BASELINES = new Set<string>(CODEX_EXTENDABLE_BASELINE_PROFILES);
 // Defaults emitted when neither the `codexcli` override nor the existing
 // config.toml sets the key (an existing user-set value is never clobbered).
 const CODEX_DEFAULT_APPROVAL_POLICY = "on-request";
@@ -164,8 +168,49 @@ export class CodexcliPermissions extends ToolPermissions {
     // https://developers.openai.com/codex/config-reference
     const existing = toMutableTable(smolToml.parse(existingContent || smolToml.stringify({})));
 
+    const canonicalConfig = rulesyncPermissions.getJson();
+    if (canonicalConfig.codexcli?.base_permission_profile === CODEX_DANGER_FULL_ACCESS_BASELINE) {
+      // `:danger-full-access` cannot be an `extends` parent, so it is selected
+      // directly via `default_permissions` and the managed profile is skipped:
+      // with the sandbox removed there is nothing for filesystem/network rules
+      // to refine. Any stale managed profile from a previous generate is
+      // pruned; sibling hand-written profiles are preserved.
+      const ignoredCategories = ["read", "edit", "write", "webfetch"].filter(
+        (category) => Object.keys(canonicalConfig.permission[category] ?? {}).length > 0,
+      );
+      if (ignoredCategories.length > 0) {
+        logger?.warn(
+          `Codex CLI baseline ":danger-full-access" removes the sandbox, so canonical ${ignoredCategories.join("/")} rules are not representable and are ignored for Codex CLI.`,
+        );
+      }
+      const permissionsTable = toMutableTable(existing.permissions);
+      delete permissionsTable[RULESYNC_PROFILE_NAME];
+      const overridePatch = computeCodexcliOverridePatch({
+        existing,
+        override: canonicalConfig.codexcli,
+        logger,
+      });
+      return new CodexcliPermissions({
+        outputRoot,
+        relativeDirPath: paths.relativeDirPath,
+        relativeFilePath: paths.relativeFilePath,
+        fileContent: applySharedConfigPatch({
+          fileKey: sharedConfigFileKey(paths),
+          feature: "permissions",
+          existingContent,
+          patch: {
+            permissions: permissionsTable,
+            default_permissions: CODEX_DANGER_FULL_ACCESS_BASELINE,
+            ...overridePatch,
+          },
+          filePath,
+        }),
+        validate,
+      });
+    }
+
     const newProfile = convertRulesyncToCodexProfile({
-      config: rulesyncPermissions.getJson(),
+      config: canonicalConfig,
       logger,
     });
 
@@ -240,6 +285,12 @@ export class CodexcliPermissions extends ToolPermissions {
     // regeneration replaces them with the managed baseline (with a warning).
     if (typeof profile?.extends === "string" && CODEX_EXTENDABLE_BASELINES.has(profile.extends)) {
       override.base_permission_profile = profile.extends;
+    }
+    // A directly-selected `:danger-full-access` baseline has no managed
+    // profile (it cannot be extended), so it round-trips from the top-level
+    // `default_permissions` key instead of the profile's `extends`.
+    if (defaultProfile === CODEX_DANGER_FULL_ACCESS_BASELINE) {
+      override.base_permission_profile = CODEX_DANGER_FULL_ACCESS_BASELINE;
     }
     const result: Record<string, unknown> =
       Object.keys(override).length > 0 ? { ...config, codexcli: override } : config;
