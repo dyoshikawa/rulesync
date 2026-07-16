@@ -46,7 +46,7 @@ function collectOpencodeStyleHandlers({
 
     const handlers: Handler[] = [];
     for (const def of definitions) {
-      if (def.type === "prompt") continue;
+      if ((def.type ?? "command") !== "command") continue;
       if (!def.command) continue;
       handlers.push({
         command: def.command,

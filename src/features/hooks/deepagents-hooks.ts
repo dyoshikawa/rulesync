@@ -11,6 +11,7 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
+import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
@@ -62,7 +63,7 @@ function canonicalToDeepagentsHooks(config: HooksConfig): DeepagentsHookEntry[] 
     if (!deepagentsEvent) continue;
 
     for (const def of definitions) {
-      if (def.type === "prompt") continue;
+      if ((def.type ?? "command") !== "command") continue;
       if (!def.command) continue;
       if (def.matcher) continue;
 
@@ -184,7 +185,11 @@ export class DeepagentsHooks extends ToolHooks {
     const hooks = deepagentsToCanonicalHooks(hooksEntries);
 
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify({ version: 1, hooks }, null, 2),
+      fileContent: JSON.stringify(
+        buildImportedHooksConfig({ hooks, overrideKey: "deepagents" }),
+        null,
+        2,
+      ),
     });
   }
 

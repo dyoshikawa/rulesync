@@ -11,6 +11,7 @@ import {
 } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
+import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
@@ -85,20 +86,28 @@ export class CursorHooks extends ToolHooks {
     // architectural consistency with other tool converters (Claude, Factory Droid) and
     // becomes essential if Cursor's event naming diverges from canonical in the future.
     const mappedHooks: HooksConfig["hooks"] = {};
+    // Cursor only documents `command` and `prompt` hooks; other canonical
+    // types are skipped (the HooksProcessor warns about them).
+    const cursorSupportedTypes = new Set(["command", "prompt"]);
     for (const [eventName, defs] of Object.entries(mergedHooks)) {
       const cursorEventName = CANONICAL_TO_CURSOR_EVENT_NAMES[eventName] ?? eventName;
-      mappedHooks[cursorEventName] = defs.map((def) => ({
-        ...(def.type !== undefined && def.type !== null && { type: def.type }),
-        ...(def.command !== undefined && def.command !== null && { command: def.command }),
-        ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
-        ...(def.loop_limit !== undefined && { loop_limit: def.loop_limit }),
-        ...(def.matcher !== undefined && def.matcher !== null && { matcher: def.matcher }),
-        ...(def.prompt !== undefined && def.prompt !== null && { prompt: def.prompt }),
-        ...(def.failClosed !== undefined &&
-          def.failClosed !== null && {
-            failClosed: def.failClosed,
-          }),
-      }));
+      const mappedDefs = defs
+        .filter((def) => cursorSupportedTypes.has(def.type ?? "command"))
+        .map((def) => ({
+          ...(def.type !== undefined && def.type !== null && { type: def.type }),
+          ...(def.command !== undefined && def.command !== null && { command: def.command }),
+          ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
+          ...(def.loop_limit !== undefined && { loop_limit: def.loop_limit }),
+          ...(def.matcher !== undefined && def.matcher !== null && { matcher: def.matcher }),
+          ...(def.prompt !== undefined && def.prompt !== null && { prompt: def.prompt }),
+          ...(def.failClosed !== undefined &&
+            def.failClosed !== null && {
+              failClosed: def.failClosed,
+            }),
+        }));
+      if (mappedDefs.length > 0) {
+        mappedHooks[cursorEventName] = mappedDefs;
+      }
     }
     const cursorConfig = {
       version: config.version ?? 1,
@@ -130,7 +139,11 @@ export class CursorHooks extends ToolHooks {
     }
     const version = parsed.version ?? 1;
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify({ version, hooks: canonicalHooks }, null, 2),
+      fileContent: JSON.stringify(
+        buildImportedHooksConfig({ hooks: canonicalHooks, overrideKey: "cursor", version }),
+        null,
+        2,
+      ),
     });
   }
 

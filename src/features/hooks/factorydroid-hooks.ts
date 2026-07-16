@@ -17,7 +17,11 @@ import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/
 import type { Logger } from "../../utils/logger.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
-import { canonicalToToolHooks, toolHooksToCanonical } from "./tool-hooks-converter.js";
+import {
+  buildImportedHooksConfig,
+  canonicalToToolHooks,
+  toolHooksToCanonical,
+} from "./tool-hooks-converter.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
@@ -31,6 +35,7 @@ const FACTORYDROID_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   canonicalToToolEventNames: CANONICAL_TO_FACTORYDROID_EVENT_NAMES,
   toolToCanonicalEventNames: FACTORYDROID_TO_CANONICAL_EVENT_NAMES,
   projectDirVar: "$FACTORY_PROJECT_DIR",
+  supportedHookTypes: new Set(["command", "prompt"]),
 };
 
 export class FactorydroidHooks extends ToolHooks {
@@ -138,7 +143,11 @@ export class FactorydroidHooks extends ToolHooks {
       converterConfig: FACTORYDROID_CONVERTER_CONFIG,
     });
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify({ version: 1, hooks }, null, 2),
+      fileContent: JSON.stringify(
+        buildImportedHooksConfig({ hooks, overrideKey: "factorydroid" }),
+        null,
+        2,
+      ),
     });
   }
 

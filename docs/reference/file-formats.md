@@ -124,11 +124,14 @@ Example:
 **Hook entry keys:**
 
 - `command` (required): Shell command to execute when the event fires.
-- `type` (optional): Either `"command"` (default) or `"prompt"`. Not all tools support `prompt`; see notes below.
+- `type` (optional): One of `"command"` (default), `"prompt"`, `"http"`, `"agent"`, `"mcp_tool"`, or `"function"` — the union of the hook types accepted across supported tools. Each tool supports a subset (most support only `command`); hooks with a type a tool does not support are skipped for that tool with a warning. See notes below.
 - `matcher` (optional): Regex used by tools that scope hooks to specific tool names (e.g. `preToolUse`, `postToolUse`, `notification`). Ignored by events that do not take a matcher (e.g. `sessionStart`, `worktreeCreate`, `worktreeRemove`).
 - `timeout` (optional): Per-hook timeout in seconds, forwarded to tools that support it.
 - `failClosed` (optional): Boolean. When `true`, a hook failure (crash, timeout, invalid JSON) blocks the action instead of allowing it through. Passed through to Cursor's `.cursor/hooks.json` and to JetBrains Junie's `~/.junie/config.json` (as Junie's equivalently-named `blockOnError` flag).
 - `async` (optional): Boolean. When `true`, the hook command runs in the background without blocking. Forwarded to Qwen Code (`.qwen/settings.json`) and JetBrains Junie (`~/.junie/config.json`, same field name).
+- `shell` (optional): Either `"bash"` or `"powershell"` — the only two interpreter values any tool accepts. Forwarded to Qwen Code command hooks.
+
+Top-level `hooks` keys must be canonical event names; unknown event names are rejected at parse time. Tool-specific override blocks (e.g. `kiro-ide.hooks`) additionally accept tool-native event keys, which pass through verbatim.
 
 Events present in the shared `hooks` block but unsupported by a given tool are skipped for that tool (a warning is logged at generate time). The canonical `notification` event maps to deepagents-cli's `input.required` (human-in-the-loop interrupt).
 

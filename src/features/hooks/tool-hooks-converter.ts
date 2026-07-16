@@ -1,4 +1,4 @@
-import type { HookEvent, HooksConfig } from "../../types/hooks.js";
+import { type HookEvent, type HookType, type HooksConfig, isHookEvent } from "../../types/hooks.js";
 import type { Logger } from "../../utils/logger.js";
 
 type ToolMatcherEntry = {
@@ -24,7 +24,7 @@ export type ToolHooksConverterConfig = {
   canonicalToToolEventNames: Record<string, string>;
   toolToCanonicalEventNames: Record<string, string>;
   projectDirVar: string;
-  supportedHookTypes?: ReadonlySet<"command" | "prompt" | "http">;
+  supportedHookTypes?: ReadonlySet<HookType>;
   passthroughFields?: ReadonlyArray<"name" | "description">;
   /**
    * Per-hook boolean fields to carry through the round-trip, each mapping a
@@ -319,6 +319,49 @@ function toolMatcherEntryToCanonical({
 }): HooksConfig["hooks"][string] {
   const hookDefs = rawEntry.hooks ?? [];
   return hookDefs.map((h) => toolHookToCanonical({ h, rawEntry, converterConfig }));
+}
+
+/**
+ * Assemble the canonical hooks config a tool importer writes to
+ * `.rulesync/hooks.json`.
+ *
+ * The top-level `hooks` record only accepts canonical event names, so any
+ * imported native event key without a canonical mapping is moved under the
+ * importing tool's own override block (`<overrideKey>.hooks`), whose keys stay
+ * lenient. This mirrors the generate direction — override blocks pass
+ * tool-native keys through verbatim — so documented native triggers (e.g.
+ * kiro-ide's `PostFileSave`) survive an import → generate round-trip instead
+ * of failing canonical validation.
+ */
+export function buildImportedHooksConfig({
+  hooks,
+  overrideKey,
+  version = 1,
+  extraOverride,
+}: {
+  hooks: HooksConfig["hooks"];
+  overrideKey: string;
+  version?: number;
+  extraOverride?: Record<string, unknown>;
+}): HooksConfig {
+  const canonical: HooksConfig["hooks"] = {};
+  const native: HooksConfig["hooks"] = {};
+  for (const [event, defs] of Object.entries(hooks)) {
+    if (isHookEvent(event)) {
+      canonical[event] = defs;
+    } else {
+      native[event] = defs;
+    }
+  }
+  const override: Record<string, unknown> = { ...extraOverride };
+  if (Object.keys(native).length > 0) {
+    override.hooks = native;
+  }
+  const config: HooksConfig = { version, hooks: canonical };
+  if (Object.keys(override).length > 0) {
+    (config as Record<string, unknown>)[overrideKey] = override;
+  }
+  return config;
 }
 
 export function toolHooksToCanonical({

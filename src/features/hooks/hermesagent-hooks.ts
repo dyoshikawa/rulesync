@@ -19,6 +19,7 @@ import {
   stringifySharedConfig,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
+import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import { ToolHooks, type ToolHooksFromRulesyncHooksParams } from "./tool-hooks.js";
 
 type HermesagentHooksParams = Omit<AiFileParams, "relativeDirPath" | "relativeFilePath">;
@@ -229,7 +230,11 @@ export class HermesagentHooks extends ToolHooks {
     const config = parseSharedConfig({ format: "yaml", fileContent: this.getFileContent() });
     const hooks = hermesHooksToCanonical(config.hooks);
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify({ version: 1, hooks }, null, 2),
+      fileContent: JSON.stringify(
+        buildImportedHooksConfig({ hooks, overrideKey: "hermesagent" }),
+        null,
+        2,
+      ),
     });
   }
 

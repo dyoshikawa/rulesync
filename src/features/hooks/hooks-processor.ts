@@ -450,7 +450,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsImport: true,
       },
       supportedEvents: QWENCODE_HOOK_EVENTS,
-      supportedHookTypes: ["command"],
+      // Qwen Code documents four hook executor types, and the adapter emits
+      // all of them faithfully (including per-type fields like `url`).
+      supportedHookTypes: ["command", "prompt", "http", "function"],
       supportsMatcher: true,
     },
   ],

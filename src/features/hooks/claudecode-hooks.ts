@@ -17,7 +17,11 @@ import {
 } from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
-import { canonicalToToolHooks, toolHooksToCanonical } from "./tool-hooks-converter.js";
+import {
+  buildImportedHooksConfig,
+  canonicalToToolHooks,
+  toolHooksToCanonical,
+} from "./tool-hooks-converter.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
@@ -46,6 +50,10 @@ const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   projectDirVar: "$CLAUDE_PROJECT_DIR",
   prefixDotRelativeCommandsOnly: true,
   noMatcherEvents: CLAUDE_NO_MATCHER_EVENTS,
+  // Claude Code also documents `http`/`mcp_tool`/`agent` hook handlers, but the
+  // shared converter only carries the command/prompt payload fields, so only
+  // those two round-trip faithfully today (tracked in issue #2231).
+  supportedHookTypes: new Set(["command", "prompt"]),
 };
 
 export class ClaudecodeHooks extends ToolHooks {
@@ -139,7 +147,11 @@ export class ClaudecodeHooks extends ToolHooks {
       converterConfig: CLAUDE_CONVERTER_CONFIG,
     });
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify({ version: 1, hooks }, null, 2),
+      fileContent: JSON.stringify(
+        buildImportedHooksConfig({ hooks, overrideKey: "claudecode" }),
+        null,
+        2,
+      ),
     });
   }
 

@@ -342,7 +342,7 @@ describe("KiroHooks", () => {
       expect(parsed.hooks.stop).toBeUndefined();
     });
 
-    it("should handle unknown event names gracefully", () => {
+    it("should route unknown event names into the kiro override block", () => {
       const kiroHooks = new KiroHooks(
         createMockAiFileParams({
           fileContent: JSON.stringify({
@@ -356,8 +356,13 @@ describe("KiroHooks", () => {
       const rulesyncHooks = kiroHooks.toRulesyncHooks();
       const parsed = rulesyncHooks.getJson();
 
-      expect(parsed.hooks.someUnknownEvent).toBeDefined();
-      expect(parsed.hooks.someUnknownEvent?.[0]?.command).toBe("echo unknown");
+      // Unknown native keys must not land in the top-level hooks record (whose
+      // keys are restricted to canonical event names) but under the kiro
+      // override block, so the imported file passes canonical validation.
+      expect(parsed.hooks.someUnknownEvent).toBeUndefined();
+      const overrideHooks = (parsed as { kiro?: { hooks?: Record<string, unknown[]> } }).kiro
+        ?.hooks;
+      expect(overrideHooks?.someUnknownEvent?.[0]).toMatchObject({ command: "echo unknown" });
     });
   });
 

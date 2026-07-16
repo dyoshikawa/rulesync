@@ -20,12 +20,27 @@ export const safeString = z.pipe(
 );
 
 /**
+ * All canonical hook types — the union of the `type` values accepted by every
+ * supported tool:
+ * - `command` — universal (Claude Code, Codex CLI, Qwen Code, Cursor, …)
+ * - `prompt` — Claude Code, Codex CLI, Qwen Code, Copilot CLI, Cursor, Devin
+ * - `http` — Claude Code, Qwen Code, Copilot CLI, Grok CLI
+ * - `agent` — Claude Code, Codex CLI
+ * - `mcp_tool` — Claude Code
+ * - `function` — Qwen Code (internal Skill-system executor)
+ */
+export const HOOK_TYPES = ["command", "prompt", "http", "agent", "mcp_tool", "function"] as const;
+
+/** All canonical hook types. */
+export type HookType = (typeof HOOK_TYPES)[number];
+
+/**
  * Canonical hook definition.
  * Used in .rulesync/hooks.json and mapped to tool-specific formats.
  */
 export const HookDefinitionSchema = z.looseObject({
   command: z.optional(safeString),
-  type: z.optional(z.enum(["command", "prompt", "http"])),
+  type: z.optional(z.enum(HOOK_TYPES)),
   // Qwen Code: target URL for `http` hooks (the hook POSTs JSON to this URL).
   // https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/hooks.md
   url: z.optional(safeString),
@@ -52,7 +67,10 @@ export const HookDefinitionSchema = z.looseObject({
   // can't ride into a generated shell env var or HTTP header (header-splitting
   // shape), consistent with how `command`/`url` are guarded.
   env: z.optional(z.record(z.string(), safeString)),
-  shell: z.optional(safeString),
+  // Only Claude Code and Qwen Code expose an interpreter selector, and both
+  // restrict it to the same two values, so the field is a closed enum.
+  // https://code.claude.com/docs/en/hooks
+  shell: z.optional(z.enum(["bash", "powershell"])),
   // `statusMessage` is the progress text shown while the hook runs; Qwen Code
   // accepts it on both command and http hooks.
   statusMessage: z.optional(safeString),
@@ -67,63 +85,64 @@ export const HookDefinitionSchema = z.looseObject({
 
 export type HookDefinition = z.infer<typeof HookDefinitionSchema>;
 
-/** All canonical hook types. */
-export type HookType = "command" | "prompt" | "http";
-
 /**
  * All canonical hook event names.
  * Each tool supports a subset of these events.
  */
-export type HookEvent =
-  | "sessionStart"
-  | "sessionEnd"
-  | "preToolUse"
-  | "postToolUse"
-  | "preModelInvocation"
-  | "postModelInvocation"
-  | "beforeSubmitPrompt"
-  | "stop"
-  | "subagentStop"
-  | "preCompact"
-  | "postCompact"
-  | "contextOffload"
-  | "postToolUseFailure"
-  | "subagentStart"
-  | "beforeShellExecution"
-  | "afterShellExecution"
-  | "beforeMCPExecution"
-  | "afterMCPExecution"
-  | "beforeReadFile"
-  | "afterFileEdit"
-  | "beforeAgentResponse"
-  | "afterAgentResponse"
-  | "afterAgentThought"
-  | "beforeTabFileRead"
-  | "afterTabFileEdit"
-  | "permissionRequest"
-  | "notification"
-  | "setup"
-  | "afterError"
-  | "beforeToolSelection"
-  | "worktreeCreate"
-  | "worktreeRemove"
-  | "workspaceOpen"
-  | "messageDisplay"
-  | "todoCreated"
-  | "todoCompleted"
-  | "stopFailure"
-  | "instructionsLoaded"
-  | "userPromptExpansion"
-  | "postToolBatch"
-  | "permissionDenied"
-  | "taskCreated"
-  | "taskCompleted"
-  | "teammateIdle"
-  | "configChange"
-  | "cwdChanged"
-  | "fileChanged"
-  | "elicitation"
-  | "elicitationResult";
+export const HOOK_EVENTS = [
+  "sessionStart",
+  "sessionEnd",
+  "preToolUse",
+  "postToolUse",
+  "preModelInvocation",
+  "postModelInvocation",
+  "beforeSubmitPrompt",
+  "stop",
+  "subagentStop",
+  "preCompact",
+  "postCompact",
+  "contextOffload",
+  "postToolUseFailure",
+  "subagentStart",
+  "beforeShellExecution",
+  "afterShellExecution",
+  "beforeMCPExecution",
+  "afterMCPExecution",
+  "beforeReadFile",
+  "afterFileEdit",
+  "beforeAgentResponse",
+  "afterAgentResponse",
+  "afterAgentThought",
+  "beforeTabFileRead",
+  "afterTabFileEdit",
+  "permissionRequest",
+  "notification",
+  "setup",
+  "afterError",
+  "beforeToolSelection",
+  "worktreeCreate",
+  "worktreeRemove",
+  "workspaceOpen",
+  "messageDisplay",
+  "todoCreated",
+  "todoCompleted",
+  "stopFailure",
+  "instructionsLoaded",
+  "userPromptExpansion",
+  "postToolBatch",
+  "permissionDenied",
+  "taskCreated",
+  "taskCompleted",
+  "teammateIdle",
+  "configChange",
+  "cwdChanged",
+  "fileChanged",
+  "elicitation",
+  "elicitationResult",
+] as const;
+
+/** All canonical hook event names. */
+export type HookEvent = (typeof HOOK_EVENTS)[number];
 
 /** Hook events supported by Cursor. */
 export const CURSOR_HOOK_EVENTS: readonly HookEvent[] = [
@@ -622,12 +641,37 @@ export const HERMESAGENT_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Obje
 
 const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
 
+const HOOK_EVENT_SET: ReadonlySet<string> = new Set(HOOK_EVENTS);
+
+/** Whether `value` is a canonical hook event name. */
+export const isHookEvent = (value: string): value is HookEvent => HOOK_EVENT_SET.has(value);
+
+/**
+ * Top-level `hooks` record whose keys must be canonical event names, so typos
+ * are rejected at parse time. Keys are validated with a refinement (instead of
+ * an enum key schema) to keep the inferred type a plain string record.
+ *
+ * The per-tool override blocks below deliberately keep the lenient
+ * `hooksRecordSchema`: some are documented to pass tool-native event keys
+ * through verbatim (e.g. kiro-ide's IDE-only `PostFileSave`/`PreTaskExec`
+ * triggers), which the canonical enum would reject.
+ */
+const canonicalHooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema)).check(
+  z.refine((record) => Object.keys(record).every((key) => HOOK_EVENT_SET.has(key)), {
+    error: (issue) => {
+      const keys = Object.keys((issue.input as Record<string, unknown>) ?? {});
+      const unknown = keys.filter((key) => !HOOK_EVENT_SET.has(key));
+      return `unknown hook event name(s): ${unknown.join(", ")}`;
+    },
+  }),
+);
+
 /**
  * Canonical hooks config (canonical event names in camelCase).
  */
 export const HooksConfigSchema = z.looseObject({
   version: z.optional(z.number()),
-  hooks: hooksRecordSchema,
+  hooks: canonicalHooksRecordSchema,
   cursor: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   claudecode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   copilot: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),

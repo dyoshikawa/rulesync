@@ -20,7 +20,11 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
-import { canonicalToToolHooks, toolHooksToCanonical } from "./tool-hooks-converter.js";
+import {
+  buildImportedHooksConfig,
+  canonicalToToolHooks,
+  toolHooksToCanonical,
+} from "./tool-hooks-converter.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
@@ -182,7 +186,11 @@ export class CodexcliHooks extends ToolHooks {
       converterConfig: CODEXCLI_CONVERTER_CONFIG,
     });
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify({ version: 1, hooks }, null, 2),
+      fileContent: JSON.stringify(
+        buildImportedHooksConfig({ hooks, overrideKey: "codexcli" }),
+        null,
+        2,
+      ),
     });
   }
 

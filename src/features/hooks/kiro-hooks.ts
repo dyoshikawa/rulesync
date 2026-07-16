@@ -16,6 +16,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
+import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
@@ -218,8 +219,9 @@ export class KiroHooks extends ToolHooks {
       );
     }
     const hooks = kiroHooksToCanonical(agentConfig.hooks);
+    const overrideKey = (this.constructor as typeof KiroHooks).getOverrideKey();
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify({ version: 1, hooks }, null, 2),
+      fileContent: JSON.stringify(buildImportedHooksConfig({ hooks, overrideKey }), null, 2),
     });
   }
 

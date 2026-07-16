@@ -17,7 +17,11 @@ import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
-import { canonicalToToolHooks, toolHooksToCanonical } from "./tool-hooks-converter.js";
+import {
+  buildImportedHooksConfig,
+  canonicalToToolHooks,
+  toolHooksToCanonical,
+} from "./tool-hooks-converter.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
@@ -39,6 +43,7 @@ const ANTIGRAVITY_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   toolToCanonicalEventNames: ANTIGRAVITY_TO_CANONICAL_EVENT_NAMES,
   projectDirVar: "",
   noMatcherEvents: new Set(["preModelInvocation", "postModelInvocation", "stop"]),
+  supportedHookTypes: new Set(["command"]),
 };
 
 /**
@@ -197,8 +202,9 @@ class AntigravityHooks extends ToolHooks {
       hooks: flattenAntigravityHooks(parsed),
       converterConfig: ANTIGRAVITY_CONVERTER_CONFIG,
     });
+    const overrideKey = (this.constructor as typeof AntigravityHooks).getOverrideKey();
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify({ version: 1, hooks }, null, 2),
+      fileContent: JSON.stringify(buildImportedHooksConfig({ hooks, overrideKey }), null, 2),
     });
   }
 
