@@ -328,18 +328,13 @@ function convertRulesyncToCodexProfile({
   const workspaceRootFilesystem: CodexFilesystemRuleTable = {};
   const domains: Record<string, "allow" | "deny"> = {};
 
+  const filesystemCategoryRules: Partial<
+    Record<"read" | "edit" | "write", Record<string, PermissionAction>>
+  > = {};
+
   for (const [toolName, rules] of Object.entries(config.permission)) {
     if (toolName === "read" || toolName === "edit" || toolName === "write") {
-      const mapAction = toolName === "read" ? mapReadAction : mapWriteAction;
-      for (const [pattern, action] of Object.entries(rules)) {
-        addFilesystemRule({
-          filesystem,
-          workspaceRootFilesystem,
-          pattern,
-          access: mapAction(action),
-          logger,
-        });
-      }
+      filesystemCategoryRules[toolName] = rules;
       continue;
     }
 
@@ -351,6 +346,23 @@ function convertRulesyncToCodexProfile({
     logger?.warn(
       `Codex CLI permissions support only read/edit/write/webfetch categories. Skipping: ${toolName}`,
     );
+  }
+
+  // Codex has a single access level per path (deny < read < write), so rules
+  // for the same pattern across the canonical read/edit/write categories are
+  // merged instead of last-category-wins overwriting (e.g. `read: allow` +
+  // `write: deny` emits `"read"`, not `"deny"`).
+  for (const [pattern, access] of mergeFilesystemCategoryRules({
+    categoryRules: filesystemCategoryRules,
+    logger,
+  })) {
+    addFilesystemRule({
+      filesystem,
+      workspaceRootFilesystem,
+      pattern,
+      access,
+      logger,
+    });
   }
 
   applyDefaultGitWriteRules({ config, filesystem, workspaceRootFilesystem });
@@ -954,6 +966,94 @@ function mapReadAction(action: PermissionAction): "read" | "deny" {
 
 function mapWriteAction(action: PermissionAction): "write" | "deny" {
   return action === "allow" ? "write" : "deny";
+}
+
+/**
+ * Merge the canonical read/edit/write category rules into one Codex access
+ * level per path pattern (Codex models a single `deny` < `read` < `write`
+ * level, with no `ask`).
+ *
+ * - `edit` and `write` collapse onto Codex's write side; when both carry the
+ *   same pattern, the more restrictive action wins (`deny` > `ask` > `allow`).
+ * - `read: allow` + write-side `allow` → `"write"`.
+ * - `read: allow` + write-side non-allow → `"read"` (readable but not
+ *   writable — exactly what Codex's `"read"` level expresses).
+ * - `read` non-allow → `"deny"` regardless of the write side; a contradictory
+ *   write-side `allow` (unreadable but writable is not expressible in Codex)
+ *   is warned about.
+ * - Single-category patterns keep the existing mapReadAction/mapWriteAction
+ *   mappings.
+ *
+ * Iteration order is read → edit → write with first-seen pattern order, so
+ * the emitted table is stable regardless of the authored category order.
+ * Note the merge is one-way: `"{path}" = "read"` imports back as
+ * `read: allow` only (the explicit write-side deny is implied by Codex's
+ * access level and not re-materialized).
+ */
+function mergeFilesystemCategoryRules({
+  categoryRules,
+  logger,
+}: {
+  categoryRules: Partial<Record<"read" | "edit" | "write", Record<string, PermissionAction>>>;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): Array<[string, "read" | "write" | "deny"]> {
+  const readRules = categoryRules.read ?? {};
+  const writeSideRestrictiveness: Record<PermissionAction, number> = {
+    deny: 2,
+    ask: 1,
+    allow: 0,
+  };
+
+  // Collapse edit/write onto Codex's single write side, restrictive-wins.
+  const writeSideRules: Record<string, PermissionAction> = {};
+  for (const category of ["edit", "write"] as const) {
+    for (const [pattern, action] of Object.entries(categoryRules[category] ?? {})) {
+      const existing = writeSideRules[pattern];
+      if (
+        existing === undefined ||
+        writeSideRestrictiveness[action] > writeSideRestrictiveness[existing]
+      ) {
+        writeSideRules[pattern] = action;
+      }
+    }
+  }
+
+  const patterns: string[] = [];
+  const seen = new Set<string>();
+  for (const pattern of [...Object.keys(readRules), ...Object.keys(writeSideRules)]) {
+    if (!seen.has(pattern)) {
+      seen.add(pattern);
+      patterns.push(pattern);
+    }
+  }
+
+  const merged: Array<[string, "read" | "write" | "deny"]> = [];
+  for (const pattern of patterns) {
+    const readAction = readRules[pattern];
+    const writeAction = writeSideRules[pattern];
+
+    if (readAction === undefined) {
+      merged.push([pattern, mapWriteAction(writeAction as PermissionAction)]);
+      continue;
+    }
+    if (writeAction === undefined) {
+      merged.push([pattern, mapReadAction(readAction)]);
+      continue;
+    }
+
+    if (readAction === "allow") {
+      merged.push([pattern, writeAction === "allow" ? "write" : "read"]);
+      continue;
+    }
+
+    if (writeAction === "allow") {
+      logger?.warn(
+        `Codex CLI cannot express "writable but not readable": pattern "${pattern}" has read: ${readAction} and a write-side allow. Emitting "deny".`,
+      );
+    }
+    merged.push([pattern, "deny"]);
+  }
+  return merged;
 }
 
 function buildCodexBashRulesContent(config: PermissionsConfig): string {

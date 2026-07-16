@@ -64,6 +64,75 @@ describe("CodexcliPermissions", () => {
     expect(fileContent).toContain('"example.com" = "deny"');
   });
 
+  it("should merge per-path rules across read/edit/write categories instead of last-category-wins", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          read: {
+            "/data/readable/**": "allow",
+            "/data/full/**": "allow",
+            "/data/blocked/**": "deny",
+            "/data/asked/**": "allow",
+          },
+          write: {
+            // read allow + write deny → "read" (this was the last-wins bug).
+            "/data/readable/**": "deny",
+            // read allow + write allow → "write".
+            "/data/full/**": "allow",
+            // read deny + write allow → contradiction, warn + "deny".
+            "/data/blocked/**": "allow",
+            // read allow + write ask → "read" (ask maps to the deny side).
+            "/data/asked/**": "ask",
+          },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain('"/data/readable/**" = "read"');
+    expect(fileContent).toContain('"/data/full/**" = "write"');
+    expect(fileContent).toContain('"/data/blocked/**" = "deny"');
+    expect(fileContent).toContain('"/data/asked/**" = "read"');
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Codex CLI cannot express "writable but not readable"'),
+    );
+  });
+
+  it("should collapse edit and write for the same path with the more restrictive action winning", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          edit: { "/data/mixed/**": "allow", "/data/open/**": "allow" },
+          write: { "/data/mixed/**": "deny" },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain('"/data/mixed/**" = "deny"');
+    expect(fileContent).toContain('"/data/open/**" = "write"');
+  });
+
   it("should preserve unmanaged config.toml params on regeneration", async () => {
     const logger = createMockLogger();
     const codexDir = join(testDir, ".codex");
