@@ -141,6 +141,7 @@ function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
   const originalNames = new Map<string, string>();
 
   for (const [name, config] of Object.entries(mcpServers)) {
+    if (!isRecord(config)) continue;
     const { codexName, usedFallback } = normalizeCodexMcpServerName(name);
     if (usedFallback) {
       warnWithFallback(
@@ -148,7 +149,6 @@ function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
         `MCP server "${name}" cannot be represented as a Codex MCP server name (ASCII [a-zA-Z0-9_-] only), so the stable fallback name "${codexName}" was used. Rename the server in .rulesync/mcp.json to choose a readable Codex name.`,
       );
     }
-    if (!isRecord(config)) continue;
     const converted: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(config)) {
       if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
