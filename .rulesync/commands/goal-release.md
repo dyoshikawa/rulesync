@@ -101,17 +101,36 @@ old `homebrew` job that `.github/workflows/publish.yml` used to run.
 1. Wait for the `Publish Assets` run triggered by the merge to complete:
 
    ```bash
-   gh run list --workflow "Publish Assets" --limit 1 \
-     --json databaseId,status,conclusion,headBranch
+   gh run list --workflow "Publish Assets" --branch "release/v<version>" \
+     --limit 1 --json databaseId,status,conclusion,headBranch
    gh run watch <run_id>
    ```
 
-   Confirm the watched run belongs to this release (its `headBranch` is the
-   `release/v<version>` branch of the PR merged in Step 4) and concluded with
-   `success`. If it failed, stop and report — the formula must not be
-   regenerated from stale assets.
+   The workflow triggers on every closed PR to `main` (non-release runs are
+   job-level skipped but still listed), so filter by the release branch as
+   shown. The run can take a few seconds to appear right after the merge — if
+   the list is empty, wait and retry. Confirm the watched run belongs to this
+   release (its `headBranch` is the `release/v<version>` branch of the PR
+   merged in Step 4) and concluded with `success`. If it failed, stop and
+   report — the formula must not be regenerated from stale assets.
 
-2. Regenerate the formula from the released checksums:
+2. Wait until the GitHub release is published (no longer a draft). The
+   `Publish` workflow (`.github/workflows/publish.yml`) runs after
+   `Publish Assets`, publishes the npm package, and then flips the release
+   public. Draft-release asset URLs return 404 for unauthenticated users, and
+   the Homebrew tap serves the formula straight from `main`, so merging the
+   formula before the release is public would break `brew install` for
+   everyone:
+
+   ```bash
+   gh release view v<version> --json isDraft --jq .isDraft
+   ```
+
+   Poll until this prints `false`. If the `Publish` workflow failed (e.g. npm
+   publish error) and the release stays a draft, stop and report instead of
+   updating the formula.
+
+3. Regenerate the formula from the released checksums:
 
    ```bash
    git checkout main && git pull
@@ -120,10 +139,10 @@ old `homebrew` job that `.github/workflows/publish.yml` used to run.
    rm -f ./tmp/SHA256SUMS
    ```
 
-3. If `git diff --quiet -- Formula/rulesync.rb` reports no change, the formula
+4. If `git diff --quiet -- Formula/rulesync.rb` reports no change, the formula
    is already up to date — skip ahead to the final report.
 
-4. Otherwise commit the regenerated formula on a branch and merge it right
+5. Otherwise commit the regenerated formula on a branch and merge it right
    away (`main` is branch-protected, so the change must land via a PR; merging
    it immediately with admin rights is this command's explicit purpose, same
    as the release PR itself):
@@ -138,6 +157,11 @@ old `homebrew` job that `.github/workflows/publish.yml` used to run.
    gh pr merge --admin --merge --delete-branch
    ```
 
+   If a previous attempt already pushed the `homebrew-formula/v<version>`
+   branch or opened its PR, reuse them instead of failing: force-push the
+   branch with `git push --force-with-lease` and skip `gh pr create` when
+   `gh pr list --head homebrew-formula/v<version>` shows an open PR.
+
    Only `Formula/rulesync.rb` may be committed here. If anything else shows up
    in `git status`, stop and report instead of committing it.
 
@@ -146,8 +170,8 @@ old `homebrew` job that `.github/workflows/publish.yml` used to run.
 Report to the user:
 
 - The merged release PR number and title.
-- The new version and a link to the draft GitHub release (publishing the
-  release is intentionally left as a manual follow-up step).
+- The new version and a link to the GitHub release (published automatically by
+  the `Publish` workflow, which Step 5 waits for).
 - Whether the Homebrew formula was updated (and the formula PR number) or was
   already up to date.
 - Any CI fixes that were needed along the way.

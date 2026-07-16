@@ -26,8 +26,8 @@ rulesync --version
 ```
 
 The formula installs the prebuilt binary for your platform (macOS/Linux, arm64
-and x64), so it does not depend on a Node.js runtime. It is updated
-automatically on every release. Homebrew does not support Windows; use npm or the
+and x64), so it does not depend on a Node.js runtime. It is updated as part of
+each release. Homebrew does not support Windows; use npm or the
 single-binary download below there.
 
 ## Single Binary
