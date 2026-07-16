@@ -58,10 +58,20 @@ const CODEX_MINIMAL_KEY = ":minimal";
 // codex-rs), which denies basic git workflows: commit/stage operations write
 // to `.git/index`, `.git/objects`, refs, and logs. `".git/**" = "write"`
 // reopens the subtree, while `".git/config" = "read"` keeps the repository
-// config read-only as a security guard — a writable `.git/config` would let a
-// sandboxed process set keys like `core.fsmonitor` or `core.hooksPath` that
-// execute arbitrary code outside the sandbox. Codex resolves the more
-// specific path with priority, so the `read` rule wins for that one file.
+// config read-only — a writable `.git/config` would let a sandboxed process
+// set keys like `core.fsmonitor` or `core.hooksPath` that execute arbitrary
+// code outside the sandbox. Codex resolves the more specific path with
+// priority, so the `read` rule wins for that one file.
+//
+// This guard is deliberately partial (a maintainer decision on #2272): a
+// writable `.git/hooks/` (and `.git/modules/**` for submodules) still lets a
+// sandboxed process install a hook directly, because hook managers such as
+// husky/lefthook/simple-git-hooks must write hooks during install and a
+// read-only hooks dir would reintroduce the deny-on-every-install friction
+// these carve-outs exist to remove. Users who want stricter isolation can
+// author e.g. `read: { ".git/hooks/**": "allow" }` in the canonical
+// permissions — a user rule for a more specific path wins over the default.
+//
 // Like `:minimal`, these default-valued entries are not imported into the
 // rulesync model (they are re-added on every export); a user-customized value
 // for the same key imports — and generates — normally, winning over the
@@ -342,7 +352,7 @@ function convertRulesyncToCodexProfile({
     );
   }
 
-  applyDefaultGitWriteRules({ config, workspaceRootFilesystem });
+  applyDefaultGitWriteRules({ config, filesystem, workspaceRootFilesystem });
 
   if (Object.keys(workspaceRootFilesystem).length > 0) {
     if (typeof filesystem[CODEX_WORKSPACE_ROOTS_KEY] === "string") {
@@ -383,16 +393,31 @@ function convertRulesyncToCodexProfile({
 }
 
 // Fill in the default `.git` carve-outs after the user's rules so a
-// user-specified value for the same key always wins. Suppressed only by an
-// explicit `codexcli.git_write_rules: false`.
+// user-specified value for the same key always wins. Suppressed by an
+// explicit `codexcli.git_write_rules: false`, and also skipped when:
+// - the baseline is `:read-only` — the carve-outs would grant `.git` write
+//   access inside a sandbox the user explicitly chose to keep read-only, and
+//   git workflows that need them are not expected there; or
+// - the user authored a direct `":workspace_roots"` string rule — that is an
+//   explicit access decision for the whole workspace tree (e.g. a blanket
+//   deny), and injecting defaults would force the string rule to be replaced
+//   by a rule table.
 function applyDefaultGitWriteRules({
   config,
+  filesystem,
   workspaceRootFilesystem,
 }: {
   config: PermissionsConfig;
+  filesystem: CodexFilesystem;
   workspaceRootFilesystem: CodexFilesystemRuleTable;
 }): void {
   if (config.codexcli?.git_write_rules === false) {
+    return;
+  }
+  if (config.codexcli?.base_permission_profile === ":read-only") {
+    return;
+  }
+  if (typeof filesystem[CODEX_WORKSPACE_ROOTS_KEY] === "string") {
     return;
   }
   for (const [pattern, access] of Object.entries(CODEX_GIT_WRITE_RULES)) {
@@ -530,6 +555,42 @@ function warnAboutPreservedProfileState({
   }
 }
 
+// An allow domain in a profile's network table is the signature of
+// rulesync-managed output: rulesync itself writes `enabled = true` exactly
+// when the canonical model contains a webfetch allow rule. Its presence means
+// the existing `enabled` value is not a user-authored setting to preserve.
+function networkHasAllowDomain(network: CodexNetwork | undefined): boolean {
+  return Object.values(network?.domains ?? {}).some((action) => action === "allow");
+}
+
+// Surfaces what happens to an existing `network.enabled` on regeneration:
+// preserved (mirrors the condition in mergeWithExistingProfile) or replaced
+// by a managed `enabled = true` derived from a canonical allow domain.
+function warnAboutNetworkEnabledState({
+  existingProfile,
+  newProfile,
+  logger,
+}: {
+  existingProfile: CodexPermissionProfile | undefined;
+  newProfile: CodexPermissionProfile;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): void {
+  if (
+    existingProfile?.network?.enabled !== undefined &&
+    newProfile.network?.enabled === undefined &&
+    !networkHasAllowDomain(existingProfile.network)
+  ) {
+    logger?.warn(
+      `Preserving existing "network.enabled" from config. Review this value manually as it may enable network access beyond the Rulesync-managed domain rules.`,
+    );
+  }
+  if (existingProfile?.network?.enabled === false && newProfile.network?.enabled === true) {
+    logger?.warn(
+      `Existing "network.enabled = false" will be replaced by Rulesync-managed "enabled = true" because the canonical model contains an allow domain.`,
+    );
+  }
+}
+
 // Network settings are user territory (see mergeWithExistingProfile), so the
 // preserved values are surfaced instead of being carried forward silently.
 function warnAboutPreservedNetworkState({
@@ -546,14 +607,7 @@ function warnAboutPreservedNetworkState({
       `Preserving existing "network.unix_sockets" from config. Review these entries manually as they may grant broad system access.`,
     );
   }
-  if (
-    existingProfile?.network?.enabled !== undefined &&
-    newProfile.network?.enabled === undefined
-  ) {
-    logger?.warn(
-      `Preserving existing "network.enabled" from config. Review this value manually as it may enable network access beyond the Rulesync-managed domain rules.`,
-    );
-  }
+  warnAboutNetworkEnabledState({ existingProfile, newProfile, logger });
   if (existingProfile?.network?.mode !== undefined) {
     logger?.warn(
       `Preserving existing "network.mode" from config. Review this value manually as it may grant broader network access than the Rulesync-managed domain rules.`,
@@ -640,7 +694,17 @@ function mergeWithExistingProfile({
   // itself when the canonical model has an allow domain, so a user-authored
   // `enabled` (e.g. `enabled = true` to reach the SSH agent socket, see the
   // FAQ) is preserved whenever the freshly computed profile does not set one.
-  if (existingProfile.network?.enabled !== undefined && mergedNetwork.enabled === undefined) {
+  // Exception: when the existing profile carries an allow domain, its
+  // `enabled` is rulesync's own output (the managed-domains signature), not a
+  // user decision. Preserving it after the user removed the webfetch allow
+  // rules would drop the domains but keep `enabled = true` — turning a
+  // scoped grant into unrestricted network access instead of falling back to
+  // Codex's restricted default.
+  if (
+    existingProfile.network?.enabled !== undefined &&
+    mergedNetwork.enabled === undefined &&
+    !networkHasAllowDomain(existingProfile.network)
+  ) {
     mergedNetwork.enabled = existingProfile.network.enabled;
   }
   if (existingProfile.network?.mode !== undefined && mergedNetwork.mode === undefined) {

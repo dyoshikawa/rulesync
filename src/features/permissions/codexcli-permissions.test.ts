@@ -1703,6 +1703,50 @@ command = "node"
       expect(fileContent).not.toContain(":workspace_roots");
     });
 
+    it("skips the carve-outs when base_permission_profile is ':read-only'", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: {},
+          codexcli: { base_permission_profile: ":read-only" },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const fileContent = codexPermissions.getFileContent();
+      expect(fileContent).toContain('extends = ":read-only"');
+      expect(fileContent).not.toContain(".git/**");
+      expect(fileContent).not.toContain(":workspace_roots");
+    });
+
+    it("does not override a direct ':workspace_roots' string rule with the carve-outs", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: {
+            read: { ":workspace_roots": "deny" },
+          },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as ParsedToml;
+      expect(parsed.permissions?.rulesync?.filesystem?.[":workspace_roots"]).toBe("deny");
+      expect(codexPermissions.getFileContent()).not.toContain(".git/**");
+    });
+
     it("does not write git_write_rules as a top-level config.toml key", async () => {
       const rulesyncPermissions = new RulesyncPermissions({
         outputRoot: testDir,
@@ -1836,6 +1880,79 @@ default_permissions = "rulesync"
       expect(warnMessages.some((line) => line.includes("dangerously_allow_all_unix_sockets"))).toBe(
         true,
       );
+    });
+
+    it("does not preserve a stale rulesync-managed enabled when allow domains are removed", async () => {
+      const codexDir = join(testDir, ".codex");
+      await ensureDir(codexDir);
+      // The existing profile is rulesync's own prior output: `enabled = true`
+      // was derived from a webfetch allow rule the user has since removed.
+      await writeFileContent(
+        join(codexDir, "config.toml"),
+        [
+          'default_permissions = "rulesync"',
+          "[permissions.rulesync]",
+          'extends = ":workspace"',
+          "[permissions.rulesync.network]",
+          "enabled = true",
+          "[permissions.rulesync.network.domains]",
+          '"github.com" = "allow"',
+        ].join("\n"),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: {} }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      // Keeping `enabled = true` without the domains would broaden the scoped
+      // grant into unrestricted network access; it must fall back to Codex's
+      // restricted default instead.
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as ParsedToml;
+      expect(parsed.permissions?.rulesync?.network).toBeUndefined();
+    });
+
+    it("warns when a user-authored enabled = false is replaced by a managed enabled = true", async () => {
+      const logger = createMockLogger();
+      const codexDir = join(testDir, ".codex");
+      await ensureDir(codexDir);
+      await writeFileContent(
+        join(codexDir, "config.toml"),
+        [
+          'default_permissions = "rulesync"',
+          "[permissions.rulesync]",
+          'extends = ":workspace"',
+          "[permissions.rulesync.network]",
+          "enabled = false",
+        ].join("\n"),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { webfetch: { "github.com": "allow" } },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as ParsedToml;
+      expect(parsed.permissions?.rulesync?.network?.enabled).toBe(true);
+      const warnMessages = logger.warn.mock.calls.map((call) => String(call[0]));
+      expect(warnMessages.some((line) => line.includes('"network.enabled = false"'))).toBe(true);
     });
 
     it("preserves a user-authored enabled = true alongside deny-only managed domains", async () => {
