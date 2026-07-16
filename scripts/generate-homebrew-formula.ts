@@ -70,8 +70,8 @@ export function generateHomebrewFormula(version: string, shas: FormulaShas): str
   return `# typed: false
 # frozen_string_literal: true
 
-# This file is generated on each release by the "homebrew" job in
-# .github/workflows/publish.yml (scripts/generate-homebrew-formula.ts).
+# This file is regenerated on each release by the /goal-release command
+# (scripts/generate-homebrew-formula.ts) after the release assets are built.
 # Do not edit it by hand; changes are overwritten on the next release.
 class Rulesync < Formula
   desc "Unified AI rules management CLI that generates config files for AI dev tools"
