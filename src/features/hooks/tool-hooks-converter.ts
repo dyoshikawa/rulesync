@@ -44,6 +44,13 @@ export type ToolHooksConverterConfig = {
    */
   prefixDotRelativeCommandsOnly?: boolean;
   /**
+   * When true, prompt/agent hooks emit the canonical `model` field. Only tools
+   * that document a per-hook model selector (Claude Code) should opt in —
+   * other prompt-capable tools (Factory Droid, Devin) do not document the
+   * field, so it must not leak into their generated configs.
+   */
+  emitsPromptModel?: boolean;
+  /**
    * Events that do not support the `matcher` field. Any matcher defined on these events
    * will be silently dropped with a warning during export.
    */
@@ -163,9 +170,11 @@ function importBooleanPassthroughFields({
 function emitTypePayloadFields({
   def,
   hookType,
+  converterConfig,
 }: {
   def: HooksConfig["hooks"][string][number];
   hookType: HookType;
+  converterConfig: ToolHooksConverterConfig;
 }): Record<string, unknown> {
   if (hookType === "http") {
     return compact({ url: def.url, headers: def.headers, allowedEnvVars: def.allowedEnvVars });
@@ -173,7 +182,7 @@ function emitTypePayloadFields({
   if (hookType === "mcp_tool") {
     return compact({ server: def.server, tool: def.tool, input: def.input });
   }
-  if (hookType === "prompt" || hookType === "agent") {
+  if ((hookType === "prompt" || hookType === "agent") && converterConfig.emitsPromptModel) {
     return compact({ model: def.model });
   }
   return {};
@@ -209,7 +218,7 @@ function buildToolHooks({
       // Type-specific payload fields (https://code.claude.com/docs/en/hooks).
       // Gated per type so e.g. an `url` authored on a command hook never
       // leaks into the generated config.
-      ...emitTypePayloadFields({ def, hookType }),
+      ...emitTypePayloadFields({ def, hookType, converterConfig }),
       ...(converterConfig.passthroughFields?.includes("name") &&
         def.name !== undefined &&
         def.name !== null && { name: def.name }),
@@ -305,9 +314,6 @@ function stripCommandPrefix({
 }
 
 /**
- * Convert a single tool hook record into a canonical hook definition.
- */
-/**
  * Hook types preserved verbatim on import — Claude Code's five documented
  * handler types. Anything else is coerced to `command` as before.
  * https://code.claude.com/docs/en/hooks
@@ -360,6 +366,9 @@ function importTypePayloadFields({
   return {};
 }
 
+/**
+ * Convert a single tool hook record into a canonical hook definition.
+ */
 function toolHookToCanonical({
   h,
   rawEntry,

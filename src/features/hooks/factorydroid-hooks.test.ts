@@ -383,6 +383,36 @@ describe("FactorydroidHooks", () => {
       expect(hookDef.prompt).toBe("Check this tool call");
       expect(hookDef.timeout).toBe(30000);
     });
+
+    it("should not emit the canonical model field (undocumented for Factory Droid)", async () => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(join(testDir, ".factory", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [{ type: "prompt", prompt: "Check this tool call", model: "haiku" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(factorydroidHooks.getFileContent());
+      const hookDef = parsed.hooks.PreToolUse[0].hooks[0];
+      expect(hookDef.prompt).toBe("Check this tool call");
+      expect(hookDef.model).toBeUndefined();
+    });
   });
 
   describe("toRulesyncHooks", () => {

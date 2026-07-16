@@ -55,6 +55,8 @@ const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // `allowedEnvVars` for http, `server`/`tool`/`input` for mcp_tool, `model`
   // for prompt/agent). https://code.claude.com/docs/en/hooks
   supportedHookTypes: new Set(["command", "prompt", "http", "mcp_tool", "agent"]),
+  // Claude Code documents a per-hook `model` selector on prompt/agent hooks.
+  emitsPromptModel: true,
 };
 
 export class ClaudecodeHooks extends ToolHooks {
