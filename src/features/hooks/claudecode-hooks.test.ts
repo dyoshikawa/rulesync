@@ -73,6 +73,102 @@ describe("ClaudecodeHooks", () => {
       expect(parsed.hooks.afterFileEdit).toBeUndefined();
     });
 
+    it("should emit http/mcp_tool/agent hooks with their type-specific payload fields", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          postToolUse: [
+            {
+              type: "http",
+              url: "http://localhost:8080/hooks/post-use",
+              headers: { Authorization: "Bearer $MY_TOKEN" },
+              allowedEnvVars: ["MY_TOKEN"],
+              timeout: 10,
+              matcher: "Write|Edit",
+            },
+            {
+              type: "mcp_tool",
+              server: "my_server",
+              tool: "security_scan",
+              input: { file_path: "${tool_input.file_path}" },
+              matcher: "Write|Edit",
+            },
+            { type: "agent", prompt: "Review this change: $ARGUMENTS", model: "haiku" },
+          ],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(claudecodeHooks.getFileContent());
+      const groups = parsed.hooks.PostToolUse;
+      const allHooks = groups.flatMap((g: { hooks: Record<string, unknown>[] }) => g.hooks);
+      const httpHook = allHooks.find((h: { type?: string }) => h.type === "http");
+      expect(httpHook).toMatchObject({
+        url: "http://localhost:8080/hooks/post-use",
+        headers: { Authorization: "Bearer $MY_TOKEN" },
+        allowedEnvVars: ["MY_TOKEN"],
+        timeout: 10,
+      });
+      const mcpHook = allHooks.find((h: { type?: string }) => h.type === "mcp_tool");
+      expect(mcpHook).toMatchObject({
+        server: "my_server",
+        tool: "security_scan",
+        input: { file_path: "${tool_input.file_path}" },
+      });
+      const agentHook = allHooks.find((h: { type?: string }) => h.type === "agent");
+      expect(agentHook).toMatchObject({
+        prompt: "Review this change: $ARGUMENTS",
+        model: "haiku",
+      });
+    });
+
+    it("should not leak type-specific fields onto other hook types", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          // A command hook wrongly authored with http/mcp_tool payloads.
+          stop: [{ type: "command", command: "audit.sh", url: "https://example.com", server: "s" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(claudecodeHooks.getFileContent());
+      const hook = parsed.hooks.Stop[0].hooks[0];
+      expect(hook.command).toBe("audit.sh");
+      expect(hook.url).toBeUndefined();
+      expect(hook.server).toBeUndefined();
+    });
+
     it("should support the current documented Claude Code hook events (#1628)", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
@@ -445,6 +541,77 @@ describe("ClaudecodeHooks", () => {
       const rulesyncHooks = claudecodeHooks.toRulesyncHooks();
       const json = rulesyncHooks.getJson();
       expect(json.hooks.sessionStart?.[0]?.command).toBe("./scripts/format.sh --fix --quiet");
+    });
+
+    it("should preserve http/mcp_tool/agent hooks with their payload fields on import", () => {
+      const claudecodeHooks = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PostToolUse: [
+              {
+                matcher: "Write|Edit",
+                hooks: [
+                  {
+                    type: "http",
+                    url: "http://localhost:8080/hooks/post-use",
+                    headers: { Authorization: "Bearer $MY_TOKEN" },
+                    allowedEnvVars: ["MY_TOKEN"],
+                  },
+                  {
+                    type: "mcp_tool",
+                    server: "my_server",
+                    tool: "security_scan",
+                    input: { file_path: "${tool_input.file_path}" },
+                  },
+                  { type: "agent", prompt: "Review: $ARGUMENTS", model: "haiku" },
+                ],
+              },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = claudecodeHooks.toRulesyncHooks().getJson();
+      const defs = json.hooks.postToolUse ?? [];
+      expect(defs[0]).toMatchObject({
+        type: "http",
+        url: "http://localhost:8080/hooks/post-use",
+        headers: { Authorization: "Bearer $MY_TOKEN" },
+        allowedEnvVars: ["MY_TOKEN"],
+        matcher: "Write|Edit",
+      });
+      expect(defs[1]).toMatchObject({
+        type: "mcp_tool",
+        server: "my_server",
+        tool: "security_scan",
+        input: { file_path: "${tool_input.file_path}" },
+      });
+      expect(defs[2]).toMatchObject({
+        type: "agent",
+        prompt: "Review: $ARGUMENTS",
+        model: "haiku",
+      });
+    });
+
+    it("should coerce unknown hook types to command on import", () => {
+      const claudecodeHooks = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            Stop: [{ hooks: [{ type: "webhook", command: "audit.sh" }] }],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = claudecodeHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.stop?.[0]).toMatchObject({ type: "command", command: "audit.sh" });
     });
 
     it("should route unmapped native event names into the claudecode override block", () => {

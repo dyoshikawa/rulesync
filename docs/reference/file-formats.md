@@ -130,6 +130,9 @@ Example:
 - `failClosed` (optional): Boolean. When `true`, a hook failure (crash, timeout, invalid JSON) blocks the action instead of allowing it through. Passed through to Cursor's `.cursor/hooks.json` and to JetBrains Junie's `~/.junie/config.json` (as Junie's equivalently-named `blockOnError` flag).
 - `async` (optional): Boolean. When `true`, the hook command runs in the background without blocking. Forwarded to Qwen Code (`.qwen/settings.json`) and JetBrains Junie (`~/.junie/config.json`, same field name).
 - `shell` (optional): Either `"bash"` or `"powershell"` — the only two interpreter values any tool accepts. Forwarded to Qwen Code command hooks.
+- `url` / `headers` / `allowedEnvVars` (optional, `http` hooks): the POST target URL, request headers (values support `$VAR` interpolation), and the env-var allowlist for that interpolation. Forwarded to Claude Code and Qwen Code http hooks.
+- `server` / `tool` / `input` (optional, `mcp_tool` hooks): the configured MCP server name, the tool to call on it, and the (arbitrary JSON) arguments, whose string values support `${path}` substitution from the hook input. Forwarded to Claude Code mcp_tool hooks.
+- `model` (optional, `prompt` / `agent` hooks): the model used for evaluation (defaults to a fast model). Forwarded to Claude Code prompt/agent hooks.
 
 Top-level `hooks` keys must be canonical event names; unknown event names are rejected at parse time. Tool-specific override blocks (e.g. `kiro-ide.hooks`) additionally accept tool-native event keys, which pass through verbatim.
 

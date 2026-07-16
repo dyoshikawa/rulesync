@@ -174,7 +174,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsImport: true,
       },
       supportedEvents: CLAUDE_HOOK_EVENTS,
-      supportedHookTypes: ["command", "prompt"],
+      // All five documented handler types are emitted faithfully with their
+      // type-specific payload fields. https://code.claude.com/docs/en/hooks
+      supportedHookTypes: ["command", "prompt", "http", "mcp_tool", "agent"],
       supportsMatcher: true,
     },
   ],
