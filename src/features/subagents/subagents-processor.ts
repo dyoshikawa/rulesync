@@ -592,11 +592,12 @@ export class SubagentsProcessor extends FeatureProcessor {
       // ownership marker; everything else is skipped for both import and
       // orphan deletion so foreign files are never mis-imported or removed.
       let ownedFilePaths = subagentFilePaths;
-      const isFileOwned = factory.class.isFileOwned;
-      if (isFileOwned) {
+      if (factory.class.isFileOwned) {
         const ownership = await Promise.all(
           subagentFilePaths.map((path) =>
-            isFileOwned({
+            // Called through factory.class so a future implementation may
+            // safely reference `this` (its own statics), like the other hooks.
+            factory.class.isFileOwned!({
               outputRoot: this.outputRoot,
               relativeDirPath: dirPath,
               relativeFilePath: toRelativeFilePath(path),

@@ -1099,6 +1099,8 @@ describe("generate", () => {
     }) => {
       mockConfig.getTargets.mockReturnValue(["reasonix"]);
       mockConfig.getFeatures.mockReturnValue(["skills", "subagents"]);
+      vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["reasonix"]);
+      vi.mocked(SkillsProcessor.getToolTargets).mockReturnValue(["reasonix"]);
 
       vi.mocked(SubagentsProcessor.getFactory).mockReturnValue({
         class: {
@@ -1163,6 +1165,29 @@ describe("generate", () => {
       const mockLogger = createMockLogger();
       await generate({ logger: mockLogger, config: mockConfig as never });
 
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(expect.stringContaining("and subagent"));
+    });
+
+    it("should not consult getSettablePaths for a target a feature does not support in the scope", async () => {
+      // agentsmd-like case: the target enables both features but is not in the
+      // feature's global target list, and its getSettablePaths throws for the
+      // unsupported scope. The collision check must skip it instead of crashing.
+      setupCollisionScenario({ subagentName: "reviewer", skillName: "reviewer" });
+      mockConfig.getGlobal.mockReturnValue(true);
+      vi.mocked(SkillsProcessor.getToolTargets).mockReturnValue([]);
+      vi.mocked(SkillsProcessor.getFactory).mockReturnValue({
+        class: {
+          getSettablePaths: () => {
+            throw new Error("does not support global mode");
+          },
+          isTargetedByRulesyncSkill: () => true,
+        },
+      } as unknown as ReturnType<typeof SkillsProcessor.getFactory>);
+
+      const mockLogger = createMockLogger();
+      await expect(
+        generate({ logger: mockLogger, config: mockConfig as never }),
+      ).resolves.toBeDefined();
       expect(mockLogger.warn).not.toHaveBeenCalledWith(expect.stringContaining("and subagent"));
     });
   });

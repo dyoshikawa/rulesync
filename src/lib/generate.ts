@@ -361,6 +361,15 @@ async function warnSkillSubagentNameCollisions(params: {
     if (!features.includes("skills") || !features.includes("subagents")) {
       continue;
     }
+    // Mirror the generation steps' target filtering: getSettablePaths may
+    // throw for a scope the tool does not support (e.g. agentsmd skills in
+    // global mode), so only consult tools both features actually run for.
+    if (
+      !SubagentsProcessor.getToolTargets({ global }).includes(toolTarget) ||
+      !SkillsProcessor.getToolTargets({ global }).includes(toolTarget)
+    ) {
+      continue;
+    }
     const subagentFactory = SubagentsProcessor.getFactory(toolTarget);
     const skillFactory = SkillsProcessor.getFactory(toolTarget);
     if (!subagentFactory || !skillFactory) {
