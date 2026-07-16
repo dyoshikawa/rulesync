@@ -509,6 +509,42 @@ describe("QwencodeHooks", () => {
       });
     });
 
+    it("should preserve the function hook type on import instead of collapsing to command", () => {
+      const qwencodeHooks = new QwencodeHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              PreToolUse: [{ hooks: [{ type: "function", name: "skillHook" }] }],
+            },
+          }),
+        }),
+      );
+
+      const parsed = qwencodeHooks.toRulesyncHooks().getJson();
+      expect(parsed.hooks.preToolUse?.[0]).toEqual({
+        type: "function",
+        name: "skillHook",
+      });
+    });
+
+    it("should drop an unsupported shell value on import instead of failing", () => {
+      const qwencodeHooks = new QwencodeHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              PreToolUse: [{ hooks: [{ type: "command", command: "ls", shell: "zsh" }] }],
+            },
+          }),
+        }),
+      );
+
+      const parsed = qwencodeHooks.toRulesyncHooks().getJson();
+      expect(parsed.hooks.preToolUse?.[0]).toEqual({
+        type: "command",
+        command: "ls",
+      });
+    });
+
     it("should import command-only per-hook fields (async/env/shell/statusMessage)", () => {
       const qwencodeHooks = new QwencodeHooks(
         createMockAiFileParams({

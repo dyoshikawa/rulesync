@@ -160,12 +160,17 @@ function qwencodeMatcherEntryToCanonical(
       ? entry.matcher
       : undefined;
   for (const h of hooks) {
-    // Preserve the `http` transport (and its target URL) instead of
-    // collapsing every non-prompt hook to `command`.
+    // Preserve every documented Qwen Code hook type (`command`, `prompt`,
+    // `http`, `function`) instead of collapsing unknown types to `command`.
     const hookType =
-      h.type === "command" || h.type === "prompt" || h.type === "http" ? h.type : "command";
+      h.type === "command" || h.type === "prompt" || h.type === "http" || h.type === "function"
+        ? h.type
+        : "command";
     const isHttp = hookType === "http";
     const isCommand = hookType === "command";
+    // The canonical schema restricts `shell` to the two values Qwen accepts;
+    // drop anything else rather than failing the whole import.
+    const shell = h.shell === "bash" || h.shell === "powershell" ? h.shell : undefined;
     defs.push({
       type: hookType,
       ...compact({
@@ -179,7 +184,7 @@ function qwencodeMatcherEntryToCanonical(
         // Command-only per-hook fields (Qwen Code PR #2827) — command type only.
         async: isCommand ? h.async : undefined,
         env: isCommand ? h.env : undefined,
-        shell: isCommand ? h.shell : undefined,
+        shell: isCommand ? shell : undefined,
         // Http-only per-hook fields (Qwen Code PR #2827).
         headers: isHttp ? h.headers : undefined,
         allowedEnvVars: isHttp ? h.allowedEnvVars : undefined,

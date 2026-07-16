@@ -1,4 +1,4 @@
-import type { HookEvent, HooksConfig } from "../../types/hooks.js";
+import type { HookEvent, HookType, HooksConfig } from "../../types/hooks.js";
 import type { Logger } from "../../utils/logger.js";
 
 type ToolMatcherEntry = {
@@ -24,7 +24,7 @@ export type ToolHooksConverterConfig = {
   canonicalToToolEventNames: Record<string, string>;
   toolToCanonicalEventNames: Record<string, string>;
   projectDirVar: string;
-  supportedHookTypes?: ReadonlySet<"command" | "prompt" | "http">;
+  supportedHookTypes?: ReadonlySet<HookType>;
   passthroughFields?: ReadonlyArray<"name" | "description">;
   /**
    * Per-hook boolean fields to carry through the round-trip, each mapping a

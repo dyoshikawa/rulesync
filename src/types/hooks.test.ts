@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  HOOK_TYPES,
+  HookDefinitionSchema,
+  HooksConfigSchema,
   CANONICAL_TO_CLAUDE_EVENT_NAMES,
   CANONICAL_TO_CODEXCLI_EVENT_NAMES,
   CANONICAL_TO_CURSOR_EVENT_NAMES,
@@ -156,5 +159,60 @@ describe("Factory Droid event naming", () => {
     expect(CANONICAL_TO_FACTORYDROID_EVENT_NAMES.subagentStop).toBe("SubagentStop");
     expect(CANONICAL_TO_FACTORYDROID_EVENT_NAMES.preCompact).toBe("PreCompact");
     expect(CANONICAL_TO_FACTORYDROID_EVENT_NAMES.notification).toBe("Notification");
+  });
+});
+
+describe("HookDefinitionSchema", () => {
+  it("should accept every canonical hook type", () => {
+    for (const type of HOOK_TYPES) {
+      const result = HookDefinitionSchema.safeParse({ type });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it("should reject an unknown hook type", () => {
+    const result = HookDefinitionSchema.safeParse({ type: "webhook" });
+    expect(result.success).toBe(false);
+  });
+
+  it("should accept bash and powershell shells", () => {
+    for (const shell of ["bash", "powershell"]) {
+      const result = HookDefinitionSchema.safeParse({ type: "command", command: "ls", shell });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it("should reject an unsupported shell", () => {
+    const result = HookDefinitionSchema.safeParse({
+      type: "command",
+      command: "ls",
+      shell: "zsh",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("HooksConfigSchema", () => {
+  it("should accept canonical event names as top-level hooks keys", () => {
+    const result = HooksConfigSchema.safeParse({
+      hooks: { preToolUse: [{ type: "command", command: "ls" }] },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("should reject an unknown top-level event name", () => {
+    const result = HooksConfigSchema.safeParse({
+      hooks: { preToolUsee: [{ type: "command", command: "ls" }] },
+    });
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result.error?.issues)).toContain("preToolUsee");
+  });
+
+  it("should keep tool-override hook keys lenient for native passthrough triggers", () => {
+    const result = HooksConfigSchema.safeParse({
+      hooks: {},
+      "kiro-ide": { hooks: { PostFileSave: [{ type: "command", command: "ls" }] } },
+    });
+    expect(result.success).toBe(true);
   });
 });
