@@ -1,5 +1,6 @@
 import { type HookEvent, type HookType, type HooksConfig, isHookEvent } from "../../types/hooks.js";
 import type { Logger } from "../../utils/logger.js";
+import { compact } from "../../utils/object.js";
 
 type ToolMatcherEntry = {
   matcher?: string;
@@ -42,6 +43,13 @@ export type ToolHooksConverterConfig = {
    * are prefixed with projectDirVar. Bare executable commands like `npx prettier ...` are left intact.
    */
   prefixDotRelativeCommandsOnly?: boolean;
+  /**
+   * When true, prompt/agent hooks emit the canonical `model` field. Only tools
+   * that document a per-hook model selector (Claude Code) should opt in —
+   * other prompt-capable tools (Factory Droid, Devin) do not document the
+   * field, so it must not leak into their generated configs.
+   */
+  emitsPromptModel?: boolean;
   /**
    * Events that do not support the `matcher` field. Any matcher defined on these events
    * will be silently dropped with a warning during export.
@@ -155,6 +163,32 @@ function importBooleanPassthroughFields({
 }
 
 /**
+ * Emit the payload fields specific to a hook type — `url`/`headers`/
+ * `allowedEnvVars` for http, `server`/`tool`/`input` for mcp_tool, `model`
+ * for prompt/agent. https://code.claude.com/docs/en/hooks
+ */
+function emitTypePayloadFields({
+  def,
+  hookType,
+  converterConfig,
+}: {
+  def: HooksConfig["hooks"][string][number];
+  hookType: HookType;
+  converterConfig: ToolHooksConverterConfig;
+}): Record<string, unknown> {
+  if (hookType === "http") {
+    return compact({ url: def.url, headers: def.headers, allowedEnvVars: def.allowedEnvVars });
+  }
+  if (hookType === "mcp_tool") {
+    return compact({ server: def.server, tool: def.tool, input: def.input });
+  }
+  if ((hookType === "prompt" || hookType === "agent") && converterConfig.emitsPromptModel) {
+    return compact({ model: def.model });
+  }
+  return {};
+}
+
+/**
  * Convert the definitions of a single matcher group into tool hook entries,
  * honoring supported hook types and passthrough fields.
  */
@@ -181,6 +215,10 @@ function buildToolHooks({
       ...(command !== undefined && command !== null && { command }),
       ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
       ...(def.prompt !== undefined && def.prompt !== null && { prompt: def.prompt }),
+      // Type-specific payload fields (https://code.claude.com/docs/en/hooks).
+      // Gated per type so e.g. an `url` authored on a command hook never
+      // leaks into the generated config.
+      ...emitTypePayloadFields({ def, hookType, converterConfig }),
       ...(converterConfig.passthroughFields?.includes("name") &&
         def.name !== undefined &&
         def.name !== null && { name: def.name }),
@@ -276,6 +314,59 @@ function stripCommandPrefix({
 }
 
 /**
+ * Hook types preserved verbatim on import — Claude Code's five documented
+ * handler types. Anything else is coerced to `command` as before.
+ * https://code.claude.com/docs/en/hooks
+ */
+const IMPORTED_HOOK_TYPES = new Set<HookType>(["command", "prompt", "http", "mcp_tool", "agent"]);
+
+function isImportedHookType(value: unknown): value is HookType {
+  return typeof value === "string" && IMPORTED_HOOK_TYPES.has(value as HookType);
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  return Object.values(value).every((v) => typeof v === "string");
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((v) => typeof v === "string");
+}
+
+/**
+ * Import the payload fields specific to a hook type, type-checking each raw
+ * value before it enters the canonical definition.
+ */
+function importTypePayloadFields({
+  h,
+  hookType,
+}: {
+  h: Record<string, unknown>;
+  hookType: HookType;
+}): Partial<HooksConfig["hooks"][string][number]> {
+  if (hookType === "http") {
+    return {
+      ...(typeof h.url === "string" && { url: h.url }),
+      ...(isStringRecord(h.headers) && { headers: h.headers }),
+      ...(isStringArray(h.allowedEnvVars) && { allowedEnvVars: h.allowedEnvVars }),
+    };
+  }
+  if (hookType === "mcp_tool") {
+    return {
+      ...(typeof h.server === "string" && { server: h.server }),
+      ...(typeof h.tool === "string" && { tool: h.tool }),
+      ...(h.input !== null &&
+        typeof h.input === "object" &&
+        !Array.isArray(h.input) && { input: h.input as Record<string, unknown> }),
+    };
+  }
+  if (hookType === "prompt" || hookType === "agent") {
+    return typeof h.model === "string" ? { model: h.model } : {};
+  }
+  return {};
+}
+
+/**
  * Convert a single tool hook record into a canonical hook definition.
  */
 function toolHookToCanonical({
@@ -288,7 +379,7 @@ function toolHookToCanonical({
   converterConfig: ToolHooksConverterConfig;
 }): HooksConfig["hooks"][string][number] {
   const command = stripCommandPrefix({ command: h.command, converterConfig });
-  const hookType = h.type === "command" || h.type === "prompt" ? h.type : "command";
+  const hookType = isImportedHookType(h.type) ? h.type : "command";
   const timeout = typeof h.timeout === "number" ? h.timeout : undefined;
   const prompt = typeof h.prompt === "string" ? h.prompt : undefined;
   return {
@@ -296,6 +387,10 @@ function toolHookToCanonical({
     ...(command !== undefined && command !== null && { command }),
     ...(timeout !== undefined && timeout !== null && { timeout }),
     ...(prompt !== undefined && prompt !== null && { prompt }),
+    // Type-specific payload fields, preserved so http/mcp_tool/agent hooks
+    // found in an existing settings file round-trip instead of silently
+    // degrading to broken command hooks.
+    ...importTypePayloadFields({ h, hookType }),
     ...(converterConfig.passthroughFields?.includes("name") &&
       typeof h.name === "string" && { name: h.name }),
     ...(converterConfig.passthroughFields?.includes("description") &&

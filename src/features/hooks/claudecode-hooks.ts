@@ -50,10 +50,13 @@ const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   projectDirVar: "$CLAUDE_PROJECT_DIR",
   prefixDotRelativeCommandsOnly: true,
   noMatcherEvents: CLAUDE_NO_MATCHER_EVENTS,
-  // Claude Code also documents `http`/`mcp_tool`/`agent` hook handlers, but the
-  // shared converter only carries the command/prompt payload fields, so only
-  // those two round-trip faithfully today (tracked in issue #2231).
-  supportedHookTypes: new Set(["command", "prompt"]),
+  // All five documented Claude Code handler types round-trip faithfully:
+  // the shared converter carries each type's payload fields (`url`/`headers`/
+  // `allowedEnvVars` for http, `server`/`tool`/`input` for mcp_tool, `model`
+  // for prompt/agent). https://code.claude.com/docs/en/hooks
+  supportedHookTypes: new Set(["command", "prompt", "http", "mcp_tool", "agent"]),
+  // Claude Code documents a per-hook `model` selector on prompt/agent hooks.
+  emitsPromptModel: true,
 };
 
 export class ClaudecodeHooks extends ToolHooks {

@@ -81,6 +81,17 @@ export const HookDefinitionSchema = z.looseObject({
   headers: z.optional(z.record(z.string(), safeString)),
   allowedEnvVars: z.optional(z.array(z.string())),
   once: z.optional(z.boolean()),
+  // Claude Code `mcp_tool` hooks: `server` names a configured MCP server,
+  // `tool` the tool to call on it, and `input` the (arbitrary JSON) arguments
+  // passed to the tool, whose string values support `${path}` substitution.
+  // https://code.claude.com/docs/en/hooks
+  server: z.optional(safeString),
+  tool: z.optional(safeString),
+  input: z.optional(z.looseObject({})),
+  // Claude Code `prompt` and `agent` hooks: the model used for evaluation
+  // (defaults to a fast model when omitted). Qwen Code documents the same
+  // field on prompt hooks, but the qwencode adapter does not forward it yet.
+  model: z.optional(safeString),
 });
 
 export type HookDefinition = z.infer<typeof HookDefinitionSchema>;
