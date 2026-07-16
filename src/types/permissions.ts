@@ -553,6 +553,14 @@ const CodexBasePermissionProfileSchema = z.enum(CODEX_BASE_PERMISSION_PROFILES);
  *   | `guardian_subagent`), or a table for the richer reviewer config.
  *   Defaults to `auto_review` when neither the override nor the existing
  *   config sets it.
+ * - `git_write_rules` — whether the managed profile's `:workspace_roots` table
+ *   emits the default `.git` carve-outs (`".git/**" = "write"` with
+ *   `".git/config" = "read"` kept read-only as a security guard). Codex's
+ *   `:workspace` baseline makes `.git` read-only, which denies basic git
+ *   workflows (commit/stage writes to `.git/index`, `.git/objects`, refs,
+ *   logs), so the carve-outs are emitted by default. Defaults to `true`; only
+ *   an explicit `false` suppresses them. Like `base_permission_profile` it is
+ *   consumed by the profile builder, not written as a top-level config key.
  *
  * Two surfaces are deliberately NOT authorable here so the override can never
  * clobber a feature-owned key: `mcp_servers.*` per-MCP gating is owned by the
@@ -579,6 +587,7 @@ const CodexcliPermissionsOverrideSchema = z.looseObject({
   sandbox_workspace_write: z.optional(z.looseObject({})),
   apps: z.optional(z.looseObject({})),
   approvals_reviewer: z.optional(z.union([CodexApprovalsReviewerSchema, z.looseObject({})])),
+  git_write_rules: z.optional(z.boolean()),
 });
 export type CodexcliPermissionsOverride = z.infer<typeof CodexcliPermissionsOverrideSchema>;
 
