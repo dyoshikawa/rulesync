@@ -53,7 +53,11 @@ export type ToolRuleSettablePathsGlobal = {
     relativeDirPath: string;
     relativeFilePath: string;
   };
-  alternativeRoots?: undefined;
+  /** Fallback root paths tried when the primary root file is not found. Primary root always takes precedence. */
+  alternativeRoots?: Array<{
+    relativeDirPath: string;
+    relativeFilePath: string;
+  }>;
   /**
    * Optional non-root rules directory for global scope. Most tools have no
    * user-scoped modular-rules location and leave this unset, but tools that do

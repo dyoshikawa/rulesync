@@ -8,7 +8,7 @@ import {
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { writeFileContent } from "../../utils/file.js";
 import { JunieRule } from "./junie-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
@@ -50,16 +50,16 @@ describe("JunieRule", () => {
       expect(junieRule.getFilePath()).toBe("/custom/path/.junie/guidelines.md");
     });
 
-    it("should create instance for memory files", () => {
+    it("should create instance for the preferred AGENTS.md root file", () => {
       const junieRule = new JunieRule({
-        relativeDirPath: ".junie/memories",
-        relativeFilePath: "memory-rule.md",
-        fileContent: "# Memory Rule\n\nThis is a memory rule.",
+        relativeDirPath: ".junie",
+        relativeFilePath: "AGENTS.md",
+        fileContent: "# Root Rule\n\nThis is the root rule.",
       });
 
-      expect(junieRule.getRelativeDirPath()).toBe(".junie/memories");
-      expect(junieRule.getRelativeFilePath()).toBe("memory-rule.md");
-      expect(junieRule.getFileContent()).toBe("# Memory Rule\n\nThis is a memory rule.");
+      expect(junieRule.getRelativeDirPath()).toBe(".junie");
+      expect(junieRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(junieRule.getFileContent()).toBe("# Root Rule\n\nThis is the root rule.");
     });
 
     it("should validate content by default", () => {
@@ -131,23 +131,20 @@ describe("JunieRule", () => {
       expect(junieRule.isRoot()).toBe(true);
     });
 
-    it("should create instance from memory file", async () => {
-      // Setup test file
-      const memoriesDir = join(testDir, ".junie/memories");
-      await ensureDir(memoriesDir);
-      const testContent = "# Memory Rule\n\nContent from memory file.";
-      await writeFileContent(join(memoriesDir, "memory-test.md"), testContent);
+    it("should read any project rule from the .junie root directory", async () => {
+      // Junie has no non-root rules directory; everything reads from `.junie/`.
+      const testContent = "# Root Guidelines";
+      await writeFileContent(join(testDir, ".junie", "AGENTS.md"), testContent);
 
       const junieRule = await JunieRule.fromFile({
         outputRoot: testDir,
-        relativeFilePath: "memory-test.md",
+        relativeFilePath: "AGENTS.md",
       });
 
-      expect(junieRule.getRelativeDirPath()).toBe(".junie/memories");
-      expect(junieRule.getRelativeFilePath()).toBe("memory-test.md");
+      expect(junieRule.getRelativeDirPath()).toBe(".junie");
+      expect(junieRule.getRelativeFilePath()).toBe("AGENTS.md");
       expect(junieRule.getFileContent()).toBe(testContent);
-      expect(junieRule.getFilePath()).toBe(join(testDir, ".junie/memories/memory-test.md"));
-      expect(junieRule.isRoot()).toBe(false);
+      expect(junieRule.isRoot()).toBe(true);
     });
 
     it("should use default outputRoot when not provided", async () => {
@@ -193,33 +190,23 @@ describe("JunieRule", () => {
       ).rejects.toThrow();
     });
 
-    it("should detect root vs non-root files correctly", async () => {
-      // Setup root guidelines file and memory files
-      const memoriesDir = join(testDir, ".junie/memories");
-      await ensureDir(memoriesDir);
-
-      const rootContent = "# Root Guidelines";
-      const memoryContent = "# Memory Rule";
-
-      // Root file lives at .junie/guidelines.md
-      await writeFileContent(join(testDir, ".junie", "guidelines.md"), rootContent);
-      // Memory file goes in .junie/memories
-      await writeFileContent(join(memoriesDir, "memory.md"), memoryContent);
+    it("should mark both AGENTS.md and legacy guidelines.md as root files", async () => {
+      await writeFileContent(join(testDir, ".junie", "AGENTS.md"), "# Root");
+      await writeFileContent(join(testDir, ".junie", "guidelines.md"), "# Legacy Root");
 
       const rootRule = await JunieRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "AGENTS.md",
+      });
+      const legacyRule = await JunieRule.fromFile({
         outputRoot: testDir,
         relativeFilePath: "guidelines.md",
       });
 
-      const memoryRule = await JunieRule.fromFile({
-        outputRoot: testDir,
-        relativeFilePath: "memory.md",
-      });
-
       expect(rootRule.isRoot()).toBe(true);
       expect(rootRule.getRelativeDirPath()).toBe(".junie");
-      expect(memoryRule.isRoot()).toBe(false);
-      expect(memoryRule.getRelativeDirPath()).toBe(".junie/memories");
+      expect(legacyRule.isRoot()).toBe(true);
+      expect(legacyRule.getRelativeDirPath()).toBe(".junie");
     });
   });
 
@@ -267,8 +254,10 @@ describe("JunieRule", () => {
       });
 
       expect(junieRule).toBeInstanceOf(JunieRule);
-      expect(junieRule.getRelativeDirPath()).toBe(".junie/memories");
-      expect(junieRule.getRelativeFilePath()).toBe("detail-rule.md");
+      // Non-root rules target the single root file; the RulesProcessor folds
+      // their bodies into it and drops the redundant instances before writing.
+      expect(junieRule.getRelativeDirPath()).toBe(".junie");
+      expect(junieRule.getRelativeFilePath()).toBe("AGENTS.md");
       expect(junieRule.getFileContent()).toContain(
         "# Detail RulesyncRule\n\nContent from detail rulesync.",
       );
@@ -293,7 +282,7 @@ describe("JunieRule", () => {
         rulesyncRule,
       });
 
-      expect(junieRule.getFilePath()).toBe("/custom/base/.junie/memories/custom-base.md");
+      expect(junieRule.getFilePath()).toBe("/custom/base/.junie/AGENTS.md");
     });
 
     it("should handle validation parameter", () => {
@@ -345,7 +334,7 @@ describe("JunieRule", () => {
     it("should convert JunieRule to RulesyncRule for memory rule", () => {
       const junieRule = new JunieRule({
         outputRoot: testDir,
-        relativeDirPath: ".junie/memories",
+        relativeDirPath: ".junie",
         relativeFilePath: "memory-convert.md",
         fileContent: "# Memory Convert Test\n\nThis memory will be converted.",
         root: false,
@@ -397,7 +386,7 @@ describe("JunieRule", () => {
 
     it("should return success for empty content", () => {
       const junieRule = new JunieRule({
-        relativeDirPath: ".junie/memories",
+        relativeDirPath: ".junie",
         relativeFilePath: "empty.md",
         fileContent: "",
       });
@@ -454,26 +443,20 @@ describe("JunieRule", () => {
       expect(rulesyncRule.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME);
     });
 
-    it("should handle complete workflow from memory file to rulesync rule", async () => {
-      // Create memory file
-      const memoriesDir = join(testDir, ".junie/memories");
-      await ensureDir(memoriesDir);
-      const originalContent = "# Memory Integration Test\n\nMemory workflow test.";
-      await writeFileContent(join(memoriesDir, "memory-integration.md"), originalContent);
+    it("should handle complete workflow from legacy guidelines file to rulesync rule", async () => {
+      const originalContent = "# Legacy Integration Test\n\nLegacy workflow test.";
+      await writeFileContent(join(testDir, ".junie", "guidelines.md"), originalContent);
 
-      // Load from file
       const junieRule = await JunieRule.fromFile({
         outputRoot: testDir,
-        relativeFilePath: "memory-integration.md",
+        relativeFilePath: "guidelines.md",
       });
 
-      // Convert to rulesync rule
       const rulesyncRule = junieRule.toRulesyncRule();
 
-      // Verify conversion
       expect(rulesyncRule.getFileContent()).toContain(originalContent);
       expect(rulesyncRule.getRelativeDirPath()).toBe(RULESYNC_RULES_RELATIVE_DIR_PATH);
-      expect(rulesyncRule.getRelativeFilePath()).toBe("memory-integration.md");
+      expect(rulesyncRule.getRelativeFilePath()).toBe(RULESYNC_OVERVIEW_FILE_NAME);
     });
 
     it("should handle roundtrip conversion rulesync -> junie -> rulesync", () => {
@@ -533,28 +516,11 @@ describe("JunieRule", () => {
       // Convert back to rulesync rule
       const finalRulesync = junieRule.toRulesyncRule();
 
-      // Verify content preservation
+      // Verify content preservation. The non-root body targets the shared
+      // root file (the RulesProcessor folds it into `.junie/AGENTS.md`).
       expect(finalRulesync.getFileContent()).toContain(originalBody);
-      expect(finalRulesync.getRelativeFilePath()).toBe("detail-roundtrip.md");
-    });
-
-    it("should preserve directory structure in file paths", async () => {
-      // Test nested directory structure
-      const nestedDir = join(testDir, ".junie/memories/nested");
-      await ensureDir(nestedDir);
-      const content = "# Nested Rule\n\nIn a nested directory.";
-      await writeFileContent(join(nestedDir, "nested-rule.md"), content);
-
-      // This should work with the current implementation since fromFile
-      // determines path based on the relativeFilePath parameter
-      const junieRule = await JunieRule.fromFile({
-        outputRoot: testDir,
-        relativeFilePath: "nested/nested-rule.md",
-      });
-
-      expect(junieRule.getRelativeDirPath()).toBe(".junie/memories");
-      expect(junieRule.getRelativeFilePath()).toBe("nested/nested-rule.md");
-      expect(junieRule.getFileContent()).toBe(content);
+      expect(junieRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(junieRule.isRoot()).toBe(false);
     });
   });
 

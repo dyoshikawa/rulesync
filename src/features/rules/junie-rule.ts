@@ -13,32 +13,41 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
-  ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
   buildToolPath,
 } from "./tool-rule.js";
 
-export type JunieRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+export type JunieRuleSettablePaths = {
   root: {
     relativeDirPath: string;
     relativeFilePath: string;
   };
-  nonRoot: {
+  /** Legacy `.junie/guidelines.md`, accepted as an import fallback. */
+  alternativeRoots?: Array<{
     relativeDirPath: string;
-  };
+    relativeFilePath: string;
+  }>;
+  nonRoot?: undefined;
 };
 
 /**
  * Rule generator for JetBrains Junie AI coding agent
  *
- * Generates `.junie/AGENTS.md` files based on rulesync rule content. `.junie/AGENTS.md`
- * is the preferred guideline file in current Junie; the legacy `.junie/guidelines.md`
- * is still read by Junie and is accepted as an import fallback, but generation always
- * targets `.junie/AGENTS.md`. Junie uses plain markdown without frontmatter requirements.
+ * Generates `.junie/AGENTS.md` files based on rulesync rule content. Junie CLI
+ * resolves project guidelines **first-match-wins**: `.junie/AGENTS.md` → root
+ * `AGENTS.md` → legacy `.junie/guidelines.md` / `.junie/guidelines/`. Only the
+ * first match is loaded, it documents no `@`-reference or file-inclusion
+ * mechanism, and no `.junie/memories/` read path exists — so non-root rules
+ * are folded into the single root `.junie/AGENTS.md` by the RulesProcessor
+ * (`nonRoot` is `undefined`, mirroring the grokcli / warp / deepagents
+ * targets; decision recorded in issue #2211). The legacy
+ * `.junie/guidelines.md` is still accepted as an import fallback, but
+ * generation always targets `.junie/AGENTS.md`. Junie uses plain markdown
+ * without frontmatter requirements.
  *
- * Global (user) scope writes a single `~/.junie/AGENTS.md` file. Junie merges these
- * user-scope guidelines with the project `.junie/AGENTS.md` (project takes priority on
- * conflicts); memory files (`.junie/memories/`) remain project-scoped only.
+ * Global (user) scope writes a single `~/.junie/AGENTS.md` file. Junie merges
+ * these user-scope guidelines with the project guidelines (both are included
+ * and marked clearly).
  *
  * @see https://junie.jetbrains.com/docs/junie-ide-plugin.html
  * @see https://junie.jetbrains.com/docs/guidelines-and-memory.html
@@ -52,9 +61,8 @@ export class JunieRule extends ToolRule {
     excludeToolDir?: boolean;
   } = {}): JunieRuleSettablePaths | ToolRuleSettablePathsGlobal {
     if (global) {
-      // Junie merges the user-scope `~/.junie/AGENTS.md` guideline file with the
-      // project `.junie/AGENTS.md`. Global guidelines are a single root file; memory
-      // files (`.junie/memories/`) stay project-scoped.
+      // Junie merges the user-scope `~/.junie/AGENTS.md` guideline file with
+      // the project guidelines. Global guidelines are a single root file.
       return {
         root: {
           relativeDirPath: buildToolPath(JUNIE_DIR, ".", excludeToolDir),
@@ -75,17 +83,12 @@ export class JunieRule extends ToolRule {
           relativeFilePath: JUNIE_LEGACY_RULE_FILE_NAME,
         },
       ],
-      nonRoot: {
-        relativeDirPath: buildToolPath(JUNIE_DIR, "memories", excludeToolDir),
-      },
     };
   }
 
   /**
    * Determines whether a given relative file path refers to a root guideline file.
    * The preferred file is `AGENTS.md`; the legacy `guidelines.md` is still accepted.
-   * Memory files live under `.junie/memories/` and are passed in as bare filenames
-   * (e.g. `memo.md`), so a top-level `AGENTS.md`/`guidelines.md` is the root entry.
    */
   private static isRootRelativeFilePath(relativeFilePath: string): boolean {
     return (
@@ -118,14 +121,8 @@ export class JunieRule extends ToolRule {
       });
     }
 
-    const isRoot = JunieRule.isRootRelativeFilePath(relativeFilePath);
     const settablePaths = this.getSettablePaths();
-    if (!settablePaths.nonRoot) {
-      throw new Error("JunieRule project settable paths must include a nonRoot path");
-    }
-    const relativeDirPath = isRoot
-      ? settablePaths.root.relativeDirPath
-      : settablePaths.nonRoot.relativeDirPath;
+    const relativeDirPath = settablePaths.root.relativeDirPath;
     // Read from the actual discovered filename so the legacy `guidelines.md` fallback
     // is loaded correctly; generation still normalizes back to `AGENTS.md`.
     const relativePath = join(relativeDirPath, relativeFilePath);
@@ -137,7 +134,7 @@ export class JunieRule extends ToolRule {
       relativeFilePath,
       fileContent,
       validate,
-      root: isRoot,
+      root: JunieRule.isRootRelativeFilePath(relativeFilePath),
     });
   }
 
@@ -167,15 +164,18 @@ export class JunieRule extends ToolRule {
       );
     }
 
-    return new JunieRule(
-      this.buildToolRuleParamsDefault({
-        outputRoot,
-        rulesyncRule,
-        validate,
-        rootPath: this.getSettablePaths().root,
-        nonRootPath: this.getSettablePaths().nonRoot,
-      }),
-    );
+    // Both root and non-root rules target the single root `.junie/AGENTS.md`;
+    // the RulesProcessor folds the non-root bodies into the root rule and
+    // drops the redundant non-root instances before writing.
+    const { root } = this.getSettablePaths();
+    return new JunieRule({
+      outputRoot,
+      relativeDirPath: root.relativeDirPath,
+      relativeFilePath: root.relativeFilePath,
+      fileContent: rulesyncRule.getBody(),
+      validate,
+      root: rulesyncRule.getFrontmatter().root ?? false,
+    });
   }
 
   toRulesyncRule(): RulesyncRule {

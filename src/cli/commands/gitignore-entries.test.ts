@@ -152,6 +152,7 @@ describe("registry derivation", () => {
       // Legacy/aggregate/ghost outputs not produced via getSettablePaths.
       "augmentcode::rules::**/.augment-guidelines",
       "devin::commands::**/.devin/workflows/",
+      "junie::rules::**/.junie/memories/",
       "roo::subagents::**/.roomodes",
       "codexcli::ignore::**/.codexignore",
       // Codex CLI's `.codex/rules/rulesync.rules` bash-permission file is written

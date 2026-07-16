@@ -237,6 +237,7 @@ rulesync.local.jsonc
 **/.takt/config.yaml
 **/.augment-guidelines
 **/.devin/workflows/
+**/.junie/memories/
 **/.agents/skills/
 **/.rovodev/prompts.yml
 **/.config/devin/skills/
@@ -265,7 +266,6 @@ rulesync.local.jsonc
 **/.hermes.md
 **/.junie/AGENTS.md
 **/.junie/guidelines.md
-**/.junie/memories/
 **/.kilo/rules/
 **/.kiro/steering/
 **/.opencode/memories/
