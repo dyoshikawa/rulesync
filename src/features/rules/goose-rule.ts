@@ -43,6 +43,15 @@ export type GooseRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  * is `undefined`). This mirrors the grokcli, warp, and deepagents targets.
  *
  * Goose uses plain markdown files (.goosehints) without frontmatter.
+ *
+ * Global scope emits only `~/.config/goose/.goosehints`. Goose v1.41.0 (PR
+ * block/goose#9736) additionally loads the vendor-neutral
+ * `~/.agents/AGENTS.md` alongside the config-dir hints, but rulesync
+ * deliberately does not emit that shared path from the goose target: the
+ * config-dir hints remain fully loaded (no capability loss), and the
+ * cross-tool `~/.agents/AGENTS.md` is already written by targets that own it
+ * (e.g. cline in global mode) — a second writer would need cross-target
+ * shared-file coordination for zero gain (decision recorded in issue #2207).
  */
 export class GooseRule extends ToolRule {
   static getSettablePaths({
