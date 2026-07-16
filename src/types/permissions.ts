@@ -541,12 +541,24 @@ const CodexApprovalsReviewerSchema = z.enum(["user", "auto_review", "guardian_su
  * `[permissions.rulesync]` profile may extend. Codex ships three built-in
  * profiles (`:read-only`, `:workspace`, `:danger-full-access`; the leading
  * colon is reserved for built-ins), but `extends` rejects
- * `:danger-full-access` at config load time, so only the two extendable
- * baselines are accepted here. The value list is exported so the Codex CLI
- * translator derives its import-side baseline check from the same source.
+ * `:danger-full-access` at config load time, so only these two are valid
+ * `extends` parents. The value list is exported so the Codex CLI translator
+ * derives its import-side baseline check from the same source.
  * @see https://learn.chatgpt.com/docs/permissions
  */
-export const CODEX_BASE_PERMISSION_PROFILES = [":read-only", ":workspace"] as const;
+export const CODEX_EXTENDABLE_BASELINE_PROFILES = [":read-only", ":workspace"] as const;
+
+/**
+ * All accepted `codexcli.base_permission_profile` values. `:danger-full-access`
+ * cannot be an `extends` parent, so selecting it makes rulesync emit
+ * `default_permissions = ":danger-full-access"` directly and skip the managed
+ * `[permissions.rulesync]` profile entirely (there is no sandbox for
+ * filesystem/network rules to refine in that mode).
+ */
+export const CODEX_BASE_PERMISSION_PROFILES = [
+  ...CODEX_EXTENDABLE_BASELINE_PROFILES,
+  ":danger-full-access",
+] as const;
 const CodexBasePermissionProfileSchema = z.enum(CODEX_BASE_PERMISSION_PROFILES);
 
 /**
@@ -558,10 +570,14 @@ const CodexBasePermissionProfileSchema = z.enum(CODEX_BASE_PERMISSION_PROFILES);
  * override whose fields are written verbatim as top-level `.codex/config.toml`
  * keys (the override wins per key; existing sibling keys the user set directly
  * are preserved):
- * - `base_permission_profile` — the built-in profile the managed
- *   `[permissions.rulesync]` profile extends (`:read-only` | `:workspace`).
- *   Unlike the other keys it is not a top-level config key: it is emitted as
- *   the profile's `extends` value. Defaults to `:workspace` when unspecified.
+ * - `base_permission_profile` — the built-in baseline profile (`:read-only` |
+ *   `:workspace` | `:danger-full-access`). Unlike the other keys it is not a
+ *   top-level config key: the extendable baselines are emitted as the managed
+ *   `[permissions.rulesync]` profile's `extends` value, while
+ *   `:danger-full-access` (which Codex rejects as an `extends` parent) is
+ *   selected directly via `default_permissions` and skips the managed profile
+ *   entirely — canonical filesystem/network rules are ignored in that mode.
+ *   Defaults to `:workspace` when unspecified.
  * - `approval_policy` — `untrusted` | `on-request` (legacy alias `on-failure`) |
  *   `never`, or a `{ granular = { … } }` table (kept verbatim; the granular
  *   schema has required fields that are brittle to model as typed keys).
