@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { HooksConfigSchema } from "../../types/hooks.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -444,6 +445,35 @@ describe("ClaudecodeHooks", () => {
       const rulesyncHooks = claudecodeHooks.toRulesyncHooks();
       const json = rulesyncHooks.getJson();
       expect(json.hooks.sessionStart?.[0]?.command).toBe("./scripts/format.sh --fix --quiet");
+    });
+
+    it("should route unmapped native event names into the claudecode override block", () => {
+      const claudecodeHooks = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            SessionStart: [{ hooks: [{ type: "command", command: "echo start" }] }],
+            // A hypothetical event Claude Code ships before rulesync maps it.
+            BrandNewEvent: [{ hooks: [{ type: "command", command: "echo new" }] }],
+          },
+        }),
+        validate: false,
+      });
+
+      const rulesyncHooks = claudecodeHooks.toRulesyncHooks();
+      const json = rulesyncHooks.getJson();
+      expect(json.hooks.sessionStart?.[0]?.command).toBe("echo start");
+      // The unmapped key must not land in the top-level hooks record (whose
+      // keys are restricted to canonical event names)...
+      expect(json.hooks.BrandNewEvent).toBeUndefined();
+      // ...but under the claudecode override block, so the imported file still
+      // passes canonical validation on the next generate run.
+      const overrideHooks = (json as { claudecode?: { hooks?: Record<string, unknown[]> } })
+        .claudecode?.hooks;
+      expect(overrideHooks?.BrandNewEvent).toHaveLength(1);
+      expect(HooksConfigSchema.safeParse(json).success).toBe(true);
     });
   });
 

@@ -16,6 +16,7 @@ import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/
 import { compact } from "../../utils/object.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
+import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
@@ -79,11 +80,16 @@ function canonicalToQwencodeHooks(config: HooksConfig): Record<string, unknown[]
     ...sharedHooks,
     ...config.qwencode?.hooks,
   };
+  // Qwen Code documents exactly four hook executor types; other canonical
+  // types (`agent`, `mcp_tool`) have no Qwen equivalent and are skipped (the
+  // HooksProcessor warns about them).
+  const qwencodeSupportedTypes = new Set(["command", "prompt", "http", "function"]);
   const qwencode: Record<string, unknown[]> = {};
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
     const qwencodeEventName = CANONICAL_TO_QWENCODE_EVENT_NAMES[eventName] ?? eventName;
     const byMatcher = new Map<string, HooksConfig["hooks"][string]>();
     for (const def of definitions) {
+      if (!qwencodeSupportedTypes.has(def.type ?? "command")) continue;
       const key = def.matcher ?? "";
       const list = byMatcher.get(key);
       if (list) list.push(def);
@@ -303,10 +309,13 @@ export class QwencodeHooks extends ToolHooks {
     }
     const hooks = qwencodeHooksToCanonical(settings.hooks);
     // Preserve the top-level `disableAllHooks` switch under the qwencode namespace.
-    const canonical: HooksConfig =
-      typeof settings.disableAllHooks === "boolean"
-        ? { version: 1, hooks, qwencode: { disableAllHooks: settings.disableAllHooks } }
-        : { version: 1, hooks };
+    const canonical: HooksConfig = buildImportedHooksConfig({
+      hooks,
+      overrideKey: "qwencode",
+      ...(typeof settings.disableAllHooks === "boolean" && {
+        extraOverride: { disableAllHooks: settings.disableAllHooks },
+      }),
+    });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(canonical, null, 2),
     });

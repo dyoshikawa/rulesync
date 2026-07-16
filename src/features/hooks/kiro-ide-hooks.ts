@@ -15,6 +15,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
+import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
@@ -237,7 +238,11 @@ export class KiroIdeHooks extends ToolHooks {
     }
     const hooks = kiroIdeHooksToCanonical(parsed.hooks ?? []);
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify({ version: 1, hooks }, null, 2),
+      fileContent: JSON.stringify(
+        buildImportedHooksConfig({ hooks, overrideKey: "kiro-ide" }),
+        null,
+        2,
+      ),
     });
   }
 

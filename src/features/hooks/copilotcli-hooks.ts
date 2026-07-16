@@ -21,6 +21,7 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
+import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
@@ -210,7 +211,7 @@ function buildCopilotCliEntriesForEvent({
         ...timeoutPart,
         ...rest,
       });
-    } else {
+    } else if (hookType === "command") {
       // `env` is a canonical field Copilot CLI supports natively on command hooks.
       entries.push({
         type: "command",
@@ -220,6 +221,8 @@ function buildCopilotCliEntriesForEvent({
         ...rest,
       });
     }
+    // Other canonical types (`agent`, `mcp_tool`, `function`) have no Copilot
+    // CLI equivalent and are skipped (the HooksProcessor warns about them).
   }
   return entries;
 }
@@ -405,7 +408,11 @@ export class CopilotcliHooks extends ToolHooks {
     }
     const hooks = copilotCliHooksToCanonical(parsed.hooks, options?.logger);
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify({ version: 1, hooks }, null, 2),
+      fileContent: JSON.stringify(
+        buildImportedHooksConfig({ hooks, overrideKey: "copilotcli" }),
+        null,
+        2,
+      ),
     });
   }
 

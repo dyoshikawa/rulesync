@@ -643,6 +643,9 @@ const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
 
 const HOOK_EVENT_SET: ReadonlySet<string> = new Set(HOOK_EVENTS);
 
+/** Whether `value` is a canonical hook event name. */
+export const isHookEvent = (value: string): value is HookEvent => HOOK_EVENT_SET.has(value);
+
 /**
  * Top-level `hooks` record whose keys must be canonical event names, so typos
  * are rejected at parse time. Keys are validated with a refinement (instead of

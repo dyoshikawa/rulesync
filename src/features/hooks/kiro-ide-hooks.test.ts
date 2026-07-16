@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { HooksConfigSchema } from "../../types/hooks.js";
 import { KiroIdeHooks } from "./kiro-ide-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
@@ -144,5 +145,42 @@ describe("KiroIdeHooks", () => {
     expect(canonical.hooks.preToolUse[0].timeout).toBe(30);
     expect(canonical.hooks.stop[0].type).toBe("prompt");
     expect(canonical.hooks.stop[0].prompt).toBe("Summarize");
+  });
+
+  it("routes IDE-only triggers into the kiro-ide override block on import", async () => {
+    const hooks = new KiroIdeHooks({
+      outputRoot: testDir,
+      relativeDirPath: join(".kiro", "hooks"),
+      relativeFilePath: "rulesync.json",
+      fileContent: JSON.stringify({
+        version: "v1",
+        hooks: [
+          {
+            name: "format-on-save",
+            trigger: "PostFileSave",
+            action: { type: "command", command: "pnpm fmt" },
+            enabled: true,
+          },
+          {
+            name: "lint",
+            trigger: "PreToolUse",
+            action: { type: "command", command: "echo lint" },
+            enabled: true,
+          },
+        ],
+      }),
+    });
+
+    const rulesyncHooks = hooks.toRulesyncHooks();
+    const canonical = JSON.parse(rulesyncHooks.getFileContent());
+    // The IDE-only trigger must not land in the top-level hooks record (whose
+    // keys are restricted to canonical event names) but under the kiro-ide
+    // override block, which passes tool-native keys through verbatim.
+    expect(canonical.hooks.PostFileSave).toBeUndefined();
+    expect(canonical.hooks.preToolUse[0].command).toBe("echo lint");
+    expect(canonical["kiro-ide"].hooks.PostFileSave[0].command).toBe("pnpm fmt");
+    // The imported content must survive canonical re-validation, so the next
+    // generate run does not fail on it.
+    expect(HooksConfigSchema.safeParse(canonical).success).toBe(true);
   });
 });

@@ -11,7 +11,11 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
-import { canonicalToToolHooks, toolHooksToCanonical } from "./tool-hooks-converter.js";
+import {
+  buildImportedHooksConfig,
+  canonicalToToolHooks,
+  toolHooksToCanonical,
+} from "./tool-hooks-converter.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
@@ -127,7 +131,11 @@ export class GooseHooks extends ToolHooks {
       converterConfig: GOOSE_CONVERTER_CONFIG,
     });
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify({ version: 1, hooks }, null, 2),
+      fileContent: JSON.stringify(
+        buildImportedHooksConfig({ hooks, overrideKey: "goose" }),
+        null,
+        2,
+      ),
     });
   }
 

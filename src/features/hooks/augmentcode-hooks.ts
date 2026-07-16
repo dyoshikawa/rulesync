@@ -18,7 +18,11 @@ import type { Logger } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
-import { canonicalToToolHooks, toolHooksToCanonical } from "./tool-hooks-converter.js";
+import {
+  buildImportedHooksConfig,
+  canonicalToToolHooks,
+  toolHooksToCanonical,
+} from "./tool-hooks-converter.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
@@ -46,6 +50,7 @@ const AUGMENTCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   toolToCanonicalEventNames: AUGMENTCODE_TO_CANONICAL_EVENT_NAMES,
   projectDirVar: "",
   noMatcherEvents: AUGMENTCODE_NO_MATCHER_EVENTS,
+  supportedHookTypes: new Set(["command"]),
 };
 
 /**
@@ -161,7 +166,11 @@ export class AugmentcodeHooks extends ToolHooks {
       converterConfig: AUGMENTCODE_CONVERTER_CONFIG,
     });
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify({ version: 1, hooks }, null, 2),
+      fileContent: JSON.stringify(
+        buildImportedHooksConfig({ hooks, overrideKey: "augmentcode" }),
+        null,
+        2,
+      ),
     });
   }
 
