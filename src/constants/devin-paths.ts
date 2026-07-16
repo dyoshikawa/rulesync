@@ -1,9 +1,6 @@
 import { join } from "node:path";
 
 export const DEVIN_DIR = ".devin";
-const CODEIUM_DIR = ".codeium";
-const WINDSURF_SUBDIR = "windsurf";
-export const CODEIUM_WINDSURF_DIR = join(CODEIUM_DIR, WINDSURF_SUBDIR);
 export const DEVIN_SKILLS_DIR_PATH = join(DEVIN_DIR, "skills");
 export const DEVIN_AGENTS_DIR_PATH = join(DEVIN_DIR, "agents");
 // Devin Local global config directory. On Linux/macOS this is `~/.config/devin`

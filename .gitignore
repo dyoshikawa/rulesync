@@ -236,6 +236,7 @@ rulesync.local.jsonc
 **/.takt/.cache/
 **/.takt/config.yaml
 **/.augment-guidelines
+**/.devin/workflows/
 **/.agents/skills/
 **/.rovodev/prompts.yml
 **/.config/devin/skills/

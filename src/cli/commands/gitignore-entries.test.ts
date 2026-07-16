@@ -151,6 +151,7 @@ describe("registry derivation", () => {
       "takt::general::**/.takt/config.yaml",
       // Legacy/aggregate/ghost outputs not produced via getSettablePaths.
       "augmentcode::rules::**/.augment-guidelines",
+      "devin::commands::**/.devin/workflows/",
       "roo::subagents::**/.roomodes",
       "codexcli::ignore::**/.codexignore",
       // Codex CLI's `.codex/rules/rulesync.rules` bash-permission file is written

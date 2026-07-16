@@ -4,6 +4,7 @@ import {
   DEVIN_GLOBAL_SKILLS_DIR_PATH,
   DEVIN_SKILLS_DIR_PATH,
 } from "../../constants/devin-paths.js";
+import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { type AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
@@ -13,8 +14,6 @@ import {
   type ToolCommandFromRulesyncCommandParams,
   type ToolCommandSettablePaths,
 } from "./tool-command.js";
-
-const SKILL_FILE_NAME = "SKILL.md";
 
 type DevinCommandParams = AiFileParams & {
   slug?: string;
