@@ -57,6 +57,68 @@ describe("CodexcliPermissions", () => {
     expect(fileContent).toContain('"example.com" = "deny"');
   });
 
+  it("should preserve unmanaged config.toml params on regeneration", async () => {
+    const logger = createMockLogger();
+    const codexDir = join(testDir, ".codex");
+    await ensureDir(codexDir);
+    await writeFileContent(
+      join(codexDir, "config.toml"),
+      [
+        'model = "gpt-5.4"',
+        'model_reasoning_effort = "high"',
+        "",
+        "[tools]",
+        "web_search = true",
+        "",
+        "[permissions.custom]",
+        'description = "hand-written sibling profile"',
+        "",
+        "[permissions.rulesync]",
+        'extends = ":workspace"',
+        "",
+        "[permissions.rulesync.workspace_roots]",
+        '"/workspace/extra" = "write"',
+        "",
+        "[permissions.rulesync.network]",
+        'proxy_url = "http://proxy.local:8080"',
+        "enable_socks5 = false",
+        "",
+      ].join("\n"),
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          webfetch: { "github.com": "allow" },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    // Unmanaged top-level keys survive.
+    expect(fileContent).toContain('model = "gpt-5.4"');
+    expect(fileContent).toContain('model_reasoning_effort = "high"');
+    expect(fileContent).toContain("web_search = true");
+    // Sibling profiles survive.
+    expect(fileContent).toContain('description = "hand-written sibling profile"');
+    // Unmanaged keys inside the rulesync profile and its network table survive.
+    expect(fileContent).toContain('"/workspace/extra" = "write"');
+    expect(fileContent).toContain('proxy_url = "http://proxy.local:8080"');
+    expect(fileContent).toContain("enable_socks5 = false");
+    // Managed keys are still regenerated.
+    expect(fileContent).toContain('"github.com" = "allow"');
+    expect(fileContent).toContain('default_permissions = "rulesync"');
+  });
+
   it("should place relative filesystem globs under the Codex workspace roots table", async () => {
     const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({
@@ -307,33 +369,11 @@ enabled = true
 
     const fileContent = codexPermissions.getFileContent();
     expect(fileContent).toContain("enabled = true");
-    expect(fileContent).not.toContain('extends = ":workspace"');
+    expect(fileContent).toContain('extends = ":workspace"');
     expect(fileContent).toContain('"api.example.com" = "allow"');
   });
 
-  it("should emit extends = ':workspace' when a workspace-wide edit rule is present", async () => {
-    const rulesyncPermissions = new RulesyncPermissions({
-      outputRoot: testDir,
-      relativeDirPath: ".rulesync",
-      relativeFilePath: "permissions.json",
-      fileContent: JSON.stringify({
-        permission: {
-          edit: { ".": "allow" },
-        },
-      }),
-    });
-
-    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
-      outputRoot: testDir,
-      rulesyncPermissions,
-    });
-
-    const fileContent = codexPermissions.getFileContent();
-    expect(fileContent).toContain('extends = ":workspace"');
-    expect(fileContent).toContain('"." = "write"');
-  });
-
-  it("should not emit extends for narrowly scoped edit rules", async () => {
+  it("should emit extends = ':workspace' by default when base_permission_profile is unspecified", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
       relativeDirPath: ".rulesync",
@@ -351,19 +391,20 @@ enabled = true
     });
 
     const fileContent = codexPermissions.getFileContent();
-    expect(fileContent).not.toContain('extends = ":workspace"');
+    expect(fileContent).toContain('extends = ":workspace"');
     expect(fileContent).toContain('"src/**" = "write"');
   });
 
-  it("should not emit extends for workspace-external write rules", async () => {
+  it("should emit extends from codexcli.base_permission_profile when specified", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: "permissions.json",
       fileContent: JSON.stringify({
         permission: {
-          edit: { "~/notes/**": "allow" },
+          edit: { "src/**": "allow" },
         },
+        codexcli: { base_permission_profile: ":read-only" },
       }),
     });
 
@@ -373,11 +414,14 @@ enabled = true
     });
 
     const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain('extends = ":read-only"');
     expect(fileContent).not.toContain('extends = ":workspace"');
-    expect(fileContent).toContain('"~/notes/**" = "write"');
+    // Consumed by the profile, never written as a top-level config key.
+    expect(fileContent).not.toContain("base_permission_profile");
+    expect(fileContent).toContain('"src/**" = "write"');
   });
 
-  it("should import extends = ':workspace' as a workspace-wide edit rule", () => {
+  it("should import extends into codexcli.base_permission_profile", () => {
     const codexPermissions = new CodexcliPermissions({
       outputRoot: testDir,
       relativeDirPath: ".codex",
@@ -392,7 +436,26 @@ extends = ":workspace"
 
     const rulesyncPermissions = codexPermissions.toRulesyncPermissions();
     const json = rulesyncPermissions.getJson();
-    expect(json.permission.edit?.["."]).toBe("allow");
+    expect(json.codexcli?.base_permission_profile).toBe(":workspace");
+    expect(json.permission.edit?.["."]).toBeUndefined();
+  });
+
+  it("should not import a custom extends parent into codexcli.base_permission_profile", () => {
+    const codexPermissions = new CodexcliPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".codex",
+      relativeFilePath: "config.toml",
+      fileContent: `
+default_permissions = "rulesync"
+
+[permissions.rulesync]
+extends = "my-custom-profile"
+`,
+    });
+
+    const rulesyncPermissions = codexPermissions.toRulesyncPermissions();
+    const json = rulesyncPermissions.getJson();
+    expect(json.codexcli?.base_permission_profile).toBeUndefined();
   });
 
   it("should round-trip an extends-only profile back to the same extends shape", async () => {
@@ -423,7 +486,9 @@ extends = ":workspace"
 
     const fileContent = regenerated.getFileContent();
     expect(fileContent).toContain('extends = ":workspace"');
-    expect(fileContent).toContain('"." = "write"');
+    // The baseline round-trips via codexcli.base_permission_profile, not a
+    // synthesized workspace-wide write rule.
+    expect(fileContent).not.toContain('"." = "write"');
   });
 
   it("should preserve description on round-trip through rulesync", async () => {
@@ -493,7 +558,7 @@ mode = "full"
     expect(fileContent).toContain('"/var/run/docker.sock" = "allow"');
   });
 
-  it("should not emit extends when only deny edit rules are present", async () => {
+  it("should emit the default extends baseline alongside deny edit rules", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
       relativeDirPath: ".rulesync",
@@ -511,7 +576,8 @@ mode = "full"
     });
 
     const fileContent = codexPermissions.getFileContent();
-    expect(fileContent).not.toContain('extends = ":workspace"');
+    expect(fileContent).toContain('extends = ":workspace"');
+    expect(fileContent).toContain('"**/*.tf" = "deny"');
   });
 
   it("should emit wildcard allow as a regular domain entry with enabled = true", async () => {
@@ -1306,6 +1372,258 @@ command = "node"
 
       const json = codexPermissions.toRulesyncPermissions().getJson();
       expect(json.codexcli).toBeUndefined();
+    });
+
+    it("accepts every documented enum value for approval_policy / sandbox_mode / approvals_reviewer / base_permission_profile", () => {
+      const cases = [
+        { approval_policy: "untrusted" },
+        { approval_policy: "on-request" },
+        // `on-failure` is a legacy alias Codex still accepts for `on-request`.
+        { approval_policy: "on-failure" },
+        { approval_policy: "never" },
+        // The granular table form still round-trips through the enum union.
+        { approval_policy: { granular: { sandbox_approval: true } } },
+        { sandbox_mode: "read-only" },
+        { sandbox_mode: "workspace-write" },
+        { sandbox_mode: "danger-full-access" },
+        { approvals_reviewer: "user" },
+        { approvals_reviewer: "auto_review" },
+        { approvals_reviewer: "guardian_subagent" },
+        { base_permission_profile: ":read-only" },
+        { base_permission_profile: ":workspace" },
+      ];
+
+      for (const codexcli of cases) {
+        expect(
+          () =>
+            new RulesyncPermissions({
+              outputRoot: testDir,
+              relativeDirPath: ".rulesync",
+              relativeFilePath: "permissions.json",
+              fileContent: JSON.stringify({ permission: {}, codexcli }),
+              validate: true,
+            }),
+        ).not.toThrow();
+      }
+    });
+
+    it("rejects out-of-range enum values for approval_policy / sandbox_mode / approvals_reviewer / base_permission_profile", () => {
+      const cases = [
+        { approval_policy: "on-success" },
+        { sandbox_mode: "read-write" },
+        { approvals_reviewer: "reviewer" },
+        // `extends` rejects `:danger-full-access` at Codex config load time.
+        { base_permission_profile: ":danger-full-access" },
+        { base_permission_profile: "my-custom-profile" },
+      ];
+
+      for (const codexcli of cases) {
+        expect(
+          () =>
+            new RulesyncPermissions({
+              outputRoot: testDir,
+              relativeDirPath: ".rulesync",
+              relativeFilePath: "permissions.json",
+              fileContent: JSON.stringify({ permission: {}, codexcli }),
+              validate: true,
+            }),
+        ).toThrow();
+      }
+    });
+
+    it("emits default approval_policy / approvals_reviewer when unspecified", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { read: { "src/**": "allow" } } }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+      expect(parsed.approval_policy).toBe("on-request");
+      expect(parsed.approvals_reviewer).toBe("auto_review");
+    });
+
+    it("does not clobber existing user-set approval_policy / approvals_reviewer with the defaults", async () => {
+      const codexDir = join(testDir, ".codex");
+      await ensureDir(codexDir);
+      await writeFileContent(
+        join(codexDir, "config.toml"),
+        ['approval_policy = "never"', 'approvals_reviewer = "user"'].join("\n"),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { read: { "src/**": "allow" } } }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+      expect(parsed.approval_policy).toBe("never");
+      expect(parsed.approvals_reviewer).toBe("user");
+    });
+
+    it("lets override values win over the approval_policy / approvals_reviewer defaults", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { read: { "src/**": "allow" } },
+          codexcli: { approval_policy: "untrusted", approvals_reviewer: "user" },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+      expect(parsed.approval_policy).toBe("untrusted");
+      expect(parsed.approvals_reviewer).toBe("user");
+    });
+
+    it("warns that sandbox_mode / sandbox_workspace_write are deprecated", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { read: { "src/**": "allow" } },
+          codexcli: {
+            sandbox_mode: "workspace-write",
+            sandbox_workspace_write: { network_access: true },
+          },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      // Deprecated keys still emit so existing configs keep working.
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+      expect(parsed.sandbox_mode).toBe("workspace-write");
+      const warnMessages = logger.warn.mock.calls.map((call) => String(call[0]));
+      expect(
+        warnMessages.some(
+          (line) =>
+            line.includes('"sandbox_mode" is deprecated') &&
+            line.includes("base_permission_profile"),
+        ),
+      ).toBe(true);
+      expect(
+        warnMessages.some((line) => line.includes('"sandbox_workspace_write" is deprecated')),
+      ).toBe(true);
+    });
+
+    it("warns when regeneration introduces the extends baseline into an existing profile without extends", async () => {
+      const logger = createMockLogger();
+      const codexDir = join(testDir, ".codex");
+      await ensureDir(codexDir);
+      // Older rulesync versions (and hand-written profiles) emitted no
+      // `extends`; introducing the `:workspace` baseline broadens the
+      // profile's grants and must not happen silently.
+      await writeFileContent(
+        join(codexDir, "config.toml"),
+        [
+          'default_permissions = "rulesync"',
+          "[permissions.rulesync.filesystem]",
+          '"src/**" = "read"',
+        ].join("\n"),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { read: { "src/**": "allow" } } }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      expect(codexPermissions.getFileContent()).toContain('extends = ":workspace"');
+      const warnMessages = logger.warn.mock.calls.map((call) => String(call[0]));
+      expect(
+        warnMessages.some(
+          (line) =>
+            line.includes('Existing "extends" value "(none)"') && line.includes(":workspace"),
+        ),
+      ).toBe(true);
+    });
+
+    it("does not warn about unmanaged keys when only base_permission_profile is set", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { read: { "src/**": "allow" } },
+          codexcli: { base_permission_profile: ":read-only" },
+        }),
+      });
+
+      await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const warnMessages = logger.warn.mock.calls.map((call) => String(call[0]));
+      expect(warnMessages.some((line) => line.includes("not managed"))).toBe(false);
+    });
+
+    it("round-trips base_permission_profile = ':read-only' through import and regeneration", async () => {
+      const codexDir = join(testDir, ".codex");
+      await ensureDir(codexDir);
+      await writeFileContent(
+        join(codexDir, "config.toml"),
+        [
+          'default_permissions = "rulesync"',
+          "[permissions.rulesync]",
+          'extends = ":read-only"',
+          "[permissions.rulesync.filesystem]",
+          '"/workspace/project/**" = "read"',
+        ].join("\n"),
+      );
+
+      const imported = await CodexcliPermissions.fromFile({ outputRoot: testDir });
+      const rulesyncPermissions = imported.toRulesyncPermissions();
+      expect(rulesyncPermissions.getJson().codexcli?.base_permission_profile).toBe(":read-only");
+
+      const regenerated = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          outputRoot: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: rulesyncPermissions.getFileContent(),
+        }),
+      });
+
+      const fileContent = regenerated.getFileContent();
+      expect(fileContent).toContain('extends = ":read-only"');
+      expect(fileContent).toContain('"/workspace/project/**" = "read"');
     });
   });
 });

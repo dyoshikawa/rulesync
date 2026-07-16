@@ -31,6 +31,18 @@ export const GROKCLI_CONFIG_FILE_NAME = "config.toml";
 export const GROKCLI_SKILLS_DIR_PATH = join(GROKCLI_DIR, "skills");
 
 /**
+ * Hooks directory under `.grok/`. Grok Build discovers hook config files from
+ * `.grok/hooks/*.json` (project) and `~/.grok/hooks/*.json` (global), each a
+ * standalone JSON file using the Claude-Code-compatible nested `{ hooks: { … } }`
+ * shape. rulesync writes all its hooks into a single `rulesync.json`.
+ * @see https://docs.x.ai/build/features/hooks
+ */
+export const GROKCLI_HOOKS_DIR_PATH = join(GROKCLI_DIR, "hooks");
+
+/** rulesync-managed Grok hooks file under `.grok/hooks/`. */
+export const GROKCLI_HOOKS_FILE_NAME = "rulesync.json";
+
+/**
  * Subagents (agent profiles) directory under `.grok/`. Grok Build discovers
  * agent definitions from `.grok/agents/*.md` (project) and `~/.grok/agents/*.md`
  * (global), each a Markdown file with YAML frontmatter (verified via

@@ -4,6 +4,7 @@ import {
   CLAUDECODE_MEMORIES_DIR_NAME,
   CLAUDECODE_SETTINGS_LOCAL_FILE_NAME,
 } from "../../constants/claudecode-paths.js";
+import { CODEXCLI_DIR } from "../../constants/codexcli-paths.js";
 import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import {
   ALL_FEATURES_WITH_WILDCARD,
@@ -94,6 +95,12 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
 
   // codexcli has no ignore processor; its `.codexignore` is a ghost entry.
   { target: "codexcli", feature: "ignore", entry: "**/.codexignore" },
+
+  // Codex CLI's `.codex/rules/` holds the `rulesync.rules` bash-permission file
+  // produced by `createCodexcliBashRulesFile` in codexcli-permissions.ts. That
+  // file is written outside `getSettablePaths`, so the directory is not derived
+  // automatically and needs a hand-maintained entry.
+  { target: "codexcli", feature: "permissions", entry: `**/${CODEXCLI_DIR}/rules/` },
 ];
 
 export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [

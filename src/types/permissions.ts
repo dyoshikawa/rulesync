@@ -20,6 +20,30 @@ export type PermissionAction = z.infer<typeof PermissionActionSchema>;
 const PermissionRulesSchema = z.record(z.string(), PermissionActionSchema);
 
 /**
+ * Tool-scoped canonical `permission` block: the same shape as the shared
+ * top-level `permission` record, but applied only to the tool whose override
+ * key it appears under. During generation the categories placed here are
+ * merged over the shared `permission` block per category (the tool-scoped
+ * category replaces the shared one wholesale), mirroring how
+ * `.rulesync/hooks.json` merges `{toolname}.hooks` per event.
+ *
+ * @example
+ * { "claudecode": { "permission": { "bash": { "git push *": "deny" } } } }
+ */
+const ToolScopedPermissionSchema = z.record(z.string(), PermissionRulesSchema);
+
+/**
+ * Generic tool-scoped override block for tools that have no tool-specific
+ * override keys of their own; it carries only the canonical tool-scoped
+ * `permission` block. Kept `looseObject` so future tool-specific keys can be
+ * added without a schema break.
+ */
+const CanonicalPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+});
+export type CanonicalPermissionsOverride = z.infer<typeof CanonicalPermissionsOverrideSchema>;
+
+/**
  * OpenCode-specific permission value. Unlike the shared canonical block, which
  * only accepts a pattern-to-action map, OpenCode also allows a bare action
  * string that applies to the whole category (e.g. `"external_directory": "deny"`).
@@ -57,7 +81,9 @@ export type OpencodePermissionsOverride = z.infer<typeof OpencodePermissionsOver
  * @example
  * { "approvals": { "mode": "smart" }, "security": { "allow_private_urls": false } }
  */
-const HermesPermissionsOverrideSchema = z.looseObject({});
+const HermesPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+});
 export type HermesPermissionsOverride = z.infer<typeof HermesPermissionsOverrideSchema>;
 
 /**
@@ -72,6 +98,7 @@ export type HermesPermissionsOverride = z.infer<typeof HermesPermissionsOverride
  * { "allowRedirects": true }
  */
 const ClinePermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
   allowRedirects: z.optional(z.boolean()),
 });
 export type ClinePermissionsOverride = z.infer<typeof ClinePermissionsOverrideSchema>;
@@ -110,6 +137,7 @@ export type KiloPermissionsOverride = z.infer<typeof KiloPermissionsOverrideSche
  * { "permissions": { "defaultMode": "acceptEdits", "additionalDirectories": ["../shared"] } }
  */
 const ClaudecodePermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
   permissions: z.optional(z.looseObject({})),
 });
 export type ClaudecodePermissionsOverride = z.infer<typeof ClaudecodePermissionsOverrideSchema>;
@@ -151,6 +179,7 @@ export type VibePermissionsOverride = z.infer<typeof VibePermissionsOverrideSche
  * { "approvalMode": "auto-review" }
  */
 const CursorPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
   approvalMode: z.optional(z.string()),
   sandbox: z.optional(z.looseObject({})),
 });
@@ -178,6 +207,7 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * }
  */
 const QwencodePermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
   tools: z.optional(z.looseObject({})),
   security: z.optional(z.looseObject({})),
   autoMode: z.optional(z.looseObject({})),
@@ -201,6 +231,7 @@ export type QwencodePermissionsOverride = z.infer<typeof QwencodePermissionsOver
  * { "sandbox": { "bash": "enforce", "network": false }, "agent": { "plan_mode_read_only_commands": ["gh pr diff"] } }
  */
 const ReasonixPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
   sandbox: z.optional(z.looseObject({})),
   agent: z.optional(z.looseObject({})),
 });
@@ -223,6 +254,7 @@ export type ReasonixPermissionsOverride = z.infer<typeof ReasonixPermissionsOver
  * { "commandBlocklist": ["rm -rf /*"], "sandbox": { "enabled": true } }
  */
 const FactorydroidPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
   commandBlocklist: z.optional(z.array(z.string())),
 });
 export type FactorydroidPermissionsOverride = z.infer<typeof FactorydroidPermissionsOverrideSchema>;
@@ -243,6 +275,7 @@ export type FactorydroidPermissionsOverride = z.infer<typeof FactorydroidPermiss
  * { "agent_mode_coding_permissions": "always_allow_reading", "agent_mode_execute_readonly_commands": true }
  */
 const WarpPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
   agent_mode_coding_permissions: z.optional(z.string()),
   agent_mode_coding_file_read_allowlist: z.optional(z.array(z.string())),
   agent_mode_execute_readonly_commands: z.optional(z.boolean()),
@@ -262,6 +295,7 @@ export type WarpPermissionsOverride = z.infer<typeof WarpPermissionsOverrideSche
  * { "allowReadonlyCommands": true, "defaultBehavior": "ask" }
  */
 const JuniePermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
   allowReadonlyCommands: z.optional(z.boolean()),
   defaultBehavior: z.optional(z.string()),
 });
@@ -291,6 +325,7 @@ export type JuniePermissionsOverride = z.infer<typeof JuniePermissionsOverrideSc
  * { "step_permission_overrides": { "ai_review": "readonly" }, "provider_options": { "codex": { "network_access": true } } }
  */
 const TaktPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
   step_permission_overrides: z.optional(z.record(z.string(), z.string())),
   provider_options: z.optional(z.looseObject({})),
 });
@@ -320,6 +355,7 @@ export type TaktPermissionsOverride = z.infer<typeof TaktPermissionsOverrideSche
  *   "permissions": [{ "tool": "Bash", "action": "delegate", "to": "approve.sh" }] }
  */
 const AmpPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
   permissions: z.optional(z.array(z.looseObject({ tool: z.string(), action: z.string() }))),
   mcpPermissions: z.optional(z.array(z.looseObject({}))),
   guardedFiles: z.optional(z.looseObject({ allowlist: z.optional(z.array(z.string())) })),
@@ -347,6 +383,7 @@ export type AmpPermissionsOverride = z.infer<typeof AmpPermissionsOverrideSchema
  * { "toolPermission": "strict", "enableTerminalSandbox": true }
  */
 const AntigravityCliPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
   toolPermission: z.optional(z.string()),
   enableTerminalSandbox: z.optional(z.boolean()),
 });
@@ -377,6 +414,7 @@ export type AntigravityCliPermissionsOverride = z.infer<
  *     { "toolName": "view", "eventType": "tool-response", "permission": { "type": "allow" } } ] }
  */
 const AugmentcodePermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
   toolPermissions: z.optional(
     z.array(
       z.looseObject({
@@ -414,6 +452,7 @@ export type AugmentcodePermissionsOverride = z.infer<typeof AugmentcodePermissio
  *     "web_fetch": { "trusted": [".*github\\.com.*"] } } }
  */
 const KiroPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
   toolsSettings: z.optional(
     z.looseObject({
       shell: z.optional(
@@ -441,6 +480,48 @@ const KiroPermissionsOverrideSchema = z.looseObject({
 export type KiroPermissionsOverride = z.infer<typeof KiroPermissionsOverrideSchema>;
 
 /**
+ * Codex CLI's approval-workflow policy. Serialized as a kebab-case string in
+ * `.codex/config.toml`. `on-failure` is a legacy alias for `on-request` that
+ * Codex still accepts, so it is included so existing configs round-trip. The
+ * granular table form (`{ granular = { … } }`) is modeled separately in the
+ * override union.
+ * @see https://learn.chatgpt.com/docs/config-file/config-reference
+ */
+const CodexApprovalPolicySchema = z.enum(["untrusted", "on-request", "on-failure", "never"]);
+
+/**
+ * Codex CLI's classic sandbox mode. Serialized as a kebab-case string in
+ * `.codex/config.toml`. Deprecated in favor of permission profiles
+ * (`base_permission_profile`): Codex prioritizes these legacy sandbox keys
+ * over permission profiles when both are present, so authoring one disables
+ * the managed `[permissions.rulesync]` profile. Kept so existing configs
+ * round-trip.
+ * @see https://learn.chatgpt.com/docs/config-file/config-reference
+ */
+const CodexSandboxModeSchema = z.enum(["read-only", "workspace-write", "danger-full-access"]);
+
+/**
+ * Codex CLI's reviewer for approval requests. `guardian_subagent` is a legacy
+ * value Codex still accepts for backward compatibility, so it is included so
+ * existing configs round-trip through the rulesync model.
+ * @see https://learn.chatgpt.com/docs/config-file/config-reference
+ */
+const CodexApprovalsReviewerSchema = z.enum(["user", "auto_review", "guardian_subagent"]);
+
+/**
+ * Codex CLI's built-in permission profiles that the managed
+ * `[permissions.rulesync]` profile may extend. Codex ships three built-in
+ * profiles (`:read-only`, `:workspace`, `:danger-full-access`; the leading
+ * colon is reserved for built-ins), but `extends` rejects
+ * `:danger-full-access` at config load time, so only the two extendable
+ * baselines are accepted here. The value list is exported so the Codex CLI
+ * translator derives its import-side baseline check from the same source.
+ * @see https://learn.chatgpt.com/docs/permissions
+ */
+export const CODEX_BASE_PERMISSION_PROFILES = [":read-only", ":workspace"] as const;
+const CodexBasePermissionProfileSchema = z.enum(CODEX_BASE_PERMISSION_PROFILES);
+
+/**
  * Codex CLI-scoped permission override.
  *
  * Codex CLI's permission surface is richer than the canonical allow/ask/deny
@@ -449,15 +530,29 @@ export type KiroPermissionsOverride = z.infer<typeof KiroPermissionsOverrideSche
  * override whose fields are written verbatim as top-level `.codex/config.toml`
  * keys (the override wins per key; existing sibling keys the user set directly
  * are preserved):
- * - `approval_policy` — `untrusted` | `on-request` | `never`, or a
- *   `{ granular = { … } }` table (kept verbatim; the granular schema has
- *   required fields that are brittle to model as typed keys).
- * - `sandbox_mode` — `read-only` | `workspace-write` | `danger-full-access`,
- *   with the sibling `sandbox_workspace_write` table (`network_access`,
- *   `writable_roots`, …).
+ * - `base_permission_profile` — the built-in profile the managed
+ *   `[permissions.rulesync]` profile extends (`:read-only` | `:workspace`).
+ *   Unlike the other keys it is not a top-level config key: it is emitted as
+ *   the profile's `extends` value. Defaults to `:workspace` when unspecified.
+ * - `approval_policy` — `untrusted` | `on-request` (legacy alias `on-failure`) |
+ *   `never`, or a `{ granular = { … } }` table (kept verbatim; the granular
+ *   schema has required fields that are brittle to model as typed keys).
+ *   Defaults to `on-request` when neither the override nor the existing
+ *   config sets it.
+ * - `sandbox_mode` — **deprecated.** `read-only` | `workspace-write` |
+ *   `danger-full-access`, with the sibling `sandbox_workspace_write` table
+ *   (`network_access`, `writable_roots`, …). Codex has superseded the classic
+ *   sandbox system with permission profiles and prioritizes these legacy keys
+ *   over profiles when both are present, so setting them disables the managed
+ *   `[permissions.rulesync]` profile. Use `base_permission_profile` and the
+ *   shared `permission` block instead. Still accepted so existing configs
+ *   round-trip.
  * - `apps` — per-app tool gating (`apps.<id>.tools.<tool>.approval_mode` /
  *   `.enabled`, `apps.<id>.default_tools_approval_mode`).
- * - `approvals_reviewer` — the reviewer-approval surface.
+ * - `approvals_reviewer` — the reviewer-approval surface (`user` | `auto_review`
+ *   | `guardian_subagent`), or a table for the richer reviewer config.
+ *   Defaults to `auto_review` when neither the override nor the existing
+ *   config sets it.
  *
  * Two surfaces are deliberately NOT authorable here so the override can never
  * clobber a feature-owned key: `mcp_servers.*` per-MCP gating is owned by the
@@ -475,11 +570,15 @@ export type KiroPermissionsOverride = z.infer<typeof KiroPermissionsOverrideSche
  *   "sandbox_workspace_write": { "network_access": true } }
  */
 const CodexcliPermissionsOverrideSchema = z.looseObject({
-  approval_policy: z.optional(z.union([z.string(), z.looseObject({})])),
-  sandbox_mode: z.optional(z.string()),
+  permission: z.optional(ToolScopedPermissionSchema),
+  base_permission_profile: z.optional(CodexBasePermissionProfileSchema),
+  approval_policy: z.optional(z.union([CodexApprovalPolicySchema, z.looseObject({})])),
+  /** @deprecated Superseded by `base_permission_profile` (permission profiles). */
+  sandbox_mode: z.optional(CodexSandboxModeSchema),
+  /** @deprecated Superseded by `base_permission_profile` (permission profiles). */
   sandbox_workspace_write: z.optional(z.looseObject({})),
   apps: z.optional(z.looseObject({})),
-  approvals_reviewer: z.optional(z.union([z.string(), z.looseObject({})])),
+  approvals_reviewer: z.optional(z.union([CodexApprovalsReviewerSchema, z.looseObject({})])),
 });
 export type CodexcliPermissionsOverride = z.infer<typeof CodexcliPermissionsOverrideSchema>;
 
@@ -494,6 +593,15 @@ export type CodexcliPermissionsOverride = z.infer<typeof CodexcliPermissionsOver
  * overrides consumed only by their respective translator (see the matching
  * `*PermissionsOverrideSchema`); every other tool reads the shared `permission`
  * block and ignores them.
+ *
+ * Additionally, every permissions-capable tool accepts a canonical tool-scoped
+ * `permission` block under its override key (`{toolname}.permission`, same
+ * shape as the shared `permission` record). Its categories apply only to that
+ * tool, merged over the shared block per category — see
+ * `RulesyncPermissions.forTarget`. `kiro-cli`/`kiro-ide` alias to the `kiro`
+ * key and `hermesagent` to `hermes` (matching the shared output file each
+ * writes). OpenCode/Kilo/Vibe keep their existing tool-native `permission`
+ * override semantics (handled by their translators, not the central merge).
  *
  * @example
  * {
@@ -521,6 +629,14 @@ const PermissionsConfigSchema = z.looseObject({
   augmentcode: z.optional(AugmentcodePermissionsOverrideSchema),
   kiro: z.optional(KiroPermissionsOverrideSchema),
   codexcli: z.optional(CodexcliPermissionsOverrideSchema),
+  // Tools without tool-specific override keys still accept the canonical
+  // tool-scoped `permission` block (see ToolScopedPermissionSchema).
+  "antigravity-ide": z.optional(CanonicalPermissionsOverrideSchema),
+  devin: z.optional(CanonicalPermissionsOverrideSchema),
+  goose: z.optional(CanonicalPermissionsOverrideSchema),
+  grokcli: z.optional(CanonicalPermissionsOverrideSchema),
+  rovodev: z.optional(CanonicalPermissionsOverrideSchema),
+  zed: z.optional(CanonicalPermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 

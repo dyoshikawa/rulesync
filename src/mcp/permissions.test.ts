@@ -121,6 +121,47 @@ describe("Permissions Tools", () => {
     });
   });
 
+  describe("jsonc variant handling", () => {
+    it("should get permissions.jsonc when it exists", async () => {
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      await ensureDir(rulesyncDir);
+      await writeFileContent(
+        join(rulesyncDir, "permissions.jsonc"),
+        '{ "permission": { /* comment */ "bash": { "git *": "allow", } } }',
+      );
+
+      const result = await permissionsTools.getPermissionsFile.execute();
+      const parsed = JSON.parse(result);
+
+      expect(parsed.relativePathFromCwd).toBe(
+        join(RULESYNC_RELATIVE_DIR_PATH, "permissions.jsonc"),
+      );
+      expect(parsed.content).toContain("git *");
+    });
+
+    it("should refuse putPermissionsFile when permissions.jsonc exists", async () => {
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      await ensureDir(rulesyncDir);
+      await writeFileContent(join(rulesyncDir, "permissions.jsonc"), '{ "permission": {} }');
+
+      await expect(
+        permissionsTools.putPermissionsFile.execute({
+          content: JSON.stringify({ permission: {} }),
+        }),
+      ).rejects.toThrow(/permissions\.jsonc/);
+    });
+
+    it("should delete the permissions.jsonc variant too", async () => {
+      const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      await ensureDir(rulesyncDir);
+      await writeFileContent(join(rulesyncDir, "permissions.jsonc"), '{ "permission": {} }');
+
+      await permissionsTools.deletePermissionsFile.execute();
+
+      await expect(permissionsTools.getPermissionsFile.execute()).rejects.toThrow();
+    });
+  });
+
   describe("deletePermissionsFile", () => {
     it("should delete an existing permissions file", async () => {
       const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
