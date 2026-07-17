@@ -448,7 +448,7 @@ The emitted Amp frontmatter is derived from the source as follows:
 | `severity-default` | `severity`                                               |
 | `tools`            | `tools`                                                  |
 
-The frontmatter schema is loose, so any extra Amp-specific keys survive a generate/import round-trip. A tool-scoped section (e.g. `amp: { "severity-default": "critical" }`) overrides the canonical values for that tool — the tool-specific value takes precedence, and the section itself is not emitted (except `name`, which always comes from the file name). On import, `severity-default` maps back to the generic `severity` field, and the `name` field is dropped because it is re-derived from the file name on the next generate.
+The frontmatter schema is loose, so extra Amp-specific keys survive a generate/import round-trip (except keys that collide with a rulesync tool-target name such as `cursor` — those are treated as tool-scoped sections and are not re-emitted). A tool-scoped section (e.g. `amp: { "severity-default": "critical" }`) overrides the canonical values for that tool — the tool-specific value takes precedence, and the section itself is not emitted (except `name`, which always comes from the file name). On import, `severity-default` maps back to the generic `severity` field, and the `name` field is dropped because it is re-derived from the file name on the next generate.
 
 > **v1 limitation:** Amp also discovers subtree-scoped checks (e.g. `api/.agents/checks/`), but rulesync sources carry no directory-placement semantics, so those subtree-scoped checks are not generated. See the [Amp manual](https://ampcode.com/manual).
 
