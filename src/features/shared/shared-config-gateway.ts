@@ -347,6 +347,27 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
     },
   },
+  // VS Code workspace settings (`.vscode/settings.json`): a general-purpose
+  // user/project settings file. Copilot permissions owns only the single flat
+  // dotted key `chat.tools.terminal.autoApprove` (VS Code stores dotted setting
+  // keys flat at the top level); every unrelated editor setting is preserved by
+  // the shallow merge. The Copilot MCP feature writes a SEPARATE file
+  // (`.vscode/mcp.json`), so this file has a single writer.
+  ".vscode/settings.json": {
+    format: "jsonc",
+    // A general-purpose user file we promise to preserve untouched apart from
+    // the one managed key. Refuse to read-modify-write a file we could not
+    // fully parse (fail-closed), so a partial JSONC parse can never silently
+    // drop unrelated user settings on the write-back — mirroring `.amp/`.
+    invalidRootPolicy: "error",
+    jsoncParseErrors: "error",
+    features: {
+      permissions: {
+        kind: "replace-owned-keys",
+        ownedKeys: ["chat.tools.terminal.autoApprove"],
+      },
+    },
+  },
   // Qwen Code settings: `permissions` is recomputed from the existing file
   // (unmanaged-tool entries preserved, managed ones replaced) before being
   // applied, and so are the `tools`/`security` override groups. Keys like

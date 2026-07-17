@@ -92,6 +92,13 @@ export const HookDefinitionSchema = z.looseObject({
   // (defaults to a fast model when omitted). Qwen Code documents the same
   // field on prompt hooks, but the qwencode adapter does not forward it yet.
   model: z.optional(safeString),
+  // Claude Code tool events (PreToolUse/PostToolUse/PostToolUseFailure/
+  // PermissionRequest/PermissionDenied): `if` filters a hook by tool arguments,
+  // holding a single permission rule with the same syntax as settings.json
+  // permission rules (e.g. `"Bash(rm *)"`). Claude Code has no combining
+  // (`&&`/`||`/list) syntax, so it round-trips as an opaque string.
+  // https://code.claude.com/docs/en/hooks
+  if: z.optional(safeString),
 });
 
 export type HookDefinition = z.infer<typeof HookDefinitionSchema>;

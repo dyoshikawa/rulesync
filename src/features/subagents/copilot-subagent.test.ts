@@ -50,7 +50,7 @@ Plan tasks`;
   });
 
   describe("fromRulesyncSubagent", () => {
-    it("merges user tools with required agent/runSubagent", () => {
+    it("emits the user-specified tools verbatim without injecting agent/runSubagent (#1181)", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -60,7 +60,7 @@ Plan tasks`;
           name: "planner",
           description: "Plan things",
           copilot: {
-            tools: ["web/fetch", "agent/runSubagent"],
+            tools: ["web/fetch"],
             permissions: "workspace",
           },
         },
@@ -75,13 +75,40 @@ Plan tasks`;
         validate: true,
       }) as CopilotSubagent;
 
-      expect(subagent.getFrontmatter().tools).toEqual(["agent/runSubagent", "web/fetch"]);
+      expect(subagent.getFrontmatter().tools).toEqual(["web/fetch"]);
       expect(subagent.getFrontmatter()).toMatchObject({ permissions: "workspace" });
       expect(subagent.getRelativeDirPath()).toBe(".github/agents");
       expect(subagent.getRelativeFilePath()).toBe("planner.agent.md");
     });
 
-    it("adds required tool when user tools are missing", () => {
+    it("keeps agent/runSubagent when the user explicitly opts in (#1181)", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "planner.agent.md",
+        frontmatter: {
+          targets: ["copilot"],
+          name: "planner",
+          description: "Plan things",
+          copilot: {
+            tools: ["agent/runSubagent", "web/fetch"],
+          },
+        },
+        body: "Plan tasks",
+        validate: true,
+      });
+
+      const subagent = CopilotSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        rulesyncSubagent,
+        validate: true,
+      }) as CopilotSubagent;
+
+      expect(subagent.getFrontmatter().tools).toEqual(["agent/runSubagent", "web/fetch"]);
+    });
+
+    it("omits the tools field entirely when the user specifies no tools (#1181)", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -103,7 +130,7 @@ Plan tasks`;
         validate: true,
       }) as CopilotSubagent;
 
-      expect(subagent.getFrontmatter().tools).toEqual(["agent/runSubagent"]);
+      expect(subagent.getFrontmatter().tools).toBeUndefined();
       expect(subagent.getRelativeFilePath()).toBe("planner.agent.md");
     });
 

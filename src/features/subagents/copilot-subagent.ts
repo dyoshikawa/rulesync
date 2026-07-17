@@ -20,8 +20,6 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
-const REQUIRED_TOOL = "agent/runSubagent";
-
 const CopilotSubagentFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.optional(z.string()),
@@ -41,11 +39,6 @@ const normalizeTools = (tools: string | string[] | undefined): string[] => {
   }
 
   return Array.isArray(tools) ? tools : [tools];
-};
-
-const ensureRequiredTool = (tools: string[]): string[] => {
-  const mergedTools = new Set([REQUIRED_TOOL, ...tools]);
-  return Array.from(mergedTools);
 };
 
 const toCopilotAgentFilePath = (relativeFilePath: string): string => {
@@ -145,17 +138,24 @@ export class CopilotSubagent extends ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const copilotSection = rulesyncFrontmatter.copilot ?? {};
 
+    // Copilot custom-agent `tools` semantics: omitting the field grants the
+    // agent access to all available tools (including `agent/runSubagent`),
+    // while specifying it restricts the agent to only the listed tools. So we
+    // emit `tools` verbatim only when the user actually listed tools, and never
+    // force-inject `agent/runSubagent` — that orchestration capability is
+    // opt-in, added explicitly by users who need cross-subagent delegation.
+    // https://docs.github.com/en/copilot/reference/github-copilot-cli/custom-agents-configuration
+    const { tools: _rawTools, ...copilotRest } = copilotSection;
     const toolsField = copilotSection.tools;
     const userTools = normalizeTools(
       Array.isArray(toolsField) || typeof toolsField === "string" ? toolsField : undefined,
     );
-    const mergedTools = ensureRequiredTool(userTools);
 
     const copilotFrontmatter: CopilotSubagentFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...copilotSection,
-      ...(mergedTools.length > 0 && { tools: mergedTools }),
+      ...copilotRest,
+      ...(userTools.length > 0 && { tools: userTools }),
     };
 
     const body = rulesyncSubagent.getBody();
