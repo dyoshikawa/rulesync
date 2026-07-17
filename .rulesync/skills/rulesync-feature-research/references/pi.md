@@ -24,7 +24,7 @@ Common adapter paths: `rulesync-source-map.md`.
 | `commands` | `.pi/prompts`, `~/.pi/agent/prompts`, `argument-hint`, and prompt template conversion in `pi-command.ts` |
 | `skills`   | `.pi/skills`, global `.pi/agent/skills`, and Agent Skills conversion in `pi-skill.ts`                    |
 
-## System-prompt instruction files (not yet mapped)
+## System-prompt instruction files
 
 Beyond `AGENTS.md`, Pi loads two system-prompt instruction files (docs: `https://pi.dev/docs/latest/usage`):
 
@@ -33,4 +33,4 @@ Beyond `AGENTS.md`, Pi loads two system-prompt instruction files (docs: `https:/
 | `SYSTEM.md`        | `.pi/SYSTEM.md`        | `~/.pi/agent/SYSTEM.md`        | **Replaces** the default system prompt   |
 | `APPEND_SYSTEM.md` | `.pi/APPEND_SYSTEM.md` | `~/.pi/agent/APPEND_SYSTEM.md` | **Appends** to the default system prompt |
 
-Rulesync does not currently emit these files. Rulesync's rules model only routes a designated `root` rule to a single context file (`AGENTS.md`) and folds non-root rules into it; it has no convention for marking a rule as "replace the system prompt" vs "append to the system prompt". Wiring `SYSTEM.md` / `APPEND_SYSTEM.md` would require a new frontmatter routing convention, so this surface is documented here rather than implemented.
+Rulesync emits `APPEND_SYSTEM.md` from any rule that opts in via a `pi.systemPrompt: append` frontmatter block: those rule bodies are routed to `APPEND_SYSTEM.md` instead of being folded into `AGENTS.md`, multiple opted-in rules concatenate in source order, and the file participates in generate/import/delete (project and global scope) like the root file. `SYSTEM.md` is deliberately left hand-authored: it **replaces** the built-in system prompt entirely, which silently disables Pi's own tool instructions, so Rulesync never emits it.

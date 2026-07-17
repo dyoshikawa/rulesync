@@ -84,6 +84,18 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       description: z.optional(z.string()),
     }),
   ),
+  pi: z.optional(
+    z.looseObject({
+      // Route this rule's body to Pi's *append* system-prompt file
+      // (`.pi/APPEND_SYSTEM.md`, global `~/.pi/agent/APPEND_SYSTEM.md`) instead of
+      // folding it into `AGENTS.md`. Only "append" is supported: Pi's other
+      // system-prompt file, `SYSTEM.md`, *replaces* the built-in system prompt
+      // entirely (silently disabling Pi's own tool instructions), which is a
+      // hazard rulesync deliberately does not emit and leaves hand-authored.
+      // See docs/reference/file-formats.md.
+      systemPrompt: z.optional(z.enum(["append"])),
+    }),
+  ),
   takt: z.optional(
     z.looseObject({
       // Rename the emitted file stem (e.g. "coder.md" → "{name}.md").
