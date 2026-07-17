@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ChecksProcessor } from "../features/checks/checks-processor.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
@@ -35,6 +36,7 @@ vi.mock("../features/commands/commands-processor.js");
 vi.mock("../features/skills/skills-processor.js");
 vi.mock("../features/hooks/hooks-processor.js");
 vi.mock("../features/permissions/permissions-processor.js");
+vi.mock("../features/checks/checks-processor.js");
 
 describe("convertFromTool", () => {
   let mockConfig: {
@@ -68,6 +70,7 @@ describe("convertFromTool", () => {
     vi.mocked(SkillsProcessor.getToolTargets).mockReturnValue(["claudecode", "cursor"]);
     vi.mocked(HooksProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(PermissionsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+    vi.mocked(ChecksProcessor.getToolTargets).mockReturnValue(["cursor", "claudecode"]);
 
     vi.mocked(RulesProcessor).mockImplementation(function () {
       return createMockProcessor() as unknown as RulesProcessor;
@@ -92,6 +95,9 @@ describe("convertFromTool", () => {
     });
     vi.mocked(PermissionsProcessor).mockImplementation(function () {
       return createMockProcessor() as unknown as PermissionsProcessor;
+    });
+    vi.mocked(ChecksProcessor).mockImplementation(function () {
+      return createMockProcessor() as unknown as ChecksProcessor;
     });
   });
 
@@ -396,6 +402,45 @@ describe("convertFromTool", () => {
     });
   });
 
+  describe("checks feature", () => {
+    it("should convert check files", async () => {
+      mockConfig.getFeatures.mockReturnValue(["checks"]);
+
+      const result = await convertFromTool({
+        logger,
+        config: mockConfig as never,
+        fromTool: "cursor",
+        toTools: ["claudecode"],
+      });
+
+      expect(result.checksCount).toBe(1);
+    });
+
+    it("should return 0 when source has no check files", async () => {
+      mockConfig.getFeatures.mockReturnValue(["checks"]);
+
+      const mockProc = {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        convertToolFilesToRulesyncFiles: vi.fn(),
+        convertRulesyncFilesToToolFiles: vi.fn(),
+        writeAiFiles: vi.fn(),
+      };
+      vi.mocked(ChecksProcessor).mockImplementation(function () {
+        return mockProc as unknown as ChecksProcessor;
+      });
+
+      const result = await convertFromTool({
+        logger,
+        config: mockConfig as never,
+        fromTool: "cursor",
+        toTools: ["claudecode"],
+      });
+
+      expect(result.checksCount).toBe(0);
+      expect(mockProc.convertToolFilesToRulesyncFiles).not.toHaveBeenCalled();
+    });
+  });
+
   describe("all features combined", () => {
     it("should return empty result when no features are enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([]);
@@ -415,6 +460,7 @@ describe("convertFromTool", () => {
       expect(result.skillsCount).toBe(0);
       expect(result.hooksCount).toBe(0);
       expect(result.permissionsCount).toBe(0);
+      expect(result.checksCount).toBe(0);
     });
   });
 });

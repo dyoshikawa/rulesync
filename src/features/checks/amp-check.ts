@@ -5,6 +5,7 @@ import { z } from "zod/mini";
 import { AMP_CHECKS_GLOBAL_DIR, AMP_CHECKS_PROJECT_DIR } from "../../constants/amp-paths.js";
 import { RULESYNC_CHECKS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ALL_TOOL_TARGETS } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
@@ -129,12 +130,24 @@ export class AmpCheck extends ToolCheck {
     // `severity-default`; everything else (including unknown keys) passes through.
     const { targets: _targets, description, severity, tools, ...restFields } = rulesyncFrontmatter;
 
+    // Tool-target sections (e.g. `amp:`) are per-tool overrides, not check
+    // content: exclude them all from the passthrough, then merge this tool's
+    // own section last so a tool-specific value takes precedence over the
+    // canonical one. `name` is excluded from the override because the check
+    // identity is carried by the file basename.
+    const toolTargetKeys = new Set<string>(ALL_TOOL_TARGETS);
+    const passthroughFields = Object.fromEntries(
+      Object.entries(restFields).filter(([key]) => !toolTargetKeys.has(key) && key !== "name"),
+    );
+    const ampSection = this.filterToolSpecificSection(rulesyncFrontmatter.amp ?? {}, ["name"]);
+
     const rawAmpFrontmatter = {
       name,
       ...(description !== undefined && { description }),
       ...(severity !== undefined && { "severity-default": severity }),
       ...(tools !== undefined && { tools }),
-      ...restFields,
+      ...passthroughFields,
+      ...ampSection,
     };
 
     const result = AmpCheckFrontmatterSchema.safeParse(rawAmpFrontmatter);

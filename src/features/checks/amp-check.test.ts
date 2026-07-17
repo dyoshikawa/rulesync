@@ -85,6 +85,36 @@ describe("AmpCheck.fromRulesyncCheck", () => {
     });
     expect(ampCheck.getRelativeDirPath()).toBe(AMP_CHECKS_GLOBAL_DIR);
   });
+
+  it("should let the amp-specific section win and not leak tool sections", () => {
+    const rulesyncCheck = new RulesyncCheck({
+      relativeDirPath: ".rulesync/checks",
+      relativeFilePath: "security.md",
+      frontmatter: {
+        targets: ["*"],
+        severity: "low",
+        custom: "kept",
+        amp: { "severity-default": "critical", name: "ignored" },
+        claudecode: { model: "opus" },
+      },
+      body: "Look for issues.",
+    });
+
+    const ampCheck = AmpCheck.fromRulesyncCheck({
+      rulesyncCheck,
+      relativeDirPath: ".rulesync/checks",
+    });
+    const frontmatter = ampCheck.getFrontmatter();
+
+    // The tool-specific value takes precedence over the canonical one.
+    expect(frontmatter["severity-default"]).toBe("critical");
+    // The check identity is the file basename; the section cannot rename it.
+    expect(frontmatter.name).toBe("security");
+    // Unknown non-tool keys pass through; tool sections themselves must not leak.
+    expect(frontmatter).toHaveProperty("custom", "kept");
+    expect(frontmatter).not.toHaveProperty("amp");
+    expect(frontmatter).not.toHaveProperty("claudecode");
+  });
 });
 
 describe("AmpCheck.toRulesyncCheck", () => {

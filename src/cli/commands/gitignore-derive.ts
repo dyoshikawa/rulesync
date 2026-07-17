@@ -132,7 +132,7 @@ const deriveRulesEntries = (): GitignoreEntryTag[] => {
   return entries;
 };
 
-// commands/skills/subagents emit a directory tree; mcp/hooks/permissions/ignore
+// commands/skills/subagents/checks emit a directory tree; mcp/hooks/permissions/ignore
 // emit a single file; rules has a composite root+nonRoot shape.
 const DIR_FEATURES = new Set<Feature>(["commands", "skills", "subagents", "checks"]);
 const FILE_FEATURES = new Set<Feature>(["mcp", "hooks", "permissions", "ignore"]);
