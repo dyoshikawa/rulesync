@@ -113,7 +113,15 @@ function parseTarBuffer(params: {
         break;
       }
       case "g": {
-        // Global pax header — ignored.
+        // Global pax header. Harmless records are ignored, but size/path
+        // overrides would make this reader disagree with full tar
+        // implementations (parser-differential risk), so refuse them.
+        const records = parsePaxRecords(tar.subarray(dataStart, dataEnd));
+        if (records.has("size") || records.has("path")) {
+          throw new NpmTarError(
+            "Unsupported tar archive: global pax size/path overrides are not supported",
+          );
+        }
         break;
       }
       case "0":

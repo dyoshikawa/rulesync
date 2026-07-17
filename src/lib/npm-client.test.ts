@@ -232,6 +232,39 @@ describe("fetchTarball", () => {
     expect(fetchMock.mock.calls[1]?.[1]?.headers).not.toHaveProperty("Authorization");
   });
 
+  it("does not downgrade the token to a plaintext http tarball URL", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(mockFetchResponse({ body: Buffer.from("tgz-bytes") }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchTarball({
+      tarballUrl: "http://registry.example.com/pkg/-/pkg-1.0.0.tgz",
+      registryUrl: "https://registry.example.com",
+      token: FAKE_TOKEN,
+    });
+
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).not.toHaveProperty("Authorization");
+  });
+
+  it("aborts a streamed body that exceeds the size cap even without content-length", async () => {
+    const chunk = new Uint8Array(1024);
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(chunk);
+      },
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(stream, { status: 200 })));
+
+    await expect(
+      fetchTarball({
+        tarballUrl: "https://registry.example.com/pkg.tgz",
+        registryUrl: "https://registry.example.com",
+        maxSize: 4096,
+      }),
+    ).rejects.toThrow(/max size/);
+  });
+
   it("rejects non-http(s) tarball URLs", async () => {
     await expect(
       fetchTarball({
@@ -300,6 +333,30 @@ describe("verifyTarballIntegrity", () => {
     ).toThrow(/tampered/);
   });
 
+  it("accepts SRI entries carrying options", () => {
+    expect(() =>
+      verifyTarballIntegrity({
+        tarball,
+        integrity: `sha512-${sha512}?opt`,
+        context: "pkg@1.0.0",
+      }),
+    ).not.toThrow();
+  });
+
+  it("fails closed when integrity is present but unparseable", () => {
+    expect(() =>
+      verifyTarballIntegrity({ tarball, integrity: "md5-bogus", context: "pkg@1.0.0" }),
+    ).toThrow(/malformed integrity/);
+    expect(() =>
+      verifyTarballIntegrity({
+        tarball,
+        integrity: "corrupted",
+        shasum: sha1Hex,
+        context: "pkg@1.0.0",
+      }),
+    ).toThrow(/malformed integrity/);
+  });
+
   it("warns when no integrity metadata is available", () => {
     verifyTarballIntegrity({ tarball, context: "pkg@1.0.0", logger });
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("No integrity metadata"));
@@ -312,6 +369,11 @@ describe("shasumToSri", () => {
     const hex = createHash("sha1").update(tarball).digest("hex");
     const sri = shasumToSri(hex);
     expect(() => verifyTarballIntegrity({ tarball, integrity: sri, context: "pkg" })).not.toThrow();
+  });
+
+  it("rejects malformed shasum values", () => {
+    expect(() => shasumToSri("not-hex")).toThrow(NpmClientError);
+    expect(() => shasumToSri("abcd")).toThrow(NpmClientError);
   });
 });
 

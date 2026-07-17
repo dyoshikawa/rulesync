@@ -162,6 +162,26 @@ describe("extractPackageTarball", () => {
     expect(() => extractPackageTarball({ tarball })).toThrow(/pax size/);
   });
 
+  it("rejects global pax size/path overrides (parser-differential guard)", () => {
+    const tarball = buildTarball([
+      { ...buildPaxEntry({ size: "123" }), typeflag: "g" },
+      { name: "package/a.md", content: "abc" },
+    ]);
+
+    expect(() => extractPackageTarball({ tarball })).toThrow(/global pax/);
+  });
+
+  it("ignores harmless global pax records", () => {
+    const tarball = buildTarball([
+      { ...buildPaxEntry({ comment: "hello" }), typeflag: "g" },
+      { name: "package/a.md", content: "abc" },
+    ]);
+
+    const entries = extractPackageTarball({ tarball });
+
+    expect(entries).toEqual([{ relativePath: "a.md", content: Buffer.from("abc") }]);
+  });
+
   it("skips entries that resolve to the package root itself", () => {
     const tarball = buildTarball([
       { name: "package", content: "weird root file entry" },

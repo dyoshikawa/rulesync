@@ -204,15 +204,18 @@ export function getPackumentVersionDist(params: {
 
 /**
  * Download a package tarball. The Authorization header is only attached when
- * the tarball is hosted on the same host as the registry, so the token never
- * leaks to third-party CDNs.
+ * the tarball is hosted on the same origin (scheme + host) as the registry,
+ * so the token never leaks to third-party CDNs or plaintext downgrades.
  */
 export async function fetchTarball(params: {
   tarballUrl: string;
   registryUrl: string;
   token?: string;
+  /** Maximum accepted tarball size in bytes. Overridable for tests only. */
+  maxSize?: number;
 }): Promise<Buffer> {
   const { tarballUrl, registryUrl, token } = params;
+  const maxSize = params.maxSize ?? MAX_TARBALL_SIZE;
   if (!tarballUrl.startsWith("https://") && !tarballUrl.startsWith("http://")) {
     throw new NpmClientError(
       `Unsupported tarball URL: "${tarballUrl}". Use https:// (or http://).`,
@@ -220,7 +223,7 @@ export async function fetchTarball(params: {
   }
 
   const headers: Record<string, string> = {};
-  if (token && isSameHost(tarballUrl, registryUrl)) {
+  if (token && isSameOrigin(tarballUrl, registryUrl)) {
     headers.Authorization = `Bearer ${token}`;
   }
 
@@ -231,23 +234,58 @@ export async function fetchTarball(params: {
     });
   }
   const contentLength = Number.parseInt(response.headers.get("content-length") ?? "", 10);
-  if (Number.isFinite(contentLength) && contentLength > MAX_TARBALL_SIZE) {
-    throw new NpmClientError(
-      `Tarball ${tarballUrl} exceeds max size of ${MAX_TARBALL_SIZE / 1024 / 1024}MB.`,
-    );
+  if (Number.isFinite(contentLength) && contentLength > maxSize) {
+    throw new NpmClientError(oversizedTarballMessage(tarballUrl, maxSize));
   }
-  const arrayBuffer = await response.arrayBuffer();
-  if (arrayBuffer.byteLength > MAX_TARBALL_SIZE) {
-    throw new NpmClientError(
-      `Tarball ${tarballUrl} exceeds max size of ${MAX_TARBALL_SIZE / 1024 / 1024}MB.`,
-    );
-  }
-  return Buffer.from(arrayBuffer);
+  return await readBodyWithLimit({ response, tarballUrl, maxSize });
 }
 
-function isSameHost(urlA: string, urlB: string): boolean {
+function oversizedTarballMessage(tarballUrl: string, maxSize: number): string {
+  return `Tarball ${tarballUrl} exceeds max size of ${maxSize / 1024 / 1024}MB.`;
+}
+
+/**
+ * Read a response body incrementally, aborting as soon as the size cap is
+ * exceeded. content-length can be absent or forged, so the streaming check is
+ * the actual enforcement of the cap.
+ */
+async function readBodyWithLimit(params: {
+  response: Response;
+  tarballUrl: string;
+  maxSize: number;
+}): Promise<Buffer> {
+  const { response, tarballUrl, maxSize } = params;
+  const reader = response.body?.getReader();
+  if (!reader) {
+    // Responses without a body stream (e.g. some test doubles): buffer
+    // with a post-hoc check.
+    const arrayBuffer = await response.arrayBuffer();
+    if (arrayBuffer.byteLength > maxSize) {
+      throw new NpmClientError(oversizedTarballMessage(tarballUrl, maxSize));
+    }
+    return Buffer.from(arrayBuffer);
+  }
+
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    totalBytes += value.byteLength;
+    if (totalBytes > maxSize) {
+      await reader.cancel();
+      throw new NpmClientError(oversizedTarballMessage(tarballUrl, maxSize));
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks);
+}
+
+function isSameOrigin(urlA: string, urlB: string): boolean {
   try {
-    return new URL(urlA).host === new URL(urlB).host;
+    return new URL(urlA).origin === new URL(urlB).origin;
   } catch {
     return false;
   }
@@ -255,16 +293,22 @@ function isSameHost(urlA: string, urlB: string): boolean {
 
 /**
  * Convert a hex sha1 shasum to the SRI form used by `verifyTarballIntegrity`.
+ * Rejects malformed shasum values so a broken value is never recorded in the
+ * lockfile as a seemingly valid SRI string.
  */
 export function shasumToSri(shasum: string): string {
+  if (!/^[0-9a-f]{40}$/i.test(shasum)) {
+    throw new NpmClientError(`Malformed sha1 shasum in registry metadata: "${shasum}"`);
+  }
   return `sha1-${Buffer.from(shasum, "hex").toString("base64")}`;
 }
 
 /**
  * Verify a downloaded tarball against registry integrity metadata.
  * Prefers the strongest supported algorithm in the SRI `integrity` string and
- * falls back to the legacy sha1 `shasum`. Logs a warning when the registry
- * provides no integrity metadata at all.
+ * falls back to the legacy sha1 `shasum`. An `integrity` string that is
+ * present but cannot be parsed fails closed; a warning is only logged when
+ * the registry provides no integrity metadata at all.
  */
 export function verifyTarballIntegrity(params: {
   tarball: Buffer;
@@ -275,8 +319,15 @@ export function verifyTarballIntegrity(params: {
 }): void {
   const { tarball, integrity, shasum, context, logger } = params;
 
-  const sri = pickStrongestSriEntry(integrity);
-  if (sri) {
+  if (integrity !== undefined) {
+    const sri = pickStrongestSriEntry(integrity);
+    if (!sri) {
+      // Fail closed: a present-but-unparseable integrity value must never
+      // silently disable verification (e.g. a corrupted lockfile entry).
+      throw new NpmClientError(
+        `Unsupported or malformed integrity metadata for ${context}. Expected an SRI string with sha512/sha384/sha256/sha1.`,
+      );
+    }
     const actual = createHash(sri.algorithm).update(tarball).digest("base64");
     if (actual !== sri.digest) {
       throw new NpmClientError(
@@ -311,7 +362,8 @@ function pickStrongestSriEntry(
       const separatorIndex = entry.indexOf("-");
       if (separatorIndex === -1) return undefined;
       const algorithm = entry.slice(0, separatorIndex);
-      const digest = entry.slice(separatorIndex + 1);
+      // Strip SRI options (`sha512-<digest>?opt`) from the digest.
+      const digest = entry.slice(separatorIndex + 1).split("?")[0] ?? "";
       const known = INTEGRITY_ALGORITHM_PREFERENCE.find((a) => a === algorithm);
       if (!known || digest.length === 0) return undefined;
       return { algorithm: known, digest };
