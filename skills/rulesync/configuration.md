@@ -50,6 +50,14 @@ Example:
   "simulateSubagents": false, // Generate simulated subagents
   "simulateSkills": false, // Generate simulated skills
 
+  // Naming for command files flattened for tools without subdirectory
+  // command support (e.g. Cursor): "basename" (default) keeps only the
+  // filename, so `pj/test.md` and `ops/test.md` collide and the last one
+  // wins; "path" joins the directory segments into the filename
+  // (`pj/test.md` -> `pj-test.md`), keeping flattened names unique.
+  // Tools that support subdirectories (e.g. Claude Code) are unaffected.
+  "flattenedCommandNaming": "basename",
+
   // When true (default), `rulesync gitignore` only emits entries for the
   // tools listed in `targets`. Set to false to emit entries for all supported
   // tools regardless of `targets`.

@@ -33,10 +33,11 @@ import {
 import type { OutputRoots } from "./config.js";
 
 /**
- * CLI-resolvable params exclude `sources` — sources are config-file-only.
+ * CLI-resolvable params exclude `sources` and `flattenedCommandNaming` — they
+ * are config-file-only.
  */
 export type ConfigResolverResolveParams = Partial<
-  Omit<ConfigParams, "sources"> & {
+  Omit<ConfigParams, "sources" | "flattenedCommandNaming"> & {
     configPath: string;
   }
 >;
@@ -62,6 +63,7 @@ const getDefaults = (): ConfigDefaults => ({
   simulateCommands: false,
   simulateSubagents: false,
   simulateSkills: false,
+  flattenedCommandNaming: "basename",
   gitignoreTargetsOnly: true,
   gitignoreDestination: "gitignore",
   dryRun: false,
@@ -106,6 +108,7 @@ const mergeConfigs = (
     simulateCommands: localConfig.simulateCommands ?? baseConfig.simulateCommands,
     simulateSubagents: localConfig.simulateSubagents ?? baseConfig.simulateSubagents,
     simulateSkills: localConfig.simulateSkills ?? baseConfig.simulateSkills,
+    flattenedCommandNaming: localConfig.flattenedCommandNaming ?? baseConfig.flattenedCommandNaming,
     gitignoreTargetsOnly: localConfig.gitignoreTargetsOnly ?? baseConfig.gitignoreTargetsOnly,
     gitignoreDestination: localConfig.gitignoreDestination ?? baseConfig.gitignoreDestination,
     dryRun: localConfig.dryRun ?? baseConfig.dryRun,
@@ -362,6 +365,8 @@ export class ConfigResolver {
       // captured `cwd` so the value is still deterministic.
       inputRoot: resolvedInputRoot !== undefined ? resolve(resolvedInputRoot) : cwd,
       sources: configByFile.sources ?? getDefaults().sources,
+      flattenedCommandNaming:
+        configByFile.flattenedCommandNaming ?? getDefaults().flattenedCommandNaming,
       configFileTargets: extractConfigFileTargets(configByFile.targets),
     };
     const config = new Config(configParams);

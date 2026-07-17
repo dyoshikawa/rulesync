@@ -130,6 +130,7 @@ describe("generate", () => {
     getCheck: ReturnType<typeof vi.fn>;
     getGlobal: ReturnType<typeof vi.fn>;
     getSimulateCommands: ReturnType<typeof vi.fn>;
+    getFlattenedCommandNaming: ReturnType<typeof vi.fn>;
     getSimulateSubagents: ReturnType<typeof vi.fn>;
     getSimulateSkills: ReturnType<typeof vi.fn>;
     isPreviewMode: ReturnType<typeof vi.fn>;
@@ -149,6 +150,7 @@ describe("generate", () => {
       getCheck: vi.fn().mockReturnValue(false),
       getGlobal: vi.fn().mockReturnValue(false),
       getSimulateCommands: vi.fn().mockReturnValue(false),
+      getFlattenedCommandNaming: vi.fn().mockReturnValue("basename"),
       getSimulateSubagents: vi.fn().mockReturnValue(false),
       getSimulateSkills: vi.fn().mockReturnValue(false),
       isPreviewMode: vi.fn().mockReturnValue(false),

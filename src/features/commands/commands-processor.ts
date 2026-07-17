@@ -4,6 +4,7 @@ import { z } from "zod/mini";
 
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
+import type { FlattenedCommandNaming } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { commandsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
@@ -527,6 +528,7 @@ export class CommandsProcessor extends FeatureProcessor {
   private readonly toolTarget: CommandsProcessorToolTarget;
   private readonly global: boolean;
   private readonly getFactory: GetFactory;
+  private readonly flattenedCommandNaming: FlattenedCommandNaming;
 
   constructor({
     outputRoot = process.cwd(),
@@ -535,6 +537,7 @@ export class CommandsProcessor extends FeatureProcessor {
     global = false,
     getFactory = defaultGetFactory,
     dryRun = false,
+    flattenedCommandNaming = "basename",
     logger,
   }: {
     outputRoot?: string;
@@ -543,6 +546,7 @@ export class CommandsProcessor extends FeatureProcessor {
     global?: boolean;
     getFactory?: GetFactory;
     dryRun?: boolean;
+    flattenedCommandNaming?: FlattenedCommandNaming;
     logger: Logger;
   }) {
     super({ outputRoot, inputRoot, dryRun, logger });
@@ -555,6 +559,7 @@ export class CommandsProcessor extends FeatureProcessor {
     this.toolTarget = result.data;
     this.global = global;
     this.getFactory = getFactory;
+    this.flattenedCommandNaming = flattenedCommandNaming;
   }
 
   async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
@@ -620,8 +625,12 @@ export class CommandsProcessor extends FeatureProcessor {
   }
 
   private flattenRelativeFilePath(rulesyncCommand: RulesyncCommand): RulesyncCommand {
-    const flatPath = basename(rulesyncCommand.getRelativeFilePath());
-    if (flatPath === rulesyncCommand.getRelativeFilePath()) return rulesyncCommand;
+    const relativeFilePath = rulesyncCommand.getRelativeFilePath();
+    const flatPath =
+      this.flattenedCommandNaming === "path"
+        ? relativeFilePath.split(/[\\/]/).join("-")
+        : basename(relativeFilePath);
+    if (flatPath === relativeFilePath) return rulesyncCommand;
     return rulesyncCommand.withRelativeFilePath(flatPath);
   }
 
