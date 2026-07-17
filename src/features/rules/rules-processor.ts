@@ -232,6 +232,16 @@ type ToolRuleFactory = {
      * writes its local file outside its root dir. See {@link RovodevRule.getLocalRootDeletionGlob}.
      */
     getLocalRootDeletionGlob?(params: { outputRoot: string; fileName: string }): string;
+    /**
+     * Extra fixed-path files this tool manages beyond the root and non-root
+     * rules (e.g. Pi's `APPEND_SYSTEM.md` system-prompt file). The RulesProcessor
+     * enumerates these on import and deletion so they round-trip and stale files
+     * are cleaned up when no rule targets them. See {@link PiRule.getExtraFixedFiles}.
+     */
+    getExtraFixedFiles?(params: { global?: boolean }): Array<{
+      relativeDirPath: string;
+      relativeFilePath: string;
+    }>;
   };
   meta: {
     /** File extension for the rule file */
@@ -1076,21 +1086,43 @@ export class RulesProcessor extends FeatureProcessor {
       return;
     }
 
-    const target = toolRules.find((rule) => rule.isRoot()) ?? toolRules[0];
-    if (!target) {
-      return;
+    // Group rules by their output path and fold each group independently. Today
+    // most folding tools emit a single path (all rules share `AGENTS.md`), but
+    // Pi additionally routes `pi.systemPrompt: append` rules to a separate
+    // `APPEND_SYSTEM.md`, so those must concatenate among themselves rather than
+    // into the root file. Insertion order is preserved so source order is kept.
+    const groups = new Map<string, ToolRule[]>();
+    for (const rule of toolRules) {
+      const path = join(rule.getRelativeDirPath(), rule.getRelativeFilePath());
+      const group = groups.get(path);
+      if (group) {
+        group.push(rule);
+      } else {
+        groups.set(path, [rule]);
+      }
     }
 
-    const ordered = [target, ...toolRules.filter((rule) => rule !== target)];
-    const mergedContent = ordered
-      .map((rule) => rule.getFileContent().trim())
-      .filter((content) => content.length > 0)
-      .join("\n\n");
-    target.setFileContent(mergedContent);
+    const survivors = new Set<ToolRule>();
+    for (const group of groups.values()) {
+      // The root-path group prefers the root rule as its merge target; other
+      // groups fold into their first rule in source order.
+      const target = group.find((rule) => rule.isRoot()) ?? group[0];
+      if (!target) {
+        continue;
+      }
+      const ordered = [target, ...group.filter((rule) => rule !== target)];
+      const mergedContent = ordered
+        .map((rule) => rule.getFileContent().trim())
+        .filter((content) => content.length > 0)
+        .join("\n\n");
+      target.setFileContent(mergedContent);
+      survivors.add(target);
+    }
 
-    // Keep only the merge target; the others shared its path and are now folded in.
+    // Keep only each group's merge target; the others are now folded in.
     for (let i = toolRules.length - 1; i >= 0; i--) {
-      if (toolRules[i] !== target) {
+      const rule = toolRules[i];
+      if (rule && !survivors.has(rule)) {
         toolRules.splice(i, 1);
       }
     }
@@ -1491,6 +1523,45 @@ As this project's AI coding tool, you must follow the additional conventions bel
         return buildDeletionRulesFromPaths(mirrorPaths);
       })();
 
+      // Extra fixed-path files (e.g. Pi's APPEND_SYSTEM.md) enumerated for both
+      // import and deletion so they round-trip and stale files are cleaned up.
+      const extraFixedToolRules = await (async () => {
+        const extraFiles = factory.class.getExtraFixedFiles?.({ global: this.global });
+        if (!extraFiles || extraFiles.length === 0) {
+          return [];
+        }
+
+        const filePaths = await findFilesByGlobs(
+          extraFiles.map((file) =>
+            join(this.outputRoot, file.relativeDirPath, file.relativeFilePath),
+          ),
+        );
+        if (filePaths.length === 0) {
+          return [];
+        }
+
+        if (forDeletion) {
+          return buildDeletionRulesFromPaths(filePaths);
+        }
+
+        return await Promise.all(
+          filePaths.map((filePath) => {
+            const relativeDirPath = resolveRelativeDirPath(filePath);
+            checkPathTraversal({
+              relativePath: relativeDirPath,
+              intendedRootDir: this.outputRoot,
+            });
+            return factory.class.fromFile({
+              outputRoot: this.outputRoot,
+              relativeDirPath,
+              relativeFilePath: basename(filePath),
+              global: this.global,
+            });
+          }),
+        );
+      })();
+      this.logger.debug(`Found ${extraFixedToolRules.length} extra fixed tool rule files`);
+
       const nonRootToolRules = await (async () => {
         if (!settablePaths.nonRoot) {
           return [];
@@ -1561,6 +1632,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
         ...rootToolRules,
         ...localRootToolRules,
         ...rootMirrorDeletionRules,
+        ...extraFixedToolRules,
         ...nonRootToolRules,
       ];
     } catch (error) {

@@ -14,6 +14,7 @@ import { CopilotRule } from "./copilot-rule.js";
 import { CopilotcliRule } from "./copilotcli-rule.js";
 import { CursorRule } from "./cursor-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
+import { PiRule } from "./pi-rule.js";
 import { RovodevRule } from "./rovodev-rule.js";
 import { RulesProcessor, type RulesProcessorToolTarget } from "./rules-processor.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -226,6 +227,58 @@ describe("RulesProcessor", () => {
         expect(result).toHaveLength(1);
         expect(result[0]).toBeInstanceOf(ruleClass);
       }
+    });
+
+    it("should fold pi rules into AGENTS.md and APPEND_SYSTEM.md groups by output path", async () => {
+      const processor = new RulesProcessor({ logger, toolTarget: "pi" });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "overview.md",
+          frontmatter: { root: true, targets: ["pi"] },
+          body: "# Root body",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "detail.md",
+          frontmatter: { root: false, targets: ["pi"] },
+          body: "# Detail body",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "style.md",
+          frontmatter: { targets: ["pi"], pi: { systemPrompt: "append" } },
+          body: "# Append one",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "tone.md",
+          frontmatter: { targets: ["pi"], pi: { systemPrompt: "append" } },
+          body: "# Append two",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      // Two surviving files: the root AGENTS.md and the append system-prompt file.
+      expect(result).toHaveLength(2);
+
+      const rootRule = result.find(
+        (rule) => rule instanceof PiRule && rule.getRelativeFilePath() === "AGENTS.md",
+      );
+      expect(rootRule?.getFileContent()).toBe("# Root body\n\n# Detail body");
+
+      const appendRule = result.find(
+        (rule) => rule instanceof PiRule && rule.getRelativeFilePath() === "APPEND_SYSTEM.md",
+      );
+      // Two opted-in rules concatenate in source order.
+      expect(appendRule?.getFileContent()).toBe("# Append one\n\n# Append two");
+      expect(appendRule?.getRelativeDirPath()).toBe(".pi");
     });
   });
 

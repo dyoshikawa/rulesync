@@ -164,6 +164,77 @@ globs: ["src/**/*"]
     expect(await fileExists(join(testDir, ".agents", "memories", "detail.md"))).toBe(false);
   });
 
+  it("should route pi.systemPrompt:append rules to .pi/APPEND_SYSTEM.md and round-trip", async () => {
+    const testDir = getTestDir();
+
+    const rootRuleContent = `---
+root: true
+targets: ["pi"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Pi Root Rule
+`;
+    const appendOneContent = `---
+targets: ["pi"]
+description: "House style"
+pi:
+  systemPrompt: append
+---
+
+# Pi Append One
+`;
+    const appendTwoContent = `---
+targets: ["pi"]
+description: "Tone"
+pi:
+  systemPrompt: append
+---
+
+# Pi Append Two
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      rootRuleContent,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "style.md"),
+      appendOneContent,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "tone.md"),
+      appendTwoContent,
+    );
+
+    await runGenerate({ target: "pi", features: "rules" });
+
+    // Opted-in bodies land in .pi/APPEND_SYSTEM.md (concatenated in source order),
+    // not in AGENTS.md.
+    const rootContent = await readFileContent(join(testDir, "AGENTS.md"));
+    expect(rootContent).toContain("Pi Root Rule");
+    expect(rootContent).not.toContain("Pi Append One");
+
+    const appendPath = join(testDir, ".pi", "APPEND_SYSTEM.md");
+    const appendContent = await readFileContent(appendPath);
+    expect(appendContent).toContain("Pi Append One");
+    expect(appendContent).toContain("Pi Append Two");
+    expect(appendContent.indexOf("Pi Append One")).toBeLessThan(
+      appendContent.indexOf("Pi Append Two"),
+    );
+
+    // Import the generated APPEND_SYSTEM.md back and confirm the routing frontmatter
+    // is recovered.
+    await runImport({ target: "pi", features: "rules" });
+
+    const importedAppend = await readFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "APPEND_SYSTEM.md"),
+    );
+    expect(importedAppend).toContain("systemPrompt: append");
+    expect(importedAppend).toContain("Pi Append One");
+    expect(importedAppend).toContain("Pi Append Two");
+  });
+
   it("should fold junie non-root rules into the root .junie/AGENTS.md", async () => {
     const testDir = getTestDir();
 

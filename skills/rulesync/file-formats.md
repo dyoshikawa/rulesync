@@ -66,7 +66,18 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
 
 > **Cline note:** Cline writes the root rule to the auto-loaded `AGENTS.md` (project) as plain Markdown, and non-root rules to its flat `.clinerules/` directory. Each non-root rule is a Markdown file with optional YAML frontmatter for conditional activation: Rulesync maps `globs` ⇄ Cline's `paths` (a glob array; the rule loads only when a matching file is in context) and `description` ⇄ `description`. A rule with **specific** `globs` emits `paths`; a rule with **universal** globs (`**/*` or `*`) emits `alwaysApply: true` (always load); a rule **without** globs is written as plain Markdown with no frontmatter block (always active). In global mode (via `--global`), Cline rules are written to the cross-tool `~/.agents/AGENTS.md` (Cline CLI v3.0.15+) as plain Markdown. See the [Cline rules docs](https://docs.cline.bot/customization/cline-rules).
 
-> **Pi note:** Pi writes the root rule to the auto-loaded `AGENTS.md` (project) / `~/.pi/agent/AGENTS.md` (global, via `--global`) as plain Markdown, and folds non-root rules into that single file (Pi has no modular rules directory). Pi additionally supports two system-prompt instruction files that Rulesync does **not** currently emit: `.pi/SYSTEM.md` (project) / `~/.pi/agent/SYSTEM.md` (global) **replaces** the default system prompt entirely, and `.pi/APPEND_SYSTEM.md` (project) / `~/.pi/agent/APPEND_SYSTEM.md` (global) **appends** to it. Rulesync's rules model only routes a designated `root` rule to a single context file and has no frontmatter convention for marking a rule as "replace the system prompt" versus "append to the system prompt", so these files are left to be authored by hand. See the [Pi usage docs](https://pi.dev/docs/latest/usage).
+> **Pi note:** Pi writes the root rule to the auto-loaded `AGENTS.md` (project) / `~/.pi/agent/AGENTS.md` (global, via `--global`) as plain Markdown, and folds non-root rules into that single file (Pi has no modular rules directory). Pi additionally loads two system-prompt instruction files. `.pi/APPEND_SYSTEM.md` (project) / `~/.pi/agent/APPEND_SYSTEM.md` (global) **appends** to the default system prompt, and Rulesync emits it from any rule that opts in via a `pi.systemPrompt: append` frontmatter block — those rule bodies are routed to `APPEND_SYSTEM.md` instead of `AGENTS.md`, multiple opted-in rules concatenate in source order, and the file is managed by generate/import/delete like the root file. `.pi/SYSTEM.md` (project) / `~/.pi/agent/SYSTEM.md` (global) **replaces** the default system prompt entirely — which silently disables Pi's built-in tool instructions — so Rulesync deliberately never emits it and leaves it to be authored by hand. Example:
+>
+> ```yaml
+> ---
+> targets: ["pi"]
+> description: "House style for the system prompt"
+> pi:
+>   systemPrompt: append # routes this rule's body to .pi/APPEND_SYSTEM.md / ~/.pi/agent/APPEND_SYSTEM.md
+> ---
+> ```
+>
+> See the [Pi usage docs](https://pi.dev/docs/latest/usage).
 
 > **Junie note:** Junie CLI resolves project guidelines **first-match-wins** — `.junie/AGENTS.md` → root `AGENTS.md` → the legacy `.junie/guidelines.md` / `.junie/guidelines/` — and documents no file-inclusion mechanism, so Rulesync writes the root rule to `.junie/AGENTS.md` (project) / `~/.junie/AGENTS.md` (global, via `--global`) and folds non-root rules into that single file. The legacy `.junie/guidelines.md` is still accepted as an import fallback. Earlier Rulesync versions emitted non-root rules to `.junie/memories/*.md`, which is not a documented Junie read path; those files are no longer generated (stale outputs stay gitignored but are not cleaned up automatically). See the [Junie guidelines docs](https://junie.jetbrains.com/docs/guidelines-and-memory.html).
 

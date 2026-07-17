@@ -50,6 +50,38 @@ describe("PiRule", () => {
         relativeFilePath: "AGENTS.md",
       });
     });
+
+    it("should expose the append system-prompt path (project)", () => {
+      const paths = PiRule.getSettablePaths();
+
+      expect(paths.appendSystemPrompt).toEqual({
+        relativeDirPath: ".pi",
+        relativeFilePath: "APPEND_SYSTEM.md",
+      });
+    });
+
+    it("should expose the append system-prompt path (global)", () => {
+      const paths = PiRule.getSettablePaths({ global: true });
+
+      expect(paths.appendSystemPrompt).toEqual({
+        relativeDirPath: join(".pi", "agent"),
+        relativeFilePath: "APPEND_SYSTEM.md",
+      });
+    });
+  });
+
+  describe("getExtraFixedFiles", () => {
+    it("should enumerate the append system-prompt file (project)", () => {
+      expect(PiRule.getExtraFixedFiles()).toEqual([
+        { relativeDirPath: ".pi", relativeFilePath: "APPEND_SYSTEM.md" },
+      ]);
+    });
+
+    it("should enumerate the append system-prompt file (global)", () => {
+      expect(PiRule.getExtraFixedFiles({ global: true })).toEqual([
+        { relativeDirPath: join(".pi", "agent"), relativeFilePath: "APPEND_SYSTEM.md" },
+      ]);
+    });
   });
 
   describe("fromFile", () => {
@@ -115,6 +147,41 @@ describe("PiRule", () => {
       expect(rule.getFileContent()).toBe(content);
       expect(rule.isRoot()).toBe(true);
       expect(rule.getRelativeDirPath()).toBe(join(".pi", "agent"));
+    });
+
+    it("should load the APPEND_SYSTEM.md file (project)", async () => {
+      const piDir = join(testDir, ".pi");
+      await ensureDir(piDir);
+      const content = "# System addendum\n\nBe concise.";
+      await writeFileContent(join(piDir, "APPEND_SYSTEM.md"), content);
+
+      const rule = await PiRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "APPEND_SYSTEM.md",
+      });
+
+      expect(rule.getFileContent()).toBe(content);
+      expect(rule.isRoot()).toBe(false);
+      expect(rule.getRelativeDirPath()).toBe(".pi");
+      expect(rule.getRelativeFilePath()).toBe("APPEND_SYSTEM.md");
+    });
+
+    it("should load the APPEND_SYSTEM.md file (global)", async () => {
+      const globalDir = join(testDir, ".pi", "agent");
+      await ensureDir(globalDir);
+      const content = "# Global system addendum";
+      await writeFileContent(join(globalDir, "APPEND_SYSTEM.md"), content);
+
+      const rule = await PiRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "APPEND_SYSTEM.md",
+        global: true,
+      });
+
+      expect(rule.getFileContent()).toBe(content);
+      expect(rule.isRoot()).toBe(false);
+      expect(rule.getRelativeDirPath()).toBe(join(".pi", "agent"));
+      expect(rule.getRelativeFilePath()).toBe("APPEND_SYSTEM.md");
     });
   });
 
@@ -189,6 +256,52 @@ describe("PiRule", () => {
       expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
     });
 
+    it("should route an opted-in rule to APPEND_SYSTEM.md (project)", () => {
+      const rulesyncRule = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "style.md",
+        frontmatter: {
+          targets: ["pi"],
+          pi: { systemPrompt: "append" },
+        },
+        body: "# Style\nBe concise.",
+      });
+
+      const rule = PiRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule,
+      });
+
+      expect(rule.isRoot()).toBe(false);
+      expect(rule.getRelativeDirPath()).toBe(".pi");
+      expect(rule.getRelativeFilePath()).toBe("APPEND_SYSTEM.md");
+      expect(rule.getFileContent()).toBe("# Style\nBe concise.");
+    });
+
+    it("should route an opted-in rule to APPEND_SYSTEM.md (global)", () => {
+      const rulesyncRule = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "style.md",
+        frontmatter: {
+          targets: ["pi"],
+          pi: { systemPrompt: "append" },
+        },
+        body: "# Style\nBe concise.",
+      });
+
+      const rule = PiRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule,
+        global: true,
+      });
+
+      expect(rule.isRoot()).toBe(false);
+      expect(rule.getRelativeDirPath()).toBe(join(".pi", "agent"));
+      expect(rule.getRelativeFilePath()).toBe("APPEND_SYSTEM.md");
+    });
+
     it("should use global root paths when global is true", () => {
       const rulesyncRule = new RulesyncRule({
         outputRoot: testDir,
@@ -243,6 +356,24 @@ describe("PiRule", () => {
       expect(rulesyncRule.getBody()).toBe("# Memory\nBody.");
       expect(rulesyncRule.getFrontmatter().root).toBe(false);
     });
+
+    it("should convert an APPEND_SYSTEM.md instance back to a pi.systemPrompt frontmatter", () => {
+      const rule = new PiRule({
+        outputRoot: testDir,
+        relativeDirPath: ".pi",
+        relativeFilePath: "APPEND_SYSTEM.md",
+        fileContent: "# Style\nBe concise.",
+        root: false,
+        appendSystemPrompt: true,
+      });
+
+      const rulesyncRule = rule.toRulesyncRule();
+
+      expect(rulesyncRule.getBody()).toBe("# Style\nBe concise.");
+      expect(rulesyncRule.getFrontmatter().root).toBe(false);
+      expect(rulesyncRule.getFrontmatter().targets).toEqual(["pi"]);
+      expect(rulesyncRule.getFrontmatter().pi).toEqual({ systemPrompt: "append" });
+    });
   });
 
   describe("validate", () => {
@@ -281,6 +412,18 @@ describe("PiRule", () => {
       });
 
       expect(rule.isRoot()).toBe(false);
+      expect(rule.getFileContent()).toBe("");
+    });
+
+    it("should create a deletable non-root stub for APPEND_SYSTEM.md", () => {
+      const rule = PiRule.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: ".pi",
+        relativeFilePath: "APPEND_SYSTEM.md",
+      });
+
+      expect(rule.isRoot()).toBe(false);
+      expect(rule.isDeletable()).toBe(true);
       expect(rule.getFileContent()).toBe("");
     });
   });

@@ -128,6 +128,24 @@ const deriveRulesEntries = (): GitignoreEntryTag[] => {
     if (nonRootDir && nonRootDir !== ".") {
       pushEntry(entries, target, "rules", dirToGlob(nonRootDir));
     }
+    // Extra fixed-path files a tool manages beyond root/nonRoot (e.g. Pi's
+    // `.pi/APPEND_SYSTEM.md`). Derived from the same hook the RulesProcessor uses.
+    const classWithExtraFiles = factory.class as {
+      getExtraFixedFiles?: (options?: { global?: boolean }) => Array<{
+        relativeDirPath: string;
+        relativeFilePath: string;
+      }>;
+    };
+    if (classWithExtraFiles.getExtraFixedFiles) {
+      for (const file of classWithExtraFiles.getExtraFixedFiles({ global: false })) {
+        pushEntry(
+          entries,
+          target,
+          "rules",
+          fileToGlob(file.relativeDirPath, file.relativeFilePath),
+        );
+      }
+    }
   }
   return entries;
 };
