@@ -42,7 +42,7 @@ jobs:
         uses: ./.github/actions/git-config
 
       - name: Setup mise
-        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+        uses: jdx/mise-action@dad1bfd3df957f44999b559dd69dc1671cb4e9ea # v4.2.1
         with:
           experimental: true
 
@@ -139,7 +139,7 @@ jobs:
           TAG: ${{ steps.tag.outputs.tag }}
 
       - name: Upload assets to release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           draft: true
