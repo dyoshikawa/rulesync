@@ -1797,7 +1797,7 @@ command = "node"
     });
   });
 
-  describe("default .git write carve-outs (git_write_rules)", () => {
+  describe("default .git write carve-out (git_write_rules)", () => {
     it("emits '.git/**' = 'write' by default", async () => {
       const rulesyncPermissions = new RulesyncPermissions({
         outputRoot: testDir,
@@ -1843,7 +1843,7 @@ command = "node"
       expect(workspaceRoots[".git/config"]).toBe("write");
     });
 
-    it("suppresses the carve-outs when codexcli.git_write_rules is false", async () => {
+    it("suppresses the carve-out when codexcli.git_write_rules is false", async () => {
       const rulesyncPermissions = new RulesyncPermissions({
         outputRoot: testDir,
         relativeDirPath: ".rulesync",
@@ -1865,7 +1865,7 @@ command = "node"
       expect(fileContent).not.toContain(":workspace_roots");
     });
 
-    it("skips the carve-outs when base_permission_profile is ':read-only'", async () => {
+    it("skips the carve-out when base_permission_profile is ':read-only'", async () => {
       const rulesyncPermissions = new RulesyncPermissions({
         outputRoot: testDir,
         relativeDirPath: ".rulesync",
@@ -1887,7 +1887,7 @@ command = "node"
       expect(fileContent).not.toContain(":workspace_roots");
     });
 
-    it("does not override a direct ':workspace_roots' string rule with the carve-outs", async () => {
+    it("does not override a direct ':workspace_roots' string rule with the carve-out", async () => {
       const rulesyncPermissions = new RulesyncPermissions({
         outputRoot: testDir,
         relativeDirPath: ".rulesync",
