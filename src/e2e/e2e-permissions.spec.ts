@@ -30,6 +30,7 @@ const permissionsGenerateTargets = [
   "codexcli",
   "junie",
   "cursor",
+  "copilot",
   "kiro",
   "kiro-cli",
   "kiro-ide",
@@ -432,6 +433,40 @@ describe("E2E: permissions", () => {
       expect.arrayContaining(["Shell(git *)", "Read(src/**)", "WebFetch(github.com)"]),
     );
     expect(generated.permissions.deny).toEqual(expect.arrayContaining(["Shell(rm -rf *)"]));
+  });
+
+  it("should generate copilot permissions into .vscode/settings.json", async () => {
+    const testDir = getTestDir();
+
+    // Pre-existing unrelated VS Code settings must survive the merge.
+    await writeFileContent(
+      join(testDir, ".vscode", "settings.json"),
+      JSON.stringify({ "editor.tabSize": 2 }, null, 2),
+    );
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow", "rm -rf *": "deny", "npm *": "ask" },
+            // Non-terminal categories have no autoApprove representation.
+            read: { "src/**": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "copilot", features: "permissions" });
+
+    const generated = JSON.parse(await readFileContent(join(testDir, ".vscode", "settings.json")));
+    expect(generated["chat.tools.terminal.autoApprove"]).toEqual({
+      "git *": true,
+      "rm -rf *": false,
+    });
+    expect(generated["editor.tabSize"]).toBe(2);
   });
 
   it("should generate kiro permissions into .kiro/agents/default.json", async () => {
@@ -1205,6 +1240,30 @@ enabled = true
     expect(content.permission.bash["*"]).toBe("ask");
     expect(content.permission.bash["git *"]).toBe("allow");
     expect(content.permission.bash["rm *"]).toBe("deny");
+  });
+
+  it("should import copilot permissions into .rulesync/permissions.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".vscode", "settings.json"),
+      JSON.stringify(
+        {
+          "editor.tabSize": 2,
+          "chat.tools.terminal.autoApprove": { "git *": true, "rm -rf *": false },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runImport({ target: "copilot", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.bash["git *"]).toBe("allow");
+    expect(content.permission.bash["rm -rf *"]).toBe("deny");
   });
 });
 
