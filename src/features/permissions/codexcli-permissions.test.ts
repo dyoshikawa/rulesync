@@ -1145,6 +1145,66 @@ mode = "full"
     expect(fileContent).toContain('"docs/**" = "write"');
   });
 
+  it("should let a canonical :minimal write rule override the read baseline", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          write: { ":root": "allow", ":minimal": "allow" },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain('":root" = "write"');
+    expect(fileContent).toContain('":minimal" = "write"');
+    expect(fileContent).not.toContain('":minimal" = "read"');
+  });
+
+  it("should drop a customized :minimal on import and fall back to the read baseline on regenerate", async () => {
+    const codexDir = join(testDir, ".codex");
+    await ensureDir(codexDir);
+    await writeFileContent(
+      join(codexDir, "config.toml"),
+      `
+default_permissions = "rulesync"
+
+[permissions.rulesync.filesystem]
+":minimal" = "write"
+":root" = "write"
+`,
+    );
+
+    const imported = await CodexcliPermissions.fromFile({ outputRoot: testDir });
+    const rulesyncPermissions = imported.toRulesyncPermissions();
+    const json = rulesyncPermissions.getJson();
+    // `:minimal` is skipped on import regardless of its value, while `:root` imports normally.
+    expect(json.permission.read?.[":minimal"]).toBeUndefined();
+    expect(json.permission.edit?.[":minimal"]).toBeUndefined();
+    expect(json.permission.edit?.[":root"]).toBe("allow");
+
+    const regenerated = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: rulesyncPermissions.getFileContent(),
+      }),
+    });
+
+    const fileContent = regenerated.getFileContent();
+    expect(fileContent).toContain('":root" = "write"');
+    expect(fileContent).toContain('":minimal" = "read"');
+  });
+
   it("should not import :minimal into rulesync permissions model", () => {
     const codexPermissions = new CodexcliPermissions({
       outputRoot: testDir,

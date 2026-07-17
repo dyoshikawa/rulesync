@@ -50,7 +50,8 @@ const CODEX_GLOB_SCAN_MAX_DEPTH = 8; // Matches Codex CLI default glob_scan_max_
 // `:minimal = "read"` enables `include_platform_defaults()` (FileSystemSpecialPath::Minimal,
 // openai/codex#13434), providing platform/runtime read access for basic sandboxed command execution.
 // It is always emitted as a fixed baseline and is the only special filesystem path that rulesync
-// does not import into its own model (it is not user-managed). All other special paths such as
+// does not import into its own model (a canonical `:minimal` rule still overrides the emitted
+// value on generate, but the value never round-trips through import). All other special paths such as
 // `:root`, `:tmpdir`, and `:slash_tmp` are treated like ordinary filesystem rules: they are
 // imported into the rulesync model and re-emitted from it, so they round-trip without relying on
 // an existing config file being present. Keys mirror parse_special_path in
