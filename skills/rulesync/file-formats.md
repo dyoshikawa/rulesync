@@ -349,7 +349,11 @@ claudecode: # for claudecode-specific parameters
   hooks: {} # (optional) hook config (passed through verbatim)
 copilot: # for GitHub Copilot specific parameters
   tools:
-    - web/fetch # agent/runSubagent is always included automatically
+    # Listed tools are emitted verbatim; omit `tools` entirely to grant the agent
+    # all tools. `agent/runSubagent` is opt-in — add it explicitly only when this
+    # subagent needs to orchestrate other subagents.
+    - web/fetch
+    - agent/runSubagent
 opencode: # for OpenCode-specific parameters
   mode: subagent # (optional, defaults to "subagent") OpenCode agent mode
   model: anthropic/claude-sonnet-4-20250514
