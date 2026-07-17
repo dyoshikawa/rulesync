@@ -120,6 +120,14 @@ describe("buildPackumentUrl", () => {
       buildPackumentUrl({ registryUrl: "https://registry.npmjs.org", packageName: "my-pkg" }),
     ).toBe("https://registry.npmjs.org/my-pkg");
   });
+
+  it("rejects package names that would inject extra URL path segments", () => {
+    for (const packageName of ["@acme/skills/extra", "../etc", "a/../b", "@acme/..", "a//b"]) {
+      expect(() =>
+        buildPackumentUrl({ registryUrl: "https://registry.npmjs.org", packageName }),
+      ).toThrow(NpmClientError);
+    }
+  });
 });
 
 describe("fetchPackument", () => {

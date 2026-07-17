@@ -103,9 +103,12 @@ export function resolveNpmToken(params: { tokenEnv?: string }): string | undefin
 /** Build the packument URL for a (possibly scoped) package on a registry. */
 export function buildPackumentUrl(params: { registryUrl: string; packageName: string }): string {
   const { registryUrl, packageName } = params;
+  // Validate here too so the URL can never carry extra path segments, even if a
+  // caller skips the fetch-level validation.
+  validateNpmPackageName(packageName);
   const base = registryUrl.endsWith("/") ? registryUrl : `${registryUrl}/`;
   // Scoped package names keep the "@" but encode the slash, per the npm registry API.
-  const encodedName = packageName.replace("/", "%2F");
+  const encodedName = packageName.replaceAll("/", "%2F");
   return new URL(encodedName, base).toString();
 }
 
