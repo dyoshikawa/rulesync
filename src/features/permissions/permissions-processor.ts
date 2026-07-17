@@ -15,6 +15,7 @@ import { AugmentcodePermissions } from "./augmentcode-permissions.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { ClinePermissions } from "./cline-permissions.js";
 import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
+import { CopilotPermissions } from "./copilot-permissions.js";
 import { CursorPermissions } from "./cursor-permissions.js";
 import { DevinPermissions } from "./devin-permissions.js";
 import { FactorydroidPermissions } from "./factorydroid-permissions.js";
@@ -148,6 +149,22 @@ export const toolPermissionsFactories = new Map<
       meta: {
         supportsProject: true,
         supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "copilot",
+    {
+      class: CopilotPermissions,
+      meta: {
+        // GitHub Copilot Chat in VS Code has no standalone policy file; the
+        // adapter manages only the `chat.tools.terminal.autoApprove` map in the
+        // workspace `.vscode/settings.json`. VS Code's user-scope settings.json
+        // is at a platform-dependent path outside rulesync's home-relative
+        // global model, so only project scope is supported.
+        supportsProject: true,
+        supportsGlobal: false,
         supportsImport: true,
       },
     },
