@@ -38,6 +38,7 @@ export const DERIVED_PATHS_NOT_GITIGNORED: ReadonlySet<string> = new Set([
   "**/.grok/config.toml",
   "**/.vibe/config.toml",
   "**/reasonix.toml",
+  "**/.vscode/settings.json",
   "**/.zed/settings.json",
   "**/kilo.json",
   "**/kilo.jsonc",

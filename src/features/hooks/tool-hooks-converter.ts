@@ -39,6 +39,17 @@ export type ToolHooksConverterConfig = {
     readonly tool: string;
   }>;
   /**
+   * Per-hook string fields to carry through the round-trip, each mapping a
+   * canonical {@link HookDefinitionSchema} string field to its tool-side field
+   * name. Only non-empty string values are emitted on export and imported back;
+   * any other value is ignored so a malformed field can't leak through. Used
+   * for tool-specific opaque strings such as Claude Code's `if` condition.
+   */
+  stringPassthroughFields?: ReadonlyArray<{
+    readonly canonical: "if";
+    readonly tool: string;
+  }>;
+  /**
    * When true, only dot-relative commands (e.g. ./script.sh, ../script.sh, .rulesync/hooks/x.sh)
    * are prefixed with projectDirVar. Bare executable commands like `npx prettier ...` are left intact.
    */
@@ -163,6 +174,44 @@ function importBooleanPassthroughFields({
 }
 
 /**
+ * Emit the configured string passthrough fields on the tool side, mapping each
+ * canonical field name to its (possibly renamed) tool field name. Only non-empty
+ * string values are carried through.
+ */
+function emitStringPassthroughFields({
+  def,
+  converterConfig,
+}: {
+  def: HooksConfig["hooks"][string][number];
+  converterConfig: ToolHooksConverterConfig;
+}): Record<string, string> {
+  return Object.fromEntries(
+    (converterConfig.stringPassthroughFields ?? [])
+      .filter(({ canonical }) => typeof def[canonical] === "string" && def[canonical] !== "")
+      .map(({ canonical, tool }) => [tool, def[canonical] as string]),
+  );
+}
+
+/**
+ * Import the configured string passthrough fields back into canonical fields,
+ * reversing {@link emitStringPassthroughFields}. Only non-empty string values
+ * are read.
+ */
+function importStringPassthroughFields({
+  h,
+  converterConfig,
+}: {
+  h: Record<string, unknown>;
+  converterConfig: ToolHooksConverterConfig;
+}): Record<string, string> {
+  return Object.fromEntries(
+    (converterConfig.stringPassthroughFields ?? [])
+      .filter(({ tool }) => typeof h[tool] === "string" && h[tool] !== "")
+      .map(({ canonical, tool }) => [canonical, h[tool] as string]),
+  );
+}
+
+/**
  * Emit the payload fields specific to a hook type — `url`/`headers`/
  * `allowedEnvVars` for http, `server`/`tool`/`input` for mcp_tool, `model`
  * for prompt/agent. https://code.claude.com/docs/en/hooks
@@ -207,10 +256,11 @@ function buildToolHooks({
     }
     const command = applyCommandPrefix({ def, converterConfig });
     hooks.push({
-      // Spread the boolean passthrough fields first so the explicitly-handled
-      // core fields below always win: a misconfigured `tool` name (e.g. mapping
-      // onto "type"/"command") can never silently shadow them.
+      // Spread the boolean and string passthrough fields first so the
+      // explicitly-handled core fields below always win: a misconfigured `tool`
+      // name (e.g. mapping onto "type"/"command") can never silently shadow them.
       ...emitBooleanPassthroughFields({ def, converterConfig }),
+      ...emitStringPassthroughFields({ def, converterConfig }),
       type: hookType,
       ...(command !== undefined && command !== null && { command }),
       ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
@@ -396,6 +446,7 @@ function toolHookToCanonical({
     ...(converterConfig.passthroughFields?.includes("description") &&
       typeof h.description === "string" && { description: h.description }),
     ...importBooleanPassthroughFields({ h, converterConfig }),
+    ...importStringPassthroughFields({ h, converterConfig }),
     ...(rawEntry.matcher !== undefined &&
       rawEntry.matcher !== null &&
       rawEntry.matcher !== "" && { matcher: rawEntry.matcher }),

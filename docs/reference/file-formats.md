@@ -146,6 +146,7 @@ Example:
 - `url` / `headers` / `allowedEnvVars` (optional, `http` hooks): the POST target URL, request headers (values support `$VAR` interpolation), and the env-var allowlist for that interpolation. Forwarded to Claude Code and Qwen Code http hooks.
 - `server` / `tool` / `input` (optional, `mcp_tool` hooks): the configured MCP server name, the tool to call on it, and the (arbitrary JSON) arguments, whose string values support `${path}` substitution from the hook input. Forwarded to Claude Code mcp_tool hooks.
 - `model` (optional, `prompt` / `agent` hooks): the model used for evaluation (defaults to a fast model). Forwarded to Claude Code prompt/agent hooks.
+- `if` (optional): a single permission rule (same syntax as `settings.json` permission rules, e.g. `"Bash(rm *)"`) that filters a hook by tool arguments in addition to the tool name. Forwarded to Claude Code, where it is evaluated only on tool events (`preToolUse`, `postToolUse`, `postToolUseFailure`, `permissionRequest`, `permissionDenied`); it round-trips as an opaque string.
 
 Top-level `hooks` keys must be canonical event names; unknown event names are rejected at parse time. Tool-specific override blocks (e.g. `kiro-ide.hooks`) additionally accept tool-native event keys, which pass through verbatim.
 
@@ -348,7 +349,11 @@ claudecode: # for claudecode-specific parameters
   hooks: {} # (optional) hook config (passed through verbatim)
 copilot: # for GitHub Copilot specific parameters
   tools:
-    - web/fetch # agent/runSubagent is always included automatically
+    # Listed tools are emitted verbatim; omit `tools` entirely to grant the agent
+    # all tools. `agent/runSubagent` is opt-in — add it explicitly only when this
+    # subagent needs to orchestrate other subagents.
+    - web/fetch
+    - agent/runSubagent
 opencode: # for OpenCode-specific parameters
   mode: subagent # (optional, defaults to "subagent") OpenCode agent mode
   model: anthropic/claude-sonnet-4-20250514
@@ -1058,6 +1063,8 @@ For Cursor CLI, this generates `permissions` entries in `.cursor/cli.json` (proj
 > ```
 >
 > The separate Cursor **IDE** `permissions.json` (`mcpAllowlist`, `terminalAllowlist`, `autoRun.*`) is a different file and is not targeted by this translator.
+
+For GitHub Copilot (`copilot`), this manages the `chat.tools.terminal.autoApprove` map in the workspace `.vscode/settings.json` (project mode only). VS Code has no standalone, environment-agnostic Copilot policy file, so project-level terminal auto-approvals are configured through VS Code Copilot Chat's workspace settings. The scope is deliberately limited to this one clean, non-lossy mapping: only the canonical `bash` (terminal command) category is mapped — `allow` → `true` (auto-approve) and `deny` → `false` (never auto-approve); an `ask` rule is represented by **omitting** the entry, so VS Code falls through to its default in-chat approval prompt. Other canonical categories (`read`/`edit`/`webfetch`/…) have no terminal-command equivalent in this setting and are not emitted. `.vscode/settings.json` is a general workspace file (JSONC), so Rulesync merges only the single `chat.tools.terminal.autoApprove` key non-destructively and never deletes the file; every unrelated setting is preserved. VS Code's user-scope `settings.json` lives at a platform-dependent path outside Rulesync's home-relative global model, so only project scope is supported. The all-or-nothing `chat.tools.global.autoApprove` boolean and the registry-allowlist `chat.mcp.access` setting are intentionally **not** mapped, since collapsing per-pattern rules into them would misrepresent what was configured. See the [VS Code agent approvals docs](https://code.visualstudio.com/docs/agents/approvals).
 
 For Kilo Code, this generates the `permission` object in `kilo.jsonc` (project mode) or `~/.config/kilo/kilo.jsonc` (global mode). The shape is identical to OpenCode's (Kilo is an OpenCode fork), so categories like `bash`, `read`, `edit`, `write`, `webfetch`, and `mcp` accept either a string catch-all (`"allow" | "ask" | "deny"`) or a `{ <pattern>: <action> }` map. Other top-level keys in `kilo.jsonc` are preserved on round-trip. **The `permission` object is merged per top-level tool key**: for each tool key present in the rulesync output, that key is replaced entirely from rulesync (rulesync owns its managed keys; manual edits inside a managed key will be overwritten on the next generation). Tool keys that exist in the existing `kilo.jsonc` but are NOT in the rulesync output are preserved verbatim so user-added Kilo-only categories survive regeneration. When a regenerate replaces a key whose existing value contained `deny` patterns that disappear from the new rulesync output, an aggregated `logger.warn` enumerates the dropped patterns (matching the project convention used by every other permissions translator). Edits to other top-level keys (e.g. `model`) are preserved. **Malformed `kilo.jsonc` aborts the run**: the `jsonc-parser` library would otherwise silently coerce a syntax error to `{}` and overwrite the corrupted file with an empty `permission`, dropping the user's existing `deny` rules. Rulesync now surfaces parse errors so the run aborts before any destructive write — matching the strict `JSON.parse` behavior used by every other permissions translator.
 

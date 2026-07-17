@@ -10,6 +10,11 @@ export const COPILOT_HOOKS_DIR_PATH = join(GITHUB_DIR, "hooks");
 export const COPILOT_HOOKS_FILE_NAME = "copilot-hooks.json";
 export const COPILOT_MCP_DIR = ".vscode";
 export const COPILOT_MCP_FILE_NAME = "mcp.json";
+// VS Code Copilot Chat reads its terminal auto-approval map
+// (`chat.tools.terminal.autoApprove`) from the workspace settings file, which
+// lives alongside `.vscode/mcp.json`.
+// https://code.visualstudio.com/docs/agents/approvals
+export const COPILOT_VSCODE_SETTINGS_FILE_NAME = "settings.json";
 export const COPILOTCLI_MCP_FILE_NAME = "mcp-config.json";
 // Copilot CLI auto-loads project-scoped MCP servers from `.github/mcp.json`
 // (workspace config). Global/personal MCP servers live in
