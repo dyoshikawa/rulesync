@@ -9,7 +9,11 @@ import type { PermissionAction } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { isPlainObject } from "../../utils/type-guards.js";
-import { applySharedConfigPatch, parseSharedConfig } from "../shared/shared-config-gateway.js";
+import {
+  applySharedConfigPatch,
+  parseSharedConfig,
+  sharedConfigFileKey,
+} from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -26,12 +30,6 @@ import {
  * @see https://code.visualstudio.com/docs/agents/approvals
  */
 const AUTO_APPROVE_KEY = "chat.tools.terminal.autoApprove";
-
-/**
- * Shared-config ownership key for `.vscode/settings.json`. Kept in sync with the
- * declaration in `shared-config-gateway.ts`.
- */
-const VSCODE_SETTINGS_SHARED_FILE_KEY = ".vscode/settings.json";
 
 /**
  * The canonical permission category this adapter maps. Only shell/terminal
@@ -146,7 +144,7 @@ export class CopilotPermissions extends ToolPermissions {
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent: applySharedConfigPatch({
-        fileKey: VSCODE_SETTINGS_SHARED_FILE_KEY,
+        fileKey: sharedConfigFileKey(paths),
         feature: "permissions",
         existingContent,
         patch: { [AUTO_APPROVE_KEY]: patchValue },
@@ -160,10 +158,15 @@ export class CopilotPermissions extends ToolPermissions {
     let settings: Record<string, unknown>;
     try {
       // VS Code settings.json is JSONC (comments / trailing commas allowed).
+      // Fail-closed on a syntax error / non-mapping root, matching the write
+      // path's shared-config declaration, so a broken file is surfaced rather
+      // than partially imported.
       settings = parseSharedConfig({
         format: "jsonc",
         fileContent: this.getFileContent() || "{}",
         filePath: join(this.getRelativeDirPath(), this.getRelativeFilePath()),
+        invalidRootPolicy: "error",
+        jsoncParseErrors: "error",
       });
     } catch (error) {
       throw new Error(

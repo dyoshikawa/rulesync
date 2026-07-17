@@ -355,6 +355,12 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // (`.vscode/mcp.json`), so this file has a single writer.
   ".vscode/settings.json": {
     format: "jsonc",
+    // A general-purpose user file we promise to preserve untouched apart from
+    // the one managed key. Refuse to read-modify-write a file we could not
+    // fully parse (fail-closed), so a partial JSONC parse can never silently
+    // drop unrelated user settings on the write-back — mirroring `.amp/`.
+    invalidRootPolicy: "error",
+    jsoncParseErrors: "error",
     features: {
       permissions: {
         kind: "replace-owned-keys",
