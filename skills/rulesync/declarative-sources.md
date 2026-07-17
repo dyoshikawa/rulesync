@@ -38,6 +38,15 @@ Add a `sources` array to your `rulesync.jsonc`:
       "transport": "git",
       "path": ".",
     },
+
+    // npm transport (EXPERIMENTAL) — fetch a package from an npm-compatible
+    // registry (npmjs.org, JFrog Artifactory, Sonatype Nexus, Verdaccio, ...)
+    {
+      "source": "@acme/skill-package",
+      "transport": "npm",
+      "registry": "https://acme.jfrog.io/artifactory/api/npm/npm-local/",
+      "tokenEnv": "ACME_REGISTRY_TOKEN",
+    },
   ],
 }
 ```
@@ -46,19 +55,41 @@ Each entry in `sources` accepts:
 
 | Property    | Type       | Description                                                                                                                                                                                                           |
 | ----------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `source`    | `string`   | Repository source. For GitHub transport: `owner/repo` or `owner/repo@ref:path`. For git transport: a full git URL.                                                                                                    |
+| `source`    | `string`   | Repository source. For GitHub transport: `owner/repo` or `owner/repo@ref:path`. For git transport: a full git URL. For npm transport: a package name (`pkg` or `@scope/pkg`).                                         |
 | `skills`    | `string[]` | Optional list of skill names to fetch. If omitted, all skills are fetched.                                                                                                                                            |
-| `transport` | `string`   | `"github"` (default) uses the GitHub REST API. `"git"` uses git CLI and works with any git remote.                                                                                                                    |
-| `ref`       | `string`   | Branch, tag, or ref to fetch from. Defaults to the remote's default branch. For GitHub transport, use the `@ref` source syntax.                                                                                       |
+| `transport` | `string`   | `"github"` (default) uses the GitHub REST API. `"git"` uses git CLI and works with any git remote. `"npm"` (experimental) fetches a package from an npm-compatible registry.                                          |
+| `ref`       | `string`   | Branch, tag, or ref to fetch from. Defaults to the remote's default branch. For GitHub transport, use the `@ref` source syntax. For npm transport: an exact version or dist-tag (defaults to `latest`).               |
 | `path`      | `string`   | Path to the skills directory within the repository. Defaults to `"skills"`. Set to `""`, `"."`, or `"./"` to target the entire repository root (see note below). For GitHub transport, use the `:path` source syntax. |
+| `registry`  | `string`   | npm transport only. Base URL of the npm-compatible registry. Defaults to `https://registry.npmjs.org`.                                                                                                                |
+| `tokenEnv`  | `string`   | npm transport only. Name of the environment variable holding the registry token. Defaults to `NPM_TOKEN`.                                                                                                             |
 
 > **Repository-root paths (`path: "."`):** When `path` is `""`, `"."`, or `"./"` (with the `git` transport), rulesync disables sparse-checkout and fetches the **entire** repository tree, then groups each top-level directory as a skill. This is useful for single-skill repositories whose `SKILL.md` lives at the repo root (`<repo>/SKILL.md`) rather than under a `skills/` container. Because the whole tree is fetched, prefer a narrower `path` for large repositories; the fetch is still bounded by rulesync's file-count, total-size, and depth limits.
+
+## npm Transport (Experimental)
+
+> [!WARNING]
+> The `npm` transport is **experimental**. Its configuration surface and lockfile format may change in a future release.
+
+The `npm` transport fetches skills from any registry that implements the npm registry API. Because JFrog Artifactory, Sonatype Nexus, Verdaccio, GitHub Packages, and similar private registries all expose an npm-compatible API, a single transport with a configurable `registry` URL covers them all. This lets enterprises whose build environments cannot reach public GitHub distribute skills internally as npm packages.
+
+How a package is fetched:
+
+1. The package metadata (packument) is fetched from `<registry>/<package>` using the abbreviated `application/vnd.npm.install-v1+json` form.
+2. The declared `ref` (an **exact version** or a **dist-tag** such as `latest` or `beta` — semver ranges are not supported) is resolved to a concrete version.
+3. The version's tarball is downloaded and verified against the registry's `dist.integrity` / `dist.shasum` metadata.
+4. The tarball is extracted **in memory** with a hardened minimal tar reader: only regular files are materialized (symlinks, hardlinks, and device entries are skipped), path traversal is rejected, and extraction is capped at 10,000 files / 100 MB to prevent decompression bombs.
+
+Package layout: skills are discovered the same way as for the git transports. Skill directories under `skills/` (or the configured `path`) are installed as `.rulesync/skills/.curated/<name>/`. A single-skill package with `SKILL.md` at the package root is installed as one skill named after the package's base name (`@acme/my-skill` installs as `my-skill`); note that this root fallback installs the package's root-level files only, so prefer the `skills/<name>/` layout for skills that carry subdirectories such as `references/`.
+
+Authentication uses a bearer token from an environment variable: `NPM_TOKEN` by default, or the variable named by the per-source `tokenEnv` field. The token is sent as `Authorization: Bearer <token>` to the registry (and to the tarball host only when it matches the registry host). `.npmrc` files are intentionally **not** read.
+
+Resolved versions are pinned in `rulesync-npm.lock.json` (next to `rulesync.lock`), which records the resolved version, the tarball integrity, and per-skill content hashes. Commit it for reproducible installs; `--update` and `--frozen` behave the same as for git sources.
 
 ## How It Works
 
 When `rulesync install` runs and `sources` is configured:
 
-1. **Lockfile resolution** — Each source's ref is resolved to a commit SHA and stored in `rulesync.lock` (at the project root). On subsequent runs the locked SHA is reused for deterministic builds.
+1. **Lockfile resolution** — Each source's ref is resolved to a commit SHA and stored in `rulesync.lock` (at the project root). On subsequent runs the locked SHA is reused for deterministic builds. npm-transport sources are pinned in a separate `rulesync-npm.lock.json` (resolved version + tarball integrity).
 2. **Remote skill listing** — The `skills/` directory (or the path specified in the source URL) is listed from the remote repository.
 3. **Filtering** — If `skills` is specified, only matching skill directories are fetched.
 4. **Precedence rules**:
@@ -70,11 +101,11 @@ When `rulesync install` runs and `sources` is configured:
 
 `rulesync install` supports three install modes via `--mode <mode>`:
 
-| Mode       | Manifest input               | Lockfile                 | Skill output layout                                                          |
-| ---------- | ---------------------------- | ------------------------ | ---------------------------------------------------------------------------- |
-| `rulesync` | `rulesync.jsonc` `sources`   | `rulesync.lock`          | `.rulesync/skills/.curated/<name>/` (then re-emitted by `rulesync generate`) |
-| `apm`      | `apm.yml` `dependencies.apm` | `rulesync-apm.lock.yaml` | `.github/instructions/`, `.github/skills/` (APM v1 layout)                   |
-| `gh`       | `rulesync.jsonc` `sources`   | `rulesync-gh.lock.yaml`  | Per-agent / per-scope dirs (matching `gh skill install`)                     |
+| Mode       | Manifest input               | Lockfile                                                     | Skill output layout                                                          |
+| ---------- | ---------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `rulesync` | `rulesync.jsonc` `sources`   | `rulesync.lock` (+ `rulesync-npm.lock.json` for npm sources) | `.rulesync/skills/.curated/<name>/` (then re-emitted by `rulesync generate`) |
+| `apm`      | `apm.yml` `dependencies.apm` | `rulesync-apm.lock.yaml`                                     | `.github/instructions/`, `.github/skills/` (APM v1 layout)                   |
+| `gh`       | `rulesync.jsonc` `sources`   | `rulesync-gh.lock.yaml`                                      | Per-agent / per-scope dirs (matching `gh skill install`)                     |
 
 When `--mode` is omitted, rulesync defaults to `rulesync` mode. If `apm.yml` is present and `sources` is also defined, you must pass `--mode apm` or `--mode rulesync` to disambiguate.
 
@@ -188,9 +219,31 @@ The lockfile at `rulesync.lock` (at the project root) records the resolved commi
 
 To update locked refs, run `rulesync install --update`.
 
+npm-transport sources (experimental) are pinned in a separate `rulesync-npm.lock.json`, because they lock a resolved package version and tarball integrity instead of a commit SHA:
+
+```json
+{
+  "lockfileVersion": 1,
+  "sources": {
+    "@acme/skill-package": {
+      "registry": "https://acme.jfrog.io/artifactory/api/npm/npm-local",
+      "requestedVersion": "latest",
+      "resolvedVersion": "1.2.3",
+      "integrity": "sha512-...",
+      "resolvedAt": "2026-01-15T12:00:00.000Z",
+      "skills": {
+        "my-skill": { "integrity": "sha256-abcdef..." }
+      }
+    }
+  }
+}
+```
+
+It is safe (and recommended) to commit this file as well.
+
 ## Authentication
 
-GitHub transport uses the `GITHUB_TOKEN` or `GH_TOKEN` environment variable for authentication. This is required for private repositories and recommended for better rate limits. Git transport relies on your local git credential configuration (SSH keys, credential helpers, etc.).
+GitHub transport uses the `GITHUB_TOKEN` or `GH_TOKEN` environment variable for authentication. This is required for private repositories and recommended for better rate limits. Git transport relies on your local git credential configuration (SSH keys, credential helpers, etc.). npm transport (experimental) uses the `NPM_TOKEN` environment variable, or the variable named by the per-source `tokenEnv` field; `.npmrc` files are not read.
 
 ```bash
 # Using environment variable

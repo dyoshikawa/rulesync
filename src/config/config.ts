@@ -32,30 +32,60 @@ const GITIGNORE_DESTINATION_KEY = "gitignoreDestination";
  * Schema for a single source entry in the sources array.
  * Declares an external repository from which skills can be fetched.
  */
-const SourceEntrySchema = z.object({
-  source: z.string().check(minLength(1, "source must be a non-empty string")),
-  skills: optional(z.array(z.string())),
-  transport: optional(z.enum(["github", "git"])),
-  ref: optional(
-    z.string().check(
-      refine((v) => !v.startsWith("-"), 'ref must not start with "-"'),
-      refine((v) => !hasControlCharacters(v), "ref must not contain control characters"),
+const SourceEntrySchema = z
+  .object({
+    source: z.string().check(minLength(1, "source must be a non-empty string")),
+    skills: optional(z.array(z.string())),
+    transport: optional(z.enum(["github", "git", "npm"])),
+    ref: optional(
+      z.string().check(
+        refine((v) => !v.startsWith("-"), 'ref must not start with "-"'),
+        refine((v) => !hasControlCharacters(v), "ref must not contain control characters"),
+      ),
     ),
-  ),
-  path: optional(
-    z.string().check(
-      refine((v) => !v.includes(".."), 'path must not contain ".."'),
-      refine((v) => !isAbsolute(v), "path must not be absolute"),
-      refine((v) => !hasControlCharacters(v), "path must not contain control characters"),
+    path: optional(
+      z.string().check(
+        refine((v) => !v.includes(".."), 'path must not contain ".."'),
+        refine((v) => !isAbsolute(v), "path must not be absolute"),
+        refine((v) => !hasControlCharacters(v), "path must not contain control characters"),
+      ),
     ),
-  ),
-  // gh-mode-only fields. Ignored by --mode rulesync. Defaults applied at the
-  // gh install site (`agent` defaults to "github-copilot", `scope` to "project").
-  agent: optional(
-    z.enum(["github-copilot", "claude-code", "cursor", "codex", "gemini", "antigravity"]),
-  ),
-  scope: optional(z.enum(["project", "user"])),
-});
+    // npm-transport-only fields (EXPERIMENTAL). `registry` points at an
+    // npm-compatible registry (npmjs.org, Artifactory, Nexus, Verdaccio, ...);
+    // `tokenEnv` names the environment variable holding the registry token.
+    registry: optional(
+      z.string().check(
+        refine(
+          (v) => v.startsWith("https://") || v.startsWith("http://"),
+          "registry must be an http(s) URL",
+        ),
+        refine((v) => !hasControlCharacters(v), "registry must not contain control characters"),
+      ),
+    ),
+    tokenEnv: optional(
+      z
+        .string()
+        .check(
+          refine(
+            (v) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(v),
+            "tokenEnv must be a valid environment variable name",
+          ),
+        ),
+    ),
+    // gh-mode-only fields. Ignored by --mode rulesync. Defaults applied at the
+    // gh install site (`agent` defaults to "github-copilot", `scope` to "project").
+    agent: optional(
+      z.enum(["github-copilot", "claude-code", "cursor", "codex", "gemini", "antigravity"]),
+    ),
+    scope: optional(z.enum(["project", "user"])),
+  })
+  .check(
+    refine(
+      (entry) =>
+        (entry.registry === undefined && entry.tokenEnv === undefined) || entry.transport === "npm",
+      '"registry" and "tokenEnv" are only valid with transport "npm"',
+    ),
+  );
 export type SourceEntry = z.infer<typeof SourceEntrySchema>;
 
 export const ConfigParamsSchema = z.object({

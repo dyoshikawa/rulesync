@@ -1,4 +1,4 @@
-import { join, resolve, sep } from "node:path";
+import { join, posix, resolve, sep } from "node:path";
 
 import { Semaphore } from "es-toolkit/promise";
 
@@ -28,6 +28,32 @@ import {
 } from "./git-client.js";
 import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "./github-client.js";
 import { listDirectoryRecursive, withSemaphore } from "./github-utils.js";
+import {
+  DEFAULT_NPM_REGISTRY_URL,
+  fetchPackument,
+  fetchTarball,
+  getPackumentVersionDist,
+  logNpmAuthHints,
+  NpmClientError,
+  resolveNpmToken,
+  resolvePackumentVersion,
+  shasumToSri,
+  validateNpmPackageName,
+  validateNpmRegistryUrl,
+  verifyTarballIntegrity,
+} from "./npm-client.js";
+import {
+  createEmptyNpmLock,
+  getNpmLockedSkillNames,
+  getNpmLockedSource,
+  type NpmLockedSource,
+  type NpmSourcesLock,
+  normalizeNpmSourceKey,
+  readNpmLockFile,
+  setNpmLockedSource,
+  writeNpmLockFile,
+} from "./npm-sources-lock.js";
+import { extractPackageTarball } from "./npm-tar.js";
 import { parseSource } from "./source-parser.js";
 import {
   type LockedSkill,
@@ -85,18 +111,24 @@ export async function resolveAndFetchSources(params: {
     return { fetchedSkillCount: 0, sourcesProcessed: 0 };
   }
 
-  // Read existing lockfile
+  // Read existing lockfiles. npm-transport sources are pinned in a separate
+  // lockfile (`rulesync-npm.lock.json`) because they lock a package version +
+  // tarball integrity instead of a git commit SHA.
   let lock: SourcesLock = options.updateSources
     ? createEmptyLock()
     : await readLockFile({ projectRoot, logger });
+  let npmLock: NpmSourcesLock = options.updateSources
+    ? createEmptyNpmLock()
+    : await readNpmLockFile({ projectRoot, logger });
 
-  // Frozen mode: validate lockfile covers all declared sources.
+  // Frozen mode: validate lockfiles cover all declared sources.
   // Missing curated skills are fetched using locked refs.
   if (options.frozen) {
-    assertFrozenLockCoversSources({ lock, sources });
+    assertFrozenLockCoversSources({ lock, npmLock, sources });
   }
 
   const originalLockJson = JSON.stringify(lock);
+  const originalNpmLockJson = JSON.stringify(npmLock);
 
   // Resolve GitHub token
   const token = GitHubClient.resolveToken(options.token);
@@ -110,44 +142,143 @@ export async function resolveAndFetchSources(params: {
 
   for (const sourceEntry of sources) {
     try {
-      const result = await fetchSourceByTransport({
+      const result = await fetchSingleSource({
         sourceEntry,
         client,
         projectRoot,
         lock,
+        npmLock,
         localSkillNames,
         alreadyFetchedSkillNames: allFetchedSkillNames,
         updateSources: options.updateSources ?? false,
         frozen: options.frozen ?? false,
         logger,
       });
-      const { skillCount, fetchedSkillNames, updatedLock } = result;
 
-      lock = updatedLock;
-      totalSkillCount += skillCount;
-      for (const name of fetchedSkillNames) {
+      lock = result.lock;
+      npmLock = result.npmLock;
+      totalSkillCount += result.skillCount;
+      for (const name of result.fetchedSkillNames) {
         allFetchedSkillNames.add(name);
       }
     } catch (error) {
-      logger.error(`Failed to fetch source "${sourceEntry.source}": ${formatError(error)}`);
-      if (error instanceof GitHubClientError) {
-        logGitHubAuthHints({ error, logger });
-      } else if (error instanceof GitClientError) {
-        logGitClientHints({ error, logger });
-      }
+      logSourceFetchFailure({ sourceEntry, error, logger });
     }
   }
 
   lock = pruneStaleLockEntries({ lock, sources, logger });
+  npmLock = pruneStaleNpmLockEntries({ npmLock, sources, logger });
 
-  // Only write lockfile if it has changed (and not in frozen mode)
-  if (!options.frozen && JSON.stringify(lock) !== originalLockJson) {
+  await writeLockFilesIfChanged({
+    projectRoot,
+    lock,
+    npmLock,
+    originalLockJson,
+    originalNpmLockJson,
+    frozen: options.frozen ?? false,
+    logger,
+  });
+
+  return { fetchedSkillCount: totalSkillCount, sourcesProcessed: sources.length };
+}
+
+/**
+ * Dispatch a single source to the npm fetcher or the git/github fetcher,
+ * returning the (possibly) updated lock objects for both lockfiles.
+ */
+async function fetchSingleSource(params: {
+  sourceEntry: SourceEntry;
+  client: GitHubClient;
+  projectRoot: string;
+  lock: SourcesLock;
+  npmLock: NpmSourcesLock;
+  localSkillNames: Set<string>;
+  alreadyFetchedSkillNames: Set<string>;
+  updateSources: boolean;
+  frozen: boolean;
+  logger: Logger;
+}): Promise<{
+  skillCount: number;
+  fetchedSkillNames: string[];
+  lock: SourcesLock;
+  npmLock: NpmSourcesLock;
+}> {
+  const { sourceEntry, lock, npmLock } = params;
+  if ((sourceEntry.transport ?? "github") === "npm") {
+    const result = await fetchSourceViaNpm({
+      sourceEntry,
+      projectRoot: params.projectRoot,
+      npmLock,
+      localSkillNames: params.localSkillNames,
+      alreadyFetchedSkillNames: params.alreadyFetchedSkillNames,
+      updateSources: params.updateSources,
+      logger: params.logger,
+    });
+    return {
+      skillCount: result.skillCount,
+      fetchedSkillNames: result.fetchedSkillNames,
+      lock,
+      npmLock: result.updatedLock,
+    };
+  }
+  const result = await fetchSourceByTransport({
+    sourceEntry,
+    client: params.client,
+    projectRoot: params.projectRoot,
+    lock,
+    localSkillNames: params.localSkillNames,
+    alreadyFetchedSkillNames: params.alreadyFetchedSkillNames,
+    updateSources: params.updateSources,
+    frozen: params.frozen,
+    logger: params.logger,
+  });
+  return {
+    skillCount: result.skillCount,
+    fetchedSkillNames: result.fetchedSkillNames,
+    lock: result.updatedLock,
+    npmLock,
+  };
+}
+
+/** Log a per-source fetch failure with transport-specific troubleshooting hints. */
+function logSourceFetchFailure(params: {
+  sourceEntry: SourceEntry;
+  error: unknown;
+  logger: Logger;
+}): void {
+  const { sourceEntry, error, logger } = params;
+  logger.error(`Failed to fetch source "${sourceEntry.source}": ${formatError(error)}`);
+  if (error instanceof GitHubClientError) {
+    logGitHubAuthHints({ error, logger });
+  } else if (error instanceof GitClientError) {
+    logGitClientHints({ error, logger });
+  } else if (error instanceof NpmClientError) {
+    logNpmAuthHints({ error, logger });
+  }
+}
+
+/** Write each lockfile only when it changed (and never in frozen mode). */
+async function writeLockFilesIfChanged(params: {
+  projectRoot: string;
+  lock: SourcesLock;
+  npmLock: NpmSourcesLock;
+  originalLockJson: string;
+  originalNpmLockJson: string;
+  frozen: boolean;
+  logger: Logger;
+}): Promise<void> {
+  const { projectRoot, lock, npmLock, originalLockJson, originalNpmLockJson, frozen, logger } =
+    params;
+  if (!frozen && JSON.stringify(lock) !== originalLockJson) {
     await writeLockFile({ projectRoot, lock, logger });
   } else {
     logger.debug("Lockfile unchanged, skipping write.");
   }
-
-  return { fetchedSkillCount: totalSkillCount, sourcesProcessed: sources.length };
+  if (!frozen && JSON.stringify(npmLock) !== originalNpmLockJson) {
+    await writeNpmLockFile({ projectRoot, lock: npmLock, logger });
+  } else {
+    logger.debug("npm lockfile unchanged, skipping write.");
+  }
 }
 
 /**
@@ -163,18 +294,24 @@ function logGitClientHints(params: { error: GitClientError; logger: Logger }): v
 }
 
 /**
- * Frozen mode: validate the lockfile covers every declared source. Throws with
- * remediation guidance listing any uncovered source keys.
+ * Frozen mode: validate the lockfiles cover every declared source. Throws with
+ * remediation guidance listing any uncovered source keys. npm-transport
+ * sources are checked against the npm lockfile; everything else against the
+ * main sources lockfile.
  */
 function assertFrozenLockCoversSources(params: {
   lock: SourcesLock;
+  npmLock: NpmSourcesLock;
   sources: SourceEntry[];
 }): void {
-  const { lock, sources } = params;
+  const { lock, npmLock, sources } = params;
   const missingKeys: string[] = [];
 
   for (const source of sources) {
-    const locked = getLockedSource(lock, source.source);
+    const locked =
+      (source.transport ?? "github") === "npm"
+        ? getNpmLockedSource(npmLock, source.source)
+        : getLockedSource(lock, source.source);
     if (!locked) {
       missingKeys.push(source.source);
     }
@@ -247,7 +384,11 @@ function pruneStaleLockEntries(params: {
   logger: Logger;
 }): SourcesLock {
   const { lock, sources, logger } = params;
-  const sourceKeys = new Set(sources.map((s) => normalizeSourceKey(s.source)));
+  const sourceKeys = new Set(
+    sources
+      .filter((s) => (s.transport ?? "github") !== "npm")
+      .map((s) => normalizeSourceKey(s.source)),
+  );
   const prunedSources: typeof lock.sources = {};
   for (const [key, value] of Object.entries(lock.sources)) {
     if (sourceKeys.has(normalizeSourceKey(key))) {
@@ -257,6 +398,32 @@ function pruneStaleLockEntries(params: {
     }
   }
   return { lockfileVersion: lock.lockfileVersion, sources: prunedSources };
+}
+
+/**
+ * Prune stale npm lockfile entries whose keys are not in the current
+ * npm-transport sources (immutable — returns a fresh lock object).
+ */
+function pruneStaleNpmLockEntries(params: {
+  npmLock: NpmSourcesLock;
+  sources: SourceEntry[];
+  logger: Logger;
+}): NpmSourcesLock {
+  const { npmLock, sources, logger } = params;
+  const sourceKeys = new Set(
+    sources
+      .filter((s) => (s.transport ?? "github") === "npm")
+      .map((s) => normalizeNpmSourceKey(s.source)),
+  );
+  const prunedSources: typeof npmLock.sources = {};
+  for (const [key, value] of Object.entries(npmLock.sources)) {
+    if (sourceKeys.has(normalizeNpmSourceKey(key))) {
+      prunedSources[key] = value;
+    } else {
+      logger.debug(`Pruned stale npm lockfile entry: ${key}`);
+    }
+  }
+  return { lockfileVersion: npmLock.lockfileVersion, sources: prunedSources };
 }
 
 /**
@@ -375,6 +542,30 @@ async function writeSkillAndComputeIntegrity(params: {
 }
 
 /**
+ * Merge back locked skills that still exist in the remote but were skipped
+ * during fetching (due to local precedence, already-fetched, etc.). Skills no
+ * longer present in the remote (e.g. renamed or deleted upstream) are
+ * intentionally dropped. Shared by the git/github and npm lock updates.
+ */
+function mergeFetchedWithLockedSkills(params: {
+  fetchedSkills: Record<string, LockedSkill>;
+  lockedSkills: Record<string, LockedSkill> | undefined;
+  remoteSkillNames: string[];
+}): Record<string, LockedSkill> {
+  const { fetchedSkills, lockedSkills, remoteSkillNames } = params;
+  const remoteSet = new Set(remoteSkillNames);
+  const mergedSkills: Record<string, LockedSkill> = { ...fetchedSkills };
+  if (lockedSkills) {
+    for (const [skillName, skillEntry] of Object.entries(lockedSkills)) {
+      if (!(skillName in mergedSkills) && remoteSet.has(skillName)) {
+        mergedSkills[skillName] = skillEntry;
+      }
+    }
+  }
+  return mergedSkills;
+}
+
+/**
  * Merge newly fetched skills with existing locked skills and update the lockfile.
  */
 function buildLockUpdate(params: {
@@ -399,18 +590,11 @@ function buildLockUpdate(params: {
   } = params;
   const fetchedNames = Object.keys(fetchedSkills);
 
-  // Merge back locked skills that still exist in the remote but were skipped
-  // (due to local precedence, already-fetched, etc.). Skills no longer present
-  // in the remote (e.g. renamed or deleted upstream) are intentionally dropped.
-  const remoteSet = new Set(remoteSkillNames);
-  const mergedSkills: Record<string, LockedSkill> = { ...fetchedSkills };
-  if (locked) {
-    for (const [skillName, skillEntry] of Object.entries(locked.skills)) {
-      if (!(skillName in mergedSkills) && remoteSet.has(skillName)) {
-        mergedSkills[skillName] = skillEntry;
-      }
-    }
-  }
+  const mergedSkills = mergeFetchedWithLockedSkills({
+    fetchedSkills,
+    lockedSkills: locked?.skills,
+    remoteSkillNames,
+  });
 
   const updatedLock = setLockedSource(lock, sourceKey, {
     requestedRef,
@@ -1074,5 +1258,318 @@ async function fetchSourceViaGit(params: {
     skillCount: result.fetchedNames.length,
     fetchedSkillNames: result.fetchedNames,
     updatedLock: result.updatedLock,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// npm transport (EXPERIMENTAL)
+// ---------------------------------------------------------------------------
+
+/**
+ * Select the skill files inside an extracted npm package, mirroring the git
+ * transport's discovery: files under `skills/` (or the configured `path`) are
+ * grouped per subdirectory; a package whose `SKILL.md` sits at the package
+ * root is installed as a single skill (root fallback via
+ * {@link shouldUseRootFallback}), named after the requested skill or, for
+ * wildcard fetches, after the package's base name.
+ */
+function selectNpmSkillFiles(params: {
+  allFiles: RemoteSkillFile[];
+  skillsPath: string;
+  skillFilter: string[];
+  isWildcard: boolean;
+  packageName: string;
+}): { remoteFiles: RemoteSkillFile[]; skillFilter: string[]; isWildcard: boolean } {
+  const { allFiles, skillsPath, skillFilter, isWildcard, packageName } = params;
+
+  const normalizedBase = posix.normalize(skillsPath.replace(/\\/g, "/")).replace(/\/+$/, "");
+  const isRootPath = normalizedBase === "" || normalizedBase === ".";
+  if (isRootPath) {
+    return { remoteFiles: allFiles, skillFilter, isWildcard };
+  }
+
+  const prefix = `${normalizedBase}/`;
+  const filesUnderBase = allFiles
+    .filter((file) => file.relativePath.startsWith(prefix))
+    .map((file) => ({
+      relativePath: file.relativePath.substring(prefix.length),
+      content: file.content,
+    }));
+  if (filesUnderBase.length > 0) {
+    return { remoteFiles: filesUnderBase, skillFilter, isWildcard };
+  }
+
+  // Root fallback: the package itself is a single skill with SKILL.md at its
+  // root. For wildcard fetches the skill name is derived from the package
+  // base name (scope stripped), so `@acme/my-skill` installs as `my-skill`.
+  const hasRootSkillFile = allFiles.some((file) => file.relativePath === SKILL_FILE_NAME);
+  const fallbackFilter = isWildcard ? [npmPackageBaseName(packageName)] : skillFilter;
+  const [singleSkillName] = fallbackFilter;
+  if (
+    fallbackFilter.length === 1 &&
+    singleSkillName !== undefined &&
+    shouldUseRootFallback({
+      skillFilter: fallbackFilter,
+      isWildcard: false,
+      hasRootSkillFile,
+      hasRequestedSkillDir: false,
+    })
+  ) {
+    return { remoteFiles: allFiles, skillFilter: fallbackFilter, isWildcard: false };
+  }
+
+  return { remoteFiles: filesUnderBase, skillFilter, isWildcard };
+}
+
+/** Base name of an npm package: `@scope/name` -> `name`. */
+function npmPackageBaseName(packageName: string): string {
+  const slashIndex = packageName.indexOf("/");
+  return slashIndex === -1 ? packageName : packageName.substring(slashIndex + 1);
+}
+
+/**
+ * Resolve the version to fetch for an npm source: the locked version when
+ * available (deterministic re-fetch), otherwise the declared `ref` (exact
+ * version or dist-tag, defaulting to "latest") resolved via the packument.
+ */
+function resolveNpmFetchVersion(params: {
+  sourceEntry: SourceEntry;
+  locked: NpmLockedSource | undefined;
+  updateSources: boolean;
+}): { lockedVersion: string | undefined; requestedVersion: string | undefined } {
+  const { sourceEntry, locked, updateSources } = params;
+  if (locked && !updateSources) {
+    return { lockedVersion: locked.resolvedVersion, requestedVersion: locked.requestedVersion };
+  }
+  return { lockedVersion: undefined, requestedVersion: sourceEntry.ref ?? "latest" };
+}
+
+/**
+ * Resolve the package version via the registry packument, download the
+ * tarball, and verify it against the registry (and, when re-fetching a locked
+ * version, the locked) integrity metadata.
+ */
+async function downloadVerifiedNpmTarball(params: {
+  packageName: string;
+  registryUrl: string;
+  token: string | undefined;
+  lockedVersion: string | undefined;
+  requestedVersion: string | undefined;
+  locked: NpmLockedSource | undefined;
+  logger: Logger;
+}): Promise<{
+  resolvedVersion: string;
+  dist: { tarball: string; integrity?: string; shasum?: string };
+  tarball: Buffer;
+}> {
+  const { packageName, registryUrl, token, lockedVersion, requestedVersion, locked, logger } =
+    params;
+
+  const packument = await fetchPackument({ registryUrl, packageName, token });
+  const resolvedVersion =
+    lockedVersion ??
+    resolvePackumentVersion({
+      packument,
+      packageName,
+      requested: requestedVersion ?? "latest",
+    });
+  logger.debug(`Resolved ${packageName}@${requestedVersion ?? "latest"} to ${resolvedVersion}`);
+
+  const dist = getPackumentVersionDist({ packument, packageName, version: resolvedVersion });
+  const tarball = await fetchTarball({ tarballUrl: dist.tarball, registryUrl, token });
+  const context = `${packageName}@${resolvedVersion}`;
+  verifyTarballIntegrity({
+    tarball,
+    integrity: dist.integrity,
+    shasum: dist.shasum,
+    context,
+    logger,
+  });
+  // Defense in depth: when re-fetching a locked version, also verify against
+  // the integrity recorded at lock time so a registry-side swap is detected.
+  if (locked?.integrity && locked.resolvedVersion === resolvedVersion) {
+    verifyTarballIntegrity({ tarball, integrity: locked.integrity, context, logger });
+  }
+
+  return { resolvedVersion, dist, tarball };
+}
+
+/**
+ * Extract a verified npm tarball in memory and convert its entries into
+ * remote skill files, skipping any file above MAX_FILE_SIZE.
+ */
+function extractNpmRemoteFiles(params: { tarball: Buffer; logger: Logger }): RemoteSkillFile[] {
+  const { tarball, logger } = params;
+  const extracted = extractPackageTarball({
+    tarball,
+    onSkippedEntry: (message) => logger.warn(message),
+  });
+  const allFiles: RemoteSkillFile[] = [];
+  for (const entry of extracted) {
+    if (entry.content.length > MAX_FILE_SIZE) {
+      logger.warn(
+        `Skipping file "${entry.relativePath}" (${(entry.content.length / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit).`,
+      );
+      continue;
+    }
+    allFiles.push({ relativePath: entry.relativePath, content: entry.content.toString("utf8") });
+  }
+  return allFiles;
+}
+
+/** Build the npm lockfile entry for a fetched source. */
+function buildNpmLockEntry(params: {
+  sourceEntry: SourceEntry;
+  requestedVersion: string | undefined;
+  resolvedVersion: string;
+  dist: { integrity?: string; shasum?: string };
+  mergedSkills: Record<string, LockedSkill>;
+}): NpmLockedSource {
+  const { sourceEntry, requestedVersion, resolvedVersion, dist, mergedSkills } = params;
+  const integrity =
+    dist.integrity ?? (dist.shasum !== undefined ? shasumToSri(dist.shasum) : undefined);
+  return {
+    ...(sourceEntry.registry !== undefined && { registry: sourceEntry.registry }),
+    ...(requestedVersion !== undefined && { requestedVersion }),
+    resolvedVersion,
+    ...(integrity !== undefined && { integrity }),
+    resolvedAt: new Date().toISOString(),
+    skills: mergedSkills,
+  };
+}
+
+/**
+ * Fetch skills from a single npm-transport source (EXPERIMENTAL): resolve the
+ * package version via the registry packument, download and verify the
+ * tarball, extract it in-memory with the hardened tar reader, and install the
+ * discovered skills into the curated directory.
+ */
+async function fetchSourceViaNpm(params: {
+  sourceEntry: SourceEntry;
+  projectRoot: string;
+  npmLock: NpmSourcesLock;
+  localSkillNames: Set<string>;
+  alreadyFetchedSkillNames: Set<string>;
+  updateSources: boolean;
+  logger: Logger;
+}): Promise<{ skillCount: number; fetchedSkillNames: string[]; updatedLock: NpmSourcesLock }> {
+  const {
+    sourceEntry,
+    projectRoot,
+    npmLock,
+    localSkillNames,
+    alreadyFetchedSkillNames,
+    updateSources,
+    logger,
+  } = params;
+
+  const packageName = sourceEntry.source;
+  validateNpmPackageName(packageName);
+  const registryUrl = sourceEntry.registry ?? DEFAULT_NPM_REGISTRY_URL;
+  validateNpmRegistryUrl(registryUrl, { logger });
+  const token = resolveNpmToken({ tokenEnv: sourceEntry.tokenEnv });
+
+  const sourceKey = packageName;
+  const locked = getNpmLockedSource(npmLock, sourceKey);
+  const lockedSkillNames = locked ? getNpmLockedSkillNames(locked) : [];
+  const curatedDir = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+
+  const { lockedVersion, requestedVersion } = resolveNpmFetchVersion({
+    sourceEntry,
+    locked,
+    updateSources,
+  });
+
+  // Skip re-fetch if the locked version's curated skills exist on disk
+  if (lockedVersion !== undefined) {
+    if (await checkLockedSkillsExist(curatedDir, lockedSkillNames)) {
+      logger.debug(`Version unchanged for ${sourceKey}, skipping re-fetch.`);
+      return { skillCount: 0, fetchedSkillNames: lockedSkillNames, updatedLock: npmLock };
+    }
+  }
+
+  const { resolvedVersion, dist, tarball } = await downloadVerifiedNpmTarball({
+    packageName,
+    registryUrl,
+    token,
+    lockedVersion,
+    requestedVersion,
+    locked,
+    logger,
+  });
+
+  const allFiles = extractNpmRemoteFiles({ tarball, logger });
+
+  const declaredFilter = sourceEntry.skills ?? ["*"];
+  const declaredWildcard = declaredFilter.length === 1 && declaredFilter[0] === "*";
+  const { remoteFiles, skillFilter, isWildcard } = selectNpmSkillFiles({
+    allFiles,
+    skillsPath: sourceEntry.path ?? "skills",
+    skillFilter: declaredFilter,
+    isWildcard: declaredWildcard,
+    packageName,
+  });
+
+  const skillFileMap = groupRemoteFilesBySkillRoot({ remoteFiles, skillFilter, isWildcard });
+  const allNames = [...skillFileMap.keys()];
+  const filteredNames = isWildcard ? allNames : allNames.filter((n) => skillFilter.includes(n));
+
+  if (locked) {
+    await cleanPreviousCuratedSkills({ curatedDir, lockedSkillNames, logger });
+  }
+
+  // Adapter so writeSkillAndComputeIntegrity can compare per-skill integrity
+  // against the npm lock entry the same way it does for git sources.
+  const lockedForIntegrityCheck: LockedSource | undefined = locked
+    ? { resolvedRef: locked.resolvedVersion, skills: locked.skills }
+    : undefined;
+
+  const fetchedSkills: Record<string, LockedSkill> = {};
+  for (const skillName of filteredNames) {
+    if (
+      shouldSkipSkill({
+        skillName,
+        sourceKey,
+        localSkillNames,
+        alreadyFetchedSkillNames,
+        logger,
+      })
+    ) {
+      continue;
+    }
+
+    fetchedSkills[skillName] = await writeSkillAndComputeIntegrity({
+      skillName,
+      files: skillFileMap.get(skillName) ?? [],
+      curatedDir,
+      locked: lockedForIntegrityCheck,
+      resolvedSha: resolvedVersion,
+      sourceKey,
+      logger,
+    });
+    logger.debug(`Fetched skill "${skillName}" from ${sourceKey}`);
+  }
+
+  const fetchedNames = Object.keys(fetchedSkills);
+  const mergedSkills = mergeFetchedWithLockedSkills({
+    fetchedSkills,
+    lockedSkills: locked?.skills,
+    remoteSkillNames: filteredNames,
+  });
+
+  const updatedLock = setNpmLockedSource(
+    npmLock,
+    sourceKey,
+    buildNpmLockEntry({ sourceEntry, requestedVersion, resolvedVersion, dist, mergedSkills }),
+  );
+
+  logger.info(
+    `Fetched ${fetchedNames.length} skill(s) from ${sourceKey}: ${fetchedNames.join(", ") || "(none)"}`,
+  );
+
+  return {
+    skillCount: fetchedNames.length,
+    fetchedSkillNames: fetchedNames,
+    updatedLock,
   };
 }

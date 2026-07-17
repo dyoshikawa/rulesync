@@ -4,7 +4,15 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { ALL_FEATURES } from "../types/features.js";
 import { ALL_TOOL_TARGETS } from "../types/tool-targets.js";
-import { assertTargetsFeaturesExclusive, Config, type ConfigParams } from "./config.js";
+import {
+  assertTargetsFeaturesExclusive,
+  Config,
+  ConfigFileSchema,
+  type ConfigParams,
+} from "./config.js";
+
+const parseSources = (sources: unknown[]) =>
+  ConfigFileSchema.safeParse({ targets: ["cursor"], sources });
 
 describe("Config", () => {
   const defaultConfig: ConfigParams = {
@@ -413,6 +421,48 @@ describe("Config", () => {
       const parent = resolve(originalCwd, "..");
       process.chdir(parent);
       expect(config.getInputRoot()).toBe(expected);
+    });
+  });
+
+  describe("source entry schema (npm transport)", () => {
+    it("accepts an npm source with registry and tokenEnv", () => {
+      const result = parseSources([
+        {
+          source: "@acme/skills",
+          transport: "npm",
+          registry: "https://acme.jfrog.io/artifactory/api/npm/npm-local/",
+          tokenEnv: "ACME_REGISTRY_TOKEN",
+        },
+      ]);
+      expect(result.success).toBe(true);
+    });
+
+    it("accepts an npm source without registry (defaults to npmjs.org)", () => {
+      const result = parseSources([{ source: "my-skill-package", transport: "npm" }]);
+      expect(result.success).toBe(true);
+    });
+
+    it("rejects registry and tokenEnv without the npm transport", () => {
+      expect(
+        parseSources([{ source: "owner/repo", registry: "https://registry.example.com" }]).success,
+      ).toBe(false);
+      expect(
+        parseSources([{ source: "owner/repo", transport: "git", tokenEnv: "NPM_TOKEN" }]).success,
+      ).toBe(false);
+    });
+
+    it("rejects a non-http(s) registry URL", () => {
+      const result = parseSources([
+        { source: "pkg", transport: "npm", registry: "ftp://registry.example.com" },
+      ]);
+      expect(result.success).toBe(false);
+    });
+
+    it("rejects an invalid tokenEnv name", () => {
+      const result = parseSources([
+        { source: "pkg", transport: "npm", tokenEnv: "not a var; rm -rf" },
+      ]);
+      expect(result.success).toBe(false);
     });
   });
 });

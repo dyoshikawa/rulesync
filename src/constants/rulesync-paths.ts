@@ -36,6 +36,7 @@ export const RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH = join(
   ".curated",
 );
 export const RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH = "rulesync.lock";
+export const RULESYNC_NPM_SOURCES_LOCK_RELATIVE_FILE_PATH = "rulesync-npm.lock.json";
 
 // File names (without path)
 export const RULESYNC_MCP_FILE_NAME = "mcp.json";
