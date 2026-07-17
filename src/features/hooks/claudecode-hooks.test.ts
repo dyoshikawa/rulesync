@@ -137,6 +137,43 @@ describe("ClaudecodeHooks", () => {
       });
     });
 
+    it("should emit the tool-event `if` condition on generate (#2225)", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [
+            {
+              type: "command",
+              command: "block-rm.sh",
+              matcher: "Bash",
+              if: "Bash(rm *)",
+            },
+          ],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(claudecodeHooks.getFileContent());
+      const hook = parsed.hooks.PreToolUse[0].hooks[0];
+      expect(hook.if).toBe("Bash(rm *)");
+      expect(hook.command).toBe("block-rm.sh");
+    });
+
     it("should not leak type-specific fields onto other hook types", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
@@ -494,6 +531,67 @@ describe("ClaudecodeHooks", () => {
       expect(json.hooks.sessionStart).toHaveLength(1);
       expect(json.hooks.sessionStart?.[0]?.command).toContain("echo.sh");
       expect(json.hooks.stop).toHaveLength(1);
+    });
+
+    it("should read the tool-event `if` condition back on import (#2225)", () => {
+      const claudecodeHooks = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PreToolUse: [
+              {
+                matcher: "Bash",
+                hooks: [{ type: "command", command: "block-rm.sh", if: "Bash(rm *)" }],
+              },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = claudecodeHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.preToolUse?.[0]?.if).toBe("Bash(rm *)");
+      expect(json.hooks.preToolUse?.[0]?.matcher).toBe("Bash");
+    });
+
+    it("should round-trip the tool-event `if` condition through generate then import (#2225)", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [
+            { type: "command", command: "block-rm.sh", matcher: "Bash", if: "Bash(rm *)" },
+          ],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const generated = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const reimported = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: generated.getFileContent(),
+        validate: false,
+      });
+
+      const json = reimported.toRulesyncHooks().getJson();
+      expect(json.hooks.preToolUse?.[0]?.if).toBe("Bash(rm *)");
     });
 
     it("should strip the quoted $CLAUDE_PROJECT_DIR prefix back to a ./-relative command", () => {

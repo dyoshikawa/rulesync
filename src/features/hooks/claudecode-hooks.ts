@@ -57,6 +57,10 @@ const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedHookTypes: new Set(["command", "prompt", "http", "mcp_tool", "agent"]),
   // Claude Code documents a per-hook `model` selector on prompt/agent hooks.
   emitsPromptModel: true,
+  // Claude Code's tool-event `if` condition (a single permission rule) is
+  // Claude-Code-specific and round-trips as an opaque string.
+  // https://code.claude.com/docs/en/hooks
+  stringPassthroughFields: [{ canonical: "if", tool: "if" }],
 };
 
 export class ClaudecodeHooks extends ToolHooks {
