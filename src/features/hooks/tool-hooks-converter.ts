@@ -256,10 +256,11 @@ function buildToolHooks({
     }
     const command = applyCommandPrefix({ def, converterConfig });
     hooks.push({
-      // Spread the boolean passthrough fields first so the explicitly-handled
-      // core fields below always win: a misconfigured `tool` name (e.g. mapping
-      // onto "type"/"command") can never silently shadow them.
+      // Spread the boolean and string passthrough fields first so the
+      // explicitly-handled core fields below always win: a misconfigured `tool`
+      // name (e.g. mapping onto "type"/"command") can never silently shadow them.
       ...emitBooleanPassthroughFields({ def, converterConfig }),
+      ...emitStringPassthroughFields({ def, converterConfig }),
       type: hookType,
       ...(command !== undefined && command !== null && { command }),
       ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
@@ -274,8 +275,6 @@ function buildToolHooks({
       ...(converterConfig.passthroughFields?.includes("description") &&
         def.description !== undefined &&
         def.description !== null && { description: def.description }),
-      // Tool-specific opaque string fields (e.g. Claude Code's `if` condition).
-      ...emitStringPassthroughFields({ def, converterConfig }),
     });
   }
   return hooks;
