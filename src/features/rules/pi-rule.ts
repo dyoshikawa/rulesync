@@ -7,6 +7,7 @@ import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleExtraFixedFile,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
@@ -100,11 +101,19 @@ export class PiRule extends ToolRule {
    * RulesProcessor enumerates these for import and deletion so a stale
    * `APPEND_SYSTEM.md` is cleaned up once no rule opts in anymore.
    */
-  static getExtraFixedFiles({ global = false }: { global?: boolean } = {}): Array<{
-    relativeDirPath: string;
-    relativeFilePath: string;
-  }> {
+  static getExtraFixedFiles({
+    global = false,
+  }: { global?: boolean } = {}): ToolRuleExtraFixedFile[] {
     return [this.getSettablePaths({ global }).appendSystemPrompt];
+  }
+
+  /**
+   * Pi appends `APPEND_SYSTEM.md` to the system prompt itself, so listing it in
+   * the root rule's reference section (toon/explicit discovery modes) would
+   * double-load the content.
+   */
+  override isExcludedFromRootReferences(): boolean {
+    return this.appendSystemPrompt;
   }
 
   static async fromFile({
@@ -158,7 +167,10 @@ export class PiRule extends ToolRule {
     const frontmatter = rulesyncRule.getFrontmatter();
 
     // Opted-in rules route to the append system-prompt file instead of AGENTS.md.
-    if (frontmatter.pi?.systemPrompt === "append") {
+    // The root rule always stays on AGENTS.md: routing it away would leave the
+    // context file without a merge/localRoot target, so `pi.systemPrompt` is
+    // ignored on a `root: true` rule (documented in file-formats.md).
+    if (!frontmatter.root && frontmatter.pi?.systemPrompt === "append") {
       return new PiRule({
         outputRoot,
         relativeDirPath: appendSystemPrompt.relativeDirPath,

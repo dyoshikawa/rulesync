@@ -62,6 +62,7 @@ import { RulesyncRule } from "./rulesync-rule.js";
 import { TaktRule } from "./takt-rule.js";
 import {
   ToolRule,
+  ToolRuleExtraFixedFile,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
@@ -238,10 +239,7 @@ type ToolRuleFactory = {
      * enumerates these on import and deletion so they round-trip and stale files
      * are cleaned up when no rule targets them. See {@link PiRule.getExtraFixedFiles}.
      */
-    getExtraFixedFiles?(params: { global?: boolean }): Array<{
-      relativeDirPath: string;
-      relativeFilePath: string;
-    }>;
+    getExtraFixedFiles?(params: { global?: boolean }): ToolRuleExtraFixedFile[];
   };
   meta: {
     /** File extension for the rule file */
@@ -983,7 +981,7 @@ export class RulesProcessor extends FeatureProcessor {
       return [];
     }
     const instructionPaths = toolRules
-      .filter((rule) => !rule.isRoot())
+      .filter((rule) => !rule.isRoot() && !rule.isExcludedFromRootReferences())
       .map((rule) => toPosixPath(join(rule.getRelativeDirPath(), rule.getRelativeFilePath())));
     if (instructionPaths.length === 0) {
       return [];
@@ -1668,7 +1666,9 @@ As this project's AI coding tool, you must follow the additional conventions bel
   }
 
   private generateToonReferencesSection(toolRules: ToolRule[]): string {
-    const toolRulesWithoutRoot = toolRules.filter((rule) => !rule.isRoot());
+    const toolRulesWithoutRoot = toolRules.filter(
+      (rule) => !rule.isRoot() && !rule.isExcludedFromRootReferences(),
+    );
 
     if (toolRulesWithoutRoot.length === 0) {
       return "";
@@ -1712,7 +1712,9 @@ As this project's AI coding tool, you must follow the additional conventions bel
   }
 
   private generateReferencesSection(toolRules: ToolRule[]): string {
-    const toolRulesWithoutRoot = toolRules.filter((rule) => !rule.isRoot());
+    const toolRulesWithoutRoot = toolRules.filter(
+      (rule) => !rule.isRoot() && !rule.isExcludedFromRootReferences(),
+    );
 
     if (toolRulesWithoutRoot.length === 0) {
       return "";

@@ -33,6 +33,17 @@ export type ToolRuleForDeletionParams = {
   global?: boolean;
 };
 
+/**
+ * A fixed-path file a tool manages beyond its root/non-root rules (e.g. Pi's
+ * `APPEND_SYSTEM.md`). Returned by the optional static `getExtraFixedFiles`
+ * hook, consumed by the RulesProcessor (import/deletion) and the gitignore
+ * derivation.
+ */
+export type ToolRuleExtraFixedFile = {
+  relativeDirPath: string;
+  relativeFilePath: string;
+};
+
 export type ToolRuleSettablePaths = {
   root?: {
     relativeDirPath: string;
@@ -202,6 +213,17 @@ export abstract class ToolRule extends ToolFile {
 
   isRoot(): boolean {
     return this.root;
+  }
+
+  /**
+   * Whether this rule must be left out of the root rule's reference/MCP
+   * instruction listings even though it is a non-root survivor. Used by files
+   * the tool loads through its own mechanism (e.g. Pi's `APPEND_SYSTEM.md`,
+   * which Pi appends to the system prompt itself — referencing it from
+   * `AGENTS.md` would double-load the content).
+   */
+  isExcludedFromRootReferences(): boolean {
+    return false;
   }
 
   getDescription(): string | undefined {

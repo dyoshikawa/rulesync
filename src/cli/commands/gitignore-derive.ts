@@ -1,3 +1,4 @@
+import type { ToolRuleExtraFixedFile } from "../../features/rules/tool-rule.js";
 import type { Feature } from "../../types/features.js";
 import { getProcessorRegistryEntry } from "../../types/processor-registry.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
@@ -131,10 +132,7 @@ const deriveRulesEntries = (): GitignoreEntryTag[] => {
     // Extra fixed-path files a tool manages beyond root/nonRoot (e.g. Pi's
     // `.pi/APPEND_SYSTEM.md`). Derived from the same hook the RulesProcessor uses.
     const classWithExtraFiles = factory.class as {
-      getExtraFixedFiles?: (options?: { global?: boolean }) => Array<{
-        relativeDirPath: string;
-        relativeFilePath: string;
-      }>;
+      getExtraFixedFiles?: (options?: { global?: boolean }) => ToolRuleExtraFixedFile[];
     };
     if (classWithExtraFiles.getExtraFixedFiles) {
       for (const file of classWithExtraFiles.getExtraFixedFiles({ global: false })) {

@@ -280,6 +280,66 @@ describe("RulesProcessor", () => {
       expect(appendRule?.getFileContent()).toBe("# Append one\n\n# Append two");
       expect(appendRule?.getRelativeDirPath()).toBe(".pi");
     });
+
+    it("should not list APPEND_SYSTEM.md in the pi references section in explicit discovery mode", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        toolTarget: "pi",
+        featureOptions: { ruleDiscoveryMode: "explicit" },
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "overview.md",
+          frontmatter: { root: true, targets: ["pi"] },
+          body: "# Root body",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "style.md",
+          frontmatter: { targets: ["pi"], pi: { systemPrompt: "append" } },
+          body: "# Append body",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const rootRule = result.find(
+        (rule) => rule instanceof PiRule && rule.getRelativeFilePath() === "AGENTS.md",
+      );
+
+      // Pi appends APPEND_SYSTEM.md to the system prompt itself, so referencing
+      // it from AGENTS.md would double-load the content.
+      const content = rootRule?.getFileContent();
+      expect(content).not.toContain("APPEND_SYSTEM.md");
+      expect(content).toContain("# Root body");
+    });
+
+    it("should keep a root rule on AGENTS.md even when it opts into systemPrompt append", async () => {
+      const processor = new RulesProcessor({ logger, toolTarget: "pi" });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "overview.md",
+          frontmatter: { root: true, targets: ["pi"], pi: { systemPrompt: "append" } },
+          body: "# Root body",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      // The opt-in is ignored on the root rule: routing it away would leave the
+      // context file without a merge/localRoot target.
+      expect(result).toHaveLength(1);
+      const rootRule = result[0];
+      expect(rootRule).toBeInstanceOf(PiRule);
+      expect(rootRule?.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(rootRule instanceof PiRule && rootRule.isRoot()).toBe(true);
+    });
   });
 
   describe("generateReferencesSection", () => {
