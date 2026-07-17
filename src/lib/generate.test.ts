@@ -1315,6 +1315,7 @@ describe("GENERATION_STEP_GRAPH", () => {
       "commands",
       "subagents",
       "skills",
+      "checks",
       "mcp",
       "hooks",
       "permissions",

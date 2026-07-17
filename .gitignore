@@ -386,5 +386,6 @@ rulesync.local.jsonc
 **/.devinignore
 **/.vibeignore
 **/.warpindexingignore
+**/.agents/checks/
 !.rulesync/.aiignore
 # End of Rulesync

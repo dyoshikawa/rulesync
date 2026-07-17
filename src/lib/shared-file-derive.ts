@@ -41,6 +41,7 @@ export const SHARED_WRITE_FEATURE_ORDER = [
  *
  * - `commands`: standalone per-command files (e.g. `.claude/commands/*.md`).
  * - `skills`: standalone per-skill directories (e.g. `.claude/skills/<name>/`).
+ * - `checks`: standalone per-check files (e.g. `.agents/checks/<name>.md`).
  *
  * Kept as an explicit list — not an implicit "everything not in
  * {@link SHARED_WRITE_FEATURE_ORDER}" — so that adding a new `Feature` forces a
@@ -52,6 +53,7 @@ export const SHARED_WRITE_FEATURE_ORDER = [
 export const NON_SHARED_WRITE_FEATURES = [
   "commands",
   "skills",
+  "checks",
 ] as const satisfies readonly Feature[];
 
 // Deprecated aliases; a guard for the day one diverges from its canonical

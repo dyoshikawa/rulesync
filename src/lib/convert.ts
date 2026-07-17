@@ -1,4 +1,5 @@
 import { Config } from "../config/config.js";
+import { ChecksProcessor } from "../features/checks/checks-processor.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
@@ -20,6 +21,7 @@ export type ConvertResult = {
   skillsCount: number;
   hooksCount: number;
   permissionsCount: number;
+  checksCount: number;
 };
 
 type ConvertContext = {
@@ -69,6 +71,7 @@ export async function convertFromTool(params: {
     skillsCount,
     hooksCount,
     permissionsCount,
+    checksCount,
   ] = [
     await runFeatureConvert(ctx, buildRulesStrategy(ctx)),
     await runFeatureConvert(ctx, buildIgnoreStrategy(ctx)),
@@ -78,6 +81,7 @@ export async function convertFromTool(params: {
     await runFeatureConvert(ctx, buildSkillsStrategy(ctx)),
     await runFeatureConvert(ctx, buildHooksStrategy(ctx)),
     await runFeatureConvert(ctx, buildPermissionsStrategy(ctx)),
+    await runFeatureConvert(ctx, buildChecksStrategy(ctx)),
   ];
 
   return {
@@ -89,6 +93,7 @@ export async function convertFromTool(params: {
     skillsCount,
     hooksCount,
     permissionsCount,
+    checksCount,
   };
 }
 
@@ -356,5 +361,28 @@ function buildPermissionsStrategy(ctx: ConvertContext) {
     PermissionsProcessor,
     Awaited<ReturnType<PermissionsProcessor["loadToolFiles"]>>[number],
     Awaited<ReturnType<PermissionsProcessor["convertToolFilesToRulesyncFiles"]>>[number]
+  >;
+}
+
+function buildChecksStrategy(ctx: ConvertContext) {
+  const { config, logger } = ctx;
+  const global = config.getGlobal();
+  const outputRoot = getOutputRoot(config);
+  const allTargets = ChecksProcessor.getToolTargets({ global });
+
+  return {
+    feature: "checks" as const,
+    itemLabel: "check file(s)",
+    allTargets,
+    createProcessor: ({ toolTarget, dryRun }) =>
+      new ChecksProcessor({ outputRoot, toolTarget, global, dryRun, logger }),
+    loadSource: (p) => p.loadToolFiles(),
+    toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
+    fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
+    write: (p, files) => p.writeAiFiles(files),
+  } satisfies ConvertStrategy<
+    ChecksProcessor,
+    Awaited<ReturnType<ChecksProcessor["loadToolFiles"]>>[number],
+    Awaited<ReturnType<ChecksProcessor["convertToolFilesToRulesyncFiles"]>>[number]
   >;
 }

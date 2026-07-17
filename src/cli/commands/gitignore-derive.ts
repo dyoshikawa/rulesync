@@ -134,7 +134,7 @@ const deriveRulesEntries = (): GitignoreEntryTag[] => {
 
 // commands/skills/subagents emit a directory tree; mcp/hooks/permissions/ignore
 // emit a single file; rules has a composite root+nonRoot shape.
-const DIR_FEATURES = new Set<Feature>(["commands", "skills", "subagents"]);
+const DIR_FEATURES = new Set<Feature>(["commands", "skills", "subagents", "checks"]);
 const FILE_FEATURES = new Set<Feature>(["mcp", "hooks", "permissions", "ignore"]);
 
 const deriveFeatureGitignoreEntries = (feature: Feature): GitignoreEntryTag[] => {
@@ -154,6 +154,7 @@ const DERIVED_FEATURES: ReadonlyArray<Feature> = [
   "hooks",
   "permissions",
   "ignore",
+  "checks",
 ];
 
 // Every project-scope output path, derived from each tool's getSettablePaths,

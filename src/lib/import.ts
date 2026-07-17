@@ -9,6 +9,7 @@ import {
   RULESYNC_PERMISSIONS_JSONC_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
 } from "../constants/rulesync-paths.js";
+import { ChecksProcessor } from "../features/checks/checks-processor.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
@@ -50,6 +51,7 @@ export type ImportResult = {
   skillsCount: number;
   hooksCount: number;
   permissionsCount: number;
+  checksCount: number;
 };
 
 /**
@@ -70,6 +72,7 @@ export async function importFromTool(params: {
   const skillsCount = await importSkillsCore({ config, tool, logger });
   const hooksCount = await importHooksCore({ config, tool, logger });
   const permissionsCount = await importPermissionsCore({ config, tool, logger });
+  const checksCount = await importChecksCore({ config, tool, logger });
 
   return {
     rulesCount,
@@ -80,6 +83,7 @@ export async function importFromTool(params: {
     skillsCount,
     hooksCount,
     permissionsCount,
+    checksCount,
   };
 }
 
@@ -457,6 +461,46 @@ async function importPermissionsCore(params: {
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} permissions file(s)`);
+  }
+
+  return writtenCount;
+}
+
+async function importChecksCore(params: {
+  config: Config;
+  tool: ToolTarget;
+  logger: Logger;
+}): Promise<number> {
+  const { config, tool, logger } = params;
+
+  if (!config.getFeatures(tool).includes("checks")) {
+    return 0;
+  }
+
+  const global = config.getGlobal();
+  const supportedTargets = ChecksProcessor.getToolTargets({ global });
+  if (!supportedTargets.includes(tool)) {
+    return 0;
+  }
+
+  const checksProcessor = new ChecksProcessor({
+    outputRoot: config.getOutputRoots()[0] ?? ".",
+    toolTarget: tool,
+    global,
+    logger,
+  });
+
+  const toolFiles = await checksProcessor.loadToolFiles();
+  if (toolFiles.length === 0) {
+    logger.warn(`No check files found for ${tool}. Skipping import.`);
+    return 0;
+  }
+
+  const rulesyncFiles = await checksProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+  const { count: writtenCount } = await checksProcessor.writeAiFiles(rulesyncFiles);
+
+  if (config.getVerbose() && writtenCount > 0) {
+    logger.success(`Created ${writtenCount} check files`);
   }
 
   return writtenCount;

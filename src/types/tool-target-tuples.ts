@@ -250,6 +250,8 @@ export const permissionsProcessorToolTargetTuple = [
   "zed",
 ] as const;
 
+export const checksProcessorToolTargetTuple = ["amp"] as const;
+
 export const ALL_TOOL_TARGET_TUPLES = [
   rulesProcessorToolTargetTuple,
   ignoreProcessorToolTargetTuple,
@@ -259,4 +261,5 @@ export const ALL_TOOL_TARGET_TUPLES = [
   skillsProcessorToolTargetTuple,
   hooksProcessorToolTargetTuple,
   permissionsProcessorToolTargetTuple,
+  checksProcessorToolTargetTuple,
 ] as const;

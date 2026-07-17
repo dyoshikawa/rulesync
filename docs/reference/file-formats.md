@@ -416,6 +416,42 @@ Besides `mode`, the `kilo` subagent block accepts these optional fields (all pre
 | `steps`       | array of object  | Ordered step definitions                                                         |
 | `options`     | object           | Free-form key/value options                                                      |
 
+## `.rulesync/checks/*.md`
+
+Code review checks are per-check instructions an agent runs during code review. Each check is a single Markdown file with YAML frontmatter (the source of the check identity is the file name — e.g. `.rulesync/checks/security.md` defines the `security` check).
+
+Example:
+
+```md
+---
+targets: ["*"] # * = all, or specific tools
+description: Flags common security issues # (optional) short summary of the check
+severity: high # (optional) low | medium | high | critical
+tools: ["Read", "Grep"] # (optional) tool names the check may use
+---
+
+Review the diff for injection vulnerabilities, hardcoded secrets, and unsafe
+deserialization. Report each finding with a file and line reference.
+```
+
+Currently only **Amp** consumes checks. Rulesync emits one Markdown file per check:
+
+- **Project scope:** `.agents/checks/<name>.md`
+- **Global scope** (`--global`): `~/.config/amp/checks/<name>.md`
+
+The emitted Amp frontmatter is derived from the source as follows:
+
+| Amp field          | Source                                                   |
+| ------------------ | -------------------------------------------------------- |
+| `name`             | the source file basename without `.md` (required by Amp) |
+| `description`      | `description`                                            |
+| `severity-default` | `severity`                                               |
+| `tools`            | `tools`                                                  |
+
+The frontmatter schema is loose, so any extra Amp-specific keys survive a generate/import round-trip. On import, `severity-default` maps back to the generic `severity` field, and the `name` field is dropped because it is re-derived from the file name on the next generate.
+
+> **v1 limitation:** Amp also discovers subtree-scoped checks (e.g. `api/.agents/checks/`), but rulesync sources carry no directory-placement semantics, so those subtree-scoped checks are not generated. See the [Amp manual](https://ampcode.com/manual).
+
 ## `.rulesync/skills/*/SKILL.md`
 
 Example:
