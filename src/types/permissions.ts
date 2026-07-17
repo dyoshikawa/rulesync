@@ -598,13 +598,14 @@ const CodexBasePermissionProfileSchema = z.enum(CODEX_BASE_PERMISSION_PROFILES);
  *   Defaults to `auto_review` when neither the override nor the existing
  *   config sets it.
  * - `git_write_rules` — whether the managed profile's `:workspace_roots` table
- *   emits the default `.git` carve-outs (`".git/**" = "write"` with
- *   `".git/config" = "read"` kept read-only as a security guard). Codex's
+ *   emits the default `.git` carve-out (`".git/**" = "write"`). Codex's
  *   `:workspace` baseline makes `.git` read-only, which denies basic git
  *   workflows (commit/stage writes to `.git/index`, `.git/objects`, refs,
- *   logs), so the carve-outs are emitted by default. Defaults to `true`; only
- *   an explicit `false` suppresses them. Like `base_permission_profile` it is
- *   consumed by the profile builder, not written as a top-level config key.
+ *   logs; everyday commands like `git remote add` or `git push -u` write to
+ *   `.git/config`), so the carve-out is emitted by default. Defaults to
+ *   `true`; only an explicit `false` suppresses it. Like
+ *   `base_permission_profile` it is consumed by the profile builder, not
+ *   written as a top-level config key.
  *
  * Two surfaces are deliberately NOT authorable here so the override can never
  * clobber a feature-owned key: `mcp_servers.*` per-MCP gating is owned by the

@@ -56,34 +56,32 @@ const CODEX_GLOB_SCAN_MAX_DEPTH = 8; // Matches Codex CLI default glob_scan_max_
 // an existing config file being present. Keys mirror parse_special_path in
 // codex-rs/config/src/permissions_toml.rs.
 const CODEX_MINIMAL_KEY = ":minimal";
-// Default `.git` carve-outs emitted into the `:workspace_roots` table unless
+// Default `.git` carve-out emitted into the `:workspace_roots` table unless
 // `codexcli.git_write_rules` is explicitly `false`. Codex's `:workspace`
 // baseline keeps `.git` read-only inside workspace roots
 // (append_default_read_only_project_root_subpath_if_no_explicit_rule in
 // codex-rs), which denies basic git workflows: commit/stage operations write
 // to `.git/index`, `.git/objects`, refs, and logs. `".git/**" = "write"`
-// reopens the subtree, while `".git/config" = "read"` keeps the repository
-// config read-only — a writable `.git/config` would let a sandboxed process
-// set keys like `core.fsmonitor` or `core.hooksPath` that execute arbitrary
-// code outside the sandbox. Codex resolves the more specific path with
-// priority, so the `read` rule wins for that one file.
+// reopens the whole subtree, including `.git/config` — everyday commands such
+// as `git remote add`/`set-url`, `git push -u` (records
+// `branch.<name>.remote`/`merge`), local-scope `git config`, and
+// clone/submodule flows all write to the repository config, so keeping it
+// read-only breaks basic workflows. An earlier `".git/config" = "read"`
+// security guard was dropped for that reason (#2279): the protection it added
+// was already partial by design — `.git/hooks/` stays writable so hook
+// managers such as lefthook and simple-git-hooks keep working (a maintainer
+// decision on #2272) — so the cost/benefit did not hold. Users who want
+// stricter isolation can author e.g. `read: { ".git/config": "allow" }` or
+// `read: { ".git/hooks/**": "allow" }` in the canonical permissions — a user
+// rule for a more specific path wins over the default (Codex resolves the
+// more specific path with priority).
 //
-// This guard is deliberately partial (a maintainer decision on #2272): a
-// writable `.git/hooks/` (and `.git/modules/**` for submodules) still lets a
-// sandboxed process install a hook directly, because hook managers such as
-// lefthook and simple-git-hooks must write hooks during install and a
-// read-only hooks dir would reintroduce the deny-on-every-install friction
-// these carve-outs exist to remove. Users who want stricter isolation can
-// author e.g. `read: { ".git/hooks/**": "allow" }` in the canonical
-// permissions — a user rule for a more specific path wins over the default.
-//
-// Like `:minimal`, these default-valued entries are not imported into the
-// rulesync model (they are re-added on every export); a user-customized value
+// Like `:minimal`, this default-valued entry is not imported into the
+// rulesync model (it is re-added on every export); a user-customized value
 // for the same key imports — and generates — normally, winning over the
 // default.
 const CODEX_GIT_WRITE_RULES: Readonly<Record<string, "read" | "write">> = {
   ".git/**": "write",
-  ".git/config": "read",
 };
 // Codex rejects the global `*` wildcard in denied network domains at config load time,
 // while allowed domains accept it for denylist-only setups (openai/codex#15549).
@@ -469,12 +467,12 @@ function convertRulesyncToCodexProfile({
   };
 }
 
-// Fill in the default `.git` carve-outs after the user's rules so a
+// Fill in the default `.git` carve-out after the user's rules so a
 // user-specified value for the same key always wins. Suppressed by an
 // explicit `codexcli.git_write_rules: false`, and also skipped when:
-// - the baseline is `:read-only` — the carve-outs would grant `.git` write
+// - the baseline is `:read-only` — the carve-out would grant `.git` write
 //   access inside a sandbox the user explicitly chose to keep read-only, and
-//   git workflows that need them are not expected there; or
+//   git workflows that need it are not expected there; or
 // - the user authored a direct `":workspace_roots"` string rule — that is an
 //   explicit access decision for the whole workspace tree (e.g. a blanket
 //   deny), and injecting defaults would force the string rule to be replaced
@@ -532,12 +530,12 @@ function convertCodexProfileToRulesync({
 
       if (isCodexFilesystemRuleTable(access)) {
         for (const [nestedPattern, nestedAccess] of Object.entries(access)) {
-          // Default-emitted `.git` carve-outs are, like `:minimal`, not
-          // user-managed: importing them would leak Codex-specific rules into
-          // the shared canonical model (and other tools' outputs), and they
-          // are re-added on every export anyway. Only the exact default
-          // pattern/value pairs are skipped — a customized value (e.g.
-          // `".git/config" = "write"`) imports normally.
+          // The default-emitted `.git` carve-out is, like `:minimal`, not
+          // user-managed: importing it would leak a Codex-specific rule into
+          // the shared canonical model (and other tools' outputs), and it is
+          // re-added on every export anyway. Only the exact default
+          // pattern/value pair is skipped — a customized value (e.g.
+          // `".git/**" = "read"`) imports normally.
           if (
             pattern === CODEX_WORKSPACE_ROOTS_KEY &&
             CODEX_GIT_WRITE_RULES[nestedPattern] === nestedAccess
