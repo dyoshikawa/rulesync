@@ -356,9 +356,9 @@ describe("E2E: permissions", () => {
     expect(workspaceRoots["**/*.tf"]).toBe("deny");
     expect(workspaceRoots["src/**"]).toBe("read");
     expect(workspaceRoots["docs/**"]).toBe("write");
-    // Default `.git` carve-outs (suppressed only by codexcli.git_write_rules: false).
+    // Default `.git` carve-out (suppressed only by codexcli.git_write_rules: false).
     expect(workspaceRoots[".git/**"]).toBe("write");
-    expect(workspaceRoots[".git/config"]).toBe("read");
+    expect(workspaceRoots[".git/config"]).toBeUndefined();
     expect(domains["github.com"]).toBe("allow");
 
     const rulesContent = await readFileContent(join(testDir, ".codex", "rules", "rulesync.rules"));
