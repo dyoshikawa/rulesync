@@ -244,6 +244,7 @@ targets: ["*"]
         skillsCount: expect.any(Number),
         hooksCount: expect.any(Number),
         permissionsCount: expect.any(Number),
+        checksCount: expect.any(Number),
         totalCount: expect.any(Number),
       });
     });

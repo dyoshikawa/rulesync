@@ -1,3 +1,8 @@
+import {
+  ChecksProcessorToolTargetSchema,
+  toolCheckFactories,
+} from "../features/checks/checks-processor.js";
+import { ChecksProcessor } from "../features/checks/checks-processor.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import {
   CommandsProcessorToolTargetSchema,
@@ -109,6 +114,12 @@ export const PROCESSOR_REGISTRY: ReadonlyArray<ProcessorRegistryEntry> = [
     processor: PermissionsProcessor,
     schema: PermissionsProcessorToolTargetSchema,
     factory: toolPermissionsFactories,
+  },
+  {
+    feature: "checks",
+    processor: ChecksProcessor,
+    schema: ChecksProcessorToolTargetSchema,
+    factory: toolCheckFactories,
   },
 ];
 

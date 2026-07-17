@@ -55,6 +55,8 @@ const mockGenerateResult: GenerateResult = {
   hooksPaths: [],
   permissionsCount: 0,
   permissionsPaths: [],
+  checksCount: 0,
+  checksPaths: [],
   skills: [],
   hasDiff: false,
 };
@@ -68,6 +70,7 @@ const mockImportResult: ImportResult = {
   skillsCount: 0,
   hooksCount: 0,
   permissionsCount: 0,
+  checksCount: 0,
 };
 
 const mockConvertResult: ConvertResult = {
@@ -79,6 +82,7 @@ const mockConvertResult: ConvertResult = {
   skillsCount: 0,
   hooksCount: 0,
   permissionsCount: 0,
+  checksCount: 0,
 };
 
 beforeEach(() => {

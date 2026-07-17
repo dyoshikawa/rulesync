@@ -140,6 +140,7 @@ function buildSuccessResponse(params: {
       skillsCount: generateResult.skillsCount,
       hooksCount: generateResult.hooksCount,
       permissionsCount: generateResult.permissionsCount,
+      checksCount: generateResult.checksCount,
       totalCount,
     },
     config: {

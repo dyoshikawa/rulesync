@@ -39,6 +39,7 @@ const FEATURE_DEBUG_MESSAGES: Record<string, string> = {
   subagents: "Generating subagent files...",
   skills: "Generating skill files...",
   hooks: "Generating hooks...",
+  checks: "Generating check files...",
   rules: "Generating rule files...",
 };
 
@@ -51,6 +52,7 @@ const FEATURE_DEBUG_ORDER = [
   "subagents",
   "skills",
   "hooks",
+  "checks",
   "rules",
 ] as const;
 
@@ -77,6 +79,7 @@ function buildSummaryParts(result: GenerateResult): string[] {
     { count: result.skillsCount, label: "skills" },
     { count: result.hooksCount, label: "hooks" },
     { count: result.permissionsCount, label: "permissions" },
+    { count: result.checksCount, label: "checks" },
   ];
 
   const parts: string[] = [];
@@ -122,6 +125,7 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
     skills: { count: result.skillsCount, paths: result.skillsPaths },
     hooks: { count: result.hooksCount, paths: result.hooksPaths },
     permissions: { count: result.permissionsCount, paths: result.permissionsPaths },
+    checks: { count: result.checksCount, paths: result.checksPaths },
     rules: { count: result.rulesCount, paths: result.rulesPaths },
   };
 
@@ -135,6 +139,7 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
     skills: (count) => `${count === 1 ? "skill" : "skills"}`,
     hooks: (count) => `${count === 1 ? "hooks file" : "hooks files"}`,
     permissions: (count) => `${count === 1 ? "permissions file" : "permissions files"}`,
+    checks: (count) => `${count === 1 ? "check" : "checks"}`,
   };
 
   for (const [feature, data] of Object.entries(featureResults)) {

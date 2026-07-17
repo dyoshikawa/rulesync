@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
+import { ChecksProcessor } from "../features/checks/checks-processor.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
@@ -38,6 +39,7 @@ vi.mock("../features/commands/commands-processor.js");
 vi.mock("../features/skills/skills-processor.js");
 vi.mock("../features/hooks/hooks-processor.js");
 vi.mock("../features/permissions/permissions-processor.js");
+vi.mock("../features/checks/checks-processor.js");
 
 describe("importFromTool", () => {
   let mockConfig: {
@@ -69,6 +71,7 @@ describe("importFromTool", () => {
     vi.mocked(SkillsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(HooksProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(PermissionsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+    vi.mocked(ChecksProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
     vi.mocked(RulesProcessor).mockImplementation(function () {
       return createMockProcessor() as unknown as RulesProcessor;
@@ -93,6 +96,9 @@ describe("importFromTool", () => {
     });
     vi.mocked(PermissionsProcessor).mockImplementation(function () {
       return createMockProcessor() as unknown as PermissionsProcessor;
+    });
+    vi.mocked(ChecksProcessor).mockImplementation(function () {
+      return createMockProcessor() as unknown as ChecksProcessor;
     });
   });
 
@@ -760,6 +766,79 @@ describe("importFromTool", () => {
     });
   });
 
+  describe("checks feature", () => {
+    it("should import checks when feature is enabled", async () => {
+      mockConfig.getFeatures.mockReturnValue(["checks"]);
+
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
+
+      expect(result.checksCount).toBe(1);
+      expect(ChecksProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          outputRoot: ".",
+          toolTarget: "claudecode",
+          global: false,
+        }),
+      );
+    });
+
+    it("should return 0 checks when feature is not enabled", async () => {
+      mockConfig.getFeatures.mockReturnValue([]);
+
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
+
+      expect(result.checksCount).toBe(0);
+      expect(ChecksProcessor).not.toHaveBeenCalled();
+    });
+
+    it("should return 0 when tool is not supported", async () => {
+      mockConfig.getFeatures.mockReturnValue(["checks"]);
+      vi.mocked(ChecksProcessor.getToolTargets).mockReturnValue(["amp"]);
+
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
+
+      expect(result.checksCount).toBe(0);
+      expect(ChecksProcessor).not.toHaveBeenCalled();
+    });
+
+    it("should return 0 when no tool files found", async () => {
+      mockConfig.getFeatures.mockReturnValue(["checks"]);
+
+      const mockProcessor = {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        convertToolFilesToRulesyncFiles: vi.fn(),
+        writeAiFiles: vi.fn(),
+      };
+      vi.mocked(ChecksProcessor).mockImplementation(function () {
+        return mockProcessor as unknown as ChecksProcessor;
+      });
+
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
+
+      expect(result.checksCount).toBe(0);
+      expect(mockProcessor.convertToolFilesToRulesyncFiles).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("No check files found for claudecode"),
+      );
+    });
+  });
+
   describe("all features combined", () => {
     it("should import all features when all are enabled", async () => {
       mockConfig.getFeatures.mockReturnValue([
@@ -770,6 +849,7 @@ describe("importFromTool", () => {
         "subagents",
         "skills",
         "permissions",
+        "checks",
       ]);
 
       const result = await importFromTool({
@@ -786,6 +866,7 @@ describe("importFromTool", () => {
       expect(result.skillsCount).toBe(1);
       expect(result.hooksCount).toBe(0);
       expect(result.permissionsCount).toBe(1);
+      expect(result.checksCount).toBe(1);
     });
 
     it("should return empty result when no features are enabled", async () => {
@@ -805,6 +886,7 @@ describe("importFromTool", () => {
       expect(result.skillsCount).toBe(0);
       expect(result.hooksCount).toBe(0);
       expect(result.permissionsCount).toBe(0);
+      expect(result.checksCount).toBe(0);
     });
   });
 

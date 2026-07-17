@@ -16,6 +16,7 @@ const FEATURES = [
   "skills",
   "hooks",
   "permissions",
+  "checks",
 ] as const;
 type FeatureName = (typeof FEATURES)[number];
 

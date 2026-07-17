@@ -14,6 +14,7 @@ import {
   RULESYNC_PERMISSIONS_JSONC_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
+import { ChecksProcessor } from "../features/checks/checks-processor.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
@@ -54,6 +55,7 @@ const FEATURE_PATHS: Record<Feature, string[]> = {
   commands: ["commands"],
   subagents: ["subagents"],
   skills: ["skills"],
+  checks: ["checks"],
   ignore: [RULESYNC_AIIGNORE_FILE_NAME],
   mcp: [RULESYNC_MCP_FILE_NAME, RULESYNC_MCP_JSONC_FILE_NAME],
   hooks: [RULESYNC_HOOKS_FILE_NAME, RULESYNC_HOOKS_JSONC_FILE_NAME],
@@ -172,6 +174,12 @@ async function convertFetchedFilesToRulesync(params: {
         SubagentsProcessor.getToolTargets({ global: false, includeSimulated: false }),
       createProcessor: () =>
         new SubagentsProcessor({ outputRoot: tempDir, toolTarget: target, global: false, logger }),
+    },
+    {
+      feature: "checks",
+      getTargets: () => ChecksProcessor.getToolTargets({ global: false }),
+      createProcessor: () =>
+        new ChecksProcessor({ outputRoot: tempDir, toolTarget: target, global: false, logger }),
     },
     {
       feature: "ignore",
@@ -646,6 +654,7 @@ function getToolPathMapping(target: ToolTarget): {
   commands?: string;
   subagents?: string;
   skills?: string;
+  checks?: string;
 } {
   // Get tool-specific paths from each processor class
   const mapping: {
@@ -653,6 +662,7 @@ function getToolPathMapping(target: ToolTarget): {
     commands?: string;
     subagents?: string;
     skills?: string;
+    checks?: string;
   } = {};
 
   // Rules paths
@@ -704,6 +714,16 @@ function getToolPathMapping(target: ToolTarget): {
     }
   }
 
+  // Checks paths
+  const supportedChecksTargets = ChecksProcessor.getToolTargets({ global: false });
+  if (supportedChecksTargets.includes(target)) {
+    const factory = ChecksProcessor.getFactory(target);
+    if (factory) {
+      const paths = factory.class.getSettablePaths({ global: false });
+      mapping.checks = paths.relativeDirPath;
+    }
+  }
+
   return mapping;
 }
 
@@ -748,6 +768,14 @@ function mapToToolPath(
     const restPath = relativePath.substring("skills/".length);
     if (toolPaths.skills) {
       return join(toolPaths.skills, restPath);
+    }
+  }
+
+  // Check if this is a checks file
+  if (relativePath.startsWith("checks/")) {
+    const restPath = relativePath.substring("checks/".length);
+    if (toolPaths.checks) {
+      return join(toolPaths.checks, restPath);
     }
   }
 

@@ -78,6 +78,7 @@ export async function convertCommand(logger: Logger, options: ConvertOptions): P
       skills: { count: result.skillsCount },
       hooks: { count: result.hooksCount },
       permissions: { count: result.permissionsCount },
+      checks: { count: result.checksCount },
     });
     logger.captureData("totalFiles", totalConverted);
   }
@@ -91,6 +92,7 @@ export async function convertCommand(logger: Logger, options: ConvertOptions): P
   if (result.skillsCount > 0) parts.push(`${result.skillsCount} skills`);
   if (result.hooksCount > 0) parts.push(`${result.hooksCount} hooks`);
   if (result.permissionsCount > 0) parts.push(`${result.permissionsCount} permissions`);
+  if (result.checksCount > 0) parts.push(`${result.checksCount} checks`);
 
   const verbPhrase = isPreview ? "Would convert" : "Converted";
   const summary = `${modePrefix}${verbPhrase} ${totalConverted} file(s) total from ${fromTool} to ${toTools.join(", ")} (${parts.join(" + ")})`;

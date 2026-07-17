@@ -5,6 +5,7 @@ import { intersection } from "es-toolkit";
 import { Config } from "../config/config.js";
 import { AGENTSMD_RULE_FILE_NAME } from "../constants/agentsmd-paths.js";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
+import { ChecksProcessor } from "../features/checks/checks-processor.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
@@ -45,6 +46,8 @@ export type GenerateResult = {
   hooksPaths: string[];
   permissionsCount: number;
   permissionsPaths: string[];
+  checksCount: number;
+  checksPaths: string[];
   skills: RulesyncSkill[];
   hasDiff: boolean;
 };
@@ -198,6 +201,7 @@ type GenerationStepId =
   | "skills"
   | "hooks"
   | "permissions"
+  | "checks"
   | "rules";
 
 type GenerationStep = {
@@ -333,6 +337,7 @@ export const GENERATION_STEP_GRAPH: readonly GenerationStepMeta[] = [
   { id: "skills" },
   { id: "hooks", ...sharedWriteMeta("hooks") },
   { id: "permissions", ...sharedWriteMeta("permissions") },
+  { id: "checks" },
   {
     id: "rules",
     ...sharedWriteMeta("rules"),
@@ -446,6 +451,7 @@ export async function generate(params: {
     },
     hooks: () => generateHooksCore({ config, logger }),
     permissions: () => generatePermissionsCore({ config, logger }),
+    checks: () => generateChecksCore({ config, logger }),
     rules: () => generateRulesCore({ config, logger, skills: skillsResult?.skills }),
   };
 
@@ -492,6 +498,8 @@ export async function generate(params: {
     hooksPaths: get("hooks").paths,
     permissionsCount: get("permissions").count,
     permissionsPaths: get("permissions").paths,
+    checksCount: get("checks").count,
+    checksPaths: get("checks").paths,
     skills: skillsResult.skills,
     hasDiff,
   };
@@ -995,6 +1003,53 @@ async function generatePermissionsCore(params: {
         );
         continue;
       }
+    }
+  }
+
+  return { count: totalCount, paths: allPaths, hasDiff };
+}
+
+async function generateChecksCore(params: {
+  config: Config;
+  logger: Logger;
+}): Promise<FeatureGenerateResult> {
+  const { config, logger } = params;
+
+  let totalCount = 0;
+  const allPaths: string[] = [];
+  let hasDiff = false;
+
+  const supportedChecksTargets = ChecksProcessor.getToolTargets({ global: config.getGlobal() });
+  const toolTargets = intersection(config.getTargets(), supportedChecksTargets);
+  warnUnsupportedTargets({
+    config,
+    supportedTargets: supportedChecksTargets,
+    featureName: "checks",
+    logger,
+  });
+
+  for (const toolTarget of toolTargets) {
+    for (const outputRoot of config.getOutputRoots(toolTarget)) {
+      // Check if checks feature is enabled for this specific target
+      if (!config.getFeatures(toolTarget).includes("checks")) {
+        continue;
+      }
+
+      const processor = new ChecksProcessor({
+        outputRoot: outputRoot,
+        inputRoot: config.getInputRoot(),
+        toolTarget: toolTarget,
+        global: config.getGlobal(),
+        dryRun: config.isPreviewMode(),
+        logger,
+      });
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+      const result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
+
+      totalCount += result.count;
+      allPaths.push(...result.paths);
+      if (result.hasDiff) hasDiff = true;
     }
   }
 

@@ -136,6 +136,7 @@ function buildSuccessResponse(params: {
       skillsCount: convertResult.skillsCount,
       hooksCount: convertResult.hooksCount,
       permissionsCount: convertResult.permissionsCount,
+      checksCount: convertResult.checksCount,
       totalCount,
     },
     config: {
