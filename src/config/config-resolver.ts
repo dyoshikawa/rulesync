@@ -295,7 +295,10 @@ export class ConfigResolver {
     // still win via `pick`. Only re-configure when the caller threaded a
     // logger through — those call sites pass their CLI flags in the params, so
     // precedence stays intact. The shared `fallbackLogger` is kept in sync for
-    // paths that have no logger threaded through.
+    // paths that have no logger threaded through. Note: `fallbackLogger` is
+    // process-global state — do not call `resolve` with a logger from a
+    // long-lived process (e.g. the MCP server) where one repository's config
+    // would leak into unrelated later operations.
     const resolvedVerbose = pick({
       cli: verbose,
       file: configByFile.verbose,

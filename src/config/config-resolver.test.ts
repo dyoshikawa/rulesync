@@ -173,6 +173,7 @@ describe("config-resolver", () => {
         expect(fallbackConfigureSpy).toHaveBeenCalledWith({ verbose: false, silent: true });
       } finally {
         fallbackConfigureSpy.mockRestore();
+        fallbackLogger.configure({ verbose: false, silent: false });
       }
     });
 
@@ -185,12 +186,16 @@ describe("config-resolver", () => {
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
       const logger = { warn: vi.fn(), configure: vi.fn() } as unknown as Logger;
 
-      await ConfigResolver.resolve(
-        { configPath: join(testDir, "rulesync.jsonc"), silent: true, verbose: true },
-        { logger },
-      );
+      try {
+        await ConfigResolver.resolve(
+          { configPath: join(testDir, "rulesync.jsonc"), silent: true, verbose: true },
+          { logger },
+        );
 
-      expect(logger.configure).toHaveBeenCalledWith({ verbose: true, silent: true });
+        expect(logger.configure).toHaveBeenCalledWith({ verbose: true, silent: true });
+      } finally {
+        fallbackLogger.configure({ verbose: false, silent: false });
+      }
     });
 
     it("should enable logger verbose from config-file verbose", async () => {
@@ -201,9 +206,13 @@ describe("config-resolver", () => {
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
       const logger = { warn: vi.fn(), configure: vi.fn() } as unknown as Logger;
 
-      await ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") }, { logger });
+      try {
+        await ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") }, { logger });
 
-      expect(logger.configure).toHaveBeenCalledWith({ verbose: true, silent: false });
+        expect(logger.configure).toHaveBeenCalledWith({ verbose: true, silent: false });
+      } finally {
+        fallbackLogger.configure({ verbose: false, silent: false });
+      }
     });
 
     it("should not touch the fallbackLogger when no logger is supplied", async () => {

@@ -46,19 +46,14 @@ abstract class BaseLogger {
     return this._silent;
   }
 
+  // Silent always wins over verbose, regardless of where each value came
+  // from (CLI flag or config file). The user-facing warning about the
+  // conflicting CLI flags lives in `warnOnConflictingFlags`, emitted once at
+  // CLI-flag parsing time — not here, since `configure` may be called again
+  // with config-file-derived values.
   configure({ verbose, silent }: { verbose: boolean; silent: boolean }): void {
-    if (verbose && silent) {
-      this._silent = false;
-      if (!isEnvTest()) {
-        this.onConflictingFlags();
-      }
-    }
     this._silent = silent;
     this._verbose = verbose && !silent;
-  }
-
-  protected onConflictingFlags(): void {
-    console.warn("Both --verbose and --silent specified; --silent takes precedence");
   }
 }
 
@@ -141,11 +136,6 @@ export class JsonLogger extends BaseLogger implements Logger {
     this._version = version;
   }
 
-  // Suppress raw console.warn in JSON mode to avoid non-JSON text on stderr
-  protected override onConflictingFlags(): void {
-    // No-op: conflicting flags warning is silently ignored in JSON mode
-  }
-
   get jsonMode(): boolean {
     return true;
   }
@@ -224,6 +214,27 @@ export class JsonLogger extends BaseLogger implements Logger {
   debug(_message: string, ..._args: unknown[]): void {
     // Suppress console output in JSON mode
   }
+}
+
+/**
+ * Warn once when both `--verbose` and `--silent` were passed on the command
+ * line. Called at CLI-flag parsing time only (`wrapCommand`), so re-configuring
+ * a logger from config-file values never re-triggers it. Suppressed in JSON
+ * mode to keep non-JSON text off stderr, matching the former JsonLogger
+ * behavior.
+ */
+export function warnOnConflictingFlags({
+  verbose,
+  silent,
+  jsonMode,
+}: {
+  verbose: boolean;
+  silent: boolean;
+  jsonMode: boolean;
+}): void {
+  if (!verbose || !silent || jsonMode || isEnvTest()) return;
+  // oxlint-disable-next-line no-console
+  console.warn("Both --verbose and --silent specified; --silent takes precedence");
 }
 
 /**

@@ -2,7 +2,13 @@ import { Command } from "commander";
 
 import { CLIError } from "../types/json-output.js";
 import { formatError } from "../utils/error.js";
-import { ConsoleLogger, fallbackLogger, JsonLogger, Logger } from "../utils/logger.js";
+import {
+  ConsoleLogger,
+  fallbackLogger,
+  JsonLogger,
+  Logger,
+  warnOnConflictingFlags,
+} from "../utils/logger.js";
 
 export function createLogger({
   name,
@@ -57,6 +63,7 @@ export function wrapCommand({
       verbose: Boolean(globalOpts.verbose) || Boolean(options.verbose),
       silent: Boolean(globalOpts.silent) || Boolean(options.silent),
     };
+    warnOnConflictingFlags({ ...cliLoggerOptions, jsonMode: logger.jsonMode });
     logger.configure(cliLoggerOptions);
     fallbackLogger.configure(cliLoggerOptions);
 
