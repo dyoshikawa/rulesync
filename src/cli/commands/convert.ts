@@ -44,11 +44,14 @@ export async function convertCommand(logger: Logger, options: ConvertOptions): P
   // Pass both source and destinations as `targets` so per-target feature maps
   // in `rulesync.jsonc` are honored for every tool involved. Default features
   // to `*` so every feature that both tools support is attempted.
-  const config = await ConfigResolver.resolve({
-    ...options,
-    targets: [fromTool, ...toTools],
-    features: options.features ?? ["*"],
-  });
+  const config = await ConfigResolver.resolve(
+    {
+      ...options,
+      targets: [fromTool, ...toTools],
+      features: options.features ?? ["*"],
+    },
+    { logger },
+  );
 
   const isPreview = config.isPreviewMode();
   const modePrefix = isPreview ? "[DRY RUN] " : "";

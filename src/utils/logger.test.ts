@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Logger } from "./logger.js";
-import { ConsoleLogger, JsonLogger } from "./logger.js";
+import { ConsoleLogger, fallbackLogger, JsonLogger, warnWithFallback } from "./logger.js";
 
 // Mock vitest module
 vi.mock("./vitest.js", () => ({
@@ -399,5 +399,47 @@ describe("JsonLogger", () => {
 
       errorSpy.mockRestore();
     });
+  });
+});
+
+describe("warnWithFallback", () => {
+  it("routes to the supplied logger when one is given", () => {
+    const logger = { warn: vi.fn() } as unknown as Logger;
+    const fallbackWarnSpy = vi.spyOn(fallbackLogger, "warn");
+
+    try {
+      warnWithFallback(logger, "message via logger");
+
+      expect(logger.warn).toHaveBeenCalledWith("message via logger");
+      expect(fallbackWarnSpy).not.toHaveBeenCalled();
+    } finally {
+      fallbackWarnSpy.mockRestore();
+    }
+  });
+
+  it("routes to the shared fallbackLogger when no logger is given", () => {
+    const fallbackWarnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+    try {
+      warnWithFallback(undefined, "message via fallback");
+
+      expect(fallbackWarnSpy).toHaveBeenCalledWith("message via fallback");
+    } finally {
+      fallbackWarnSpy.mockRestore();
+    }
+  });
+
+  it("fallbackLogger honors silent configuration", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      fallbackLogger.configure({ verbose: false, silent: true });
+      warnWithFallback(undefined, "suppressed message");
+
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      fallbackLogger.configure({ verbose: false, silent: false });
+      warnSpy.mockRestore();
+    }
   });
 });

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
@@ -341,7 +342,7 @@ args = ["server.js"]
     });
 
     it("should normalize invalid Codex MCP server names and warn when the last collision wins", async () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
@@ -371,7 +372,7 @@ args = ["server.js"]
     });
 
     it("should keep non-representable server names via a stable hash fallback instead of dropping them", async () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",

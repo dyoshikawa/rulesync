@@ -166,6 +166,8 @@ const extractRulesyncManagedEntries = (content: string): string[] => {
 export type GitignoreCommandOptions = {
   readonly targets?: string[];
   readonly features?: RulesyncFeatures;
+  readonly verbose?: boolean;
+  readonly silent?: boolean;
 };
 
 const groupEntriesByDestination = ({
@@ -211,7 +213,10 @@ export const gitignoreCommand = async (
 ): Promise<void> => {
   const gitignorePath = join(process.cwd(), ".gitignore");
   const gitattributesPath = join(process.cwd(), ".gitattributes");
-  const config = await ConfigResolver.resolve({});
+  const config = await ConfigResolver.resolve(
+    { verbose: options?.verbose, silent: options?.silent },
+    { logger },
+  );
 
   const resolvedEntries = resolveGitignoreEntries({
     targets: options?.targets,

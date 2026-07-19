@@ -86,6 +86,7 @@ describe("convertCommand", () => {
 
       expect(ConfigResolver.resolve).toHaveBeenCalledWith(
         expect.objectContaining({ targets: ["cursor", "claudecode"] }),
+        { logger: mockLogger },
       );
     });
   });
@@ -101,6 +102,7 @@ describe("convertCommand", () => {
           targets: ["cursor", "claudecode"],
           features: ["*"],
         }),
+        { logger: mockLogger },
       );
 
       expect(RulesProcessor).toHaveBeenCalledWith(
@@ -125,6 +127,7 @@ describe("convertCommand", () => {
         expect.objectContaining({
           features: ["rules", "mcp"],
         }),
+        { logger: mockLogger },
       );
     });
 
@@ -172,6 +175,7 @@ describe("convertCommand", () => {
 
       expect(ConfigResolver.resolve).toHaveBeenCalledWith(
         expect.objectContaining({ global: true }),
+        { logger: mockLogger },
       );
     });
   });
