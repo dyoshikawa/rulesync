@@ -129,6 +129,18 @@ describe("rewriteRelativeLinksForFlatMirror", () => {
     const result = rewriteRelativeLinksForFlatMirror(input);
     expect(result).toBe("[A](./faq.md) then [B](./file-formats.md) then [C](./local.md).");
   });
+
+  it("collapses same-directory-prefixed links that still contain directory segments", () => {
+    const input = "See [Guide](./guide/x.md#top).";
+    const result = rewriteRelativeLinksForFlatMirror(input);
+    expect(result).toBe("See [Guide](./x.md#top).");
+  });
+
+  it("preserves markdown link titles while collapsing", () => {
+    const input = 'See [FAQ](../faq.md#anchor "The FAQ").';
+    const result = rewriteRelativeLinksForFlatMirror(input);
+    expect(result).toBe('See [FAQ](./faq.md#anchor "The FAQ").');
+  });
 });
 
 describe("assertFlatMirrorLinksResolve", () => {
@@ -160,5 +172,20 @@ describe("assertFlatMirrorLinksResolve", () => {
       ["guide.md", "See [FAQ](../faq.md)."],
     ]);
     expect(() => assertFlatMirrorLinksResolve({ files })).toThrow(/not a flat sibling link/);
+  });
+
+  it("throws for bare directory-segment links without a dot prefix", () => {
+    const files = new Map([
+      ["x.md", "# X"],
+      ["guide.md", "See [X](guide/x.md)."],
+    ]);
+    expect(() => assertFlatMirrorLinksResolve({ files })).toThrow(/not a flat sibling link/);
+  });
+
+  it("validates links that carry a markdown title", () => {
+    const files = new Map([["guide.md", 'See [missing](./missing.md "Title").']]);
+    expect(() => assertFlatMirrorLinksResolve({ files })).toThrow(
+      /does not resolve to a mirrored file/,
+    );
   });
 });

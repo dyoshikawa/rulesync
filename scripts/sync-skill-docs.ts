@@ -72,10 +72,10 @@ export function removeVitepressSyntax(content: string): string {
 // `../reference/file-formats.md` must be collapsed to sibling links.
 export function rewriteRelativeLinksForFlatMirror(content: string): string {
   return content.replace(
-    /\]\((\.\.?\/[^)#\s]*?)([^/)#\s]+\.md)((?:#[^)\s]*)?)\)/g,
-    (match, dirPrefix: string, fileName: string, anchor: string) => {
+    /\]\((\.\.?\/[^)#\s]*?)([^/)#\s]+\.md)((?:#[^)\s]*)?)((?:\s+"[^"]*")?)\)/g,
+    (match, dirPrefix: string, fileName: string, anchor: string, title: string) => {
       if (dirPrefix === "./") return match;
-      return `](./${fileName}${anchor})`;
+      return `](./${fileName}${anchor}${title})`;
     },
   );
 }
@@ -84,7 +84,7 @@ export function rewriteRelativeLinksForFlatMirror(content: string): string {
 // exists in the mirror; anything else is a broken link in the distributed skill.
 export function assertFlatMirrorLinksResolve({ files }: { files: Map<string, string> }): void {
   const problems: string[] = [];
-  const linkPattern = /\]\((?!(?:https?|mailto):|#)([^)\s]+?\.md)(?:#[^)\s]*)?\)/g;
+  const linkPattern = /\]\((?!(?:https?|mailto):|#)([^)\s]+?\.md)(?:#[^)\s]*)?(?:\s+"[^"]*")?\)/g;
   for (const [fileName, content] of files) {
     for (const match of content.matchAll(linkPattern)) {
       const target = (match[1] ?? "").replace(/^\.\//, "");
