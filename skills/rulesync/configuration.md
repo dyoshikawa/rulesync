@@ -161,7 +161,7 @@ The current per-feature options are:
 | `claudecode` | `ignore` | `fileMode`             | `"shared"` (settings.json) / `"local"` (settings.local.json)                   | `"shared"`    |
 | any          | any      | `gitignoreDestination` | `"gitignore"` / `"gitattributes"`                                              | `"gitignore"` |
 
-See [`docs/reference/file-formats.md`](../reference/file-formats.md#where-ignore-patterns-are-written-per-tool)
+See [`docs/reference/file-formats.md`](./file-formats.md#where-ignore-patterns-are-written-per-tool)
 for the rationale behind the Claude Code default and when to switch to
 `"local"`.
 

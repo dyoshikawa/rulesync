@@ -67,6 +67,39 @@ export function removeVitepressSyntax(content: string): string {
   return result;
 }
 
+// Docs live in subdirectories (docs/guide/, docs/reference/, ...) but the skill
+// mirror is flat, so cross-doc links like `../faq.md#anchor` or
+// `../reference/file-formats.md` must be collapsed to sibling links.
+export function rewriteRelativeLinksForFlatMirror(content: string): string {
+  return content.replace(
+    /\]\((\.\.?\/[^)#\s]*?)([^/)#\s]+\.md)((?:#[^)\s]*)?)\)/g,
+    (match, dirPrefix: string, fileName: string, anchor: string) => {
+      if (dirPrefix === "./") return match;
+      return `](./${fileName}${anchor})`;
+    },
+  );
+}
+
+// Every relative .md link in the flat mirror must point at a sibling file that
+// exists in the mirror; anything else is a broken link in the distributed skill.
+export function assertFlatMirrorLinksResolve({ files }: { files: Map<string, string> }): void {
+  const problems: string[] = [];
+  const linkPattern = /\]\((?!(?:https?|mailto):|#)([^)\s]+?\.md)(?:#[^)\s]*)?\)/g;
+  for (const [fileName, content] of files) {
+    for (const match of content.matchAll(linkPattern)) {
+      const target = (match[1] ?? "").replace(/^\.\//, "");
+      if (target.includes("/")) {
+        problems.push(`${fileName}: link "${match[1]}" is not a flat sibling link`);
+      } else if (!files.has(target)) {
+        problems.push(`${fileName}: link "${match[1]}" does not resolve to a mirrored file`);
+      }
+    }
+  }
+  if (problems.length > 0) {
+    throw new Error(`Unresolved relative links in the flat skill mirror:\n${problems.join("\n")}`);
+  }
+}
+
 // Shallow type guard: checks that value is an array and the first element has
 // a `text` property, which is the minimal shape of SidebarItem[].
 function isSidebarItemArray(value: unknown): value is SidebarItem[] {
@@ -105,6 +138,20 @@ export function syncSkillDocs(): void {
 
   // Collect all file names to detect collisions from different sections
   const seenFileNames = new Map<string, string>();
+  // fileName -> written content, for post-write link validation
+  const writtenFiles = new Map<string, string>();
+
+  const writeDocFile = ({ link }: { link: string }): string => {
+    const fileName = `${basename(link)}.md`;
+    assertNoFileNameCollision(seenFileNames, fileName, link);
+    const docPath = join(DOCS_DIR, `${link}.md`);
+    const content = readFileSync(docPath, "utf-8");
+    const cleaned = rewriteRelativeLinksForFlatMirror(removeVitepressSyntax(content));
+    const finalContent = cleaned.trimEnd() + "\n";
+    writeFileSync(join(SKILL_DIR, fileName), finalContent);
+    writtenFiles.set(fileName, finalContent);
+    return fileName;
+  };
 
   const tocLines: string[] = [];
   let fileCount = 0;
@@ -115,24 +162,14 @@ export function syncSkillDocs(): void {
       tocLines.push("", `### ${entry.text}`, "");
       for (const item of entry.items) {
         if (!item.link) continue;
-        const fileName = `${basename(item.link)}.md`;
-        assertNoFileNameCollision(seenFileNames, fileName, item.link);
-        const docPath = join(DOCS_DIR, `${item.link}.md`);
-        const content = readFileSync(docPath, "utf-8");
-        const cleaned = removeVitepressSyntax(content);
-        writeFileSync(join(SKILL_DIR, fileName), cleaned.trimEnd() + "\n");
+        const fileName = writeDocFile({ link: item.link });
         tocLines.push(`- [${item.text}](./${fileName})`);
         fileCount++;
       }
     } else if (entry.link) {
       // Standalone item
       tocLines.push("");
-      const fileName = `${basename(entry.link)}.md`;
-      assertNoFileNameCollision(seenFileNames, fileName, entry.link);
-      const docPath = join(DOCS_DIR, `${entry.link}.md`);
-      const content = readFileSync(docPath, "utf-8");
-      const cleaned = removeVitepressSyntax(content);
-      writeFileSync(join(SKILL_DIR, fileName), cleaned.trimEnd() + "\n");
+      const fileName = writeDocFile({ link: entry.link });
       tocLines.push(`- [${entry.text}](./${fileName})`);
       fileCount++;
     }
@@ -203,6 +240,9 @@ export function syncSkillDocs(): void {
     "",
   ].join("\n");
   writeFileSync(join(SKILL_DIR, "SKILL.md"), skillContent);
+  writtenFiles.set("SKILL.md", skillContent);
+
+  assertFlatMirrorLinksResolve({ files: writtenFiles });
 
   // oxlint-disable-next-line no-console
   console.log(`Synced docs/ to ${SKILL_DIR}/ (${String(fileCount)} content files + SKILL.md)`);
