@@ -11,7 +11,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { readAugmentcodeSettingsWithLocalOverlay } from "../../utils/augmentcode-settings.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { ConsoleLogger, type Logger } from "../../utils/logger.js";
+import { fallbackLogger, type Logger } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -22,10 +22,11 @@ import {
   type ToolPermissionsSettablePaths,
 } from "./tool-permissions.js";
 
-// Module-level logger used by the importing direction (toRulesyncPermissions),
+// Shared fallback logger used by the importing direction (toRulesyncPermissions),
 // where the instance method has no `logger` parameter. Mirrors the Qwen
-// permissions translator's pattern.
-const moduleLogger: Logger = new ConsoleLogger();
+// permissions translator's pattern; `fallbackLogger` is configured from CLI
+// flags and the resolved config, so `silent` is honored.
+const moduleLogger: Logger = fallbackLogger;
 
 /**
  * AugmentCode CLI uses `.augment/settings.json` (project) or `~/.augment/settings.json` (global).

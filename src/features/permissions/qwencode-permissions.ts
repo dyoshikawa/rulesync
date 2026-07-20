@@ -8,7 +8,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { ConsoleLogger, type Logger } from "../../utils/logger.js";
+import { fallbackLogger, type Logger } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -37,10 +37,11 @@ const QwenSettingsSchema = z.looseObject({
 
 type QwenSettings = z.infer<typeof QwenSettingsSchema>;
 
-// Module-level logger used by the importing direction (toRulesyncPermissions), where the
+// Shared fallback logger used by the importing direction (toRulesyncPermissions), where the
 // instance method has no `logger` parameter. The exporting direction (fromRulesyncPermissions)
-// forwards the caller-supplied logger explicitly.
-const moduleLogger: Logger = new ConsoleLogger();
+// forwards the caller-supplied logger explicitly. Unlike a private ConsoleLogger instance,
+// `fallbackLogger` is configured from CLI flags and the resolved config, so `silent` is honored.
+const moduleLogger: Logger = fallbackLogger;
 
 /**
  * Mapping from rulesync canonical tool category names (lowercase) to Qwen Code tool names (PascalCase).

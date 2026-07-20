@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "../utils/file.js";
-import type { Logger } from "../utils/logger.js";
+import { fallbackLogger, type Logger } from "../utils/logger.js";
 import { ConfigResolver } from "./config-resolver.js";
 
 const { getHomeDirectoryMock } = vi.hoisted(() => {
@@ -154,6 +154,82 @@ describe("config-resolver", () => {
       });
 
       expect(config.getSilent()).toBe(true);
+    });
+
+    it("should re-configure the supplied logger from config-file silent/verbose", async () => {
+      const configContent = JSON.stringify({
+        outputRoots: ["./"],
+        silent: true,
+        verbose: false,
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+      const logger = { warn: vi.fn(), configure: vi.fn() } as unknown as Logger;
+      const fallbackConfigureSpy = vi.spyOn(fallbackLogger, "configure");
+
+      try {
+        await ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") }, { logger });
+
+        expect(logger.configure).toHaveBeenCalledWith({ verbose: false, silent: true });
+        expect(fallbackConfigureSpy).toHaveBeenCalledWith({ verbose: false, silent: true });
+      } finally {
+        fallbackConfigureSpy.mockRestore();
+        fallbackLogger.configure({ verbose: false, silent: false });
+      }
+    });
+
+    it("should re-configure the supplied logger with CLI flags winning over the config file", async () => {
+      const configContent = JSON.stringify({
+        outputRoots: ["./"],
+        silent: false,
+        verbose: false,
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+      const logger = { warn: vi.fn(), configure: vi.fn() } as unknown as Logger;
+
+      try {
+        await ConfigResolver.resolve(
+          { configPath: join(testDir, "rulesync.jsonc"), silent: true, verbose: true },
+          { logger },
+        );
+
+        expect(logger.configure).toHaveBeenCalledWith({ verbose: true, silent: true });
+      } finally {
+        fallbackLogger.configure({ verbose: false, silent: false });
+      }
+    });
+
+    it("should enable logger verbose from config-file verbose", async () => {
+      const configContent = JSON.stringify({
+        outputRoots: ["./"],
+        verbose: true,
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+      const logger = { warn: vi.fn(), configure: vi.fn() } as unknown as Logger;
+
+      try {
+        await ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") }, { logger });
+
+        expect(logger.configure).toHaveBeenCalledWith({ verbose: true, silent: false });
+      } finally {
+        fallbackLogger.configure({ verbose: false, silent: false });
+      }
+    });
+
+    it("should not touch the fallbackLogger when no logger is supplied", async () => {
+      const configContent = JSON.stringify({
+        outputRoots: ["./"],
+        silent: true,
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+      const fallbackConfigureSpy = vi.spyOn(fallbackLogger, "configure");
+
+      try {
+        await ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") });
+
+        expect(fallbackConfigureSpy).not.toHaveBeenCalled();
+      } finally {
+        fallbackConfigureSpy.mockRestore();
+      }
     });
   });
 
@@ -559,7 +635,7 @@ describe("config-resolver", () => {
         join(inputRoot, "rulesync.jsonc"),
         JSON.stringify({ outputRoots: ["./"], global: true }),
       );
-      const logger = { warn: vi.fn() } as unknown as Logger;
+      const logger = { warn: vi.fn(), configure: vi.fn() } as unknown as Logger;
 
       await ConfigResolver.resolve(
         {
@@ -572,13 +648,13 @@ describe("config-resolver", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Ignoring "global: true"'));
     });
 
-    it("should fall back to console.warn when no logger is supplied", async () => {
+    it("should fall back to the shared fallbackLogger when no logger is supplied", async () => {
       const inputRoot = join(testDir, "central-rules");
       await writeFileContent(
         join(inputRoot, "rulesync.jsonc"),
         JSON.stringify({ outputRoots: ["./"], global: true }),
       );
-      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const fallbackWarnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
 
       try {
         await ConfigResolver.resolve({
@@ -586,11 +662,11 @@ describe("config-resolver", () => {
           inputRoot,
         });
 
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect(fallbackWarnSpy).toHaveBeenCalledWith(
           expect.stringContaining('Ignoring "global: true"'),
         );
       } finally {
-        consoleWarnSpy.mockRestore();
+        fallbackWarnSpy.mockRestore();
       }
     });
 
@@ -604,7 +680,7 @@ describe("config-resolver", () => {
         join(testDir, "rulesync.jsonc"),
         JSON.stringify({ inputRoot: configuredRoot, global: true }),
       );
-      const logger = { warn: vi.fn() } as unknown as Logger;
+      const logger = { warn: vi.fn(), configure: vi.fn() } as unknown as Logger;
 
       const config = await ConfigResolver.resolve(
         {
@@ -623,7 +699,7 @@ describe("config-resolver", () => {
         join(inputRoot, "rulesync.jsonc"),
         JSON.stringify({ outputRoots: ["./"], global: true }),
       );
-      const logger = { warn: vi.fn() } as unknown as Logger;
+      const logger = { warn: vi.fn(), configure: vi.fn() } as unknown as Logger;
 
       await ConfigResolver.resolve(
         {

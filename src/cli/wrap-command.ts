@@ -2,7 +2,13 @@ import { Command } from "commander";
 
 import { CLIError } from "../types/json-output.js";
 import { formatError } from "../utils/error.js";
-import { ConsoleLogger, JsonLogger, Logger } from "../utils/logger.js";
+import {
+  ConsoleLogger,
+  fallbackLogger,
+  JsonLogger,
+  Logger,
+  warnOnConflictingFlags,
+} from "../utils/logger.js";
 
 export function createLogger({
   name,
@@ -50,10 +56,16 @@ export function wrapCommand({
     const positionalArgs = args.slice(0, -2);
     const globalOpts = command.parent?.opts() ?? {};
     const logger = loggerFactory({ name, globalOpts, getVersion });
-    logger.configure({
+    // Configure from CLI flags first; commands that resolve a config file
+    // re-configure via `ConfigResolver.resolve` so config-file
+    // `verbose`/`silent` also apply (CLI flags still win there).
+    const cliLoggerOptions = {
       verbose: Boolean(globalOpts.verbose) || Boolean(options.verbose),
       silent: Boolean(globalOpts.silent) || Boolean(options.silent),
-    });
+    };
+    warnOnConflictingFlags({ ...cliLoggerOptions, jsonMode: logger.jsonMode });
+    logger.configure(cliLoggerOptions);
+    fallbackLogger.configure(cliLoggerOptions);
 
     try {
       await handler(logger, options, globalOpts, positionalArgs);

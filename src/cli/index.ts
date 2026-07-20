@@ -81,6 +81,8 @@ const main = async () => {
         await gitignoreCommand(logger, {
           targets: resolvedTargets ? [...resolvedTargets] : undefined,
           features: cliFeatures,
+          verbose: (options as { verbose?: boolean }).verbose,
+          silent: (options as { silent?: boolean }).silent,
         });
       }),
     );

@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Logger } from "./logger.js";
-import { ConsoleLogger, JsonLogger } from "./logger.js";
+import {
+  ConsoleLogger,
+  fallbackLogger,
+  JsonLogger,
+  warnOnConflictingFlags,
+  warnWithFallback,
+} from "./logger.js";
 
 // Mock vitest module
 vi.mock("./vitest.js", () => ({
@@ -65,14 +71,14 @@ describe("ConsoleLogger", () => {
   });
 
   describe("configure()", () => {
-    it("should warn when both verbose and silent are enabled", () => {
+    it("should not warn when both verbose and silent are enabled (warning lives in warnOnConflictingFlags)", () => {
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       logger.configure({ verbose: true, silent: true });
 
-      expect(warnSpy).toHaveBeenCalledWith(
-        "Both --verbose and --silent specified; --silent takes precedence",
-      );
+      expect(warnSpy).not.toHaveBeenCalled();
+      expect(logger.silent).toBe(true);
+      expect(logger.verbose).toBe(false);
 
       warnSpy.mockRestore();
     });
@@ -399,5 +405,88 @@ describe("JsonLogger", () => {
 
       errorSpy.mockRestore();
     });
+  });
+});
+
+describe("warnWithFallback", () => {
+  it("routes to the supplied logger when one is given", () => {
+    const logger = { warn: vi.fn() } as unknown as Logger;
+    const fallbackWarnSpy = vi.spyOn(fallbackLogger, "warn");
+
+    try {
+      warnWithFallback(logger, "message via logger");
+
+      expect(logger.warn).toHaveBeenCalledWith("message via logger");
+      expect(fallbackWarnSpy).not.toHaveBeenCalled();
+    } finally {
+      fallbackWarnSpy.mockRestore();
+    }
+  });
+
+  it("routes to the shared fallbackLogger when no logger is given", () => {
+    const fallbackWarnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+    try {
+      warnWithFallback(undefined, "message via fallback");
+
+      expect(fallbackWarnSpy).toHaveBeenCalledWith("message via fallback");
+    } finally {
+      fallbackWarnSpy.mockRestore();
+    }
+  });
+
+  it("fallbackLogger honors silent configuration", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      fallbackLogger.configure({ verbose: false, silent: true });
+      warnWithFallback(undefined, "suppressed message");
+
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      fallbackLogger.configure({ verbose: false, silent: false });
+      warnSpy.mockRestore();
+    }
+  });
+});
+
+describe("warnOnConflictingFlags", () => {
+  it("warns once when both flags are set outside JSON mode", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      warnOnConflictingFlags({ verbose: true, silent: true, jsonMode: false });
+
+      expect(warnSpy).toHaveBeenCalledExactlyOnceWith(
+        "Both --verbose and --silent specified; --silent takes precedence",
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("does not warn in JSON mode", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      warnOnConflictingFlags({ verbose: true, silent: true, jsonMode: true });
+
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("does not warn when only one flag is set", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      warnOnConflictingFlags({ verbose: true, silent: false, jsonMode: false });
+      warnOnConflictingFlags({ verbose: false, silent: true, jsonMode: false });
+
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });

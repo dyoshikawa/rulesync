@@ -19,7 +19,7 @@ import {
   resolvePath,
   validateOutputRoot,
 } from "../utils/file.js";
-import { type Logger, warnWithFallback } from "../utils/logger.js";
+import { fallbackLogger, type Logger, warnWithFallback } from "../utils/logger.js";
 import {
   assertTargetsFeaturesExclusive,
   Config,
@@ -289,6 +289,31 @@ export class ConfigResolver {
     // so the user knows where to look.
     assertMergedTargetsFeaturesExclusive({ configByFile, validatedConfigPath, localConfigPath });
 
+    // Wire the resolved `verbose`/`silent` into the logger as soon as they are
+    // known, so config-file settings are honored by every message emitted from
+    // here on (including the warnings later in this resolution). CLI flags
+    // still win via `pick`. Only re-configure when the caller threaded a
+    // logger through — those call sites pass their CLI flags in the params, so
+    // precedence stays intact. The shared `fallbackLogger` is kept in sync for
+    // paths that have no logger threaded through. Note: `fallbackLogger` is
+    // process-global state — do not call `resolve` with a logger from a
+    // long-lived process (e.g. the MCP server) where one repository's config
+    // would leak into unrelated later operations.
+    const resolvedVerbose = pick({
+      cli: verbose,
+      file: configByFile.verbose,
+      fallback: getDefaults().verbose,
+    });
+    const resolvedSilent = pick({
+      cli: silent,
+      file: configByFile.silent,
+      fallback: getDefaults().silent,
+    });
+    if (logger !== undefined) {
+      logger.configure({ verbose: resolvedVerbose, silent: resolvedSilent });
+      fallbackLogger.configure({ verbose: resolvedVerbose, silent: resolvedSilent });
+    }
+
     // When `inputRoot` is set (from CLI, programmatic args, or a config file)
     // the user is decoupling source from output, so "global: true" from the
     // config file must not apply unless the caller also explicitly passes
@@ -317,7 +342,7 @@ export class ConfigResolver {
     const configParams = {
       targets: resolvedTargets,
       features: resolvedFeatures,
-      verbose: pick({ cli: verbose, file: configByFile.verbose, fallback: getDefaults().verbose }),
+      verbose: resolvedVerbose,
       delete: pick({ cli: isDelete, file: configByFile.delete, fallback: getDefaults().delete }),
       outputRoots: getOutputRootsInLightOfGlobal({
         outputRoots: pick({
@@ -328,7 +353,7 @@ export class ConfigResolver {
         global: resolvedGlobal,
       }),
       global: resolvedGlobal,
-      silent: pick({ cli: silent, file: configByFile.silent, fallback: getDefaults().silent }),
+      silent: resolvedSilent,
       simulateCommands: pick({
         cli: simulateCommands,
         file: configByFile.simulateCommands,

@@ -46,19 +46,14 @@ abstract class BaseLogger {
     return this._silent;
   }
 
+  // Silent always wins over verbose, regardless of where each value came
+  // from (CLI flag or config file). The user-facing warning about the
+  // conflicting CLI flags lives in `warnOnConflictingFlags`, emitted once at
+  // CLI-flag parsing time — not here, since `configure` may be called again
+  // with config-file-derived values.
   configure({ verbose, silent }: { verbose: boolean; silent: boolean }): void {
-    if (verbose && silent) {
-      this._silent = false;
-      if (!isEnvTest()) {
-        this.onConflictingFlags();
-      }
-    }
     this._silent = silent;
     this._verbose = verbose && !silent;
-  }
-
-  protected onConflictingFlags(): void {
-    console.warn("Both --verbose and --silent specified; --silent takes precedence");
   }
 }
 
@@ -139,11 +134,6 @@ export class JsonLogger extends BaseLogger implements Logger {
     super({ verbose, silent });
     this._commandName = command;
     this._version = version;
-  }
-
-  // Suppress raw console.warn in JSON mode to avoid non-JSON text on stderr
-  protected override onConflictingFlags(): void {
-    // No-op: conflicting flags warning is silently ignored in JSON mode
   }
 
   get jsonMode(): boolean {
@@ -227,16 +217,41 @@ export class JsonLogger extends BaseLogger implements Logger {
 }
 
 /**
+ * Warn once when both `--verbose` and `--silent` were passed on the command
+ * line. Called at CLI-flag parsing time only (`wrapCommand`), so re-configuring
+ * a logger from config-file values never re-triggers it. Suppressed in JSON
+ * mode to keep non-JSON text off stderr, matching the former JsonLogger
+ * behavior.
+ */
+export function warnOnConflictingFlags({
+  verbose,
+  silent,
+  jsonMode,
+}: {
+  verbose: boolean;
+  silent: boolean;
+  jsonMode: boolean;
+}): void {
+  if (!verbose || !silent || jsonMode || isEnvTest()) return;
+  // oxlint-disable-next-line no-console
+  console.warn("Both --verbose and --silent specified; --silent takes precedence");
+}
+
+/**
+ * Shared fallback logger for code paths that have no command logger threaded
+ * through (module-level translators, `warnWithFallback(undefined, ...)`).
+ * `wrapCommand` configures it from CLI flags and `ConfigResolver.resolve`
+ * re-configures it from the resolved config, so `silent`/`verbose` settings
+ * are honored even on paths where the command logger is not available.
+ */
+export const fallbackLogger: Logger = new ConsoleLogger();
+
+/**
  * Emit a warning through `logger.warn` if a logger is supplied, otherwise
- * fall through to `console.warn`. Centralizes the "logger may be optional"
- * pattern so call sites stay terse and `oxlint`'s `no-console` exception
- * lives in exactly one place.
+ * fall through to the shared `fallbackLogger`. Centralizes the "logger may
+ * be optional" pattern so call sites stay terse and the fallback honors the
+ * configured `silent` mode.
  */
 export function warnWithFallback(logger: Logger | undefined, message: string): void {
-  if (logger) {
-    logger.warn(message);
-    return;
-  }
-  // oxlint-disable-next-line no-console
-  console.warn(message);
+  (logger ?? fallbackLogger).warn(message);
 }

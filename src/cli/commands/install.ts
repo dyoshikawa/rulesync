@@ -44,11 +44,14 @@ async function runRulesyncInstall(logger: Logger, options: InstallCommandOptions
   // `--mode apm` is required to opt into the APM layout.
   const apmExists = await apmManifestExists(projectRoot);
 
-  const config = await ConfigResolver.resolve({
-    configPath: options.configPath,
-    verbose: options.verbose,
-    silent: options.silent,
-  });
+  const config = await ConfigResolver.resolve(
+    {
+      configPath: options.configPath,
+      verbose: options.verbose,
+      silent: options.silent,
+    },
+    { logger },
+  );
   const sources = config.getSources();
 
   if (apmExists && sources.length > 0) {
@@ -141,11 +144,14 @@ async function runGhInstall(logger: Logger, options: InstallCommandOptions): Pro
   // gh mode reads sources from `rulesync.jsonc`, never from `apm.yml`. The
   // disambiguation between rulesync/apm modes lives in `runRulesyncInstall`;
   // here the user has already opted into gh mode explicitly.
-  const config = await ConfigResolver.resolve({
-    configPath: options.configPath,
-    verbose: options.verbose,
-    silent: options.silent,
-  });
+  const config = await ConfigResolver.resolve(
+    {
+      configPath: options.configPath,
+      verbose: options.verbose,
+      silent: options.silent,
+    },
+    { logger },
+  );
   const sources = config.getSources();
 
   if (sources.length === 0) {
