@@ -205,6 +205,7 @@ export const hooksProcessorToolTargetTuple = [
   "copilot",
   "copilotcli",
   "opencode",
+  "pi",
   "factorydroid",
   "goose",
   "hermesagent",
