@@ -256,6 +256,26 @@ export const DEVIN_HOOK_EVENTS: readonly HookEvent[] = [
   "postCompact",
 ];
 
+/**
+ * Hook events exported by the Pi extension adapter.
+ *
+ * Pi's documented lifecycle provides direct conservative equivalents for these
+ * events. The adapter observes them only; it does not implement hook-driven
+ * blocking or event mutation.
+ */
+export const PI_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "beforeSubmitPrompt",
+  "preModelInvocation",
+  "postModelInvocation",
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+  "stop",
+  "preCompact",
+  "contextOffload",
+];
 /** Hook events supported by OpenCode. */
 export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -695,6 +715,7 @@ export const HooksConfigSchema = z.looseObject({
   copilot: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   copilotcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   opencode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  pi: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   kilo: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   factorydroid: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   codexcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -890,6 +911,20 @@ export const FACTORYDROID_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Obj
   Object.entries(CANONICAL_TO_FACTORYDROID_EVENT_NAMES).map(([k, v]) => [v, k]),
 );
 
+/** Map canonical RuleSync lifecycle names to documented Pi extension events. */
+export const CANONICAL_TO_PI_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "session_start",
+  sessionEnd: "session_shutdown",
+  beforeSubmitPrompt: "input",
+  preModelInvocation: "context",
+  postModelInvocation: "turn_end",
+  preToolUse: "tool_call",
+  postToolUse: "tool_result",
+  postToolUseFailure: "tool_result",
+  stop: "agent_end",
+  preCompact: "session_before_compact",
+  contextOffload: "session_before_tree",
+};
 /**
  * Map canonical camelCase event names to OpenCode dot-notation.
  */
