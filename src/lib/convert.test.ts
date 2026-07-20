@@ -48,6 +48,7 @@ describe("convertFromTool", () => {
     getGlobal: ReturnType<typeof vi.fn>;
     getDryRun: ReturnType<typeof vi.fn>;
     isPreviewMode: ReturnType<typeof vi.fn>;
+    getFlattenedCommandNaming: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -60,6 +61,7 @@ describe("convertFromTool", () => {
       getGlobal: vi.fn().mockReturnValue(false),
       getDryRun: vi.fn().mockReturnValue(false),
       isPreviewMode: vi.fn().mockReturnValue(false),
+      getFlattenedCommandNaming: vi.fn().mockReturnValue("basename"),
     };
 
     vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["cursor", "claudecode", "copilot"]);
@@ -265,6 +267,22 @@ describe("convertFromTool", () => {
         global: false,
         includeSimulated: false,
       });
+    });
+
+    it("should pass the configured flattenedCommandNaming to CommandsProcessor", async () => {
+      mockConfig.getFeatures.mockReturnValue(["commands"]);
+      mockConfig.getFlattenedCommandNaming.mockReturnValue("path");
+
+      await convertFromTool({
+        logger,
+        config: mockConfig as never,
+        fromTool: "cursor",
+        toTools: ["claudecode"],
+      });
+
+      expect(CommandsProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({ flattenedCommandNaming: "path" }),
+      );
     });
   });
 

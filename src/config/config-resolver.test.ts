@@ -330,6 +330,71 @@ describe("config-resolver", () => {
     });
   });
 
+  describe("flattenedCommandNaming", () => {
+    it("should load flattenedCommandNaming from config file", async () => {
+      const configContent = JSON.stringify({
+        outputRoots: ["./"],
+        targets: ["cursor"],
+        flattenedCommandNaming: "path",
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getFlattenedCommandNaming()).toBe("path");
+    });
+
+    it("should default flattenedCommandNaming to basename when not specified", async () => {
+      const configContent = JSON.stringify({
+        outputRoots: ["./"],
+        targets: ["cursor"],
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getFlattenedCommandNaming()).toBe("basename");
+    });
+
+    it("should allow rulesync.local.jsonc to override flattenedCommandNaming", async () => {
+      const baseConfigContent = JSON.stringify({
+        outputRoots: ["./"],
+        targets: ["cursor"],
+        flattenedCommandNaming: "basename",
+      });
+      const localConfigContent = JSON.stringify({
+        flattenedCommandNaming: "path",
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), baseConfigContent);
+      await writeFileContent(join(testDir, "rulesync.local.jsonc"), localConfigContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getFlattenedCommandNaming()).toBe("path");
+    });
+
+    it("should reject an invalid flattenedCommandNaming value", async () => {
+      const configContent = JSON.stringify({
+        outputRoots: ["./"],
+        targets: ["cursor"],
+        flattenedCommandNaming: "foo",
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      await expect(
+        ConfigResolver.resolve({
+          configPath: join(testDir, "rulesync.jsonc"),
+        }),
+      ).rejects.toThrow(/flattenedCommandNaming/);
+    });
+  });
+
   describe("local configuration (rulesync.local.jsonc)", () => {
     it("should use rulesync.local.jsonc to override rulesync.jsonc", async () => {
       const baseConfigContent = JSON.stringify({

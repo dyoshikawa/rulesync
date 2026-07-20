@@ -30,7 +30,9 @@ export type GitignoreDestination = z.infer<typeof GitignoreDestinationSchema>;
 // Naming strategy for command files flattened for tools without subdirectory
 // support: "basename" keeps only the filename (`pj/test.md` -> `test.md`,
 // colliding paths overwrite each other), "path" joins the directory segments
-// into the filename (`pj/test.md` -> `pj-test.md`), keeping names unique.
+// into the filename (`pj/test.md` -> `pj-test.md`), which reduces collisions
+// but cannot rule them out (a literal `pj-test.md` also maps to `pj-test.md`,
+// last write wins); the collision warning still applies.
 export const FlattenedCommandNamingSchema = z.enum(["basename", "path"]);
 export type FlattenedCommandNaming = z.infer<typeof FlattenedCommandNamingSchema>;
 
