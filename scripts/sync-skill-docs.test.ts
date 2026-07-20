@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { removeVitepressSyntax } from "./sync-skill-docs.js";
+import {
+  assertFlatMirrorLinksResolve,
+  removeVitepressSyntax,
+  rewriteRelativeLinksForFlatMirror,
+} from "./sync-skill-docs.js";
 
 describe("removeVitepressSyntax", () => {
   it("converts ::: details block and bumps internal headings", () => {
@@ -92,5 +96,96 @@ describe("removeVitepressSyntax", () => {
     expect(result).toContain("> **Tip:**");
     expect(result).toContain("More content after tip");
     expect(result).not.toContain(":::");
+  });
+});
+
+describe("rewriteRelativeLinksForFlatMirror", () => {
+  it("collapses parent-directory links to sibling links", () => {
+    const input = "See the [FAQ](../faq.md#some-anchor) for details.";
+    const result = rewriteRelativeLinksForFlatMirror(input);
+    expect(result).toBe("See the [FAQ](./faq.md#some-anchor) for details.");
+  });
+
+  it("collapses links with directory segments to sibling links", () => {
+    const input = "See [File Formats](../reference/file-formats.md#symlinks).";
+    const result = rewriteRelativeLinksForFlatMirror(input);
+    expect(result).toBe("See [File Formats](./file-formats.md#symlinks).");
+  });
+
+  it("keeps same-directory links unchanged", () => {
+    const input = "See [Command Syntax](./command-syntax.md).";
+    const result = rewriteRelativeLinksForFlatMirror(input);
+    expect(result).toBe(input);
+  });
+
+  it("keeps external and anchor-only links unchanged", () => {
+    const input = "See [docs](https://example.com/docs/faq.md) and [above](#section).";
+    const result = rewriteRelativeLinksForFlatMirror(input);
+    expect(result).toBe(input);
+  });
+
+  it("rewrites multiple links in one document", () => {
+    const input = "[A](../faq.md) then [B](../reference/file-formats.md) then [C](./local.md).";
+    const result = rewriteRelativeLinksForFlatMirror(input);
+    expect(result).toBe("[A](./faq.md) then [B](./file-formats.md) then [C](./local.md).");
+  });
+
+  it("collapses same-directory-prefixed links that still contain directory segments", () => {
+    const input = "See [Guide](./guide/x.md#top).";
+    const result = rewriteRelativeLinksForFlatMirror(input);
+    expect(result).toBe("See [Guide](./x.md#top).");
+  });
+
+  it("preserves markdown link titles while collapsing", () => {
+    const input = 'See [FAQ](../faq.md#anchor "The FAQ").';
+    const result = rewriteRelativeLinksForFlatMirror(input);
+    expect(result).toBe('See [FAQ](./faq.md#anchor "The FAQ").');
+  });
+});
+
+describe("assertFlatMirrorLinksResolve", () => {
+  it("passes when all relative links resolve to mirrored files", () => {
+    const files = new Map([
+      ["faq.md", "# FAQ"],
+      ["guide.md", "See the [FAQ](./faq.md#anchor) and [bare](faq.md)."],
+    ]);
+    expect(() => assertFlatMirrorLinksResolve({ files })).not.toThrow();
+  });
+
+  it("ignores external, mailto, and anchor-only links", () => {
+    const files = new Map([
+      ["guide.md", "[ext](https://example.com/x.md) [mail](mailto:a@b.md) [top](#top)"],
+    ]);
+    expect(() => assertFlatMirrorLinksResolve({ files })).not.toThrow();
+  });
+
+  it("throws when a link targets a file missing from the mirror", () => {
+    const files = new Map([["guide.md", "See [missing](./missing.md)."]]);
+    expect(() => assertFlatMirrorLinksResolve({ files })).toThrow(
+      /does not resolve to a mirrored file/,
+    );
+  });
+
+  it("throws when a link still contains directory segments", () => {
+    const files = new Map([
+      ["faq.md", "# FAQ"],
+      ["guide.md", "See [FAQ](../faq.md)."],
+    ]);
+    expect(() => assertFlatMirrorLinksResolve({ files })).toThrow(/not a flat sibling link/);
+  });
+
+  it("throws for bare directory-segment links without a dot prefix", () => {
+    const files = new Map([
+      ["x.md", "# X"],
+      ["guide.md", "See [X](guide/x.md)."],
+    ]);
+    expect(() => assertFlatMirrorLinksResolve({ files })).toThrow(/not a flat sibling link/);
+  });
+
+  it("validates links that carry a markdown title", () => {
+    const files = new Map([["guide.md", 'See [missing](./missing.md "Title").']]);
+    expect(() => assertFlatMirrorLinksResolve({ files })).toThrow(
+      /does not resolve to a mirrored file/,
+    );
   });
 });
