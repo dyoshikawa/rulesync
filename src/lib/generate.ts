@@ -772,6 +772,7 @@ async function generateCommandsCore(params: {
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
+        flattenedCommandNaming: config.getFlattenedCommandNaming(),
         logger,
       });
 

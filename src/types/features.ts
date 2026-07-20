@@ -27,6 +27,13 @@ type FeatureWithWildcard = Feature | "*";
 export const GitignoreDestinationSchema = z.enum(["gitignore", "gitattributes"]);
 export type GitignoreDestination = z.infer<typeof GitignoreDestinationSchema>;
 
+// Naming strategy for command files flattened for tools without subdirectory
+// support: "basename" keeps only the filename (`pj/test.md` -> `test.md`,
+// colliding paths overwrite each other), "path" joins the directory segments
+// into the filename (`pj/test.md` -> `pj-test.md`), keeping names unique.
+export const FlattenedCommandNamingSchema = z.enum(["basename", "path"]);
+export type FlattenedCommandNaming = z.infer<typeof FlattenedCommandNamingSchema>;
+
 // Free-form options object that may be passed for a specific feature.
 // Each tool/feature is responsible for parsing and validating its own keys.
 export type FeatureOptions = Record<string, unknown>;

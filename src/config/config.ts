@@ -7,6 +7,8 @@ import {
   Feature,
   FeatureOptions,
   Features,
+  FlattenedCommandNaming,
+  FlattenedCommandNamingSchema,
   GitignoreDestination,
   GitignoreDestinationSchema,
   isFeatureValueEnabled,
@@ -103,6 +105,7 @@ export const ConfigParamsSchema = z.object({
   simulateCommands: optional(z.boolean()),
   simulateSubagents: optional(z.boolean()),
   simulateSkills: optional(z.boolean()),
+  flattenedCommandNaming: optional(FlattenedCommandNamingSchema),
   gitignoreTargetsOnly: optional(z.boolean()),
   gitignoreDestination: optional(GitignoreDestinationSchema),
   dryRun: optional(z.boolean()),
@@ -263,6 +266,7 @@ export class Config {
   private readonly simulateCommands: boolean;
   private readonly simulateSubagents: boolean;
   private readonly simulateSkills: boolean;
+  private readonly flattenedCommandNaming: FlattenedCommandNaming;
   private readonly gitignoreTargetsOnly: boolean;
   private readonly gitignoreDestination: GitignoreDestination;
   private readonly dryRun: boolean;
@@ -281,6 +285,7 @@ export class Config {
     simulateCommands,
     simulateSubagents,
     simulateSkills,
+    flattenedCommandNaming,
     gitignoreTargetsOnly,
     gitignoreDestination,
     dryRun,
@@ -337,6 +342,7 @@ export class Config {
     this.simulateCommands = simulateCommands ?? false;
     this.simulateSubagents = simulateSubagents ?? false;
     this.simulateSkills = simulateSkills ?? false;
+    this.flattenedCommandNaming = flattenedCommandNaming ?? "basename";
     this.gitignoreTargetsOnly = gitignoreTargetsOnly ?? true;
     this.gitignoreDestination = gitignoreDestination ?? "gitignore";
     this.dryRun = dryRun ?? false;
@@ -619,6 +625,10 @@ export class Config {
 
   public getSimulateCommands(): boolean {
     return this.simulateCommands;
+  }
+
+  public getFlattenedCommandNaming(): FlattenedCommandNaming {
+    return this.flattenedCommandNaming;
   }
 
   public getSimulateSubagents(): boolean {

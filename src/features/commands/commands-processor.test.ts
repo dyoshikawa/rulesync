@@ -531,6 +531,140 @@ describe("CommandsProcessor", () => {
       );
     });
 
+    it('should join path segments when flattenedCommandNaming is "path" (generate)', async () => {
+      processor = new CommandsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "cursor",
+        flattenedCommandNaming: "path",
+      });
+
+      const nestedCommand = new RulesyncCommand({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: join("update", "confluence", "docs.md"),
+        fileContent: "test content",
+        frontmatter: {
+          targets: ["cursor"],
+          description: "test description",
+        },
+        body: "test content",
+      });
+
+      vi.mocked(CursorCommand.fromRulesyncCommand).mockReturnValue(
+        new CursorCommand({
+          outputRoot: testDir,
+          relativeDirPath: join(".cursor", "commands"),
+          relativeFilePath: "update-confluence-docs.md",
+          frontmatter: {},
+          body: "converted content",
+        }),
+      );
+
+      await processor.convertRulesyncFilesToToolFiles([nestedCommand]);
+
+      const calledArgs = vi.mocked(CursorCommand.fromRulesyncCommand).mock.calls[0]![0]!;
+      expect(calledArgs.rulesyncCommand.getRelativeFilePath()).toBe("update-confluence-docs.md");
+    });
+
+    it('should not warn about collisions when flattenedCommandNaming is "path" keeps names unique', async () => {
+      processor = new CommandsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "cursor",
+        flattenedCommandNaming: "path",
+      });
+
+      const commandInPj = new RulesyncCommand({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: join("pj", "test.md"),
+        fileContent: "content from pj",
+        frontmatter: {
+          targets: ["cursor"],
+          description: "pj command",
+        },
+        body: "content from pj",
+      });
+      const commandInOps = new RulesyncCommand({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: join("ops", "test.md"),
+        fileContent: "content from ops",
+        frontmatter: {
+          targets: ["cursor"],
+          description: "ops command",
+        },
+        body: "content from ops",
+      });
+
+      vi.mocked(CursorCommand.fromRulesyncCommand)
+        .mockReturnValueOnce(
+          new CursorCommand({
+            outputRoot: testDir,
+            relativeDirPath: join(".cursor", "commands"),
+            relativeFilePath: "pj-test.md",
+            frontmatter: {},
+            body: "converted from pj",
+          }),
+        )
+        .mockReturnValueOnce(
+          new CursorCommand({
+            outputRoot: testDir,
+            relativeDirPath: join(".cursor", "commands"),
+            relativeFilePath: "ops-test.md",
+            frontmatter: {},
+            body: "converted from ops",
+          }),
+        );
+
+      const result = await processor.convertRulesyncFilesToToolFiles([commandInPj, commandInOps]);
+
+      expect(result).toHaveLength(2);
+      expect(logger.warn).not.toHaveBeenCalled();
+      const calls = vi.mocked(CursorCommand.fromRulesyncCommand).mock.calls;
+      expect(calls[0]![0]!.rulesyncCommand.getRelativeFilePath()).toBe("pj-test.md");
+      expect(calls[1]![0]!.rulesyncCommand.getRelativeFilePath()).toBe("ops-test.md");
+    });
+
+    it('should preserve subdirectory path for supportsSubdirectory=true tools when flattenedCommandNaming is "path"', async () => {
+      processor = new CommandsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+        flattenedCommandNaming: "path",
+      });
+
+      const nestedCommand = new RulesyncCommand({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: join("pj", "test.md"),
+        fileContent: "test content",
+        frontmatter: {
+          targets: ["claudecode"],
+          description: "test description",
+        },
+        body: "test content",
+      });
+
+      vi.mocked(ClaudecodeCommand.fromRulesyncCommand).mockReturnValue(
+        new ClaudecodeCommand({
+          outputRoot: testDir,
+          relativeDirPath: join(".claude", "commands"),
+          relativeFilePath: join("pj", "test.md"),
+          frontmatter: {
+            description: "test description",
+          },
+          body: "converted content",
+        }),
+      );
+
+      await processor.convertRulesyncFilesToToolFiles([nestedCommand]);
+
+      const calledArgs = vi.mocked(ClaudecodeCommand.fromRulesyncCommand).mock.calls[0]![0]!;
+      expect(calledArgs.rulesyncCommand.getRelativeFilePath()).toBe(join("pj", "test.md"));
+    });
+
     it("should filter out non-rulesync command files", async () => {
       const mockRulesyncCommand = new RulesyncCommand({
         outputRoot: testDir,
