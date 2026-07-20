@@ -391,7 +391,7 @@ describe("config-resolver", () => {
         ConfigResolver.resolve({
           configPath: join(testDir, "rulesync.jsonc"),
         }),
-      ).rejects.toThrow();
+      ).rejects.toThrow(/flattenedCommandNaming/);
     });
   });
 
