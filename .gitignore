@@ -342,6 +342,7 @@ rulesync.local.jsonc
 **/.rovodev/subagents/
 **/.takt/facets/personas/
 **/.vibe/agents/
+**/.ai/mcp/mcp.json
 **/.agents/mcp_config.json
 **/.augment/settings.json
 **/.mcp.json
