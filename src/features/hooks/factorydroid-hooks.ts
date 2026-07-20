@@ -115,7 +115,7 @@ export class FactorydroidHooks extends ToolHooks {
       converterConfig: FACTORYDROID_CONVERTER_CONFIG,
       logger,
     });
-    const merged = { ...settings, hooks: factorydroidHooks };
+    const merged = { ...settings, ...factorydroidHooks };
     const fileContent = JSON.stringify(merged, null, 2);
     return new FactorydroidHooks({
       outputRoot,
@@ -127,9 +127,9 @@ export class FactorydroidHooks extends ToolHooks {
   }
 
   toRulesyncHooks(): RulesyncHooks {
-    let settings: { hooks?: unknown };
+    let parsed: { hooks?: unknown };
     try {
-      settings = JSON.parse(this.getFileContent());
+      parsed = JSON.parse(this.getFileContent());
     } catch (error) {
       throw new Error(
         `Failed to parse Factory Droid hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
@@ -139,7 +139,7 @@ export class FactorydroidHooks extends ToolHooks {
       );
     }
     const hooks = toolHooksToCanonical({
-      hooks: settings.hooks,
+      hooks: parsed.hooks ?? parsed,
       converterConfig: FACTORYDROID_CONVERTER_CONFIG,
     });
     return this.toRulesyncHooksDefault({

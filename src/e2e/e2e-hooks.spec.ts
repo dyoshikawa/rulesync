@@ -19,9 +19,10 @@ import {
  * (e.g. claudecode uses PascalCase `Stop`), so checking command paths inside
  * the serialized hooks block is the most tool-agnostic assertion.
  */
-function assertHookCommandsPreserved(parsed: { hooks?: unknown }): void {
-  expect(parsed.hooks).toBeDefined();
-  const serialized = JSON.stringify(parsed.hooks);
+function assertHookCommandsPreserved(parsed: { hooks?: unknown }, rootIsHooks = false): void {
+  const hooks = rootIsHooks ? parsed : parsed.hooks;
+  expect(hooks).toBeDefined();
+  const serialized = JSON.stringify(hooks);
   expect(serialized).toContain(".rulesync/hooks/session-start.sh");
   expect(serialized).toContain(".rulesync/hooks/audit.sh");
 }
@@ -176,7 +177,7 @@ describe("E2E: hooks", () => {
       } else {
         // codexcli, factorydroid, goose: event-name casing/mapping
         // varies per tool, so verify the configured hook command paths are preserved.
-        assertHookCommandsPreserved(parsed);
+        assertHookCommandsPreserved(parsed, target === "factorydroid");
       }
     }
   });
@@ -700,7 +701,7 @@ describe("E2E: hooks (global mode)", () => {
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
       } else {
-        assertHookCommandsPreserved(JSON.parse(generatedContent));
+        assertHookCommandsPreserved(JSON.parse(generatedContent), target === "factorydroid");
       }
     },
   );

@@ -35,6 +35,46 @@ describe("FactorydroidHooks", () => {
   });
 
   describe("fromRulesyncHooks", () => {
+    it("should emit a dedicated hooks file that preserves an override command", async () => {
+      const config = {
+        version: 1,
+        hooks: {},
+        factorydroid: {
+          hooks: {
+            sessionStart: [{ type: "command", command: ".rulesync/hooks/notify.sh" }],
+          },
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        global: true,
+      });
+
+      const parsed = JSON.parse(factorydroidHooks.getFileContent());
+      expect(parsed).toEqual({
+        SessionStart: [
+          {
+            hooks: [
+              {
+                type: "command",
+                command: '"$FACTORY_PROJECT_DIR"/.rulesync/hooks/notify.sh',
+              },
+            ],
+          },
+        ],
+      });
+    });
+
     it("should filter shared hooks to Factory Droid-supported events and convert to PascalCase", async () => {
       await ensureDir(join(testDir, ".factory"));
       await writeFileContent(join(testDir, ".factory", "settings.json"), JSON.stringify({}));
@@ -63,9 +103,9 @@ describe("FactorydroidHooks", () => {
 
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
-      expect(parsed.hooks.SessionStart).toBeDefined();
-      expect(parsed.hooks.Stop).toBeDefined();
-      expect(parsed.hooks.afterFileEdit).toBeUndefined();
+      expect(parsed.SessionStart).toBeDefined();
+      expect(parsed.Stop).toBeDefined();
+      expect(parsed.afterFileEdit).toBeUndefined();
     });
 
     it("should prefix non-absolute commands with $FACTORY_PROJECT_DIR", async () => {
@@ -94,7 +134,7 @@ describe("FactorydroidHooks", () => {
 
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
-      const sessionStartEntry = parsed.hooks.SessionStart[0];
+      const sessionStartEntry = parsed.SessionStart[0];
       expect(sessionStartEntry).toBeDefined();
       expect(sessionStartEntry.matcher).toBeUndefined();
       expect(sessionStartEntry.hooks[0].command).toContain("$FACTORY_PROJECT_DIR");
@@ -127,7 +167,7 @@ describe("FactorydroidHooks", () => {
 
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
-      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe(
+      expect(parsed.SessionStart[0].hooks[0].command).toBe(
         '"$FACTORY_PROJECT_DIR"/scripts/format.sh --fix --quiet',
       );
     });
@@ -160,7 +200,7 @@ describe("FactorydroidHooks", () => {
 
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
-      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe(
+      expect(parsed.SessionStart[0].hooks[0].command).toBe(
         "$FACTORY_PROJECT_DIR/.factory/hooks/start.sh",
       );
     });
@@ -202,9 +242,9 @@ describe("FactorydroidHooks", () => {
 
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
-      expect(parsed.hooks.SessionStart[0].hooks[0].command).toContain("factory-override.sh");
-      expect(parsed.hooks.Notification).toBeDefined();
-      expect(parsed.hooks.Notification[0].matcher).toBe("permission_prompt");
+      expect(parsed.SessionStart[0].hooks[0].command).toContain("factory-override.sh");
+      expect(parsed.Notification).toBeDefined();
+      expect(parsed.Notification[0].matcher).toBe("permission_prompt");
     });
 
     it("should not leak Claude config hooks into Factory Droid output", async () => {
@@ -245,9 +285,9 @@ describe("FactorydroidHooks", () => {
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
       // Shared hooks should be present
-      expect(parsed.hooks.SessionStart[0].hooks[0].command).toContain("shared.sh");
+      expect(parsed.SessionStart[0].hooks[0].command).toContain("shared.sh");
       // Factory Droid-specific override should be present
-      expect(parsed.hooks.Stop).toBeDefined();
+      expect(parsed.Stop).toBeDefined();
       // Claude-specific hooks must NOT leak into Factory Droid output
       expect(JSON.stringify(parsed)).not.toContain("claude-only.sh");
       expect(JSON.stringify(parsed)).not.toContain("claude-notify.sh");
@@ -303,8 +343,8 @@ describe("FactorydroidHooks", () => {
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
       expect(parsed.otherKey).toBe("preserved");
-      expect(parsed.hooks).toBeDefined();
-      expect(parsed.hooks.SessionStart).toBeDefined();
+      expect(parsed.hooks).toBeUndefined();
+      expect(parsed.SessionStart).toBeDefined();
     });
 
     it("should handle hooks with matcher grouping", async () => {
@@ -337,15 +377,15 @@ describe("FactorydroidHooks", () => {
 
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
-      expect(parsed.hooks.PreToolUse).toHaveLength(2);
+      expect(parsed.PreToolUse).toHaveLength(2);
 
-      const writeEntry = parsed.hooks.PreToolUse.find(
+      const writeEntry = parsed.PreToolUse.find(
         (e: Record<string, unknown>) => e.matcher === "Write",
       );
       expect(writeEntry).toBeDefined();
       expect(writeEntry.hooks).toHaveLength(2);
 
-      const editEntry = parsed.hooks.PreToolUse.find(
+      const editEntry = parsed.PreToolUse.find(
         (e: Record<string, unknown>) => e.matcher === "Edit",
       );
       expect(editEntry).toBeDefined();
@@ -378,7 +418,7 @@ describe("FactorydroidHooks", () => {
 
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
-      const hookDef = parsed.hooks.PreToolUse[0].hooks[0];
+      const hookDef = parsed.PreToolUse[0].hooks[0];
       expect(hookDef.type).toBe("prompt");
       expect(hookDef.prompt).toBe("Check this tool call");
       expect(hookDef.timeout).toBe(30000);
@@ -409,7 +449,7 @@ describe("FactorydroidHooks", () => {
       });
 
       const parsed = JSON.parse(factorydroidHooks.getFileContent());
-      const hookDef = parsed.hooks.PreToolUse[0].hooks[0];
+      const hookDef = parsed.PreToolUse[0].hooks[0];
       expect(hookDef.prompt).toBe("Check this tool call");
       expect(hookDef.model).toBeUndefined();
     });
