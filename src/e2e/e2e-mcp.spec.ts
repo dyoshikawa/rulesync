@@ -24,6 +24,7 @@ import {
 
 // Native MCP tools that emit "test-server" (takt writes a transport allowlist instead).
 const mcpGenerateTargets = [
+  { target: "aiassistant", outputPath: join(".ai", "mcp", "mcp.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   { target: "amp", outputPath: join(".amp", "settings.json") },
   { target: "claudecode", outputPath: ".mcp.json" },

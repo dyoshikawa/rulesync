@@ -12,3 +12,9 @@ export const AIASSISTANT_IGNORE_FILE_NAME = ".aiignore";
 // directory, following the open Agent Skills standard. The relative path is the
 // same as the agentsskills target. https://agentskills.io/specification
 export const AIASSISTANT_SKILLS_DIR_PATH = AGENTSMD_SKILLS_DIR_PATH;
+// JetBrains AI Assistant project-level MCP configuration is read from
+// `.ai/mcp/mcp.json`. https://www.jetbrains.com/help/ai-assistant/mcp.html
+export const AIASSISTANT_MCP_DIR = ".ai";
+export const AIASSISTANT_MCP_SUB_DIR = "mcp";
+export const AIASSISTANT_MCP_DIR_PATH = join(AIASSISTANT_MCP_DIR, AIASSISTANT_MCP_SUB_DIR);
+export const AIASSISTANT_MCP_FILE_NAME = "mcp.json";
