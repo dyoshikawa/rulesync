@@ -37,6 +37,7 @@ const hooksGenerateTargets = [
   { target: "cursor", outputPath: join(".cursor", "hooks.json") },
   { target: "opencode", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
   { target: "kilo", outputPath: join(".kilo", "plugins", "rulesync-hooks.js") },
+  { target: "pi", outputPath: join(".pi", "extensions", "rulesync-hooks.ts") },
   { target: "codexcli", outputPath: join(".codex", "hooks.json") },
   { target: "qwencode", outputPath: join(".qwen", "settings.json") },
   {
@@ -101,6 +102,14 @@ describe("E2E: hooks", () => {
     } else if (target === "kilo") {
       // Kilo also emits a JavaScript plugin (.kilo/plugins/rulesync-hooks.js),
       // so assert the canonical command paths survive rather than parsing JSON.
+      expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
+      expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+    } else if (target === "pi") {
+      // Pi emits a TypeScript extension (.pi/extensions/rulesync-hooks.ts)
+      // that subscribes to snake_case extension events: sessionStart →
+      // session_start, stop → agent_end.
+      expect(generatedContent).toContain('pi.on("session_start"');
+      expect(generatedContent).toContain('pi.on("agent_end"');
       expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
       expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
     } else {
@@ -388,6 +397,7 @@ describe("E2E: hooks", () => {
     // factorydroid now writes a dedicated .factory/hooks.json (isDeletable=true).
     { target: "cursor", orphanPath: join(".cursor", "hooks.json") },
     { target: "opencode", orphanPath: join(".opencode", "plugins", "rulesync-hooks.js") },
+    { target: "pi", orphanPath: join(".pi", "extensions", "rulesync-hooks.ts") },
     { target: "codexcli", orphanPath: join(".codex", "hooks.json") },
     { target: "copilot", orphanPath: join(".github", "hooks", "copilot-hooks.json") },
     { target: "factorydroid", orphanPath: join(".factory", "hooks.json") },
@@ -602,6 +612,7 @@ const hooksGlobalTargets = [
   },
   { target: "opencode", outputPath: join(".config", "opencode", "plugins", "rulesync-hooks.js") },
   { target: "kilo", outputPath: join(".config", "kilo", "plugins", "rulesync-hooks.js") },
+  { target: "pi", outputPath: join(".pi", "agent", "extensions", "rulesync-hooks.ts") },
   { target: "factorydroid", outputPath: join(".factory", "hooks.json") },
   { target: "deepagents", outputPath: join(".deepagents", "hooks.json") },
   { target: "junie", outputPath: join(".junie", "config.json") },
@@ -665,6 +676,12 @@ describe("E2E: hooks (global mode)", () => {
         expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
       } else if (target === "kilo") {
         // Kilo's JS plugin differs from OpenCode's shape; assert command paths.
+        expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
+        expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "pi") {
+        // Pi emits a TypeScript extension subscribing to snake_case events.
+        expect(generatedContent).toContain('pi.on("session_start"');
+        expect(generatedContent).toContain('pi.on("agent_end"');
         expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
         expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
       } else if (target === "copilotcli") {

@@ -271,6 +271,27 @@ export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
 export const KILO_HOOK_EVENTS: readonly HookEvent[] = OPENCODE_HOOK_EVENTS;
 
 /**
+ * Hook events supported by Pi Coding Agent, bridged through a generated
+ * TypeScript extension (Pi has no static hook config file; its extension API
+ * exposes lifecycle events instead).
+ *
+ * Only canonical events with a semantically faithful Pi extension event are
+ * listed; see CANONICAL_TO_PI_EVENT_NAMES for the mapping.
+ *
+ * @see https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md
+ */
+export const PI_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "preToolUse",
+  "postToolUse",
+  "preModelInvocation",
+  "beforeSubmitPrompt",
+  "stop",
+  "preCompact",
+];
+
+/**
  * Hook events supported by GitHub Copilot (cloud coding agent).
  *
  * GitHub now documents an eight-event surface for `.github/hooks/*.json`:
@@ -696,6 +717,7 @@ export const HooksConfigSchema = z.looseObject({
   copilotcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   opencode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   kilo: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  pi: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   factorydroid: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   codexcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   goose: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -909,6 +931,30 @@ export const CANONICAL_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
  */
 export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> =
   CANONICAL_TO_OPENCODE_EVENT_NAMES;
+
+/**
+ * Map canonical camelCase event names to Pi Coding Agent extension event
+ * names (snake_case).
+ *
+ * Mapping notes: `sessionEnd` → `session_shutdown` (fires on session
+ * teardown), `beforeSubmitPrompt` → `input` (user input interception),
+ * `preModelInvocation` → `context` (fires before each LLM call), and
+ * `stop` → `agent_end` (agent finished responding). Pi events without a
+ * faithful canonical counterpart (e.g. `turn_start`, `agent_settled`) are
+ * intentionally unmapped.
+ *
+ * @see https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md
+ */
+export const CANONICAL_TO_PI_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "session_start",
+  sessionEnd: "session_shutdown",
+  preToolUse: "tool_call",
+  postToolUse: "tool_result",
+  preModelInvocation: "context",
+  beforeSubmitPrompt: "input",
+  stop: "agent_end",
+  preCompact: "session_before_compact",
+};
 
 /**
  * Map canonical camelCase event names to Copilot camelCase.

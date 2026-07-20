@@ -363,6 +363,7 @@ rulesync.local.jsonc
 **/.github/hooks/copilotcli-hooks.json
 **/.kilo/plugins/rulesync-hooks.js
 **/.opencode/plugins/rulesync-hooks.js
+**/.pi/extensions/rulesync-hooks.ts
 **/.factory/hooks.json
 **/.agents/plugins/rulesync/hooks/hooks.json
 **/.kiro/agents/default.json

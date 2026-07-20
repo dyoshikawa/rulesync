@@ -21,6 +21,7 @@ import {
   KIRO_HOOK_EVENTS,
   KIRO_IDE_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
+  PI_HOOK_EVENTS,
   QWENCODE_HOOK_EVENTS,
   REASONIX_HOOK_EVENTS,
   VIBE_HOOK_EVENTS,
@@ -52,6 +53,7 @@ import { KiroCliHooks } from "./kiro-cli-hooks.js";
 import { KiroHooks } from "./kiro-hooks.js";
 import { KiroIdeHooks } from "./kiro-ide-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
+import { PiHooks } from "./pi-hooks.js";
 import { QwencodeHooks } from "./qwencode-hooks.js";
 import { ReasonixHooks } from "./reasonix-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -251,6 +253,27 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       },
       supportedEvents: OPENCODE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "pi",
+    {
+      class: PiHooks,
+      meta: {
+        // Pi discovers extensions from `.pi/extensions/` (project) and
+        // `~/.pi/agent/extensions/` (global); rulesync generates a
+        // rulesync-owned TypeScript extension in both scopes. Arbitrary
+        // extension code cannot be parsed back into canonical hooks, so
+        // import is unsupported (same as opencode/kilo).
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: false,
+      },
+      supportedEvents: PI_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      // Matchers are evaluated as regexes against `event.toolName` on Pi's
+      // tool_call / tool_result events.
       supportsMatcher: true,
     },
   ],
