@@ -10,7 +10,7 @@ import { ToolFile } from "../../types/tool-file.js";
 import { commandsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { checkPathTraversal, findFilesByGlobs } from "../../utils/file.js";
+import { checkPathTraversal, findFilesByGlobs, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "./agentsmd-command.js";
 import { AntigravityCliCommand } from "./antigravity-cli-command.js";
@@ -628,7 +628,7 @@ export class CommandsProcessor extends FeatureProcessor {
     const relativeFilePath = rulesyncCommand.getRelativeFilePath();
     const flatPath =
       this.flattenedCommandNaming === "path"
-        ? relativeFilePath.split(/[\\/]/).join("-")
+        ? toPosixPath(relativeFilePath).split("/").join("-")
         : basename(relativeFilePath);
     if (flatPath === relativeFilePath) return rulesyncCommand;
     return rulesyncCommand.withRelativeFilePath(flatPath);

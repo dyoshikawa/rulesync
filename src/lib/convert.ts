@@ -256,7 +256,14 @@ function buildCommandsStrategy(ctx: ConvertContext) {
     itemLabel: "command file(s)",
     allTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
-      new CommandsProcessor({ outputRoot, toolTarget, global, dryRun, logger }),
+      new CommandsProcessor({
+        outputRoot,
+        toolTarget,
+        global,
+        dryRun,
+        logger,
+        flattenedCommandNaming: config.getFlattenedCommandNaming(),
+      }),
     loadSource: (p) => p.loadToolFiles(),
     toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
     fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),

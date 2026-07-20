@@ -54,8 +54,14 @@ Example:
   // command support (e.g. Cursor): "basename" (default) keeps only the
   // filename, so `pj/test.md` and `ops/test.md` collide and the last one
   // wins; "path" joins the directory segments into the filename
-  // (`pj/test.md` -> `pj-test.md`), keeping flattened names unique.
+  // (`pj/test.md` -> `pj-test.md`), which reduces collisions but cannot
+  // rule them out (a literal `pj-test.md` also maps to `pj-test.md`); the
+  // collision warning still applies.
   // Tools that support subdirectories (e.g. Claude Code) are unaffected.
+  // Note: switching from "basename" to "path" renames the generated files
+  // (e.g. `test.md` -> `pj-test.md`); run `rulesync generate` with
+  // `delete: true` (or `--delete`) once after switching, otherwise the
+  // stale old flat-named files remain alongside the new ones.
   "flattenedCommandNaming": "basename",
 
   // When true (default), `rulesync gitignore` only emits entries for the
