@@ -94,11 +94,15 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
  *
  * @see https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md
  */
-export function generatePiExtensionCode(
-  config: HooksConfig,
-  supportedEvents: readonly string[],
-  eventMap: Record<string, string>,
-): string {
+export function generatePiExtensionCode({
+  config,
+  supportedEvents,
+  eventMap,
+}: {
+  config: HooksConfig;
+  supportedEvents: readonly string[];
+  eventMap: Record<string, string>;
+}): string {
   const supported: Set<string> = new Set(supportedEvents);
   const configHooks = { ...config.hooks, ...config.pi?.hooks };
   const effectiveHooks: HooksConfig["hooks"] = {};

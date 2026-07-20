@@ -67,11 +67,11 @@ export class PiHooks extends ToolHooks {
     global = false,
   }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): PiHooks {
     const config = rulesyncHooks.getJson();
-    const fileContent = generatePiExtensionCode(
+    const fileContent = generatePiExtensionCode({
       config,
-      PI_HOOK_EVENTS,
-      CANONICAL_TO_PI_EVENT_NAMES,
-    );
+      supportedEvents: PI_HOOK_EVENTS,
+      eventMap: CANONICAL_TO_PI_EVENT_NAMES,
+    });
     const paths = PiHooks.getSettablePaths({ global });
     return new PiHooks({
       outputRoot,

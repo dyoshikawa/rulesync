@@ -939,9 +939,11 @@ export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> =
  * Mapping notes: `sessionEnd` → `session_shutdown` (fires on session
  * teardown), `beforeSubmitPrompt` → `input` (user input interception),
  * `preModelInvocation` → `context` (fires before each LLM call), and
- * `stop` → `agent_end` (agent finished responding). Pi events without a
- * faithful canonical counterpart (e.g. `turn_start`, `agent_settled`) are
- * intentionally unmapped.
+ * `stop` → `agent_end` (agent finished responding; unlike Claude Code's
+ * Stop, this also fires before Pi auto-retries or auto-compacts —
+ * `agent_settled` would skip queued follow-ups instead, a pure trade-off).
+ * Pi events without a faithful canonical counterpart (e.g. `turn_start`,
+ * `agent_settled`) are intentionally unmapped.
  *
  * @see https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md
  */
