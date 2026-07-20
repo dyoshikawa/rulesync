@@ -63,10 +63,14 @@ describe("AiassistantMcp", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("returns the .ai/mcp/mcp.json path for project mode", () => {
-      const projectPaths = AiassistantMcp.getSettablePaths({ global: false });
-      const expected = { relativeDirPath: join(".ai", "mcp"), relativeFilePath: "mcp.json" };
-      expect(projectPaths).toEqual(expected);
+    describe("getSettablePaths", () => {
+      it("returns the same .ai/mcp/mcp.json path for project and global mode", () => {
+        const projectPaths = AiassistantMcp.getSettablePaths({ global: false });
+        const globalPaths = AiassistantMcp.getSettablePaths({ global: true });
+        const expected = { relativeDirPath: join(".ai", "mcp"), relativeFilePath: "mcp.json" };
+        expect(projectPaths).toEqual(expected);
+        expect(globalPaths).toEqual(expected);
+      });
     });
   });
 

@@ -30,7 +30,9 @@ export class AiassistantMcp extends ToolMcp {
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolMcpSettablePaths {
     // JetBrains AI Assistant reads project-level MCP config from
-    // `.ai/mcp/mcp.json`. Only project scope is supported.
+    // `.ai/mcp/mcp.json` and global (user-level) config from
+    // `~/.ai/mcp/mcp.json`. The relative path is identical for both scopes;
+    // the base directory changes (cwd for project, home dir for global).
     return {
       relativeDirPath: AIASSISTANT_MCP_DIR_PATH,
       relativeFilePath: AIASSISTANT_MCP_FILE_NAME,

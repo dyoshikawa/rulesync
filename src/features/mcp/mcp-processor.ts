@@ -90,13 +90,14 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     "aiassistant",
     {
       // JetBrains AI Assistant reads project-level MCP config from
-      // `.ai/mcp/mcp.json`. Only project scope is supported; there is no
-      // global (user-level) MCP file for AI Assistant.
+      // `.ai/mcp/mcp.json` and global (user-level) config from
+      // `~/.ai/mcp/mcp.json`. The relative path is identical for both scopes;
+      // the base directory changes (cwd for project, home dir for global).
       // https://www.jetbrains.com/help/ai-assistant/mcp.html
       class: AiassistantMcp,
       meta: {
         supportsProject: true,
-        supportsGlobal: false,
+        supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
       },

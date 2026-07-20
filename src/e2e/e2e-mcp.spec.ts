@@ -607,6 +607,7 @@ describe("E2E: mcp (import)", () => {
 
 // Native global-scope MCP tools that emit "test-server" (takt writes a transport allowlist instead).
 const mcpGlobalTargets = [
+  { target: "aiassistant", outputPath: join(".ai", "mcp", "mcp.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   { target: "claudecode", outputPath: ".claude.json" },
   { target: "cursor", outputPath: join(".cursor", "mcp.json") },
