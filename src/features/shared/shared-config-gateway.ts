@@ -251,6 +251,7 @@ export type SharedConfigFileDeclaration = {
 // `dir/file` tokens matching `deriveSharedFileWriters()` — always POSIX
 // separators, independent of the platform-specific path constants.
 export const CLAUDE_SETTINGS_SHARED_FILE_KEY = ".claude/settings.json";
+export const GEMINICLI_SETTINGS_SHARED_FILE_KEY = ".gemini/settings.json";
 export const HERMES_CONFIG_SHARED_FILE_KEY = ".hermes/config.yaml";
 export const TAKT_CONFIG_SHARED_FILE_KEY = ".takt/config.yaml";
 export const CODEXCLI_CONFIG_SHARED_FILE_KEY = ".codex/config.toml";
@@ -288,6 +289,11 @@ export const sharedConfigFileKey = ({
  * undeclared writer fails CI instead of merging by accident.
  */
 export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDeclaration>> = {
+  [GEMINICLI_SETTINGS_SHARED_FILE_KEY]: {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: { hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] } },
+  },
   [CLAUDE_SETTINGS_SHARED_FILE_KEY]: {
     format: "json",
     features: {

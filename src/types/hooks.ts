@@ -471,6 +471,21 @@ export const AUGMENTCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "notification",
 ];
 
+/** Hook events supported by Gemini CLI settings.json native hooks. */
+export const GEMINICLI_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "beforeSubmitPrompt",
+  "stop",
+  "preModelInvocation",
+  "postModelInvocation",
+  "beforeToolSelection",
+  "preToolUse",
+  "postToolUse",
+  "preCompact",
+  "notification",
+];
+
 /**
  * Hook events supported by Mistral Vibe (mistral-vibe).
  *
@@ -1210,4 +1225,22 @@ export const CANONICAL_TO_GROKCLI_EVENT_NAMES: Record<string, string> = {
  */
 export const GROKCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_GROKCLI_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/** Gemini CLI native lifecycle event mappings. */
+export const CANONICAL_TO_GEMINICLI_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  beforeSubmitPrompt: "BeforeAgent",
+  stop: "AfterAgent",
+  preModelInvocation: "BeforeModel",
+  postModelInvocation: "AfterModel",
+  beforeToolSelection: "BeforeToolSelection",
+  preToolUse: "BeforeTool",
+  postToolUse: "AfterTool",
+  preCompact: "PreCompress",
+  notification: "Notification",
+};
+export const GEMINICLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_GEMINICLI_EVENT_NAMES).map(([key, value]) => [value, key]),
 );

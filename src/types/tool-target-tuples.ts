@@ -219,6 +219,7 @@ export const hooksProcessorToolTargetTuple = [
   "qwencode",
   "reasonix",
   "grokcli",
+  "geminicli",
 ] as const;
 
 export const permissionsProcessorToolTargetTuple = [

@@ -53,6 +53,7 @@ describe("tool targets", () => {
         "devin",
         "zed",
         "agentsskills",
+        "geminicli",
       ];
 
       expect([...ALL_TOOL_TARGETS]).toEqual(expectedTargets);

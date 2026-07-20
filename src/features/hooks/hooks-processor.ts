@@ -15,6 +15,7 @@ import {
   FACTORYDROID_HOOK_EVENTS,
   GOOSE_HOOK_EVENTS,
   GROKCLI_HOOK_EVENTS,
+  GEMINICLI_HOOK_EVENTS,
   HERMESAGENT_HOOK_EVENTS,
   JUNIE_HOOK_EVENTS,
   KILO_HOOK_EVENTS,
@@ -43,6 +44,7 @@ import { CursorHooks } from "./cursor-hooks.js";
 import { DeepagentsHooks } from "./deepagents-hooks.js";
 import { DevinHooks } from "./devin-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
+import { GeminicliHooks } from "./geminicli-hooks.js";
 import { GooseHooks } from "./goose-hooks.js";
 import { GrokcliHooks } from "./grokcli-hooks.js";
 import { HermesagentHooks } from "./hermesagent-hooks.js";
@@ -477,6 +479,16 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedHookTypes: ["command"],
       // Only PreToolUse/PostToolUse honor `match`; the adapter itself drops it
       // (with a warning) on UserPromptSubmit/Stop.
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "geminicli",
+    {
+      class: GeminicliHooks,
+      meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+      supportedEvents: GEMINICLI_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
       supportsMatcher: true,
     },
   ],

@@ -541,6 +541,7 @@ describe("HooksProcessor", () => {
         "vibe",
         "qwencode",
         "reasonix",
+        "geminicli",
         "grokcli",
       ]);
     });
@@ -567,6 +568,7 @@ describe("HooksProcessor", () => {
         "vibe",
         "qwencode",
         "reasonix",
+        "geminicli",
         "grokcli",
       ]);
     });
@@ -591,6 +593,7 @@ describe("HooksProcessor", () => {
         "vibe",
         "qwencode",
         "reasonix",
+        "geminicli",
         "grokcli",
       ]);
     });
@@ -615,6 +618,7 @@ describe("HooksProcessor", () => {
         "vibe",
         "qwencode",
         "reasonix",
+        "geminicli",
         "grokcli",
       ]);
     });

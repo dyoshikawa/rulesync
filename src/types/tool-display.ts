@@ -25,6 +25,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "goose", label: "Goose", group: "ai" },
   { key: "hermesagent", label: "Hermes Agent", group: "ai" },
   { key: "grokcli", label: "Grok CLI", group: "ai" },
+  { key: "geminicli", label: "Gemini CLI", group: "ai" },
   { key: "cursor", label: "Cursor", group: "ai" },
   { key: "deepagents", label: "deepagents-cli", group: "ai" },
   { key: "factorydroid", label: "Factory Droid", group: "ai" },

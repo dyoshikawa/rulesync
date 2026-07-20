@@ -16,6 +16,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Goose                  | goose           | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   |   ✅   | ✅ 🌏 |     🌏      |        |
 | Hermes Agent           | hermesagent     |  ✅   |        |    🌏    |    🌏    |   ✅ 🌏   |   🌏   |  🌏   |     🌏      |        |
 | Grok CLI               | grokcli         | ✅ 🌏 |        |  ✅ 🌏   |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Gemini CLI             | geminicli       |       |        |          |          |           |        | ✅ 🌏 |             |        |
 | Cursor                 | cursor          |  ✅   |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | deepagents-cli         | deepagents      | ✅ 🌏 |        |  ✅ 🌏   |          |   ✅ 🌏   | ✅ 🌏  |  🌏   |             |        |
 | Factory Droid          | factorydroid    | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
