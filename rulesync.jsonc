@@ -31,6 +31,15 @@
       "skills": true,
       "hooks": true
     },
+    "codexcli": {
+      "rules": true,
+      "commands": false,
+      "mcp": false,
+      "subagents": true,
+      "skills": true,
+      "hooks": false,
+      "permissions": true
+    },
     "takt": {
       "rules": true,
       "commands": true,

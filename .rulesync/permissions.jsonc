@@ -1,0 +1,9 @@
+{
+  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/permissions-schema.json",
+  "permission": {},
+  "codexcli": {
+    "base_permission_profile": ":danger-full-access",
+    "approvals_reviewer": "auto_review",
+    "approval_policy": "on-request"
+  }
+}
