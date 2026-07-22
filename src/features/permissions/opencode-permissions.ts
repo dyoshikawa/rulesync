@@ -17,6 +17,7 @@ import type {
 } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -31,6 +32,61 @@ const OpencodePermissionSchema = z.union([
   z.enum(["allow", "ask", "deny"]),
   z.record(z.string(), z.enum(["allow", "ask", "deny"])),
 ]);
+type OpencodePermission = z.infer<typeof OpencodePermissionSchema>;
+
+/**
+ * OpenCode permission keys whose schema accepts only a single action. Unlike
+ * path/command-aware keys such as `bash` and `read`, these keys cannot express
+ * per-pattern rules.
+ *
+ * @see https://opencode.ai/docs/agents/#permissions
+ */
+const OPENCODE_ACTION_ONLY_PERMISSION_KEYS = new Set([
+  "webfetch",
+  "websearch",
+  "todowrite",
+  "question",
+  "doom_loop",
+]);
+
+const PERMISSION_ACTION_PRIORITY: Record<PermissionAction, number> = {
+  allow: 0,
+  ask: 1,
+  deny: 2,
+};
+
+function toOpencodePermission({
+  category,
+  value,
+  logger,
+}: {
+  category: string;
+  value: OpencodePermission;
+  logger?: Logger;
+}): OpencodePermission | undefined {
+  if (typeof value === "string" || !OPENCODE_ACTION_ONLY_PERMISSION_KEYS.has(category)) {
+    return value;
+  }
+
+  const actions = Object.values(value);
+  if (actions.length === 0) {
+    return undefined;
+  }
+
+  const action = actions.reduce((current, candidate) =>
+    PERMISSION_ACTION_PRIORITY[candidate] > PERMISSION_ACTION_PRIORITY[current]
+      ? candidate
+      : current,
+  );
+
+  if (Object.keys(value).some((pattern) => pattern !== "*")) {
+    logger?.warn(
+      `OpenCode's "${category}" permission accepts only a single action. Collapsed its pattern rules to "${action}" using deny > ask > allow precedence.`,
+    );
+  }
+
+  return action;
+}
 
 /**
  * Canonical rulesync permission categories that carry a cross-tool meaning (see
@@ -163,6 +219,7 @@ export class OpencodePermissions extends ToolPermissions {
   static async fromRulesyncPermissions({
     outputRoot = process.cwd(),
     rulesyncPermissions,
+    logger,
     global = false,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<OpencodePermissions> {
     const basePaths = OpencodePermissions.getSettablePaths({ global });
@@ -191,9 +248,20 @@ export class OpencodePermissions extends ToolPermissions {
     // Translate canonical category names into OpenCode's native permission keys
     // (`agent` → `task`) before emitting them, so subagent-launch gating is
     // written under the key OpenCode actually reads.
-    const sharedPermission: Record<string, unknown> = {};
+    const sharedPermission: Record<string, OpencodePermission> = {};
     for (const [category, value] of Object.entries(rulesyncJson.permission ?? {})) {
       sharedPermission[toOpencodePermissionKey(category)] = value;
+    }
+
+    const permission: Record<string, OpencodePermission> = {};
+    for (const [category, value] of Object.entries({
+      ...sharedPermission,
+      ...overridePermission,
+    })) {
+      const opencodePermission = toOpencodePermission({ category, value, logger });
+      if (opencodePermission !== undefined) {
+        permission[category] = opencodePermission;
+      }
     }
 
     return new OpencodePermissions({
@@ -204,7 +272,7 @@ export class OpencodePermissions extends ToolPermissions {
         fileKey: sharedConfigFileKey(basePaths),
         feature: "permissions",
         existingContent: fileContent ?? "",
-        patch: { permission: { ...sharedPermission, ...overridePermission } },
+        patch: { permission },
         filePath: join(jsonDir, relativeFilePath),
       }),
       validate: true,

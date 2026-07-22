@@ -115,6 +115,63 @@ describe("OpencodePermissions", () => {
     expect(json.permission.webfetch).toBe("allow");
   });
 
+  it("should emit action-only OpenCode permissions as strings (issue #2336)", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          webfetch: { "*": "allow" },
+          websearch: { "*": "ask" },
+          todowrite: { "*": "deny" },
+          question: { "*": "allow" },
+          doom_loop: { "*": "ask" },
+          bash: { "*": "ask", "git *": "allow" },
+        },
+      }),
+    });
+
+    const instance = await OpencodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+    const permission = JSON.parse(instance.getFileContent()).permission;
+
+    expect(permission).toEqual({
+      webfetch: "allow",
+      websearch: "ask",
+      todowrite: "deny",
+      question: "allow",
+      doom_loop: "ask",
+      bash: { "*": "ask", "git *": "allow" },
+    });
+  });
+
+  it("should conservatively collapse unsupported patterns for action-only permissions", async () => {
+    const logger = { warn: vi.fn() } as any;
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          webfetch: { "*": "allow", "https://private.example/**": "deny" },
+        },
+      }),
+    });
+
+    const instance = await OpencodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+    const permission = JSON.parse(instance.getFileContent()).permission;
+
+    expect(permission.webfetch).toBe("deny");
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("deny > ask > allow"));
+  });
+
   it("should route OpenCode-only categories into the opencode override on import", async () => {
     await writeFileContent(
       join(testDir, "opencode.json"),
