@@ -17,6 +17,7 @@ import { ClineIgnore } from "./cline-ignore.js";
 import { CursorIgnore } from "./cursor-ignore.js";
 import { DevinIgnore } from "./devin-ignore.js";
 import { GooseIgnore } from "./goose-ignore.js";
+import { HermesagentIgnore } from "./hermesagent-ignore.js";
 import { JunieIgnore } from "./junie-ignore.js";
 import { KiloIgnore } from "./kilo-ignore.js";
 import { KiroIgnore } from "./kiro-ignore.js";
@@ -47,6 +48,11 @@ type ToolIgnoreFactory = {
     fromFile(params: ToolIgnoreFromFileParams): Promise<ToolIgnore>;
     forDeletion(params: ToolIgnoreForDeletionParams): ToolIgnore;
     getSettablePaths(params?: ToolIgnoreSettablePathsParams): ToolIgnoreSettablePaths;
+    getAuxiliaryFiles?(params: {
+      toolIgnore: ToolIgnore;
+      outputRoot?: string;
+    }): Promise<ToolFile[]> | ToolFile[];
+    canDeleteAuxiliaryFiles?(params: { outputRoot: string }): Promise<boolean> | boolean;
   };
 };
 
@@ -59,6 +65,7 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
   ["cline", { class: ClineIgnore }],
   ["cursor", { class: CursorIgnore }],
   ["goose", { class: GooseIgnore }],
+  ["hermesagent", { class: HermesagentIgnore }],
   ["junie", { class: JunieIgnore }],
   ["kilo", { class: KiloIgnore }],
   ["kiro", { class: KiroIgnore }],
@@ -157,9 +164,15 @@ export class IgnoreProcessor extends FeatureProcessor {
           relativeDirPath: paths.relativeDirPath,
           relativeFilePath: paths.relativeFilePath,
         });
-
-        const toolIgnores = toolIgnore.isDeletable() ? [toolIgnore] : [];
-        return toolIgnores;
+        const canDeleteAuxiliaryFiles =
+          (await factory.class.canDeleteAuxiliaryFiles?.({ outputRoot: this.outputRoot })) ?? false;
+        const auxiliaryFiles = canDeleteAuxiliaryFiles
+          ? await factory.class.getAuxiliaryFiles?.({
+              toolIgnore,
+              outputRoot: this.outputRoot,
+            })
+          : [];
+        return [toolIgnore, ...(auxiliaryFiles ?? [])].filter((file) => file.isDeletable());
       }
 
       const toolIgnores = await this.loadToolIgnores();
@@ -202,7 +215,11 @@ export class IgnoreProcessor extends FeatureProcessor {
       options: this.featureOptions,
     });
 
-    return [toolIgnore];
+    const auxiliaryFiles = await factory.class.getAuxiliaryFiles?.({
+      toolIgnore,
+      outputRoot: this.outputRoot,
+    });
+    return auxiliaryFiles ? [toolIgnore, ...auxiliaryFiles] : [toolIgnore];
   }
 
   /**

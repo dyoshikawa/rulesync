@@ -69,9 +69,11 @@ const commandsGlobalTargets = [
   { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
   { target: "goose", outputPath: join(".config", "goose", "recipes", "review-pr.yaml") },
   { target: "qwencode", outputPath: join(".qwen", "commands", "review-pr.md") },
-  // Hermes Agent has no project-scoped command location; commands are emitted
-  // as Hermes skills under ~/.hermes/skills/<slug>/SKILL.md (global only).
-  { target: "hermesagent", outputPath: join(".hermes", "skills", "review-pr", "SKILL.md") },
+  // Hermes commands are global plugin-backed slash commands, separate from skills.
+  {
+    target: "hermesagent",
+    outputPath: join(".hermes", "rulesync", "commands", "review-pr.json"),
+  },
   { target: "reasonix", outputPath: join(".reasonix", "commands", "review-pr.md") },
   { target: "rovodev", outputPath: join(".rovodev", "prompts", "review-pr.md") },
 ] as const;
@@ -320,6 +322,30 @@ describe("E2E: commands (global mode)", () => {
       testedTargets: commandsGlobalTargets.map((e) => e.target),
       global: true,
     });
+  });
+
+  it("should generate and enable the Hermes native commands plugin", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    await writeFileContent(
+      join(projectDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
+      '---\nroot: true\ndescription: "Review a pull request"\ntargets: ["hermesagent"]\n---\nReview it.\n',
+    );
+
+    await runGenerate({
+      target: "hermesagent",
+      features: "commands",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const plugin = await readFileContent(
+      join(homeDir, ".hermes", "plugins", "rulesync-commands", "__init__.py"),
+    );
+    const config = await readFileContent(join(homeDir, ".hermes", "config.yaml"));
+    expect(plugin).toContain("ctx.register_command(slug, handler, description)");
+    expect(plugin).toContain('"delegate_task"');
+    expect(config).toContain("- rulesync-commands");
   });
 
   it.each(commandsGlobalTargets)(

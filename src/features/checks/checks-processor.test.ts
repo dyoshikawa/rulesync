@@ -14,8 +14,8 @@ import { RulesyncCheck } from "./rulesync-check.js";
 const logger = new ConsoleLogger({ verbose: false, silent: true });
 
 describe("ChecksProcessor.getToolTargets", () => {
-  it("should return amp for project scope", () => {
-    expect(ChecksProcessor.getToolTargets()).toEqual(["amp"]);
+  it("should return project-scoped check targets", () => {
+    expect(ChecksProcessor.getToolTargets()).toEqual(["amp", "hermesagent"]);
   });
 
   it("should return amp for global scope", () => {

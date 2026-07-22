@@ -21,6 +21,7 @@ import { AiFile } from "../types/ai-file.js";
 import { DirFeatureProcessor } from "../types/dir-feature-processor.js";
 import { FeatureProcessor } from "../types/feature-processor.js";
 import type { Feature } from "../types/features.js";
+import { getProcessorRegistryEntry } from "../types/processor-registry.js";
 import type { RulesyncFile } from "../types/rulesync-file.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
@@ -168,12 +169,26 @@ function warnUnsupportedTargets(params: {
   logger: Logger;
 }): void {
   const { config, supportedTargets, simulatedTargets = [], featureName, logger } = params;
+  let oppositeScopeTargets: ToolTarget[] = [];
+  try {
+    oppositeScopeTargets = getProcessorRegistryEntry(featureName).processor.getToolTargets({
+      global: !config.getGlobal(),
+    });
+  } catch {
+    oppositeScopeTargets = [];
+  }
   for (const target of config.getTargets()) {
     if (!supportedTargets.includes(target) && config.getFeatures(target).includes(featureName)) {
       const simulateOption = SIMULATE_OPTION_MAP[featureName];
       if (simulateOption && simulatedTargets.includes(target)) {
         logger.warn(
           `Target '${target}' only supports simulated '${featureName}'. Use '${simulateOption}' to enable it. Skipping.`,
+        );
+      } else if (oppositeScopeTargets.includes(target)) {
+        const supportedScope = config.getGlobal() ? "project" : "global";
+        const retry = config.getGlobal() ? "without '--global'" : "with '--global'";
+        logger.warn(
+          `Target '${target}' supports the feature '${featureName}' only in ${supportedScope} scope. Re-run ${retry}. Skipping.`,
         );
       } else {
         logger.warn(`Target '${target}' does not support the feature '${featureName}'. Skipping.`);
@@ -332,7 +347,7 @@ const sharedWriteMeta = (
 export const GENERATION_STEP_GRAPH: readonly GenerationStepMeta[] = [
   { id: "ignore", ...sharedWriteMeta("ignore") },
   { id: "mcp", ...sharedWriteMeta("mcp") },
-  { id: "commands" },
+  { id: "commands", ...sharedWriteMeta("commands") },
   { id: "subagents", ...sharedWriteMeta("subagents") },
   { id: "skills" },
   { id: "hooks", ...sharedWriteMeta("hooks") },
@@ -633,7 +648,7 @@ async function generateIgnoreCore(params: {
 }): Promise<FeatureGenerateResult> {
   const { config, logger } = params;
 
-  const supportedIgnoreTargets = IgnoreProcessor.getToolTargets();
+  const supportedIgnoreTargets = config.getGlobal() ? [] : IgnoreProcessor.getToolTargets();
   warnUnsupportedTargets({
     config,
     supportedTargets: supportedIgnoreTargets,

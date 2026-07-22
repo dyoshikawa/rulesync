@@ -1,50 +1,111 @@
-import { describe, expect, it } from "vitest";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 
-import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import { createMockLogger } from "../../test-utils/mock-logger.js";
+import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { CommandsProcessor } from "./commands-processor.js";
 import { HermesagentCommand } from "./hermesagent-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 
-describe("HermesagentCommand", () => {
-  it("uses rulesync command description and body when generating SKILL.md", () => {
-    const rulesyncCommand = new RulesyncCommand({
-      relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
-      relativeFilePath: `${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}/review.md`,
-      frontmatter: {
-        description: "Review the current changes",
-      },
-      body: "Review the diff carefully.",
-      fileContent: "",
-    });
+let testDir: string;
+let cleanup: () => Promise<void>;
 
+beforeEach(async () => {
+  ({ testDir, cleanup } = await setupTestDirectory());
+});
+
+afterEach(async () => {
+  await cleanup();
+});
+
+function rulesyncCommand(path = ".rulesync/commands/review.md"): RulesyncCommand {
+  return new RulesyncCommand({
+    relativeDirPath: ".rulesync/commands",
+    relativeFilePath: path,
+    frontmatter: { description: "Review the current changes" },
+    body: "Review the diff carefully.",
+    fileContent: "",
+  });
+}
+
+describe("HermesagentCommand", () => {
+  it("generates an isolated JSON command spec", () => {
     const command = HermesagentCommand.fromRulesyncCommand({
       outputRoot: ".",
-      rulesyncCommand,
+      rulesyncCommand: rulesyncCommand(),
     });
 
-    expect(command.getFileContent()).toContain("description: Review the current changes");
-    expect(command.getFileContent()).toContain("Review the diff carefully.");
-    expect(command.getFileContent()).not.toContain("targets:");
+    expect(command.getRelativePathFromCwd()).toBe(".hermes/rulesync/commands/review.json");
+    expect(JSON.parse(command.getFileContent())).toEqual({
+      slug: "review",
+      description: "Review the current changes",
+      prompt: "Review the diff carefully.",
+    });
   });
 
-  it("strips Hermes skill frontmatter when importing back to rulesync command", () => {
+  it("imports a JSON command spec back to a rulesync command", () => {
     const command = new HermesagentCommand({
-      relativeDirPath: ".hermes/skills/review",
-      relativeFilePath: "SKILL.md",
-      fileContent: [
-        "---",
-        "name: review",
-        "description: Review the current changes",
-        "---",
-        "",
-        "Review the diff carefully.",
-        "",
-      ].join("\n"),
+      relativeDirPath: ".hermes/rulesync/commands",
+      relativeFilePath: "review.json",
+      fileContent: JSON.stringify({
+        slug: "review",
+        description: "Review the current changes",
+        prompt: "Review the diff carefully.",
+      }),
     });
 
-    const rulesyncCommand = command.toRulesyncCommand();
+    const result = command.toRulesyncCommand();
 
-    expect(rulesyncCommand.getFrontmatter().description).toBe("Review the current changes");
-    expect(rulesyncCommand.getBody()).toBe("Review the diff carefully.\n");
-    expect(rulesyncCommand.getBody()).not.toContain("---");
+    expect(result.getFrontmatter().description).toBe("Review the current changes");
+    expect(result.getBody()).toBe("Review the diff carefully.");
+  });
+
+  it("generates a native plugin and preserves existing Hermes plugins", async () => {
+    const files = await HermesagentCommand.getAuxiliaryFiles({
+      toolCommands: [
+        HermesagentCommand.fromRulesyncCommand({ rulesyncCommand: rulesyncCommand() }),
+      ],
+    });
+    const init = files.find((file) => file.getRelativeFilePath() === "__init__.py");
+    const config = files.find((file) => file.getRelativePathFromCwd() === ".hermes/config.yaml");
+
+    expect(init?.getFileContent()).toContain("ctx.register_command(slug, handler, description)");
+    expect(init?.getFileContent()).toContain('ctx.dispatch_tool(\n            "delegate_task"');
+    config?.setFileContent("plugins:\n  enabled:\n    - existing-plugin\n");
+    expect(config?.getFileContent()).toContain("- existing-plugin");
+    expect(config?.getFileContent()).toContain("- rulesync-commands");
+  });
+
+  it("fails when a Hermes command and skill expose the same slash name", async () => {
+    const skillDir = join(testDir, ".rulesync", "skills", "review");
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(join(skillDir, "SKILL.md"), "---\nname: review\n---\n", "utf8");
+    const processor = new CommandsProcessor({
+      inputRoot: testDir,
+      toolTarget: "hermesagent",
+      global: true,
+      logger: createMockLogger(),
+    });
+
+    await expect(processor.convertRulesyncFilesToToolFiles([rulesyncCommand()])).rejects.toThrow(
+      "Hermes command and skill slash-name collision: review",
+    );
+  });
+
+  it("fails when nested commands normalize to the same Hermes slash name", async () => {
+    const processor = new CommandsProcessor({
+      toolTarget: "hermesagent",
+      global: true,
+      logger: createMockLogger(),
+    });
+
+    await expect(
+      processor.convertRulesyncFilesToToolFiles([
+        rulesyncCommand(".rulesync/commands/a/review.md"),
+        rulesyncCommand(".rulesync/commands/b/review.md"),
+      ]),
+    ).rejects.toThrow("Hermes command slash-name collision");
   });
 });

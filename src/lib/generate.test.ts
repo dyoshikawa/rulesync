@@ -1315,9 +1315,9 @@ describe("GENERATION_STEP_GRAPH", () => {
     expect(resolveExecutionOrder(asRunnableSteps()).map((s) => s.id)).toEqual([
       "ignore",
       "commands",
-      "subagents",
       "skills",
       "checks",
+      "subagents",
       "mcp",
       "hooks",
       "permissions",

@@ -11,6 +11,7 @@ import { formatError } from "../../utils/error.js";
 import { directoryExists, findFilesByGlobs, listDirectoryFiles } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AmpCheck } from "./amp-check.js";
+import { HermesagentCheck } from "./hermesagent-check.js";
 import { RulesyncCheck } from "./rulesync-check.js";
 import {
   ToolCheck,
@@ -31,6 +32,12 @@ type ToolCheckFactory = {
     fromFile(params: ToolCheckFromFileParams): Promise<ToolCheck>;
     forDeletion(params: ToolCheckForDeletionParams): ToolCheck;
     getSettablePaths(options?: { global?: boolean }): ToolCheckSettablePaths;
+    getAuxiliaryFiles?(params: {
+      toolChecks: ToolCheck[];
+      outputRoot?: string;
+      global?: boolean;
+    }): Promise<ToolFile[]> | ToolFile[];
+    canDeleteAuxiliaryFiles?(params: { outputRoot: string }): Promise<boolean> | boolean;
   };
   meta: {
     /** Whether the tool supports global (user-level) checks */
@@ -62,6 +69,13 @@ export const toolCheckFactories = new Map<ChecksProcessorToolTarget, ToolCheckFa
       // https://ampcode.com/manual
       class: AmpCheck,
       meta: { supportsGlobal: true, filePattern: "*.md" },
+    },
+  ],
+  [
+    "hermesagent",
+    {
+      class: HermesagentCheck,
+      meta: { supportsGlobal: false, filePattern: "*.json" },
     },
   ],
 ]);
@@ -135,7 +149,7 @@ export class ChecksProcessor extends FeatureProcessor {
       factory.class.isTargetedByRulesyncCheck(rulesyncCheck),
     );
 
-    return targeted.map((rulesyncCheck) =>
+    const toolChecks = targeted.map((rulesyncCheck) =>
       factory.class.fromRulesyncCheck({
         outputRoot: this.outputRoot,
         relativeDirPath: RulesyncCheck.getSettablePaths().relativeDirPath,
@@ -143,6 +157,12 @@ export class ChecksProcessor extends FeatureProcessor {
         global: this.global,
       }),
     );
+    const auxiliaryFiles = await factory.class.getAuxiliaryFiles?.({
+      toolChecks,
+      outputRoot: this.outputRoot,
+      global: this.global,
+    });
+    return auxiliaryFiles ? [...toolChecks, ...auxiliaryFiles] : toolChecks;
   }
 
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
@@ -216,7 +236,7 @@ export class ChecksProcessor extends FeatureProcessor {
     const toRelativeFilePath = (path: string): string => relative(baseDir, path);
 
     if (forDeletion) {
-      return checkFilePaths
+      const toolChecks = checkFilePaths
         .map((path) =>
           factory.class.forDeletion({
             outputRoot: this.outputRoot,
@@ -226,6 +246,16 @@ export class ChecksProcessor extends FeatureProcessor {
           }),
         )
         .filter((check) => check.isDeletable());
+      const canDeleteAuxiliaryFiles =
+        (await factory.class.canDeleteAuxiliaryFiles?.({ outputRoot: this.outputRoot })) ?? false;
+      const auxiliaryFiles = canDeleteAuxiliaryFiles
+        ? await factory.class.getAuxiliaryFiles?.({
+            toolChecks,
+            outputRoot: this.outputRoot,
+            global: this.global,
+          })
+        : [];
+      return [...toolChecks, ...(auxiliaryFiles ?? [])].filter((file) => file.isDeletable());
     }
 
     const loaded = await Promise.all(

@@ -167,6 +167,8 @@ describe("registry derivation", () => {
       "copilotcli::mcp::**/.copilot/mcp-config.json",
       "copilotcli::hooks::**/.copilot/hooks/",
       "deepagents::hooks::**/.deepagents/hooks.json",
+      "hermesagent::ignore::**/.hermes/plugins/rulesync-ignore/",
+      "hermesagent::checks::**/.hermes/plugins/rulesync-checks/",
     ]);
     const unjustified = HAND_MAINTAINED_GITIGNORE_ENTRIES.filter((tag) => {
       const targets = Array.isArray(tag.target) ? tag.target : [tag.target];

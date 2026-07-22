@@ -161,6 +161,7 @@ describe("shared-file write derivation", () => {
           "permissions",
         ],
         ".hermes/config.yaml": [
+          "commands",
           "hooks",
           "mcp",
           "permissions",

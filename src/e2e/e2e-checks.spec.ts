@@ -18,6 +18,10 @@ const checksGenerateTargets = [
     target: "amp",
     outputPath: join(".agents", "checks", "security.md"),
   },
+  {
+    target: "hermesagent",
+    outputPath: join(".hermes", "plugins", "rulesync-checks", "checks", "security.json"),
+  },
 ] as const;
 
 const checksGlobalTargets = [
@@ -58,9 +62,21 @@ Look for injection vulnerabilities.
       await runGenerate({ target, features: "checks" });
 
       const generatedContent = await readFileContent(join(testDir, outputPath));
-      // Amp requires the `name` field, derived from the source file basename.
-      expect(generatedContent).toContain("name: security");
-      expect(generatedContent).toContain("severity-default: high");
+      if (target === "amp") {
+        // Amp requires the `name` field, derived from the source file basename.
+        expect(generatedContent).toContain("name: security");
+        expect(generatedContent).toContain("severity-default: high");
+      } else {
+        expect(JSON.parse(generatedContent)).toMatchObject({
+          slug: "security",
+          severity: "high",
+          tools: ["Read", "Grep"],
+        });
+        const plugin = await readFileContent(
+          join(testDir, ".hermes", "plugins", "rulesync-checks", "__init__.py"),
+        );
+        expect(plugin).toContain('ctx.register_hook("pre_verify", require_rulesync_checks)');
+      }
       expect(generatedContent).toContain("Look for injection vulnerabilities.");
     },
   );

@@ -77,10 +77,14 @@ type ToolCommandFactory = {
       outputRoot?: string;
       global?: boolean;
     }): Promise<ToolFile[]> | ToolFile[];
+    validateRulesyncCommands?(params: {
+      inputRoot: string;
+      rulesyncCommands: RulesyncCommand[];
+    }): Promise<void> | void;
   };
   meta: {
     /** File extension for the command file */
-    extension: "md" | "toml" | "prompt.md" | "yaml";
+    extension: "json" | "md" | "toml" | "prompt.md" | "yaml";
     /** Whether the tool supports project-level commands */
     supportsProject: boolean;
     /** Whether the tool supports global (user-level) commands */
@@ -97,6 +101,7 @@ type ToolCommandFactory = {
      * or crashing on — files that feature (or the user) placed there.
      */
     skipToolFileScan?: boolean;
+    failOnFlattenCollision?: boolean;
   };
 };
 
@@ -285,15 +290,12 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     {
       class: HermesagentCommand,
       meta: {
-        extension: "md",
+        extension: "json",
         supportsProject: false,
         supportsGlobal: true,
         isSimulated: false,
-        supportsSubdirectory: true,
-        // Commands are emitted into the Hermes skills tree
-        // (`~/.hermes/skills/<slug>/SKILL.md`), which the skills surface owns,
-        // so import and generate-delete never scan it.
-        skipToolFileScan: true,
+        supportsSubdirectory: false,
+        failOnFlattenCollision: true,
       },
     },
   ],
@@ -568,6 +570,10 @@ export class CommandsProcessor extends FeatureProcessor {
     );
 
     const factory = this.getFactory(this.toolTarget);
+    await factory.class.validateRulesyncCommands?.({
+      inputRoot: this.inputRoot,
+      rulesyncCommands,
+    });
     const flattenedPathOrigins = new Map<string, string>();
 
     const toolCommands = rulesyncCommands
@@ -583,6 +589,11 @@ export class CommandsProcessor extends FeatureProcessor {
           const flattenedPath = commandToConvert.getRelativeFilePath();
           const firstOrigin = flattenedPathOrigins.get(flattenedPath);
           if (firstOrigin && firstOrigin !== originalRelativePath) {
+            if (factory.meta.failOnFlattenCollision) {
+              throw new Error(
+                `Command path collision detected while flattening for ${this.toolTarget}: "${firstOrigin}" and "${originalRelativePath}" both map to "${flattenedPath}".`,
+              );
+            }
             this.logger.warn(
               `Command path collision detected while flattening for ${this.toolTarget}: "${firstOrigin}" and "${originalRelativePath}" both map to "${flattenedPath}". Only the last processed command will be used.`,
             );
