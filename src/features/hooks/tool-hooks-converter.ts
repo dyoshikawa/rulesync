@@ -125,6 +125,7 @@ function applyCommandPrefix({
   const commandText = def.command;
   const trimmedCommand = typeof commandText === "string" ? commandText.trimStart() : undefined;
   const unquotedCommand = trimmedCommand?.replace(/^["']/, "");
+  const isDotRelativeCommand = unquotedCommand?.startsWith(".") ?? false;
   const isAbsoluteCommand =
     typeof unquotedCommand === "string" &&
     (posix.isAbsolute(unquotedCommand) ||
@@ -135,14 +136,20 @@ function applyCommandPrefix({
     typeof trimmedCommand === "string" &&
     !trimmedCommand.startsWith("$") &&
     !isAbsoluteCommand &&
-    (!converterConfig.prefixDotRelativeCommandsOnly || trimmedCommand.startsWith("."));
+    (!converterConfig.prefixDotRelativeCommandsOnly || isDotRelativeCommand);
 
   // Only the variable itself is quoted (not the whole command) so a project path
   // containing a space can't be word-split by the shell, while any trailing
   // arguments after the script path stay outside the quotes and still split normally.
-  return shouldPrefix && typeof trimmedCommand === "string"
-    ? `"${converterConfig.projectDirVar}"/${trimmedCommand.replace(/^\.\//, "")}`
-    : def.command;
+  if (!shouldPrefix || typeof trimmedCommand !== "string") {
+    return def.command;
+  }
+
+  // Keep a leading quote around paths containing spaces, but remove `./`
+  // inside it so the quoted project root and quoted relative path concatenate
+  // into one shell word: "$PROJECT_DIR"/"scripts/my hook.sh".
+  const relativeCommand = trimmedCommand.replace(/^(["'])\.\//, "$1").replace(/^\.\//, "");
+  return `"${converterConfig.projectDirVar}"/${relativeCommand}`;
 }
 
 /**

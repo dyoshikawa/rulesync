@@ -7,6 +7,7 @@ import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
+import { canonicalToToolHooks, type ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 
 describe("FactorydroidHooks", () => {
   let testDir: string;
@@ -129,6 +130,63 @@ describe("FactorydroidHooks", () => {
       expect(
         parsed.hooks.SessionStart[0].hooks.map((hook: { command: string }) => hook.command),
       ).toEqual(commands);
+    });
+
+    it("should preserve absolute commands when the converter prefixes other command forms", () => {
+      const commands = [
+        "/usr/local/bin/notify --verbose",
+        String.raw`C:\tools\notify.exe --verbose`,
+        String.raw`\\server\share\notify.exe --verbose`,
+        "~/.factory/hooks/notify.sh --verbose",
+      ];
+      const converterConfig: ToolHooksConverterConfig = {
+        supportedEvents: ["sessionStart"],
+        canonicalToToolEventNames: { sessionStart: "SessionStart" },
+        toolToCanonicalEventNames: { SessionStart: "sessionStart" },
+        projectDirVar: "$PROJECT_DIR",
+        prefixDotRelativeCommandsOnly: false,
+      };
+
+      const converted = canonicalToToolHooks({
+        config: {
+          hooks: { sessionStart: commands.map((command) => ({ type: "command", command })) },
+        },
+        toolOverrideHooks: undefined,
+        converterConfig,
+      });
+      const sessionStart = converted.SessionStart?.[0] as {
+        hooks: Array<{ command: string }>;
+      };
+
+      expect(sessionStart.hooks.map(({ command }) => command)).toEqual(commands);
+    });
+
+    it("should prefix quoted dot-relative command paths", async () => {
+      const commands = [`"./scripts/my hook.sh" --fix`, `'./scripts/my hook.sh' --fix`];
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: { sessionStart: commands.map((command) => ({ type: "command", command })) },
+        }),
+        validate: false,
+      });
+
+      const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+      const parsed = JSON.parse(factorydroidHooks.getFileContent());
+
+      expect(
+        parsed.hooks.SessionStart[0].hooks.map((hook: { command: string }) => hook.command),
+      ).toEqual([
+        `"$FACTORY_PROJECT_DIR"/"scripts/my hook.sh" --fix`,
+        `"$FACTORY_PROJECT_DIR"/'scripts/my hook.sh' --fix`,
+      ]);
     });
 
     it("should preserve bare executable commands", async () => {
