@@ -1,3 +1,5 @@
+import { posix, win32 } from "node:path";
+
 import { type HookEvent, type HookType, type HooksConfig, isHookEvent } from "../../types/hooks.js";
 import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
@@ -122,10 +124,17 @@ function applyCommandPrefix({
 }): unknown {
   const commandText = def.command;
   const trimmedCommand = typeof commandText === "string" ? commandText.trimStart() : undefined;
+  const unquotedCommand = trimmedCommand?.replace(/^["']/, "");
+  const isAbsoluteCommand =
+    typeof unquotedCommand === "string" &&
+    (posix.isAbsolute(unquotedCommand) ||
+      win32.isAbsolute(unquotedCommand) ||
+      unquotedCommand.startsWith("~/"));
   const shouldPrefix =
     converterConfig.projectDirVar !== "" &&
     typeof trimmedCommand === "string" &&
     !trimmedCommand.startsWith("$") &&
+    !isAbsoluteCommand &&
     (!converterConfig.prefixDotRelativeCommandsOnly || trimmedCommand.startsWith("."));
 
   // Only the variable itself is quoted (not the whole command) so a project path

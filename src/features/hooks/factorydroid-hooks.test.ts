@@ -68,7 +68,7 @@ describe("FactorydroidHooks", () => {
       expect(parsed.hooks.afterFileEdit).toBeUndefined();
     });
 
-    it("should prefix non-absolute commands with $FACTORY_PROJECT_DIR", async () => {
+    it("should prefix project-relative commands with $FACTORY_PROJECT_DIR", async () => {
       await ensureDir(join(testDir, ".factory"));
       await writeFileContent(join(testDir, ".factory", "settings.json"), JSON.stringify({}));
 
@@ -99,6 +99,59 @@ describe("FactorydroidHooks", () => {
       expect(sessionStartEntry.matcher).toBeUndefined();
       expect(sessionStartEntry.hooks[0].command).toContain("$FACTORY_PROJECT_DIR");
       expect(sessionStartEntry.hooks[0].command).toContain(".rulesync/hooks/session-start.sh");
+    });
+
+    it("should preserve absolute command paths across platforms", async () => {
+      const commands = [
+        "/usr/local/bin/notify --verbose",
+        String.raw`C:\tools\notify.exe --verbose`,
+        String.raw`\\server\share\notify.exe --verbose`,
+        "~/.factory/hooks/notify.sh --verbose",
+      ];
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: { sessionStart: commands.map((command) => ({ type: "command", command })) },
+        }),
+        validate: false,
+      });
+
+      const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+      const parsed = JSON.parse(factorydroidHooks.getFileContent());
+
+      expect(
+        parsed.hooks.SessionStart[0].hooks.map((hook: { command: string }) => hook.command),
+      ).toEqual(commands);
+    });
+
+    it("should preserve bare executable commands", async () => {
+      const command = "npx prettier --write .";
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: { sessionStart: [{ type: "command", command }] },
+        }),
+        validate: false,
+      });
+
+      const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+      const parsed = JSON.parse(factorydroidHooks.getFileContent());
+
+      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe(command);
     });
 
     it("should quote only the $FACTORY_PROJECT_DIR variable, keeping trailing arguments outside the quotes", async () => {
@@ -674,6 +727,40 @@ describe("FactorydroidHooks", () => {
   });
 
   describe("round-trip", () => {
+    it("should keep absolute and bare commands unchanged on disk and after import", async () => {
+      const commands = ["/tmp/notify.sh", "npx prettier --write ."];
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: { sessionStart: commands.map((command) => ({ type: "command", command })) },
+        }),
+        validate: false,
+      });
+
+      const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+      const generatedCommands = JSON.parse(
+        factorydroidHooks.getFileContent(),
+      ).hooks.SessionStart[0].hooks.map((hook: { command: string }) => hook.command);
+      expect(generatedCommands).toEqual(commands);
+
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(factorydroidHooks.getFilePath(), factorydroidHooks.getFileContent());
+      const loaded = await FactorydroidHooks.fromFile({ outputRoot: testDir, validate: false });
+      const importedCommands = loaded
+        .toRulesyncHooks()
+        .getJson()
+        .hooks.sessionStart?.map((hook) => hook.command);
+
+      expect(importedCommands).toEqual(commands);
+    });
+
     it("should preserve hooks through fromRulesyncHooks -> write -> fromFile -> toRulesyncHooks", async () => {
       const config = {
         version: 1,
