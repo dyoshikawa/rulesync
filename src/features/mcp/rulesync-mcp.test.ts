@@ -379,6 +379,34 @@ describe("RulesyncMcp", () => {
       expect(result.success).toBe(true);
       expect(result.error).toBeNull();
     });
+
+    it("should validate an AI Assistant tool-scoped block", () => {
+      const rulesyncMcp = makeInstance({
+        mcpServers: { shared: { command: "node" } },
+        aiassistant: {
+          mcpServers: {
+            extra: { command: "uvx" },
+            shared: null,
+          },
+        },
+      });
+
+      expect(rulesyncMcp.validate()).toEqual({ success: true, error: null });
+    });
+
+    it("should reject a malformed AI Assistant tool-scoped block", () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
+        fileContent: JSON.stringify({
+          mcpServers: {},
+          aiassistant: { mcpServers: { malformed: "not-a-server" } },
+        }),
+        validate: false,
+      });
+
+      expect(rulesyncMcp.validate().success).toBe(false);
+    });
   });
 
   describe("getJson", () => {
@@ -842,6 +870,20 @@ describe("RulesyncMcp", () => {
 
       const forCursor = instance.forTarget({ toolTarget: "cursor" });
       expect(Object.keys(forCursor.getMcpServers())).toEqual(["shared"]);
+    });
+
+    it("should apply AI Assistant additions and null removals", () => {
+      const instance = makeInstance({
+        mcpServers: { shared: { command: "node" }, kept: { command: "deno" } },
+        aiassistant: {
+          mcpServers: { shared: null, extra: { command: "uvx" } },
+        },
+      });
+
+      expect(instance.forTarget({ toolTarget: "aiassistant" }).getMcpServers()).toEqual({
+        kept: { command: "deno" },
+        extra: { command: "uvx" },
+      });
     });
 
     it("should replace a same-named shared server wholesale", () => {

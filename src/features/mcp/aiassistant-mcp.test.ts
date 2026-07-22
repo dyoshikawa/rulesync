@@ -12,6 +12,7 @@ import { AiassistantMcp } from "./aiassistant-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
 describe("AiassistantMcp", () => {
+  const relativeDirPath = join(".ai", "mcp");
   let testDir: string;
   let cleanup: () => Promise<void>;
 
@@ -34,13 +35,13 @@ describe("AiassistantMcp", () => {
       });
 
       const aiassistantMcp = new AiassistantMcp({
-        relativeDirPath: ".ai/mcp",
+        relativeDirPath,
         relativeFilePath: "mcp.json",
         fileContent: validJsonContent,
       });
 
       expect(aiassistantMcp).toBeInstanceOf(AiassistantMcp);
-      expect(aiassistantMcp.getRelativeDirPath()).toBe(".ai/mcp");
+      expect(aiassistantMcp.getRelativeDirPath()).toBe(relativeDirPath);
       expect(aiassistantMcp.getRelativeFilePath()).toBe("mcp.json");
       expect(aiassistantMcp.getJson()).toEqual(JSON.parse(validJsonContent));
     });
@@ -48,7 +49,7 @@ describe("AiassistantMcp", () => {
 
   describe("fromFile", () => {
     it("reads .ai/mcp/mcp.json from disk", async () => {
-      const dir = join(testDir, ".ai/mcp");
+      const dir = join(testDir, relativeDirPath);
       await ensureDir(dir);
       const filePath = join(dir, "mcp.json");
       const content = JSON.stringify({ mcpServers: { A: { command: "echo" } } }, null, 2);
@@ -93,7 +94,7 @@ describe("AiassistantMcp", () => {
         rulesyncMcp: rulesync,
       });
 
-      expect(aiassistant.getRelativeDirPath()).toBe(".ai/mcp");
+      expect(aiassistant.getRelativeDirPath()).toBe(relativeDirPath);
       expect(aiassistant.getRelativeFilePath()).toBe("mcp.json");
       expect(aiassistant.getFileContent()).toBe(rulesyncContent);
     });
@@ -104,7 +105,7 @@ describe("AiassistantMcp", () => {
       const content = JSON.stringify({ mcpServers: { X: { command: "echo" } } }, null, 2);
       const aiassistant = new AiassistantMcp({
         outputRoot: testDir,
-        relativeDirPath: ".ai/mcp",
+        relativeDirPath,
         relativeFilePath: "mcp.json",
         fileContent: content,
       });
