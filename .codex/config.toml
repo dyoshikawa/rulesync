@@ -1,9 +1,3 @@
-default_permissions = "rulesync"
+default_permissions = ":danger-full-access"
 approval_policy = "on-request"
-approvals_reviewer = "user"
-
-[permissions.rulesync]
-extends = ":workspace"
-
-[permissions.rulesync.filesystem]
-":minimal" = "read"
+approvals_reviewer = "auto_review"
