@@ -708,6 +708,8 @@ Servers under the shared `mcpServers` key are emitted to every targeted tool. To
 
 > **Deprecated: per-server `targets`.** The older per-server `"targets": ["tool", ...]` array is still honored as a filter (a missing value or `["*"]` means every tool), but it is deprecated and logs a warning at generate time. Migrate by moving the server into the matching `{toolname}.mcpServers` block(s).
 
+> **JetBrains AI Assistant note:** Rulesync writes the native `{ "mcpServers": { ... } }` configuration to `.ai/mcp/mcp.json` in project mode and `~/.ai/mcp/mcp.json` in global mode. Both scopes support STDIO and remote server entries using the shape documented in [JetBrains AI Assistant's MCP guide](https://www.jetbrains.com/help/ai-assistant/mcp.html).
+
 #### JSON Schema Support
 
 Rulesync provides a JSON Schema for editor validation and autocompletion. Add the `$schema` property to your `.rulesync/mcp.json`:
