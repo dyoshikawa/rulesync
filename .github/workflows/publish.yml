@@ -48,6 +48,6 @@ jobs:
           gh release edit "$TAG" --draft=false --latest
 
   # The Homebrew tap formula (Formula/rulesync.rb) is no longer updated by a
-  # dedicated CI job here. The /goal-release command regenerates it from the
+  # dedicated CI job here. The `goal-release` skill regenerates it from the
   # release's SHA256SUMS after the release PR merges and the Publish Assets
   # workflow uploads the binaries (scripts/generate-homebrew-formula.ts).

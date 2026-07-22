@@ -1,7 +1,7 @@
 # typed: false
 # frozen_string_literal: true
 
-# This file is regenerated on each release by the /goal-release command
+# This file is regenerated on each release by the `goal-release` skill
 # (scripts/generate-homebrew-formula.ts) after the release assets are built.
 # Do not edit it by hand; changes are overwritten on the next release.
 class Rulesync < Formula
