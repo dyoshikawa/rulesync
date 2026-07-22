@@ -7,7 +7,3 @@ extends = ":workspace"
 
 [permissions.rulesync.filesystem]
 ":minimal" = "read"
-glob_scan_max_depth = 8
-
-[permissions.rulesync.filesystem.":workspace_roots"]
-".git/**" = "write"

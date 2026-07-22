@@ -131,7 +131,7 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 # Install Codex CLI
 ARG CODEX_VERSION=0.145.0
 ARG CODEX_INSTALLER_SHA256=1154e9daf713aacd1534efca8042bfd6665ad24bc1d1dfd86b8f439fe60a7a5d
-RUN curl -fsSL https://chatgpt.com/codex/install.sh -o /tmp/codex-install.sh && \
+RUN curl -fsSL "https://github.com/openai/codex/releases/download/rust-v${CODEX_VERSION}/install.sh" -o /tmp/codex-install.sh && \
     echo "$CODEX_INSTALLER_SHA256  /tmp/codex-install.sh" | sha256sum --check - && \
     CODEX_RELEASE="$CODEX_VERSION" CODEX_NON_INTERACTIVE=1 sh /tmp/codex-install.sh && \
     rm /tmp/codex-install.sh

@@ -3,6 +3,7 @@
   "permission": {},
   "codexcli": {
     "base_permission_profile": ":workspace",
-    "approvals_reviewer": "user"
+    "approvals_reviewer": "user",
+    "git_write_rules": false
   }
 }
