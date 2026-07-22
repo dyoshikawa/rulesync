@@ -10,7 +10,7 @@ import {
 } from "../../constants/hermesagent-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
-import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
+import { readFileContent, readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
   ToolIgnore,
@@ -134,10 +134,10 @@ class HermesagentIgnoreAuxiliaryFile extends ToolFile {
   }
 
   getFileContent(): string {
-    if (this.getRelativePathFromCwd() === HERMESAGENT_IGNORE_PLUGIN_MANIFEST_PATH) {
+    if (this.getRelativePathFromCwd() === toPosixPath(HERMESAGENT_IGNORE_PLUGIN_MANIFEST_PATH)) {
       return getPluginManifestContent();
     }
-    if (this.getRelativePathFromCwd() === HERMESAGENT_IGNORE_PLUGIN_INIT_PATH) {
+    if (this.getRelativePathFromCwd() === toPosixPath(HERMESAGENT_IGNORE_PLUGIN_INIT_PATH)) {
       return getPluginInitContent();
     }
     return super.getFileContent();

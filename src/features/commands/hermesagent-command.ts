@@ -17,7 +17,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
-import { findFilesByGlobs } from "../../utils/file.js";
+import { findFilesByGlobs, toPosixPath } from "../../utils/file.js";
 import {
   applySharedConfigPatch,
   HERMES_CONFIG_SHARED_FILE_KEY,
@@ -139,11 +139,11 @@ class HermesagentCommandAuxiliaryFile extends ToolFile {
   }
 
   shouldMergeExistingFileContent(): boolean {
-    return this.getRelativePathFromCwd() === HERMESAGENT_CONFIG_FILE_PATH;
+    return this.getRelativePathFromCwd() === toPosixPath(HERMESAGENT_CONFIG_FILE_PATH);
   }
 
   setFileContent(newFileContent: string): void {
-    if (this.getRelativePathFromCwd() === HERMESAGENT_CONFIG_FILE_PATH) {
+    if (this.getRelativePathFromCwd() === toPosixPath(HERMESAGENT_CONFIG_FILE_PATH)) {
       super.setFileContent(getEnabledPluginConfigContent(newFileContent));
       return;
     }
@@ -151,13 +151,18 @@ class HermesagentCommandAuxiliaryFile extends ToolFile {
   }
 
   getFileContent(): string {
-    if (this.getRelativePathFromCwd() === HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_MANIFEST_PATH) {
+    if (
+      this.getRelativePathFromCwd() ===
+      toPosixPath(HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_MANIFEST_PATH)
+    ) {
       return getPluginManifestContent();
     }
-    if (this.getRelativePathFromCwd() === HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_INIT_PATH) {
+    if (
+      this.getRelativePathFromCwd() === toPosixPath(HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_INIT_PATH)
+    ) {
       return getPluginInitContent();
     }
-    if (this.getRelativePathFromCwd() === HERMESAGENT_CONFIG_FILE_PATH) {
+    if (this.getRelativePathFromCwd() === toPosixPath(HERMESAGENT_CONFIG_FILE_PATH)) {
       return getEnabledPluginConfigContent(super.getFileContent());
     }
     return super.getFileContent();

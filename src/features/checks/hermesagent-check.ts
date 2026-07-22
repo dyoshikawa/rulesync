@@ -12,7 +12,7 @@ import {
 import { RULESYNC_CHECKS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
-import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
+import { readFileContent, readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import { RulesyncCheck } from "./rulesync-check.js";
 import {
   ToolCheck,
@@ -103,10 +103,10 @@ class HermesagentCheckAuxiliaryFile extends ToolFile {
   }
 
   getFileContent(): string {
-    if (this.getRelativePathFromCwd() === HERMESAGENT_CHECKS_PLUGIN_MANIFEST_PATH) {
+    if (this.getRelativePathFromCwd() === toPosixPath(HERMESAGENT_CHECKS_PLUGIN_MANIFEST_PATH)) {
       return getPluginManifestContent();
     }
-    if (this.getRelativePathFromCwd() === HERMESAGENT_CHECKS_PLUGIN_INIT_PATH) {
+    if (this.getRelativePathFromCwd() === toPosixPath(HERMESAGENT_CHECKS_PLUGIN_INIT_PATH)) {
       return getPluginInitContent();
     }
     return super.getFileContent();
