@@ -8,6 +8,7 @@ import { mcpProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
+import { AiassistantMcp } from "./aiassistant-mcp.js";
 import { AmpMcp } from "./amp-mcp.js";
 import { AntigravityCliMcp } from "./antigravity-cli-mcp.js";
 import { AntigravityIdeMcp } from "./antigravity-ide-mcp.js";
@@ -85,6 +86,23 @@ type ToolMcpFactory = {
  * Using Map to preserve insertion order for consistent iteration.
  */
 export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>([
+  [
+    "aiassistant",
+    {
+      // JetBrains AI Assistant reads project-level MCP config from
+      // `.ai/mcp/mcp.json` and global (user-level) config from
+      // `~/.ai/mcp/mcp.json`. The relative path is identical for both scopes;
+      // the base directory changes (cwd for project, home dir for global).
+      // https://www.jetbrains.com/help/ai-assistant/mcp.html
+      class: AiassistantMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
   [
     "amp",
     {
