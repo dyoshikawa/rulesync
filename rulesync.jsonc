@@ -33,11 +33,11 @@
     },
     "codexcli": {
       "rules": true,
-      "commands": true,
-      "mcp": true,
+      "commands": false,
+      "mcp": false,
       "subagents": true,
       "skills": true,
-      "hooks": true,
+      "hooks": false,
       "permissions": true
     },
     "takt": {

@@ -1,12 +1,13 @@
-default_permissions = ":danger-full-access"
+default_permissions = "rulesync"
 approval_policy = "on-request"
-approvals_reviewer = "auto_review"
+approvals_reviewer = "user"
 
-[mcp_servers.deepwiki]
-type = "http"
-url = "https://mcp.deepwiki.com/mcp"
+[permissions.rulesync]
+extends = ":workspace"
 
-[mcp_servers.rulesync]
-type = "stdio"
-command = "pnpm"
-args = ["dev", "mcp"]
+[permissions.rulesync.filesystem]
+":minimal" = "read"
+glob_scan_max_depth = 8
+
+[permissions.rulesync.filesystem.":workspace_roots"]
+".git/**" = "write"
