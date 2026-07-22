@@ -1,3 +1,5 @@
+import { posix, win32 } from "node:path";
+
 import { type HookEvent, type HookType, type HooksConfig, isHookEvent } from "../../types/hooks.js";
 import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
@@ -122,18 +124,32 @@ function applyCommandPrefix({
 }): unknown {
   const commandText = def.command;
   const trimmedCommand = typeof commandText === "string" ? commandText.trimStart() : undefined;
+  const unquotedCommand = trimmedCommand?.replace(/^["']/, "");
+  const isDotRelativeCommand = unquotedCommand?.startsWith(".") ?? false;
+  const isAbsoluteCommand =
+    typeof unquotedCommand === "string" &&
+    (posix.isAbsolute(unquotedCommand) ||
+      win32.isAbsolute(unquotedCommand) ||
+      unquotedCommand.startsWith("~/"));
   const shouldPrefix =
     converterConfig.projectDirVar !== "" &&
     typeof trimmedCommand === "string" &&
     !trimmedCommand.startsWith("$") &&
-    (!converterConfig.prefixDotRelativeCommandsOnly || trimmedCommand.startsWith("."));
+    !isAbsoluteCommand &&
+    (!converterConfig.prefixDotRelativeCommandsOnly || isDotRelativeCommand);
 
   // Only the variable itself is quoted (not the whole command) so a project path
   // containing a space can't be word-split by the shell, while any trailing
   // arguments after the script path stay outside the quotes and still split normally.
-  return shouldPrefix && typeof trimmedCommand === "string"
-    ? `"${converterConfig.projectDirVar}"/${trimmedCommand.replace(/^\.\//, "")}`
-    : def.command;
+  if (!shouldPrefix || typeof trimmedCommand !== "string") {
+    return def.command;
+  }
+
+  // Keep a leading quote around paths containing spaces, but remove `./`
+  // inside it so the quoted project root and quoted relative path concatenate
+  // into one shell word: "$PROJECT_DIR"/"scripts/my hook.sh".
+  const relativeCommand = trimmedCommand.replace(/^(["'])\.\//, "$1").replace(/^\.\//, "");
+  return `"${converterConfig.projectDirVar}"/${relativeCommand}`;
 }
 
 /**

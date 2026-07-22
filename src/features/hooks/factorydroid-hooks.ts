@@ -35,6 +35,7 @@ const FACTORYDROID_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   canonicalToToolEventNames: CANONICAL_TO_FACTORYDROID_EVENT_NAMES,
   toolToCanonicalEventNames: FACTORYDROID_TO_CANONICAL_EVENT_NAMES,
   projectDirVar: "$FACTORY_PROJECT_DIR",
+  prefixDotRelativeCommandsOnly: true,
   supportedHookTypes: new Set(["command", "prompt"]),
 };
 
