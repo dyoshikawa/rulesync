@@ -63,17 +63,24 @@ function toOpencodePermission({
   category: string;
   value: OpencodePermission;
   logger?: Logger;
-}): OpencodePermission | undefined {
+}): OpencodePermission {
   if (typeof value === "string" || !OPENCODE_ACTION_ONLY_PERMISSION_KEYS.has(category)) {
     return value;
   }
 
   const actions = Object.values(value);
   if (actions.length === 0) {
-    return undefined;
+    logger?.warn(
+      `OpenCode's "${category}" permission accepts only a single action. Collapsed its empty pattern map to "deny" to avoid falling back to OpenCode's default allow behavior.`,
+    );
+    return "deny";
   }
 
-  const action = actions.reduce((current, candidate) =>
+  // A map without a catch-all grants no explicit action for unmatched inputs.
+  // Include an implicit `ask` fallback so a narrow allowlist can never expand
+  // into blanket `allow` when collapsed to OpenCode's scalar-only shape.
+  const candidates: PermissionAction[] = Object.hasOwn(value, "*") ? actions : [...actions, "ask"];
+  const action = candidates.reduce((current, candidate) =>
     PERMISSION_ACTION_PRIORITY[candidate] > PERMISSION_ACTION_PRIORITY[current]
       ? candidate
       : current,
@@ -259,9 +266,7 @@ export class OpencodePermissions extends ToolPermissions {
       ...overridePermission,
     })) {
       const opencodePermission = toOpencodePermission({ category, value, logger });
-      if (opencodePermission !== undefined) {
-        permission[category] = opencodePermission;
-      }
+      permission[category] = opencodePermission;
     }
 
     return new OpencodePermissions({

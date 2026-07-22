@@ -172,6 +172,50 @@ describe("OpencodePermissions", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("deny > ask > allow"));
   });
 
+  it("should not expand a pattern-only allow into blanket allow", async () => {
+    const logger = { warn: vi.fn() } as any;
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          webfetch: { "https://trusted.example/**": "allow" },
+        },
+      }),
+    });
+
+    const instance = await OpencodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+    const permission = JSON.parse(instance.getFileContent()).permission;
+
+    expect(permission.webfetch).toBe("ask");
+    expect(logger.warn).toHaveBeenCalled();
+  });
+
+  it("should collapse an empty action-only permission map to deny", async () => {
+    const logger = { warn: vi.fn() } as any;
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({ permission: { websearch: {} } }),
+    });
+
+    const instance = await OpencodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+    const permission = JSON.parse(instance.getFileContent()).permission;
+
+    expect(permission.websearch).toBe("deny");
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("default allow"));
+  });
+
   it("should route OpenCode-only categories into the opencode override on import", async () => {
     await writeFileContent(
       join(testDir, "opencode.json"),
