@@ -10,6 +10,9 @@ import {
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import {
   addTrailingNewline,
+  assertDirectoryIfExists,
+  assertTreeContainsNoSymlinks,
+  assertWritablePathInsideRoot,
   checkPathTraversal,
   createPathResolver,
   directoryExists,
@@ -60,6 +63,52 @@ describe("file utilities", () => {
 
       await expect(ensureDir(dirPath)).resolves.toBeUndefined();
       expect(await directoryExists(dirPath)).toBe(true);
+    });
+  });
+
+  describe.skipIf(process.platform === "win32")("safe writable paths", () => {
+    it("should reject a curated directory that is a symbolic link", async () => {
+      const actualDir = join(testDir, "actual");
+      const linkedDir = join(testDir, "linked");
+      await ensureDir(actualDir);
+      await symlink(actualDir, linkedDir);
+
+      await expect(
+        assertWritablePathInsideRoot({ rootPath: testDir, targetPath: linkedDir }),
+      ).rejects.toThrow("Refusing to write through a symbolic link");
+    });
+
+    it("should reject a symbolic link in a writable path's ancestor", async () => {
+      const actualDir = join(testDir, "actual");
+      const linkedDir = join(testDir, "linked");
+      await ensureDir(actualDir);
+      await symlink(actualDir, linkedDir);
+
+      await expect(
+        assertWritablePathInsideRoot({
+          rootPath: testDir,
+          targetPath: join(linkedDir, "nested", "rules"),
+        }),
+      ).rejects.toThrow("Refusing to write through a symbolic link");
+    });
+
+    it("should reject a symbolic link nested in a writable tree", async () => {
+      const treeDir = join(testDir, "tree");
+      const actualFile = join(testDir, "actual.md");
+      await ensureDir(treeDir);
+      await writeFileContent(actualFile, "content");
+      await symlink(actualFile, join(treeDir, "linked.md"));
+
+      await expect(assertTreeContainsNoSymlinks(treeDir)).rejects.toThrow(
+        "tree containing a symbolic link",
+      );
+    });
+
+    it("should reject a file where a writable directory is expected", async () => {
+      const filePath = join(testDir, "not-a-directory");
+      await writeFileContent(filePath, "content");
+
+      await expect(assertDirectoryIfExists(filePath)).rejects.toThrow("Expected a directory");
     });
   });
 

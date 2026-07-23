@@ -1,4 +1,4 @@
-import { cp, lstat, mkdtemp, readdir, realpath, rm } from "node:fs/promises";
+import { cp, mkdtemp, realpath, rm } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 
 import {
@@ -28,6 +28,9 @@ import {
   resolveAndFetchSources,
 } from "../../lib/sources.js";
 import {
+  assertDirectoryIfExists,
+  assertTreeContainsNoSymlinks,
+  assertWritablePathInsideRoot,
   directoryExists,
   fileExists,
   readFileContent,
@@ -77,62 +80,6 @@ type InstallSnapshot = {
 
 function pathEscapesRoot(relativePath: string): boolean {
   return relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath);
-}
-
-async function assertWritablePathInsideProject({
-  projectRoot,
-  targetPath,
-}: {
-  projectRoot: string;
-  targetPath: string;
-}): Promise<void> {
-  let existingPath = targetPath;
-  while (true) {
-    try {
-      const stats = await lstat(existingPath);
-      if (existingPath === targetPath && stats.isSymbolicLink()) {
-        throw new Error(`Refusing to write through a symbolic link: ${targetPath}.`);
-      }
-      const relativeRealPath = relative(await realpath(projectRoot), await realpath(existingPath));
-      if (pathEscapesRoot(relativeRealPath)) {
-        throw new Error(`Writable path must resolve inside the project root: ${targetPath}.`);
-      }
-      return;
-    } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
-        throw error;
-      }
-      const parentPath = dirname(existingPath);
-      if (parentPath === existingPath) {
-        throw error;
-      }
-      existingPath = parentPath;
-    }
-  }
-}
-
-async function assertTreeContainsNoSymlinks(dirPath: string): Promise<void> {
-  for (const entry of await readdir(dirPath, { withFileTypes: true })) {
-    const entryPath = join(dirPath, entry.name);
-    if (entry.isSymbolicLink()) {
-      throw new Error(`Refusing to write into a tree containing a symbolic link: ${entryPath}.`);
-    }
-    if (entry.isDirectory()) {
-      await assertTreeContainsNoSymlinks(entryPath);
-    }
-  }
-}
-
-async function assertDirectoryIfExists(dirPath: string): Promise<void> {
-  try {
-    if (!(await lstat(dirPath)).isDirectory()) {
-      throw new Error(`Expected a directory at writable path: ${dirPath}.`);
-    }
-  } catch (error) {
-    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
-      throw error;
-    }
-  }
 }
 
 function assertSourceHasNoEmbeddedCredentials(source: string): void {
@@ -331,14 +278,14 @@ export async function addCommand(logger: Logger, options: AddCommandOptions): Pr
   const curatedSkillsPath = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
   const curatedRulesPath = join(projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH);
   await Promise.all([
-    assertWritablePathInsideProject({ projectRoot, targetPath: curatedSkillsPath }),
-    assertWritablePathInsideProject({ projectRoot, targetPath: curatedRulesPath }),
-    assertWritablePathInsideProject({
-      projectRoot,
+    assertWritablePathInsideRoot({ rootPath: projectRoot, targetPath: curatedSkillsPath }),
+    assertWritablePathInsideRoot({ rootPath: projectRoot, targetPath: curatedRulesPath }),
+    assertWritablePathInsideRoot({
+      rootPath: projectRoot,
       targetPath: join(projectRoot, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH),
     }),
-    assertWritablePathInsideProject({
-      projectRoot,
+    assertWritablePathInsideRoot({
+      rootPath: projectRoot,
       targetPath: join(projectRoot, RULESYNC_NPM_SOURCES_LOCK_RELATIVE_FILE_PATH),
     }),
   ]);

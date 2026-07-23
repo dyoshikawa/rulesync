@@ -67,8 +67,7 @@ async function runRulesyncInstall(logger: Logger, options: InstallCommandOptions
       );
       return;
     }
-    logger.warn("No sources defined in configuration. Nothing to install.");
-    return;
+    logger.warn("No sources defined in configuration. Removing stale source artifacts.");
   }
 
   logger.debug(`Installing rules and skills from ${sources.length} source(s)...`);

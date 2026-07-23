@@ -10,13 +10,71 @@ import {
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { kebabCase } from "es-toolkit";
 import { globbySync } from "globby";
 
 import { formatError } from "./error.js";
 import { isEnvTest } from "./vitest.js";
+
+function pathEscapesRoot(relativePath: string): boolean {
+  return relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath);
+}
+
+export async function assertWritablePathInsideRoot(params: {
+  rootPath: string;
+  targetPath: string;
+}): Promise<void> {
+  const { rootPath, targetPath } = params;
+  let existingPath = targetPath;
+  while (true) {
+    try {
+      const stats = await lstat(existingPath);
+      if (resolve(existingPath) !== resolve(rootPath) && stats.isSymbolicLink()) {
+        throw new Error(`Refusing to write through a symbolic link: ${targetPath}.`);
+      }
+      const relativeRealPath = relative(await realpath(rootPath), await realpath(existingPath));
+      if (pathEscapesRoot(relativeRealPath)) {
+        throw new Error(`Writable path must resolve inside the root: ${targetPath}.`);
+      }
+      return;
+    } catch (error) {
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
+        throw error;
+      }
+      const parentPath = dirname(existingPath);
+      if (parentPath === existingPath) {
+        throw error;
+      }
+      existingPath = parentPath;
+    }
+  }
+}
+
+export async function assertTreeContainsNoSymlinks(dirPath: string): Promise<void> {
+  for (const entry of await readdir(dirPath, { withFileTypes: true })) {
+    const entryPath = join(dirPath, entry.name);
+    if (entry.isSymbolicLink()) {
+      throw new Error(`Refusing to write into a tree containing a symbolic link: ${entryPath}.`);
+    }
+    if (entry.isDirectory()) {
+      await assertTreeContainsNoSymlinks(entryPath);
+    }
+  }
+}
+
+export async function assertDirectoryIfExists(dirPath: string): Promise<void> {
+  try {
+    if (!(await lstat(dirPath)).isDirectory()) {
+      throw new Error(`Expected a directory at writable path: ${dirPath}.`);
+    }
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
+      throw error;
+    }
+  }
+}
 
 export async function ensureDir(dirPath: string): Promise<void> {
   try {

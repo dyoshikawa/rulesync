@@ -119,7 +119,7 @@ Resolved versions are pinned in `rulesync-npm.lock.json` (next to `rulesync.lock
 
 When `rulesync install` runs and `sources` is configured:
 
-1. **Lockfile resolution** — Each source's ref is resolved to a commit SHA and stored in `rulesync.lock` (at the project root). On subsequent runs the locked SHA is reused for deterministic builds. npm-transport sources are pinned in a separate `rulesync-npm.lock.json` (resolved version + tarball integrity).
+1. **Lockfile resolution** — Each source's ref is resolved to a commit SHA and stored in `rulesync.lock` (at the project root). On subsequent runs the exact locked SHA is checked out for deterministic builds. npm-transport sources are pinned in a separate `rulesync-npm.lock.json` (resolved version + tarball integrity).
 2. **Remote artifact listing** — The configured skills and rules directories are listed from the remote source.
 3. **Filtering** — Only the names selected by `skills` and `rules` are fetched. Omitting both fields retains the historical behavior of fetching all skills.
 4. **Precedence rules**:
@@ -230,7 +230,7 @@ rulesync generate
 
 ## Lockfile
 
-The lockfile at `rulesync.lock` (at the project root) records the resolved commit SHA and per-artifact integrity hashes for each source so that builds are reproducible. It is safe to commit this file. An example:
+The lockfile at `rulesync.lock` (at the project root) records the resolved commit SHA, rule selection metadata, and per-artifact integrity hashes for each source so that builds are reproducible. Rulesync verifies cached rule content against these hashes before reusing it. It is safe to commit this file. An example:
 
 ```json
 {
@@ -246,7 +246,10 @@ The lockfile at `rulesync.lock` (at the project root) records the resolved commi
       },
       "rules": {
         "testing-guidelines": { "integrity": "sha256-789abc..." }
-      }
+      },
+      "ruleSelection": ["*"],
+      "rulesPath": "rules",
+      "resolvedRuleNames": ["testing-guidelines"]
     }
   }
 }
@@ -271,7 +274,10 @@ npm-transport sources (experimental) are pinned in a separate `rulesync-npm.lock
       },
       "rules": {
         "testing-guidelines": { "integrity": "sha256-789abc..." }
-      }
+      },
+      "ruleSelection": ["testing-guidelines"],
+      "rulesPath": "rules",
+      "resolvedRuleNames": ["testing-guidelines"]
     }
   }
 }

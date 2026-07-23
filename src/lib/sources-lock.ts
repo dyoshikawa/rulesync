@@ -35,6 +35,9 @@ const LockedSourceSchema = z.object({
   resolvedAt: optional(z.string()),
   skills: z.record(z.string(), LockedSkillSchema),
   rules: optional(z.record(z.string(), LockedRuleSchema)),
+  ruleSelection: optional(z.array(z.string())),
+  rulesPath: optional(z.string()),
+  resolvedRuleNames: optional(z.array(z.string())),
 });
 export type LockedSource = z.infer<typeof LockedSourceSchema>;
 

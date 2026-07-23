@@ -83,15 +83,30 @@ describe("installCommand", () => {
       );
     });
 
-    it("should warn and return early when no sources defined", async () => {
+    it("should remove stale source artifacts when no sources are defined", async () => {
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig([]));
+      vi.mocked(resolveAndFetchSources).mockResolvedValue({
+        fetchedSkillCount: 0,
+        fetchedRuleCount: 0,
+        sourcesProcessed: 0,
+        failedSourceCount: 0,
+      });
 
       await installCommand(mockLogger, {});
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        "No sources defined in configuration. Nothing to install.",
+        "No sources defined in configuration. Removing stale source artifacts.",
       );
-      expect(resolveAndFetchSources).not.toHaveBeenCalled();
+      expect(resolveAndFetchSources).toHaveBeenCalledWith({
+        sources: [],
+        projectRoot: process.cwd(),
+        options: {
+          updateSources: undefined,
+          frozen: undefined,
+          token: undefined,
+        },
+        logger: mockLogger,
+      });
     });
 
     it("should warn and suggest --mode apm when apm.yml is present but no sources", async () => {
