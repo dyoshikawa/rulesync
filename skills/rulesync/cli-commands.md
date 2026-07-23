@@ -156,7 +156,36 @@ rulesync gitignore --targets copilot --features rules,commands
 
 ## Add Command
 
-The `add` command appends one source to `rulesync.jsonc` and immediately runs the declarative source resolver. It preserves JSONC comments, installs selected rules into `.rulesync/rules/.curated/`, installs selected skills into `.rulesync/skills/.curated/`, and updates `rulesync.lock` or `rulesync-npm.lock.json`.
+The `add` command can scaffold one Rulesync feature file or append one declarative source to `rulesync.jsonc`.
+
+### Feature scaffolding
+
+Use a feature keyword to create a valid, editable starter file:
+
+```bash
+# Named Markdown features
+rulesync add rule --name overview
+rulesync add command --name review-pr.md
+rulesync add subagent --name planner
+rulesync add skill --name project-context
+rulesync add check --name security
+
+# Singleton features
+rulesync add mcp
+rulesync add hooks
+rulesync add ignore
+rulesync add permissions
+```
+
+Named features accept a name with or without the `.md` suffix. Skills use the directory layout `.rulesync/skills/<name>/SKILL.md`; the other named features create `<name>.md` in their canonical Rulesync directory. Names cannot contain path separators.
+
+When the target file exists, interactive execution asks before replacing it. Declining leaves the file unchanged. JSON, silent, and non-interactive execution fail safely; pass `--force` to overwrite explicitly. Singleton scaffolds recognize supported JSONC and legacy variants and replace the effective existing file instead of creating a shadowed canonical file.
+
+Feature keywords are reserved when no source-specific option is present. To add a source whose identifier is also a feature keyword, provide a source option that makes the intent explicit, such as `rulesync add skill --transport npm`.
+
+### Declarative sources
+
+For any other source identifier, `add` appends one source to `rulesync.jsonc` and immediately runs the declarative source resolver. It preserves JSONC comments, installs selected rules into `.rulesync/rules/.curated/`, installs selected skills into `.rulesync/skills/.curated/`, and updates `rulesync.lock` or `rulesync-npm.lock.json`.
 
 ```bash
 # GitHub source (default transport)
@@ -181,6 +210,8 @@ The operation fetches only the source being added; existing declarations are not
 
 | Option                | Description                                                                                       |
 | --------------------- | ------------------------------------------------------------------------------------------------- |
+| `--name <name>`       | Name for a rule, command, subagent, skill, or check scaffold                                      |
+| `--force`             | Replace an existing scaffold file without prompting                                               |
 | `--skills <skills>`   | Comma-separated skill names. `*` selects all skills.                                              |
 | `--rules <rules>`     | Comma-separated rule names. Names may omit `.md`; `*` selects direct `.md` files under rulesPath. |
 | `--transport <type>`  | `github` (default), `git`, or experimental `npm`                                                  |
