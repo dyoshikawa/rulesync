@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
-import { readFileContent, writeFileContent } from "../utils/file.js";
+import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -346,6 +346,42 @@ describe("E2E: commands (global mode)", () => {
     expect(plugin).toContain("ctx.register_command(slug, handler, description)");
     expect(plugin).toContain('"delegate_task"');
     expect(config).toContain("- rulesync-commands");
+  });
+
+  it("should clean the owned Hermes commands plugin and disable it with --delete", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    const commandPath = join(projectDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md");
+    await writeFileContent(
+      commandPath,
+      '---\ndescription: "Review a pull request"\ntargets: ["hermesagent"]\n---\nReview it.\n',
+    );
+    await writeFileContent(
+      join(homeDir, ".hermes", "config.yaml"),
+      "plugins:\n  enabled:\n    - existing-plugin\n",
+    );
+
+    await runGenerate({
+      target: "hermesagent",
+      features: "commands",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+    await removeFile(commandPath);
+    await runGenerate({
+      target: "hermesagent",
+      features: "commands",
+      global: true,
+      deleteFiles: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    expect(
+      await fileExists(join(homeDir, ".hermes", "plugins", "rulesync-commands", "__init__.py")),
+    ).toBe(false);
+    const config = await readFileContent(join(homeDir, ".hermes", "config.yaml"));
+    expect(config).toContain("- existing-plugin");
+    expect(config).not.toContain("rulesync-commands");
   });
 
   it.each(commandsGlobalTargets)(

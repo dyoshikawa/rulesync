@@ -246,9 +246,12 @@ export class ChecksProcessor extends FeatureProcessor {
           }),
         )
         .filter((check) => check.isDeletable());
-      const canDeleteAuxiliaryFiles =
-        (await factory.class.canDeleteAuxiliaryFiles?.({ outputRoot: this.outputRoot })) ?? false;
-      const auxiliaryFiles = canDeleteAuxiliaryFiles
+      const hasOwnershipGuard = factory.class.canDeleteAuxiliaryFiles !== undefined;
+      const canDelete =
+        !hasOwnershipGuard ||
+        (await factory.class.canDeleteAuxiliaryFiles?.({ outputRoot: this.outputRoot })) === true;
+      if (!canDelete) return [];
+      const auxiliaryFiles = hasOwnershipGuard
         ? await factory.class.getAuxiliaryFiles?.({
             toolChecks,
             outputRoot: this.outputRoot,

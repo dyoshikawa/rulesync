@@ -3,9 +3,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 // cspell:ignore gitwildmatch pathspec
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { HermesagentIgnore } from "./hermesagent-ignore.js";
+import { IgnoreProcessor } from "./ignore-processor.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 
 describe("HermesagentIgnore", () => {
@@ -34,6 +36,12 @@ describe("HermesagentIgnore", () => {
       'PROTECTED_TOOLS = {"read_file", "write_file", "patch"}',
     );
     expect(init?.getFileContent()).toContain('pathspec.PathSpec.from_lines("gitwildmatch"');
+    expect(init?.getFileContent()).toContain('if parent_key == "files":');
+    expect(init?.getFileContent()).toContain('if key == "counts" and isinstance(item, dict):');
+    expect(init?.getFileContent()).toContain('if key == "matches_text":');
+    expect(init?.getFileContent()).toContain('raw_result.partition("\\n\\n[Hint:")');
+    expect(init?.getFileContent()).toContain('re.match(r"^\\*\\*\\*\\s*Move\\s+File:');
+    expect(init?.getFileContent()).toContain("candidates = [lexical]");
   });
 
   it("round-trips patterns back to the canonical ignore file", () => {
@@ -54,6 +62,24 @@ describe("HermesagentIgnore", () => {
       expect(await HermesagentIgnore.canDeleteAuxiliaryFiles({ outputRoot: testDir })).toBe(false);
       await writeFileContent(markerPath, "Generated and owned by RuleSync.\n");
       expect(await HermesagentIgnore.canDeleteAuxiliaryFiles({ outputRoot: testDir })).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("protects primary plugin data when the ownership marker does not match", async () => {
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const pluginDir = join(testDir, ".hermes", "plugins", "rulesync-ignore");
+      await writeFileContent(join(pluginDir, "patterns.gitignore"), "private/\n");
+      await writeFileContent(join(pluginDir, ".rulesync-owned"), "user-managed\n");
+      const processor = new IgnoreProcessor({
+        outputRoot: testDir,
+        toolTarget: "hermesagent",
+        logger: createMockLogger(),
+      });
+
+      expect(await processor.loadToolFiles({ forDeletion: true })).toEqual([]);
     } finally {
       await cleanup();
     }

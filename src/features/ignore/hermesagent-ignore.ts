@@ -1,5 +1,5 @@
 import { basename, join } from "node:path";
-// cspell:ignore gitwildmatch pathspec splitlines
+// cspell:ignore abspath expanduser gitwildmatch normpath pathspec splitlines
 
 import {
   HERMESAGENT_IGNORE_PLUGIN_DIR_PATH,
@@ -33,6 +33,7 @@ function getPluginInitContent(): string {
   return `"""RuleSync-generated project ignore enforcement for Hermes."""
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -50,22 +51,46 @@ def _spec():
     return pathspec.PathSpec.from_lines("gitwildmatch", PATTERNS_FILE.read_text(encoding="utf-8").splitlines())
 
 
-def _relative_path(value):
+def _relative_paths(value):
     if not value or value == "/dev/null":
-        return None
-    path = Path(str(value))
+        return []
+    path = Path(str(value)).expanduser()
+    lexical = Path(os.path.abspath(os.path.normpath(str(path if path.is_absolute() else PROJECT_ROOT / path))))
+    candidates = [lexical]
     try:
-        resolved = path.resolve() if path.is_absolute() else (PROJECT_ROOT / path).resolve()
-        return resolved.relative_to(PROJECT_ROOT).as_posix()
-    except ValueError:
-        return None
+        resolved = lexical.resolve()
+        if resolved != lexical:
+            candidates.append(resolved)
+    except OSError:
+        pass
+
+    relatives = []
+    for candidate in candidates:
+        try:
+            relative = candidate.relative_to(PROJECT_ROOT).as_posix()
+        except ValueError:
+            continue
+        if relative not in relatives:
+            relatives.append(relative)
+    return relatives
+
+
+def _is_ignored_path(value, matcher):
+    return any(matcher.match_file(relative) for relative in _relative_paths(value))
 
 
 def _patch_paths(content):
     paths = []
-    pattern = r"^(?:\\*\\*\\* (?:Update|Delete|Add) File:|---|\\+\\+\\+)\\s+(?:a/|b/)?(.+)$"
     for line in str(content or "").splitlines():
-        match = re.match(pattern, line)
+        match = re.match(r"^\\*\\*\\*\\s*(?:Update|Delete|Add)\\s+File:\\s*(.+)$", line)
+        if match:
+            paths.append(match.group(1).strip())
+            continue
+        match = re.match(r"^\\*\\*\\*\\s*Move\\s+File:\\s*(.+?)\\s*->\\s*(.+)$", line)
+        if match:
+            paths.extend([match.group(1).strip(), match.group(2).strip()])
+            continue
+        match = re.match(r"^(?:---|\\+\\+\\+)\\s+(?:a/|b/)?(.+)$", line)
         if match:
             paths.append(match.group(1).strip())
     return paths
@@ -86,23 +111,60 @@ def block_ignored_file_tools(tool_name, args, **kwargs):
     ignored = []
     matcher = _spec()
     for value in _tool_paths(tool_name, args):
-        relative = _relative_path(value)
-        if relative and matcher.match_file(relative):
-            ignored.append(relative)
+        relatives = _relative_paths(value)
+        if any(matcher.match_file(relative) for relative in relatives):
+            ignored.extend(relatives)
     if ignored:
         return {"action": "block", "message": "Blocked by RuleSync ignore patterns: " + ", ".join(sorted(set(ignored)))}
     return None
 
 
-def _filter_json(value, matcher):
+def _filter_matches_text(value, matcher):
+    kept = []
+    keep_group = True
+    for line in str(value or "").splitlines():
+        if not line.startswith("  "):
+            keep_group = not _is_ignored_path(line, matcher)
+        if keep_group:
+            kept.append(line)
+    return "\\n".join(kept)
+
+
+def _filter_json(value, matcher, parent_key=None):
     if isinstance(value, list):
+        if parent_key == "files":
+            return [item for item in value if not _is_ignored_path(item, matcher)]
         return [item for item in (_filter_json(item, matcher) for item in value) if item is not None]
     if isinstance(value, dict):
         candidate = value.get("path") or value.get("file") or value.get("filename")
-        relative = _relative_path(candidate)
-        if relative and matcher.match_file(relative):
+        if _is_ignored_path(candidate, matcher):
             return None
-        return {key: filtered for key, item in value.items() if (filtered := _filter_json(item, matcher)) is not None}
+        filtered = {}
+        for key, item in value.items():
+            if key == "counts" and isinstance(item, dict):
+                filtered[key] = {
+                    path: count for path, count in item.items()
+                    if not _is_ignored_path(path, matcher)
+                }
+                continue
+            if key == "matches_text":
+                filtered[key] = _filter_matches_text(item, matcher)
+                continue
+            nested = _filter_json(item, matcher, key)
+            if nested is not None:
+                filtered[key] = nested
+
+        if isinstance(filtered.get("counts"), dict):
+            filtered["total_count"] = sum(filtered["counts"].values())
+        elif isinstance(filtered.get("files"), list):
+            filtered["total_count"] = len(filtered["files"])
+        elif isinstance(filtered.get("matches"), list):
+            filtered["total_count"] = len(filtered["matches"])
+        elif "matches_text" in filtered:
+            filtered["total_count"] = sum(
+                1 for line in filtered["matches_text"].splitlines() if line.startswith("  ")
+            )
+        return filtered
     return value
 
 
@@ -111,13 +173,16 @@ def filter_search_results(tool_name, arguments, result, **kwargs):
     if tool_name != "search_files":
         return None
     matcher = _spec()
+    raw_result = str(result)
+    payload, separator, hint = raw_result.partition("\\n\\n[Hint:")
     try:
-        return json.dumps(_filter_json(json.loads(result), matcher))
+        filtered = json.dumps(_filter_json(json.loads(payload), matcher))
+        return filtered + (separator + hint if separator else "")
     except (json.JSONDecodeError, TypeError):
         kept = []
-        for line in str(result).splitlines():
-            candidate = _relative_path(line.split(":", 1)[0].strip())
-            if not candidate or not matcher.match_file(candidate):
+        for line in raw_result.splitlines():
+            candidate = line.split(":", 1)[0].strip()
+            if not _is_ignored_path(candidate, matcher):
                 kept.append(line)
         return "\\n".join(kept)
 

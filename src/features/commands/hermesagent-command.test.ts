@@ -78,10 +78,31 @@ describe("HermesagentCommand", () => {
     expect(config?.getFileContent()).toContain("- rulesync-commands");
   });
 
+  it("cleans the commands plugin only when its ownership marker matches", async () => {
+    const pluginDir = join(testDir, ".hermes", "plugins", "rulesync-commands");
+    const markerPath = join(pluginDir, ".rulesync-owned");
+    await mkdir(pluginDir, { recursive: true });
+    await writeFile(markerPath, "user-managed\n", "utf8");
+    expect(await HermesagentCommand.canDeleteAuxiliaryFiles({ outputRoot: testDir })).toBe(false);
+
+    await writeFile(markerPath, "Generated and owned by RuleSync.\n", "utf8");
+    expect(await HermesagentCommand.canDeleteAuxiliaryFiles({ outputRoot: testDir })).toBe(true);
+    const files = await HermesagentCommand.getAuxiliaryFiles({
+      toolCommands: [],
+      outputRoot: testDir,
+      forDeletion: true,
+    });
+    expect(files.map((file) => file.getRelativeFilePath())).toContain(".rulesync-owned");
+  });
+
   it("fails when a Hermes command and skill expose the same slash name", async () => {
     const skillDir = join(testDir, ".rulesync", "skills", "review");
     await mkdir(skillDir, { recursive: true });
-    await writeFile(join(skillDir, "SKILL.md"), "---\nname: review\n---\n", "utf8");
+    await writeFile(
+      join(skillDir, "SKILL.md"),
+      "---\nname: review\ndescription: Review changes\n---\n",
+      "utf8",
+    );
     const processor = new CommandsProcessor({
       inputRoot: testDir,
       toolTarget: "hermesagent",
@@ -107,5 +128,63 @@ describe("HermesagentCommand", () => {
         rulesyncCommand(".rulesync/commands/b/review.md"),
       ]),
     ).rejects.toThrow("Hermes command slash-name collision");
+  });
+
+  it("uses Hermes slash normalization for commands and skill frontmatter names", async () => {
+    const skillDir = join(testDir, ".rulesync", "skills", "different-directory");
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(
+      join(skillDir, "SKILL.md"),
+      '---\nname: Review_PR\ndescription: Review changes\ntargets: ["hermesagent"]\n---\n',
+      "utf8",
+    );
+    const processor = new CommandsProcessor({
+      inputRoot: testDir,
+      toolTarget: "hermesagent",
+      global: true,
+      logger: createMockLogger(),
+    });
+
+    await expect(
+      processor.convertRulesyncFilesToToolFiles([
+        rulesyncCommand(".rulesync/commands/review-pr.md"),
+      ]),
+    ).rejects.toThrow("Hermes command and skill slash-name collision: review-pr");
+  });
+
+  it("ignores slash-name collisions with skills that do not target Hermes", async () => {
+    const skillDir = join(testDir, ".rulesync", "skills", "review");
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(
+      join(skillDir, "SKILL.md"),
+      '---\nname: review\ndescription: Review changes\ntargets: ["claudecode"]\n---\n',
+      "utf8",
+    );
+    const processor = new CommandsProcessor({
+      inputRoot: testDir,
+      toolTarget: "hermesagent",
+      global: true,
+      logger: createMockLogger(),
+    });
+
+    await expect(
+      processor.convertRulesyncFilesToToolFiles([rulesyncCommand()]),
+    ).resolves.toBeDefined();
+  });
+
+  it("rejects command names that collide after case normalization", async () => {
+    const processor = new CommandsProcessor({
+      inputRoot: testDir,
+      toolTarget: "hermesagent",
+      global: true,
+      logger: createMockLogger(),
+    });
+
+    await expect(
+      processor.convertRulesyncFilesToToolFiles([
+        rulesyncCommand(".rulesync/commands/Review.md"),
+        rulesyncCommand(".rulesync/commands/review.md"),
+      ]),
+    ).rejects.toThrow('both normalize to "review"');
   });
 });

@@ -164,9 +164,12 @@ export class IgnoreProcessor extends FeatureProcessor {
           relativeDirPath: paths.relativeDirPath,
           relativeFilePath: paths.relativeFilePath,
         });
-        const canDeleteAuxiliaryFiles =
-          (await factory.class.canDeleteAuxiliaryFiles?.({ outputRoot: this.outputRoot })) ?? false;
-        const auxiliaryFiles = canDeleteAuxiliaryFiles
+        const hasOwnershipGuard = factory.class.canDeleteAuxiliaryFiles !== undefined;
+        const canDelete =
+          !hasOwnershipGuard ||
+          (await factory.class.canDeleteAuxiliaryFiles?.({ outputRoot: this.outputRoot })) === true;
+        if (!canDelete) return [];
+        const auxiliaryFiles = hasOwnershipGuard
           ? await factory.class.getAuxiliaryFiles?.({
               toolIgnore,
               outputRoot: this.outputRoot,

@@ -2,7 +2,12 @@ import { basename, join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
+import {
+  HERMESAGENT_CONFIG_FILE_PATH,
+  HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_OWNERSHIP_PATH,
+} from "../../constants/hermesagent-paths.js";
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { AiFile } from "../../types/ai-file.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import type { FlattenedCommandNaming } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
@@ -10,7 +15,13 @@ import { ToolFile } from "../../types/tool-file.js";
 import { commandsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { checkPathTraversal, findFilesByGlobs, toPosixPath } from "../../utils/file.js";
+import {
+  checkPathTraversal,
+  findFilesByGlobs,
+  readFileContentOrNull,
+  toPosixPath,
+  writeFileContent,
+} from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "./agentsmd-command.js";
 import { AntigravityCliCommand } from "./antigravity-cli-command.js";
@@ -24,7 +35,10 @@ import { CursorCommand } from "./cursor-command.js";
 import { DevinCommand } from "./devin-command.js";
 import { FactorydroidCommand } from "./factorydroid-command.js";
 import { GooseCommand } from "./goose-command.js";
-import { HermesagentCommand } from "./hermesagent-command.js";
+import {
+  getDisabledHermesCommandsPluginConfigContent,
+  HermesagentCommand,
+} from "./hermesagent-command.js";
 import { JunieCommand } from "./junie-command.js";
 import { KiloCommand } from "./kilo-command.js";
 import { KiroCliCommand } from "./kiro-cli-command.js";
@@ -76,7 +90,9 @@ type ToolCommandFactory = {
       toolCommands: ToolCommand[];
       outputRoot?: string;
       global?: boolean;
+      forDeletion?: boolean;
     }): Promise<ToolFile[]> | ToolFile[];
+    canDeleteAuxiliaryFiles?(params: { outputRoot: string }): Promise<boolean> | boolean;
     validateRulesyncCommands?(params: {
       inputRoot: string;
       rulesyncCommands: RulesyncCommand[];
@@ -705,10 +721,22 @@ export class CommandsProcessor extends FeatureProcessor {
         )
         .filter((cmd) => cmd.isDeletable());
 
+      const hasOwnershipGuard = factory.class.canDeleteAuxiliaryFiles !== undefined;
+      const canDelete =
+        !hasOwnershipGuard ||
+        (await factory.class.canDeleteAuxiliaryFiles?.({ outputRoot: this.outputRoot })) === true;
+      if (!canDelete) return [];
+      const auxiliaryFiles = await factory.class.getAuxiliaryFiles?.({
+        toolCommands,
+        outputRoot: this.outputRoot,
+        global: this.global,
+        forDeletion: true,
+      });
+
       this.logger.debug(
         `Successfully loaded ${toolCommands.length} ${paths.relativeDirPath} commands`,
       );
-      return toolCommands;
+      return [...toolCommands, ...(auxiliaryFiles ?? [])].filter((file) => file.isDeletable());
     }
 
     const toolCommands = await Promise.all(
@@ -748,6 +776,36 @@ export class CommandsProcessor extends FeatureProcessor {
       `Successfully loaded ${toolCommands.length} ${paths.relativeDirPath} commands`,
     );
     return toolCommands;
+  }
+
+  override async removeOrphanAiFiles(
+    existingFiles: AiFile[],
+    generatedFiles: AiFile[],
+  ): Promise<number> {
+    const ownershipPath = join(
+      this.outputRoot,
+      HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_OWNERSHIP_PATH,
+    );
+    const shouldDisableHermesCommandsPlugin =
+      this.toolTarget === "hermesagent" &&
+      existingFiles.some((file) => file.getFilePath() === ownershipPath) &&
+      !generatedFiles.some((file) => file.getFilePath() === ownershipPath);
+    let changedCount = await super.removeOrphanAiFiles(existingFiles, generatedFiles);
+
+    if (!shouldDisableHermesCommandsPlugin) return changedCount;
+    const configPath = join(this.outputRoot, HERMESAGENT_CONFIG_FILE_PATH);
+    const currentContent = await readFileContentOrNull(configPath);
+    if (currentContent === null) return changedCount;
+    const nextContent = getDisabledHermesCommandsPluginConfigContent(currentContent);
+    if (nextContent === currentContent) return changedCount;
+
+    if (this.dryRun) {
+      this.logger.info(`[DRY RUN] Would write: ${configPath}`);
+    } else {
+      await writeFileContent(configPath, nextContent);
+    }
+    changedCount++;
+    return changedCount;
   }
 
   /**

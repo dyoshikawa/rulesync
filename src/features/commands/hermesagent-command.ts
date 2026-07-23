@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -10,6 +10,7 @@ import {
   HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_DIR_PATH,
   HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_INIT_PATH,
   HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_MANIFEST_PATH,
+  HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_OWNERSHIP_PATH,
 } from "../../constants/hermesagent-paths.js";
 import {
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
@@ -17,13 +18,14 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
-import { findFilesByGlobs, toPosixPath } from "../../utils/file.js";
+import { findFilesByGlobs, readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import {
   applySharedConfigPatch,
   HERMES_CONFIG_SHARED_FILE_KEY,
   parseSharedConfig,
 } from "../shared/shared-config-gateway.js";
-import { commandSlug } from "./command-skill-ownership.js";
+import { HermesagentSkill } from "../skills/hermesagent-skill.js";
+import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -39,6 +41,15 @@ const HermesCommandSpecSchema = z.object({
 });
 
 type HermesCommandSpec = z.infer<typeof HermesCommandSpecSchema>;
+
+function hermesSlashName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[ _]/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-|-$/g, "");
+}
 
 function getPluginManifestContent(): string {
   return [
@@ -133,6 +144,27 @@ function getEnabledPluginConfigContent(currentContent: string): string {
   });
 }
 
+export function getDisabledHermesCommandsPluginConfigContent(currentContent: string): string {
+  const config = parseSharedConfig({ format: "yaml", fileContent: currentContent });
+  const plugins =
+    config.plugins && typeof config.plugins === "object"
+      ? (config.plugins as Record<string, unknown>)
+      : {};
+  const enabled = Array.isArray(plugins.enabled) ? plugins.enabled : [];
+
+  return applySharedConfigPatch({
+    fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
+    feature: "commands",
+    existingContent: currentContent,
+    patch: {
+      plugins: {
+        ...plugins,
+        enabled: enabled.filter((plugin) => plugin !== "rulesync-commands"),
+      },
+    },
+  });
+}
+
 class HermesagentCommandAuxiliaryFile extends ToolFile {
   validate(): ValidationResult {
     return { success: true, error: null };
@@ -200,7 +232,10 @@ export class HermesagentCommand extends ToolCommand {
       this.isTargetedByRulesyncCommand(candidate),
     )) {
       const origin = command.getRelativeFilePath();
-      const slug = commandSlug(origin);
+      const slug = hermesSlashName(basename(origin, ".md"));
+      if (!slug) {
+        throw new Error(`Hermes command "${origin}" does not produce a valid slash name.`);
+      }
       const firstOrigin = commandOrigins.get(slug);
       if (firstOrigin && firstOrigin !== origin) {
         throw new Error(
@@ -210,11 +245,20 @@ export class HermesagentCommand extends ToolCommand {
       commandOrigins.set(slug, origin);
       commandSlugs.add(slug);
     }
-    const skillFiles = await findFilesByGlobs(
-      join(inputRoot, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "**", "SKILL.md"),
+    const skillsRoot = join(inputRoot, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+    const skillFiles = await findFilesByGlobs(join(skillsRoot, "**", "SKILL.md"));
+    const rulesyncSkills = await Promise.all(
+      skillFiles.map((path) =>
+        RulesyncSkill.fromDir({
+          outputRoot: inputRoot,
+          relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+          dirName: toPosixPath(relative(skillsRoot, dirname(path))),
+        }),
+      ),
     );
-    const collisions = skillFiles
-      .map((path) => basename(dirname(path)))
+    const collisions = rulesyncSkills
+      .filter((skill) => HermesagentSkill.isTargetedByRulesyncSkill(skill))
+      .map((skill) => hermesSlashName(skill.getFrontmatter().name))
       .filter((slug) => commandSlugs.has(slug));
     if (collisions.length > 0) {
       throw new Error(
@@ -226,13 +270,15 @@ export class HermesagentCommand extends ToolCommand {
   static async getAuxiliaryFiles({
     toolCommands,
     outputRoot,
+    forDeletion = false,
   }: {
     toolCommands: ToolCommand[];
     outputRoot?: string;
     global?: boolean;
+    forDeletion?: boolean;
   }): Promise<ToolFile[]> {
-    if (toolCommands.length === 0) return [];
-    return [
+    if (toolCommands.length === 0 && !forDeletion) return [];
+    const pluginFiles: ToolFile[] = [
       new HermesagentCommandAuxiliaryFile({
         outputRoot,
         relativeDirPath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_DIR_PATH,
@@ -242,9 +288,19 @@ export class HermesagentCommand extends ToolCommand {
       new HermesagentCommandAuxiliaryFile({
         outputRoot,
         relativeDirPath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_DIR_PATH,
+        relativeFilePath: basename(HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_OWNERSHIP_PATH),
+        fileContent: "Generated and owned by RuleSync.\n",
+      }),
+      new HermesagentCommandAuxiliaryFile({
+        outputRoot,
+        relativeDirPath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_DIR_PATH,
         relativeFilePath: basename(HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_INIT_PATH),
         fileContent: "",
       }),
+    ];
+    if (forDeletion) return pluginFiles;
+    return [
+      ...pluginFiles,
       new HermesagentCommandAuxiliaryFile({
         outputRoot,
         relativeDirPath: HERMESAGENT_GLOBAL_DIR,
@@ -252,6 +308,13 @@ export class HermesagentCommand extends ToolCommand {
         fileContent: "",
       }),
     ];
+  }
+
+  static async canDeleteAuxiliaryFiles({ outputRoot }: { outputRoot: string }): Promise<boolean> {
+    const marker = await readFileContentOrNull(
+      join(outputRoot, HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_OWNERSHIP_PATH),
+    );
+    return marker === "Generated and owned by RuleSync.\n";
   }
 
   static override async fromFile({
@@ -291,7 +354,7 @@ export class HermesagentCommand extends ToolCommand {
     outputRoot,
     rulesyncCommand,
   }: ToolCommandFromRulesyncCommandParams): HermesagentCommand {
-    const slug = commandSlug(rulesyncCommand.getRelativeFilePath());
+    const slug = hermesSlashName(basename(rulesyncCommand.getRelativeFilePath(), ".md"));
     const spec: HermesCommandSpec = {
       slug,
       description: rulesyncCommand.getFrontmatter().description ?? `${slug} command`,

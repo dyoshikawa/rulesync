@@ -2,8 +2,10 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
+import { ChecksProcessor } from "./checks-processor.js";
 import { HermesagentCheck } from "./hermesagent-check.js";
 import { RulesyncCheck } from "./rulesync-check.js";
 
@@ -77,6 +79,27 @@ describe("HermesagentCheck", () => {
       expect(await HermesagentCheck.canDeleteAuxiliaryFiles({ outputRoot: testDir })).toBe(false);
       await writeFileContent(markerPath, "Generated and owned by RuleSync.\n");
       expect(await HermesagentCheck.canDeleteAuxiliaryFiles({ outputRoot: testDir })).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("protects primary plugin data when the ownership marker does not match", async () => {
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const pluginDir = join(testDir, ".hermes", "plugins", "rulesync-checks");
+      await writeFileContent(
+        join(pluginDir, "checks", "custom.json"),
+        '{"slug":"custom","body":"User-managed"}\n',
+      );
+      await writeFileContent(join(pluginDir, ".rulesync-owned"), "user-managed\n");
+      const processor = new ChecksProcessor({
+        outputRoot: testDir,
+        toolTarget: "hermesagent",
+        logger: createMockLogger(),
+      });
+
+      expect(await processor.loadToolFiles({ forDeletion: true })).toEqual([]);
     } finally {
       await cleanup();
     }
