@@ -41,6 +41,8 @@ describe("HermesagentIgnore", () => {
     expect(init?.getFileContent()).toContain('if key == "matches_text":');
     expect(init?.getFileContent()).toContain('raw_result.partition("\\n\\n[Hint:")');
     expect(init?.getFileContent()).toContain('re.match(r"^\\*\\*\\*\\s*Move\\s+File:');
+    expect(init?.getFileContent()).toContain('re.match(r"^  \\d+: ", line)');
+    expect(init?.getFileContent()).toContain("not has_path or not is_match_line");
     expect(init?.getFileContent()).toContain("candidates = [lexical]");
   });
 

@@ -122,9 +122,12 @@ def block_ignored_file_tools(tool_name, args, **kwargs):
 def _filter_matches_text(value, matcher):
     kept = []
     keep_group = True
+    has_path = False
     for line in str(value or "").splitlines():
-        if not line.startswith("  "):
+        is_match_line = re.match(r"^  \\d+: ", line) is not None
+        if not has_path or not is_match_line or _is_ignored_path(line, matcher):
             keep_group = not _is_ignored_path(line, matcher)
+            has_path = True
         if keep_group:
             kept.append(line)
     return "\\n".join(kept)
@@ -162,7 +165,8 @@ def _filter_json(value, matcher, parent_key=None):
             filtered["total_count"] = len(filtered["matches"])
         elif "matches_text" in filtered:
             filtered["total_count"] = sum(
-                1 for line in filtered["matches_text"].splitlines() if line.startswith("  ")
+                1 for line in filtered["matches_text"].splitlines()
+                if re.match(r"^  \\d+: ", line) is not None
             )
         return filtered
     return value
