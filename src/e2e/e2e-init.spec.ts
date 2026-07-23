@@ -13,6 +13,7 @@ import {
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
+import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { fileExists, readFileContent } from "../utils/file.js";
 import { execFileAsync, rulesyncArgs, rulesyncCmd, useTestDirectory } from "./e2e-helper.js";
 
@@ -54,7 +55,15 @@ describe("E2E: init", () => {
     const mcpPath = join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH);
 
     expect(await readFileContent(rulePath)).toContain("# Architecture");
-    expect(await readFileContent(skillPath)).toContain('name: "project-audit"');
+    expect(
+      (
+        await RulesyncSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "project-audit",
+        })
+      ).getFrontmatter().name,
+    ).toBe("project-audit");
+    expect(await fileExists(skillPath)).toBe(true);
     expect(await readFileContent(mcpPath)).toContain('"mcpServers"');
   });
 });
