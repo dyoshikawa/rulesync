@@ -209,6 +209,8 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 
 > **Note:** Rulesync implements Amp hooks as a generated TypeScript plugin at `.amp/plugins/rulesync-hooks.ts` (project) or `~/.config/amp/plugins/rulesync-hooks.ts` (global), so importing arbitrary Amp plugin code is not supported. Amp supports command hooks for `sessionStart` → `session.start`, `preToolUse` → `tool.call`, `postToolUse` → `tool.result`, `beforeSubmitPrompt` → `agent.start`, and `stop` → `agent.end`. Tool-event matchers are regular expressions against the Amp tool name; definitions with a matcher on any lifecycle event are skipped with a warning. A failing `preToolUse` command rejects the tool call and lets the agent continue; other mapped events observe the command result.
 
+> **Amp command syntax:** Amp executes plugin commands with [Bun Shell](https://bun.com/docs/runtime/shell), whose syntax differs slightly from POSIX shells. Use `$VAR` for environment expansion (`${VAR}` remains literal) and `$(command)` for command substitution (backticks remain literal). Rulesync passes the authored command through unchanged so quoting and escaped operators retain their Bun Shell meaning.
+
 > **Note:** GitHub Copilot's format uses separate `powershell` and `bash` fields for hooks. Rulesync supports only a single `command` field and resolves this by emitting the command under the `powershell` key on Windows, and under the `bash` key on all other platforms.
 
 > **Note:** Hook file paths per tool:

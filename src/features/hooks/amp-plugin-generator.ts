@@ -114,6 +114,8 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
     }
     if (blocksToolCall) {
       lines.push('    return { action: "allow" };');
+    } else if (ampEvent === "agent.start") {
+      lines.push("    return {};");
     }
     lines.push("  });");
   }

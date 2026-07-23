@@ -83,6 +83,7 @@ describe("AmpHooks", () => {
     expect(content).toContain('amp.on("tool.result"');
     expect(content).toContain('amp.on("agent.start"');
     expect(content).toContain('amp.on("agent.end"');
+    expect(content).toContain("    return {};");
     expect(content).toContain('new RegExp("Write|Edit").test(event.tool)');
     expect(content).not.toContain("subagent.sh");
     expect(content).not.toContain("filtered-prompt.sh");
@@ -206,7 +207,7 @@ describe("AmpHooks", () => {
 
   it("should preserve shell quoting and expansion when executed by Bun Shell", async () => {
     const outputPath = join(testDir, "amp-hook-output.txt");
-    const command = `echo SAFE\\; echo $AMP_HOOK_VALUE > ${JSON.stringify(outputPath)}`;
+    const command = `echo SAFE\\; echo $AMP_HOOK_VALUE \${AMP_HOOK_VALUE} > ${JSON.stringify(outputPath)}`;
     const ampHooks = AmpHooks.fromRulesyncHooks({
       outputRoot: testDir,
       rulesyncHooks: buildRulesyncHooks({
@@ -234,7 +235,7 @@ describe("AmpHooks", () => {
     await execFileAsync("bun", [runnerPath], {
       env: { ...process.env, AMP_HOOK_VALUE: "expanded" },
     });
-    expect(await readFileContent(outputPath)).toBe("SAFE; echo expanded\n");
+    expect(await readFileContent(outputPath)).toBe("SAFE; echo expanded ${AMP_HOOK_VALUE}\n");
   });
 
   it("should load and create a deletion instance for the generated plugin", async () => {
