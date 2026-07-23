@@ -27,6 +27,7 @@ import {
   readFileContent,
   removeFile,
   removeDirectory,
+  runWithDirectoryRollback,
   writeFileContent,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
@@ -198,19 +199,26 @@ export async function resolveAndFetchSources(params: {
 
   for (const sourceEntry of sources) {
     try {
-      const result = await fetchSingleSource({
-        sourceEntry,
-        client,
-        projectRoot,
-        lock,
-        npmLock,
-        localSkillNames,
-        localRuleNames,
-        alreadyFetchedSkillNames: allFetchedSkillNames,
-        alreadyFetchedRuleNames: allFetchedRuleNames,
-        updateSources,
-        frozen,
-        logger,
+      const result = await runWithDirectoryRollback({
+        directoryPaths: [
+          join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH),
+          join(projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH),
+        ],
+        action: () =>
+          fetchSingleSource({
+            sourceEntry,
+            client,
+            projectRoot,
+            lock,
+            npmLock,
+            localSkillNames,
+            localRuleNames,
+            alreadyFetchedSkillNames: allFetchedSkillNames,
+            alreadyFetchedRuleNames: allFetchedRuleNames,
+            updateSources,
+            frozen,
+            logger,
+          }),
       });
 
       lock = result.lock;
@@ -486,7 +494,6 @@ async function fetchSingleSource(params: {
       lock: updatedLock,
       sourceEntry,
       projectRoot: params.projectRoot,
-      localRuleNames: params.localRuleNames,
       alreadyFetchedRuleNames: params.alreadyFetchedRuleNames,
       logger: params.logger,
     });
@@ -505,12 +512,10 @@ async function clearUndeclaredRules(params: {
   lock: SourcesLock;
   sourceEntry: SourceEntry;
   projectRoot: string;
-  localRuleNames: Set<string>;
   alreadyFetchedRuleNames: Set<string>;
   logger: Logger;
 }): Promise<SourcesLock> {
-  const { lock, sourceEntry, projectRoot, localRuleNames, alreadyFetchedRuleNames, logger } =
-    params;
+  const { lock, sourceEntry, projectRoot, alreadyFetchedRuleNames, logger } = params;
   const locked = getLockedSource(lock, sourceEntry.source);
   if (locked?.rules === undefined) {
     return lock;
@@ -518,7 +523,7 @@ async function clearUndeclaredRules(params: {
   await cleanPreviousCuratedRules({
     curatedDir: join(projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH),
     lockedRuleNames: getLockedRuleNames(locked),
-    protectedRuleNames: new Set([...localRuleNames, ...alreadyFetchedRuleNames]),
+    protectedRuleNames: alreadyFetchedRuleNames,
     logger,
   });
   return setLockedSource(lock, sourceEntry.source, {
@@ -937,7 +942,7 @@ async function replaceCuratedRules(params: {
     compareLockedIntegrity,
     logger,
   } = params;
-  const protectedRuleNames = new Set([...localRuleNames, ...alreadyFetchedRuleNames]);
+  const protectedRuleNames = alreadyFetchedRuleNames;
   const installableRules = rules.filter(
     (rule) =>
       !shouldSkipRule({
@@ -2723,7 +2728,7 @@ async function fetchSourceViaNpm(params: {
     await cleanPreviousCuratedRules({
       curatedDir: curatedRulesDir,
       lockedRuleNames,
-      protectedRuleNames: new Set([...localRuleNames, ...alreadyFetchedRuleNames]),
+      protectedRuleNames: alreadyFetchedRuleNames,
       logger,
     });
   }

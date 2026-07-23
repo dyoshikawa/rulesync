@@ -28,6 +28,7 @@ import {
   readOrInitializeFileContent,
   removeDirectory,
   removeFile,
+  runWithDirectoryRollback,
   resolvePath,
   toKebabCaseFilename,
   toPosixPath,
@@ -109,6 +110,35 @@ describe("file utilities", () => {
       await writeFileContent(filePath, "content");
 
       await expect(assertDirectoryIfExists(filePath)).rejects.toThrow("Expected a directory");
+    });
+  });
+
+  describe("runWithDirectoryRollback", () => {
+    it("should restore all directories when an action fails", async () => {
+      const skillsDir = join(testDir, "curated-skills");
+      const rulesDir = join(testDir, "curated-rules");
+      const oldSkillPath = join(skillsDir, "old", "SKILL.md");
+      const oldRulePath = join(rulesDir, "old.md");
+      await writeFileContent(oldSkillPath, "old skill");
+      await writeFileContent(oldRulePath, "old rule");
+
+      await expect(
+        runWithDirectoryRollback({
+          directoryPaths: [skillsDir, rulesDir],
+          action: async () => {
+            await removeDirectory(skillsDir);
+            await removeDirectory(rulesDir);
+            await writeFileContent(join(skillsDir, "new", "SKILL.md"), "new skill");
+            await writeFileContent(join(rulesDir, "new.md"), "new rule");
+            throw new Error("source failed");
+          },
+        }),
+      ).rejects.toThrow("source failed");
+
+      expect(await readFileContent(oldSkillPath)).toBe("old skill");
+      expect(await readFileContent(oldRulePath)).toBe("old rule");
+      expect(await fileExists(join(skillsDir, "new", "SKILL.md"))).toBe(false);
+      expect(await fileExists(join(rulesDir, "new.md"))).toBe(false);
     });
   });
 

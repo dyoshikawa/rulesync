@@ -1,4 +1,5 @@
 import {
+  cp,
   lstat,
   mkdir,
   mkdtemp,
@@ -73,6 +74,53 @@ export async function assertDirectoryIfExists(dirPath: string): Promise<void> {
     if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
       throw error;
     }
+  }
+}
+
+export async function runWithDirectoryRollback<T>(params: {
+  directoryPaths: string[];
+  action: () => Promise<T>;
+}): Promise<T> {
+  const backupRoot = await createTempDirectory("rulesync-rollback-");
+  const snapshots: Array<{ directoryPath: string; backupPath: string; existed: boolean }> = [];
+  try {
+    for (const [index, directoryPath] of params.directoryPaths.entries()) {
+      const backupPath = join(backupRoot, String(index));
+      let existed = false;
+      try {
+        const stats = await lstat(directoryPath);
+        if (!stats.isDirectory()) {
+          throw new Error(`Expected a directory at rollback path: ${directoryPath}.`);
+        }
+        await cp(directoryPath, backupPath, { recursive: true });
+        existed = true;
+      } catch (error) {
+        if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
+          throw error;
+        }
+      }
+      snapshots.push({ directoryPath, backupPath, existed });
+    }
+    return await params.action();
+  } catch (error) {
+    try {
+      for (const snapshot of snapshots) {
+        await rm(snapshot.directoryPath, { recursive: true, force: true });
+        if (snapshot.existed) {
+          await cp(snapshot.backupPath, snapshot.directoryPath, { recursive: true });
+        }
+      }
+    } catch (rollbackError) {
+      // oxlint-disable-next-line preserve-caught-error -- AggregateError retains both failures.
+      throw new AggregateError(
+        [error, rollbackError],
+        "Action and directory rollback both failed.",
+        { cause: error },
+      );
+    }
+    throw error;
+  } finally {
+    await removeTempDirectory(backupRoot);
   }
 }
 

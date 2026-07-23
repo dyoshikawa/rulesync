@@ -558,6 +558,47 @@ describe("resolveAndFetchSources", () => {
     );
   });
 
+  it("should remove a formerly owned curated rule even when a local rule has the same name", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    const curatedRulePath = join(
+      testDir,
+      RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
+      "testing-guidelines.md",
+    );
+    const curatedSkillDir = join(
+      testDir,
+      RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+      "cached-skill",
+    );
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "locked-sha",
+          skills: { "cached-skill": { integrity: "sha256-cached" } },
+          rules: { "testing-guidelines": { integrity: "sha256-old" } },
+          ruleSelection: ["testing-guidelines"],
+          rulesPath: "rules",
+          resolvedRuleNames: ["testing-guidelines"],
+        },
+      },
+    });
+    vi.mocked(directoryExists).mockImplementation(async (path) => path === curatedSkillDir);
+    vi.mocked(fileExists).mockImplementation(async (path) => path === curatedRulePath);
+    vi.mocked(findFilesByGlobs).mockResolvedValue([
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "testing-guidelines.md"),
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo" }],
+      projectRoot: testDir,
+    });
+
+    expect(result.failedSourceCount).toBe(0);
+    expect(removeFile).toHaveBeenCalledWith(curatedRulePath);
+  });
+
   it("should let the first declared source win for duplicate rules", async () => {
     mockClientInstance.listDirectory.mockResolvedValue([
       {
