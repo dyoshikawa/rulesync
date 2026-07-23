@@ -358,6 +358,11 @@ describe("generateOverallSummary", () => {
 
     expect(summary).toBe("重大な脆弱性が見つかりました。");
     expect(mockClient.chat.send).toHaveBeenCalledOnce();
+    expect(vi.mocked(mockClient.chat.send).mock.calls[0]?.[0]).toMatchObject({
+      chatRequest: {
+        reasoning: { effort: "high" },
+      },
+    });
   });
 
   it("should throw when no content returned", async () => {
@@ -467,6 +472,7 @@ describe("runSecurityScan", () => {
       chatRequest: {
         model: "test-model",
         messages: [{ role: "user", content: "analyze this\n\nsome code" }],
+        reasoning: { effort: "high" },
         stream: false,
       },
       appTitle: "rulesync security-scan",
