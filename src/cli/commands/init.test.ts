@@ -113,12 +113,11 @@ describe("initCommand", () => {
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_SKILLS_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(
         join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "project-context"),
       );
-      expect(ensureDir).toHaveBeenCalledTimes(8);
+      expect(ensureDir).toHaveBeenCalledTimes(9);
     });
 
     it("should call createSampleFiles", async () => {
@@ -281,7 +280,6 @@ describe("initCommand", () => {
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_SKILLS_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(
         join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "project-context"),
       );
@@ -312,9 +310,10 @@ describe("initCommand", () => {
         RULESYNC_RELATIVE_DIR_PATH,
         RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-        RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-        RULESYNC_RELATIVE_DIR_PATH,
         join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "project-context"),
+        RULESYNC_RELATIVE_DIR_PATH,
+        RULESYNC_RELATIVE_DIR_PATH,
+        RULESYNC_RELATIVE_DIR_PATH,
       ]);
     });
   });

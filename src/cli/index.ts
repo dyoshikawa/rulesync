@@ -90,7 +90,9 @@ const main = async () => {
 
   program
     .command("add <source>")
-    .description("Add a declarative rule or skill source to rulesync.jsonc and install it")
+    .description("Add a Rulesync feature file or install a declarative rule or skill source")
+    .option("--name <name>", "Name for a rule, command, subagent, skill, or check scaffold")
+    .option("-f, --force", "Overwrite an existing scaffold file without prompting")
     .option("--skills <skills>", "Comma-separated skill names to install", parseCommaSeparatedList)
     .option("--rules <rules>", "Comma-separated rule names to install", parseCommaSeparatedList)
     .option("--transport <transport>", "Source transport: github, git, or npm")

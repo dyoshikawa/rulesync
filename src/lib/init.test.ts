@@ -140,7 +140,6 @@ describe("init", () => {
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_SKILLS_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(
         join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "project-context"),
       );

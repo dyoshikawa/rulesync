@@ -1,5 +1,6 @@
 import { cp, mkdtemp, realpath, rm } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
+import { createInterface } from "node:readline/promises";
 
 import {
   applyEdits,
@@ -20,6 +21,7 @@ import {
   RULESYNC_NPM_SOURCES_LOCK_RELATIVE_FILE_PATH,
   RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createFeatureScaffold, parseScaffoldFeatureKeyword } from "../../lib/feature-scaffold.js";
 import { normalizeNpmSourceKey } from "../../lib/npm-sources-lock.js";
 import { normalizeSourceKey } from "../../lib/sources-lock.js";
 import {
@@ -32,6 +34,7 @@ import {
   assertTreeContainsNoSymlinks,
   assertWritablePathInsideRoot,
   directoryExists,
+  ensureDir,
   fileExists,
   readFileContent,
   readFileContentOrNull,
@@ -52,8 +55,11 @@ export type AddCommandOptions = {
   tokenEnv?: string;
   token?: string;
   configPath?: string;
+  name?: string;
+  force?: boolean;
   verbose?: boolean;
   silent?: boolean;
+  confirmOverwrite?: (relativeFilePath: string) => Promise<boolean>;
 };
 
 const SOURCE_ENTRY_KEYS = [
@@ -242,6 +248,100 @@ function buildSourceEntry(options: AddCommandOptions): SourceEntry {
   });
 }
 
+function hasSourceOnlyOptions(options: AddCommandOptions): boolean {
+  return [
+    options.skills,
+    options.rules,
+    options.transport,
+    options.ref,
+    options.path,
+    options.rulesPath,
+    options.registry,
+    options.tokenEnv,
+    options.token,
+    options.configPath,
+  ].some((value) => value !== undefined);
+}
+
+async function promptForOverwrite(relativeFilePath: string): Promise<boolean> {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new Error(
+      `Refusing to overwrite ${relativeFilePath} in non-interactive mode. Re-run with --force to replace it.`,
+    );
+  }
+
+  const prompt = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const answer = await prompt.question(`Overwrite ${relativeFilePath}? [y/N] `);
+    return /^(?:y|yes)$/i.test(answer.trim());
+  } finally {
+    prompt.close();
+  }
+}
+
+async function addFeatureScaffold({
+  logger,
+  options,
+}: {
+  logger: Logger;
+  options: AddCommandOptions;
+}): Promise<void> {
+  const feature = parseScaffoldFeatureKeyword(options.source);
+  if (!feature) {
+    throw new Error("--name and --force are only valid when adding a Rulesync feature file.");
+  }
+
+  const scaffold = createFeatureScaffold({ feature, name: options.name });
+  const projectRoot = process.cwd();
+  const targetPath = join(projectRoot, scaffold.relativeFilePath);
+  await assertWritablePathInsideRoot({ rootPath: projectRoot, targetPath });
+
+  if ((await fileExists(targetPath)) && !options.force) {
+    const confirmed = await (options.confirmOverwrite ?? promptForOverwrite)(
+      scaffold.relativeFilePath,
+    );
+    if (!confirmed) {
+      logger.info(`Kept ${scaffold.relativeFilePath} unchanged.`);
+      if (logger.jsonMode) {
+        logger.captureData("created", []);
+        logger.captureData("skipped", [scaffold.relativeFilePath]);
+      }
+      return;
+    }
+  }
+
+  await ensureDir(dirname(targetPath));
+  await writeFileContent(targetPath, scaffold.content);
+  logger.success(`Created ${scaffold.relativeFilePath}`);
+  if (logger.jsonMode) {
+    logger.captureData("created", [scaffold.relativeFilePath]);
+    logger.captureData("skipped", []);
+  }
+}
+
+async function handleFeatureScaffoldRequest({
+  logger,
+  options,
+}: {
+  logger: Logger;
+  options: AddCommandOptions;
+}): Promise<boolean> {
+  const feature = parseScaffoldFeatureKeyword(options.source);
+  const sourceOnlyOptions = hasSourceOnlyOptions(options);
+  const scaffoldOnlyOptions = options.name !== undefined || options.force === true;
+
+  if (feature && scaffoldOnlyOptions && sourceOnlyOptions) {
+    throw new Error(
+      "Feature scaffold options (--name, --force) cannot be combined with declarative source options.",
+    );
+  }
+  if ((feature && !sourceOnlyOptions) || scaffoldOnlyOptions) {
+    await addFeatureScaffold({ logger, options });
+    return true;
+  }
+  return false;
+}
+
 function parseConfigContent(content: string, configPath: string) {
   const errors: ParseError[] = [];
   const parsed = parseJsonc(content, errors, { allowTrailingComma: true });
@@ -255,6 +355,10 @@ function parseConfigContent(content: string, configPath: string) {
 }
 
 export async function addCommand(logger: Logger, options: AddCommandOptions): Promise<void> {
+  if (await handleFeatureScaffoldRequest({ logger, options })) {
+    return;
+  }
+
   const projectRoot = process.cwd();
   const relativeConfigPath = options.configPath ?? RULESYNC_CONFIG_RELATIVE_FILE_PATH;
   const configPath = resolvePath(relativeConfigPath, projectRoot);
