@@ -493,6 +493,68 @@ describe("resolveAndFetchSources", () => {
     );
   });
 
+  it("should refetch cached rules when updating a combined source", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+    const oldRuleContent = "old rule";
+    const newRuleContent = "new rule";
+    const newSha = "a".repeat(40);
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          requestedRef: "main",
+          resolvedRef: "b".repeat(40),
+          skills: { shared: { integrity: "sha256-old-skill" } },
+          rules: { shared: { integrity: computeRuleIntegrity(oldRuleContent) } },
+          ruleSelection: ["shared"],
+          rulesPath: "rules",
+          resolvedRuleNames: ["shared"],
+        },
+      },
+    });
+    vi.mocked(fileExists).mockResolvedValue(true);
+    vi.mocked(readFileContent).mockResolvedValue(oldRuleContent);
+    mockClientInstance.resolveRefToSha.mockResolvedValue(newSha);
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "shared", path: "skills/shared", type: "dir" }];
+        }
+        if (path === "skills/shared") {
+          return [{ name: "SKILL.md", path: "skills/shared/SKILL.md", type: "file", size: 50 }];
+        }
+        if (path === "rules") {
+          return [{ name: "shared.md", path: "rules/shared.md", type: "file", size: 50 }];
+        }
+        return [];
+      },
+    );
+    mockClientInstance.getFileContent.mockImplementation(
+      async (_owner: string, _repo: string, path: string) =>
+        path === "rules/shared.md" ? newRuleContent : "new skill",
+    );
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", skills: ["shared"], rules: ["shared"] }],
+      projectRoot: testDir,
+      options: { updateSources: true },
+    });
+
+    expect(result.fetchedRuleCount).toBe(1);
+    expect(mockClientInstance.resolveRefToSha).toHaveBeenCalledTimes(1);
+    expect(mockClientInstance.getFileContent).toHaveBeenCalledWith(
+      "org",
+      "repo",
+      "rules/shared.md",
+      newSha,
+    );
+    expect(
+      vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock.sources["org/repo"]?.rules?.shared
+        ?.integrity,
+    ).toBe(computeRuleIntegrity(newRuleContent));
+  });
+
   it("should preserve existing rules when a GitHub download fails", async () => {
     const { readLockFile } = await import("./sources-lock.js");
     vi.mocked(readLockFile).mockResolvedValue({
@@ -771,6 +833,51 @@ describe("resolveAndFetchSources", () => {
       ref: "main",
       resolvedRef: "a".repeat(40),
       skillsPath: "exports/rules",
+      logger,
+    });
+  });
+
+  it("should refetch cached git rules from the same SHA when updating a combined source", async () => {
+    const { fetchSkillFiles, resolveRefToSha } = await import("./git-client.js");
+    const { readLockFile } = await import("./sources-lock.js");
+    const source = "https://example.com/team/assets.git";
+    const newSha = "a".repeat(40);
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        [source]: {
+          requestedRef: "main",
+          resolvedRef: "b".repeat(40),
+          skills: { shared: { integrity: "sha256-old-skill" } },
+          rules: { shared: { integrity: computeRuleIntegrity("old rule") } },
+          ruleSelection: ["shared"],
+          rulesPath: "rules",
+          resolvedRuleNames: ["shared"],
+        },
+      },
+    });
+    vi.mocked(fileExists).mockResolvedValue(true);
+    vi.mocked(readFileContent).mockResolvedValue("old rule");
+    vi.mocked(resolveRefToSha).mockResolvedValue(newSha);
+    vi.mocked(fetchSkillFiles)
+      .mockResolvedValueOnce([{ relativePath: "shared/SKILL.md", content: "new skill", size: 50 }])
+      .mockResolvedValueOnce([{ relativePath: "shared.md", content: "new rule", size: 50 }]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source, transport: "git", ref: "main", skills: ["shared"], rules: ["shared"] }],
+      projectRoot: testDir,
+      options: { updateSources: true },
+    });
+
+    expect(result.fetchedRuleCount).toBe(1);
+    expect(resolveRefToSha).toHaveBeenCalledTimes(1);
+    expect(fetchSkillFiles).toHaveBeenCalledTimes(2);
+    expect(fetchSkillFiles).toHaveBeenLastCalledWith({
+      url: source,
+      ref: "main",
+      resolvedRef: newSha,
+      skillsPath: "rules",
       logger,
     });
   });

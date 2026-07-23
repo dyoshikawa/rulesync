@@ -485,6 +485,7 @@ async function fetchSingleSource(params: {
       // A preceding skill fetch has already resolved and locked this source.
       // Reuse that exact ref so one source cannot mix artifacts from two SHAs.
       updateSources: filters.skills === undefined ? params.updateSources : false,
+      forceRefetch: filters.skills !== undefined && params.updateSources,
       frozen: params.frozen,
       logger: params.logger,
     });
@@ -1422,6 +1423,7 @@ async function fetchRulesByTransport(params: {
   localRuleNames: Set<string>;
   alreadyFetchedRuleNames: Set<string>;
   updateSources: boolean;
+  forceRefetch: boolean;
   frozen: boolean;
   logger: Logger;
 }): Promise<{ ruleCount: number; fetchedRuleNames: string[]; updatedLock: SourcesLock }> {
@@ -1439,6 +1441,7 @@ async function fetchRulesViaGithub(params: {
   localRuleNames: Set<string>;
   alreadyFetchedRuleNames: Set<string>;
   updateSources: boolean;
+  forceRefetch: boolean;
   logger: Logger;
 }): Promise<{ ruleCount: number; fetchedRuleNames: string[]; updatedLock: SourcesLock }> {
   const {
@@ -1449,6 +1452,7 @@ async function fetchRulesViaGithub(params: {
     localRuleNames,
     alreadyFetchedRuleNames,
     updateSources,
+    forceRefetch,
     logger,
   } = params;
   const parsedFromSource = parseSource(sourceEntry.source);
@@ -1475,6 +1479,7 @@ async function fetchRulesViaGithub(params: {
     locked &&
     resolvedSha === locked.resolvedRef &&
     !updateSources &&
+    !forceRefetch &&
     (await canReuseLockedRules({
       locked,
       sourceEntry,
@@ -1537,7 +1542,7 @@ async function fetchRulesViaGithub(params: {
     sourceKey,
     localRuleNames,
     alreadyFetchedRuleNames,
-    compareLockedIntegrity: !updateSources,
+    compareLockedIntegrity: !updateSources && !forceRefetch,
     logger,
   });
   const result = buildRuleLockUpdate({
@@ -1566,6 +1571,7 @@ async function fetchRulesViaGit(params: {
   localRuleNames: Set<string>;
   alreadyFetchedRuleNames: Set<string>;
   updateSources: boolean;
+  forceRefetch: boolean;
   frozen: boolean;
   logger: Logger;
 }): Promise<{ ruleCount: number; fetchedRuleNames: string[]; updatedLock: SourcesLock }> {
@@ -1576,6 +1582,7 @@ async function fetchRulesViaGit(params: {
     localRuleNames,
     alreadyFetchedRuleNames,
     updateSources,
+    forceRefetch,
     frozen,
     logger,
   } = params;
@@ -1601,6 +1608,7 @@ async function fetchRulesViaGit(params: {
     locked &&
     resolvedRef === locked.resolvedRef &&
     !updateSources &&
+    !forceRefetch &&
     (await canReuseLockedRules({
       locked,
       sourceEntry,
@@ -1650,7 +1658,7 @@ async function fetchRulesViaGit(params: {
     sourceKey,
     localRuleNames,
     alreadyFetchedRuleNames,
-    compareLockedIntegrity: !updateSources,
+    compareLockedIntegrity: !updateSources && !forceRefetch,
     logger,
   });
   const result = buildRuleLockUpdate({
