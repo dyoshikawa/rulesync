@@ -8,6 +8,8 @@ To add one source without editing JSONC by hand, run `rulesync add <source>`. It
 rulesync add anthropics/skills --skills skill-creator
 ```
 
+The command fetches only the source being added. Existing sources must already be locked and installed; run `rulesync install` first when they are not. If the new source fails, Rulesync restores the manifest, source lockfiles, and curated skills to their previous state.
+
 ## Configuration
 
 Add a `sources` array to your `rulesync.jsonc`:

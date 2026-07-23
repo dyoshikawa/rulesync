@@ -273,7 +273,9 @@ describe("installCommand with npm-transport sources (happy path)", () => {
       return new Response("not found", { status: 404 });
     });
 
-    await installCommand(logger, {});
+    await expect(installCommand(logger, {})).rejects.toThrow(
+      /Failed to install 1 of 1 rulesync source/,
+    );
 
     expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining("Integrity verification failed"),
@@ -299,7 +301,9 @@ describe("installCommand with npm-transport sources (happy path)", () => {
     );
     fetchMock.mockResolvedValue(new Response("unauthorized", { status: 401 }));
 
-    await installCommand(logger, {});
+    await expect(installCommand(logger, {})).rejects.toThrow(
+      /Failed to install 1 of 1 rulesync source/,
+    );
 
     expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("HTTP 401"));
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("NPM_TOKEN"));

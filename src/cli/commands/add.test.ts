@@ -1,13 +1,19 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { parse as parseJsonc } from "jsonc-parser";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SourceEntry } from "../../config/config.js";
-import { resolveAndFetchSources } from "../../lib/sources.js";
+import {
+  RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+  RULESYNC_NPM_SOURCES_LOCK_RELATIVE_FILE_PATH,
+  RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH,
+} from "../../constants/rulesync-paths.js";
+import { getInstalledSourceSkillNames, resolveAndFetchSources } from "../../lib/sources.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
+import { ensureDir, fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
 import { addCommand } from "./add.js";
 
 vi.mock("../../lib/sources.js");
@@ -22,9 +28,10 @@ describe("addCommand", () => {
     ({ testDir, cleanup } = await setupTestDirectory());
     vi.spyOn(process, "cwd").mockReturnValue(testDir);
     logger = createMockLogger();
+    vi.mocked(getInstalledSourceSkillNames).mockResolvedValue([]);
     vi.mocked(resolveAndFetchSources).mockResolvedValue({
       fetchedSkillCount: 2,
-      sourcesProcessed: 2,
+      sourcesProcessed: 1,
       failedSourceCount: 0,
     });
   });
@@ -35,7 +42,7 @@ describe("addCommand", () => {
     vi.clearAllMocks();
   });
 
-  it("should append a source, preserve comments, and install all declared sources", async () => {
+  it("should append a source, preserve comments, and install only the added source", async () => {
     const configPath = join(testDir, "rulesync.jsonc");
     await writeFileContent(
       configPath,
@@ -64,10 +71,21 @@ describe("addCommand", () => {
       { source: "owner/existing" },
       { source: "anthropics/skills", skills: ["skill-creator"] },
     ]);
-    expect(resolveAndFetchSources).toHaveBeenCalledWith({
-      sources: parsed.sources,
+    expect(getInstalledSourceSkillNames).toHaveBeenCalledWith({
+      sources: [{ source: "owner/existing" }],
       projectRoot: testDir,
-      options: { token: undefined },
+      logger,
+    });
+    expect(resolveAndFetchSources).toHaveBeenCalledWith({
+      sources: [{ source: "anthropics/skills", skills: ["skill-creator"] }],
+      projectRoot: testDir,
+      options: {
+        token: undefined,
+        updateSources: true,
+        preserveUnlistedLockEntries: true,
+        requireResolvedSkills: true,
+        reservedSkillNames: [],
+      },
       logger,
     });
     expect(logger.success).toHaveBeenCalledWith(
@@ -179,8 +197,102 @@ describe("addCommand", () => {
     expect(resolveAndFetchSources).not.toHaveBeenCalled();
   });
 
-  it("should retain the manifest entry and report a failed install", async () => {
+  it("should reject a source already declared by the local config without editing the base", async () => {
     const configPath = join(testDir, "rulesync.jsonc");
+    const originalContent = `{
+  "targets": ["claudecode"],
+  "features": ["skills"]
+}
+`;
+    await writeFileContent(configPath, originalContent);
+    await writeFileContent(
+      join(testDir, "rulesync.local.jsonc"),
+      `{
+  "sources": [{ "source": "owner/local" }]
+}
+`,
+    );
+
+    await expect(addCommand(logger, { source: "owner/local" })).rejects.toThrow(
+      /already declared in the effective configuration/,
+    );
+
+    expect(await readFileContent(configPath)).toBe(originalContent);
+    expect(resolveAndFetchSources).not.toHaveBeenCalled();
+  });
+
+  it("should reject a config symlink that resolves outside the project root", async () => {
+    const projectRoot = join(testDir, "project");
+    const outsideConfigPath = join(testDir, "outside.jsonc");
+    const originalContent = `{
+  "targets": ["claudecode"],
+  "features": ["skills"]
+}
+`;
+    await ensureDir(projectRoot);
+    await writeFileContent(outsideConfigPath, originalContent);
+    await symlink(outsideConfigPath, join(projectRoot, "rulesync.jsonc"));
+    vi.mocked(process.cwd).mockReturnValue(projectRoot);
+
+    await expect(addCommand(logger, { source: "owner/repo" })).rejects.toThrow(
+      /must resolve inside the project root/,
+    );
+
+    expect(await readFileContent(outsideConfigPath)).toBe(originalContent);
+    expect(resolveAndFetchSources).not.toHaveBeenCalled();
+  });
+
+  it("should reject a lockfile symlink without modifying its target", async () => {
+    const projectRoot = join(testDir, "project");
+    const outsideLockPath = join(testDir, "outside.lock");
+    await ensureDir(projectRoot);
+    await writeFileContent(
+      join(projectRoot, "rulesync.jsonc"),
+      `{
+  "targets": ["claudecode"],
+  "features": ["skills"]
+}
+`,
+    );
+    await writeFileContent(outsideLockPath, "outside lock\n");
+    await symlink(outsideLockPath, join(projectRoot, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH));
+    vi.mocked(process.cwd).mockReturnValue(projectRoot);
+
+    await expect(addCommand(logger, { source: "owner/repo" })).rejects.toThrow(
+      /Refusing to write through a symbolic link/,
+    );
+
+    expect(await readFileContent(outsideLockPath)).toBe("outside lock\n");
+    expect(resolveAndFetchSources).not.toHaveBeenCalled();
+  });
+
+  it("should reject a curated tree containing a symbolic link", async () => {
+    const projectRoot = join(testDir, "project");
+    const outsideSkillDir = join(testDir, "outside-skill");
+    const curatedPath = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+    await ensureDir(outsideSkillDir);
+    await writeFileContent(
+      join(projectRoot, "rulesync.jsonc"),
+      `{
+  "targets": ["claudecode"],
+  "features": ["skills"]
+}
+`,
+    );
+    await ensureDir(curatedPath);
+    await symlink(outsideSkillDir, join(curatedPath, "escaped"));
+    vi.mocked(process.cwd).mockReturnValue(projectRoot);
+
+    await expect(addCommand(logger, { source: "owner/repo" })).rejects.toThrow(
+      /tree containing a symbolic link/,
+    );
+
+    expect(resolveAndFetchSources).not.toHaveBeenCalled();
+  });
+
+  it("should reject a curated path that is not a directory", async () => {
+    const configPath = join(testDir, "rulesync.jsonc");
+    const curatedPath = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
     await writeFileContent(
       configPath,
       `{
@@ -189,18 +301,98 @@ describe("addCommand", () => {
 }
 `,
     );
-    vi.mocked(resolveAndFetchSources).mockResolvedValue({
-      fetchedSkillCount: 0,
-      sourcesProcessed: 1,
-      failedSourceCount: 1,
+    await writeFileContent(curatedPath, "not a directory\n");
+
+    await expect(addCommand(logger, { source: "owner/repo" })).rejects.toThrow(
+      /Expected a directory at writable path/,
+    );
+
+    expect(await readFileContent(curatedPath)).toBe("not a directory\n");
+    expect(resolveAndFetchSources).not.toHaveBeenCalled();
+  });
+
+  it("should reject source URLs containing credentials", async () => {
+    const configPath = join(testDir, "rulesync.jsonc");
+    const originalContent = `{
+  "targets": ["claudecode"],
+  "features": ["skills"]
+}
+`;
+    await writeFileContent(configPath, originalContent);
+    const credentials = ["user", "secret"].join(":");
+
+    await expect(
+      addCommand(logger, {
+        source: `https://${credentials}@example.com/owner/repo.git`,
+        transport: "git",
+      }),
+    ).rejects.toThrow(/must not contain credentials/);
+
+    expect(await readFileContent(configPath)).toBe(originalContent);
+    expect(resolveAndFetchSources).not.toHaveBeenCalled();
+  });
+
+  it("should restore the manifest and report a failed install", async () => {
+    const configPath = join(testDir, "rulesync.jsonc");
+    const sourcesLockPath = join(testDir, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH);
+    const npmSourcesLockPath = join(testDir, RULESYNC_NPM_SOURCES_LOCK_RELATIVE_FILE_PATH);
+    const existingSkillPath = join(
+      testDir,
+      RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+      "existing",
+      "SKILL.md",
+    );
+    const addedSkillPath = join(
+      testDir,
+      RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+      "added",
+      "SKILL.md",
+    );
+    const originalContent = `{
+  "targets": ["claudecode"],
+  "features": ["skills"]
+}
+`;
+    await writeFileContent(configPath, originalContent);
+    await writeFileContent(sourcesLockPath, "original lock\n");
+    await writeFileContent(existingSkillPath, "original skill\n");
+    vi.mocked(resolveAndFetchSources).mockImplementation(async () => {
+      await writeFileContent(sourcesLockPath, "updated lock\n");
+      await writeFileContent(npmSourcesLockPath, "new npm lock\n");
+      await writeFileContent(existingSkillPath, "modified skill\n");
+      await writeFileContent(addedSkillPath, "added skill\n");
+      return {
+        fetchedSkillCount: 1,
+        sourcesProcessed: 1,
+        failedSourceCount: 1,
+      };
     });
 
     await expect(addCommand(logger, { source: "owner/unavailable" })).rejects.toThrow(
-      /Added the source.*failed to install/,
+      /Failed to install.*restored rulesync\.jsonc/,
     );
 
-    expect(await fileExists(configPath)).toBe(true);
-    const parsed = parseJsonc(await readFileContent(configPath)) as { sources: SourceEntry[] };
-    expect(parsed.sources).toEqual([{ source: "owner/unavailable" }]);
+    expect(await readFileContent(configPath)).toBe(originalContent);
+    expect(await readFileContent(sourcesLockPath)).toBe("original lock\n");
+    expect(await fileExists(npmSourcesLockPath)).toBe(false);
+    expect(await readFileContent(existingSkillPath)).toBe("original skill\n");
+    expect(await fileExists(addedSkillPath)).toBe(false);
+  });
+
+  it("should restore the manifest when source resolution rejects", async () => {
+    const configPath = join(testDir, "rulesync.jsonc");
+    const originalContent = `{
+  "targets": ["claudecode"],
+  "features": ["skills"]
+}
+`;
+    await writeFileContent(configPath, originalContent);
+    vi.mocked(resolveAndFetchSources).mockRejectedValue(new Error("Lockfile write failed"));
+
+    await expect(addCommand(logger, { source: "owner/repo" })).rejects.toThrow(
+      "Lockfile write failed",
+    );
+
+    expect(await readFileContent(configPath)).toBe(originalContent);
   });
 });

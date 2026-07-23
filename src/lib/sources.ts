@@ -78,6 +78,12 @@ export type ResolveAndFetchSourcesOptions = {
   frozen?: boolean;
   /** GitHub token for private repositories. */
   token?: string;
+  /** Keep lock entries for sources omitted from this invocation. */
+  preserveUnlistedLockEntries?: boolean;
+  /** Treat a source resolving to no installed or locked skills as a failure. */
+  requireResolvedSkills?: boolean;
+  /** Skill names owned by earlier sources and unavailable to this invocation. */
+  reservedSkillNames?: string[];
 };
 
 export type ResolveAndFetchSourcesResult = {
@@ -115,12 +121,17 @@ export async function resolveAndFetchSources(params: {
   // Read existing lockfiles. npm-transport sources are pinned in a separate
   // lockfile (`rulesync-npm.lock.json`) because they lock a package version +
   // tarball integrity instead of a git commit SHA.
-  let lock: SourcesLock = options.updateSources
-    ? createEmptyLock()
-    : await readLockFile({ projectRoot, logger });
-  let npmLock: NpmSourcesLock = options.updateSources
-    ? createEmptyNpmLock()
-    : await readNpmLockFile({ projectRoot, logger });
+  let lock: SourcesLock =
+    options.updateSources && !options.preserveUnlistedLockEntries
+      ? createEmptyLock()
+      : await readLockFile({ projectRoot, logger });
+  let npmLock: NpmSourcesLock =
+    options.updateSources && !options.preserveUnlistedLockEntries
+      ? createEmptyNpmLock()
+      : await readNpmLockFile({ projectRoot, logger });
+  if (options.updateSources && options.preserveUnlistedLockEntries) {
+    ({ lock, npmLock } = removeInvokedLockEntries({ lock, npmLock, sources }));
+  }
 
   // Frozen mode: validate lockfiles cover all declared sources.
   // Missing curated skills are fetched using locked refs.
@@ -140,7 +151,7 @@ export async function resolveAndFetchSources(params: {
 
   let totalSkillCount = 0;
   let failedSourceCount = 0;
-  const allFetchedSkillNames = new Set<string>();
+  const allFetchedSkillNames = new Set(options.reservedSkillNames ?? []);
 
   for (const sourceEntry of sources) {
     try {
@@ -159,6 +170,10 @@ export async function resolveAndFetchSources(params: {
 
       lock = result.lock;
       npmLock = result.npmLock;
+      failedSourceCount += resolvedSkillFailureCount({
+        required: options.requireResolvedSkills ?? false,
+        resolvedSkillNames: result.fetchedSkillNames,
+      });
       totalSkillCount += result.skillCount;
       for (const name of result.fetchedSkillNames) {
         allFetchedSkillNames.add(name);
@@ -169,8 +184,10 @@ export async function resolveAndFetchSources(params: {
     }
   }
 
-  lock = pruneStaleLockEntries({ lock, sources, logger });
-  npmLock = pruneStaleNpmLockEntries({ npmLock, sources, logger });
+  if (!options.preserveUnlistedLockEntries) {
+    lock = pruneStaleLockEntries({ lock, sources, logger });
+    npmLock = pruneStaleNpmLockEntries({ npmLock, sources, logger });
+  }
 
   await writeLockFilesIfChanged({
     projectRoot,
@@ -187,6 +204,49 @@ export async function resolveAndFetchSources(params: {
     sourcesProcessed: sources.length,
     failedSourceCount,
   };
+}
+
+function resolvedSkillFailureCount({
+  required,
+  resolvedSkillNames,
+}: {
+  required: boolean;
+  resolvedSkillNames: string[];
+}): number {
+  return required && resolvedSkillNames.length === 0 ? 1 : 0;
+}
+
+export async function getInstalledSourceSkillNames({
+  sources,
+  projectRoot,
+  logger,
+}: {
+  sources: SourceEntry[];
+  projectRoot: string;
+  logger: Logger;
+}): Promise<string[]> {
+  const lock = await readLockFile({ projectRoot, logger });
+  const npmLock = await readNpmLockFile({ projectRoot, logger });
+  const curatedDir = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+  const skillNames = new Set<string>();
+  for (const source of sources) {
+    const npmTransport = (source.transport ?? "github") === "npm";
+    const entry = npmTransport
+      ? getNpmLockedSource(npmLock, source.source)
+      : getLockedSource(lock, source.source);
+    const lockedSkillNames = entry
+      ? npmTransport
+        ? getNpmLockedSkillNames(entry as NpmLockedSource)
+        : getLockedSkillNames(entry as LockedSource)
+      : [];
+    if (entry === undefined || !(await checkLockedSkillsExist(curatedDir, lockedSkillNames))) {
+      throw new Error(
+        `Existing source "${source.source}" is not fully installed. Run 'rulesync install' before adding another source.`,
+      );
+    }
+    lockedSkillNames.forEach((skillName) => skillNames.add(skillName));
+  }
+  return [...skillNames];
 }
 
 /**
@@ -407,6 +467,45 @@ function pruneStaleLockEntries(params: {
   return { lockfileVersion: lock.lockfileVersion, sources: prunedSources };
 }
 
+function removeInvokedLockEntries({
+  lock,
+  npmLock,
+  sources,
+}: {
+  lock: SourcesLock;
+  npmLock: NpmSourcesLock;
+  sources: SourceEntry[];
+}): { lock: SourcesLock; npmLock: NpmSourcesLock } {
+  const invokedGitSources = new Set(
+    sources
+      .filter((source) => (source.transport ?? "github") !== "npm")
+      .map((source) => normalizeSourceKey(source.source)),
+  );
+  const invokedNpmSources = new Set(
+    sources
+      .filter((source) => (source.transport ?? "github") === "npm")
+      .map((source) => normalizeNpmSourceKey(source.source)),
+  );
+  return {
+    lock: {
+      lockfileVersion: lock.lockfileVersion,
+      sources: Object.fromEntries(
+        Object.entries(lock.sources).filter(
+          ([source]) => !invokedGitSources.has(normalizeSourceKey(source)),
+        ),
+      ),
+    },
+    npmLock: {
+      lockfileVersion: npmLock.lockfileVersion,
+      sources: Object.fromEntries(
+        Object.entries(npmLock.sources).filter(
+          ([source]) => !invokedNpmSources.has(normalizeNpmSourceKey(source)),
+        ),
+      ),
+    },
+  };
+}
+
 /**
  * Prune stale npm lockfile entries whose keys are not in the current
  * npm-transport sources (immutable — returns a fresh lock object).
@@ -570,6 +669,18 @@ function mergeFetchedWithLockedSkills(params: {
     }
   }
   return mergedSkills;
+}
+
+function assertMatchingSkillsFound({
+  skillNames,
+  source,
+}: {
+  skillNames: string[];
+  source: string;
+}): void {
+  if (skillNames.length === 0) {
+    throw new Error(`No matching skills found in ${source}.`);
+  }
 }
 
 /**
@@ -958,6 +1069,13 @@ async function discoverGithubSkillDirs(params: {
     if (
       shouldUseRootFallback({ skillFilter, isWildcard, hasRootSkillFile, hasRequestedSkillDir })
     ) {
+      if (locked) {
+        await cleanPreviousCuratedSkills({
+          curatedDir,
+          lockedSkillNames: Object.keys(locked.skills),
+          logger,
+        });
+      }
       const fallback = await fetchRootLevelFallbackSkill({
         entries,
         parsed,
@@ -1022,11 +1140,15 @@ async function fetchSource(params: {
   } = params;
   const { lock } = params;
 
-  const parsed = parseSource(sourceEntry.source);
+  const parsedFromSource = parseSource(sourceEntry.source);
+  const parsed: ParsedSource = {
+    ...parsedFromSource,
+    ref: sourceEntry.ref ?? parsedFromSource.ref,
+    path: sourceEntry.path ?? parsedFromSource.path,
+  };
 
   if (parsed.provider === "gitlab") {
-    logger.warn(`GitLab sources are not yet supported. Skipping "${sourceEntry.source}".`);
-    return { skillCount: 0, fetchedSkillNames: [], updatedLock: lock };
+    throw new Error(`GitLab sources are not yet supported: "${sourceEntry.source}".`);
   }
 
   const sourceKey = sourceEntry.source;
@@ -1084,8 +1206,7 @@ async function fetchSource(params: {
     logger,
   });
   if (discovery.status === "notFound") {
-    logger.warn(`No skills/ directory found in ${sourceKey}. Skipping.`);
-    return { skillCount: 0, fetchedSkillNames: [], updatedLock: lock };
+    throw new Error(`No skills/ directory found in ${sourceKey}.`);
   }
   const { remoteSkillDirs, fallbackHandled, remoteSkillNames: fallbackSkillNames } = discovery;
 
@@ -1094,8 +1215,9 @@ async function fetchSource(params: {
     ? remoteSkillDirs
     : remoteSkillDirs.filter((d) => skillFilter.includes(d.name));
   const remoteSkillNames = fallbackHandled ? fallbackSkillNames : filteredDirs.map((d) => d.name);
+  assertMatchingSkillsFound({ skillNames: remoteSkillNames, source: sourceKey });
 
-  if (locked) {
+  if (locked && !fallbackHandled) {
     await cleanPreviousCuratedSkills({ curatedDir, lockedSkillNames, logger });
   }
 
@@ -1221,6 +1343,7 @@ async function fetchSourceViaGit(params: {
 
   const allNames = [...skillFileMap.keys()];
   const filteredNames = isWildcard ? allNames : allNames.filter((n) => skillFilter.includes(n));
+  assertMatchingSkillsFound({ skillNames: filteredNames, source: url });
 
   if (locked) {
     await cleanPreviousCuratedSkills({ curatedDir, lockedSkillNames, logger });
@@ -1520,6 +1643,7 @@ async function fetchSourceViaNpm(params: {
   const skillFileMap = groupRemoteFilesBySkillRoot({ remoteFiles, skillFilter, isWildcard });
   const allNames = [...skillFileMap.keys()];
   const filteredNames = isWildcard ? allNames : allNames.filter((n) => skillFilter.includes(n));
+  assertMatchingSkillsFound({ skillNames: filteredNames, source: packageName });
 
   if (locked) {
     await cleanPreviousCuratedSkills({ curatedDir, lockedSkillNames, logger });

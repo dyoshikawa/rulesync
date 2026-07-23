@@ -108,6 +108,21 @@ describe("installCommand", () => {
         /Both apm.yml and rulesync.jsonc/,
       );
     });
+
+    it("should throw when one or more rulesync sources fail", async () => {
+      const sources: SourceEntry[] = [{ source: "owner/repo" }];
+      vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
+      vi.mocked(resolveAndFetchSources).mockResolvedValue({
+        fetchedSkillCount: 0,
+        sourcesProcessed: 1,
+        failedSourceCount: 1,
+      });
+
+      await expect(installCommand(mockLogger, {})).rejects.toThrow(
+        /Failed to install 1 of 1 rulesync source/,
+      );
+      expect(mockLogger.success).not.toHaveBeenCalled();
+    });
   });
 
   describe("option forwarding (rulesync mode)", () => {

@@ -11,7 +11,7 @@ import {
   removeDirectory,
   writeFileContent,
 } from "../utils/file.js";
-import { resolveAndFetchSources } from "./sources.js";
+import { getInstalledSourceSkillNames, resolveAndFetchSources } from "./sources.js";
 
 let mockClientInstance: any;
 
@@ -134,7 +134,42 @@ describe("resolveAndFetchSources", () => {
     expect(mockClientInstance.getDefaultBranch).not.toHaveBeenCalled();
   });
 
-  it("should clean per-source locked skill directories before re-fetching", async () => {
+  it("should reserve skill names from fully installed existing sources", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/existing": {
+          resolvedRef: "existing-sha",
+          skills: { "existing-skill": { integrity: "sha256-existing" } },
+        },
+      },
+    });
+    vi.mocked(directoryExists).mockResolvedValue(true);
+
+    const result = await getInstalledSourceSkillNames({
+      sources: [{ source: "org/existing" }],
+      projectRoot: testDir,
+      logger,
+    });
+
+    expect(result).toEqual(["existing-skill"]);
+  });
+
+  it("should reject an existing source that is not locked and installed", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({ lockfileVersion: 1, sources: {} });
+
+    await expect(
+      getInstalledSourceSkillNames({
+        sources: [{ source: "org/missing" }],
+        projectRoot: testDir,
+        logger,
+      }),
+    ).rejects.toThrow(/Run 'rulesync install' before adding another source/);
+  });
+
+  it("should preserve locked skill directories when no remote skills match", async () => {
     const { readLockFile } = await import("./sources-lock.js");
     const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
 
@@ -152,9 +187,7 @@ describe("resolveAndFetchSources", () => {
       },
     });
 
-    // old-skill-a exists on disk, old-skill-b does not.
-    // Because old-skill-b is missing, the SHA-match skip check fails,
-    // and per-source cleanup runs for old-skill-a (which exists).
+    // old-skill-a exists on disk, old-skill-b does not, so the resolver checks the remote.
     vi.mocked(directoryExists).mockImplementation(async (path: string) => {
       if (path === join(curatedDir, "old-skill-a")) return true;
       return false;
@@ -169,9 +202,8 @@ describe("resolveAndFetchSources", () => {
       projectRoot: testDir,
     });
 
-    // Only old-skill-a should be removed (it existed on disk)
-    expect(removeDirectory).toHaveBeenCalledWith(join(curatedDir, "old-skill-a"));
-    // Should NOT do a blanket removal of the curated dir
+    // A source with no matching remote skills fails before mutating the previous install.
+    expect(removeDirectory).not.toHaveBeenCalledWith(join(curatedDir, "old-skill-a"));
     expect(removeDirectory).not.toHaveBeenCalledWith(curatedDir);
   });
 
@@ -242,6 +274,55 @@ describe("resolveAndFetchSources", () => {
       "SKILL.md",
     );
     expect(writeFileContent).toHaveBeenCalledWith(expectedFilePath, "# My Skill\nContent here.");
+  });
+
+  it("should honor ref and path fields for a GitHub source", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({ lockfileVersion: 1, sources: {} });
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "exports/skills") {
+          return [{ name: "my-skill", path: "exports/skills/my-skill", type: "dir" }];
+        }
+        if (path === "exports/skills/my-skill") {
+          return [
+            {
+              name: "SKILL.md",
+              path: "exports/skills/my-skill/SKILL.md",
+              type: "file",
+              size: 100,
+            },
+          ];
+        }
+        return [];
+      },
+    );
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [
+        {
+          source: "https://github.com/org/repo",
+          ref: "trusted-release",
+          path: "exports/skills",
+        },
+      ],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(1);
+    expect(mockClientInstance.getDefaultBranch).not.toHaveBeenCalled();
+    expect(mockClientInstance.resolveRefToSha).toHaveBeenCalledWith(
+      "org",
+      "repo",
+      "trusted-release",
+    );
+    expect(mockClientInstance.listDirectory).toHaveBeenCalledWith(
+      "org",
+      "repo",
+      "exports/skills",
+      "abc123def456",
+    );
   });
 
   it("should skip skills that exist locally", async () => {
@@ -346,6 +427,7 @@ describe("resolveAndFetchSources", () => {
     // Should not throw, just skip the source
     expect(result.fetchedSkillCount).toBe(0);
     expect(result.sourcesProcessed).toBe(1);
+    expect(result.failedSourceCount).toBe(1);
   });
 
   it("should re-resolve refs when updateSources is true", async () => {
@@ -438,7 +520,7 @@ describe("resolveAndFetchSources", () => {
     // Should not throw, but log error and skip
     expect(result.fetchedSkillCount).toBe(0);
     expect(result.sourcesProcessed).toBe(1);
-    expect(result.failedSourceCount).toBe(0);
+    expect(result.failedSourceCount).toBe(1);
   });
 
   it("should prune stale lockfile entries and preserve current sources", async () => {
@@ -478,6 +560,54 @@ describe("resolveAndFetchSources", () => {
     expect(writtenLock.sources["org/old-removed-repo"]).toBeUndefined();
     // The current source should be preserved (normalized key)
     expect(writtenLock.sources["org/new-repo"]).toBeDefined();
+  });
+
+  it("should preserve unlisted lock entries when resolving only a newly added source", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/existing-repo": {
+          resolvedRef: "existing-sha",
+          skills: { "existing-skill": { integrity: "sha256-existing" } },
+        },
+        "org/new-repo": {
+          resolvedRef: "stale-sha",
+          skills: { "stale-skill": { integrity: "sha256-stale" } },
+        },
+      },
+    });
+    vi.mocked(directoryExists).mockResolvedValue(true);
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "new-skill", path: "skills/new-skill", type: "dir" }];
+        }
+        if (path === "skills/new-skill") {
+          return [{ name: "SKILL.md", path: "skills/new-skill/SKILL.md", type: "file", size: 50 }];
+        }
+        return [];
+      },
+    );
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "https://github.com/org/new-repo" }],
+      projectRoot: testDir,
+      options: {
+        updateSources: true,
+        preserveUnlistedLockEntries: true,
+        requireResolvedSkills: true,
+      },
+    });
+
+    expect(result.failedSourceCount).toBe(0);
+    const writeCalls = vi.mocked(writeLockFile).mock.calls;
+    const writtenLock = writeCalls.at(-1)![0].lock;
+    expect(writtenLock.sources["org/existing-repo"]).toBeDefined();
+    expect(writtenLock.sources["org/new-repo"]).toBeDefined();
+    expect(writtenLock.sources["org/new-repo"]?.skills["stale-skill"]).toBeUndefined();
+    expect(removeDirectory).not.toHaveBeenCalled();
   });
 
   it("should not prune current sources even when config uses different URL format than lock key", async () => {
@@ -1258,6 +1388,52 @@ describe("resolveAndFetchSources", () => {
     expect(writeFileContent).toHaveBeenCalledWith(
       join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "humanizer", "SKILL.md"),
       "# Humanizer",
+    );
+  });
+
+  it("should clean a locked root fallback before writing its replacement", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/humanizer:.": {
+          resolvedRef: "locked-sha",
+          skills: { humanizer: { integrity: "sha256-old" } },
+        },
+      },
+    });
+    let skillDirectoryCheckCount = 0;
+    vi.mocked(directoryExists).mockImplementation(async (path: string) => {
+      if (path.endsWith(join("humanizer"))) {
+        skillDirectoryCheckCount += 1;
+        return skillDirectoryCheckCount > 1;
+      }
+      return false;
+    });
+    mockClientInstance.listDirectory.mockResolvedValue([
+      { name: "SKILL.md", path: "SKILL.md", type: "file", size: 50 },
+    ]);
+    mockClientInstance.getFileContent.mockResolvedValue("# Replacement");
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/humanizer:.", skills: ["humanizer"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.failedSourceCount).toBe(0);
+    const skillPath = join(
+      testDir,
+      RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+      "humanizer",
+      "SKILL.md",
+    );
+    const writeIndex = vi
+      .mocked(writeFileContent)
+      .mock.calls.findIndex(([path]) => path === skillPath);
+    expect(writeIndex).toBeGreaterThanOrEqual(0);
+    expect(vi.mocked(removeDirectory).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(writeFileContent).mock.invocationCallOrder[writeIndex]!,
     );
   });
 

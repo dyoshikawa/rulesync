@@ -87,6 +87,13 @@ async function runRulesyncInstall(logger: Logger, options: InstallCommandOptions
   if (logger.jsonMode) {
     logger.captureData("sourcesProcessed", result.sourcesProcessed);
     logger.captureData("skillsFetched", result.fetchedSkillCount);
+    logger.captureData("failedSourceCount", result.failedSourceCount);
+  }
+
+  if (result.failedSourceCount > 0) {
+    throw new Error(
+      `Failed to install ${result.failedSourceCount} of ${result.sourcesProcessed} rulesync source(s). See the log above for details.`,
+    );
   }
 
   if (result.fetchedSkillCount > 0) {

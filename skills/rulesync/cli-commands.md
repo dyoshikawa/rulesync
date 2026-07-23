@@ -168,6 +168,8 @@ rulesync add @acme/skill-package --transport npm --registry https://registry.npm
 
 The selected configuration file must already exist. Run `rulesync init` first, or pass `--config <path>`. Adding a source whose normalized source identity is already present fails instead of silently creating duplicate lockfile entries; edit the existing entry when changing its options.
 
+The operation fetches only the source being added; existing declarations are not re-fetched. Existing sources must already be locked and installed, otherwise run `rulesync install` first. The operation is transactional: if the new source fails to install, Rulesync restores the manifest, source lockfiles, and curated skills to their pre-command state.
+
 | Option               | Description                                            |
 | -------------------- | ------------------------------------------------------ |
 | `--skills <skills>`  | Comma-separated skill names; omit to install all       |
