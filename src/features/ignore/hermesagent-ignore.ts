@@ -1,5 +1,5 @@
 import { basename, join } from "node:path";
-// cspell:ignore abspath expanduser gitwildmatch normpath pathspec splitlines
+// cspell:ignore abspath expanduser gitwildmatch lexists normpath pathspec splitlines
 
 import {
   HERMESAGENT_IGNORE_PLUGIN_DIR_PATH,
@@ -79,6 +79,10 @@ def _is_ignored_path(value, matcher):
     return any(matcher.match_file(relative) for relative in _relative_paths(value))
 
 
+def _project_path_exists(value):
+    return any(os.path.lexists(PROJECT_ROOT / relative) for relative in _relative_paths(value))
+
+
 def _patch_paths(content):
     paths = []
     for line in str(content or "").splitlines():
@@ -125,7 +129,8 @@ def _filter_matches_text(value, matcher):
     has_path = False
     for line in str(value or "").splitlines():
         is_match_line = re.match(r"^  \\d+: ", line) is not None
-        if not has_path or not is_match_line or _is_ignored_path(line, matcher):
+        ambiguous_ignored_path = _is_ignored_path(line, matcher) and _project_path_exists(line)
+        if not has_path or not is_match_line or ambiguous_ignored_path:
             keep_group = not _is_ignored_path(line, matcher)
             has_path = True
         if keep_group:
