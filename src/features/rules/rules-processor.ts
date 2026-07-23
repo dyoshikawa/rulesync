@@ -26,6 +26,7 @@ import { RovodevSkill } from "../skills/rovodev-skill.js";
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { SkillsProcessor } from "../skills/skills-processor.js";
 import { AgentsmdSubagent } from "../subagents/agentsmd-subagent.js";
+import { KimiSubagent } from "../subagents/kimi-subagent.js";
 import { QwencodeSubagent } from "../subagents/qwencode-subagent.js";
 import { RovodevSubagent } from "../subagents/rovodev-subagent.js";
 import { SubagentsProcessor } from "../subagents/subagents-processor.js";
@@ -51,6 +52,7 @@ import { GrokcliRule } from "./grokcli-rule.js";
 import { HermesagentRule } from "./hermesagent-rule.js";
 import { JunieRule } from "./junie-rule.js";
 import { KiloRule } from "./kilo-rule.js";
+import { KimiRule } from "./kimi-rule.js";
 import { KiroCliRule } from "./kiro-cli-rule.js";
 import { KiroIdeRule } from "./kiro-ide-rule.js";
 import { KiroRule } from "./kiro-rule.js";
@@ -554,6 +556,27 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
         mcpInstructionsRegistrar: KiloMcp,
+      },
+    },
+  ],
+  [
+    "kimi",
+    {
+      class: KimiRule,
+      meta: {
+        // Kimi Code reads a single root `AGENTS.md` memory file
+        // (`.kimi-code/AGENTS.md` project, `~/.agents/AGENTS.md` global) and has
+        // no non-root instruction directory, so topic rules fold into the root
+        // file (mirrors reasonix/codexcli). Kimi subagents are native (Markdown
+        // + YAML frontmatter under `.kimi-code/agents/`), so this mirrors how
+        // qwencode is wired.
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        additionalConventions: {
+          subagents: { subagentClass: KimiSubagent },
+        },
+        foldsNonRootIntoRoot: true,
       },
     },
   ],

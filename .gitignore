@@ -275,6 +275,7 @@ rulesync.local.jsonc
 **/.pi/APPEND_SYSTEM.md
 **/QWEN.md
 **/.qwen/rules/
+**/.kimi-code/AGENTS.md
 **/REASONIX.md
 **/replit.md
 **/.roo/rules/
@@ -318,6 +319,7 @@ rulesync.local.jsonc
 **/.opencode/skills/
 **/.pi/skills/
 **/.qwen/skills/
+**/.kimi-code/skills/
 **/.reasonix/skills/
 **/.roo/skills/
 **/.rovodev/skills/
@@ -342,6 +344,8 @@ rulesync.local.jsonc
 **/.kilo/agents/
 **/.opencode/agents/
 **/.qwen/agents/
+**/.kimi-code/agents/
+**/.agents/agents/
 **/.rovodev/subagents/
 **/.takt/facets/personas/
 **/.vibe/agents/
@@ -360,6 +364,7 @@ rulesync.local.jsonc
 **/.qwen/settings.json
 **/.roo/mcp.json
 **/.warp/.mcp.json
+**/.kimi-code/mcp.json
 **/.amp/plugins/rulesync-hooks.ts
 **/.agents/hooks.json
 **/.cursor/hooks.json

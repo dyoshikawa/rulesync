@@ -32,6 +32,7 @@ import { GrokcliSkill } from "./grokcli-skill.js";
 import { HermesagentSkill } from "./hermesagent-skill.js";
 import { JunieSkill } from "./junie-skill.js";
 import { KiloSkill } from "./kilo-skill.js";
+import { KimiSkill } from "./kimi-skill.js";
 import { KiroCliSkill } from "./kiro-cli-skill.js";
 import { KiroIdeSkill } from "./kiro-ide-skill.js";
 import { KiroSkill } from "./kiro-skill.js";
@@ -279,6 +280,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "kilo",
     {
       class: KiloSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "kimi",
+    {
+      // Kimi Code Agent Skills are directories (`<name>/SKILL.md`) under
+      // `.kimi-code/skills/` (project) and `~/.agents/skills/` (global, the
+      // AGENTS open standard).
+      class: KimiSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

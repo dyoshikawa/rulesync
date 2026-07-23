@@ -76,6 +76,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   hermesagent: z.optional(toolScopedMcpSchema),
   junie: z.optional(toolScopedMcpSchema),
   kilo: z.optional(toolScopedMcpSchema),
+  kimi: z.optional(toolScopedMcpSchema),
   kiro: z.optional(toolScopedMcpSchema),
   opencode: z.optional(toolScopedMcpSchema),
   qwencode: z.optional(toolScopedMcpSchema),

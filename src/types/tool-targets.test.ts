@@ -37,6 +37,7 @@ describe("tool targets", () => {
         "hermesagent",
         "junie",
         "kilo",
+        "kimi",
         "kiro",
         "kiro-cli",
         "kiro-ide",

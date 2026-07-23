@@ -27,6 +27,7 @@ import { GrokcliSubagent } from "./grokcli-subagent.js";
 import { HermesagentSubagent } from "./hermesagent-subagent.js";
 import { JunieSubagent } from "./junie-subagent.js";
 import { KiloSubagent } from "./kilo-subagent.js";
+import { KimiSubagent } from "./kimi-subagent.js";
 import { KiroCliSubagent } from "./kiro-cli-subagent.js";
 import { KiroIdeSubagent } from "./kiro-ide-subagent.js";
 import { KiroSubagent } from "./kiro-subagent.js";
@@ -266,6 +267,16 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     "junie",
     {
       class: JunieSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+    },
+  ],
+  [
+    "kimi",
+    {
+      // Kimi Code subagents are native Markdown + YAML frontmatter under
+      // `.kimi-code/agents/` (project) and `~/.agents/agents/` (global, the
+      // AGENTS open standard).
+      class: KimiSubagent,
       meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
     },
   ],

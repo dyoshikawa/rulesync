@@ -27,6 +27,7 @@ import { GrokcliMcp } from "./grokcli-mcp.js";
 import { HermesagentMcp } from "./hermesagent-mcp.js";
 import { JunieMcp } from "./junie-mcp.js";
 import { KiloMcp } from "./kilo-mcp.js";
+import { KimiMcp } from "./kimi-mcp.js";
 import { KiroMcp } from "./kiro-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { QwencodeMcp } from "./qwencode-mcp.js";
@@ -329,6 +330,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         // was gating it off. Kilo is an OpenCode fork and uses an
         // identical native MCP schema, so global parity with opencode
         // is the natural state.
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "kimi",
+    {
+      // Kimi Code reads MCP servers from the `mcpServers` map of a dedicated
+      // `mcp.json`: `.kimi-code/mcp.json` (project) and `~/.kimi-code/mcp.json`
+      // (global, same relative path). Servers are written verbatim with no
+      // per-server tool allow/deny lists.
+      class: KimiMcp,
+      meta: {
+        supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
