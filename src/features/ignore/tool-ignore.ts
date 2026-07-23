@@ -82,6 +82,13 @@ export abstract class ToolIgnore extends ToolFile {
     throw new Error("Please implement this method in the subclass.");
   }
 
+  static async getAuxiliaryFiles(_params: {
+    toolIgnore: ToolIgnore;
+    outputRoot?: string;
+  }): Promise<ToolFile[]> {
+    return [];
+  }
+
   abstract toRulesyncIgnore(): RulesyncIgnore;
 
   protected toRulesyncIgnoreDefault(): RulesyncIgnore {

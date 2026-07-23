@@ -84,6 +84,7 @@ export abstract class ToolCommand extends AiFile {
     toolCommands: ToolCommand[];
     outputRoot?: string;
     global?: boolean;
+    forDeletion?: boolean;
   }): Promise<ToolFile[]> {
     return [];
   }

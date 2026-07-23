@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import {
   HERMESAGENT_CONFIG_FILE_NAME,
   HERMESAGENT_GLOBAL_DIR,
@@ -10,6 +12,7 @@ import {
   type HookDefinition,
   type HooksConfig,
 } from "../../types/hooks.js";
+import { readFileContent } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import {
@@ -20,7 +23,12 @@ import {
 } from "../shared/shared-config-gateway.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
-import { ToolHooks, type ToolHooksFromRulesyncHooksParams } from "./tool-hooks.js";
+import {
+  ToolHooks,
+  type ToolHooksForDeletionParams,
+  type ToolHooksFromFileParams,
+  type ToolHooksFromRulesyncHooksParams,
+} from "./tool-hooks.js";
 
 type HermesagentHooksParams = Omit<AiFileParams, "relativeDirPath" | "relativeFilePath">;
 
@@ -211,6 +219,24 @@ export class HermesagentHooks extends ToolHooks {
     // command_allowlist, ...), so it must never be removed wholesale; clearing
     // hooks happens via an in-place merge instead.
     return false;
+  }
+
+  static async fromFile({
+    outputRoot = process.cwd(),
+    validate = true,
+  }: ToolHooksFromFileParams): Promise<HermesagentHooks> {
+    const paths = this.getSettablePaths();
+    return new HermesagentHooks({
+      outputRoot,
+      fileContent: await readFileContent(
+        join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
+      ),
+      validate,
+    });
+  }
+
+  static forDeletion({ outputRoot = process.cwd() }: ToolHooksForDeletionParams): HermesagentHooks {
+    return new HermesagentHooks({ outputRoot, fileContent: "", validate: false });
   }
 
   shouldMergeExistingFileContent(): boolean {

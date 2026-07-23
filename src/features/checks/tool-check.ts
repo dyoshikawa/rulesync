@@ -48,6 +48,14 @@ export abstract class ToolCheck extends ToolFile {
     throw new Error("Please implement this method in the subclass.");
   }
 
+  static async getAuxiliaryFiles(_params: {
+    toolChecks: ToolCheck[];
+    outputRoot?: string;
+    global?: boolean;
+  }): Promise<ToolFile[]> {
+    return [];
+  }
+
   abstract toRulesyncCheck(): RulesyncCheck;
 
   static isTargetedByRulesyncCheck(_rulesyncCheck: RulesyncCheck): boolean {

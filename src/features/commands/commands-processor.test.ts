@@ -988,7 +988,7 @@ describe("CommandsProcessor", () => {
       expect(result).toEqual([mockCommand]);
     });
 
-    it.each([{ toolTarget: "devin" as const }, { toolTarget: "hermesagent" as const }])(
+    it.each([{ toolTarget: "devin" as const }])(
       "should never scan the skills tree for $toolTarget (import and deletion are no-ops)",
       async ({ toolTarget }) => {
         processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget });

@@ -304,6 +304,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     features: {
       // The plugins block is recomputed from the existing file (enabled list
       // appended) before being applied, so the whole key is owned here.
+      commands: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
       subagents: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] },
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },

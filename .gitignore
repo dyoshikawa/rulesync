@@ -245,6 +245,8 @@ rulesync.local.jsonc
 **/.copilot/mcp-config.json
 **/.copilot/hooks/
 **/.deepagents/hooks.json
+**/.hermes/plugins/rulesync-ignore/
+**/.hermes/plugins/rulesync-checks/
 **/.roomodes
 **/.codexignore
 **/.codex/rules/rulesync.rules
@@ -382,6 +384,7 @@ rulesync.local.jsonc
 **/.clineignore
 **/.cursorignore
 **/.gooseignore
+**/.hermes/plugins/rulesync-ignore/patterns.gitignore
 **/.kilocodeignore
 **/.kiroignore
 **/.qwenignore
@@ -390,5 +393,6 @@ rulesync.local.jsonc
 **/.vibeignore
 **/.warpindexingignore
 **/.agents/checks/
+**/.hermes/plugins/rulesync-checks/checks/
 !.rulesync/.aiignore
 # End of Rulesync

@@ -312,6 +312,10 @@ The command body itself uses a Claude Code-compatible **universal syntax** (e.g.
 
 > **Devin note:** Devin's extensibility docs no longer document a standalone workflows/commands component — reusable prompts invoked as slash commands are [Skills](https://docs.devin.ai/cli/extensibility/skills/overview) (`/name`). Rulesync therefore emits each command onto the native skills surface as `.devin/skills/<name>/SKILL.md` (project) / `~/.config/devin/skills/<name>/SKILL.md` (global, via `--global`), with `name`/`description` frontmatter derived from the command file. The legacy Windsurf/Cascade-era `.devin/workflows/` and `~/.codeium/windsurf/global_workflows/` locations are no longer emitted (stale outputs there stay gitignored but are not cleaned up automatically). Commands import and `--delete` are no-ops for `devin` because the skills feature owns the `.devin/skills/` tree (importing it as commands would double-import every skill). Note that a command and a skill sharing the same name write the same `SKILL.md` path, so keep command and skill names distinct for this target.
 
+> **Hermes Agent note:** Commands are global-only and remain distinct from skills. Rulesync writes JSON command specs to `~/.hermes/rulesync/commands/<name>.json`, installs the `rulesync-commands` plugin under `~/.hermes/plugins/`, and enables it in `~/.hermes/config.yaml`. The plugin registers each spec with Hermes's [`ctx.register_command()` plugin API](https://hermes-agent.nousresearch.com/docs/user-guide/features/plugins/) and dispatches the prompt through `delegate_task`; invocation arguments are appended to the prompt. `.rulesync/skills/<name>/SKILL.md` still generates a full [Hermes Agent Skill](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills/) under `~/.hermes/skills/<name>/SKILL.md`, which Hermes also exposes as a dynamic slash command. Rulesync rejects command/skill names that would collide in Hermes's slash-command namespace, and rejects nested command paths that flatten to the same name. Generate commands with `rulesync generate --targets hermesagent --features commands --global`.
+>
+> Releases before this native plugin transport emitted Hermes commands as `~/.hermes/skills/<name>/SKILL.md`. Rulesync cannot distinguish those files from real user-authored skills safely, so remove an obsolete legacy file manually after confirming that `.rulesync/skills/<name>/SKILL.md` does not own it.
+
 > **Qwen Code note:** Custom commands are emitted as **Markdown** files (not TOML — TOML is deprecated upstream) under `.qwen/commands/` (project) and `~/.qwen/commands/` (global, via `--global`). The file is an optional YAML frontmatter block (`description`) followed by the prompt body. Subdirectory namespacing is supported: `.qwen/commands/git/commit.md` becomes the `/git:commit` command. Any extra fields are preserved on round-trip under the `qwencode:` block.
 
 > **OpenCode import note:** OpenCode lets commands live both as Markdown files under `.opencode/commands/*.md` **and** inline in `opencode.json`/`opencode.jsonc` under the top-level `command` key. On import, rulesync reads both: each inline entry's `template` becomes the command body and its `description`/`agent`/`model`/`subtask` fields become frontmatter. A Markdown file takes precedence over an inline entry with the same name.
@@ -450,10 +454,17 @@ Review the diff for injection vulnerabilities, hardcoded secrets, and unsafe
 deserialization. Report each finding with a file and line reference.
 ```
 
-Currently only **Amp** consumes checks. Rulesync emits one Markdown file per check:
+Amp and Hermes Agent consume checks. Amp receives one Markdown file per check:
 
 - **Project scope:** `.agents/checks/<name>.md`
 - **Global scope** (`--global`): `~/.config/amp/checks/<name>.md`
+
+For Hermes Agent, Rulesync writes project-local JSON specs under `.hermes/plugins/rulesync-checks/checks/` and a `rulesync-checks` plugin beside them. Its one-shot [`pre_verify` hook](https://hermes-agent.nousresearch.com/docs/user-guide/features/hooks/#pre-verify) fires only for coding turns with changed paths and `attempt == 0`, then asks Hermes to run all configured checks before finishing. `tools` is preserved as advisory guidance because Hermes does not enforce an Amp-style per-check tool allowlist. Enable and run the project plugin from the project root:
+
+```sh
+HERMES_ENABLE_PROJECT_PLUGINS=1 hermes plugins enable rulesync-checks
+HERMES_ENABLE_PROJECT_PLUGINS=1 hermes
+```
 
 The emitted Amp frontmatter is derived from the source as follows:
 
@@ -861,6 +872,13 @@ Most tools get a dedicated ignore file (for example `.cursorignore`,
 as Gemini CLI, so it reads the project-root `.geminiignore` file. Claude Code is the exception: it does not
 read a separate ignore file, so Rulesync writes the deny list into Claude
 Code's settings file as `permissions.deny` entries (`Read(<pattern>)`).
+
+Hermes Agent uses a project-local `rulesync-ignore` plugin under `.hermes/plugins/`. It applies the canonical gitignore-style patterns through [`pre_tool_call`](https://hermes-agent.nousresearch.com/docs/user-guide/features/hooks/#pre-tool-call) to `read_file`, `write_file`, and `patch` before execution, and filters ignored paths from `search_files` results through `transform_tool_result`. This is defense in depth around Hermes file tools; terminal commands and paths already present in conversation context are outside the plugin's enforcement surface. Hermes deliberately requires [explicit trust for project plugins](https://hermes-agent.nousresearch.com/docs/user-guide/features/plugins/), so enable and run it from the project root:
+
+```sh
+HERMES_ENABLE_PROJECT_PLUGINS=1 hermes plugins enable rulesync-ignore
+HERMES_ENABLE_PROJECT_PLUGINS=1 hermes
+```
 
 For Cursor, Rulesync emits only `.cursorignore` — the file that **blocks access
 entirely** (semantic search, Tab, Agent, Inline Edit, and `@`-mentions). Cursor

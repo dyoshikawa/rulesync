@@ -50,6 +50,7 @@ export const ignoreProcessorToolTargetTuple = [
   "cline",
   "cursor",
   "goose",
+  "hermesagent",
   "junie",
   "kilo",
   "kiro",
@@ -253,7 +254,7 @@ export const permissionsProcessorToolTargetTuple = [
   "zed",
 ] as const;
 
-export const checksProcessorToolTargetTuple = ["amp"] as const;
+export const checksProcessorToolTargetTuple = ["amp", "hermesagent"] as const;
 
 export const ALL_TOOL_TARGET_TUPLES = [
   rulesProcessorToolTargetTuple,

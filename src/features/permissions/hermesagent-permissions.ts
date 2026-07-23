@@ -1,9 +1,12 @@
+import { join } from "node:path";
+
 import {
   HERMESAGENT_CONFIG_FILE_NAME,
   HERMESAGENT_GLOBAL_DIR,
 } from "../../constants/hermesagent-paths.js";
 import { type AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction } from "../../types/permissions.js";
+import { readFileContent } from "../../utils/file.js";
 import {
   applySharedConfigPatch,
   HERMES_CONFIG_SHARED_FILE_KEY,
@@ -14,6 +17,8 @@ import {
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
+  type ToolPermissionsForDeletionParams,
+  type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
 } from "./tool-permissions.js";
 
@@ -46,6 +51,30 @@ export class HermesagentPermissions extends ToolPermissions {
 
   validate(): ValidationResult {
     return { success: true, error: null };
+  }
+
+  override isDeletable(): boolean {
+    return false;
+  }
+
+  static async fromFile({
+    outputRoot = process.cwd(),
+    validate = true,
+  }: ToolPermissionsFromFileParams): Promise<HermesagentPermissions> {
+    const paths = this.getSettablePaths();
+    return new HermesagentPermissions({
+      outputRoot,
+      fileContent: await readFileContent(
+        join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
+      ),
+      validate,
+    });
+  }
+
+  static forDeletion({
+    outputRoot = process.cwd(),
+  }: ToolPermissionsForDeletionParams): HermesagentPermissions {
+    return new HermesagentPermissions({ outputRoot, fileContent: "", validate: false });
   }
 
   shouldMergeExistingFileContent(): boolean {

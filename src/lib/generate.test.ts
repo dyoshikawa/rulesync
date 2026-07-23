@@ -1089,6 +1089,39 @@ describe("generate", () => {
         "Target 'cursor' does not support the feature 'mcp'. Skipping.",
       );
     });
+
+    it("should suggest --global for a global-only feature", async () => {
+      mockConfig.getTargets.mockReturnValue(["hermesagent"]);
+      mockConfig.getFeatures.mockImplementation((target?: string) =>
+        target === "hermesagent" ? ["commands"] : [],
+      );
+      vi.mocked(CommandsProcessor.getToolTargets).mockImplementation(({ global = false } = {}) =>
+        global ? ["hermesagent"] : [],
+      );
+
+      const mockLogger = createMockLogger();
+      await generate({ logger: mockLogger, config: mockConfig as never });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        "Target 'hermesagent' supports the feature 'commands' only in global scope. Re-run with '--global'. Skipping.",
+      );
+    });
+
+    it("should suggest project scope for a project-only feature", async () => {
+      mockConfig.getTargets.mockReturnValue(["hermesagent"]);
+      mockConfig.getGlobal.mockReturnValue(true);
+      mockConfig.getFeatures.mockImplementation((target?: string) =>
+        target === "hermesagent" ? ["ignore"] : [],
+      );
+      vi.mocked(IgnoreProcessor.getToolTargets).mockReturnValue(["hermesagent"]);
+
+      const mockLogger = createMockLogger();
+      await generate({ logger: mockLogger, config: mockConfig as never });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        "Target 'hermesagent' supports the feature 'ignore' only in project scope. Re-run without '--global'. Skipping.",
+      );
+    });
   });
 
   describe("skill/subagent output collision warning", () => {
@@ -1315,9 +1348,9 @@ describe("GENERATION_STEP_GRAPH", () => {
     expect(resolveExecutionOrder(asRunnableSteps()).map((s) => s.id)).toEqual([
       "ignore",
       "commands",
-      "subagents",
       "skills",
       "checks",
+      "subagents",
       "mcp",
       "hooks",
       "permissions",

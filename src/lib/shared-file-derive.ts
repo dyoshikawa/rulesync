@@ -27,6 +27,7 @@ export type SharedFileWriter = {
  */
 export const SHARED_WRITE_FEATURE_ORDER = [
   "ignore",
+  "commands",
   "subagents",
   "mcp",
   "hooks",
@@ -50,11 +51,7 @@ export const SHARED_WRITE_FEATURE_ORDER = [
  * this list or `SHARED_WRITE_FEATURE_ORDER`. That closes the drift where a
  * feature which later starts writing a shared file is silently forgotten.
  */
-export const NON_SHARED_WRITE_FEATURES = [
-  "commands",
-  "skills",
-  "checks",
-] as const satisfies readonly Feature[];
+export const NON_SHARED_WRITE_FEATURES = ["skills", "checks"] as const satisfies readonly Feature[];
 
 // Deprecated aliases; a guard for the day one diverges from its canonical
 // target's paths. A no-op today since they reuse the canonical class and paths.

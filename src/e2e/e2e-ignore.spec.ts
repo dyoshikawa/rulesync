@@ -22,6 +22,11 @@ const ignoreGenerateTargets = [
   },
   { target: "antigravity-cli", outputPath: ".geminiignore", format: "plaintext" as const },
   { target: "goose", outputPath: ".gooseignore", format: "plaintext" as const },
+  {
+    target: "hermesagent",
+    outputPath: join(".hermes", "plugins", "rulesync-ignore", "patterns.gitignore"),
+    format: "plaintext" as const,
+  },
   { target: "cline", outputPath: ".clineignore", format: "plaintext" as const },
   { target: "kilo", outputPath: ".kilocodeignore", format: "plaintext" as const },
   { target: "roo", outputPath: ".rooignore", format: "plaintext" as const },
@@ -160,6 +165,10 @@ describe("E2E: ignore (import)", () => {
     { target: "cursor", sourcePath: ".cursorignore" },
     { target: "antigravity-cli", sourcePath: ".geminiignore" },
     { target: "goose", sourcePath: ".gooseignore" },
+    {
+      target: "hermesagent",
+      sourcePath: join(".hermes", "plugins", "rulesync-ignore", "patterns.gitignore"),
+    },
     { target: "cline", sourcePath: ".clineignore" },
     { target: "kilo", sourcePath: ".kilocodeignore" },
     { target: "roo", sourcePath: ".rooignore" },
