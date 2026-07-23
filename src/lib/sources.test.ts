@@ -216,6 +216,27 @@ describe("resolveAndFetchSources", () => {
     expect(result).toEqual(["testing-guidelines"]);
   });
 
+  it("should reject a rule source whose lock predates rule tracking", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/existing": {
+          resolvedRef: "existing-sha",
+          skills: {},
+        },
+      },
+    });
+
+    await expect(
+      getInstalledSourceRuleNames({
+        sources: [{ source: "org/existing", rules: ["testing-guidelines"] }],
+        projectRoot: testDir,
+        logger,
+      }),
+    ).rejects.toThrow(/Run 'rulesync install' before adding another source/);
+  });
+
   it("should reject an existing source that is not locked and installed", async () => {
     const { readLockFile } = await import("./sources-lock.js");
     vi.mocked(readLockFile).mockResolvedValue({ lockfileVersion: 1, sources: {} });
@@ -1002,6 +1023,41 @@ describe("resolveAndFetchSources", () => {
       }),
     ).rejects.toThrow("Frozen install failed");
     expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
+  });
+
+  it("should allow a frozen rule selection satisfied by a local rule", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "sha-123",
+          skills: {},
+          rules: {},
+        },
+      },
+    });
+    vi.mocked(findFilesByGlobs).mockResolvedValue([
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "testing-guidelines.md"),
+    ]);
+    mockClientInstance.listDirectory.mockResolvedValue([
+      {
+        name: "testing-guidelines.md",
+        path: "rules/testing-guidelines.md",
+        type: "file",
+        size: 50,
+      },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", rules: ["testing-guidelines"] }],
+      projectRoot: testDir,
+      options: { frozen: true },
+    });
+
+    expect(result.failedSourceCount).toBe(0);
+    expect(result.fetchedRuleCount).toBe(0);
   });
 
   it("should refetch when the declared rule selection differs from the lockfile", async () => {

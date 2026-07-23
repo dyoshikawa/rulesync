@@ -180,9 +180,11 @@ export async function resolveAndFetchSources(params: {
     ({ lock, npmLock } = removeInvokedLockEntries({ lock, npmLock, sources }));
   }
 
+  const localRuleNames = await getLocalRuleNames(projectRoot);
+
   // Frozen mode: validate lockfiles cover all declared sources.
   // Missing curated skills are fetched using locked refs.
-  validateFrozenLockCoverage({ frozen, lock, npmLock, sources });
+  validateFrozenLockCoverage({ frozen, lock, npmLock, sources, localRuleNames });
 
   const originalLockJson = JSON.stringify(lock);
   const originalNpmLockJson = JSON.stringify(npmLock);
@@ -193,7 +195,6 @@ export async function resolveAndFetchSources(params: {
 
   // Determine local skills (in .rulesync/skills/ but not in .curated/)
   const localSkillNames = await getLocalSkillDirNames(projectRoot);
-  const localRuleNames = await getLocalRuleNames(projectRoot);
 
   let totalSkillCount = 0;
   let totalRuleCount = 0;
@@ -364,7 +365,11 @@ export async function getInstalledSourceRuleNames({
         ? getNpmLockedRuleNames(entry as NpmLockedSource)
         : getLockedRuleNames(entry as LockedSource)
       : [];
-    if (entry === undefined || !(await checkLockedRulesExist(curatedDir, lockedRuleNames))) {
+    if (
+      entry === undefined ||
+      entry.rules === undefined ||
+      !(await checkLockedRulesExist(curatedDir, lockedRuleNames))
+    ) {
       throw new Error(
         `Existing source "${source.source}" is not fully installed. Run 'rulesync install' before adding another source.`,
       );
@@ -533,9 +538,11 @@ function assertFrozenLockCoversSources(params: {
   lock: SourcesLock;
   npmLock: NpmSourcesLock;
   sources: SourceEntry[];
+  localRuleNames: Set<string>;
 }): void {
-  const { lock, npmLock, sources } = params;
+  const { lock, npmLock, sources, localRuleNames } = params;
   const missingKeys: string[] = [];
+  const availableRuleNames = new Set(localRuleNames);
 
   for (const source of sources) {
     const locked =
@@ -548,12 +555,20 @@ function assertFrozenLockCoversSources(params: {
         ? getNpmLockedRuleNames(locked as NpmLockedSource)
         : getLockedRuleNames(locked as LockedSource)
       : [];
+    const availableWithCurrentSource = new Set([...availableRuleNames, ...lockedRuleNames]);
+    const normalizedRuleFilter = ruleFilter?.map(normalizeRuleFilterName);
     const rulesCovered =
       ruleFilter === undefined ||
-      (locked !== undefined && lockedRuleNamesMatchFilter({ lockedRuleNames, ruleFilter }));
+      (locked?.rules !== undefined &&
+        (normalizedRuleFilter?.length === 1 && normalizedRuleFilter[0] === "*"
+          ? true
+          : normalizedRuleFilter?.every((ruleName) => availableWithCurrentSource.has(ruleName)) ===
+            true) &&
+        lockedRuleNames.every((ruleName) => normalizedRuleFilter?.includes(ruleName) === true));
     if (!locked || !rulesCovered) {
       missingKeys.push(source.source);
     }
+    addNamesToSet({ names: lockedRuleNames, target: availableRuleNames });
   }
   if (missingKeys.length > 0) {
     throw new Error(
@@ -567,6 +582,7 @@ function validateFrozenLockCoverage(params: {
   lock: SourcesLock;
   npmLock: NpmSourcesLock;
   sources: SourceEntry[];
+  localRuleNames: Set<string>;
 }): void {
   if (params.frozen) {
     assertFrozenLockCoversSources(params);
