@@ -71,7 +71,7 @@ async function runRulesyncInstall(logger: Logger, options: InstallCommandOptions
     return;
   }
 
-  logger.debug(`Installing skills from ${sources.length} source(s)...`);
+  logger.debug(`Installing rules and skills from ${sources.length} source(s)...`);
 
   const result = await resolveAndFetchSources({
     sources,
@@ -87,6 +87,7 @@ async function runRulesyncInstall(logger: Logger, options: InstallCommandOptions
   if (logger.jsonMode) {
     logger.captureData("sourcesProcessed", result.sourcesProcessed);
     logger.captureData("skillsFetched", result.fetchedSkillCount);
+    logger.captureData("rulesFetched", result.fetchedRuleCount);
     logger.captureData("failedSourceCount", result.failedSourceCount);
   }
 
@@ -96,12 +97,14 @@ async function runRulesyncInstall(logger: Logger, options: InstallCommandOptions
     );
   }
 
-  if (result.fetchedSkillCount > 0) {
+  if (result.fetchedSkillCount > 0 || result.fetchedRuleCount > 0) {
     logger.success(
-      `Installed ${result.fetchedSkillCount} skill(s) from ${result.sourcesProcessed} source(s).`,
+      `Installed ${result.fetchedSkillCount} skill(s) and ${result.fetchedRuleCount} rule(s) from ${result.sourcesProcessed} source(s).`,
     );
   } else {
-    logger.success(`All skills up to date (${result.sourcesProcessed} source(s) checked).`);
+    logger.success(
+      `All source artifacts up to date (${result.sourcesProcessed} source(s) checked).`,
+    );
   }
 }
 

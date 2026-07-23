@@ -13,6 +13,7 @@ import {
 import { ConfigResolver } from "../../config/config-resolver.js";
 import { ConfigFileSchema, type SourceEntry, SourceEntrySchema } from "../../config/config.js";
 import {
+  RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
   RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
@@ -21,7 +22,11 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { normalizeNpmSourceKey } from "../../lib/npm-sources-lock.js";
 import { normalizeSourceKey } from "../../lib/sources-lock.js";
-import { getInstalledSourceSkillNames, resolveAndFetchSources } from "../../lib/sources.js";
+import {
+  getInstalledSourceRuleNames,
+  getInstalledSourceSkillNames,
+  resolveAndFetchSources,
+} from "../../lib/sources.js";
 import {
   directoryExists,
   fileExists,
@@ -35,9 +40,11 @@ import type { Logger } from "../../utils/logger.js";
 export type AddCommandOptions = {
   source: string;
   skills?: string[];
+  rules?: string[];
   transport?: SourceEntry["transport"];
   ref?: string;
   path?: string;
+  rulesPath?: string;
   registry?: string;
   tokenEnv?: string;
   token?: string;
@@ -49,9 +56,11 @@ export type AddCommandOptions = {
 const SOURCE_ENTRY_KEYS = [
   "source",
   "skills",
+  "rules",
   "transport",
   "ref",
   "path",
+  "rulesPath",
   "registry",
   "tokenEnv",
   "agent",
@@ -60,7 +69,8 @@ const SOURCE_ENTRY_KEYS = [
 
 type InstallSnapshot = {
   backupRoot: string;
-  curatedExisted: boolean;
+  curatedSkillsExisted: boolean;
+  curatedRulesExisted: boolean;
   sourcesLockContent: string | null;
   npmSourcesLockContent: string | null;
 };
@@ -145,10 +155,15 @@ async function createInstallSnapshot({
   manifestContent: string;
 }): Promise<InstallSnapshot> {
   const backupRoot = await mkdtemp(join(projectRoot, ".rulesync-add-backup-"));
-  const curatedPath = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
-  const curatedExisted = await directoryExists(curatedPath);
-  if (curatedExisted) {
-    await cp(curatedPath, join(backupRoot, "curated"), { recursive: true });
+  const curatedSkillsPath = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+  const curatedRulesPath = join(projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH);
+  const curatedSkillsExisted = await directoryExists(curatedSkillsPath);
+  const curatedRulesExisted = await directoryExists(curatedRulesPath);
+  if (curatedSkillsExisted) {
+    await cp(curatedSkillsPath, join(backupRoot, "curated-skills"), { recursive: true });
+  }
+  if (curatedRulesExisted) {
+    await cp(curatedRulesPath, join(backupRoot, "curated-rules"), { recursive: true });
   }
   const sourcesLockContent = await readFileContentOrNull(
     join(projectRoot, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH),
@@ -171,7 +186,8 @@ async function createInstallSnapshot({
   }
   return {
     backupRoot,
-    curatedExisted,
+    curatedSkillsExisted,
+    curatedRulesExisted,
     sourcesLockContent,
     npmSourcesLockContent,
   };
@@ -192,10 +208,17 @@ async function restoreInstallSnapshot({
   projectRoot: string;
   snapshot: InstallSnapshot;
 }): Promise<void> {
-  const curatedPath = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
-  await rm(curatedPath, { recursive: true, force: true });
-  if (snapshot.curatedExisted) {
-    await cp(join(snapshot.backupRoot, "curated"), curatedPath, { recursive: true });
+  const curatedSkillsPath = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+  const curatedRulesPath = join(projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH);
+  await Promise.all([
+    rm(curatedSkillsPath, { recursive: true, force: true }),
+    rm(curatedRulesPath, { recursive: true, force: true }),
+  ]);
+  if (snapshot.curatedSkillsExisted) {
+    await cp(join(snapshot.backupRoot, "curated-skills"), curatedSkillsPath, { recursive: true });
+  }
+  if (snapshot.curatedRulesExisted) {
+    await cp(join(snapshot.backupRoot, "curated-rules"), curatedRulesPath, { recursive: true });
   }
   await restoreFile({
     path: join(projectRoot, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH),
@@ -262,9 +285,11 @@ function buildSourceEntry(options: AddCommandOptions): SourceEntry {
   return SourceEntrySchema.parse({
     source: options.source,
     skills: options.skills,
+    rules: options.rules,
     transport: options.transport,
     ref: options.ref,
     path: options.path,
+    rulesPath: options.rulesPath,
     registry: options.registry,
     tokenEnv: options.tokenEnv,
   });
@@ -303,9 +328,11 @@ export async function addCommand(logger: Logger, options: AddCommandOptions): Pr
   }
 
   const sourceEntry = buildSourceEntry(options);
-  const curatedPath = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+  const curatedSkillsPath = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+  const curatedRulesPath = join(projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH);
   await Promise.all([
-    assertWritablePathInsideProject({ projectRoot, targetPath: curatedPath }),
+    assertWritablePathInsideProject({ projectRoot, targetPath: curatedSkillsPath }),
+    assertWritablePathInsideProject({ projectRoot, targetPath: curatedRulesPath }),
     assertWritablePathInsideProject({
       projectRoot,
       targetPath: join(projectRoot, RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH),
@@ -315,9 +342,15 @@ export async function addCommand(logger: Logger, options: AddCommandOptions): Pr
       targetPath: join(projectRoot, RULESYNC_NPM_SOURCES_LOCK_RELATIVE_FILE_PATH),
     }),
   ]);
-  await assertDirectoryIfExists(curatedPath);
-  if (await directoryExists(curatedPath)) {
-    await assertTreeContainsNoSymlinks(curatedPath);
+  await Promise.all([
+    assertDirectoryIfExists(curatedSkillsPath),
+    assertDirectoryIfExists(curatedRulesPath),
+  ]);
+  if (await directoryExists(curatedSkillsPath)) {
+    await assertTreeContainsNoSymlinks(curatedSkillsPath);
+  }
+  if (await directoryExists(curatedRulesPath)) {
+    await assertTreeContainsNoSymlinks(curatedRulesPath);
   }
   const originalContent = await readFileContent(configPath);
   const parsedConfig = parseConfigContent(originalContent, relativeConfigPath);
@@ -344,6 +377,11 @@ export async function addCommand(logger: Logger, options: AddCommandOptions): Pr
     );
   }
   const reservedSkillNames = await getInstalledSourceSkillNames({
+    sources: configBeforeEdit.getSources(),
+    projectRoot,
+    logger,
+  });
+  const reservedRuleNames = await getInstalledSourceRuleNames({
     sources: configBeforeEdit.getSources(),
     projectRoot,
     logger,
@@ -387,8 +425,10 @@ export async function addCommand(logger: Logger, options: AddCommandOptions): Pr
         token: options.token,
         updateSources: true,
         preserveUnlistedLockEntries: true,
-        requireResolvedSkills: true,
+        requireResolvedSkills: sourceEntry.skills !== undefined || sourceEntry.rules === undefined,
+        requireResolvedRules: sourceEntry.rules !== undefined,
         reservedSkillNames,
+        reservedRuleNames,
       },
       logger,
     });
@@ -398,6 +438,7 @@ export async function addCommand(logger: Logger, options: AddCommandOptions): Pr
       logger.captureData("configPath", relativeConfigPath);
       logger.captureData("sourcesProcessed", result.sourcesProcessed);
       logger.captureData("skillsFetched", result.fetchedSkillCount);
+      logger.captureData("rulesFetched", result.fetchedRuleCount);
       logger.captureData("failedSourceCount", result.failedSourceCount);
     }
 
@@ -408,7 +449,7 @@ export async function addCommand(logger: Logger, options: AddCommandOptions): Pr
     }
 
     logger.success(
-      `Added "${sourceEntry.source}" to ${relativeConfigPath} and installed ${result.fetchedSkillCount} skill(s).`,
+      `Added "${sourceEntry.source}" to ${relativeConfigPath} and installed ${result.fetchedSkillCount} skill(s) and ${result.fetchedRuleCount} rule(s).`,
     );
   } catch (error) {
     try {

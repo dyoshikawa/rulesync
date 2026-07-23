@@ -465,4 +465,25 @@ describe("Config", () => {
       expect(result.success).toBe(false);
     });
   });
+
+  describe("source entry rule filtering", () => {
+    it("accepts rule filters and an independent rules path", () => {
+      const result = parseSources([
+        {
+          source: "owner/repo",
+          skills: ["skill-creator"],
+          rules: ["testing-guidelines"],
+          path: "exports/skills",
+          rulesPath: "exports/rules",
+        },
+      ]);
+
+      expect(result.success).toBe(true);
+    });
+
+    it("rejects unsafe rules paths", () => {
+      expect(parseSources([{ source: "owner/repo", rulesPath: "../rules" }]).success).toBe(false);
+      expect(parseSources([{ source: "owner/repo", rulesPath: "/rules" }]).success).toBe(false);
+    });
+  });
 });

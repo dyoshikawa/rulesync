@@ -32,12 +32,13 @@ const GITIGNORE_DESTINATION_KEY = "gitignoreDestination";
 
 /**
  * Schema for a single source entry in the sources array.
- * Declares an external repository from which skills can be fetched.
+ * Declares an external repository from which rules and skills can be fetched.
  */
 export const SourceEntrySchema = z
   .object({
     source: z.string().check(minLength(1, "source must be a non-empty string")),
     skills: optional(z.array(z.string())),
+    rules: optional(z.array(z.string())),
     transport: optional(z.enum(["github", "git", "npm"])),
     ref: optional(
       z.string().check(
@@ -50,6 +51,13 @@ export const SourceEntrySchema = z
         refine((v) => !v.includes(".."), 'path must not contain ".."'),
         refine((v) => !isAbsolute(v), "path must not be absolute"),
         refine((v) => !hasControlCharacters(v), "path must not contain control characters"),
+      ),
+    ),
+    rulesPath: optional(
+      z.string().check(
+        refine((v) => !v.includes(".."), 'rulesPath must not contain ".."'),
+        refine((v) => !isAbsolute(v), "rulesPath must not be absolute"),
+        refine((v) => !hasControlCharacters(v), "rulesPath must not contain control characters"),
       ),
     ),
     // npm-transport-only fields (EXPERIMENTAL). `registry` points at an
@@ -111,7 +119,7 @@ export const ConfigParamsSchema = z.object({
   dryRun: optional(z.boolean()),
   check: optional(z.boolean()),
   inputRoot: optional(z.string()),
-  // Declarative skill sources
+  // Declarative rule and skill sources
   sources: optional(z.array(SourceEntrySchema)),
 });
 // We override the inferred `targets` / `features` types with the hand-written

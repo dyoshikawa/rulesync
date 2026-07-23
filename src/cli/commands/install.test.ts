@@ -41,6 +41,8 @@ describe("installCommand", () => {
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
         fetchedSkillCount: 3,
+
+        fetchedRuleCount: 0,
         sourcesProcessed: 1,
         failedSourceCount: 0,
       });
@@ -58,7 +60,9 @@ describe("installCommand", () => {
           },
         }),
       );
-      expect(mockLogger.success).toHaveBeenCalledWith("Installed 3 skill(s) from 1 source(s).");
+      expect(mockLogger.success).toHaveBeenCalledWith(
+        "Installed 3 skill(s) and 0 rule(s) from 1 source(s).",
+      );
     });
 
     it("should report all up to date when no skills fetched", async () => {
@@ -66,6 +70,8 @@ describe("installCommand", () => {
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
         fetchedSkillCount: 0,
+
+        fetchedRuleCount: 0,
         sourcesProcessed: 1,
         failedSourceCount: 0,
       });
@@ -73,7 +79,7 @@ describe("installCommand", () => {
       await installCommand(mockLogger, {});
 
       expect(mockLogger.success).toHaveBeenCalledWith(
-        "All skills up to date (1 source(s) checked).",
+        "All source artifacts up to date (1 source(s) checked).",
       );
     });
 
@@ -114,6 +120,8 @@ describe("installCommand", () => {
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
         fetchedSkillCount: 0,
+
+        fetchedRuleCount: 0,
         sourcesProcessed: 1,
         failedSourceCount: 1,
       });
@@ -131,6 +139,8 @@ describe("installCommand", () => {
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
         fetchedSkillCount: 0,
+
+        fetchedRuleCount: 0,
         sourcesProcessed: 1,
         failedSourceCount: 0,
       });
@@ -149,6 +159,8 @@ describe("installCommand", () => {
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
         fetchedSkillCount: 0,
+
+        fetchedRuleCount: 0,
         sourcesProcessed: 1,
         failedSourceCount: 0,
       });
@@ -167,6 +179,8 @@ describe("installCommand", () => {
       vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
         fetchedSkillCount: 0,
+
+        fetchedRuleCount: 0,
         sourcesProcessed: 1,
         failedSourceCount: 0,
       });

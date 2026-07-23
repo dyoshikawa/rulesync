@@ -187,7 +187,7 @@ export async function installGh(params: {
 /**
  * Validate and normalize a single declared source into a ResolvedSource without
  * contacting the API. Rejects non-GitHub providers and the gh-unsupported
- * `transport`/`path` fields, and applies the agent/scope defaults.
+ * rulesync-mode-only fields, and applies the agent/scope defaults.
  */
 function resolveGhSource(entry: SourceEntry): ResolvedSource {
   const parsed = parseSource(entry.source);
@@ -196,8 +196,8 @@ function resolveGhSource(entry: SourceEntry): ResolvedSource {
       `--mode gh only supports GitHub sources. "${entry.source}" resolves to provider "${parsed.provider}".`,
     );
   }
-  // gh mode does not honor `transport` or `path` from the SourceEntry —
-  // both are rulesync-mode-only concepts. Silently dropping them would
+  // gh mode does not honor these rulesync-mode-only SourceEntry fields.
+  // Silently dropping them would
   // surprise users migrating from --mode rulesync, so reject up-front
   // with a message that names the offending field.
   if (entry.transport !== undefined && entry.transport !== "github") {
@@ -208,6 +208,16 @@ function resolveGhSource(entry: SourceEntry): ResolvedSource {
   if (entry.path !== undefined) {
     throw new Error(
       `--mode gh: field "path" is not supported for source "${entry.source}". The remote layout is fixed to "skills/<name>/SKILL.md".`,
+    );
+  }
+  if (entry.rules !== undefined) {
+    throw new Error(
+      `--mode gh: field "rules" is not supported for source "${entry.source}". Switch to --mode rulesync to install declarative rules.`,
+    );
+  }
+  if (entry.rulesPath !== undefined) {
+    throw new Error(
+      `--mode gh: field "rulesPath" is not supported for source "${entry.source}". Switch to --mode rulesync to install declarative rules.`,
     );
   }
   const agent = entry.agent ?? "github-copilot";

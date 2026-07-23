@@ -10,7 +10,11 @@ import {
   RULESYNC_NPM_SOURCES_LOCK_RELATIVE_FILE_PATH,
   RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH,
 } from "../../constants/rulesync-paths.js";
-import { getInstalledSourceSkillNames, resolveAndFetchSources } from "../../lib/sources.js";
+import {
+  getInstalledSourceRuleNames,
+  getInstalledSourceSkillNames,
+  resolveAndFetchSources,
+} from "../../lib/sources.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
@@ -29,8 +33,11 @@ describe("addCommand", () => {
     vi.spyOn(process, "cwd").mockReturnValue(testDir);
     logger = createMockLogger();
     vi.mocked(getInstalledSourceSkillNames).mockResolvedValue([]);
+    vi.mocked(getInstalledSourceRuleNames).mockResolvedValue([]);
     vi.mocked(resolveAndFetchSources).mockResolvedValue({
       fetchedSkillCount: 2,
+
+      fetchedRuleCount: 0,
       sourcesProcessed: 1,
       failedSourceCount: 0,
     });
@@ -76,6 +83,11 @@ describe("addCommand", () => {
       projectRoot: testDir,
       logger,
     });
+    expect(getInstalledSourceRuleNames).toHaveBeenCalledWith({
+      sources: [{ source: "owner/existing" }],
+      projectRoot: testDir,
+      logger,
+    });
     expect(resolveAndFetchSources).toHaveBeenCalledWith({
       sources: [{ source: "anthropics/skills", skills: ["skill-creator"] }],
       projectRoot: testDir,
@@ -84,12 +96,55 @@ describe("addCommand", () => {
         updateSources: true,
         preserveUnlistedLockEntries: true,
         requireResolvedSkills: true,
+        requireResolvedRules: false,
         reservedSkillNames: [],
+        reservedRuleNames: [],
       },
       logger,
     });
     expect(logger.success).toHaveBeenCalledWith(
-      'Added "anthropics/skills" to rulesync.jsonc and installed 2 skill(s).',
+      'Added "anthropics/skills" to rulesync.jsonc and installed 2 skill(s) and 0 rule(s).',
+    );
+  });
+
+  it("should add a rule-only source with an independent rules path", async () => {
+    const configPath = join(testDir, "rulesync.jsonc");
+    await writeFileContent(
+      configPath,
+      `{
+  "targets": ["claudecode"],
+  "features": ["rules"]
+}
+`,
+    );
+    vi.mocked(resolveAndFetchSources).mockResolvedValue({
+      fetchedSkillCount: 0,
+      fetchedRuleCount: 1,
+      sourcesProcessed: 1,
+      failedSourceCount: 0,
+    });
+
+    await addCommand(logger, {
+      source: "owner/rules",
+      rules: ["testing-guidelines"],
+      rulesPath: "exports/rules",
+    });
+
+    const parsed = parseJsonc(await readFileContent(configPath)) as { sources: SourceEntry[] };
+    expect(parsed.sources).toEqual([
+      {
+        source: "owner/rules",
+        rules: ["testing-guidelines"],
+        rulesPath: "exports/rules",
+      },
+    ]);
+    expect(resolveAndFetchSources).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          requireResolvedSkills: false,
+          requireResolvedRules: true,
+        }),
+      }),
     );
   });
 
@@ -363,6 +418,8 @@ describe("addCommand", () => {
       await writeFileContent(addedSkillPath, "added skill\n");
       return {
         fetchedSkillCount: 1,
+
+        fetchedRuleCount: 0,
         sourcesProcessed: 1,
         failedSourceCount: 1,
       };

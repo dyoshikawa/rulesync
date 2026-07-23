@@ -156,6 +156,19 @@ describe("installGh", () => {
     ).rejects.toThrow(/"path" is not supported/);
   });
 
+  it.each([
+    { field: "rules", value: ["testing-guidelines"] },
+    { field: "rulesPath", value: "exports/rules" },
+  ])("rejects entry.$field with a field-specific error", async ({ field, value }) => {
+    await expect(
+      installGh({
+        projectRoot: testDir,
+        sources: [source({ source: "owner/repo", [field]: value })],
+        logger,
+      }),
+    ).rejects.toThrow(new RegExp(`"${field}" is not supported`));
+  });
+
   it("--frozen fails up-front for a brand-new source not in the lockfile (no API calls)", async () => {
     // Seed a lockfile that covers ONE source. The new install asks for two
     // sources — the second has no installations at all in the lock.
