@@ -88,7 +88,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 
 | Tool                   | rules | ignore | mcp | commands | subagents | skills | hooks | permissions | checks |
 | ---------------------- | :---: | :----: | :-: | :------: | :-------: | :----: | :---: | :---------: | :----: |
-| Amp                    |  ✅   |        | ✅  |          |           |   ✅   |       |     ✅      |   ✅   |
+| Amp                    |  ✅   |        | ✅  |          |           |   ✅   |  ✅   |     ✅      |   ✅   |
 | Claude Code            |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Codex CLI              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | GitHub Copilot         |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |

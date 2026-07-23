@@ -486,6 +486,30 @@ describe("HooksProcessor", () => {
 
       expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("matcher"));
     });
+
+    it("should warn and skip Amp matchers outside tool events", async () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            sessionStart: [{ command: "filtered.sh", matcher: "special" }],
+            preToolUse: [{ command: "guard.sh", matcher: "Write" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "amp" });
+      const [toolFile] = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Skipped matcher hook(s) for amp (not supported): sessionStart"),
+      );
+      expect(toolFile?.getFileContent()).not.toContain("filtered.sh");
+      expect(toolFile?.getFileContent()).toContain("guard.sh");
+    });
   });
 
   describe("convertToolFilesToRulesyncFiles", () => {
@@ -519,9 +543,10 @@ describe("HooksProcessor", () => {
   });
 
   describe("getToolTargets", () => {
-    it("should return cursor, claudecode, copilot, copilotcli, opencode, kilo, pi, factorydroid, and kiro for project mode", () => {
+    it("should return every project hooks target", () => {
       const targets = HooksProcessor.getToolTargets({ global: false });
       expect(targets).toEqual([
+        "amp",
         "antigravity-cli",
         "antigravity-ide",
         "cursor",
@@ -546,9 +571,10 @@ describe("HooksProcessor", () => {
       ]);
     });
 
-    it("should return cursor, claudecode, copilotcli, opencode, kilo, pi, and factorydroid for global mode", () => {
+    it("should return every global hooks target", () => {
       const targets = HooksProcessor.getToolTargets({ global: true });
       expect(targets).toEqual([
+        "amp",
         "antigravity-cli",
         "antigravity-ide",
         "cursor",

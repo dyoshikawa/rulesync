@@ -292,6 +292,21 @@ export const PI_HOOK_EVENTS: readonly HookEvent[] = [
 ];
 
 /**
+ * Hook events supported by Amp through its generated TypeScript Plugin API
+ * adapter. Amp's `agent.start` / `agent.end` events describe the main agent
+ * turn, not a subagent lifecycle, so they map to `beforeSubmitPrompt` / `stop`.
+ *
+ * @see https://ampcode.com/manual/plugin-api
+ */
+export const AMP_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "preToolUse",
+  "postToolUse",
+  "beforeSubmitPrompt",
+  "stop",
+];
+
+/**
  * Hook events supported by GitHub Copilot (cloud coding agent).
  *
  * GitHub now documents an eight-event surface for `.github/hooks/*.json`:
@@ -718,6 +733,7 @@ export const HooksConfigSchema = z.looseObject({
   opencode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   kilo: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   pi: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  amp: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   factorydroid: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   codexcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   goose: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -956,6 +972,15 @@ export const CANONICAL_TO_PI_EVENT_NAMES: Record<string, string> = {
   beforeSubmitPrompt: "input",
   stop: "agent_end",
   preCompact: "session_before_compact",
+};
+
+/** Map canonical hook events to Amp Plugin API events. */
+export const CANONICAL_TO_AMP_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "session.start",
+  preToolUse: "tool.call",
+  postToolUse: "tool.result",
+  beforeSubmitPrompt: "agent.start",
+  stop: "agent.end",
 };
 
 /**
