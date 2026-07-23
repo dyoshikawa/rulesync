@@ -34,7 +34,7 @@ const GITIGNORE_DESTINATION_KEY = "gitignoreDestination";
  * Schema for a single source entry in the sources array.
  * Declares an external repository from which skills can be fetched.
  */
-const SourceEntrySchema = z
+export const SourceEntrySchema = z
   .object({
     source: z.string().check(minLength(1, "source must be a non-empty string")),
     skills: optional(z.array(z.string())),
