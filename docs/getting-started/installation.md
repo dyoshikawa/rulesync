@@ -110,4 +110,14 @@ Get-FileHash rulesync.exe -Algorithm SHA256 | ForEach-Object {
 }
 ```
 
+### Verify build provenance
+
+Release binaries include GitHub Artifact Attestations. After downloading a binary, verify that it was built by this repository:
+
+```bash
+gh attestation verify rulesync-darwin-arm64 --repo dyoshikawa/rulesync
+```
+
+Replace `rulesync-darwin-arm64` with the name of the binary you downloaded.
+
 :::
