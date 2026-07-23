@@ -34,8 +34,8 @@ jobs:
         with:
           # Pin to the merged commit SHA to avoid tagging a later commit if
           # main advances between the PR merge and this workflow run.
-          # Falls back to main for workflow_dispatch runs.
-          ref: ${{ github.event.pull_request.merge_commit_sha || 'main' }}
+          # Uses the immutable dispatch SHA for workflow_dispatch runs.
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
           # Fetch tags so the existence check below can see remote tags.
           fetch-depth: 0
           fetch-tags: true
@@ -62,17 +62,6 @@ jobs:
           bun build --compile --minify --sourcemap --target=bun-darwin-arm64 --outfile=dist-bun/rulesync-darwin-arm64 ./src/cli/index.ts
           bun build --compile --minify --sourcemap --target=bun-darwin-x64 --outfile=dist-bun/rulesync-darwin-x64 ./src/cli/index.ts
           bun build --compile --minify --sourcemap --target=bun-windows-x64 --outfile=dist-bun/rulesync-windows-x64.exe ./src/cli/index.ts
-
-      - name: Generate checksums
-        run: |
-          cd dist-bun
-          sha256sum rulesync-* > SHA256SUMS
-          cat SHA256SUMS
-
-      - name: Attest binary provenance
-        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
-        with:
-          subject-checksums: dist-bun/SHA256SUMS
 
       - name: Generate JSON Schemas
         run: pnpm generate:schema
@@ -144,6 +133,17 @@ jobs:
           echo "Tag $TAG created and pushed"
         env:
           TAG: ${{ steps.tag.outputs.tag }}
+
+      - name: Generate checksums
+        run: |
+          cd dist-bun
+          sha256sum rulesync-* > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Attest binary provenance
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
+        with:
+          subject-path: dist-bun/rulesync-*
 
       - name: Upload assets to release
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
