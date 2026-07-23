@@ -3,6 +3,7 @@ import { z } from "zod/mini";
 import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import {
+  AMP_HOOK_EVENTS,
   ANTIGRAVITY_HOOK_EVENTS,
   AUGMENTCODE_HOOK_EVENTS,
   CLAUDE_HOOK_EVENTS,
@@ -34,6 +35,7 @@ import { hooksProcessorToolTargetTuple } from "../../types/tool-target-tuples.js
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
+import { AmpHooks } from "./amp-hooks.js";
 import { AntigravityCliHooks, AntigravityIdeHooks } from "./antigravity-hooks.js";
 import { AugmentcodeHooks } from "./augmentcode-hooks.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
@@ -124,6 +126,20 @@ function unsupportedEventNames(params: {
 }
 
 export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
+  [
+    "amp",
+    {
+      class: AmpHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: false,
+      },
+      supportedEvents: AMP_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
   [
     "antigravity-cli",
     {

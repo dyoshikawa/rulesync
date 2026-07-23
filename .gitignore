@@ -359,6 +359,7 @@ rulesync.local.jsonc
 **/.qwen/settings.json
 **/.roo/mcp.json
 **/.warp/.mcp.json
+**/.amp/plugins/rulesync-hooks.ts
 **/.agents/hooks.json
 **/.cursor/hooks.json
 **/.codex/hooks.json

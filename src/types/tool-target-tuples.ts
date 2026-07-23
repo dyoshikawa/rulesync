@@ -198,6 +198,7 @@ export const skillsProcessorToolTargetTuple = [
 ] as const;
 
 export const hooksProcessorToolTargetTuple = [
+  "amp",
   "antigravity-cli",
   "antigravity-ide",
   "kilo",

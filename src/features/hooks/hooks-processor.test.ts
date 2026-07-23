@@ -519,9 +519,10 @@ describe("HooksProcessor", () => {
   });
 
   describe("getToolTargets", () => {
-    it("should return cursor, claudecode, copilot, copilotcli, opencode, kilo, pi, factorydroid, and kiro for project mode", () => {
+    it("should return every project hooks target", () => {
       const targets = HooksProcessor.getToolTargets({ global: false });
       expect(targets).toEqual([
+        "amp",
         "antigravity-cli",
         "antigravity-ide",
         "cursor",
@@ -546,9 +547,10 @@ describe("HooksProcessor", () => {
       ]);
     });
 
-    it("should return cursor, claudecode, copilotcli, opencode, kilo, pi, and factorydroid for global mode", () => {
+    it("should return every global hooks target", () => {
       const targets = HooksProcessor.getToolTargets({ global: true });
       expect(targets).toEqual([
+        "amp",
         "antigravity-cli",
         "antigravity-ide",
         "cursor",

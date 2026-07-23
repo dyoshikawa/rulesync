@@ -33,6 +33,7 @@ function assertHookCommandsPreserved(parsed: { hooks?: unknown }): void {
 // the processor's declared target set — it does NOT verify a matching standalone
 // `it` exists for each name, so keep this list in sync with the actual `it`s by hand.
 const hooksGenerateTargets = [
+  { target: "amp", outputPath: join(".amp", "plugins", "rulesync-hooks.ts") },
   { target: "claudecode", outputPath: join(".claude", "settings.json") },
   { target: "cursor", outputPath: join(".cursor", "hooks.json") },
   { target: "opencode", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
@@ -92,7 +93,12 @@ describe("E2E: hooks", () => {
 
     const generatedContent = await readFileContent(join(testDir, outputPath));
 
-    if (target === "opencode") {
+    if (target === "amp") {
+      expect(generatedContent).toContain('amp.on("session.start"');
+      expect(generatedContent).toContain('amp.on("agent.end"');
+      expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
+      expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+    } else if (target === "opencode") {
       // OpenCode generates a JavaScript plugin file, not JSON
       expect(generatedContent).toContain("export const RulesyncHooksPlugin");
       expect(generatedContent).toContain('"session.created"');
@@ -603,6 +609,7 @@ describe("E2E: hooks (import)", () => {
 });
 
 const hooksGlobalTargets = [
+  { target: "amp", outputPath: join(".config", "amp", "plugins", "rulesync-hooks.ts") },
   { target: "claudecode", outputPath: join(".claude", "settings.json") },
   { target: "codexcli", outputPath: join(".codex", "hooks.json") },
   { target: "qwencode", outputPath: join(".qwen", "settings.json") },
@@ -670,7 +677,12 @@ describe("E2E: hooks (global mode)", () => {
       });
 
       const generatedContent = await readFileContent(join(homeDir, outputPath));
-      if (target === "opencode") {
+      if (target === "amp") {
+        expect(generatedContent).toContain('amp.on("session.start"');
+        expect(generatedContent).toContain('amp.on("agent.end"');
+        expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
+        expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "opencode") {
         expect(generatedContent).toContain("RulesyncHooksPlugin");
         expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
         expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
