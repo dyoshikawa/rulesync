@@ -43,6 +43,9 @@ rulesync generate --input-root ~/.aiglobal --targets "*" --features rules
 # Install skills from declarative sources in rulesync.jsonc
 rulesync install
 
+# Add a source to rulesync.jsonc, update the lockfile, and install it
+rulesync add anthropics/skills --skills skill-creator
+
 # Force re-resolve all source refs (ignore lockfile)
 rulesync install --update
 
@@ -147,6 +150,34 @@ rulesync gitignore --targets copilot --features rules,commands
 - **Common entries** (e.g., `.rulesync/skills/.curated/`, `rulesync.local.jsonc`) are always included regardless of filters.
 - **General entries** (e.g., memories, settings) are always included when their target is selected.
 - When re-running, all previously generated rulesync entries are removed before writing the new filtered set.
+
+## Add Command
+
+The `add` command appends one source to `rulesync.jsonc` and immediately runs the declarative source resolver. It preserves JSONC comments, installs the selected skills into `.rulesync/skills/.curated/`, and updates `rulesync.lock` or `rulesync-npm.lock.json`.
+
+```bash
+# GitHub source (default transport)
+rulesync add anthropics/skills --skills skill-creator
+
+# Any Git remote through the git CLI
+rulesync add https://example.com/team/skills.git --transport git --ref main --path skills
+
+# npm-compatible registry
+rulesync add @acme/skill-package --transport npm --registry https://registry.npmjs.org
+```
+
+The selected configuration file must already exist. Run `rulesync init` first, or pass `--config <path>`. Adding a source whose normalized source identity is already present fails instead of silently creating duplicate lockfile entries; edit the existing entry when changing its options.
+
+| Option               | Description                                            |
+| -------------------- | ------------------------------------------------------ |
+| `--skills <skills>`  | Comma-separated skill names; omit to install all       |
+| `--transport <type>` | `github` (default), `git`, or experimental `npm`       |
+| `--ref <ref>`        | Git ref, npm version, or npm dist-tag                  |
+| `--path <path>`      | Skills path within the source                          |
+| `--registry <url>`   | npm-compatible registry URL                            |
+| `--token-env <name>` | Environment variable containing the npm registry token |
+| `--token <token>`    | GitHub token for private repositories                  |
+| `--config <path>`    | Configuration file to edit (default: `rulesync.jsonc`) |
 
 ## Fetch Command
 

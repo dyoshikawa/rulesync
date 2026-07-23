@@ -7,6 +7,7 @@ import { FetchOptions } from "../types/fetch.js";
 import { formatError } from "../utils/error.js";
 import type { Logger } from "../utils/logger.js";
 import { parseCommaSeparatedList } from "../utils/parse-comma-separated-list.js";
+import { addCommand, type AddCommandOptions } from "./commands/add.js";
 import { convertCommand, ConvertOptions } from "./commands/convert.js";
 import { fetchCommand } from "./commands/fetch.js";
 import { generateCommand, GenerateOptions } from "./commands/generate.js";
@@ -83,6 +84,33 @@ const main = async () => {
           features: cliFeatures,
           verbose: (options as { verbose?: boolean }).verbose,
           silent: (options as { silent?: boolean }).silent,
+        });
+      }),
+    );
+
+  program
+    .command("add <source>")
+    .description("Add a declarative skill source to rulesync.jsonc and install it")
+    .option("--skills <skills>", "Comma-separated skill names to install", parseCommaSeparatedList)
+    .option("--transport <transport>", "Source transport: github, git, or npm")
+    .option("-r, --ref <ref>", "Git ref, npm version, or npm dist-tag")
+    .option("-p, --path <path>", "Skills path within the source")
+    .option("--registry <url>", "npm-compatible registry URL")
+    .option("--token-env <name>", "Environment variable containing the npm registry token")
+    .option("--token <token>", "GitHub token for private repositories")
+    .option("-c, --config <path>", "Path to configuration file")
+    .option("-V, --verbose", "Verbose output")
+    .option("-s, --silent", "Suppress all output")
+    .action(
+      wrapCommand("add", "ADD_FAILED", async (logger, options, _globalOpts, positionalArgs) => {
+        const source = positionalArgs[0] as string;
+        const addOptions = options as Omit<AddCommandOptions, "source" | "configPath"> & {
+          config?: string;
+        };
+        await addCommand(logger, {
+          ...addOptions,
+          source,
+          configPath: addOptions.config,
         });
       }),
     );

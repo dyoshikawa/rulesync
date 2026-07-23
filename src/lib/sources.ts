@@ -83,6 +83,7 @@ export type ResolveAndFetchSourcesOptions = {
 export type ResolveAndFetchSourcesResult = {
   fetchedSkillCount: number;
   sourcesProcessed: number;
+  failedSourceCount: number;
 };
 
 type RemoteSkillFile = {
@@ -103,12 +104,12 @@ export async function resolveAndFetchSources(params: {
   const { sources, projectRoot, options = {}, logger } = params;
 
   if (sources.length === 0) {
-    return { fetchedSkillCount: 0, sourcesProcessed: 0 };
+    return { fetchedSkillCount: 0, sourcesProcessed: 0, failedSourceCount: 0 };
   }
 
   if (options.skipSources) {
     logger.info("Skipping source fetching.");
-    return { fetchedSkillCount: 0, sourcesProcessed: 0 };
+    return { fetchedSkillCount: 0, sourcesProcessed: 0, failedSourceCount: 0 };
   }
 
   // Read existing lockfiles. npm-transport sources are pinned in a separate
@@ -138,6 +139,7 @@ export async function resolveAndFetchSources(params: {
   const localSkillNames = await getLocalSkillDirNames(projectRoot);
 
   let totalSkillCount = 0;
+  let failedSourceCount = 0;
   const allFetchedSkillNames = new Set<string>();
 
   for (const sourceEntry of sources) {
@@ -162,6 +164,7 @@ export async function resolveAndFetchSources(params: {
         allFetchedSkillNames.add(name);
       }
     } catch (error) {
+      failedSourceCount += 1;
       logSourceFetchFailure({ sourceEntry, error, logger });
     }
   }
@@ -179,7 +182,11 @@ export async function resolveAndFetchSources(params: {
     logger,
   });
 
-  return { fetchedSkillCount: totalSkillCount, sourcesProcessed: sources.length };
+  return {
+    fetchedSkillCount: totalSkillCount,
+    sourcesProcessed: sources.length,
+    failedSourceCount,
+  };
 }
 
 /**

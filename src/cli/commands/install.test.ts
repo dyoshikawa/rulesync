@@ -42,6 +42,7 @@ describe("installCommand", () => {
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
         fetchedSkillCount: 3,
         sourcesProcessed: 1,
+        failedSourceCount: 0,
       });
 
       await installCommand(mockLogger, {});
@@ -66,6 +67,7 @@ describe("installCommand", () => {
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
         fetchedSkillCount: 0,
         sourcesProcessed: 1,
+        failedSourceCount: 0,
       });
 
       await installCommand(mockLogger, {});
@@ -115,6 +117,7 @@ describe("installCommand", () => {
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
         fetchedSkillCount: 0,
         sourcesProcessed: 1,
+        failedSourceCount: 0,
       });
 
       await installCommand(mockLogger, { update: true });
@@ -132,6 +135,7 @@ describe("installCommand", () => {
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
         fetchedSkillCount: 0,
         sourcesProcessed: 1,
+        failedSourceCount: 0,
       });
 
       await installCommand(mockLogger, { frozen: true });
@@ -149,6 +153,7 @@ describe("installCommand", () => {
       vi.mocked(resolveAndFetchSources).mockResolvedValue({
         fetchedSkillCount: 0,
         sourcesProcessed: 1,
+        failedSourceCount: 0,
       });
 
       await installCommand(mockLogger, { token: "my-token" });

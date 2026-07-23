@@ -2,6 +2,12 @@
 
 Rulesync can fetch skills from external repositories using the `install` command. Instead of manually running `fetch` for each skill source, declare them in your `rulesync.jsonc` and run `rulesync install` to resolve and fetch them. Then `rulesync generate` picks them up as local curated skills. Typical workflow: `rulesync install && rulesync generate`.
 
+To add one source without editing JSONC by hand, run `rulesync add <source>`. It preserves existing comments, appends the source entry, installs it, and updates the appropriate lockfile:
+
+```bash
+rulesync add anthropics/skills --skills skill-creator
+```
+
 ## Configuration
 
 Add a `sources` array to your `rulesync.jsonc`:

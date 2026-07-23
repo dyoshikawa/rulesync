@@ -111,7 +111,11 @@ describe("resolveAndFetchSources", () => {
   it("should return zero counts with empty sources", async () => {
     const result = await resolveAndFetchSources({ logger, sources: [], projectRoot: testDir });
 
-    expect(result).toEqual({ fetchedSkillCount: 0, sourcesProcessed: 0 });
+    expect(result).toEqual({
+      fetchedSkillCount: 0,
+      sourcesProcessed: 0,
+      failedSourceCount: 0,
+    });
   });
 
   it("should skip fetching when skipSources is true", async () => {
@@ -122,7 +126,11 @@ describe("resolveAndFetchSources", () => {
       options: { skipSources: true },
     });
 
-    expect(result).toEqual({ fetchedSkillCount: 0, sourcesProcessed: 0 });
+    expect(result).toEqual({
+      fetchedSkillCount: 0,
+      sourcesProcessed: 0,
+      failedSourceCount: 0,
+    });
     expect(mockClientInstance.getDefaultBranch).not.toHaveBeenCalled();
   });
 
@@ -417,6 +425,7 @@ describe("resolveAndFetchSources", () => {
     // Second source should succeed despite first failing
     expect(result.fetchedSkillCount).toBe(1);
     expect(result.sourcesProcessed).toBe(2);
+    expect(result.failedSourceCount).toBe(1);
   });
 
   it("should handle GitLab source gracefully", async () => {
@@ -429,6 +438,7 @@ describe("resolveAndFetchSources", () => {
     // Should not throw, but log error and skip
     expect(result.fetchedSkillCount).toBe(0);
     expect(result.sourcesProcessed).toBe(1);
+    expect(result.failedSourceCount).toBe(0);
   });
 
   it("should prune stale lockfile entries and preserve current sources", async () => {
@@ -621,7 +631,11 @@ describe("resolveAndFetchSources", () => {
       options: { frozen: true },
     });
 
-    expect(result).toEqual({ fetchedSkillCount: 1, sourcesProcessed: 1 });
+    expect(result).toEqual({
+      fetchedSkillCount: 1,
+      sourcesProcessed: 1,
+      failedSourceCount: 0,
+    });
     expect(mockClientInstance.getDefaultBranch).not.toHaveBeenCalled();
     expect(mockClientInstance.resolveRefToSha).not.toHaveBeenCalled();
     expect(writeLockFile).not.toHaveBeenCalled();
