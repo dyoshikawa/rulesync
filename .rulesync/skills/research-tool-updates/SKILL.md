@@ -5,7 +5,7 @@ description: >-
   capabilities rulesync has not yet followed, and file one GitHub issue per tool
   for the gaps.
 targets:
-  - claudecode
+  - "*"
 ---
 
 # Research Tool Updates
