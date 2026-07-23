@@ -90,11 +90,13 @@ const main = async () => {
 
   program
     .command("add <source>")
-    .description("Add a declarative skill source to rulesync.jsonc and install it")
+    .description("Add a declarative rule or skill source to rulesync.jsonc and install it")
     .option("--skills <skills>", "Comma-separated skill names to install", parseCommaSeparatedList)
+    .option("--rules <rules>", "Comma-separated rule names to install", parseCommaSeparatedList)
     .option("--transport <transport>", "Source transport: github, git, or npm")
     .option("-r, --ref <ref>", "Git ref, npm version, or npm dist-tag")
     .option("-p, --path <path>", "Skills path within the source")
+    .option("--rules-path <path>", "Rules path within the source")
     .option("--registry <url>", "npm-compatible registry URL")
     .option("--token-env <name>", "Environment variable containing the npm registry token")
     .option("--token <token>", "GitHub token for private repositories")
@@ -203,7 +205,9 @@ const main = async () => {
 
   program
     .command("install")
-    .description("Install skills/primitives from declarative sources (rulesync.jsonc) or apm.yml")
+    .description(
+      "Install rules, skills, or primitives from declarative sources (rulesync.jsonc) or apm.yml",
+    )
     .option(
       "--mode <mode>",
       `Install layout to produce (${INSTALL_MODES.join("|")}). Default: rulesync`,

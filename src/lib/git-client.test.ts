@@ -171,6 +171,58 @@ describe("git-client", () => {
   });
 
   describe("fetchSkillFiles", () => {
+    it("fetches and checks out the exact locked commit", async () => {
+      mockExecFileAsync.mockImplementation(async (_file: string, args: string[]) => ({
+        stdout: args.includes("rev-parse") ? `${SHA}\n` : "",
+        stderr: "",
+      }));
+      vi.mocked(createTempDirectory).mockResolvedValue("/tmp/test");
+      vi.mocked(removeTempDirectory).mockResolvedValue(undefined);
+      vi.mocked(directoryExists).mockResolvedValue(false);
+
+      await fetchSkillFiles({
+        url: "https://example.com/repo.git",
+        ref: "main",
+        resolvedRef: SHA,
+        skillsPath: "skills",
+      });
+
+      expect(mockExecFileAsync).toHaveBeenCalledWith(
+        "git",
+        ["-C", "/tmp/test", "fetch", "--depth", "1", "origin", SHA],
+        expect.any(Object),
+      );
+      expect(mockExecFileAsync).toHaveBeenCalledWith(
+        "git",
+        ["-C", "/tmp/test", "checkout", "--detach", SHA],
+        expect.any(Object),
+      );
+      expect(mockExecFileAsync).toHaveBeenCalledWith(
+        "git",
+        ["-C", "/tmp/test", "rev-parse", "HEAD"],
+        expect.any(Object),
+      );
+    });
+
+    it("rejects a checkout that does not match the locked commit", async () => {
+      mockExecFileAsync.mockImplementation(async (_file: string, args: string[]) => ({
+        stdout: args.includes("rev-parse") ? `${"b".repeat(40)}\n` : "",
+        stderr: "",
+      }));
+      vi.mocked(createTempDirectory).mockResolvedValue("/tmp/test");
+      vi.mocked(removeTempDirectory).mockResolvedValue(undefined);
+
+      await expect(
+        fetchSkillFiles({
+          url: "https://example.com/repo.git",
+          ref: "main",
+          resolvedRef: SHA,
+          skillsPath: "skills",
+        }),
+      ).rejects.toThrow("expected locked commit");
+      expect(removeTempDirectory).toHaveBeenCalledWith("/tmp/test");
+    });
+
     it("clones, walks, and returns files", async () => {
       mockExecFileAsync.mockResolvedValue({ stdout: "", stderr: "" });
       vi.mocked(createTempDirectory).mockResolvedValue("/tmp/test");

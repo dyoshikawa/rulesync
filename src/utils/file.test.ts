@@ -10,6 +10,9 @@ import {
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import {
   addTrailingNewline,
+  assertDirectoryIfExists,
+  assertTreeContainsNoSymlinks,
+  assertWritablePathInsideRoot,
   checkPathTraversal,
   createPathResolver,
   directoryExists,
@@ -25,6 +28,8 @@ import {
   readOrInitializeFileContent,
   removeDirectory,
   removeFile,
+  removeTempDirectory,
+  runWithDirectoryRollback,
   resolvePath,
   toKebabCaseFilename,
   toPosixPath,
@@ -60,6 +65,107 @@ describe("file utilities", () => {
 
       await expect(ensureDir(dirPath)).resolves.toBeUndefined();
       expect(await directoryExists(dirPath)).toBe(true);
+    });
+  });
+
+  describe.skipIf(process.platform === "win32")("safe writable paths", () => {
+    it("should reject a curated directory that is a symbolic link", async () => {
+      const actualDir = join(testDir, "actual");
+      const linkedDir = join(testDir, "linked");
+      await ensureDir(actualDir);
+      await symlink(actualDir, linkedDir);
+
+      await expect(
+        assertWritablePathInsideRoot({ rootPath: testDir, targetPath: linkedDir }),
+      ).rejects.toThrow("Refusing to write through a symbolic link");
+    });
+
+    it("should reject a symbolic link in a writable path's ancestor", async () => {
+      const actualDir = join(testDir, "actual");
+      const linkedDir = join(testDir, "linked");
+      await ensureDir(actualDir);
+      await symlink(actualDir, linkedDir);
+
+      await expect(
+        assertWritablePathInsideRoot({
+          rootPath: testDir,
+          targetPath: join(linkedDir, "nested", "rules"),
+        }),
+      ).rejects.toThrow("Refusing to write through a symbolic link");
+    });
+
+    it("should reject a symbolic link nested in a writable tree", async () => {
+      const treeDir = join(testDir, "tree");
+      const actualFile = join(testDir, "actual.md");
+      await ensureDir(treeDir);
+      await writeFileContent(actualFile, "content");
+      await symlink(actualFile, join(treeDir, "linked.md"));
+
+      await expect(assertTreeContainsNoSymlinks(treeDir)).rejects.toThrow(
+        "tree containing a symbolic link",
+      );
+    });
+
+    it("should reject a file where a writable directory is expected", async () => {
+      const filePath = join(testDir, "not-a-directory");
+      await writeFileContent(filePath, "content");
+
+      await expect(assertDirectoryIfExists(filePath)).rejects.toThrow("Expected a directory");
+    });
+  });
+
+  describe("runWithDirectoryRollback", () => {
+    it("should restore all directories when an action fails", async () => {
+      const skillsDir = join(testDir, "curated-skills");
+      const rulesDir = join(testDir, "curated-rules");
+      const oldSkillPath = join(skillsDir, "old", "SKILL.md");
+      const oldRulePath = join(rulesDir, "old.md");
+      await writeFileContent(oldSkillPath, "old skill");
+      await writeFileContent(oldRulePath, "old rule");
+
+      await expect(
+        runWithDirectoryRollback({
+          directoryPaths: [skillsDir, rulesDir],
+          action: async () => {
+            await removeDirectory(skillsDir);
+            await removeDirectory(rulesDir);
+            await writeFileContent(join(skillsDir, "new", "SKILL.md"), "new skill");
+            await writeFileContent(join(rulesDir, "new.md"), "new rule");
+            throw new Error("source failed");
+          },
+        }),
+      ).rejects.toThrow("source failed");
+
+      expect(await readFileContent(oldSkillPath)).toBe("old skill");
+      expect(await readFileContent(oldRulePath)).toBe("old rule");
+      expect(await fileExists(join(skillsDir, "new", "SKILL.md"))).toBe(false);
+      expect(await fileExists(join(rulesDir, "new.md"))).toBe(false);
+    });
+
+    it("should preserve the backup when rollback also fails", async () => {
+      const parentPath = join(testDir, "blocked-parent");
+      const curatedDir = join(parentPath, "curated");
+      await writeFileContent(join(curatedDir, "old.md"), "old content");
+
+      let caughtError: unknown;
+      try {
+        await runWithDirectoryRollback({
+          directoryPaths: [curatedDir],
+          action: async () => {
+            await removeDirectory(parentPath);
+            await writeFileContent(parentPath, "blocking file");
+            throw new Error("source failed");
+          },
+        });
+      } catch (error) {
+        caughtError = error;
+      }
+
+      expect(caughtError).toBeInstanceOf(AggregateError);
+      const backupPath = (caughtError as Error).message.match(/Backup preserved at (.+)\.$/)?.[1];
+      expect(backupPath).toBeDefined();
+      expect(await directoryExists(backupPath!)).toBe(true);
+      await removeTempDirectory(backupPath!);
     });
   });
 

@@ -40,16 +40,19 @@ rulesync generate --check --targets "*" --features "*"
 # Generate from a shared rules directory (without cd-ing into it)
 rulesync generate --input-root ~/.aiglobal --targets "*" --features rules
 
-# Install skills from declarative sources in rulesync.jsonc
+# Install rules and skills from declarative sources in rulesync.jsonc
 rulesync install
 
 # Add a source to rulesync.jsonc, update the lockfile, and install it
 rulesync add anthropics/skills --skills skill-creator
 
+# Add a rule source without selecting skills
+rulesync add acme/ai-standards --rules testing-guidelines
+
 # Force re-resolve all source refs (ignore lockfile)
 rulesync install --update
 
-# Fail if lockfile is missing or out of sync (for CI); fetch missing skills using locked refs
+# Fail if lockfile is missing or out of sync (for CI); fetch missing artifacts using locked refs
 rulesync install --frozen
 
 # Install then generate (typical workflow)
@@ -147,17 +150,23 @@ rulesync gitignore --targets copilot --features rules,commands
 
 ### Behavior
 
-- **Common entries** (e.g., `.rulesync/skills/.curated/`, `rulesync.local.jsonc`) are always included regardless of filters.
+- **Common entries** (e.g., `.rulesync/rules/.curated/`, `.rulesync/skills/.curated/`, `rulesync.local.jsonc`) are always included regardless of filters.
 - **General entries** (e.g., memories, settings) are always included when their target is selected.
 - When re-running, all previously generated rulesync entries are removed before writing the new filtered set.
 
 ## Add Command
 
-The `add` command appends one source to `rulesync.jsonc` and immediately runs the declarative source resolver. It preserves JSONC comments, installs the selected skills into `.rulesync/skills/.curated/`, and updates `rulesync.lock` or `rulesync-npm.lock.json`.
+The `add` command appends one source to `rulesync.jsonc` and immediately runs the declarative source resolver. It preserves JSONC comments, installs selected rules into `.rulesync/rules/.curated/`, installs selected skills into `.rulesync/skills/.curated/`, and updates `rulesync.lock` or `rulesync-npm.lock.json`.
 
 ```bash
 # GitHub source (default transport)
 rulesync add anthropics/skills --skills skill-creator
+
+# Rules only; direct .md files are selected from rules/
+rulesync add acme/ai-standards --rules testing-guidelines,typescript-conventions
+
+# Rules and skills from separate paths in one source
+rulesync add acme/ai-assets --rules "*" --rules-path exports/rules --skills review-pr --path exports/skills
 
 # Any Git remote through the git CLI
 rulesync add https://example.com/team/skills.git --transport git --ref main --path skills
@@ -168,18 +177,22 @@ rulesync add @acme/skill-package --transport npm --registry https://registry.npm
 
 The selected configuration file must already exist. Run `rulesync init` first, or pass `--config <path>`. Adding a source whose normalized source identity is already present fails instead of silently creating duplicate lockfile entries; edit the existing entry when changing its options.
 
-The operation fetches only the source being added; existing declarations are not re-fetched. Existing sources must already be locked and installed, otherwise run `rulesync install` first. The operation is transactional: if the new source fails to install, Rulesync restores the manifest, source lockfiles, and curated skills to their pre-command state.
+The operation fetches only the source being added; existing declarations are not re-fetched. Existing sources must already be locked and installed, otherwise run `rulesync install` first. The operation is transactional: if the new source fails to install, Rulesync restores the manifest, source lockfiles, curated rules, and curated skills to their pre-command state.
 
-| Option               | Description                                            |
-| -------------------- | ------------------------------------------------------ |
-| `--skills <skills>`  | Comma-separated skill names; omit to install all       |
-| `--transport <type>` | `github` (default), `git`, or experimental `npm`       |
-| `--ref <ref>`        | Git ref, npm version, or npm dist-tag                  |
-| `--path <path>`      | Skills path within the source                          |
-| `--registry <url>`   | npm-compatible registry URL                            |
-| `--token-env <name>` | Environment variable containing the npm registry token |
-| `--token <token>`    | GitHub token for private repositories                  |
-| `--config <path>`    | Configuration file to edit (default: `rulesync.jsonc`) |
+| Option                | Description                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------- |
+| `--skills <skills>`   | Comma-separated skill names. `*` selects all skills.                                              |
+| `--rules <rules>`     | Comma-separated rule names. Names may omit `.md`; `*` selects direct `.md` files under rulesPath. |
+| `--transport <type>`  | `github` (default), `git`, or experimental `npm`                                                  |
+| `--ref <ref>`         | Git ref, npm version, or npm dist-tag                                                             |
+| `--path <path>`       | Skills path within the source; defaults to `skills`                                               |
+| `--rules-path <path>` | Rules path within the source; defaults to `rules`                                                 |
+| `--registry <url>`    | npm-compatible registry URL                                                                       |
+| `--token-env <name>`  | Environment variable containing the npm registry token                                            |
+| `--token <token>`     | GitHub token for private repositories                                                             |
+| `--config <path>`     | Configuration file to edit (default: `rulesync.jsonc`)                                            |
+
+When neither `--skills` nor `--rules` is provided, all skills are installed for backward compatibility. Providing only `--rules` installs no skills.
 
 ## Fetch Command
 

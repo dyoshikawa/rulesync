@@ -8,8 +8,10 @@ import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
 import {
   LOCKFILE_VERSION,
+  computeRuleIntegrity,
   computeSkillIntegrity,
   createEmptyLock,
+  getLockedRuleNames,
   getLockedSkillNames,
   getLockedSource,
   normalizeSourceKey,
@@ -31,6 +33,28 @@ describe("sources-lock", () => {
     it("should return an empty lock structure", () => {
       const lock = createEmptyLock();
       expect(lock).toEqual({ lockfileVersion: 1, sources: {} });
+    });
+  });
+
+  describe("rule entries", () => {
+    it("should compute deterministic rule integrity", () => {
+      expect(computeRuleIntegrity("same content")).toBe(computeRuleIntegrity("same content"));
+      expect(computeRuleIntegrity("same content")).not.toBe(
+        computeRuleIntegrity("different content"),
+      );
+    });
+
+    it("should list locked rule names", () => {
+      expect(
+        getLockedRuleNames({
+          resolvedRef: VALID_SHA,
+          skills: {},
+          rules: {
+            "testing-guidelines": { integrity: "sha256-a" },
+            "typescript-conventions": { integrity: "sha256-b" },
+          },
+        }),
+      ).toEqual(["testing-guidelines", "typescript-conventions"]);
     });
   });
 

@@ -2,7 +2,10 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
@@ -1887,6 +1890,38 @@ targets: ["opencode", "agentsmd"]
       const finalContent = await readFileContent(join(testDir, "AGENTS.md"));
       expect(finalContent).toContain("# Reversed Order Content");
       expect(agentsMdToolFiles[0]).toBeInstanceOf(AgentsMdRule);
+    });
+  });
+
+  describe("loadRulesyncFiles with curated rules", () => {
+    it("should load curated rules while preferring a same-path local rule", async () => {
+      const frontmatter = "---\ntargets:\n  - '*'\n---\n";
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "shared.md"),
+        `${frontmatter}Local content`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "shared.md"),
+        `${frontmatter}Remote content`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "remote-only.md"),
+        `${frontmatter}Remote-only content`,
+      );
+      const processor = new RulesProcessor({
+        logger,
+        inputRoot: testDir,
+        outputRoot: testDir,
+        toolTarget: "copilot",
+      });
+
+      const result = (await processor.loadRulesyncFiles()) as RulesyncRule[];
+      const byPath = new Map(result.map((rule) => [rule.getRelativeFilePath(), rule]));
+
+      expect(byPath.size).toBe(2);
+      expect(byPath.get("shared.md")?.getBody()).toBe("Local content");
+      expect(byPath.get("remote-only.md")?.getBody()).toBe("Remote-only content");
+      expect([...byPath.keys()]).not.toContain(".curated/remote-only.md");
     });
   });
 

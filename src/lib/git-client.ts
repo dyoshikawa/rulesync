@@ -120,19 +120,23 @@ export async function resolveRefToSha(url: string, ref: string): Promise<string>
 }
 
 /**
- * Clone a repo at the given ref and return all files under skillsPath.
- * The `ref` must be a branch or tag name (not a commit SHA) because
- * `git clone --branch` does not accept raw SHAs.
+ * Clone a repo at the given branch or tag and return all files under skillsPath.
+ * When `resolvedRef` is provided, fetch and check out that exact commit before
+ * reading files so a mutable branch cannot drift from its lockfile SHA.
  */
 export async function fetchSkillFiles(params: {
   url: string;
   ref: string;
+  resolvedRef?: string;
   skillsPath: string;
   logger?: Logger;
 }): Promise<Array<{ relativePath: string; content: string; size: number }>> {
-  const { url, ref, skillsPath, logger } = params;
+  const { url, ref, resolvedRef, skillsPath, logger } = params;
   validateGitUrl(url, { logger });
   validateRef(ref);
+  if (resolvedRef !== undefined && !/^[0-9a-f]{40}$/.test(resolvedRef)) {
+    throw new GitClientError(`Invalid resolvedRef "${resolvedRef}": expected a commit SHA`);
+  }
   if (skillsPath.split(/[/\\]/).includes("..") || isAbsolute(skillsPath)) {
     throw new GitClientError(
       `Invalid skillsPath "${skillsPath}": must be a relative path without ".."`,
@@ -173,6 +177,11 @@ export async function fetchSkillFiles(params: {
       ],
       { timeout: GIT_TIMEOUT_MS },
     );
+    if (resolvedRef !== undefined) {
+      await execFileAsync("git", ["-C", tmpDir, "fetch", "--depth", "1", "origin", resolvedRef], {
+        timeout: GIT_TIMEOUT_MS,
+      });
+    }
     if (isRootPath) {
       // Disable sparse-checkout and restore the full tree.
       await execFileAsync("git", ["-C", tmpDir, "sparse-checkout", "disable"], {
@@ -183,7 +192,23 @@ export async function fetchSkillFiles(params: {
         timeout: GIT_TIMEOUT_MS,
       });
     }
-    await execFileAsync("git", ["-C", tmpDir, "checkout"], { timeout: GIT_TIMEOUT_MS });
+    await execFileAsync(
+      "git",
+      resolvedRef === undefined
+        ? ["-C", tmpDir, "checkout"]
+        : ["-C", tmpDir, "checkout", "--detach", resolvedRef],
+      { timeout: GIT_TIMEOUT_MS },
+    );
+    if (resolvedRef !== undefined) {
+      const { stdout } = await execFileAsync("git", ["-C", tmpDir, "rev-parse", "HEAD"], {
+        timeout: GIT_TIMEOUT_MS,
+      });
+      if (stdout.trim() !== resolvedRef) {
+        throw new GitClientError(
+          `Checked out commit ${stdout.trim() || "(unknown)"}, expected locked commit ${resolvedRef}`,
+        );
+      }
+    }
     const skillsDir = isRootPath ? tmpDir : join(tmpDir, skillsPath);
     if (!(await directoryExists(skillsDir))) return [];
     return await walkDirectory(skillsDir, skillsDir, 0, { totalFiles: 0, totalSize: 0 }, logger);

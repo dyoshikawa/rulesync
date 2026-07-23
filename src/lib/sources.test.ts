@@ -2,16 +2,28 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
+import {
+  RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
+  RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+} from "../constants/rulesync-paths.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import {
   directoryExists,
+  fileExists,
   findFilesByGlobs,
-  removeDirectory,
+  readFileContent,
+  removeDirectoryStrict as removeDirectory,
+  removeFileStrict as removeFile,
   writeFileContent,
 } from "../utils/file.js";
-import { getInstalledSourceSkillNames, resolveAndFetchSources } from "./sources.js";
+import { computeRuleIntegrity } from "./sources-lock.js";
+import {
+  getInstalledSourceRuleNames,
+  getInstalledSourceSkillNames,
+  resolveAndFetchSources,
+} from "./sources.js";
 
 let mockClientInstance: any;
 
@@ -47,9 +59,15 @@ vi.mock("../utils/file.js", async (importOriginal) => {
   return {
     ...actual,
     directoryExists: vi.fn(),
+    fileExists: vi.fn(),
     findFilesByGlobs: vi.fn(),
-    removeDirectory: vi.fn(),
+    readFileContent: vi.fn(),
+    removeDirectoryStrict: vi.fn(),
+    removeFileStrict: vi.fn(),
     writeFileContent: vi.fn(),
+    assertDirectoryIfExists: vi.fn(),
+    assertTreeContainsNoSymlinks: vi.fn(),
+    assertWritablePathInsideRoot: vi.fn(),
   };
 });
 
@@ -72,12 +90,42 @@ vi.mock("./git-client.js", () => ({
   fetchSkillFiles: vi.fn(),
 }));
 
+vi.mock("./npm-client.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./npm-client.js")>();
+  return {
+    ...actual,
+    fetchPackument: vi.fn(),
+    fetchTarball: vi.fn(),
+    getPackumentVersionDist: vi.fn(),
+    resolveNpmToken: vi.fn(),
+    resolvePackumentVersion: vi.fn(),
+    verifyTarballIntegrity: vi.fn(),
+  };
+});
+
+vi.mock("./npm-tar.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./npm-tar.js")>();
+  return {
+    ...actual,
+    extractPackageTarball: vi.fn(),
+  };
+});
+
 vi.mock("./sources-lock.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./sources-lock.js")>();
   return {
     ...actual,
     readLockFile: vi.fn().mockResolvedValue({ lockfileVersion: 1, sources: {} }),
     writeLockFile: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
+vi.mock("./npm-sources-lock.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./npm-sources-lock.js")>();
+  return {
+    ...actual,
+    readNpmLockFile: vi.fn().mockResolvedValue({ lockfileVersion: 1, sources: {} }),
+    writeNpmLockFile: vi.fn().mockResolvedValue(undefined),
   };
 });
 
@@ -98,8 +146,11 @@ describe("resolveAndFetchSources", () => {
 
     // Default: no curated dir, no local skills
     vi.mocked(directoryExists).mockResolvedValue(false);
+    vi.mocked(fileExists).mockResolvedValue(false);
     vi.mocked(findFilesByGlobs).mockResolvedValue([]);
+    vi.mocked(readFileContent).mockResolvedValue("");
     vi.mocked(removeDirectory).mockResolvedValue(undefined);
+    vi.mocked(removeFile).mockResolvedValue(undefined);
     vi.mocked(writeFileContent).mockResolvedValue(undefined);
   });
 
@@ -113,6 +164,7 @@ describe("resolveAndFetchSources", () => {
 
     expect(result).toEqual({
       fetchedSkillCount: 0,
+      fetchedRuleCount: 0,
       sourcesProcessed: 0,
       failedSourceCount: 0,
     });
@@ -128,6 +180,7 @@ describe("resolveAndFetchSources", () => {
 
     expect(result).toEqual({
       fetchedSkillCount: 0,
+      fetchedRuleCount: 0,
       sourcesProcessed: 0,
       failedSourceCount: 0,
     });
@@ -154,6 +207,57 @@ describe("resolveAndFetchSources", () => {
     });
 
     expect(result).toEqual(["existing-skill"]);
+  });
+
+  it("should reserve rule names from fully installed existing sources", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/existing": {
+          resolvedRef: "existing-sha",
+          skills: {},
+          rules: {
+            "testing-guidelines": {
+              integrity: computeRuleIntegrity(""),
+            },
+          },
+          ruleSelection: ["testing-guidelines"],
+          rulesPath: "rules",
+          resolvedRuleNames: ["testing-guidelines"],
+        },
+      },
+    });
+    vi.mocked(fileExists).mockResolvedValue(true);
+
+    const result = await getInstalledSourceRuleNames({
+      sources: [{ source: "org/existing", rules: ["testing-guidelines"] }],
+      projectRoot: testDir,
+      logger,
+    });
+
+    expect(result).toEqual(["testing-guidelines"]);
+  });
+
+  it("should reject a rule source whose lock predates rule tracking", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/existing": {
+          resolvedRef: "existing-sha",
+          skills: {},
+        },
+      },
+    });
+
+    await expect(
+      getInstalledSourceRuleNames({
+        sources: [{ source: "org/existing", rules: ["testing-guidelines"] }],
+        projectRoot: testDir,
+        logger,
+      }),
+    ).rejects.toThrow(/Run 'rulesync install' before adding another source/);
   });
 
   it("should reject an existing source that is not locked and installed", async () => {
@@ -274,6 +378,592 @@ describe("resolveAndFetchSources", () => {
       "SKILL.md",
     );
     expect(writeFileContent).toHaveBeenCalledWith(expectedFilePath, "# My Skill\nContent here.");
+  });
+
+  it("should fetch only selected rules from a GitHub source", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "exports/rules") {
+          return [
+            {
+              name: "typescript-conventions.md",
+              path: "exports/rules/typescript-conventions.md",
+              type: "file",
+              size: 100,
+            },
+            {
+              name: "testing-guidelines.md",
+              path: "exports/rules/testing-guidelines.md",
+              type: "file",
+              size: 100,
+            },
+          ];
+        }
+        return [];
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("---\ntargets: ['*']\n---\nUse Vitest.");
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [
+        {
+          source: "https://github.com/org/repo",
+          rules: ["testing-guidelines"],
+          rulesPath: "exports/rules",
+        },
+      ],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(0);
+    expect(result.fetchedRuleCount).toBe(1);
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalledWith(
+      "org",
+      "repo",
+      "skills",
+      expect.any(String),
+    );
+    expect(writeFileContent).toHaveBeenCalledWith(
+      join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "testing-guidelines.md"),
+      "---\ntargets: ['*']\n---\nUse Vitest.",
+    );
+    const { writeLockFile } = await import("./sources-lock.js");
+    expect(vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock.sources["org/repo"]).toMatchObject({
+      ruleSelection: ["testing-guidelines"],
+      rulesPath: "exports/rules",
+      resolvedRuleNames: ["testing-guidelines"],
+    });
+  });
+
+  it("should reuse one resolved SHA for skills and rules from the same source", async () => {
+    const { writeLockFile } = await import("./sources-lock.js");
+    const firstSha = "a".repeat(40);
+    const secondSha = "b".repeat(40);
+    mockClientInstance.resolveRefToSha
+      .mockResolvedValueOnce(firstSha)
+      .mockResolvedValueOnce(secondSha);
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "shared", path: "skills/shared", type: "dir" }];
+        }
+        if (path === "skills/shared") {
+          return [{ name: "SKILL.md", path: "skills/shared/SKILL.md", type: "file", size: 50 }];
+        }
+        if (path === "rules") {
+          return [{ name: "shared.md", path: "rules/shared.md", type: "file", size: 50 }];
+        }
+        return [];
+      },
+    );
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", skills: ["shared"], rules: ["shared"] }],
+      projectRoot: testDir,
+      options: { updateSources: true },
+    });
+
+    expect(result.fetchedSkillCount).toBe(1);
+    expect(result.fetchedRuleCount).toBe(1);
+    expect(mockClientInstance.resolveRefToSha).toHaveBeenCalledTimes(1);
+    expect(
+      vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock.sources["org/repo"]?.resolvedRef,
+    ).toBe(firstSha);
+  });
+
+  it("should reject prototype-polluting rule names", async () => {
+    mockClientInstance.listDirectory.mockResolvedValue([
+      { name: "__proto__.md", path: "rules/__proto__.md", type: "file", size: 100 },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", rules: ["*"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.failedSourceCount).toBe(1);
+    expect(result.fetchedRuleCount).toBe(0);
+    expect(mockClientInstance.getFileContent).not.toHaveBeenCalled();
+    expect(writeFileContent).not.toHaveBeenCalledWith(
+      join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "__proto__.md"),
+      expect.any(String),
+    );
+  });
+
+  it("should refetch cached rules when updating a combined source", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+    const oldRuleContent = "old rule";
+    const newRuleContent = "new rule";
+    const newSha = "a".repeat(40);
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          requestedRef: "main",
+          resolvedRef: "b".repeat(40),
+          skills: { shared: { integrity: "sha256-old-skill" } },
+          rules: { shared: { integrity: computeRuleIntegrity(oldRuleContent) } },
+          ruleSelection: ["shared"],
+          rulesPath: "rules",
+          resolvedRuleNames: ["shared"],
+        },
+      },
+    });
+    vi.mocked(fileExists).mockResolvedValue(true);
+    vi.mocked(readFileContent).mockResolvedValue(oldRuleContent);
+    mockClientInstance.resolveRefToSha.mockResolvedValue(newSha);
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "shared", path: "skills/shared", type: "dir" }];
+        }
+        if (path === "skills/shared") {
+          return [{ name: "SKILL.md", path: "skills/shared/SKILL.md", type: "file", size: 50 }];
+        }
+        if (path === "rules") {
+          return [{ name: "shared.md", path: "rules/shared.md", type: "file", size: 50 }];
+        }
+        return [];
+      },
+    );
+    mockClientInstance.getFileContent.mockImplementation(
+      async (_owner: string, _repo: string, path: string) =>
+        path === "rules/shared.md" ? newRuleContent : "new skill",
+    );
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", skills: ["shared"], rules: ["shared"] }],
+      projectRoot: testDir,
+      options: { updateSources: true },
+    });
+
+    expect(result.fetchedRuleCount).toBe(1);
+    expect(mockClientInstance.resolveRefToSha).toHaveBeenCalledTimes(1);
+    expect(mockClientInstance.getFileContent).toHaveBeenCalledWith(
+      "org",
+      "repo",
+      "rules/shared.md",
+      newSha,
+    );
+    expect(
+      vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock.sources["org/repo"]?.rules?.shared
+        ?.integrity,
+    ).toBe(computeRuleIntegrity(newRuleContent));
+  });
+
+  it("should preserve existing rules when a GitHub download fails", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "old-sha",
+          skills: {},
+          rules: { old: { integrity: computeRuleIntegrity("old content") } },
+          ruleSelection: ["*"],
+          rulesPath: "rules",
+          resolvedRuleNames: ["old"],
+        },
+      },
+    });
+    vi.mocked(fileExists).mockResolvedValue(true);
+    vi.mocked(readFileContent).mockResolvedValue("old content");
+    mockClientInstance.listDirectory.mockResolvedValue([
+      { name: "new.md", path: "rules/new.md", type: "file", size: 100 },
+    ]);
+    mockClientInstance.getFileContent.mockRejectedValue(new Error("download failed"));
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", rules: ["*"] }],
+      projectRoot: testDir,
+      options: { updateSources: true },
+    });
+
+    expect(result.failedSourceCount).toBe(1);
+    expect(removeFile).not.toHaveBeenCalledWith(
+      join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "old.md"),
+    );
+  });
+
+  it("should restore existing rules when writing a replacement fails", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    const oldRulePath = join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "old.md");
+    const newRulePath = join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "new.md");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "old-sha",
+          skills: {},
+          rules: { old: { integrity: computeRuleIntegrity("old content") } },
+          ruleSelection: ["*"],
+          rulesPath: "rules",
+          resolvedRuleNames: ["old"],
+        },
+      },
+    });
+    vi.mocked(fileExists).mockResolvedValue(true);
+    vi.mocked(readFileContent).mockResolvedValue("old content");
+    mockClientInstance.listDirectory.mockResolvedValue([
+      { name: "new.md", path: "rules/new.md", type: "file", size: 100 },
+    ]);
+    mockClientInstance.getFileContent.mockResolvedValue("new content");
+    vi.mocked(writeFileContent).mockImplementation(async (path) => {
+      if (path === newRulePath) {
+        throw new Error("write failed");
+      }
+    });
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", rules: ["*"] }],
+      projectRoot: testDir,
+      options: { updateSources: true },
+    });
+
+    expect(result.failedSourceCount).toBe(1);
+    expect(removeFile).toHaveBeenCalledWith(newRulePath);
+    expect(writeFileContent).toHaveBeenCalledWith(oldRulePath, "old content");
+  });
+
+  it("should let a local rule override a curated rule with the same name", async () => {
+    vi.mocked(findFilesByGlobs).mockResolvedValue([
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "testing-guidelines.md"),
+    ]);
+    mockClientInstance.listDirectory.mockResolvedValue([
+      {
+        name: "testing-guidelines.md",
+        path: "rules/testing-guidelines.md",
+        type: "file",
+        size: 100,
+      },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "https://github.com/org/repo", rules: ["testing-guidelines"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedRuleCount).toBe(0);
+    expect(mockClientInstance.getFileContent).not.toHaveBeenCalled();
+    expect(logger.debug).toHaveBeenCalledWith(
+      expect.stringContaining("local rule takes precedence"),
+    );
+  });
+
+  it("should remove a formerly owned curated rule even when a local rule has the same name", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    const curatedRulePath = join(
+      testDir,
+      RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
+      "testing-guidelines.md",
+    );
+    const curatedSkillDir = join(
+      testDir,
+      RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+      "cached-skill",
+    );
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "locked-sha",
+          skills: { "cached-skill": { integrity: "sha256-cached" } },
+          rules: { "testing-guidelines": { integrity: "sha256-old" } },
+          ruleSelection: ["testing-guidelines"],
+          rulesPath: "rules",
+          resolvedRuleNames: ["testing-guidelines"],
+        },
+      },
+    });
+    vi.mocked(directoryExists).mockImplementation(async (path) => path === curatedSkillDir);
+    vi.mocked(fileExists).mockImplementation(async (path) => path === curatedRulePath);
+    vi.mocked(findFilesByGlobs).mockResolvedValue([
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "testing-guidelines.md"),
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo" }],
+      projectRoot: testDir,
+    });
+
+    expect(result.failedSourceCount).toBe(0);
+    expect(removeFile).toHaveBeenCalledWith(curatedRulePath);
+  });
+
+  it("should retain rule ownership when curated cleanup fails", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+    const curatedRulePath = join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "old.md");
+    const curatedSkillDir = join(
+      testDir,
+      RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+      "cached-skill",
+    );
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "locked-sha",
+          skills: { "cached-skill": { integrity: "sha256-cached" } },
+          rules: { old: { integrity: "sha256-old" } },
+          ruleSelection: ["old"],
+          rulesPath: "rules",
+          resolvedRuleNames: ["old"],
+        },
+      },
+    });
+    vi.mocked(directoryExists).mockImplementation(async (path) => path === curatedSkillDir);
+    vi.mocked(fileExists).mockImplementation(async (path) => path === curatedRulePath);
+    vi.mocked(removeFile).mockRejectedValue(new Error("delete failed"));
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo" }],
+      projectRoot: testDir,
+    });
+
+    expect(result.failedSourceCount).toBe(1);
+    expect(writeLockFile).not.toHaveBeenCalled();
+  });
+
+  it("should let the first declared source win for duplicate rules", async () => {
+    mockClientInstance.listDirectory.mockResolvedValue([
+      {
+        name: "shared.md",
+        path: "rules/shared.md",
+        type: "file",
+        size: 100,
+      },
+    ]);
+    mockClientInstance.getFileContent.mockImplementation(
+      async (owner: string) => `---\ntargets: ['*']\n---\nFrom ${owner}`,
+    );
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [
+        { source: "first/repo", rules: ["shared"] },
+        { source: "second/repo", rules: ["shared"] },
+      ],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedRuleCount).toBe(1);
+    expect(writeFileContent).toHaveBeenCalledTimes(1);
+    expect(writeFileContent).toHaveBeenCalledWith(
+      join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "shared.md"),
+      "---\ntargets: ['*']\n---\nFrom first",
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("already fetched from another source"),
+    );
+  });
+
+  it("should not remove a duplicate rule already written by an earlier source", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "second/repo": {
+          resolvedRef: "abc123def456",
+          skills: {},
+          rules: { shared: { integrity: "sha256-old" } },
+        },
+      },
+    });
+    vi.mocked(fileExists).mockResolvedValue(true);
+    mockClientInstance.listDirectory.mockResolvedValue([
+      { name: "shared.md", path: "rules/shared.md", type: "file", size: 100 },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [
+        { source: "first/repo", rules: ["shared"] },
+        { source: "second/repo", rules: ["shared"] },
+      ],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedRuleCount).toBe(1);
+    expect(removeFile).not.toHaveBeenCalledWith(
+      join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "shared.md"),
+    );
+  });
+
+  it("should fetch selected rules through the git transport", async () => {
+    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "a".repeat(40) });
+    vi.mocked(fetchSkillFiles).mockResolvedValue([
+      {
+        relativePath: "testing-guidelines.md",
+        content: "---\ntargets: ['*']\n---\nUse Vitest.",
+        size: 50,
+      },
+      {
+        relativePath: "typescript-conventions.md",
+        content: "---\ntargets: ['*']\n---\nUse TypeScript.",
+        size: 60,
+      },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [
+        {
+          source: "https://example.com/team/rules.git",
+          transport: "git",
+          rules: ["testing-guidelines"],
+          rulesPath: "exports/rules",
+        },
+      ],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedRuleCount).toBe(1);
+    expect(fetchSkillFiles).toHaveBeenCalledWith({
+      url: "https://example.com/team/rules.git",
+      ref: "main",
+      resolvedRef: "a".repeat(40),
+      skillsPath: "exports/rules",
+      logger,
+    });
+  });
+
+  it("should refetch cached git rules from the same SHA when updating a combined source", async () => {
+    const { fetchSkillFiles, resolveRefToSha } = await import("./git-client.js");
+    const { readLockFile } = await import("./sources-lock.js");
+    const source = "https://example.com/team/assets.git";
+    const newSha = "a".repeat(40);
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        [source]: {
+          requestedRef: "main",
+          resolvedRef: "b".repeat(40),
+          skills: { shared: { integrity: "sha256-old-skill" } },
+          rules: { shared: { integrity: computeRuleIntegrity("old rule") } },
+          ruleSelection: ["shared"],
+          rulesPath: "rules",
+          resolvedRuleNames: ["shared"],
+        },
+      },
+    });
+    vi.mocked(fileExists).mockResolvedValue(true);
+    vi.mocked(readFileContent).mockResolvedValue("old rule");
+    vi.mocked(resolveRefToSha).mockResolvedValue(newSha);
+    vi.mocked(fetchSkillFiles)
+      .mockResolvedValueOnce([{ relativePath: "shared/SKILL.md", content: "new skill", size: 50 }])
+      .mockResolvedValueOnce([{ relativePath: "shared.md", content: "new rule", size: 50 }]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source, transport: "git", ref: "main", skills: ["shared"], rules: ["shared"] }],
+      projectRoot: testDir,
+      options: { updateSources: true },
+    });
+
+    expect(result.fetchedRuleCount).toBe(1);
+    expect(resolveRefToSha).toHaveBeenCalledTimes(1);
+    expect(fetchSkillFiles).toHaveBeenCalledTimes(2);
+    expect(fetchSkillFiles).toHaveBeenLastCalledWith({
+      url: source,
+      ref: "main",
+      resolvedRef: newSha,
+      skillsPath: "rules",
+      logger,
+    });
+  });
+
+  it("should fetch selected rules through the npm transport", async () => {
+    const {
+      fetchPackument,
+      fetchTarball,
+      getPackumentVersionDist,
+      resolveNpmToken,
+      resolvePackumentVersion,
+    } = await import("./npm-client.js");
+    const { extractPackageTarball } = await import("./npm-tar.js");
+    vi.mocked(resolveNpmToken).mockReturnValue(undefined);
+    vi.mocked(fetchPackument).mockResolvedValue({});
+    vi.mocked(resolvePackumentVersion).mockReturnValue("1.0.0");
+    vi.mocked(getPackumentVersionDist).mockReturnValue({
+      tarball: "https://registry.npmjs.org/example/-/example-1.0.0.tgz",
+      integrity: "sha512-example",
+    });
+    vi.mocked(fetchTarball).mockResolvedValue(Buffer.from("tarball"));
+    vi.mocked(extractPackageTarball).mockReturnValue([
+      {
+        relativePath: "exports/rules/testing-guidelines.md",
+        content: Buffer.from("---\ntargets: ['*']\n---\nUse Vitest."),
+      },
+      {
+        relativePath: "exports/rules/typescript-conventions.md",
+        content: Buffer.from("---\ntargets: ['*']\n---\nUse TypeScript."),
+      },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [
+        {
+          source: "example",
+          transport: "npm",
+          rules: ["testing-guidelines"],
+          rulesPath: "exports/rules",
+        },
+      ],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(0);
+    expect(result.fetchedRuleCount).toBe(1);
+    expect(writeFileContent).toHaveBeenCalledWith(
+      join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "testing-guidelines.md"),
+      "---\ntargets: ['*']\n---\nUse Vitest.",
+    );
+  });
+
+  it("should omit rule state for an npm source that only installs skills", async () => {
+    const {
+      fetchPackument,
+      fetchTarball,
+      getPackumentVersionDist,
+      resolveNpmToken,
+      resolvePackumentVersion,
+    } = await import("./npm-client.js");
+    const { extractPackageTarball } = await import("./npm-tar.js");
+    const { writeNpmLockFile } = await import("./npm-sources-lock.js");
+    vi.mocked(resolveNpmToken).mockReturnValue(undefined);
+    vi.mocked(fetchPackument).mockResolvedValue({});
+    vi.mocked(resolvePackumentVersion).mockReturnValue("1.0.0");
+    vi.mocked(getPackumentVersionDist).mockReturnValue({
+      tarball: "https://registry.npmjs.org/example/-/example-1.0.0.tgz",
+      integrity: "sha512-example",
+    });
+    vi.mocked(fetchTarball).mockResolvedValue(Buffer.from("tarball"));
+    vi.mocked(extractPackageTarball).mockReturnValue([
+      { relativePath: "skills/example/SKILL.md", content: Buffer.from("# Example") },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "example", transport: "npm" }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(1);
+    const locked = vi.mocked(writeNpmLockFile).mock.calls.at(-1)?.[0].lock.sources.example;
+    expect(locked).toBeDefined();
+    expect(locked).not.toHaveProperty("rules");
+    expect(locked).not.toHaveProperty("ruleSelection");
   });
 
   it("should honor ref and path fields for a GitHub source", async () => {
@@ -465,8 +1155,7 @@ describe("resolveAndFetchSources", () => {
       options: { updateSources: true },
     });
 
-    // updateSources: true creates empty lock, so resolveRefToSha must be called
-    // (proving the pre-existing lock entry "old-locked-sha-should-be-ignored" was ignored)
+    // updateSources: true must resolve a fresh SHA instead of reusing the old lock entry.
     expect(mockClientInstance.resolveRefToSha).toHaveBeenCalled();
     expect(result.fetchedSkillCount).toBe(1);
   });
@@ -562,6 +1251,59 @@ describe("resolveAndFetchSources", () => {
     expect(writtenLock.sources["org/new-repo"]).toBeDefined();
   });
 
+  it("should remove stale rules when all sources are removed", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+    const staleRulePath = join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "stale-rule.md");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/removed": {
+          resolvedRef: "old-sha",
+          skills: {},
+          rules: { "stale-rule": { integrity: "sha256-old" } },
+          ruleSelection: ["stale-rule"],
+          rulesPath: "rules",
+          resolvedRuleNames: ["stale-rule"],
+        },
+      },
+    });
+    vi.mocked(fileExists).mockImplementation(async (path) => path === staleRulePath);
+
+    const result = await resolveAndFetchSources({ logger, sources: [], projectRoot: testDir });
+
+    expect(result.sourcesProcessed).toBe(0);
+    expect(removeFile).toHaveBeenCalledWith(staleRulePath);
+    expect(vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock.sources).toEqual({});
+  });
+
+  it("should not remove stale artifacts in frozen mode", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/removed": {
+          resolvedRef: "old-sha",
+          skills: {},
+          rules: { "stale-rule": { integrity: "sha256-old" } },
+          ruleSelection: ["stale-rule"],
+          rulesPath: "rules",
+          resolvedRuleNames: ["stale-rule"],
+        },
+      },
+    });
+    vi.mocked(fileExists).mockResolvedValue(true);
+
+    await resolveAndFetchSources({
+      logger,
+      sources: [],
+      projectRoot: testDir,
+      options: { frozen: true },
+    });
+
+    expect(removeFile).not.toHaveBeenCalled();
+    expect(writeLockFile).not.toHaveBeenCalled();
+  });
+
   it("should preserve unlisted lock entries when resolving only a newly added source", async () => {
     const { readLockFile, writeLockFile } = await import("./sources-lock.js");
     vi.mocked(readLockFile).mockResolvedValue({
@@ -607,7 +1349,12 @@ describe("resolveAndFetchSources", () => {
     expect(writtenLock.sources["org/existing-repo"]).toBeDefined();
     expect(writtenLock.sources["org/new-repo"]).toBeDefined();
     expect(writtenLock.sources["org/new-repo"]?.skills["stale-skill"]).toBeUndefined();
-    expect(removeDirectory).not.toHaveBeenCalled();
+    expect(removeDirectory).toHaveBeenCalledWith(
+      join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "stale-skill"),
+    );
+    expect(removeDirectory).not.toHaveBeenCalledWith(
+      join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "existing-skill"),
+    );
   });
 
   it("should not prune current sources even when config uses different URL format than lock key", async () => {
@@ -693,6 +1440,165 @@ describe("resolveAndFetchSources", () => {
     expect(mockClientInstance.getDefaultBranch).not.toHaveBeenCalled();
   });
 
+  it("should throw when frozen and requested rules are missing from the lockfile", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "sha-123",
+          skills: {},
+        },
+      },
+    });
+
+    await expect(
+      resolveAndFetchSources({
+        logger,
+        sources: [{ source: "org/repo", rules: ["testing-guidelines"] }],
+        projectRoot: testDir,
+        options: { frozen: true },
+      }),
+    ).rejects.toThrow("Frozen install failed");
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
+  });
+
+  it("should allow a frozen rule selection satisfied by a local rule", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "sha-123",
+          skills: {},
+          rules: {},
+          ruleSelection: ["testing-guidelines"],
+          rulesPath: "rules",
+          resolvedRuleNames: ["testing-guidelines"],
+        },
+      },
+    });
+    vi.mocked(findFilesByGlobs).mockResolvedValue([
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "testing-guidelines.md"),
+    ]);
+    mockClientInstance.listDirectory.mockResolvedValue([
+      {
+        name: "testing-guidelines.md",
+        path: "rules/testing-guidelines.md",
+        type: "file",
+        size: 50,
+      },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", rules: ["testing-guidelines"] }],
+      projectRoot: testDir,
+      options: { frozen: true },
+    });
+
+    expect(result.failedSourceCount).toBe(0);
+    expect(result.fetchedRuleCount).toBe(0);
+  });
+
+  it("should refetch when the declared rule selection differs from the lockfile", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "sha-123",
+          skills: {},
+          rules: { old: { integrity: "sha256-old" } },
+          ruleSelection: ["old"],
+          rulesPath: "rules",
+          resolvedRuleNames: ["old"],
+        },
+      },
+    });
+    vi.mocked(fileExists).mockResolvedValue(true);
+    mockClientInstance.listDirectory.mockResolvedValue([
+      { name: "new.md", path: "rules/new.md", type: "file", size: 50 },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", rules: ["new"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedRuleCount).toBe(1);
+    expect(mockClientInstance.listDirectory).toHaveBeenCalled();
+    expect(removeFile).toHaveBeenCalledWith(
+      join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "old.md"),
+    );
+  });
+
+  it("should refetch when an explicit rule selection changes to a wildcard", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "sha-123",
+          skills: {},
+          rules: { old: { integrity: computeRuleIntegrity("") } },
+          ruleSelection: ["old"],
+          rulesPath: "rules",
+          resolvedRuleNames: ["old"],
+        },
+      },
+    });
+    vi.mocked(fileExists).mockResolvedValue(true);
+    mockClientInstance.listDirectory.mockResolvedValue([
+      { name: "old.md", path: "rules/old.md", type: "file", size: 50 },
+      { name: "new.md", path: "rules/new.md", type: "file", size: 50 },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", rules: ["*"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedRuleCount).toBe(2);
+    expect(vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock.sources["org/repo"]).toMatchObject({
+      ruleSelection: ["*"],
+      resolvedRuleNames: ["old", "new"],
+    });
+  });
+
+  it("should refetch when a cached rule fails its integrity check", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "sha-123",
+          skills: {},
+          rules: { rule: { integrity: computeRuleIntegrity("expected") } },
+          ruleSelection: ["rule"],
+          rulesPath: "rules",
+          resolvedRuleNames: ["rule"],
+        },
+      },
+    });
+    vi.mocked(fileExists).mockResolvedValue(true);
+    vi.mocked(readFileContent).mockResolvedValue("tampered");
+    mockClientInstance.listDirectory.mockResolvedValue([
+      { name: "rule.md", path: "rules/rule.md", type: "file", size: 50 },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", rules: ["rule"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedRuleCount).toBe(1);
+    expect(mockClientInstance.listDirectory).toHaveBeenCalled();
+  });
+
   it("should succeed in frozen mode when lockfile covers all sources and skills exist on disk", async () => {
     const { readLockFile } = await import("./sources-lock.js");
     const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
@@ -763,6 +1669,7 @@ describe("resolveAndFetchSources", () => {
 
     expect(result).toEqual({
       fetchedSkillCount: 1,
+      fetchedRuleCount: 0,
       sourcesProcessed: 1,
       failedSourceCount: 0,
     });
@@ -920,6 +1827,7 @@ describe("resolveAndFetchSources", () => {
     expect(vi.mocked(fetchSkillFiles)).toHaveBeenCalledWith({
       url: "file:///local/clone",
       ref: "develop",
+      resolvedRef: "def456abc789",
       skillsPath: "exports/skills",
     });
   });

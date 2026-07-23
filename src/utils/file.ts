@@ -1,4 +1,5 @@
 import {
+  cp,
   lstat,
   mkdir,
   mkdtemp,
@@ -10,13 +11,129 @@ import {
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { kebabCase } from "es-toolkit";
 import { globbySync } from "globby";
 
 import { formatError } from "./error.js";
 import { isEnvTest } from "./vitest.js";
+
+function pathEscapesRoot(relativePath: string): boolean {
+  return relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath);
+}
+
+export async function assertWritablePathInsideRoot(params: {
+  rootPath: string;
+  targetPath: string;
+}): Promise<void> {
+  const { rootPath, targetPath } = params;
+  let existingPath = targetPath;
+  while (true) {
+    try {
+      const stats = await lstat(existingPath);
+      if (resolve(existingPath) !== resolve(rootPath) && stats.isSymbolicLink()) {
+        throw new Error(`Refusing to write through a symbolic link: ${targetPath}.`);
+      }
+      const relativeRealPath = relative(await realpath(rootPath), await realpath(existingPath));
+      if (pathEscapesRoot(relativeRealPath)) {
+        throw new Error(`Writable path must resolve inside the root: ${targetPath}.`);
+      }
+      return;
+    } catch (error) {
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
+        throw error;
+      }
+      const parentPath = dirname(existingPath);
+      if (parentPath === existingPath) {
+        throw error;
+      }
+      existingPath = parentPath;
+    }
+  }
+}
+
+export async function assertTreeContainsNoSymlinks(dirPath: string): Promise<void> {
+  for (const entry of await readdir(dirPath, { withFileTypes: true })) {
+    const entryPath = join(dirPath, entry.name);
+    if (entry.isSymbolicLink()) {
+      throw new Error(`Refusing to write into a tree containing a symbolic link: ${entryPath}.`);
+    }
+    if (entry.isDirectory()) {
+      await assertTreeContainsNoSymlinks(entryPath);
+    }
+  }
+}
+
+export async function assertDirectoryIfExists(dirPath: string): Promise<void> {
+  try {
+    if (!(await lstat(dirPath)).isDirectory()) {
+      throw new Error(`Expected a directory at writable path: ${dirPath}.`);
+    }
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
+      throw error;
+    }
+  }
+}
+
+export async function runWithDirectoryRollback<T>(params: {
+  directoryPaths: string[];
+  action: () => Promise<T>;
+}): Promise<T> {
+  if (
+    params.directoryPaths.some(
+      (directoryPath) => !isAbsolute(directoryPath) || dirname(directoryPath) === directoryPath,
+    )
+  ) {
+    throw new Error("Rollback directories must be absolute non-root paths.");
+  }
+  const backupRoot = await createTempDirectory("rulesync-rollback-");
+  const snapshots: Array<{ directoryPath: string; backupPath: string; existed: boolean }> = [];
+  let removeBackup = true;
+  try {
+    for (const [index, directoryPath] of params.directoryPaths.entries()) {
+      const backupPath = join(backupRoot, String(index));
+      let existed = false;
+      try {
+        const stats = await lstat(directoryPath);
+        if (!stats.isDirectory()) {
+          throw new Error(`Expected a directory at rollback path: ${directoryPath}.`);
+        }
+        await cp(directoryPath, backupPath, { recursive: true });
+        existed = true;
+      } catch (error) {
+        if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
+          throw error;
+        }
+      }
+      snapshots.push({ directoryPath, backupPath, existed });
+    }
+    return await params.action();
+  } catch (error) {
+    try {
+      for (const snapshot of snapshots) {
+        await rm(snapshot.directoryPath, { recursive: true, force: true });
+        if (snapshot.existed) {
+          await cp(snapshot.backupPath, snapshot.directoryPath, { recursive: true });
+        }
+      }
+    } catch (rollbackError) {
+      removeBackup = false;
+      // oxlint-disable-next-line preserve-caught-error -- AggregateError retains both failures.
+      throw new AggregateError(
+        [error, rollbackError],
+        `Action and directory rollback both failed. Backup preserved at ${backupRoot}.`,
+        { cause: error },
+      );
+    }
+    throw error;
+  } finally {
+    if (removeBackup) {
+      await removeTempDirectory(backupRoot);
+    }
+  }
+}
 
 export async function ensureDir(dirPath: string): Promise<void> {
   try {
@@ -287,6 +404,13 @@ export async function removeDirectory(dirPath: string): Promise<void> {
   }
 }
 
+export async function removeDirectoryStrict(dirPath: string): Promise<void> {
+  if (!isAbsolute(dirPath) || dirname(dirPath) === dirPath) {
+    throw new Error(`Strict directory removal requires an absolute non-root path: ${dirPath}.`);
+  }
+  await rm(dirPath, { recursive: true, force: true });
+}
+
 export async function removeFile(filepath: string): Promise<void> {
   try {
     if (await fileExists(filepath)) {
@@ -295,6 +419,13 @@ export async function removeFile(filepath: string): Promise<void> {
   } catch {
     // Best-effort removal; silently ignore errors
   }
+}
+
+export async function removeFileStrict(filePath: string): Promise<void> {
+  if (!isAbsolute(filePath) || dirname(filePath) === filePath) {
+    throw new Error(`Strict file removal requires an absolute non-root path: ${filePath}.`);
+  }
+  await rm(filePath, { force: true });
 }
 
 export function getHomeDirectory(): string {

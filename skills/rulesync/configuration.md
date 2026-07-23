@@ -75,11 +75,12 @@ Example:
   // unconditionally to prevent accidental commits of generated rule files.
   "gitignoreTargetsOnly": true,
 
-  // Declarative skill sources — installed via 'rulesync install'
-  // See the "Declarative Skill Sources" section for details.
+  // Declarative rule and skill sources — installed via 'rulesync install'
+  // See the "Declarative Sources" section for details.
   // "sources": [
   //   { "source": "owner/repo" },
   //   { "source": "org/repo", "skills": ["specific-skill"] },
+  //   { "source": "org/standards", "rules": ["testing-guidelines"] },
   // ],
 }
 ```

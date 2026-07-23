@@ -1,10 +1,13 @@
-import { basename, dirname, join, relative } from "node:path";
+import { basename, dirname, join, relative, sep } from "node:path";
 
 import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import type { FeatureOptions } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
@@ -1292,18 +1295,54 @@ As this project's AI coding tool, you must follow the additional conventions bel
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
     const rulesyncOutputRoot = join(this.inputRoot, RULESYNC_RULES_RELATIVE_DIR_PATH);
-    const files = await findFilesByGlobs(join(rulesyncOutputRoot, "**", "*.md"));
-    this.logger.debug(`Found ${files.length} rulesync files`);
+    const curatedOutputRoot = join(this.inputRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH);
+    const [discoveredFiles, discoveredCuratedFiles] = await Promise.all([
+      findFilesByGlobs(join(rulesyncOutputRoot, "**", "*.md")),
+      findFilesByGlobs(join(curatedOutputRoot, "**", "*.md")),
+    ]);
+    const files = [...new Set([...discoveredFiles, ...discoveredCuratedFiles])];
+    const localFiles = files.filter(
+      (file) => !relative(rulesyncOutputRoot, file).startsWith(`.curated${sep}`),
+    );
+    const localRelativePaths = new Set(
+      localFiles.map((file) => relative(rulesyncOutputRoot, file)),
+    );
+    const curatedFiles = files
+      .filter((file) => relative(rulesyncOutputRoot, file).startsWith(`.curated${sep}`))
+      .map((file) => ({ file, relativeFilePath: relative(curatedOutputRoot, file) }))
+      .filter(({ relativeFilePath }) => !localRelativePaths.has(relativeFilePath));
+    const selectedFiles = [
+      ...localFiles.map((file) => ({
+        file,
+        sourceRelativeFilePath: relative(rulesyncOutputRoot, file),
+        relativeFilePath: relative(rulesyncOutputRoot, file),
+      })),
+      ...curatedFiles.map(({ file, relativeFilePath }) => ({
+        file,
+        sourceRelativeFilePath: join(".curated", relativeFilePath),
+        relativeFilePath,
+      })),
+    ];
+    this.logger.debug(`Found ${selectedFiles.length} rulesync files`);
     const rulesyncRules = await Promise.all(
-      files.map((file) => {
-        const relativeFilePath = relative(rulesyncOutputRoot, file);
+      selectedFiles.map(async ({ sourceRelativeFilePath, relativeFilePath }) => {
         checkPathTraversal({
-          relativePath: relativeFilePath,
+          relativePath: sourceRelativeFilePath,
           intendedRootDir: rulesyncOutputRoot,
         });
-        return RulesyncRule.fromFile({
+        const rule = await RulesyncRule.fromFile({
           outputRoot: this.inputRoot,
+          relativeFilePath: sourceRelativeFilePath,
+        });
+        if (sourceRelativeFilePath === relativeFilePath) {
+          return rule;
+        }
+        return new RulesyncRule({
+          outputRoot: this.inputRoot,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath,
+          frontmatter: rule.getFrontmatter(),
+          body: rule.getBody(),
         });
       }),
     );

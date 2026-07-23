@@ -18,6 +18,12 @@ const LockedSkillSchema = z.object({
 });
 export type LockedSkill = z.infer<typeof LockedSkillSchema>;
 
+/** Schema for a single locked rule entry with content integrity. */
+const LockedRuleSchema = z.object({
+  integrity: z.string(),
+});
+export type LockedRule = z.infer<typeof LockedRuleSchema>;
+
 /**
  * Schema for a single locked source entry.
  */
@@ -28,6 +34,10 @@ const LockedSourceSchema = z.object({
     .check(refine((v) => /^[0-9a-f]{40}$/.test(v), "resolvedRef must be a 40-character hex SHA")),
   resolvedAt: optional(z.string()),
   skills: z.record(z.string(), LockedSkillSchema),
+  rules: optional(z.record(z.string(), LockedRuleSchema)),
+  ruleSelection: optional(z.array(z.string())),
+  rulesPath: optional(z.string()),
+  resolvedRuleNames: optional(z.array(z.string())),
 });
 export type LockedSource = z.infer<typeof LockedSourceSchema>;
 
@@ -161,6 +171,13 @@ export function computeSkillIntegrity(files: Array<{ path: string; content: stri
   return `sha256-${hash.digest("hex")}`;
 }
 
+/** Compute a SHA-256 integrity hash for one rule file. */
+export function computeRuleIntegrity(content: string): string {
+  const hash = createHash("sha256");
+  hash.update(content);
+  return `sha256-${hash.digest("hex")}`;
+}
+
 /**
  * Normalize a source key for consistent lockfile lookups.
  * Strips URL prefixes, provider prefixes, trailing slashes, .git suffix, and lowercases.
@@ -249,4 +266,9 @@ export function setLockedSource(
  */
 export function getLockedSkillNames(entry: LockedSource): string[] {
   return Object.keys(entry.skills);
+}
+
+/** Get the rule names from a locked source entry. */
+export function getLockedRuleNames(entry: LockedSource): string[] {
+  return Object.keys(entry.rules ?? {});
 }
