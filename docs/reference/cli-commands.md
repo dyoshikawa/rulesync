@@ -179,7 +179,7 @@ rulesync add permissions
 
 Named features accept a name with or without the `.md` suffix. Skills use the directory layout `.rulesync/skills/<name>/SKILL.md`; the other named features create `<name>.md` in their canonical Rulesync directory. Names cannot contain path separators.
 
-When the target file exists, interactive execution asks before replacing it. Declining leaves the file unchanged. Non-interactive execution fails safely; pass `--force` to overwrite explicitly.
+When the target file exists, interactive execution asks before replacing it. Declining leaves the file unchanged. JSON, silent, and non-interactive execution fail safely; pass `--force` to overwrite explicitly. Singleton scaffolds recognize supported JSONC and legacy variants and replace the effective existing file instead of creating a shadowed canonical file.
 
 Feature keywords are reserved when no source-specific option is present. To add a source whose identifier is also a feature keyword, provide a source option that makes the intent explicit, such as `rulesync add skill --transport npm`.
 

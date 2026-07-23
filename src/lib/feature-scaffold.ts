@@ -29,6 +29,7 @@ export type ScaffoldFeature =
 export type FeatureScaffold = {
   feature: ScaffoldFeature;
   relativeFilePath: string;
+  candidateRelativeFilePaths: string[];
   content: string;
 };
 
@@ -94,6 +95,23 @@ function titleFromName(name: string): string {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function namedFeatureScaffold({
+  feature,
+  relativeFilePath,
+  content,
+}: {
+  feature: ScaffoldFeature;
+  relativeFilePath: string;
+  content: string;
+}): FeatureScaffold {
+  return {
+    feature,
+    relativeFilePath,
+    candidateRelativeFilePaths: [relativeFilePath],
+    content,
+  };
 }
 
 function ruleTemplate(name: string): string {
@@ -203,7 +221,7 @@ Attention, again, you are just the planner, so though you can read any files and
 
   const title = titleFromName(name);
   return `---
-name: ${name}
+name: ${JSON.stringify(name)}
 targets: ["*"]
 description: "${title} specialist"
 ---
@@ -227,7 +245,7 @@ Keep the summary concise and ready to reuse in future tasks.`;
 
   const title = titleFromName(name);
   return `---
-name: ${name}
+name: ${JSON.stringify(name)}
 description: "Use ${title} guidance for relevant tasks"
 targets: ["*"]
 ---
@@ -328,34 +346,34 @@ export function createFeatureScaffold({
 
   switch (feature) {
     case "rule":
-      return {
+      return namedFeatureScaffold({
         feature,
         relativeFilePath: join(
           RulesyncRule.getSettablePaths().recommended.relativeDirPath,
           `${normalizedName}.md`,
         ),
         content: ruleTemplate(normalizedName!),
-      };
+      });
     case "command":
-      return {
+      return namedFeatureScaffold({
         feature,
         relativeFilePath: join(
           RulesyncCommand.getSettablePaths().relativeDirPath,
           `${normalizedName}.md`,
         ),
         content: commandTemplate(normalizedName!),
-      };
+      });
     case "subagent":
-      return {
+      return namedFeatureScaffold({
         feature,
         relativeFilePath: join(
           RulesyncSubagent.getSettablePaths().relativeDirPath,
           `${normalizedName}.md`,
         ),
         content: subagentTemplate(normalizedName!),
-      };
+      });
     case "skill":
-      return {
+      return namedFeatureScaffold({
         feature,
         relativeFilePath: join(
           RulesyncSkill.getSettablePaths().relativeDirPath,
@@ -363,45 +381,76 @@ export function createFeatureScaffold({
           SKILL_FILE_NAME,
         ),
         content: skillTemplate(normalizedName!),
-      };
+      });
     case "check":
-      return {
+      return namedFeatureScaffold({
         feature,
         relativeFilePath: join(
           RulesyncCheck.getSettablePaths().relativeDirPath,
           `${normalizedName}.md`,
         ),
         content: checkTemplate(normalizedName!),
-      };
+      });
     case "mcp": {
-      const paths = RulesyncMcp.getSettablePaths().recommended;
+      const paths = RulesyncMcp.getSettablePaths();
+      const relativeFilePath = join(
+        paths.recommended.relativeDirPath,
+        paths.recommended.relativeFilePath,
+      );
       return {
         feature,
-        relativeFilePath: join(paths.relativeDirPath, paths.relativeFilePath),
+        relativeFilePath,
+        candidateRelativeFilePaths: [
+          ...(paths.jsonc ? [join(paths.jsonc.relativeDirPath, paths.jsonc.relativeFilePath)] : []),
+          relativeFilePath,
+          ...(paths.legacy
+            ? [join(paths.legacy.relativeDirPath, paths.legacy.relativeFilePath)]
+            : []),
+        ],
         content: singletonTemplate(feature),
       };
     }
     case "hooks": {
       const paths = RulesyncHooks.getSettablePaths();
+      const relativeFilePath = join(paths.relativeDirPath, paths.relativeFilePath);
       return {
         feature,
-        relativeFilePath: join(paths.relativeDirPath, paths.relativeFilePath),
+        relativeFilePath,
+        candidateRelativeFilePaths: [
+          ...(paths.jsonc ? [join(paths.jsonc.relativeDirPath, paths.jsonc.relativeFilePath)] : []),
+          relativeFilePath,
+        ],
         content: singletonTemplate(feature),
       };
     }
     case "ignore": {
-      const paths = RulesyncIgnore.getSettablePaths().recommended;
+      const paths = RulesyncIgnore.getSettablePaths();
+      const relativeFilePath = join(
+        paths.recommended.relativeDirPath,
+        paths.recommended.relativeFilePath,
+      );
       return {
         feature,
-        relativeFilePath: join(paths.relativeDirPath, paths.relativeFilePath),
+        relativeFilePath,
+        candidateRelativeFilePaths: [
+          relativeFilePath,
+          ...(paths.legacy
+            ? [join(paths.legacy.relativeDirPath, paths.legacy.relativeFilePath)]
+            : []),
+        ],
         content: singletonTemplate(feature),
       };
     }
     case "permissions": {
       const paths = RulesyncPermissions.getSettablePaths();
+      const relativeFilePath = join(paths.relativeDirPath, paths.relativeFilePath);
       return {
         feature,
-        relativeFilePath: join(paths.relativeDirPath, paths.relativeFilePath),
+        relativeFilePath,
+        candidateRelativeFilePaths: [
+          ...(paths.jsonc ? [join(paths.jsonc.relativeDirPath, paths.jsonc.relativeFilePath)] : []),
+          relativeFilePath,
+        ],
         content: singletonTemplate(feature),
       };
     }

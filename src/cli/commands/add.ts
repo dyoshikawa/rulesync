@@ -293,28 +293,40 @@ async function addFeatureScaffold({
 
   const scaffold = createFeatureScaffold({ feature, name: options.name });
   const projectRoot = process.cwd();
-  const targetPath = join(projectRoot, scaffold.relativeFilePath);
+  let relativeFilePath = scaffold.relativeFilePath;
+  for (const candidateRelativeFilePath of scaffold.candidateRelativeFilePaths) {
+    if (await fileExists(join(projectRoot, candidateRelativeFilePath))) {
+      relativeFilePath = candidateRelativeFilePath;
+      break;
+    }
+  }
+  const targetPath = join(projectRoot, relativeFilePath);
   await assertWritablePathInsideRoot({ rootPath: projectRoot, targetPath });
 
   if ((await fileExists(targetPath)) && !options.force) {
-    const confirmed = await (options.confirmOverwrite ?? promptForOverwrite)(
-      scaffold.relativeFilePath,
-    );
+    if (logger.jsonMode || logger.silent) {
+      throw new Error(
+        `Refusing to prompt before overwriting ${relativeFilePath} in JSON or silent mode. Re-run with --force to replace it.`,
+      );
+    }
+    const confirmed = await (options.confirmOverwrite ?? promptForOverwrite)(relativeFilePath);
     if (!confirmed) {
-      logger.info(`Kept ${scaffold.relativeFilePath} unchanged.`);
+      logger.info(`Kept ${relativeFilePath} unchanged.`);
       if (logger.jsonMode) {
         logger.captureData("created", []);
-        logger.captureData("skipped", [scaffold.relativeFilePath]);
+        logger.captureData("skipped", [relativeFilePath]);
       }
       return;
     }
   }
 
+  await assertWritablePathInsideRoot({ rootPath: projectRoot, targetPath });
   await ensureDir(dirname(targetPath));
+  await assertWritablePathInsideRoot({ rootPath: projectRoot, targetPath });
   await writeFileContent(targetPath, scaffold.content);
-  logger.success(`Created ${scaffold.relativeFilePath}`);
+  logger.success(`Created ${relativeFilePath}`);
   if (logger.jsonMode) {
-    logger.captureData("created", [scaffold.relativeFilePath]);
+    logger.captureData("created", [relativeFilePath]);
     logger.captureData("skipped", []);
   }
 }

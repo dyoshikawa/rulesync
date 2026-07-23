@@ -1,4 +1,4 @@
-import { symlink } from "node:fs/promises";
+import { rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { parse as parseJsonc } from "jsonc-parser";
@@ -12,14 +12,20 @@ import {
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
+  RULESYNC_HOOKS_JSONC_RELATIVE_FILE_PATH,
+  RULESYNC_IGNORE_RELATIVE_FILE_PATH,
   RULESYNC_MCP_RELATIVE_FILE_PATH,
+  RULESYNC_MCP_JSONC_RELATIVE_FILE_PATH,
   RULESYNC_NPM_SOURCES_LOCK_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
+  RULESYNC_PERMISSIONS_JSONC_RELATIVE_FILE_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
   RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { RulesyncSkill } from "../../features/skills/rulesync-skill.js";
+import { RulesyncSubagent } from "../../features/subagents/rulesync-subagent.js";
 import {
   getInstalledSourceRuleNames,
   getInstalledSourceSkillNames,
@@ -77,13 +83,13 @@ describe("addCommand", () => {
         source: "subagent",
         name: "reviewer",
         relativeFilePath: join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "reviewer.md"),
-        expectedContent: "name: reviewer",
+        expectedContent: 'name: "reviewer"',
       },
       {
         source: "skill",
         name: "security.md",
         relativeFilePath: join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "security", SKILL_FILE_NAME),
-        expectedContent: "name: security",
+        expectedContent: 'name: "security"',
       },
       {
         source: "check",
@@ -134,6 +140,72 @@ describe("addCommand", () => {
       },
     );
 
+    it.each([
+      {
+        source: "mcp",
+        relativeFilePath: RULESYNC_MCP_JSONC_RELATIVE_FILE_PATH,
+        expectedContent: '"mcpServers"',
+      },
+      {
+        source: "mcp",
+        relativeFilePath: join(".rulesync", ".mcp.json"),
+        expectedContent: '"mcpServers"',
+      },
+      {
+        source: "hooks",
+        relativeFilePath: RULESYNC_HOOKS_JSONC_RELATIVE_FILE_PATH,
+        expectedContent: '"hooks"',
+      },
+      {
+        source: "ignore",
+        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+        expectedContent: "credentials/",
+      },
+      {
+        source: "permissions",
+        relativeFilePath: RULESYNC_PERMISSIONS_JSONC_RELATIVE_FILE_PATH,
+        expectedContent: '"permission"',
+      },
+    ])(
+      "should overwrite the effective $source variant at $relativeFilePath",
+      async ({ source, relativeFilePath, expectedContent }) => {
+        const targetPath = join(testDir, relativeFilePath);
+        await writeFileContent(targetPath, "replace me\n");
+
+        await addCommand(logger, { source, force: true });
+
+        expect(await readFileContent(targetPath)).toContain(expectedContent);
+      },
+    );
+
+    it.each([
+      { source: "subagent", name: "null" },
+      { source: "subagent", name: "true" },
+      { source: "subagent", name: "123" },
+      { source: "subagent", name: "2026-07-22" },
+      { source: "skill", name: "null" },
+      { source: "skill", name: "true" },
+      { source: "skill", name: "123" },
+      { source: "skill", name: "2026-07-22" },
+    ])(
+      "should preserve the $source name $name as a frontmatter string",
+      async ({ source, name }) => {
+        await addCommand(logger, { source, name });
+
+        const feature =
+          source === "subagent"
+            ? await RulesyncSubagent.fromFile({
+                outputRoot: testDir,
+                relativeFilePath: `${name}.md`,
+              })
+            : await RulesyncSkill.fromDir({
+                outputRoot: testDir,
+                dirName: name,
+              });
+        expect(feature.getFrontmatter().name).toBe(name);
+      },
+    );
+
     it("should preserve an existing scaffold when overwrite confirmation is declined", async () => {
       const relativeFilePath = join(RULESYNC_RULES_RELATIVE_DIR_PATH, "existing.md");
       const targetPath = join(testDir, relativeFilePath);
@@ -163,6 +235,57 @@ describe("addCommand", () => {
       });
 
       expect(await readFileContent(targetPath)).toContain("# Existing");
+    });
+
+    it.each([
+      { mode: "JSON", jsonMode: true, silent: false },
+      { mode: "silent", jsonMode: false, silent: true },
+    ])(
+      "should fail without prompting before overwrite in $mode mode",
+      async ({ jsonMode, silent }) => {
+        const relativeFilePath = join(RULESYNC_RULES_RELATIVE_DIR_PATH, "existing.md");
+        const targetPath = join(testDir, relativeFilePath);
+        await writeFileContent(targetPath, "keep me\n");
+        const confirmOverwrite = vi.fn();
+        logger = { ...createMockLogger(), jsonMode, silent };
+
+        await expect(
+          addCommand(logger, {
+            source: "rule",
+            name: "existing",
+            confirmOverwrite,
+          }),
+        ).rejects.toThrow(/JSON or silent mode.*--force/);
+
+        expect(confirmOverwrite).not.toHaveBeenCalled();
+        expect(await readFileContent(targetPath)).toBe("keep me\n");
+      },
+    );
+
+    it("should reject a nested scaffold path replaced with a symlink during overwrite confirmation", async () => {
+      const projectRoot = join(testDir, "project");
+      const relativeFilePath = join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "existing", SKILL_FILE_NAME);
+      const targetPath = join(projectRoot, relativeFilePath);
+      const targetDir = join(projectRoot, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+      const outsideDir = join(testDir, "outside-skills");
+      const outsideSkillDir = join(outsideDir, "existing");
+      await writeFileContent(targetPath, "replace me\n");
+      await ensureDir(outsideDir);
+      vi.mocked(process.cwd).mockReturnValue(projectRoot);
+
+      await expect(
+        addCommand(logger, {
+          source: "skill",
+          name: "existing",
+          confirmOverwrite: async () => {
+            await rm(targetDir, { recursive: true });
+            await symlink(outsideDir, targetDir, "dir");
+            return true;
+          },
+        }),
+      ).rejects.toThrow(/Refusing to write through a symbolic link|must resolve inside the root/);
+
+      expect(await fileExists(outsideSkillDir)).toBe(false);
     });
 
     it("should fail safely instead of overwriting in non-interactive mode", async () => {
