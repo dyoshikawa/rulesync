@@ -14,8 +14,8 @@ import {
   fileExists,
   findFilesByGlobs,
   readFileContent,
-  removeDirectory,
-  removeFile,
+  removeDirectoryStrict as removeDirectory,
+  removeFileStrict as removeFile,
   writeFileContent,
 } from "../utils/file.js";
 import { computeRuleIntegrity } from "./sources-lock.js";
@@ -62,8 +62,8 @@ vi.mock("../utils/file.js", async (importOriginal) => {
     fileExists: vi.fn(),
     findFilesByGlobs: vi.fn(),
     readFileContent: vi.fn(),
-    removeDirectory: vi.fn(),
-    removeFile: vi.fn(),
+    removeDirectoryStrict: vi.fn(),
+    removeFileStrict: vi.fn(),
     writeFileContent: vi.fn(),
     assertDirectoryIfExists: vi.fn(),
     assertTreeContainsNoSymlinks: vi.fn(),
@@ -436,6 +436,43 @@ describe("resolveAndFetchSources", () => {
     });
   });
 
+  it("should reuse one resolved SHA for skills and rules from the same source", async () => {
+    const { writeLockFile } = await import("./sources-lock.js");
+    const firstSha = "a".repeat(40);
+    const secondSha = "b".repeat(40);
+    mockClientInstance.resolveRefToSha
+      .mockResolvedValueOnce(firstSha)
+      .mockResolvedValueOnce(secondSha);
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "shared", path: "skills/shared", type: "dir" }];
+        }
+        if (path === "skills/shared") {
+          return [{ name: "SKILL.md", path: "skills/shared/SKILL.md", type: "file", size: 50 }];
+        }
+        if (path === "rules") {
+          return [{ name: "shared.md", path: "rules/shared.md", type: "file", size: 50 }];
+        }
+        return [];
+      },
+    );
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", skills: ["shared"], rules: ["shared"] }],
+      projectRoot: testDir,
+      options: { updateSources: true },
+    });
+
+    expect(result.fetchedSkillCount).toBe(1);
+    expect(result.fetchedRuleCount).toBe(1);
+    expect(mockClientInstance.resolveRefToSha).toHaveBeenCalledTimes(1);
+    expect(
+      vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock.sources["org/repo"]?.resolvedRef,
+    ).toBe(firstSha);
+  });
+
   it("should reject prototype-polluting rule names", async () => {
     mockClientInstance.listDirectory.mockResolvedValue([
       { name: "__proto__.md", path: "rules/__proto__.md", type: "file", size: 100 },
@@ -597,6 +634,41 @@ describe("resolveAndFetchSources", () => {
 
     expect(result.failedSourceCount).toBe(0);
     expect(removeFile).toHaveBeenCalledWith(curatedRulePath);
+  });
+
+  it("should retain rule ownership when curated cleanup fails", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+    const curatedRulePath = join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "old.md");
+    const curatedSkillDir = join(
+      testDir,
+      RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+      "cached-skill",
+    );
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "locked-sha",
+          skills: { "cached-skill": { integrity: "sha256-cached" } },
+          rules: { old: { integrity: "sha256-old" } },
+          ruleSelection: ["old"],
+          rulesPath: "rules",
+          resolvedRuleNames: ["old"],
+        },
+      },
+    });
+    vi.mocked(directoryExists).mockImplementation(async (path) => path === curatedSkillDir);
+    vi.mocked(fileExists).mockImplementation(async (path) => path === curatedRulePath);
+    vi.mocked(removeFile).mockRejectedValue(new Error("delete failed"));
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo" }],
+      projectRoot: testDir,
+    });
+
+    expect(result.failedSourceCount).toBe(1);
+    expect(writeLockFile).not.toHaveBeenCalled();
   });
 
   it("should let the first declared source win for duplicate rules", async () => {

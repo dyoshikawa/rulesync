@@ -28,6 +28,7 @@ import {
   readOrInitializeFileContent,
   removeDirectory,
   removeFile,
+  removeTempDirectory,
   runWithDirectoryRollback,
   resolvePath,
   toKebabCaseFilename,
@@ -139,6 +140,32 @@ describe("file utilities", () => {
       expect(await readFileContent(oldRulePath)).toBe("old rule");
       expect(await fileExists(join(skillsDir, "new", "SKILL.md"))).toBe(false);
       expect(await fileExists(join(rulesDir, "new.md"))).toBe(false);
+    });
+
+    it("should preserve the backup when rollback also fails", async () => {
+      const parentPath = join(testDir, "blocked-parent");
+      const curatedDir = join(parentPath, "curated");
+      await writeFileContent(join(curatedDir, "old.md"), "old content");
+
+      let caughtError: unknown;
+      try {
+        await runWithDirectoryRollback({
+          directoryPaths: [curatedDir],
+          action: async () => {
+            await removeDirectory(parentPath);
+            await writeFileContent(parentPath, "blocking file");
+            throw new Error("source failed");
+          },
+        });
+      } catch (error) {
+        caughtError = error;
+      }
+
+      expect(caughtError).toBeInstanceOf(AggregateError);
+      const backupPath = (caughtError as Error).message.match(/Backup preserved at (.+)\.$/)?.[1];
+      expect(backupPath).toBeDefined();
+      expect(await directoryExists(backupPath!)).toBe(true);
+      await removeTempDirectory(backupPath!);
     });
   });
 

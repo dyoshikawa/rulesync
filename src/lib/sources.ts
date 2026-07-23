@@ -25,8 +25,8 @@ import {
   fileExists,
   findFilesByGlobs,
   readFileContent,
-  removeFile,
-  removeDirectory,
+  removeFileStrict,
+  removeDirectoryStrict,
   runWithDirectoryRollback,
   writeFileContent,
 } from "../utils/file.js";
@@ -191,6 +191,12 @@ export async function resolveAndFetchSources(params: {
   const localSkillNames = await getLocalSkillDirNames(projectRoot);
   const localRuleNames = await getLocalRuleNames(projectRoot);
 
+  if (!preserveUnlistedLockEntries && !frozen) {
+    await cleanUnlistedSourceArtifacts({ projectRoot, lock, npmLock, sources, logger });
+    lock = pruneStaleLockEntries({ lock, sources, logger });
+    npmLock = pruneStaleNpmLockEntries({ npmLock, sources, logger });
+  }
+
   let totalSkillCount = 0;
   let totalRuleCount = 0;
   let failedSourceCount = 0;
@@ -237,12 +243,6 @@ export async function resolveAndFetchSources(params: {
       failedSourceCount += 1;
       logSourceFetchFailure({ sourceEntry, error, logger });
     }
-  }
-
-  if (!preserveUnlistedLockEntries && !frozen) {
-    await cleanUnlistedSourceArtifacts({ projectRoot, lock, npmLock, sources, logger });
-    lock = pruneStaleLockEntries({ lock, sources, logger });
-    npmLock = pruneStaleNpmLockEntries({ npmLock, sources, logger });
   }
 
   await writeLockFilesIfChanged({
@@ -482,7 +482,9 @@ async function fetchSingleSource(params: {
       lock: updatedLock,
       localRuleNames: params.localRuleNames,
       alreadyFetchedRuleNames: params.alreadyFetchedRuleNames,
-      updateSources: params.updateSources,
+      // A preceding skill fetch has already resolved and locked this source.
+      // Reuse that exact ref so one source cannot mix artifacts from two SHAs.
+      updateSources: filters.skills === undefined ? params.updateSources : false,
       frozen: params.frozen,
       logger: params.logger,
     });
@@ -888,7 +890,7 @@ async function cleanPreviousCuratedSkills(params: {
       continue;
     }
     if (await directoryExists(prevDir)) {
-      await removeDirectory(prevDir);
+      await removeDirectoryStrict(prevDir);
     }
   }
 }
@@ -913,7 +915,7 @@ async function cleanPreviousCuratedRules(params: {
       continue;
     }
     if (await fileExists(prevFile)) {
-      await removeFile(prevFile);
+      await removeFileStrict(prevFile);
     }
   }
 }
@@ -983,7 +985,7 @@ async function replaceCuratedRules(params: {
     return fetchedRules;
   } catch (error) {
     for (const rule of installableRules) {
-      await removeFile(join(curatedDir, `${rule.name}.md`));
+      await removeFileStrict(join(curatedDir, `${rule.name}.md`));
     }
     for (const [name, content] of previousContents) {
       await writeFileContent(join(curatedDir, `${name}.md`), content);

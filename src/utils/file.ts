@@ -81,8 +81,16 @@ export async function runWithDirectoryRollback<T>(params: {
   directoryPaths: string[];
   action: () => Promise<T>;
 }): Promise<T> {
+  if (
+    params.directoryPaths.some(
+      (directoryPath) => !isAbsolute(directoryPath) || dirname(directoryPath) === directoryPath,
+    )
+  ) {
+    throw new Error("Rollback directories must be absolute non-root paths.");
+  }
   const backupRoot = await createTempDirectory("rulesync-rollback-");
   const snapshots: Array<{ directoryPath: string; backupPath: string; existed: boolean }> = [];
+  let removeBackup = true;
   try {
     for (const [index, directoryPath] of params.directoryPaths.entries()) {
       const backupPath = join(backupRoot, String(index));
@@ -111,16 +119,19 @@ export async function runWithDirectoryRollback<T>(params: {
         }
       }
     } catch (rollbackError) {
+      removeBackup = false;
       // oxlint-disable-next-line preserve-caught-error -- AggregateError retains both failures.
       throw new AggregateError(
         [error, rollbackError],
-        "Action and directory rollback both failed.",
+        `Action and directory rollback both failed. Backup preserved at ${backupRoot}.`,
         { cause: error },
       );
     }
     throw error;
   } finally {
-    await removeTempDirectory(backupRoot);
+    if (removeBackup) {
+      await removeTempDirectory(backupRoot);
+    }
   }
 }
 
@@ -393,6 +404,13 @@ export async function removeDirectory(dirPath: string): Promise<void> {
   }
 }
 
+export async function removeDirectoryStrict(dirPath: string): Promise<void> {
+  if (!isAbsolute(dirPath) || dirname(dirPath) === dirPath) {
+    throw new Error(`Strict directory removal requires an absolute non-root path: ${dirPath}.`);
+  }
+  await rm(dirPath, { recursive: true, force: true });
+}
+
 export async function removeFile(filepath: string): Promise<void> {
   try {
     if (await fileExists(filepath)) {
@@ -401,6 +419,13 @@ export async function removeFile(filepath: string): Promise<void> {
   } catch {
     // Best-effort removal; silently ignore errors
   }
+}
+
+export async function removeFileStrict(filePath: string): Promise<void> {
+  if (!isAbsolute(filePath) || dirname(filePath) === filePath) {
+    throw new Error(`Strict file removal requires an absolute non-root path: ${filePath}.`);
+  }
+  await rm(filePath, { force: true });
 }
 
 export function getHomeDirectory(): string {
