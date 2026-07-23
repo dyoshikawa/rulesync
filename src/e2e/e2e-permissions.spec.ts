@@ -4,7 +4,11 @@ import { load } from "js-yaml";
 import * as smolToml from "smol-toml";
 import { describe, expect, it } from "vitest";
 
-import { RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
+import {
+  RULESYNC_PERMISSIONS_JSONC_RELATIVE_FILE_PATH,
+  RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
+  RULESYNC_PERMISSIONS_SCHEMA_URL,
+} from "../constants/rulesync-paths.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
 import {
@@ -369,6 +373,42 @@ describe("E2E: permissions", () => {
     expect(rulesContent).toContain('decision = "prompt"');
     expect(rulesContent).toContain('pattern = ["rm", "-rf"]');
     expect(rulesContent).toContain('decision = "forbidden"');
+  });
+
+  it("should generate Codex-only settings from JSONC when shared permissions are empty", async () => {
+    const testDir = getTestDir();
+    await writeFileContent(
+      join(testDir, ".codex", "config.toml"),
+      `model = "gpt-5"
+
+[features]
+web_search_request = true
+`,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_JSONC_RELATIVE_FILE_PATH),
+      `{
+  "$schema": "${RULESYNC_PERMISSIONS_SCHEMA_URL}",
+  "permission": {},
+  "codexcli": {
+    "base_permission_profile": ":danger-full-access",
+    "approvals_reviewer": "auto_review",
+    "approval_policy": "on-request",
+  }
+}
+`,
+    );
+
+    await runGenerate({ target: "codexcli", features: "permissions" });
+
+    const parsed = smolToml.parse(await readFileContent(join(testDir, ".codex", "config.toml")));
+    const table = toTable(parsed);
+    expect(table.default_permissions).toBe(":danger-full-access");
+    expect(table.approval_policy).toBe("on-request");
+    expect(table.approvals_reviewer).toBe("auto_review");
+    expect(table.model).toBe("gpt-5");
+    expect(toTable(table.features).web_search_request).toBe(true);
+    expect(table.permissions).toBeUndefined();
   });
 
   it("should generate junie permissions into .junie/allowlist.json", async () => {
