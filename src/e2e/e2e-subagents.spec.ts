@@ -35,6 +35,10 @@ const subagentsGenerateTargets = [
     outputPath: join(".qwen", "agents", "planner.md"),
   },
   {
+    target: "kimi",
+    outputPath: join(".kimi-code", "agents", "planner.md"),
+  },
+  {
     target: "codexcli",
     outputPath: join(".codex", "agents", "planner.toml"),
   },
@@ -121,6 +125,7 @@ const subagentsGlobalTargets = [
   { target: "cursor", outputPath: join(".cursor", "agents", "planner.md") },
   { target: "grokcli", outputPath: join(".grok", "agents", "planner.md") },
   { target: "qwencode", outputPath: join(".qwen", "agents", "planner.md") },
+  { target: "kimi", outputPath: join(".agents", "agents", "planner.md") },
   { target: "junie", outputPath: join(".junie", "agents", "planner.md") },
   { target: "kiro-cli", outputPath: join(".kiro", "agents", "planner.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "agents", "planner.md") },

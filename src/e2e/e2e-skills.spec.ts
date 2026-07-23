@@ -44,6 +44,10 @@ const skillsGenerateTargets = [
     outputPath: join(".qwen", "skills", "test-skill", "SKILL.md"),
   },
   {
+    target: "kimi",
+    outputPath: join(".kimi-code", "skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "copilot",
     outputPath: join(".github", "skills", "test-skill", "SKILL.md"),
   },
@@ -383,6 +387,10 @@ const skillsGlobalTargets = [
   {
     target: "qwencode",
     outputPath: join(".qwen", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "kimi",
+    outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "junie",
