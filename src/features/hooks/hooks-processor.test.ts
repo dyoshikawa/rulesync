@@ -486,6 +486,30 @@ describe("HooksProcessor", () => {
 
       expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("matcher"));
     });
+
+    it("should warn and skip Amp matchers outside tool events", async () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            sessionStart: [{ command: "filtered.sh", matcher: "special" }],
+            preToolUse: [{ command: "guard.sh", matcher: "Write" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "amp" });
+      const [toolFile] = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Skipped matcher hook(s) for amp (not supported): sessionStart"),
+      );
+      expect(toolFile?.getFileContent()).not.toContain("filtered.sh");
+      expect(toolFile?.getFileContent()).toContain("guard.sh");
+    });
   });
 
   describe("convertToolFilesToRulesyncFiles", () => {

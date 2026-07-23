@@ -1,14 +1,18 @@
+import { execFile } from "node:child_process";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 
 import { tsImport } from "tsx/esm/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
 import { AmpHooks } from "./amp-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
+
+const execFileAsync = promisify(execFile);
 
 function buildRulesyncHooks({
   testDir,
@@ -61,7 +65,10 @@ describe("AmpHooks", () => {
             sessionStart: [{ command: "session.sh" }],
             preToolUse: [{ command: "pre.sh", matcher: "Write|Edit" }],
             postToolUse: [{ command: "post.sh" }],
-            beforeSubmitPrompt: [{ command: "prompt.sh" }],
+            beforeSubmitPrompt: [
+              { command: "prompt.sh" },
+              { command: "filtered-prompt.sh", matcher: "special" },
+            ],
             stop: [{ command: "stop.sh" }],
             subagentStart: [{ command: "subagent.sh" }],
           },
@@ -78,6 +85,7 @@ describe("AmpHooks", () => {
     expect(content).toContain('amp.on("agent.end"');
     expect(content).toContain('new RegExp("Write|Edit").test(event.tool)');
     expect(content).not.toContain("subagent.sh");
+    expect(content).not.toContain("filtered-prompt.sh");
   });
 
   it("should let the Amp override replace shared hooks", () => {
@@ -122,8 +130,8 @@ describe("AmpHooks", () => {
     );
   });
 
-  it("should escape commands and validate matcher regular expressions", () => {
-    const command = 'echo "C:\\temp" `date` ${HOME}';
+  it("should embed commands as raw Bun Shell values and validate matcher regular expressions", () => {
+    const command = 'echo "C:\\temp" $(date) ${HOME}';
     const ampHooks = AmpHooks.fromRulesyncHooks({
       outputRoot: testDir,
       rulesyncHooks: buildRulesyncHooks({
@@ -132,7 +140,9 @@ describe("AmpHooks", () => {
       }),
       validate: false,
     });
-    expect(ampHooks.getFileContent()).toContain('ctx.$`echo "C:\\\\temp" \\`date\\` \\${HOME}`');
+    expect(ampHooks.getFileContent()).toContain(
+      'ctx.$`${{ raw: "echo \\"C:\\\\temp\\" $(date) ${HOME}" }}`',
+    );
 
     expect(() =>
       AmpHooks.fromRulesyncHooks({
@@ -186,6 +196,45 @@ describe("AmpHooks", () => {
       action: "reject-and-continue",
       message: "blocked by policy",
     });
+
+    shell.mockRejectedValueOnce(new Error("hook execution failed"));
+    await expect(handlers["tool.call"]({ tool: "Write" }, { $: shell })).resolves.toEqual({
+      action: "reject-and-continue",
+      message: "hook execution failed",
+    });
+  });
+
+  it("should preserve shell quoting and expansion when executed by Bun Shell", async () => {
+    const outputPath = join(testDir, "amp-hook-output.txt");
+    const command = `echo SAFE\\; echo $AMP_HOOK_VALUE > ${JSON.stringify(outputPath)}`;
+    const ampHooks = AmpHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks: buildRulesyncHooks({
+        testDir,
+        config: { hooks: { sessionStart: [{ command }] } },
+      }),
+      validate: false,
+    });
+    const pluginsDir = join(testDir, ".amp", "plugins");
+    await ensureDir(pluginsDir);
+    const pluginPath = join(pluginsDir, "rulesync-hooks.ts");
+    await writeFileContent(pluginPath, ampHooks.getFileContent());
+    const runnerPath = join(testDir, "run-amp-hook.ts");
+    await writeFileContent(
+      runnerPath,
+      [
+        'import { $ } from "bun";',
+        `import plugin from ${JSON.stringify(pluginPath)};`,
+        "let sessionStart;",
+        'plugin({ on: (event, handler) => { if (event === "session.start") sessionStart = handler; } });',
+        'await sessionStart({ thread: { id: "T-test" } }, { $ });',
+      ].join("\n"),
+    );
+
+    await execFileAsync("bun", [runnerPath], {
+      env: { ...process.env, AMP_HOOK_VALUE: "expanded" },
+    });
+    expect(await readFileContent(outputPath)).toBe("SAFE; echo expanded\n");
   });
 
   it("should load and create a deletion instance for the generated plugin", async () => {

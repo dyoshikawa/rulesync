@@ -21,10 +21,6 @@ function matcherToEmbeddedLiteral(matcher: string): string {
   return JSON.stringify(sanitized);
 }
 
-function escapeForTemplateLiteral(command: string): string {
-  return command.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
-}
-
 function collectHandlers({
   effectiveHooks,
   eventMap,
@@ -38,7 +34,12 @@ function collectHandlers({
     if (!ampEvent) continue;
 
     const handlers = definitions
-      .filter((definition) => (definition.type ?? "command") === "command" && definition.command)
+      .filter(
+        (definition) =>
+          (definition.type ?? "command") === "command" &&
+          definition.command &&
+          (!definition.matcher || AMP_TOOL_EVENTS.has(ampEvent)),
+      )
       .map((definition) => ({
         command: definition.command as string,
         matcher: definition.matcher || undefined,
@@ -72,17 +73,25 @@ function buildCommandLines({
     );
   }
 
-  const command = escapeForTemplateLiteral(handler.command);
   if (blocksToolCall) {
-    lines.push(`${indent}const result = await ctx.$\`${command}\`;`);
-    lines.push(`${indent}if (result.exitCode !== 0) {`);
+    lines.push(`${indent}try {`);
     lines.push(
-      `${indent}  const message = result.stderr.trim() || result.stdout.trim() || \`Hook command failed with exit code \${result.exitCode}.\`;`,
+      `${indent}  const result = await ctx.$\`\${{ raw: ${JSON.stringify(handler.command)} }}\`;`,
+    );
+    lines.push(`${indent}  if (result.exitCode !== 0) {`);
+    lines.push(
+      `${indent}    const message = String(result.stderr).trim() || String(result.stdout).trim() || \`Hook command failed with exit code \${result.exitCode}.\`;`,
+    );
+    lines.push(`${indent}    return { action: "reject-and-continue", message };`);
+    lines.push(`${indent}  }`);
+    lines.push(`${indent}} catch (error) {`);
+    lines.push(
+      `${indent}  const message = error instanceof Error ? error.message : String(error);`,
     );
     lines.push(`${indent}  return { action: "reject-and-continue", message };`);
     lines.push(`${indent}}`);
   } else {
-    lines.push(`${indent}await ctx.$\`${command}\`;`);
+    lines.push(`${indent}await ctx.$\`\${{ raw: ${JSON.stringify(handler.command)} }}\`;`);
   }
 
   if (usesToolName && handler.matcher) {

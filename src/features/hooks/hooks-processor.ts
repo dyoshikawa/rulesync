@@ -96,6 +96,7 @@ type ToolHooksFactory = {
   supportedEvents: readonly HookEvent[];
   supportedHookTypes: readonly HookType[];
   supportsMatcher: boolean;
+  matcherEvents?: readonly HookEvent[];
   /**
    * When true, keys in the tool-specific override block (`config[target].hooks`)
    * are passed through verbatim by the adapter even if they are not in
@@ -125,6 +126,29 @@ function unsupportedEventNames(params: {
   return [...new Set(eventNames)].filter((e) => !supportedEvents.has(e));
 }
 
+function unsupportedMatcherEventNames({
+  factory,
+  effectiveHooks,
+}: {
+  factory: ToolHooksFactory;
+  effectiveHooks: Record<string, unknown>;
+}): string[] {
+  if (factory.supportsMatcher && !factory.matcherEvents) return [];
+
+  const matcherEvents = factory.matcherEvents ? new Set(factory.matcherEvents) : undefined;
+  const eventsWithMatcher = new Set<string>();
+  for (const [event, definitions] of Object.entries(effectiveHooks)) {
+    const supportsEventMatcher =
+      factory.supportsMatcher && matcherEvents?.has(event as HookEvent) === true;
+    if (supportsEventMatcher) continue;
+
+    for (const definition of definitions as Array<{ matcher?: unknown }>) {
+      if (definition.matcher) eventsWithMatcher.add(event);
+    }
+  }
+  return [...eventsWithMatcher];
+}
+
 export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
   [
     "amp",
@@ -138,6 +162,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: AMP_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
+      matcherEvents: ["preToolUse", "postToolUse"],
     },
   ],
   [
@@ -697,22 +722,11 @@ export class HooksProcessor extends FeatureProcessor {
     }
 
     // Warn about unsupported matcher
-    if (!factory.supportsMatcher) {
-      const eventsWithMatcher = new Set<string>();
-      for (const [event, defs] of Object.entries(effectiveHooks)) {
-        for (const def of defs as unknown[]) {
-          const hookDef = def as { matcher?: unknown };
-          if (hookDef.matcher) {
-            eventsWithMatcher.add(event);
-          }
-        }
-      }
-
-      if (eventsWithMatcher.size > 0) {
-        this.logger.warn(
-          `Skipped matcher hook(s) for ${this.toolTarget} (not supported): ${Array.from(eventsWithMatcher).join(", ")}`,
-        );
-      }
+    const eventsWithUnsupportedMatcher = unsupportedMatcherEventNames({ factory, effectiveHooks });
+    if (eventsWithUnsupportedMatcher.length > 0) {
+      this.logger.warn(
+        `Skipped matcher hook(s) for ${this.toolTarget} (not supported): ${eventsWithUnsupportedMatcher.join(", ")}`,
+      );
     }
 
     const toolHooks = await factory.class.fromRulesyncHooks({
