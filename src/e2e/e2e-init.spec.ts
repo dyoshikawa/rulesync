@@ -54,7 +54,7 @@ describe("E2E: init", () => {
     const mcpPath = join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH);
 
     expect(await readFileContent(rulePath)).toContain("# Architecture");
-    expect(await readFileContent(skillPath)).toContain("name: project-audit");
+    expect(await readFileContent(skillPath)).toContain('name: "project-audit"');
     expect(await readFileContent(mcpPath)).toContain('"mcpServers"');
   });
 });
