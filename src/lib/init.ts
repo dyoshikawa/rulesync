@@ -45,7 +45,7 @@ async function createConfigFile(): Promise<InitFileResult> {
       {
         $schema: RULESYNC_CONFIG_SCHEMA_URL,
         targets: ["codexcli", "claudecode", "opencode"],
-        features: ["rules", "mcp", "commands", "subagents", "skills", "hooks", "permissions"],
+        features: ["rules", "mcp", "subagents", "skills", "hooks", "permissions"],
         outputRoots: ["."],
         delete: true,
         verbose: false,
@@ -68,7 +68,6 @@ async function createSampleFiles(): Promise<InitFileResult[]> {
   const samples = [
     createFeatureScaffold({ feature: "rule", name: "overview" }),
     createFeatureScaffold({ feature: "mcp" }),
-    createFeatureScaffold({ feature: "command", name: "review-pr" }),
     createFeatureScaffold({ feature: "subagent", name: "planner" }),
     createFeatureScaffold({ feature: "skill", name: "project-context" }),
     createFeatureScaffold({ feature: "hooks" }),

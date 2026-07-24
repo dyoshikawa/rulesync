@@ -40,7 +40,6 @@ describe("E2E: init", () => {
       RULESYNC_HOOKS_RELATIVE_FILE_PATH,
       RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
       join(RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
-      join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
       join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
     ];
 
@@ -54,8 +53,13 @@ describe("E2E: init", () => {
     ) as Record<string, unknown>;
     expect(config.targets).toEqual(["codexcli", "claudecode", "opencode"]);
     expect(config.features).not.toContain("ignore");
+    expect(config.features).not.toContain("commands");
     expect(config.features).toContain("permissions");
+    expect(config.features).toContain("skills");
     expect(await fileExists(join(testDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH))).toBe(false);
+    expect(
+      await fileExists(join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md")),
+    ).toBe(false);
 
     const permissions = parseJsonc(
       await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
