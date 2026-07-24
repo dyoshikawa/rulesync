@@ -15,7 +15,7 @@ The single `rulesyncTool` multiplexes by `feature` and `operation`:
 - `import`: `run`
 - `convert`: `run`
 
-The `permissions` feature operates on `.rulesync/permissions.json` and the `hooks` feature operates on `.rulesync/hooks.json`. Both accept a `content` string (valid JSON) on `put`.
+The `permissions` feature operates on `.rulesync/permissions.jsonc` and the `hooks` feature operates on `.rulesync/hooks.jsonc`. Both accept a `content` string (valid JSONC) on `put`.
 
 ### `convert` / `run` options
 
@@ -41,7 +41,7 @@ This starts an MCP server using stdio transport that AI agents can communicate w
 
 ### Configuration
 
-Add the Rulesync MCP server to your `.rulesync/mcp.json`:
+Add the Rulesync MCP server to your `.rulesync/mcp.jsonc`:
 
 ```json
 {

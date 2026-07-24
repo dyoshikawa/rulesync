@@ -277,8 +277,8 @@ describe("RulesyncPermissions", () => {
     it("should return correct paths", () => {
       const paths = RulesyncPermissions.getSettablePaths();
 
-      expect(paths.relativeDirPath).toBe(RULESYNC_RELATIVE_DIR_PATH);
-      expect(paths.relativeFilePath).toBe(RULESYNC_PERMISSIONS_FILE_NAME);
+      expect(paths.recommended.relativeDirPath).toBe(RULESYNC_RELATIVE_DIR_PATH);
+      expect(paths.recommended.relativeFilePath).toBe(RULESYNC_PERMISSIONS_FILE_NAME);
     });
   });
 

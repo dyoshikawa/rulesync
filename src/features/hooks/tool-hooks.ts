@@ -1,4 +1,7 @@
-import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_HOOKS_FILE_NAME,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import type { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -59,7 +62,7 @@ export abstract class ToolHooks extends ToolFile {
     return new RulesyncHooks({
       outputRoot: this.outputRoot,
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: "hooks.json",
+      relativeFilePath: RULESYNC_HOOKS_FILE_NAME,
       fileContent: fileContent ?? this.fileContent,
     });
   }

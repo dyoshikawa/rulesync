@@ -7,7 +7,13 @@ import {
   RULESYNC_AIIGNORE_FILE_NAME,
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
+  RULESYNC_HOOKS_LEGACY_RELATIVE_FILE_PATH,
+  RULESYNC_HOOKS_RELATIVE_FILE_PATH,
+  RULESYNC_MCP_LEGACY_RELATIVE_FILE_PATH,
+  RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_OVERVIEW_FILE_NAME,
+  RULESYNC_PERMISSIONS_LEGACY_RELATIVE_FILE_PATH,
+  RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
@@ -44,12 +50,18 @@ describe("init", () => {
     vi.mocked(RulesyncMcp.getSettablePaths).mockReturnValue({
       recommended: {
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "mcp.json",
+        relativeFilePath: "mcp.jsonc",
       },
-      legacy: {
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-      },
+      legacy: [
+        {
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: "mcp.json",
+        },
+        {
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: ".mcp.json",
+        },
+      ],
     } as never);
     vi.mocked(RulesyncCommand.getSettablePaths).mockReturnValue({
       relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
@@ -71,8 +83,16 @@ describe("init", () => {
       },
     } as never);
     vi.mocked(RulesyncHooks.getSettablePaths).mockReturnValue({
-      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: "hooks.json",
+      recommended: {
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.jsonc",
+      },
+      legacy: [
+        {
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: "hooks.json",
+        },
+      ],
     } as never);
   });
 
@@ -116,13 +136,13 @@ describe("init", () => {
 
       const expectedPaths = [
         join(RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
-        join(RULESYNC_RELATIVE_DIR_PATH, "mcp.json"),
+        RULESYNC_MCP_RELATIVE_FILE_PATH,
         join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
         join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
         join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "project-context", SKILL_FILE_NAME),
         join(RULESYNC_RELATIVE_DIR_PATH, RULESYNC_AIIGNORE_FILE_NAME),
-        join(RULESYNC_RELATIVE_DIR_PATH, "hooks.json"),
-        join(RULESYNC_RELATIVE_DIR_PATH, "permissions.json"),
+        RULESYNC_HOOKS_RELATIVE_FILE_PATH,
+        RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
       ];
 
       const actualPaths = result.sampleFiles.map((f) => f.path);
@@ -194,7 +214,7 @@ describe("init", () => {
     it("should create MCP sample file", async () => {
       await init();
 
-      const mcpFilePath = join(RULESYNC_RELATIVE_DIR_PATH, "mcp.json");
+      const mcpFilePath = RULESYNC_MCP_RELATIVE_FILE_PATH;
       const writeCall = vi.mocked(writeFileContent).mock.calls.find((c) => c[0] === mcpFilePath);
 
       expect(writeCall).toBeDefined();
@@ -257,13 +277,44 @@ describe("init", () => {
     it("should create hooks sample file", async () => {
       await init();
 
-      const hooksFilePath = join(RULESYNC_RELATIVE_DIR_PATH, "hooks.json");
+      const hooksFilePath = RULESYNC_HOOKS_RELATIVE_FILE_PATH;
       const writeCall = vi.mocked(writeFileContent).mock.calls.find((c) => c[0] === hooksFilePath);
 
       expect(writeCall).toBeDefined();
       const content = writeCall?.[1] ?? "";
       expect(content).toContain('"hooks"');
       expect(content).toContain('"postToolUse"');
+    });
+
+    it.each([
+      [RULESYNC_MCP_LEGACY_RELATIVE_FILE_PATH, RULESYNC_MCP_RELATIVE_FILE_PATH],
+      [RULESYNC_HOOKS_LEGACY_RELATIVE_FILE_PATH, RULESYNC_HOOKS_RELATIVE_FILE_PATH],
+      [RULESYNC_PERMISSIONS_LEGACY_RELATIVE_FILE_PATH, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH],
+    ])("should preserve an existing legacy source at %s", async (legacyPath, recommendedPath) => {
+      vi.mocked(fileExists).mockImplementation(async (path) => path === legacyPath);
+
+      const result = await init();
+
+      expect(result.sampleFiles).toContainEqual({ created: false, path: legacyPath });
+      expect(
+        vi.mocked(writeFileContent).mock.calls.some((call) => call[0] === recommendedPath),
+      ).toBe(false);
+    });
+
+    it("should include Codex CLI defaults in the permissions sample", async () => {
+      await init();
+
+      const writeCall = vi
+        .mocked(writeFileContent)
+        .mock.calls.find((call) => call[0] === RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH);
+      expect(writeCall).toBeDefined();
+      expect(JSON.parse(writeCall?.[1] ?? "{}")).toMatchObject({
+        codexcli: {
+          approval_policy: "on-request",
+          approvals_reviewer: "auto_review",
+          base_permission_profile: ":danger-full-access",
+        },
+      });
     });
 
     it("should not create files that already exist", async () => {

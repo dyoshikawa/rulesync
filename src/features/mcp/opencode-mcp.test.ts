@@ -1173,7 +1173,7 @@ describe("OpencodeMcp", () => {
         },
       });
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
-      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
+      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.jsonc");
     });
 
     it("should preserve documented-but-unmodeled per-server fields (timeout/oauth) on import", () => {

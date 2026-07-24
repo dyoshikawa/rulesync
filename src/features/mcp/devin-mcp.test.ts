@@ -465,7 +465,7 @@ describe("DevinMcp", () => {
         ),
       );
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
-      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
+      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.jsonc");
     });
 
     it("should extract only mcpServers, dropping tool-specific top-level keys", () => {

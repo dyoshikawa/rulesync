@@ -399,7 +399,7 @@ args = ["server.js"]
         mcp_f3634b38: { command: "safe" },
       });
       expect(warnSpy).toHaveBeenCalledWith(
-        'MCP server "日本語サーバー" cannot be represented as a Codex MCP server name (ASCII [a-zA-Z0-9_-] only), so the stable fallback name "mcp_e212d0c9" was used. Rename the server in .rulesync/mcp.json to choose a readable Codex name.',
+        'MCP server "日本語サーバー" cannot be represented as a Codex MCP server name (ASCII [a-zA-Z0-9_-] only), so the stable fallback name "mcp_e212d0c9" was used. Rename the server in .rulesync/mcp.jsonc to choose a readable Codex name.',
       );
     });
 
@@ -1306,7 +1306,7 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 
       expect(rulesyncMcp).toBeInstanceOf(RulesyncMcp);
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
-      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
+      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.jsonc");
 
       const json = JSON.parse(rulesyncMcp.getFileContent());
       expect((json.mcpServers as any)?.filesystem).toBeDefined();

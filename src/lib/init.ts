@@ -88,14 +88,30 @@ async function createSampleFiles(): Promise<InitFileResult[]> {
   const results: InitFileResult[] = [];
   for (const sample of samples) {
     await ensureDir(dirname(sample.relativeFilePath));
-    results.push(await writeIfNotExists(sample.relativeFilePath, sample.content));
+    results.push(
+      await writeIfNotExists({
+        path: sample.relativeFilePath,
+        candidatePaths: sample.candidateRelativeFilePaths,
+        content: sample.content,
+      }),
+    );
   }
   return results;
 }
 
-async function writeIfNotExists(path: string, content: string): Promise<InitFileResult> {
-  if (await fileExists(path)) {
-    return { created: false, path };
+async function writeIfNotExists({
+  path,
+  candidatePaths,
+  content,
+}: {
+  path: string;
+  candidatePaths: string[];
+  content: string;
+}): Promise<InitFileResult> {
+  for (const candidatePath of candidatePaths) {
+    if (await fileExists(candidatePath)) {
+      return { created: false, path: candidatePath };
+    }
   }
 
   await writeFileContent(path, content);

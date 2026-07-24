@@ -198,7 +198,7 @@ export class ClinePermissions extends ToolPermissions {
     const dedupedDeny = uniq(deny.toSorted());
 
     // `deny` is additive (fail-closed): preserve any user-added denies in the existing file so a
-    // regenerate that drops a pattern from `.rulesync/permissions.json` does not silently weaken
+    // regenerate that drops a pattern from `.rulesync/permissions.jsonc` does not silently weaken
     // the protective surface. `allow` remains wholesale-replaced because rulesync owns the
     // permissive surface and additive merges of `allow` would re-introduce removed permissions.
     const mergedDeny = uniq([...(existing.deny ?? []), ...dedupedDeny]).toSorted();

@@ -361,7 +361,7 @@ describe("ToolMcp", () => {
       };
       expect(rulesyncMcp.getFileContent()).toBe(JSON.stringify(expectedContent, null, 2));
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
-      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.json");
+      expect(rulesyncMcp.getRelativeFilePath()).toBe("mcp.jsonc");
     });
 
     it("should preserve outputRoot when creating RulesyncMcp", () => {
@@ -380,7 +380,7 @@ describe("ToolMcp", () => {
 
       expect(rulesyncMcp.getOutputRoot()).toBe(customDir);
       expect(rulesyncMcp.getFilePath()).toBe(
-        join(customDir, RULESYNC_RELATIVE_DIR_PATH, "mcp.json"),
+        join(customDir, RULESYNC_RELATIVE_DIR_PATH, "mcp.jsonc"),
       );
     });
 

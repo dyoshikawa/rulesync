@@ -48,7 +48,7 @@ type TaktTransport = "stdio" | "sse" | "http";
  * `workflow_mcp_servers: { stdio, sse, http }`. Without it, workflow-defined MCP
  * servers are refused regardless of how they are declared. So this adapter emits
  * the transport allowlist derived from the transports present in
- * `.rulesync/mcp.json`, enabling exactly the transports the user's servers need.
+ * `.rulesync/mcp.jsonc`, enabling exactly the transports the user's servers need.
  *
  * Lossiness (documented, intentional): the per-server names, commands, env, URLs
  * and headers are NOT representable in `config.yaml` and are intentionally not

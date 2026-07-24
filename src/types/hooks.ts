@@ -36,7 +36,7 @@ export type HookType = (typeof HOOK_TYPES)[number];
 
 /**
  * Canonical hook definition.
- * Used in .rulesync/hooks.json and mapped to tool-specific formats.
+ * Used in .rulesync/hooks.jsonc and mapped to tool-specific formats.
  */
 export const HookDefinitionSchema = z.looseObject({
   command: z.optional(safeString),

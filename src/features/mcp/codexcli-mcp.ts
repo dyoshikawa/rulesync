@@ -146,7 +146,7 @@ function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
     if (usedFallback) {
       warnWithFallback(
         undefined,
-        `MCP server "${name}" cannot be represented as a Codex MCP server name (ASCII [a-zA-Z0-9_-] only), so the stable fallback name "${codexName}" was used. Rename the server in .rulesync/mcp.json to choose a readable Codex name.`,
+        `MCP server "${name}" cannot be represented as a Codex MCP server name (ASCII [a-zA-Z0-9_-] only), so the stable fallback name "${codexName}" was used. Rename the server in .rulesync/mcp.jsonc to choose a readable Codex name.`,
       );
     }
     const converted: Record<string, unknown> = {};

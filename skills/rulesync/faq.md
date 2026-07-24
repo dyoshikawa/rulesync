@@ -60,7 +60,7 @@ dangerously_allow_all_unix_sockets = true
 # "/path/to/ssh-agent.sock" = "allow"
 ```
 
-**Filesystem entries: author them in `.rulesync/permissions.json`, not in `config.toml`.** The profile's `filesystem` table is fully managed — hand-written entries there are replaced on the next `rulesync generate`. Add the rules to the canonical config instead (use the tool-scoped `codexcli.permission` block so they do not leak into other tools' outputs) and regenerate:
+**Filesystem entries: author them in `.rulesync/permissions.jsonc`, not in `config.toml`.** The profile's `filesystem` table is fully managed — hand-written entries there are replaced on the next `rulesync generate`. Add the rules to the canonical config instead (use the tool-scoped `codexcli.permission` block so they do not leak into other tools' outputs) and regenerate:
 
 ```jsonc
 {

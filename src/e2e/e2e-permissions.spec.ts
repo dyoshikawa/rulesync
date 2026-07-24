@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
-  RULESYNC_PERMISSIONS_JSONC_RELATIVE_FILE_PATH,
+  RULESYNC_PERMISSIONS_LEGACY_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_SCHEMA_URL,
 } from "../constants/rulesync-paths.js";
@@ -145,7 +145,7 @@ describe("E2E: permissions", () => {
     },
   );
 
-  it("should generate opencode permissions from .rulesync/permissions.json", async () => {
+  it("should generate opencode permissions from .rulesync/permissions.jsonc", async () => {
     const testDir = getTestDir();
 
     await writeFileContent(
@@ -212,11 +212,11 @@ describe("E2E: permissions", () => {
 
     // The stale .json variant must lose to the .jsonc variant.
     await writeFileContent(
-      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      join(testDir, RULESYNC_PERMISSIONS_LEGACY_RELATIVE_FILE_PATH),
       JSON.stringify({ permission: { bash: { "npm *": "allow" } } }),
     );
     await writeFileContent(
-      join(testDir, ".rulesync", "permissions.jsonc"),
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
       `{
         // JSONC source with comments and trailing commas
         "permission": {
@@ -388,7 +388,7 @@ web_search_request = true
 `,
     );
     await writeFileContent(
-      join(testDir, RULESYNC_PERMISSIONS_JSONC_RELATIVE_FILE_PATH),
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
       `{
   "$schema": "${RULESYNC_PERMISSIONS_SCHEMA_URL}",
   "permission": {},
@@ -595,7 +595,7 @@ web_search_request = true
     expect(content.permissions.deny).toContain("command(rm *)");
   });
 
-  it("should import antigravity-ide permissions into .rulesync/permissions.json", async () => {
+  it("should import antigravity-ide permissions into .rulesync/permissions.jsonc", async () => {
     const testDir = getTestDir();
 
     await writeFileContent(
@@ -914,7 +914,7 @@ web_search_request = true
     expect(toTable(profiles.codex).default_permission_mode).toBe("full");
   });
 
-  it("should import takt permissions into .rulesync/permissions.json", async () => {
+  it("should import takt permissions into .rulesync/permissions.jsonc", async () => {
     const testDir = getTestDir();
 
     await writeFileContent(
@@ -975,7 +975,7 @@ web_search_request = true
 describe("E2E: permissions (import)", () => {
   const { getTestDir } = useTestDirectory();
 
-  it("should import opencode permissions into .rulesync/permissions.json", async () => {
+  it("should import opencode permissions into .rulesync/permissions.jsonc", async () => {
     const testDir = getTestDir();
 
     await writeFileContent(
@@ -1001,7 +1001,7 @@ describe("E2E: permissions (import)", () => {
     expect(content.permission.read[".env"]).toBe("deny");
   });
 
-  it("should import zed permissions into .rulesync/permissions.json", async () => {
+  it("should import zed permissions into .rulesync/permissions.jsonc", async () => {
     const testDir = getTestDir();
 
     await writeFileContent(
@@ -1038,7 +1038,7 @@ describe("E2E: permissions (import)", () => {
     expect(content.permission.read[".env"]).toBe("deny");
   });
 
-  it("should import amp permissions into .rulesync/permissions.json", async () => {
+  it("should import amp permissions into .rulesync/permissions.jsonc", async () => {
     const testDir = getTestDir();
 
     await writeFileContent(
@@ -1064,7 +1064,7 @@ describe("E2E: permissions (import)", () => {
     expect(content.permission["*"]["*"]).toBe("deny");
   });
 
-  it("should import codexcli permissions into .rulesync/permissions.json", async () => {
+  it("should import codexcli permissions into .rulesync/permissions.jsonc", async () => {
     const testDir = getTestDir();
 
     await writeFileContent(
@@ -1102,7 +1102,7 @@ enabled = true
     expect(content.codexcli.base_permission_profile).toBe(":read-only");
   });
 
-  it("should import kilo permissions into .rulesync/permissions.json", async () => {
+  it("should import kilo permissions into .rulesync/permissions.jsonc", async () => {
     const testDir = getTestDir();
 
     await writeFileContent(
@@ -1128,7 +1128,7 @@ enabled = true
     expect(content.permission.read[".env"]).toBe("deny");
   });
 
-  it("should import augmentcode permissions into .rulesync/permissions.json", async () => {
+  it("should import augmentcode permissions into .rulesync/permissions.jsonc", async () => {
     const testDir = getTestDir();
 
     await writeFileContent(
@@ -1166,7 +1166,7 @@ enabled = true
     expect(content.permission.write["*"]).toBe("ask");
   });
 
-  it("should import cline permissions into .rulesync/permissions.json", async () => {
+  it("should import cline permissions into .rulesync/permissions.jsonc", async () => {
     const testDir = getTestDir();
 
     await writeFileContent(
@@ -1191,7 +1191,7 @@ enabled = true
     expect(content.permission.bash["rm -rf *"]).toBe("deny");
   });
 
-  it("should import qwencode permissions into .rulesync/permissions.json", async () => {
+  it("should import qwencode permissions into .rulesync/permissions.jsonc", async () => {
     const testDir = getTestDir();
 
     await writeFileContent(
@@ -1220,7 +1220,7 @@ enabled = true
     expect(content.permission.read["src/**"]).toBe("allow");
   });
 
-  it("should import kiro permissions into .rulesync/permissions.json", async () => {
+  it("should import kiro permissions into .rulesync/permissions.jsonc", async () => {
     const testDir = getTestDir();
 
     await writeFileContent(
@@ -1256,7 +1256,7 @@ enabled = true
     expect(content.permission.webfetch["*"]).toBe("allow");
   });
 
-  it("should import vibe permissions into .rulesync/permissions.json", async () => {
+  it("should import vibe permissions into .rulesync/permissions.jsonc", async () => {
     const testDir = getTestDir();
 
     await writeFileContent(
@@ -1284,7 +1284,7 @@ enabled = true
     expect(content.permission.bash["rm *"]).toBe("deny");
   });
 
-  it("should import copilot permissions into .rulesync/permissions.json", async () => {
+  it("should import copilot permissions into .rulesync/permissions.jsonc", async () => {
     const testDir = getTestDir();
 
     await writeFileContent(

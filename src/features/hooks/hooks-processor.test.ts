@@ -127,8 +127,8 @@ describe("HooksProcessor", () => {
 
     // Mirror the per-feature inputRoot threading assertion used in
     // commands-processor.test.ts: when inputRoot is set, loadRulesyncFiles
-    // reads `<inputRoot>/.rulesync/hooks.json` instead of
-    // `<process.cwd()>/.rulesync/hooks.json`.
+    // reads `<inputRoot>/.rulesync/hooks.jsonc` instead of
+    // `<process.cwd()>/.rulesync/hooks.jsonc`.
     it("should read rulesync hooks file from inputRoot instead of process.cwd()", async () => {
       const customInputRoot = join(testDir, "custom-rulesync-dir");
       await ensureDir(join(customInputRoot, RULESYNC_RELATIVE_DIR_PATH));

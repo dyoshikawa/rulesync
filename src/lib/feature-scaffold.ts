@@ -14,6 +14,7 @@ import { RulesyncPermissions } from "../features/permissions/rulesync-permission
 import { RulesyncRule } from "../features/rules/rulesync-rule.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
+import { getRulesyncSourceCandidates } from "../utils/rulesync-source-path.js";
 
 export type ScaffoldFeature =
   | "rule"
@@ -327,6 +328,11 @@ function singletonTemplate(feature: ScaffoldFeature): string {
     "read": {
       ".env": "deny"
     }
+  },
+  "codexcli": {
+    "approval_policy": "on-request",
+    "approvals_reviewer": "auto_review",
+    "base_permission_profile": ":danger-full-access"
   }
 }
 `;
@@ -400,26 +406,24 @@ export function createFeatureScaffold({
       return {
         feature,
         relativeFilePath,
-        candidateRelativeFilePaths: [
-          ...(paths.jsonc ? [join(paths.jsonc.relativeDirPath, paths.jsonc.relativeFilePath)] : []),
-          relativeFilePath,
-          ...(paths.legacy
-            ? [join(paths.legacy.relativeDirPath, paths.legacy.relativeFilePath)]
-            : []),
-        ],
+        candidateRelativeFilePaths: getRulesyncSourceCandidates({ paths }).map((candidate) =>
+          join(candidate.relativeDirPath, candidate.relativeFilePath),
+        ),
         content: singletonTemplate(feature),
       };
     }
     case "hooks": {
       const paths = RulesyncHooks.getSettablePaths();
-      const relativeFilePath = join(paths.relativeDirPath, paths.relativeFilePath);
+      const relativeFilePath = join(
+        paths.recommended.relativeDirPath,
+        paths.recommended.relativeFilePath,
+      );
       return {
         feature,
         relativeFilePath,
-        candidateRelativeFilePaths: [
-          ...(paths.jsonc ? [join(paths.jsonc.relativeDirPath, paths.jsonc.relativeFilePath)] : []),
-          relativeFilePath,
-        ],
+        candidateRelativeFilePaths: getRulesyncSourceCandidates({ paths }).map((candidate) =>
+          join(candidate.relativeDirPath, candidate.relativeFilePath),
+        ),
         content: singletonTemplate(feature),
       };
     }
@@ -443,14 +447,16 @@ export function createFeatureScaffold({
     }
     case "permissions": {
       const paths = RulesyncPermissions.getSettablePaths();
-      const relativeFilePath = join(paths.relativeDirPath, paths.relativeFilePath);
+      const relativeFilePath = join(
+        paths.recommended.relativeDirPath,
+        paths.recommended.relativeFilePath,
+      );
       return {
         feature,
         relativeFilePath,
-        candidateRelativeFilePaths: [
-          ...(paths.jsonc ? [join(paths.jsonc.relativeDirPath, paths.jsonc.relativeFilePath)] : []),
-          relativeFilePath,
-        ],
+        candidateRelativeFilePaths: getRulesyncSourceCandidates({ paths }).map((candidate) =>
+          join(candidate.relativeDirPath, candidate.relativeFilePath),
+        ),
         content: singletonTemplate(feature),
       };
     }

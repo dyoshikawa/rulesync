@@ -5,7 +5,12 @@ import { z } from "zod/mini";
 import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { RulesyncHooks } from "../features/hooks/rulesync-hooks.js";
 import { formatError } from "../utils/error.js";
-import { ensureDir, fileExists, removeFile, writeFileContent } from "../utils/file.js";
+import { ensureDir, removeFile, writeFileContent } from "../utils/file.js";
+import { parseJsonc } from "../utils/jsonc.js";
+import {
+  getRulesyncSourceCandidates,
+  resolveRulesyncSourceWritePath,
+} from "../utils/rulesync-source-path.js";
 
 const maxHooksSizeBytes = 1024 * 1024; // 1MB
 
@@ -54,12 +59,12 @@ async function putHooksFile({ content }: { content: string }): Promise<{
     );
   }
 
-  // Validate JSON format
+  // Validate JSONC format
   try {
-    JSON.parse(content);
+    parseJsonc(content);
   } catch (error) {
     throw new Error(
-      `Invalid JSON format in hooks file (${RULESYNC_HOOKS_RELATIVE_FILE_PATH}): ${formatError(error)}`,
+      `Invalid JSONC format in hooks file (${RULESYNC_HOOKS_RELATIVE_FILE_PATH}): ${formatError(error)}`,
       {
         cause: error,
       },
@@ -69,19 +74,10 @@ async function putHooksFile({ content }: { content: string }): Promise<{
   try {
     const outputRoot = process.cwd();
     const paths = RulesyncHooks.getSettablePaths();
-
-    // A .jsonc variant takes precedence at read time, so writing the .json
-    // variant while it exists would be silently ignored — and rewriting the
-    // .jsonc file here would destroy its comments. Refuse instead.
-    const jsoncRelativePath = join(paths.jsonc.relativeDirPath, paths.jsonc.relativeFilePath);
-    if (await fileExists(join(outputRoot, jsoncRelativePath))) {
-      throw new Error(
-        `${jsoncRelativePath} exists and takes precedence over ${RULESYNC_HOOKS_RELATIVE_FILE_PATH}. Edit ${jsoncRelativePath} directly instead.`,
-      );
-    }
-
-    const relativeDirPath = paths.relativeDirPath;
-    const relativeFilePath = paths.relativeFilePath;
+    const { relativeDirPath, relativeFilePath } = await resolveRulesyncSourceWritePath({
+      outputRoot,
+      paths,
+    });
     const fullPath = join(outputRoot, relativeDirPath, relativeFilePath);
 
     // Create a RulesyncHooks instance to validate the content
@@ -125,14 +121,14 @@ async function deleteHooksFile(): Promise<{
     const outputRoot = process.cwd();
     const paths = RulesyncHooks.getSettablePaths();
 
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
+    for (const candidate of getRulesyncSourceCandidates({ paths })) {
+      await removeFile(join(outputRoot, candidate.relativeDirPath, candidate.relativeFilePath));
+    }
 
-    await removeFile(filePath);
-
-    // Remove the .jsonc variant if it exists
-    await removeFile(join(outputRoot, paths.jsonc.relativeDirPath, paths.jsonc.relativeFilePath));
-
-    const relativePathFromCwd = join(paths.relativeDirPath, paths.relativeFilePath);
+    const relativePathFromCwd = join(
+      paths.recommended.relativeDirPath,
+      paths.recommended.relativeFilePath,
+    );
 
     return {
       relativePathFromCwd,
@@ -174,7 +170,7 @@ export const hooksTools = {
   putHooksFile: {
     name: "putHooksFile",
     description:
-      "Create or update the hooks configuration file (upsert operation). content parameter is required and must be valid JSON.",
+      "Create or update the hooks configuration file (upsert operation). content parameter is required and must be valid JSONC.",
     parameters: hooksToolSchemas.putHooksFile,
     execute: async (args: { content: string }) => {
       const result = await putHooksFile({ content: args.content });

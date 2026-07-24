@@ -269,7 +269,7 @@ export class KiloPermissions extends ToolPermissions {
       logger?.warn(
         `WARNING: Kilo permissions regeneration drops existing 'deny' rule(s) because rulesync ` +
           `output owns these tool keys. Dropped — ${summary}. To preserve these denies, add ` +
-          `them to '.rulesync/permissions.json'.`,
+          `them to '.rulesync/permissions.jsonc'.`,
       );
     }
 

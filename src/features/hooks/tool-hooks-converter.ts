@@ -485,7 +485,7 @@ function toolMatcherEntryToCanonical({
 
 /**
  * Assemble the canonical hooks config a tool importer writes to
- * `.rulesync/hooks.json`.
+ * `.rulesync/hooks.jsonc`.
  *
  * The top-level `hooks` record only accepts canonical event names, so any
  * imported native event key without a canonical mapping is moved under the

@@ -4,6 +4,10 @@ import {
   HERMESAGENT_CONFIG_FILE_NAME,
   HERMESAGENT_GLOBAL_DIR,
 } from "../../constants/hermesagent-paths.js";
+import {
+  RULESYNC_PERMISSIONS_FILE_NAME,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { type AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction } from "../../types/permissions.js";
 import { readFileContent } from "../../utils/file.js";
@@ -97,8 +101,9 @@ export class HermesagentPermissions extends ToolPermissions {
         ? (config.permissions as Record<string, unknown>).rulesync
         : {};
     return new RulesyncPermissions({
-      relativeDirPath: "",
-      relativeFilePath: ".rulesync/permissions.json",
+      outputRoot: this.outputRoot,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
       fileContent: JSON.stringify(permissions ?? {}, null, 2),
     });
   }
@@ -145,7 +150,7 @@ export class HermesagentPermissions extends ToolPermissions {
     }
 
     // Keep the full canonical config under the rulesync-private key for a
-    // lossless round-trip back to `.rulesync/permissions.json`.
+    // lossless round-trip back to `.rulesync/permissions.jsonc`.
     config.permissions = { rulesync: permissions };
 
     return new HermesagentPermissions({

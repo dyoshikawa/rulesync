@@ -2,6 +2,11 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  RULESYNC_HOOKS_RELATIVE_FILE_PATH,
+  RULESYNC_MCP_RELATIVE_FILE_PATH,
+  RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
+} from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
 import { rulesyncTool } from "./tools.js";
@@ -94,7 +99,7 @@ describe("rulesyncTool", () => {
     });
 
     const deleteParsed = JSON.parse(deleteResult);
-    expect(deleteParsed.relativePathFromCwd).toBe(".rulesync/mcp.json");
+    expect(deleteParsed.relativePathFromCwd).toBe(RULESYNC_MCP_RELATIVE_FILE_PATH);
 
     // Verify the file is deleted by checking get throws
     await expect(
@@ -125,7 +130,7 @@ describe("rulesyncTool", () => {
     });
 
     const putParsed = JSON.parse(putResult);
-    expect(putParsed.relativePathFromCwd).toBe(".rulesync/permissions.json");
+    expect(putParsed.relativePathFromCwd).toBe(RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH);
     expect(putParsed.content).toContain("git *");
 
     const getResult = await rulesyncTool.execute({
@@ -143,7 +148,7 @@ describe("rulesyncTool", () => {
     });
 
     const deleteParsed = JSON.parse(deleteResult);
-    expect(deleteParsed.relativePathFromCwd).toBe(".rulesync/permissions.json");
+    expect(deleteParsed.relativePathFromCwd).toBe(RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH);
 
     // Verify the file is deleted by checking get throws
     await expect(
@@ -180,7 +185,7 @@ describe("rulesyncTool", () => {
     });
 
     const putParsed = JSON.parse(putResult);
-    expect(putParsed.relativePathFromCwd).toBe(".rulesync/hooks.json");
+    expect(putParsed.relativePathFromCwd).toBe(RULESYNC_HOOKS_RELATIVE_FILE_PATH);
     expect(putParsed.content).toContain("echo pre");
 
     const getResult = await rulesyncTool.execute({
@@ -198,7 +203,7 @@ describe("rulesyncTool", () => {
     });
 
     const deleteParsed = JSON.parse(deleteResult);
-    expect(deleteParsed.relativePathFromCwd).toBe(".rulesync/hooks.json");
+    expect(deleteParsed.relativePathFromCwd).toBe(RULESYNC_HOOKS_RELATIVE_FILE_PATH);
 
     // Verify the file is deleted by checking get throws
     await expect(

@@ -199,8 +199,8 @@ describe("PermissionsProcessor", () => {
 
     // Mirror the per-feature inputRoot threading assertion used in
     // commands-processor.test.ts: when inputRoot is set, loadRulesyncFiles
-    // reads `<inputRoot>/.rulesync/permissions.json` instead of
-    // `<process.cwd()>/.rulesync/permissions.json`.
+    // reads `<inputRoot>/.rulesync/permissions.jsonc` instead of
+    // `<process.cwd()>/.rulesync/permissions.jsonc`.
     it("should read rulesync permissions file from inputRoot instead of process.cwd()", async () => {
       const customInputRoot = join(testDir, "custom-rulesync-dir");
       const customRulesyncDir = join(customInputRoot, RULESYNC_RELATIVE_DIR_PATH);
@@ -461,7 +461,7 @@ default_permissions = "rulesync"
       });
 
       await expect(processor.convertRulesyncFilesToToolFiles([])).rejects.toThrow(
-        "No .rulesync/permissions.json found.",
+        "No .rulesync/permissions.jsonc found.",
       );
     });
 

@@ -2,8 +2,8 @@ import { join } from "node:path";
 
 import {
   RULESYNC_HOOKS_FILE_NAME,
-  RULESYNC_HOOKS_JSONC_FILE_NAME,
-  RULESYNC_HOOKS_JSONC_RELATIVE_FILE_PATH,
+  RULESYNC_HOOKS_LEGACY_FILE_NAME,
+  RULESYNC_HOOKS_LEGACY_RELATIVE_FILE_PATH,
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
@@ -13,6 +13,10 @@ import type { RulesyncFileFromFileParams, RulesyncFileParams } from "../../types
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
+import {
+  getRulesyncSourceCandidates,
+  type RulesyncSourceSettablePaths,
+} from "../../utils/rulesync-source-path.js";
 
 export type RulesyncHooksParams = RulesyncFileParams;
 
@@ -21,14 +25,7 @@ export type RulesyncHooksFromFileParams = Pick<
   "outputRoot" | "validate"
 >;
 
-export type RulesyncHooksSettablePaths = {
-  relativeDirPath: string;
-  relativeFilePath: string;
-  jsonc: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-};
+export type RulesyncHooksSettablePaths = RulesyncSourceSettablePaths;
 
 export class RulesyncHooks extends RulesyncFile {
   private readonly json: HooksConfig;
@@ -49,12 +46,16 @@ export class RulesyncHooks extends RulesyncFile {
 
   static getSettablePaths(): RulesyncHooksSettablePaths {
     return {
-      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: RULESYNC_HOOKS_FILE_NAME,
-      jsonc: {
+      recommended: {
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: RULESYNC_HOOKS_JSONC_FILE_NAME,
+        relativeFilePath: RULESYNC_HOOKS_FILE_NAME,
       },
+      legacy: [
+        {
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_HOOKS_LEGACY_FILE_NAME,
+        },
+      ],
     };
   }
 
@@ -72,12 +73,7 @@ export class RulesyncHooks extends RulesyncFile {
   }: RulesyncHooksFromFileParams): Promise<RulesyncHooks> {
     const paths = RulesyncHooks.getSettablePaths();
     // The .jsonc variant takes precedence when both files exist.
-    const candidates = [
-      paths.jsonc,
-      { relativeDirPath: paths.relativeDirPath, relativeFilePath: paths.relativeFilePath },
-    ];
-
-    for (const candidate of candidates) {
+    for (const candidate of getRulesyncSourceCandidates({ paths })) {
       const filePath = join(outputRoot, candidate.relativeDirPath, candidate.relativeFilePath);
       if (!(await fileExists(filePath))) {
         continue;
@@ -93,7 +89,7 @@ export class RulesyncHooks extends RulesyncFile {
     }
 
     throw new Error(
-      `No ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} or ${RULESYNC_HOOKS_JSONC_RELATIVE_FILE_PATH} found.`,
+      `No ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} or ${RULESYNC_HOOKS_LEGACY_RELATIVE_FILE_PATH} found.`,
     );
   }
 
