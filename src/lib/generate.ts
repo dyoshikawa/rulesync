@@ -4,6 +4,11 @@ import { intersection } from "es-toolkit";
 
 import { Config } from "../config/config.js";
 import { AGENTSMD_RULE_FILE_NAME } from "../constants/agentsmd-paths.js";
+import {
+  HERMESAGENT_CHECKS_PLUGIN_MANIFEST_PATH,
+  HERMESAGENT_IGNORE_PLUGIN_MANIFEST_PATH,
+  HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_MANIFEST_PATH,
+} from "../constants/hermesagent-paths.js";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { ChecksProcessor } from "../features/checks/checks-processor.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
@@ -12,6 +17,10 @@ import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
+import {
+  activateHermesProjectPlugins,
+  type HermesProjectPluginName,
+} from "../features/shared/hermes-project-plugin-activation.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
@@ -442,6 +451,67 @@ async function warnSkillSubagentNameCollisions(params: {
   }
 }
 
+async function collectHermesProjectPluginNames({
+  config,
+  resultsById,
+}: {
+  config: Config;
+  resultsById: ReadonlyMap<GenerationStepId, FeatureGenerateResult>;
+}): Promise<HermesProjectPluginName[]> {
+  if (config.getGlobal() || !config.getTargets().includes("hermesagent")) {
+    return [];
+  }
+
+  const outputRoots = config.getOutputRoots("hermesagent");
+  const enabledFeatures = config.getFeatures("hermesagent");
+  const descriptors: ReadonlyArray<{
+    feature: "ignore" | "subagents" | "checks";
+    pluginName: HermesProjectPluginName;
+    manifestPath: string;
+  }> = [
+    {
+      feature: "ignore",
+      pluginName: "rulesync-ignore",
+      manifestPath: HERMESAGENT_IGNORE_PLUGIN_MANIFEST_PATH,
+    },
+    {
+      feature: "subagents",
+      pluginName: "rulesync-subagents",
+      manifestPath: HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_MANIFEST_PATH,
+    },
+    {
+      feature: "checks",
+      pluginName: "rulesync-checks",
+      manifestPath: HERMESAGENT_CHECKS_PLUGIN_MANIFEST_PATH,
+    },
+  ];
+  const pluginNames: HermesProjectPluginName[] = [];
+
+  for (const descriptor of descriptors) {
+    if (!enabledFeatures.includes(descriptor.feature)) {
+      continue;
+    }
+    const relativeManifestPath = toPosixPath(descriptor.manifestPath);
+    const generationResult = resultsById.get(descriptor.feature);
+    const willWriteManifest =
+      generationResult?.paths.some(
+        (generatedPath) => toPosixPath(generatedPath) === relativeManifestPath,
+      ) ?? false;
+    let manifestExists = false;
+    for (const outputRoot of outputRoots) {
+      if (await fileExists(join(outputRoot, descriptor.manifestPath))) {
+        manifestExists = true;
+        break;
+      }
+    }
+    if (willWriteManifest || manifestExists) {
+      pluginNames.push(descriptor.pluginName);
+    }
+  }
+
+  return pluginNames;
+}
+
 /**
  * Generate configuration files for AI tools.
  * @throws Error if generation fails
@@ -490,6 +560,12 @@ export async function generate(params: {
     resultsById.set(step.id, await step.run());
   }
 
+  const activationResult = await activateHermesProjectPlugins({
+    pluginNames: await collectHermesProjectPluginNames({ config, resultsById }),
+    dryRun: config.isPreviewMode(),
+    logger,
+  });
+
   if (!skillsResult) {
     throw new Error("Skills generation step did not run.");
   }
@@ -502,7 +578,7 @@ export async function generate(params: {
     return result;
   };
 
-  const hasDiff = orderedSteps.some((step) => get(step.id).hasDiff);
+  const hasDiff = activationResult.hasDiff || orderedSteps.some((step) => get(step.id).hasDiff);
 
   return {
     rulesCount: get("rules").count,

@@ -326,6 +326,18 @@ describe("HermesagentMcp", () => {
               client_key: "~/secrets/client.key",
               connect_timeout: 60,
               supports_parallel_tool_calls: false,
+              idle_timeout_seconds: 300,
+              max_lifetime_seconds: 3600,
+              oauth: {
+                redirect_uri: "http://localhost:8080/callback",
+                redirect_host: "127.0.0.1",
+                redirect_port: 8080,
+                client_id: "client-id",
+                client_secret: "client-secret",
+                scopes: ["read", "write"],
+                __proto__: "polluted",
+                ignored: "value",
+              },
             },
           },
         }),
@@ -343,6 +355,16 @@ describe("HermesagentMcp", () => {
       expect(server?.client_key).toBe("~/secrets/client.key");
       expect(server?.connect_timeout).toBe(60);
       expect(server?.supports_parallel_tool_calls).toBe(false);
+      expect(server?.idle_timeout_seconds).toBe(300);
+      expect(server?.max_lifetime_seconds).toBe(3600);
+      expect(server?.oauth).toEqual({
+        redirect_uri: "http://localhost:8080/callback",
+        redirect_host: "127.0.0.1",
+        redirect_port: 8080,
+        client_id: "client-id",
+        client_secret: "client-secret",
+        scopes: ["read", "write"],
+      });
     });
 
     it("maps promptsEnabled/resourcesEnabled to Hermes's boolean tools.prompts/resources (issue #2236)", async () => {
@@ -474,6 +496,15 @@ describe("HermesagentMcp", () => {
           "    client_key: ~/secrets/client.key",
           "    connect_timeout: 60",
           "    supports_parallel_tool_calls: true",
+          "    idle_timeout_seconds: 300",
+          "    max_lifetime_seconds: 3600",
+          "    oauth:",
+          "      redirect_uri: http://localhost:8080/callback",
+          "      redirect_host: 127.0.0.1",
+          "      redirect_port: 8080",
+          "      client_id: client-id",
+          "      client_secret: client-secret",
+          "      scopes: [read, write]",
           "    tools:",
           "      include: [search]",
           "      prompts: true",
@@ -485,21 +516,37 @@ describe("HermesagentMcp", () => {
       // Import into the canonical model.
       const imported = await HermesagentMcp.fromFile({ outputRoot: testDir, global: true });
       const canonical = imported.toRulesyncMcp();
-      const server = JSON.parse(canonical.getFileContent()).mcpServers.remote;
+      const canonicalJson = JSON.parse(canonical.getFileContent());
+      const server = canonicalJson.mcpServers.remote;
+      const hermesOverride = canonicalJson.hermesagent.mcpServers.remote;
 
       expect(server).toMatchObject({
         url: "https://example.com/mcp",
+        enabledTools: ["search"],
+        promptsEnabled: true,
+        resourcesEnabled: false,
+      });
+      expect(server.auth).toBeUndefined();
+      // The reserved canonical `tools` key (a string[]) must not be repurposed.
+      expect(server.tools).toBeUndefined();
+      expect(hermesOverride).toMatchObject({
+        ...server,
         auth: "oauth",
         client_cert: "~/secrets/mcp-client.pem",
         client_key: "~/secrets/client.key",
         connect_timeout: 60,
         supports_parallel_tool_calls: true,
-        enabledTools: ["search"],
-        promptsEnabled: true,
-        resourcesEnabled: false,
+        idle_timeout_seconds: 300,
+        max_lifetime_seconds: 3600,
+        oauth: {
+          redirect_uri: "http://localhost:8080/callback",
+          redirect_host: "127.0.0.1",
+          redirect_port: 8080,
+          client_id: "client-id",
+          client_secret: "client-secret",
+          scopes: ["read", "write"],
+        },
       });
-      // The reserved canonical `tools` key (a string[]) must not be repurposed.
-      expect(server.tools).toBeUndefined();
 
       // The imported canonical config must survive schema validation, which the
       // real `generate` load path (`RulesyncMcp.fromFile`) runs — otherwise the
@@ -521,7 +568,7 @@ describe("HermesagentMcp", () => {
           relativeDirPath: ".rulesync",
           relativeFilePath: ".mcp.json",
           fileContent: canonical.getFileContent(),
-        }),
+        }).forTarget({ toolTarget: "hermesagent" }),
         global: true,
       });
       const hermes = getMcpServers(regenerated.getFileContent()).remote;
@@ -533,6 +580,16 @@ describe("HermesagentMcp", () => {
         client_key: "~/secrets/client.key",
         connect_timeout: 60,
         supports_parallel_tool_calls: true,
+        idle_timeout_seconds: 300,
+        max_lifetime_seconds: 3600,
+        oauth: {
+          redirect_uri: "http://localhost:8080/callback",
+          redirect_host: "127.0.0.1",
+          redirect_port: 8080,
+          client_id: "client-id",
+          client_secret: "client-secret",
+          scopes: ["read", "write"],
+        },
         tools: { include: ["search"], prompts: true, resources: false },
       });
     });

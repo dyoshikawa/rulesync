@@ -9,7 +9,7 @@ import {
 } from "../constants/kiro-paths.js";
 import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
-import { readFileContent, writeFileContent } from "../utils/file.js";
+import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -73,7 +73,12 @@ credentials/
 `;
       await writeFileContent(join(testDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH), ignoreContent);
 
-      await runGenerate({ target, features: "ignore" });
+      const homeDir = join(testDir, "home");
+      await runGenerate({
+        target,
+        features: "ignore",
+        env: { HOME_DIR: homeDir },
+      });
 
       const generatedContent = await readFileContent(join(testDir, outputPath));
       if (format === "plaintext") {
@@ -94,8 +99,50 @@ credentials/
           expect.arrayContaining([expect.stringContaining("tmp/")]),
         );
       }
+
+      if (target === "hermesagent") {
+        expect(await readFileContent(join(homeDir, ".hermes", "config.yaml"))).toContain(
+          "rulesync-ignore",
+        );
+        expect(await readFileContent(join(homeDir, ".hermes", ".env"))).toBe(
+          "HERMES_ENABLE_PROJECT_PLUGINS=true\n",
+        );
+      }
     },
   );
+
+  it("should check Hermes project plugin activation without writing", async () => {
+    const testDir = getTestDir();
+    const homeDir = join(testDir, "home");
+    await writeFileContent(join(testDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH), "tmp/\n");
+
+    await expect(
+      runGenerate({
+        target: "hermesagent",
+        features: "ignore",
+        check: true,
+        env: { HOME_DIR: homeDir },
+      }),
+    ).rejects.toMatchObject({ code: 1 });
+
+    expect(
+      await fileExists(join(testDir, ".hermes", "plugins", "rulesync-ignore", "__init__.py")),
+    ).toBe(false);
+    expect(await fileExists(join(homeDir, ".hermes", "config.yaml"))).toBe(false);
+    expect(await fileExists(join(homeDir, ".hermes", ".env"))).toBe(false);
+
+    await runGenerate({
+      target: "hermesagent",
+      features: "ignore",
+      env: { HOME_DIR: homeDir },
+    });
+    await runGenerate({
+      target: "hermesagent",
+      features: "ignore",
+      check: true,
+      env: { HOME_DIR: homeDir },
+    });
+  });
 
   it.each([
     { target: "cursor", orphanPath: ".cursorignore" },

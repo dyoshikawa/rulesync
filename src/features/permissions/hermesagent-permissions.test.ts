@@ -208,6 +208,110 @@ security:
     expect(config.skills).toEqual({ write_approval: true });
   });
 
+  it("imports native Hermes permissions without a private round-trip blob", () => {
+    const imported = new HermesagentPermissions({
+      outputRoot: ".",
+      fileContent: JSON.stringify({
+        model: "unrelated",
+        command_allowlist: ["git *", "pnpm *"],
+        approvals: { deny: ["rm -rf *"], mode: "smart", timeout: 30 },
+        security: {
+          allow_private_urls: false,
+          website_blocklist: { enabled: true, domains: ["evil.example.com"] },
+        },
+        skills: { write_approval: true },
+        memory: { write_approval: false },
+      }),
+    })
+      .toRulesyncPermissions()
+      .getJson();
+
+    expect(imported).toEqual({
+      permission: {
+        bash: {
+          "git *": "allow",
+          "pnpm *": "allow",
+          "rm -rf *": "deny",
+        },
+        webfetch: { "evil.example.com": "deny" },
+      },
+      hermes: {
+        approvals: { mode: "smart", timeout: 30 },
+        security: { allow_private_urls: false },
+        skills: { write_approval: true },
+        memory: { write_approval: false },
+      },
+    });
+  });
+
+  it("reconciles hand-edited native state over private provenance", () => {
+    const imported = new HermesagentPermissions({
+      outputRoot: ".",
+      fileContent: JSON.stringify({
+        command_allowlist: ["git *", "shared/*", "new-command *"],
+        approvals: { deny: ["curl *"], mode: "manual" },
+        security: {
+          allow_private_urls: true,
+          website_blocklist: {
+            enabled: false,
+            domains: ["informational.example.com"],
+          },
+        },
+        skills: { write_approval: false },
+        memory: { write_approval: true },
+        permissions: {
+          rulesync: {
+            permission: {
+              bash: {
+                "git *": "allow",
+                "old-command *": "allow",
+                "rm -rf *": "deny",
+                "confirm *": "ask",
+              },
+              read: { "shared/*": "allow" },
+              webfetch: {
+                "stale.example.com": "deny",
+                "confirm.example.com": "ask",
+              },
+            },
+            hermes: {
+              approvals: { mode: "smart" },
+              security: { allow_private_urls: false },
+              skills: { write_approval: true },
+              custom_policy: { keep: true },
+            },
+          },
+        },
+      }),
+    })
+      .toRulesyncPermissions()
+      .getJson();
+
+    expect(imported.permission).toEqual({
+      bash: {
+        "git *": "allow",
+        "confirm *": "ask",
+        "new-command *": "allow",
+        "curl *": "deny",
+      },
+      read: { "shared/*": "allow" },
+      webfetch: { "confirm.example.com": "ask" },
+    });
+    expect(imported.hermes).toEqual({
+      approvals: { mode: "manual" },
+      security: {
+        allow_private_urls: true,
+        website_blocklist: {
+          enabled: false,
+          domains: ["informational.example.com"],
+        },
+      },
+      skills: { write_approval: false },
+      memory: { write_approval: true },
+      custom_policy: { keep: true },
+    });
+  });
+
   it("round-trips deny, webfetch, and the hermes override back to canonical", () => {
     const canonical = {
       permission: {

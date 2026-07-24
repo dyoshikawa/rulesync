@@ -58,19 +58,62 @@ function resolveHermesTimeout(config: Record<string, unknown>): number | undefin
  * canonical `McpServerSchema` is a `looseObject`), so this serves export and
  * import alike. See the Hermes mcp-config-reference.
  */
+function copyHermesOauth(source: unknown): Record<string, unknown> | undefined {
+  if (!isRecord(source)) {
+    return undefined;
+  }
+  const oauth: Record<string, unknown> = {};
+  for (const key of ["redirect_uri", "redirect_host", "client_id", "client_secret"] as const) {
+    if (typeof source[key] === "string") {
+      oauth[key] = source[key];
+    }
+  }
+  if (typeof source.redirect_port === "number") {
+    oauth.redirect_port = source.redirect_port;
+  }
+  if (isStringArray(source.scopes)) {
+    oauth.scopes = source.scopes;
+  }
+  return Object.keys(oauth).length > 0 ? oauth : undefined;
+}
+
 function copyHermesAdvancedFields(
   source: Record<string, unknown>,
   target: Record<string, unknown>,
-): void {
-  if (typeof source.auth === "string") target.auth = source.auth;
+): boolean {
+  let copied = false;
+  if (typeof source.auth === "string") {
+    target.auth = source.auth;
+    copied = true;
+  }
   if (typeof source.client_cert === "string" || isStringArray(source.client_cert)) {
     target.client_cert = source.client_cert;
+    copied = true;
   }
-  if (typeof source.client_key === "string") target.client_key = source.client_key;
-  if (typeof source.connect_timeout === "number") target.connect_timeout = source.connect_timeout;
+  if (typeof source.client_key === "string") {
+    target.client_key = source.client_key;
+    copied = true;
+  }
+  if (typeof source.connect_timeout === "number") {
+    target.connect_timeout = source.connect_timeout;
+    copied = true;
+  }
   if (typeof source.supports_parallel_tool_calls === "boolean") {
     target.supports_parallel_tool_calls = source.supports_parallel_tool_calls;
+    copied = true;
   }
+  const oauth = copyHermesOauth(source.oauth);
+  if (oauth) {
+    target.oauth = oauth;
+    copied = true;
+  }
+  for (const key of ["idle_timeout_seconds", "max_lifetime_seconds"] as const) {
+    if (typeof source[key] === "number") {
+      target[key] = source[key];
+      copied = true;
+    }
+  }
+  return copied;
 }
 
 /**
@@ -199,8 +242,12 @@ function mergeHermesMcpServers(
  * Mirrors {@link convertToHermesFormat}: `enabled: false` maps back to the
  * canonical `disabled: true`, and only recognized fields are carried over.
  */
-function convertFromHermesFormat(mcpServers: Record<string, unknown>): McpServers {
+function convertFromHermesFormat(mcpServers: Record<string, unknown>): {
+  mcpServers: McpServers;
+  hermesOverrides: McpServers;
+} {
   const result: McpServers = {};
+  const hermesOverrides: McpServers = {};
 
   for (const [name, config] of Object.entries(mcpServers)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(name) || !isRecord(config)) continue;
@@ -213,15 +260,16 @@ function convertFromHermesFormat(mcpServers: Record<string, unknown>): McpServer
     if (isPlainObject(config.headers)) server.headers = omitPrototypePollutionKeys(config.headers);
     if (config.enabled === false) server.disabled = true;
     if (typeof config.timeout === "number") server.networkTimeout = config.timeout;
-    // Advanced Hermes-recognized fields with no canonical alias round-trip
-    // verbatim (see convertServerToHermes).
-    copyHermesAdvancedFields(config, server);
     if (isRecord(config.tools)) applyHermesToolsBlock(config.tools, server);
 
     result[name] = server;
+    const hermesServer = { ...server };
+    if (copyHermesAdvancedFields(config, hermesServer)) {
+      hermesOverrides[name] = hermesServer;
+    }
   }
 
-  return result;
+  return { mcpServers: result, hermesOverrides };
 }
 
 /**
@@ -348,9 +396,18 @@ export class HermesagentMcp extends ToolMcp {
 
   toRulesyncMcp(): RulesyncMcp {
     const mcpServers = isRecord(this.config.mcp_servers) ? this.config.mcp_servers : {};
-    const servers = convertFromHermesFormat(mcpServers);
+    const { mcpServers: servers, hermesOverrides } = convertFromHermesFormat(mcpServers);
     return this.toRulesyncMcpDefault({
-      fileContent: JSON.stringify({ mcpServers: servers }, null, 2),
+      fileContent: JSON.stringify(
+        {
+          mcpServers: servers,
+          ...(Object.keys(hermesOverrides).length > 0 && {
+            hermesagent: { mcpServers: hermesOverrides },
+          }),
+        },
+        null,
+        2,
+      ),
     });
   }
 

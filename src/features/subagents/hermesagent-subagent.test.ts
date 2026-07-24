@@ -27,7 +27,7 @@ describe("HermesagentSubagent", () => {
     });
 
     expect(files.map((file) => file.getRelativeFilePath()).toSorted()).toEqual(
-      [`reviewer.json`, `plugin.yaml`, `__init__.py`, `config.yaml`].toSorted(),
+      [`reviewer.json`, `plugin.yaml`, `__init__.py`].toSorted(),
     );
 
     const subagentSpec = files.find((file) => file.getRelativeFilePath() === `reviewer.json`);
@@ -46,12 +46,12 @@ describe("HermesagentSubagent", () => {
     expect(plugin?.getFileContent()).toContain("ctx.dispatch_tool(");
     expect(plugin?.getFileContent()).toContain('"delegate_task"');
     expect(plugin?.getFileContent()).toContain("ctx.register_command");
+    expect(plugin?.getFileContent()).toContain(
+      'Path(__file__).resolve().parents[2] / "rulesync" / "subagents"',
+    );
 
     const manifest = files.find((file) => file.getRelativeFilePath() === `plugin.yaml`);
     expect(manifest?.getFileContent()).toContain("name: rulesync-subagents");
-
-    const config = files.find((file) => file.getRelativeFilePath() === `config.yaml`);
-    expect(config?.getFileContent()).toContain("rulesync-subagents");
   });
 
   test("declares the Hermes subagent directory as settable", () => {
@@ -84,6 +84,7 @@ describe("HermesagentSubagent", () => {
   test("preserves existing Hermes config when enabling subagents plugin", () => {
     const files = HermesagentSubagent.fromRulesyncSubagents({
       rulesyncSubagents: [],
+      global: true,
     });
     const config = files.find((file) => file.getRelativeFilePath() === "config.yaml");
 
@@ -107,5 +108,12 @@ plugins:
     expect(parsed.plugins).toEqual({
       enabled: ["existing-plugin", "rulesync-subagents"],
     });
+    expect(HermesagentSubagent.getExtraSharedWritePaths()).toEqual([]);
+    expect(HermesagentSubagent.getExtraSharedWritePaths({ global: true })).toEqual([
+      {
+        relativeDirPath: HERMESAGENT_GLOBAL_DIR,
+        relativeFilePath: "config.yaml",
+      },
+    ]);
   });
 });

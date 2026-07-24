@@ -119,6 +119,10 @@ const subagentsGenerateTargets = [
     target: "roo",
     outputPath: ".roomodes",
   },
+  {
+    target: "hermesagent",
+    outputPath: join(".hermes", "rulesync", "subagents", "planner.json"),
+  },
 ] as const;
 
 const subagentsGlobalTargets = [
@@ -158,9 +162,6 @@ const subagentsGlobalTargets = [
     outputPath: join(".reasonix", "skills", "planner", "SKILL.md"),
   },
   {
-    // Hermes Agent has no project-scoped subagent location; subagents are
-    // emitted as JSON specs under ~/.hermes/rulesync/subagents/<slug>.json,
-    // discovered by the generated rulesync-subagents plugin (global only).
     target: "hermesagent",
     outputPath: join(".hermes", "rulesync", "subagents", "planner.json"),
   },
@@ -173,10 +174,6 @@ describe("E2E: subagents", () => {
     assertGenerateMatrixCoversTargets({
       processor: SubagentsProcessor,
       testedTargets: subagentsGenerateTargets.map((e) => e.target),
-      // Hermes Agent is a native subagents tool but has no project-scoped
-      // single-file output; its generate path emits only global JSON specs, so
-      // it is exercised by the global matrix instead of this project matrix.
-      untested: ["hermesagent"],
     });
   });
 
@@ -197,11 +194,30 @@ You are the planner. Analyze files and create a plan.
         subagentContent,
       );
 
-      await runGenerate({ target, features: "subagents" });
+      const homeDir = join(testDir, "home");
+      await runGenerate({
+        target,
+        features: "subagents",
+        env: { HOME_DIR: homeDir },
+      });
 
       const generatedContent = await readFileContent(join(testDir, outputPath));
       expect(generatedContent).toContain("planner");
       expect(generatedContent).toContain("Analyze files and create a plan.");
+
+      if (target === "hermesagent") {
+        expect(await readFileContent(join(homeDir, ".hermes", "config.yaml"))).toContain(
+          "rulesync-subagents",
+        );
+        expect(await readFileContent(join(homeDir, ".hermes", ".env"))).toBe(
+          "HERMES_ENABLE_PROJECT_PLUGINS=true\n",
+        );
+        expect(
+          await readFileContent(
+            join(testDir, ".hermes", "plugins", "rulesync-subagents", "__init__.py"),
+          ),
+        ).toContain('Path(__file__).resolve().parents[2] / "rulesync" / "subagents"');
+      }
     },
   );
 

@@ -59,7 +59,12 @@ Look for injection vulnerabilities.
         checkContent,
       );
 
-      await runGenerate({ target, features: "checks" });
+      const homeDir = join(testDir, "home");
+      await runGenerate({
+        target,
+        features: "checks",
+        env: { HOME_DIR: homeDir },
+      });
 
       const generatedContent = await readFileContent(join(testDir, outputPath));
       if (target === "amp") {
@@ -76,6 +81,12 @@ Look for injection vulnerabilities.
           join(testDir, ".hermes", "plugins", "rulesync-checks", "__init__.py"),
         );
         expect(plugin).toContain('ctx.register_hook("pre_verify", require_rulesync_checks)');
+        expect(await readFileContent(join(homeDir, ".hermes", "config.yaml"))).toContain(
+          "rulesync-checks",
+        );
+        expect(await readFileContent(join(homeDir, ".hermes", ".env"))).toBe(
+          "HERMES_ENABLE_PROJECT_PLUGINS=true\n",
+        );
       }
       expect(generatedContent).toContain("Look for injection vulnerabilities.");
     },

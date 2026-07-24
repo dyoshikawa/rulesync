@@ -225,6 +225,42 @@ describe("HermesagentHooks", () => {
       });
     });
 
+    it("emits native-only events and lets exact native overrides win", async () => {
+      const rulesyncHooks = rulesyncHooksFrom({
+        version: 1,
+        hooks: {
+          preToolUse: [{ command: "shared.sh" }],
+        },
+        hermesagent: {
+          hooks: {
+            preToolUse: [{ command: "canonical-override.sh" }],
+            pre_tool_call: [{ command: "native-override.sh", matcher: "terminal" }],
+            pre_verify: [{ command: "verify.sh", matcher: "ignored" }],
+            pre_api_request: [{ command: "audit-request.sh" }],
+            kanban_task_completed: [{ command: "audit-task.sh" }],
+          },
+        },
+      });
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const hooks = await HermesagentHooks.fromRulesyncHooks({
+        outputRoot: ".",
+        rulesyncHooks,
+        logger,
+      });
+      const config = parseSharedConfig({ format: "yaml", fileContent: hooks.getFileContent() });
+
+      expect(config.hooks).toEqual({
+        pre_tool_call: [{ command: "native-override.sh", matcher: "terminal" }],
+        pre_verify: [{ command: "verify.sh" }],
+        pre_api_request: [{ command: "audit-request.sh" }],
+        kanban_task_completed: [{ command: "audit-task.sh" }],
+      });
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('matcher "ignored" on "pre_verify" hook will be ignored'),
+      );
+    });
+
     it("preserves existing Hermes config when writing hooks", async () => {
       const rulesyncHooks = rulesyncHooksFrom({
         version: 1,
@@ -299,7 +335,7 @@ hooks:
       expect(json.hooks.subagentStop).toEqual([{ type: "command", command: "log-stop.sh" }]);
     });
 
-    it("drops native events with no canonical equivalent (pre_verify, transform_*, ...)", () => {
+    it("preserves native events with no canonical equivalent under hermesagent override", () => {
       const hooks = new HermesagentHooks({
         outputRoot: ".",
         fileContent: `hooks:
@@ -314,9 +350,11 @@ hooks:
 
       const json = hooks.toRulesyncHooks().getJson();
       expect(json.hooks.preToolUse).toEqual([{ type: "command", command: "guard.sh" }]);
-      expect(json.hooks.pre_verify).toBeUndefined();
-      expect(json.hooks.transform_tool_result).toBeUndefined();
       expect(Object.keys(json.hooks)).toEqual(["preToolUse"]);
+      expect(json.hermesagent?.hooks).toEqual({
+        pre_verify: [{ type: "command", command: "verify.sh" }],
+        transform_tool_result: [{ type: "command", command: "redact.sh" }],
+      });
     });
 
     it("returns an empty canonical hooks map when no hooks key is present", () => {

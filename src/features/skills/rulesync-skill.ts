@@ -184,6 +184,7 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
     }),
   ),
+  hermesagent: z.optional(z.looseObject({})),
   vibe: z.optional(
     z.looseObject({
       license: z.optional(z.string()),
@@ -323,6 +324,7 @@ export type RulesyncSkillFrontmatterInput = {
     metadata?: Record<string, unknown>;
     "allowed-tools"?: string | string[];
   };
+  hermesagent?: Record<string, unknown>;
   vibe?: {
     license?: string;
     compatibility?: string | Record<string, unknown>;
