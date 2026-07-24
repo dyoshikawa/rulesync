@@ -60,6 +60,8 @@ export type GenerateResult = {
   permissionsPaths: string[];
   checksCount: number;
   checksPaths: string[];
+  activationCount: number;
+  activationPaths: string[];
   skills: RulesyncSkill[];
   hasDiff: boolean;
 };
@@ -599,6 +601,8 @@ export async function generate(params: {
     permissionsPaths: get("permissions").paths,
     checksCount: get("checks").count,
     checksPaths: get("checks").paths,
+    activationCount: activationResult.count,
+    activationPaths: activationResult.paths,
     skills: skillsResult.skills,
     hasDiff,
   };

@@ -53,6 +53,20 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 - 🔧: Supports MCP tool config (`enabledTools`/`disabledTools`)
 - ⚠️: Deprecated — still supported, but see the note below
 
+## Hermes Agent compatibility
+
+The `hermesagent` target is validated against Hermes Agent v0.19.0 (release
+`v2026.7.20`). The supported contract covers project rules, ignore patterns,
+subagents, and checks, plus global MCP servers, commands, subagents, skills,
+hooks, and permissions. Generation, `--check`, and import round-trips are
+covered for both advertised scopes.
+
+Rulesync honors Hermes profiles through `HERMES_HOME`. Project plugins are
+activated by adding their names to `$HERMES_HOME/config.yaml` and setting
+`HERMES_ENABLE_PROJECT_PLUGINS=true` in `$HERMES_HOME/.env`. A future Hermes
+release that changes its loaders, schemas, or plugin API requires a new
+compatibility validation.
+
 ## Deprecation notes
 
 - **Google Antigravity (`antigravity-ide` / `antigravity-cli`)** — Antigravity 2.0 splits into two products: the desktop **`antigravity-ide`** and the **`antigravity-cli`** (`agy`). As of Antigravity 2.0 the IDE reads its global MCP config and skills from the shared `~/.gemini/config/` tree — `~/.gemini/config/mcp_config.json` and `~/.gemini/config/skills/`, matching the current [MCP](https://antigravity.google/docs/mcp) and [Skills](https://antigravity.google/docs/skills) docs. The `antigravity-cli` global MCP config also lives in the shared `~/.gemini/config/mcp_config.json`, while the CLI keeps its own global skills tree at `~/.gemini/antigravity-cli/skills/`. Both targets also intentionally **share** the global rule file `~/.gemini/GEMINI.md` and the global hooks file `~/.gemini/config/hooks.json` — enabling both targets in `--global` mode writes those shared files once. For project-scope rules, **both `antigravity-ide` and `antigravity-cli`** emit the root rule as a plain cross-tool **`AGENTS.md`** at the project root (the Gemini-lineage discovery order is `AGENTS.md`, `CONTEXT.md`, `GEMINI.md`; the IDE has read `AGENTS.md` since v1.20.3) and non-root rules under `.agents/rules/` (the IDE adds trigger frontmatter to non-root rules; the CLI keeps them as plain markdown). For **commands (workflows)**, both targets share the project `.agents/workflows/` directory (invoked as `/workflow-name`); in `--global` mode the IDE writes to `~/.gemini/antigravity/global_workflows/` while the CLI keeps its own `~/.gemini/antigravity-cli/global_workflows/` tree (mirroring the CLI's global skills tree).

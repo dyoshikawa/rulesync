@@ -381,6 +381,27 @@ You are a subagent-only helper.
 describe("E2E: subagents (import)", () => {
   const { getTestDir } = useTestDirectory();
 
+  it("should import Hermes project subagents into the RuleSync source directory", async () => {
+    const testDir = getTestDir();
+    await writeFileContent(
+      join(testDir, ".hermes", "rulesync", "subagents", "planner.json"),
+      JSON.stringify({
+        slug: "planner",
+        name: "Planner",
+        description: "Plans implementation tasks",
+        prompt: "Break down tasks into steps.",
+      }),
+    );
+
+    await runImport({ target: "hermesagent", features: "subagents" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+    );
+    expect(importedContent).toContain("Planner");
+    expect(importedContent).toContain("Break down tasks into steps.");
+  });
+
   it.each([
     { target: "claudecode", sourcePath: join(".claude", "agents", "planner.md") },
     { target: "cursor", sourcePath: join(".cursor", "agents", "planner.md") },
@@ -688,6 +709,32 @@ Break down tasks into steps.
 
 describe("E2E: subagents (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
+
+  it("should import Hermes global subagents into the global RuleSync source directory", async () => {
+    const homeDir = getHomeDir();
+    await writeFileContent(
+      join(homeDir, ".hermes", "rulesync", "subagents", "planner.json"),
+      JSON.stringify({
+        slug: "planner",
+        name: "Planner",
+        description: "Plans implementation tasks",
+        prompt: "Break down tasks into steps.",
+      }),
+    );
+
+    await runImport({
+      target: "hermesagent",
+      features: "subagents",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const importedContent = await readFileContent(
+      join(homeDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+    );
+    expect(importedContent).toContain("Planner");
+    expect(importedContent).toContain("Break down tasks into steps.");
+  });
 
   it("global matrix must cover every native global subagents tool target", () => {
     assertGenerateMatrixCoversTargets({

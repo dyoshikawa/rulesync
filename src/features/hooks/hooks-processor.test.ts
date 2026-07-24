@@ -653,4 +653,36 @@ describe("HooksProcessor", () => {
       ]);
     });
   });
+
+  it("does not report Hermes native override events as unsupported", async () => {
+    const rulesyncHooks = new RulesyncHooks({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: "hooks.json",
+      fileContent: JSON.stringify({
+        version: 1,
+        hooks: {},
+        hermesagent: {
+          hooks: {
+            pre_verify: [{ command: "verify.sh" }],
+            pre_api_request: [{ command: "audit-request.sh" }],
+            kanban_task_completed: [{ command: "audit-task.sh" }],
+          },
+        },
+      }),
+      validate: false,
+    });
+    const processor = new HooksProcessor({
+      logger,
+      outputRoot: testDir,
+      toolTarget: "hermesagent",
+      global: true,
+    });
+
+    const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+    expect(toolFiles).toHaveLength(1);
+    const warnings = logger.warn.mock.calls.map((call) => String(call[0])).join("\n");
+    expect(warnings).not.toContain("Skipped hook event(s) for hermesagent");
+  });
 });

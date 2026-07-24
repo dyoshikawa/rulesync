@@ -57,6 +57,8 @@ const mockGenerateResult: GenerateResult = {
   permissionsPaths: [],
   checksCount: 0,
   checksPaths: [],
+  activationCount: 0,
+  activationPaths: [],
   skills: [],
   hasDiff: false,
 };

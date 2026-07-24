@@ -24,6 +24,7 @@ export type CountableResult = {
   hooksCount: number;
   permissionsCount: number;
   checksCount: number;
+  activationCount?: number;
 };
 
 /**
@@ -39,6 +40,7 @@ export function calculateTotalCount(result: CountableResult): number {
     result.skillsCount +
     result.hooksCount +
     result.permissionsCount +
-    result.checksCount
+    result.checksCount +
+    (result.activationCount ?? 0)
   );
 }

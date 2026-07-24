@@ -1,3 +1,6 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
 import { describe, expect, test } from "vitest";
 
 import {
@@ -6,11 +9,48 @@ import {
   HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH,
 } from "../../constants/hermesagent-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { HermesagentSubagent } from "./hermesagent-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 
 describe("HermesagentSubagent", () => {
+  test("loads a generated subagent from its Hermes directory", async () => {
+    const { testDir, cleanup } = await setupTestDirectory();
+    const specDir = join(testDir, HERMESAGENT_RULESYNC_SUBAGENTS_DIR_PATH);
+    await mkdir(specDir, { recursive: true });
+    await writeFile(
+      join(specDir, "reviewer.json"),
+      JSON.stringify({
+        slug: "reviewer",
+        name: "Reviewer",
+        description: "Review code changes",
+        prompt: "Review code carefully.",
+      }),
+      "utf8",
+    );
+
+    try {
+      const subagent = await HermesagentSubagent.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: HERMESAGENT_RULESYNC_SUBAGENTS_DIR_PATH,
+        relativeFilePath: "reviewer.json",
+        global: false,
+      });
+
+      const imported = subagent.toRulesyncSubagent();
+      expect(imported.getRelativePathFromCwd()).toBe(
+        `${RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH}/reviewer.md`,
+      );
+      expect(imported.getFilePath()).toBe(
+        join(process.cwd(), RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "reviewer.md"),
+      );
+      expect(imported.getBody()).toBe("Review code carefully.");
+    } finally {
+      await cleanup();
+    }
+  });
+
   test("generates native Hermes delegation plugin files", () => {
     const rulesyncSubagent = new RulesyncSubagent({
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,

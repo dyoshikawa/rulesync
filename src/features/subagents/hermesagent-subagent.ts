@@ -179,14 +179,22 @@ export class HermesagentSubagent extends ToolSubagent {
   static async fromFile({
     global = false,
     outputRoot = process.cwd(),
+    relativeDirPath,
     relativeFilePath,
     validate = true,
   }: ToolSubagentFromFileParams): Promise<HermesagentSubagent> {
     return new HermesagentSubagent({
-      fileContent: await readFile(join(outputRoot, relativeFilePath), "utf8"),
+      fileContent: await readFile(
+        join(
+          outputRoot,
+          relativeDirPath ?? HERMESAGENT_RULESYNC_SUBAGENTS_DIR_PATH,
+          relativeFilePath,
+        ),
+        "utf8",
+      ),
       global,
       outputRoot,
-      relativeDirPath: dirname(relativeFilePath),
+      relativeDirPath: relativeDirPath ?? dirname(relativeFilePath),
       relativeFilePath: basename(relativeFilePath),
       validate,
     });
@@ -293,13 +301,13 @@ export class HermesagentSubagent extends ToolSubagent {
 
     return new RulesyncSubagent({
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-      relativeFilePath: join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, `${slug}.md`),
+      relativeFilePath: `${slug}.md`,
       body: json.prompt ?? "",
       frontmatter: {
         name: json.name ?? slug,
         description: json.description,
       },
-      outputRoot: this.outputRoot,
+      outputRoot: this.global ? this.outputRoot : process.cwd(),
     });
   }
 

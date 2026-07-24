@@ -395,6 +395,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // `matcher` is only valid on pre_tool_call/post_tool_call; the adapter
       // itself drops it (with a warning) on the other supported events.
       supportsMatcher: true,
+      // Hermes-native event names are valid in the target override block and
+      // are emitted verbatim after adapter validation.
+      passthroughOverrideEvents: true,
     },
   ],
   [

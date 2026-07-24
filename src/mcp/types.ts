@@ -16,5 +16,6 @@ export type McpResultCounts = {
   hooksCount: number;
   permissionsCount: number;
   checksCount: number;
+  activationCount?: number;
   totalCount: number;
 };
