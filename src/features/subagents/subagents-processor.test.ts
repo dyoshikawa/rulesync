@@ -1124,6 +1124,7 @@ Second global content`;
           "agentsmd",
           "augmentcode",
           "claudecode",
+          "claudecode-plugin",
           "claudecode-legacy",
           "cline",
           "codexcli",

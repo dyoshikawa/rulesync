@@ -274,12 +274,12 @@ export class ClaudecodeSkill extends ToolSkill {
       resolvedUserInvocable,
     });
 
-    const settablePaths = ClaudecodeSkill.getSettablePaths({ global });
+    const settablePaths = this.getSettablePaths({ global });
     const relativeDirPath = rulesyncFrontmatter.claudecode?.["scheduled-task"]
       ? CLAUDECODE_SCHEDULED_TASKS_DIR_PATH
       : settablePaths.relativeDirPath;
 
-    return new ClaudecodeSkill({
+    return new this({
       outputRoot,
       relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
@@ -303,7 +303,7 @@ export class ClaudecodeSkill extends ToolSkill {
   static async fromDir(params: ToolSkillFromDirParams): Promise<ClaudecodeSkill> {
     const loaded = await this.loadSkillDirContent({
       ...params,
-      getSettablePaths: ClaudecodeSkill.getSettablePaths,
+      getSettablePaths: (options) => this.getSettablePaths(options),
     });
 
     const result = ClaudecodeSkillFrontmatterSchema.safeParse(loaded.frontmatter);
@@ -314,7 +314,7 @@ export class ClaudecodeSkill extends ToolSkill {
       );
     }
 
-    return new ClaudecodeSkill({
+    return new this({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
@@ -332,7 +332,7 @@ export class ClaudecodeSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): ClaudecodeSkill {
-    return new ClaudecodeSkill({
+    return new this({
       outputRoot,
       relativeDirPath,
       dirName,

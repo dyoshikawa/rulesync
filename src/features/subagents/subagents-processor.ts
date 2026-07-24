@@ -18,6 +18,7 @@ import {
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
 import { AugmentcodeSubagent } from "./augmentcode-subagent.js";
+import { ClaudecodePluginSubagent } from "./claudecode-plugin-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { ClineSubagent } from "./cline-subagent.js";
 import { CodexCliSubagent } from "./codexcli-subagent.js";
@@ -146,6 +147,13 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     {
       class: ClaudecodeSubagent,
       meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+    },
+  ],
+  [
+    "claudecode-plugin",
+    {
+      class: ClaudecodePluginSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
     },
   ],
   [

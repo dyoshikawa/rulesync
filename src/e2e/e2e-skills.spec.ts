@@ -25,6 +25,10 @@ const skillsGenerateTargets = [
     outputPath: join(".claude", "skills", "test-skill", "SKILL.md"),
   },
   {
+    target: "claudecode-plugin",
+    outputPath: join("skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "cursor",
     outputPath: join(".cursor", "skills", "test-skill", "SKILL.md"),
   },
@@ -91,6 +95,10 @@ const skillsGenerateTargets = [
   {
     target: "antigravity-ide",
     outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "antigravity-plugin",
+    outputPath: join("skills", "test-skill", "SKILL.md"),
   },
   {
     target: "antigravity-cli",

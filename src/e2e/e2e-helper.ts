@@ -51,6 +51,7 @@ export async function runGenerate({
   simulateSubagents = false,
   simulateSkills = false,
   inputRoot,
+  outputRoots,
   env,
 }: {
   target: string;
@@ -62,6 +63,7 @@ export async function runGenerate({
   simulateSubagents?: boolean;
   simulateSkills?: boolean;
   inputRoot?: string;
+  outputRoots?: string;
   env?: Record<string, string>;
 }): Promise<{ stdout: string; stderr: string }> {
   const args = [
@@ -78,6 +80,7 @@ export async function runGenerate({
     ...(simulateSubagents ? ["--simulate-subagents"] : []),
     ...(simulateSkills ? ["--simulate-skills"] : []),
     ...(inputRoot ? ["--input-root", inputRoot] : []),
+    ...(outputRoots ? ["--output-roots", outputRoots] : []),
   ];
   return execFileAsync(rulesyncCmd, args, env ? { env: { ...process.env, ...env } } : {});
 }
@@ -89,11 +92,13 @@ export async function runImport({
   target,
   features,
   global = false,
+  outputRoot,
   env,
 }: {
   target: string;
   features: string;
   global?: boolean;
+  outputRoot?: string;
   env?: Record<string, string>;
 }): Promise<{ stdout: string; stderr: string }> {
   const args = [
@@ -104,6 +109,7 @@ export async function runImport({
     "--features",
     features,
     ...(global ? ["--global"] : []),
+    ...(outputRoot ? ["--output-root", outputRoot] : []),
   ];
   return execFileAsync(rulesyncCmd, args, env ? { env: { ...process.env, ...env } } : {});
 }

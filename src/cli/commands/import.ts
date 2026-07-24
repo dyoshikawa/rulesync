@@ -12,10 +12,7 @@ import { calculateTotalCount } from "../../utils/result.js";
 // still see the warning because `ConfigResolver.resolve` reads `configByFile`
 // regardless of this `Omit`. That residual warning is actionable — it tells
 // the user their config-file `inputRoot` is being ignored during `import`.
-export type ImportOptions = Omit<
-  ConfigResolverResolveParams,
-  "delete" | "outputRoots" | "inputRoot"
->;
+export type ImportOptions = Omit<ConfigResolverResolveParams, "delete" | "inputRoot">;
 
 export async function importCommand(logger: Logger, options: ImportOptions): Promise<void> {
   if (!options.targets) {

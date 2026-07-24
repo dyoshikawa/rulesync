@@ -19,6 +19,7 @@ import {
 } from "../types/features.js";
 import {
   ALL_TOOL_TARGETS,
+  PACKAGING_TOOL_TARGETS,
   isRulesyncConfigTargetsObject,
   RulesyncConfigTargets,
   RulesyncConfigTargetsSchema,
@@ -192,15 +193,17 @@ const CONFLICTING_TARGET_PAIRS: Array<[string, string]> = [
  * These targets must be explicitly specified.
  */
 const LEGACY_TARGETS = ["augmentcode-legacy", "claudecode-legacy"] as const;
-
 /**
- * Expand the wildcard target (`*`) to every non-legacy tool target. Legacy
- * targets are excluded because they must be requested explicitly. Shared by
- * `Config.getTargets()` and `extractConfigFileTargets()` so the two never drift.
+ * Expand the wildcard target (`*`) to every ordinary non-legacy tool target.
+ * Legacy aliases and package-root targets are excluded because they must be
+ * requested explicitly. Shared by `Config.getTargets()` and
+ * `extractConfigFileTargets()` so the two never drift.
  */
 export function expandWildcardTargets(): ToolTarget[] {
   return ALL_TOOL_TARGETS.filter(
-    (target) => !LEGACY_TARGETS.includes(target as (typeof LEGACY_TARGETS)[number]),
+    (target) =>
+      !LEGACY_TARGETS.includes(target as (typeof LEGACY_TARGETS)[number]) &&
+      !PACKAGING_TOOL_TARGETS.includes(target as (typeof PACKAGING_TOOL_TARGETS)[number]),
   );
 }
 

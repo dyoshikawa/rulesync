@@ -164,9 +164,19 @@ export function createProgram(): Command {
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
     .option("-g, --global", "Import for global(user scope) configuration files")
+    .option(
+      "-o, --output-root <path>",
+      "Root directory containing the tool configuration to import",
+    )
     .action(
       wrapCommand("import", "IMPORT_FAILED", async (logger, options) => {
-        await importCommand(logger, options as ImportOptions);
+        const { outputRoot, ...importOptions } = options as ImportOptions & {
+          outputRoot?: string;
+        };
+        await importCommand(logger, {
+          ...importOptions,
+          outputRoots: outputRoot ? [outputRoot] : undefined,
+        });
       }),
     );
 

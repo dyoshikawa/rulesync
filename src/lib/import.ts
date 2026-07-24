@@ -9,6 +9,7 @@ import { RulesyncMcp } from "../features/mcp/rulesync-mcp.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { RulesyncPermissions } from "../features/permissions/rulesync-permissions.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
+import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import type { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js";
@@ -24,30 +25,37 @@ async function applyRulesyncSourcePath<T extends RulesyncFile>({
   files,
   paths,
   sourceClass,
+  outputRoot,
 }: {
   files: T[];
   paths: RulesyncSourceSettablePaths;
   sourceClass: new (params: RulesyncFileParams) => T;
+  outputRoot?: string;
 }): Promise<T[]> {
   const first = files[0];
   if (!first) {
     return files;
   }
 
+  const destinationOutputRoot = outputRoot ?? first.getOutputRoot();
   const destination = await resolveRulesyncSourceWritePath({
-    outputRoot: first.getOutputRoot(),
+    outputRoot: destinationOutputRoot,
     paths,
   });
   return files.map(
     (file) =>
       new sourceClass({
-        outputRoot: file.getOutputRoot(),
+        outputRoot: destinationOutputRoot,
         relativeDirPath: destination.relativeDirPath,
         relativeFilePath: destination.relativeFilePath,
         fileContent: file.getFileContent(),
         validate: true,
       }),
   );
+}
+
+function isPackagingTarget(tool: ToolTarget): boolean {
+  return tool === "antigravity-plugin" || tool === "claudecode-plugin";
 }
 
 export type ImportResult = {
@@ -226,6 +234,7 @@ async function importMcpCore(params: {
     files: convertedFiles,
     paths: RulesyncMcp.getSettablePaths(),
     sourceClass: RulesyncMcp,
+    outputRoot: isPackagingTarget(tool) ? process.cwd() : undefined,
   });
   const { count: writtenCount } = await mcpProcessor.writeAiFiles(rulesyncFiles);
 
@@ -352,7 +361,25 @@ async function importSkillsCore(params: {
   }
 
   const rulesyncDirs = await skillsProcessor.convertToolDirsToRulesyncDirs(toolDirs);
-  const { count: writtenCount } = await skillsProcessor.writeAiDirs(rulesyncDirs);
+  const rebasedRulesyncDirs = rulesyncDirs.map((dir) => {
+    if (!isPackagingTarget(tool)) {
+      return dir;
+    }
+    if (!(dir instanceof RulesyncSkill)) {
+      return dir;
+    }
+    return new RulesyncSkill({
+      outputRoot: process.cwd(),
+      relativeDirPath: dir.getRelativeDirPath(),
+      dirName: dir.getDirName(),
+      frontmatter: dir.getFrontmatter(),
+      body: dir.getBody(),
+      otherFiles: dir.getOtherFiles(),
+      validate: true,
+      global: false,
+    });
+  });
+  const { count: writtenCount } = await skillsProcessor.writeAiDirs(rebasedRulesyncDirs);
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} skill directories`);
@@ -403,6 +430,7 @@ async function importHooksCore(params: {
     files: convertedFiles,
     paths: RulesyncHooks.getSettablePaths(),
     sourceClass: RulesyncHooks,
+    outputRoot: isPackagingTarget(tool) ? process.cwd() : undefined,
   });
   const { count: writtenCount } = await hooksProcessor.writeAiFiles(rulesyncFiles);
 

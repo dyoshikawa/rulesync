@@ -34,6 +34,7 @@ import { AiassistantRule } from "./aiassistant-rule.js";
 import { AmpRule } from "./amp-rule.js";
 import { AntigravityCliRule } from "./antigravity-cli-rule.js";
 import { AntigravityIdeRule } from "./antigravity-ide-rule.js";
+import { AntigravityPluginRule } from "./antigravity-plugin-rule.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
 import { AugmentcodeRule } from "./augmentcode-rule.js";
 import { ClaudecodeLegacyRule } from "./claudecode-legacy-rule.js";
@@ -345,6 +346,17 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // so no reference section is needed in the root rule.
         extension: "md",
         supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+      },
+    },
+  ],
+  [
+    "antigravity-plugin",
+    {
+      class: AntigravityPluginRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
         ruleDiscoveryMode: "auto",
       },
     },

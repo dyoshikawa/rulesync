@@ -15,6 +15,7 @@ import {
 
 const commandsGenerateTargets = [
   { target: "claudecode", outputPath: join(".claude", "commands", "review-pr.md") },
+  { target: "claudecode-plugin", outputPath: join("commands", "review-pr.md") },
   { target: "cursor", outputPath: join(".cursor", "commands", "review-pr.md") },
   { target: "augmentcode", outputPath: join(".augment", "commands", "review-pr.md") },
   { target: "copilot", outputPath: join(".github", "prompts", "review-pr.prompt.md") },

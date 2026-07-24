@@ -36,6 +36,7 @@ function assertHookCommandsPreserved(parsed: { hooks?: unknown }): void {
 const hooksGenerateTargets = [
   { target: "amp", outputPath: join(".amp", "plugins", "rulesync-hooks.ts") },
   { target: "claudecode", outputPath: join(".claude", "settings.json") },
+  { target: "claudecode-plugin", outputPath: join("hooks", "hooks.json") },
   { target: "cursor", outputPath: join(".cursor", "hooks.json") },
   { target: "opencode", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
   { target: "kilo", outputPath: join(".kilo", "plugins", "rulesync-hooks.js") },
@@ -53,6 +54,7 @@ const hooksGenerateTargets = [
   { target: "kiro-cli", outputPath: join(".kiro", "agents", "default.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "antigravity-ide", outputPath: join(".agents", "hooks.json") },
+  { target: "antigravity-plugin", outputPath: "hooks.json" },
   { target: "antigravity-cli", outputPath: join(".agents", "hooks.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
@@ -159,7 +161,11 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks.Stop).toBeDefined();
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
         expect(JSON.stringify(parsed.hooks)).not.toContain("$CLAUDE_PROJECT_DIR");
-      } else if (target === "antigravity-ide" || target === "antigravity-cli") {
+      } else if (
+        target === "antigravity-ide" ||
+        target === "antigravity-cli" ||
+        target === "antigravity-plugin"
+      ) {
         // Antigravity nests the event → matcher-entry map under a generated
         // `rulesync` hook name and supports preToolUse/postToolUse/
         // preModelInvocation/postModelInvocation/stop (see ANTIGRAVITY_HOOK_EVENTS

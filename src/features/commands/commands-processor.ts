@@ -28,6 +28,7 @@ import { AntigravityCliCommand } from "./antigravity-cli-command.js";
 import { AntigravityIdeCommand } from "./antigravity-ide-command.js";
 import { AugmentcodeCommand } from "./augmentcode-command.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
+import { ClaudecodePluginCommand } from "./claudecode-plugin-command.js";
 import { ClineCommand } from "./cline-command.js";
 import { CodexcliCommand } from "./codexcli-command.js";
 import { CopilotCommand } from "./copilot-command.js";
@@ -199,6 +200,19 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         extension: "md",
         supportsProject: true,
         supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
+      },
+    },
+  ],
+  [
+    "claudecode-plugin",
+    {
+      class: ClaudecodePluginCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: false,
         isSimulated: false,
         supportsSubdirectory: true,
       },

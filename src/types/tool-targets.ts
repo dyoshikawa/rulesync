@@ -20,6 +20,11 @@ export const ToolTargetSchema = z.enum(ALL_TOOL_TARGETS);
 
 export type ToolTarget = z.infer<typeof ToolTargetSchema>;
 
+export const PACKAGING_TOOL_TARGETS = [
+  "antigravity-plugin",
+  "claudecode-plugin",
+] as const satisfies readonly ToolTarget[];
+
 export const ToolTargetsSchema = z.array(ToolTargetSchema);
 
 export type ToolTargets = z.infer<typeof ToolTargetsSchema>;
