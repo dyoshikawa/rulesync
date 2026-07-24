@@ -264,7 +264,7 @@ export async function readFileBuffer(filepath: string): Promise<Buffer> {
 }
 
 /**
- * Adds exactly one trailing newline to content.
+ * Normalizes text to LF line endings and adds exactly one trailing newline.
  * Removes any existing trailing whitespace and appends a single newline.
  */
 export function addTrailingNewline(content: string): string {
@@ -272,7 +272,7 @@ export function addTrailingNewline(content: string): string {
     return "\n";
   }
 
-  return content.trimEnd() + "\n";
+  return content.replaceAll("\r\n", "\n").replaceAll("\r", "\n").trimEnd() + "\n";
 }
 
 export async function writeFileContent(filepath: string, content: string): Promise<void> {
