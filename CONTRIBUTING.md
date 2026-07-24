@@ -34,10 +34,10 @@ To add support for a new Tool/Feature (e.g., rules), follow these steps:
 
 1. `src/features/{feature}/{tool}-{feature}.ts` - create implementation.
 2. `src/features/{feature}/{tool}-{feature}.test.ts` - create tests.
-3. `src/types/tool-target-tuples.ts` - add the target to the feature-specific tuple. `ALL_TOOL_TARGETS` is derived from these tuples.
-4. `src/types/tool-targets.test.ts` and the feature processor tests - update the expected targets.
+3. `src/types/tool-target-tuples.ts` - add the target to the feature-specific tuple. `ALL_TOOL_TARGETS` is derived from these tuples. For a brand-new non-legacy target, also register its display metadata in `src/types/tool-display.ts`.
+4. Update the feature processor tests. Update the expected targets in `src/types/tool-targets.test.ts` only when adding a brand-new target.
 5. `src/features/{feature}/{feature}-processor.ts` - register the implementation in the factory.
-6. Define the implementation's project and global output paths through `getSettablePaths`. Ordinary gitignore entries are derived from these paths. Only add exceptional third-party by-products, shared trees, or global-only paths to `HAND_MAINTAINED_GITIGNORE_ENTRIES` in `src/cli/commands/gitignore-entries.ts`.
+6. Define each scope the tool supports through `getSettablePaths`, based on the tool's official documentation. Ordinary project-scope gitignore entries are derived from the paths returned for `global: false`. Only add exceptional third-party by-products, shared trees, or global-only paths to `HAND_MAINTAINED_GITIGNORE_ENTRIES` in `src/cli/commands/gitignore-entries.ts`.
 7. Add or preserve end-to-end happy-path coverage for the Tool × Feature combination.
 8. Run `pnpm dev gitignore` to update the project `.gitignore`.
 9. Run `pnpm run generate:tables` to update the generated supported-tools tables in `README.md` and `docs/reference/supported-tools.md`; do not edit those tables manually.
