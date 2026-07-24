@@ -1399,10 +1399,12 @@ As this project's AI coding tool, you must follow the additional conventions bel
       );
     }
 
-    // In global mode, return root rule + non-root rules if the target supports global nonRoot
+    // In global mode, retain non-root rules when the target can emit or fold them globally
     if (this.global) {
       const globalPaths = factory.class.getSettablePaths({ global: true });
-      const supportsGlobalNonRoot = "nonRoot" in globalPaths && globalPaths.nonRoot !== null;
+      const supportsGlobalNonRoot =
+        ("nonRoot" in globalPaths && globalPaths.nonRoot !== null) ||
+        factory.meta.foldsNonRootIntoRoot === true;
 
       const nonRootRules = rulesyncRules.filter(
         (rule) =>

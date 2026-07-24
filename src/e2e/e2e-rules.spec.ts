@@ -902,6 +902,94 @@ globs: ["src/**/*"]
     expect(generatedContent).not.toContain("Non-Root Rule Content");
   });
 
+  it.each([
+    { target: "codexcli", outputPath: join(".codex", "AGENTS.md") },
+    { target: "pi", outputPath: join(".pi", "agent", "AGENTS.md") },
+  ] as const)(
+    "should fold $target non-root rules into its global root file",
+    async ({ target, outputPath }) => {
+      const projectDir = getProjectDir();
+      const homeDir = getHomeDir();
+
+      await writeFileContent(
+        join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+        `---
+root: true
+targets: ["${target}"]
+description: "Root rule"
+---
+
+# Global Root Rule
+`,
+      );
+      await writeFileContent(
+        join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "detail.md"),
+        `---
+targets: ["${target}"]
+description: "Detail rule"
+globs: ["src/**/*"]
+---
+
+# Global Detail Rule
+`,
+      );
+
+      await runGenerate({
+        target,
+        features: "rules",
+        global: true,
+        env: { HOME_DIR: homeDir },
+      });
+
+      const generatedContent = await readFileContent(join(homeDir, outputPath));
+      expect(generatedContent).toContain("Global Root Rule");
+      expect(generatedContent).toContain("Global Detail Rule");
+    },
+  );
+
+  it("should route pi.systemPrompt:append rules to global APPEND_SYSTEM.md", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["pi"]
+description: "Root rule"
+---
+
+# Global Pi Root Rule
+`,
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "append.md"),
+      `---
+targets: ["pi"]
+description: "System prompt addition"
+pi:
+  systemPrompt: append
+---
+
+# Global Pi System Prompt
+`,
+    );
+
+    await runGenerate({
+      target: "pi",
+      features: "rules",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const rootContent = await readFileContent(join(homeDir, ".pi", "agent", "AGENTS.md"));
+    expect(rootContent).toContain("Global Pi Root Rule");
+    expect(rootContent).not.toContain("Global Pi System Prompt");
+
+    const appendContent = await readFileContent(join(homeDir, ".pi", "agent", "APPEND_SYSTEM.md"));
+    expect(appendContent).toContain("Global Pi System Prompt");
+  });
+
   it("should generate qwencode non-root rules into ~/.qwen/rules in global mode", async () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
