@@ -79,6 +79,16 @@ describe("convertCommand", () => {
       );
     });
 
+    it.each([
+      { from: "claudecode-plugin", to: ["cursor"] },
+      { from: "cursor", to: ["antigravity-plugin"] },
+    ])("should reject plugin packaging targets", async (options) => {
+      await expect(convertCommand(mockLogger, options)).rejects.toThrow(
+        /Plugin packaging target .* is not supported by convert/,
+      );
+      expect(ConfigResolver.resolve).not.toHaveBeenCalled();
+    });
+
     it("should deduplicate duplicated destination tools", async () => {
       const options: ConvertOptions = { from: "cursor", to: ["claudecode", "claudecode"] };
 

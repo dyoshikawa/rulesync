@@ -63,6 +63,8 @@ rulesync import \
   --output-root ./plugins/review-tools
 ```
 
+The `convert` command does not accept packaging targets because it has no separate source and destination plugin roots. Import from the source plugin first, then generate into the destination plugin.
+
 ## Component paths
 
 | Target               | Rules        | MCP               | Commands        | Subagents     | Skills              | Hooks              |
