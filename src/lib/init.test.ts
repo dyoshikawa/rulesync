@@ -172,14 +172,17 @@ describe("init", () => {
 
       await init();
 
-      expect(writeFileContent).toHaveBeenCalledWith(
-        RULESYNC_CONFIG_RELATIVE_FILE_PATH,
-        expect.stringContaining('"targets"'),
-      );
-      expect(writeFileContent).toHaveBeenCalledWith(
-        RULESYNC_CONFIG_RELATIVE_FILE_PATH,
-        expect.stringContaining('"features"'),
-      );
+      const configWriteCall = vi
+        .mocked(writeFileContent)
+        .mock.calls.find((call) => call[0] === RULESYNC_CONFIG_RELATIVE_FILE_PATH);
+      expect(configWriteCall).toBeDefined();
+
+      const config = JSON.parse(configWriteCall?.[1] ?? "{}") as {
+        features?: string[];
+        targets?: string[];
+      };
+      expect(config.targets).toEqual(["codexcli", "claudecode", "opencode"]);
+      expect(config.features).toBeDefined();
     });
 
     it("should not create config file if it already exists", async () => {

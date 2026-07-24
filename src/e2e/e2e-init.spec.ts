@@ -50,6 +50,11 @@ describe("E2E: init", () => {
       expect(exists, `Expected ${path} to exist`).toBe(true);
     }
 
+    const config = parseJsonc(
+      await readFileContent(join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH)),
+    ) as Record<string, unknown>;
+    expect(config.targets).toEqual(["codexcli", "claudecode", "opencode"]);
+
     const permissions = parseJsonc(
       await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
     ) as Record<string, unknown>;
