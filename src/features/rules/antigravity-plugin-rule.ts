@@ -8,7 +8,7 @@ import type { RulesyncRule } from "./rulesync-rule.js";
 export class AntigravityPluginRule extends AntigravityIdeRule {
   static override isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
     const targets = rulesyncRule.getFrontmatter().targets;
-    return super.isTargetedByRulesyncRule(rulesyncRule) || targets.includes("antigravity-plugin");
+    return targets.includes("*") || targets.includes("antigravity-plugin");
   }
 
   static override getSettablePaths(): AntigravityIdeRuleSettablePaths {

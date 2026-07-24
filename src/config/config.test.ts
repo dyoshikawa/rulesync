@@ -128,6 +128,17 @@ describe("Config", () => {
 
       expect(targets).not.toContain("*");
     });
+
+    it("should preserve packaging targets explicitly listed with wildcard", () => {
+      const config = createConfig({
+        targets: ["*", "claudecode-plugin", "antigravity-plugin"],
+      });
+      const targets = config.getTargets();
+
+      expect(targets).toContain("claudecode-plugin");
+      expect(targets).toContain("antigravity-plugin");
+      expect(targets).not.toContain("*");
+    });
   });
 
   describe("getSilent", () => {

@@ -43,6 +43,8 @@ Rulesync manages the selected component files but does not create or modify plug
 - Claude Code: `.claude-plugin/plugin.json` when the plugin uses a manifest
 - Antigravity: `plugin.json`
 
+The plugin root must already exist. Rulesync rejects symbolic links anywhere in the plugin tree before importing, generating, or deleting files so package components cannot escape the selected root.
+
 `--delete` reconciles the selected Rulesync-managed component trees, so do not mix hand-authored files into a component tree that Rulesync owns.
 
 ## Import from a plugin

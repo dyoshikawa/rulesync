@@ -1,3 +1,4 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -34,6 +35,16 @@ Review the current changes.
 `,
     );
     await writeFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "project-only", "SKILL.md"),
+      `---
+name: project-only
+description: Project-only skill
+targets: ["claudecode"]
+---
+Do not package this skill.
+`,
+    );
+    await writeFileContent(
       join(pluginRoot, ".claude-plugin", "plugin.json"),
       JSON.stringify({ name: "review-plugin" }, null, 2),
     );
@@ -47,6 +58,7 @@ Review the current changes.
 
     const generatedSkill = join(pluginRoot, "skills", "review", "SKILL.md");
     expect(await readFileContent(generatedSkill)).toContain("Review the current changes.");
+    expect(await fileExists(join(pluginRoot, "skills", "project-only", "SKILL.md"))).toBe(false);
     expect(await fileExists(join(pluginRoot, "scripts", "check.sh"))).toBe(true);
 
     await removeDirectory(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH));
@@ -80,6 +92,15 @@ Review changes before submission.
 `,
     );
     await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "ide-only.md"),
+      `---
+targets: ["antigravity-ide"]
+description: IDE-only conventions
+---
+Do not package this rule.
+`,
+    );
+    await writeFileContent(
       join(pluginRoot, "plugin.json"),
       JSON.stringify({ name: "review-plugin" }, null, 2),
     );
@@ -93,6 +114,7 @@ Review changes before submission.
 
     const generatedRule = join(pluginRoot, "rules", "review.md");
     expect(await readFileContent(generatedRule)).toContain("Review changes before submission.");
+    expect(await fileExists(join(pluginRoot, "rules", "ide-only.md"))).toBe(false);
     expect(await fileExists(join(pluginRoot, "assets", "icon.txt"))).toBe(true);
 
     await removeDirectory(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
@@ -107,5 +129,35 @@ Review changes before submission.
     expect(await readFileContent(rulesyncRulePath)).toContain("Review changes before submission.");
     expect(await fileExists(join(pluginRoot, "plugin.json"))).toBe(true);
     expect(await fileExists(join(pluginRoot, "assets", "icon.txt"))).toBe(true);
+  });
+
+  describe.skipIf(process.platform === "win32")("symbolic link safety", () => {
+    it("rejects plugin imports containing symbolic links", async () => {
+      const testDir = getTestDir();
+      const pluginRoot = join(testDir, "plugins", "untrusted");
+      const outsideFile = join(testDir, "secret.txt");
+      await writeFileContent(
+        join(pluginRoot, "skills", "review", "SKILL.md"),
+        `---
+name: review
+description: Review code changes
+---
+Review the current changes.
+`,
+      );
+      await writeFileContent(outsideFile, "secret");
+      await symlink(outsideFile, join(pluginRoot, "skills", "review", "secret.txt"));
+
+      await expect(
+        runImport({
+          target: "claudecode-plugin",
+          features: "skills",
+          outputRoot: pluginRoot,
+        }),
+      ).rejects.toThrow();
+      expect(
+        await fileExists(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "review", "secret.txt")),
+      ).toBe(false);
+    });
   });
 });

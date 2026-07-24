@@ -6,9 +6,7 @@ import type { ToolSubagentSettablePaths } from "./tool-subagent.js";
 export class ClaudecodePluginSubagent extends ClaudecodeSubagent {
   static override isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {
     const targets = rulesyncSubagent.getFrontmatter().targets;
-    return (
-      super.isTargetedByRulesyncSubagent(rulesyncSubagent) || targets.includes("claudecode-plugin")
-    );
+    return targets.includes("*") || targets.includes("claudecode-plugin");
   }
 
   static override getSettablePaths(): ToolSubagentSettablePaths {

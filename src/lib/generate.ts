@@ -28,6 +28,7 @@ import { formatError } from "../utils/error.js";
 import { fileExists, toPosixPath } from "../utils/file.js";
 import { resolveToolOutputRoot } from "../utils/kimi-code.js";
 import type { Logger } from "../utils/logger.js";
+import { assertPluginRootSafe } from "../utils/plugin-root.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
 import { deriveSharedWriteSteps } from "./shared-file-derive.js";
 
@@ -450,6 +451,12 @@ export async function generate(params: {
   logger: Logger;
 }): Promise<GenerateResult> {
   const { config, logger } = params;
+
+  for (const toolTarget of config.getTargets()) {
+    for (const outputRoot of config.getOutputRoots(toolTarget)) {
+      await assertPluginRootSafe({ toolTarget, outputRoot });
+    }
+  }
 
   await warnSkillSubagentNameCollisions({ config, logger });
 

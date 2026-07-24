@@ -6,7 +6,7 @@ import type { ToolSkillSettablePaths } from "./tool-skill.js";
 export class AntigravityPluginSkill extends AntigravityIdeSkill {
   static override isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
     const targets = rulesyncSkill.getFrontmatter().targets;
-    return super.isTargetedByRulesyncSkill(rulesyncSkill) || targets.includes("antigravity-plugin");
+    return targets.includes("*") || targets.includes("antigravity-plugin");
   }
 
   static override getSettablePaths(): ToolSkillSettablePaths {

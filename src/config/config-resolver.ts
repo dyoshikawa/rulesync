@@ -451,7 +451,12 @@ function extractConfigFileTargets(
   // to the CLI-filtered `getTargets()`, breaking root-file ownership
   // computation for the very common `targets: ["*"]` form (see #1981 / #1894).
   if (targets.includes("*")) {
-    return expandWildcardTargets();
+    return [
+      ...new Set([
+        ...expandWildcardTargets(),
+        ...targets.filter((key): key is ToolTarget => key !== "*" && validTargets.has(key)),
+      ]),
+    ];
   }
   return targets.filter((key): key is ToolTarget => key !== "*" && validTargets.has(key));
 }

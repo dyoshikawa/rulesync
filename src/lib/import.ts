@@ -16,6 +16,7 @@ import type { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js
 import type { ToolTarget } from "../types/tool-targets.js";
 import { resolveToolOutputRoot } from "../utils/kimi-code.js";
 import type { Logger } from "../utils/logger.js";
+import { assertPluginRootSafe, isPackagingToolTarget } from "../utils/plugin-root.js";
 import {
   resolveRulesyncSourceWritePath,
   type RulesyncSourceSettablePaths,
@@ -54,10 +55,6 @@ async function applyRulesyncSourcePath<T extends RulesyncFile>({
   );
 }
 
-function isPackagingTarget(tool: ToolTarget): boolean {
-  return tool === "antigravity-plugin" || tool === "claudecode-plugin";
-}
-
 export type ImportResult = {
   rulesCount: number;
   ignoreCount: number;
@@ -87,6 +84,11 @@ export async function importFromTool(params: {
   logger: Logger;
 }): Promise<ImportResult> {
   const { config, tool, logger } = params;
+
+  await assertPluginRootSafe({
+    toolTarget: tool,
+    outputRoot: getToolOutputRoot({ config, tool }),
+  });
 
   const rulesCount = await importRulesCore({ config, tool, logger });
   const ignoreCount = await importIgnoreCore({ config, tool, logger });
@@ -234,7 +236,7 @@ async function importMcpCore(params: {
     files: convertedFiles,
     paths: RulesyncMcp.getSettablePaths(),
     sourceClass: RulesyncMcp,
-    outputRoot: isPackagingTarget(tool) ? process.cwd() : undefined,
+    outputRoot: isPackagingToolTarget(tool) ? process.cwd() : undefined,
   });
   const { count: writtenCount } = await mcpProcessor.writeAiFiles(rulesyncFiles);
 
@@ -362,7 +364,7 @@ async function importSkillsCore(params: {
 
   const rulesyncDirs = await skillsProcessor.convertToolDirsToRulesyncDirs(toolDirs);
   const rebasedRulesyncDirs = rulesyncDirs.map((dir) => {
-    if (!isPackagingTarget(tool)) {
+    if (!isPackagingToolTarget(tool)) {
       return dir;
     }
     if (!(dir instanceof RulesyncSkill)) {
@@ -430,7 +432,7 @@ async function importHooksCore(params: {
     files: convertedFiles,
     paths: RulesyncHooks.getSettablePaths(),
     sourceClass: RulesyncHooks,
-    outputRoot: isPackagingTarget(tool) ? process.cwd() : undefined,
+    outputRoot: isPackagingToolTarget(tool) ? process.cwd() : undefined,
   });
   const { count: writtenCount } = await hooksProcessor.writeAiFiles(rulesyncFiles);
 

@@ -307,6 +307,10 @@ describe("filterGitignoreEntries", () => {
         logger,
         targets: ["antigravity-plugin"],
       });
+      const wildcardAndClaudePlugin = filterGitignoreEntries({
+        logger,
+        targets: ["*", "claudecode-plugin"],
+      });
 
       expect(defaults).not.toContain("**/commands/");
       expect(defaults).not.toContain("**/rules/");
@@ -314,6 +318,8 @@ describe("filterGitignoreEntries", () => {
       expect(wildcard).not.toContain("**/rules/");
       expect(claudePlugin).toContain("**/commands/");
       expect(antigravityPlugin).toContain("**/rules/");
+      expect(wildcardAndClaudePlugin).toContain("**/commands/");
+      expect(wildcardAndClaudePlugin).not.toContain("**/rules/");
     });
   });
 

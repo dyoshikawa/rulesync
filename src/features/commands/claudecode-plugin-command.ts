@@ -6,9 +6,7 @@ import type { ToolCommandSettablePaths } from "./tool-command.js";
 export class ClaudecodePluginCommand extends ClaudecodeCommand {
   static override isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
     const targets = rulesyncCommand.getFrontmatter().targets;
-    return (
-      super.isTargetedByRulesyncCommand(rulesyncCommand) || targets.includes("claudecode-plugin")
-    );
+    return targets.includes("*") || targets.includes("claudecode-plugin");
   }
 
   static override getSettablePaths(): ToolCommandSettablePaths {

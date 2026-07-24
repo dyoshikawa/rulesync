@@ -482,7 +482,12 @@ export class Config {
     const arrayTargets: RulesyncTargets = Array.isArray(this.targets) ? this.targets : [];
 
     if (arrayTargets.includes("*")) {
-      return expandWildcardTargets();
+      return [
+        ...new Set([
+          ...expandWildcardTargets(),
+          ...arrayTargets.filter((target): target is ToolTarget => target !== "*"),
+        ]),
+      ];
     }
 
     return arrayTargets.filter((target): target is ToolTarget => target !== "*");

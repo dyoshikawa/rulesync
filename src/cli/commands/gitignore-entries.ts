@@ -184,6 +184,7 @@ const isTargetSelected = (
   if (!selectedTargets || selectedTargets.length === 0 || selectedTargets.includes("*")) {
     return targets.some(
       (candidate) =>
+        selectedTargets?.includes(candidate) ||
         !PACKAGING_TOOL_TARGETS.includes(candidate as (typeof PACKAGING_TOOL_TARGETS)[number]),
     );
   }
@@ -200,6 +201,7 @@ const getSelectedGitignoreEntryTargets = (
   if (!selectedTargets || selectedTargets.length === 0 || selectedTargets.includes("*")) {
     return targets.filter(
       (candidate) =>
+        selectedTargets?.includes(candidate) ||
         !PACKAGING_TOOL_TARGETS.includes(candidate as (typeof PACKAGING_TOOL_TARGETS)[number]),
     );
   }
