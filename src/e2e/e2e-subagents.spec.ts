@@ -1,10 +1,11 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
-import { readFileContent, writeFileContent } from "../utils/file.js";
+import { ensureDir, readFileContent, writeFileContent } from "../utils/file.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -507,6 +508,25 @@ Break down tasks into steps.
     });
 
     expect(await readFileContent(sharedAgentPath)).toContain("User-owned shared reviewer");
+  });
+
+  it("should not follow directory symlinks while deleting Kimi Code subagents", async () => {
+    const testDir = getTestDir();
+    const protectedDir = join(testDir, "protected-agents");
+    const protectedFile = join(protectedDir, "notes.md");
+    const linkedDir = join(testDir, ".kimi-code", "agents", "external");
+    await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+    await writeFileContent(protectedFile, "Protected notes.\n");
+    await ensureDir(join(testDir, ".kimi-code", "agents"));
+    await symlink(protectedDir, linkedDir, process.platform === "win32" ? "junction" : "dir");
+
+    await runGenerate({
+      target: "kimi-code",
+      features: "subagents",
+      deleteFiles: true,
+    });
+
+    expect(await readFileContent(protectedFile)).toBe("Protected notes.\n");
   });
 
   it("should import goose subagents (sub-recipe YAML)", async () => {

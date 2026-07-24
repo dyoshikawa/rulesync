@@ -1597,9 +1597,10 @@ describe("E2E: permissions (global mode)", () => {
       {
         event: "PreToolUse",
         matcher: "Bash",
-        command: "security-check",
+        command: expect.stringContaining("security-check"),
       },
     ]);
+    expect((generated.hooks as Array<{ command: string }>)[0]?.command).toContain(projectDir);
     expect(generated.permission).toEqual({
       rules: [{ decision: "allow", pattern: "Bash(git *)", scope: "user" }],
     });

@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { KIMI_CODE_CONFIG_FILE_NAME, KIMI_CODE_DIR } from "../../constants/kimi-code-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
@@ -36,33 +36,28 @@ type KimiCodeHookEntry = {
   timeout?: number;
 };
 
-function containsProjectRelativePath(command: string): boolean {
-  const shellWords = command.match(/"[^"]*"|'[^']*'|[^\s;&|()]+/g) ?? [];
-  return shellWords.some((word) => {
-    const unquoted = word.replace(/^(["'])(.*)\1$/, "$2").replace(/^[<>]+/, "");
-    if (/^(?:\$PWD|\$\{PWD\}|\$\(pwd\)|%CD%)(?:[\\/]|$)/i.test(unquoted)) {
-      return true;
-    }
-    if (
-      unquoted === "" ||
-      unquoted.startsWith("-") ||
-      unquoted.startsWith("$") ||
-      unquoted.startsWith("~/") ||
-      /^[a-z][a-z0-9+.-]*:\/\//i.test(unquoted) ||
-      /^[\\/]/.test(unquoted) ||
-      /^[a-z]:[\\/]/i.test(unquoted)
-    ) {
-      return false;
-    }
-    return (
-      unquoted.startsWith("./") ||
-      unquoted.startsWith("../") ||
-      unquoted.startsWith(".\\") ||
-      unquoted.startsWith("..\\") ||
-      unquoted.includes("/") ||
-      /^[a-z0-9_.-]+\\[a-z0-9_.-]/i.test(unquoted)
-    );
-  });
+function runFromTrustedDirectory({
+  command,
+  trustedDirectory,
+}: {
+  command: string;
+  trustedDirectory: string;
+}): string {
+  if (process.platform === "win32") {
+    const escapedDirectory = trustedDirectory.replaceAll("%", "%%").replaceAll('"', '""');
+    return `cd /d "${escapedDirectory}" && ${command}`;
+  }
+  const escapedDirectory = trustedDirectory.replaceAll("'", `'"'"'`);
+  return `cd -- '${escapedDirectory}' && ${command}`;
+}
+
+function stripTrustedDirectoryWrapper(command: string): string {
+  const posix = command.match(/^cd -- '(?:[^']|'"'"')*' && ([\s\S]*)$/);
+  if (posix?.[1]) {
+    return posix[1];
+  }
+  const windows = command.match(/^cd \/d "(?:""|[^"])*" && ([\s\S]*)$/);
+  return windows?.[1] ?? command;
 }
 
 function buildEffectiveHooks(
@@ -82,10 +77,12 @@ function buildEffectiveHooks(
 function canonicalToKimiCodeHooks({
   config,
   toolOverrideHooks,
+  trustedDirectory,
   logger,
 }: {
   config: HooksConfig;
   toolOverrideHooks: HooksConfig["hooks"] | undefined;
+  trustedDirectory: string;
   logger?: Logger;
 }): KimiCodeHookEntry[] {
   const result: KimiCodeHookEntry[] = [];
@@ -102,12 +99,6 @@ function canonicalToKimiCodeHooks({
       if ((definition.type ?? "command") !== "command" || !definition.command) {
         continue;
       }
-      if (containsProjectRelativePath(definition.command)) {
-        logger?.warn(
-          `Kimi Code hooks: skipping project-relative command for "${event}" because global hooks run from every session project; use an absolute path or a command on PATH.`,
-        );
-        continue;
-      }
       const timeout = definition.timeout;
       const validTimeout =
         timeout === undefined || (Number.isInteger(timeout) && timeout >= 1 && timeout <= 600);
@@ -118,7 +109,10 @@ function canonicalToKimiCodeHooks({
       }
       result.push({
         event: nativeEvent,
-        command: definition.command,
+        command: runFromTrustedDirectory({
+          command: definition.command,
+          trustedDirectory,
+        }),
         ...(definition.matcher && { matcher: definition.matcher }),
         ...(validTimeout && timeout !== undefined && { timeout }),
       });
@@ -143,7 +137,7 @@ function kimiCodeHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
     const event = KIMI_CODE_TO_CANONICAL_EVENT_NAMES[entry.event] ?? entry.event;
     const definition: HookDefinition = {
       type: "command",
-      command: entry.command,
+      command: stripTrustedDirectoryWrapper(entry.command),
       ...(typeof entry.matcher === "string" && { matcher: entry.matcher }),
       ...(typeof entry.timeout === "number" && { timeout: entry.timeout }),
     };
@@ -228,6 +222,7 @@ export class KimiCodeHooks extends ToolHooks {
           hooks: canonicalToKimiCodeHooks({
             config,
             toolOverrideHooks: config["kimi-code"]?.hooks,
+            trustedDirectory: resolve(rulesyncHooks.getOutputRoot()),
             logger,
           }),
         },

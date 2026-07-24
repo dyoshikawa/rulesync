@@ -333,9 +333,9 @@ export async function findFiles(dir: string, extension: string = ".md"): Promise
 
 export async function findFilesByGlobs(
   globs: string | string[],
-  options: { type?: "file" | "dir" | "all" } = {},
+  options: { type?: "file" | "dir" | "all"; followSymbolicLinks?: boolean } = {},
 ): Promise<string[]> {
-  const { type = "all" } = options;
+  const { type = "all", followSymbolicLinks = true } = options;
   const globbyOptions =
     type === "file"
       ? { onlyFiles: true, onlyDirectories: false }
@@ -346,18 +346,13 @@ export async function findFilesByGlobs(
   const normalizedGlobs = Array.isArray(globs)
     ? globs.map((g) => g.replaceAll("\\", "/"))
     : globs.replaceAll("\\", "/");
-  // followSymbolicLinks: true lets callers use symlinks to share skills/rules across
-  // directories without duplication (see issue #1707). Callers operate on user-specified
-  // local trees that are inside the trust boundary, so symlinks are honored — including
-  // ones whose targets resolve outside the glob root. This is an intentional trade-off:
-  // enforcing realpath containment against a single root would break the #1707 use case of
-  // sharing files that live elsewhere in the same repository. Untrusted remote content is a
-  // separate code path: git-client.ts (`walkDirectory`) skips symlinks entirely as a
-  // security hardening for fetched repositories (commit 51bf0443), so this relaxed handling
-  // never applies to remote input.
+  // Symlink following defaults to true so callers can share skills/rules without
+  // duplication (see issue #1707). Destructive discovery passes false and validates
+  // real-path containment before deletion. Untrusted remote content is a separate code
+  // path: git-client.ts (`walkDirectory`) skips symlinks entirely.
   const results = globbySync(normalizedGlobs, {
     absolute: true,
-    followSymbolicLinks: true,
+    followSymbolicLinks,
     ...globbyOptions,
   });
   // Deduplicate by real path so that directory symlink cycles (which globby follows up to

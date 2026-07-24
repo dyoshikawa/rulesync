@@ -1,4 +1,4 @@
-import { basename, extname, join } from "node:path";
+import { basename, join } from "node:path";
 
 import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
@@ -609,9 +609,6 @@ export class SkillsProcessor extends DirFeatureProcessor {
       const ownedDirNames: string[] = [];
       for (const dirPath of dirPaths) {
         const dirName = basename(dirPath);
-        if (seenSkillNames.has(dirName)) {
-          continue;
-        }
         // Directories owned by another feature (see the `isDirOwned` factory
         // hook) are skipped so e.g. a Reasonix subagent profile is not
         // imported as a regular skill.
@@ -640,7 +637,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
         ),
       );
       for (const skill of directorySkills) {
-        const skillName = skill.getDirName();
+        const skillName = skill.getImportIdentity();
         if (seenSkillNames.has(skillName)) {
           continue;
         }
@@ -656,22 +653,17 @@ export class SkillsProcessor extends DirFeatureProcessor {
         type: "file",
       });
       const flatSkills = await Promise.all(
-        flatFilePaths
-          .filter((filePath) => {
-            const fileName = basename(filePath);
-            return !seenSkillNames.has(fileName.slice(0, -extname(fileName).length));
-          })
-          .map((filePath) =>
-            fromFlatFile({
-              outputRoot: this.outputRoot,
-              relativeDirPath: root,
-              relativeFilePath: basename(filePath),
-              global: this.global,
-            }),
-          ),
+        flatFilePaths.map((filePath) =>
+          fromFlatFile({
+            outputRoot: this.outputRoot,
+            relativeDirPath: root,
+            relativeFilePath: basename(filePath),
+            global: this.global,
+          }),
+        ),
       );
       for (const skill of flatSkills) {
-        const skillName = skill.getDirName();
+        const skillName = skill.getImportIdentity();
         if (seenSkillNames.has(skillName)) {
           continue;
         }

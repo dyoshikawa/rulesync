@@ -167,6 +167,14 @@ export abstract class ToolSkill extends AiDir {
   }
 
   /**
+   * Identity used to resolve duplicates across discovery roots during import.
+   * Most tools identify a skill by its directory name.
+   */
+  getImportIdentity(): string {
+    return this.getDirName();
+  }
+
+  /**
    * Load and parse skill directory content.
    * This is a helper method that handles the common logic of reading SKILL.md,
    * parsing frontmatter, and collecting other files.

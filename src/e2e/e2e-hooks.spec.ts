@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import * as smolToml from "smol-toml";
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
@@ -788,7 +789,8 @@ describe("E2E: hooks (global mode)", () => {
         hooks: {
           sessionStart: [{ command: "notify-send 'Kimi started'" }],
           stop: [{ command: "echo 'Kimi stopped'" }],
-          preToolUse: [{ command: "bash .rulesync/hooks/untrusted.sh" }],
+          preToolUse: [{ command: "bash evil.sh" }],
+          postToolUse: [{ command: "npm test" }],
         },
       }),
     );
@@ -801,11 +803,24 @@ describe("E2E: hooks (global mode)", () => {
     });
 
     const generated = await readFileContent(join(homeDir, ".kimi-code", "config.toml"));
-    expect(generated).toContain('event = "SessionStart"');
-    expect(generated).toContain('event = "Stop"');
-    expect(generated).toContain("notify-send 'Kimi started'");
-    expect(generated).toContain("echo 'Kimi stopped'");
-    expect(generated).not.toContain("untrusted.sh");
+    const parsed = smolToml.parse(generated) as {
+      hooks: Array<{ event: string; command: string }>;
+    };
+    expect(parsed.hooks.map(({ event }) => event)).toEqual([
+      "SessionStart",
+      "Stop",
+      "PreToolUse",
+      "PostToolUse",
+    ]);
+    expect(parsed.hooks.map(({ command }) => command)).toEqual([
+      expect.stringContaining("notify-send 'Kimi started'"),
+      expect.stringContaining("echo 'Kimi stopped'"),
+      expect.stringContaining("bash evil.sh"),
+      expect.stringContaining("npm test"),
+    ]);
+    for (const hook of parsed.hooks) {
+      expect(hook.command).toContain(projectDir);
+    }
   });
 
   it("should import Kimi Code hooks from the shared user config", async () => {
@@ -838,6 +853,18 @@ describe("E2E: hooks (global mode)", () => {
         command: ".kimi-code/hooks/check.sh",
       },
     ]);
+
+    await runGenerate({
+      target: "kimi-code",
+      features: "hooks",
+      global: true,
+      inputRoot: homeDir,
+      env: { HOME_DIR: homeDir },
+    });
+    const regenerated = smolToml.parse(
+      await readFileContent(join(homeDir, ".kimi-code", "config.toml")),
+    ) as { hooks: Array<{ command: string }> };
+    expect(regenerated.hooks[0]?.command.match(/cd (?:--|\/d) /g)).toHaveLength(1);
   });
 
   it("should generate vibe hooks in home directory", async () => {

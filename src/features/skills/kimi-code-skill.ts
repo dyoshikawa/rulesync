@@ -109,6 +109,10 @@ export class KimiCodeSkill extends ToolSkill {
     return this.mainFile?.body ?? "";
   }
 
+  override getImportIdentity(): string {
+    return this.getFrontmatter().name.toLowerCase();
+  }
+
   validate(): ValidationResult {
     if (!this.mainFile) {
       return {

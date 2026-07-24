@@ -9,7 +9,12 @@ import { ToolFile } from "../../types/tool-file.js";
 import { subagentsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { directoryExists, findFilesByGlobs, listDirectoryFiles } from "../../utils/file.js";
+import {
+  assertWritablePathInsideRoot,
+  directoryExists,
+  findFilesByGlobs,
+  listDirectoryFiles,
+} from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
 import { AugmentcodeSubagent } from "./augmentcode-subagent.js";
@@ -608,7 +613,15 @@ export class SubagentsProcessor extends FeatureProcessor {
     const seenRelativeFilePaths = new Set<string>();
     for (const dirPath of dirPaths) {
       const baseDir = join(this.outputRoot, dirPath);
-      const subagentFilePaths = await findFilesByGlobs(join(baseDir, factory.meta.filePattern));
+      if (forDeletion && (await directoryExists(baseDir))) {
+        await assertWritablePathInsideRoot({
+          rootPath: this.outputRoot,
+          targetPath: baseDir,
+        });
+      }
+      const subagentFilePaths = await findFilesByGlobs(join(baseDir, factory.meta.filePattern), {
+        followSymbolicLinks: !forDeletion,
+      });
 
       // Compute the per-subagent file path relative to the tool's base directory.
       // For flat layouts (e.g. `<name>.md`) this is identical to `basename(path)`,
@@ -637,6 +650,14 @@ export class SubagentsProcessor extends FeatureProcessor {
       }
 
       if (forDeletion) {
+        await Promise.all(
+          ownedFilePaths.map((path) =>
+            assertWritablePathInsideRoot({
+              rootPath: baseDir,
+              targetPath: path,
+            }),
+          ),
+        );
         toolSubagents.push(
           ...ownedFilePaths
             .map((path) =>

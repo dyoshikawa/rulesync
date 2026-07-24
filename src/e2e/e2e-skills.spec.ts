@@ -368,6 +368,36 @@ This is the fallback skill body content.`;
         "Shared-only skill body.",
       ].join("\n"),
     );
+    await writeFileContent(
+      join(testDir, ".kimi-code", "skills", "primary", "SKILL.md"),
+      [
+        "---",
+        "name: Logical-Review",
+        'description: "Directory-form logical skill"',
+        "---",
+        "Primary directory-form logical skill.",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".kimi-code", "skills", "alternate.md"),
+      [
+        "---",
+        "name: logical-review",
+        'description: "Flat logical duplicate"',
+        "---",
+        "This flat logical duplicate must lose.",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".agents", "skills", "different-path", "SKILL.md"),
+      [
+        "---",
+        "name: LOGICAL-REVIEW",
+        'description: "Shared logical duplicate"',
+        "---",
+        "This shared logical duplicate must lose.",
+      ].join("\n"),
+    );
 
     await runImport({ target: "kimi-code", features: "skills" });
 
@@ -381,6 +411,19 @@ This is the fallback skill body content.`;
     expect(
       await readFileContent(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "shared", "SKILL.md")),
     ).toContain("Shared-only skill body");
+    const logicalReview = await readFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "primary", "SKILL.md"),
+    );
+    expect(logicalReview).toContain("Primary directory-form logical skill");
+    expect(logicalReview).not.toContain("logical duplicate must lose");
+    expect(
+      await fileExists(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "alternate", "SKILL.md")),
+    ).toBe(false);
+    expect(
+      await fileExists(
+        join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "different-path", "SKILL.md"),
+      ),
+    ).toBe(false);
   });
 
   it("should not delete Kimi shared-root skills", async () => {
