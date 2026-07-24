@@ -18,6 +18,7 @@ import { updateCommand, UpdateCommandOptions } from "./commands/update.js";
 import { wrapCommand as _wrapCommand } from "./wrap-command.js";
 
 const getVersion = () => "14.2.0";
+const FEATURES_HELP = `${ALL_FEATURES.join(",")}; ignore is deprecated, use permissions`;
 
 function wrapCommand(
   name: string,
@@ -64,7 +65,7 @@ export function createProgram(): Command {
     )
     .option(
       "-f, --features <features>",
-      `Comma-separated list of features to include (${ALL_FEATURES.join(",")}) or '*' for all`,
+      `Comma-separated list of features to include (${FEATURES_HELP}) or '*' for all`,
       parseCommaSeparatedList,
     )
     .option("-V, --verbose", "Verbose output")
@@ -87,7 +88,9 @@ export function createProgram(): Command {
 
   program
     .command("add <source>")
-    .description("Add a Rulesync feature file or install a declarative rule or skill source")
+    .description(
+      "Add a Rulesync feature file (ignore is deprecated; use permissions) or install a declarative rule or skill source",
+    )
     .option("--name <name>", "Name for a rule, command, subagent, skill, or check scaffold")
     .option("-f, --force", "Overwrite an existing scaffold file without prompting")
     .option("--skills <skills>", "Comma-separated skill names to install", parseCommaSeparatedList)
@@ -125,7 +128,7 @@ export function createProgram(): Command {
     )
     .option(
       "-f, --features <features>",
-      `Comma-separated list of features to fetch (${ALL_FEATURES.join(",")}) or '*' for all. Default: skills`,
+      `Comma-separated list of features to fetch (${FEATURES_HELP}) or '*' for all. Default: skills`,
       parseCommaSeparatedList,
     )
     .option("-r, --ref <ref>", "Branch, tag, or commit SHA to fetch from")
@@ -155,7 +158,7 @@ export function createProgram(): Command {
     )
     .option(
       "-f, --features <features>",
-      `Comma-separated list of features to import (${ALL_FEATURES.join(",")}) or '*' for all`,
+      `Comma-separated list of features to import (${FEATURES_HELP}) or '*' for all`,
       parseCommaSeparatedList,
     )
     .option("-V, --verbose", "Verbose output")
@@ -180,7 +183,7 @@ export function createProgram(): Command {
     )
     .option(
       "-f, --features <features>",
-      `Comma-separated list of features to convert (${ALL_FEATURES.join(",")}) or '*' for all`,
+      `Comma-separated list of features to convert (${FEATURES_HELP}) or '*' for all`,
       parseCommaSeparatedList,
     )
     .option("-V, --verbose", "Verbose output")
@@ -246,7 +249,7 @@ export function createProgram(): Command {
     )
     .option(
       "-f, --features <features>",
-      `Comma-separated list of features to generate (${ALL_FEATURES.join(",")}) or '*' for all`,
+      `Comma-separated list of features to generate (${FEATURES_HELP}) or '*' for all`,
       parseCommaSeparatedList,
     )
     .option("--delete", "Delete all existing files in output directories before generating")

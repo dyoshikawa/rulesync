@@ -1,8 +1,7 @@
-import { z } from "zod/mini";
+import { meta, z } from "zod/mini";
 
-export const ALL_FEATURES = [
-  "rules",
-  "ignore",
+const ACTIVE_FEATURES_BEFORE_IGNORE = ["rules"] as const;
+const ACTIVE_FEATURES_AFTER_IGNORE = [
   "mcp",
   "subagents",
   "commands",
@@ -12,9 +11,28 @@ export const ALL_FEATURES = [
   "checks",
 ] as const;
 
+export const ALL_FEATURES = [
+  ...ACTIVE_FEATURES_BEFORE_IGNORE,
+  "ignore",
+  ...ACTIVE_FEATURES_AFTER_IGNORE,
+] as const;
+
 export const ALL_FEATURES_WITH_WILDCARD = [...ALL_FEATURES, "*"] as const;
 
-const FeatureSchema = z.enum(ALL_FEATURES);
+const ACTIVE_FEATURES = [
+  ...ACTIVE_FEATURES_BEFORE_IGNORE,
+  ...ACTIVE_FEATURES_AFTER_IGNORE,
+] as const;
+
+const DeprecatedIgnoreFeatureSchema = z.literal("ignore").check(
+  meta({
+    deprecated: true,
+    description:
+      "Deprecated: use the permissions feature. Ignore remains supported for compatibility throughout Rulesync 14.x.",
+  }),
+);
+
+const FeatureSchema = z.union([z.enum(ACTIVE_FEATURES), DeprecatedIgnoreFeatureSchema]);
 
 export type Feature = z.infer<typeof FeatureSchema>;
 
@@ -24,6 +42,10 @@ export type Features = z.infer<typeof FeaturesSchema>;
 
 // Type for individual feature array with wildcard support
 type FeatureWithWildcard = Feature | "*";
+const FeatureWithWildcardSchema = z.union([
+  z.enum([...ACTIVE_FEATURES, "*"]),
+  DeprecatedIgnoreFeatureSchema,
+]);
 export const GitignoreDestinationSchema = z.enum(["gitignore", "gitattributes"]);
 export type GitignoreDestination = z.infer<typeof GitignoreDestinationSchema>;
 
@@ -54,10 +76,10 @@ const FeatureValueSchema = z.union([z.boolean(), FeatureOptionsSchema, Gitignore
 // `warnInvalidFeatures` in gitignore-entries.ts instead of at parse time.
 const PerFeatureConfigSchema = z.record(z.string(), FeatureValueSchema);
 export const PerTargetFeaturesValueSchema = z.union([
-  z.array(z.enum(ALL_FEATURES_WITH_WILDCARD)),
+  z.array(FeatureWithWildcardSchema),
   PerFeatureConfigSchema,
 ]);
-export const RulesyncFeaturesSchema = z.array(z.enum(ALL_FEATURES_WITH_WILDCARD));
+export const RulesyncFeaturesSchema = z.array(FeatureWithWildcardSchema);
 
 // zod's `z.record(K, V)` infers `Record<K, V>` (non-partial), but at runtime
 // missing keys are perfectly valid. We surface that to TS by wrapping the

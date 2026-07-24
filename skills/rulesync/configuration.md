@@ -28,7 +28,7 @@ Example:
   "targets": ["cursor", "claudecode", "opencode", "codexcli"],
 
   // Features to generate. You can specify "*" to generate all features.
-  "features": ["rules", "ignore", "mcp", "commands", "subagents", "hooks"],
+  "features": ["rules", "mcp", "commands", "subagents", "hooks", "permissions"],
 
   // Output root directories to generate files into.
   // Basically, you can specify `["."]` only.

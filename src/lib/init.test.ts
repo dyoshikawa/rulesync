@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SKILL_FILE_NAME } from "../constants/general.js";
 import {
-  RULESYNC_AIIGNORE_FILE_NAME,
+  RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
   RULESYNC_HOOKS_LEGACY_RELATIVE_FILE_PATH,
@@ -21,7 +21,6 @@ import {
 } from "../constants/rulesync-paths.js";
 import { RulesyncCommand } from "../features/commands/rulesync-command.js";
 import { RulesyncHooks } from "../features/hooks/rulesync-hooks.js";
-import { RulesyncIgnore } from "../features/ignore/rulesync-ignore.js";
 import { RulesyncMcp } from "../features/mcp/rulesync-mcp.js";
 import { RulesyncRule } from "../features/rules/rulesync-rule.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
@@ -32,7 +31,6 @@ import { init } from "./init.js";
 vi.mock("../utils/file.js");
 vi.mock("../features/commands/rulesync-command.js");
 vi.mock("../features/hooks/rulesync-hooks.js");
-vi.mock("../features/ignore/rulesync-ignore.js");
 vi.mock("../features/mcp/rulesync-mcp.js");
 vi.mock("../features/rules/rulesync-rule.js");
 vi.mock("../features/skills/rulesync-skill.js");
@@ -71,16 +69,6 @@ describe("init", () => {
     } as never);
     vi.mocked(RulesyncSkill.getSettablePaths).mockReturnValue({
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-    } as never);
-    vi.mocked(RulesyncIgnore.getSettablePaths).mockReturnValue({
-      recommended: {
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: RULESYNC_AIIGNORE_FILE_NAME,
-      },
-      legacy: {
-        relativeDirPath: ".",
-        relativeFilePath: ".rulesyncignore",
-      },
     } as never);
     vi.mocked(RulesyncHooks.getSettablePaths).mockReturnValue({
       recommended: {
@@ -140,7 +128,6 @@ describe("init", () => {
         join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
         join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
         join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "project-context", SKILL_FILE_NAME),
-        join(RULESYNC_RELATIVE_DIR_PATH, RULESYNC_AIIGNORE_FILE_NAME),
         RULESYNC_HOOKS_RELATIVE_FILE_PATH,
         RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
       ];
@@ -182,7 +169,15 @@ describe("init", () => {
         targets?: string[];
       };
       expect(config.targets).toEqual(["codexcli", "claudecode", "opencode"]);
-      expect(config.features).toBeDefined();
+      expect(config.features).toEqual([
+        "rules",
+        "mcp",
+        "commands",
+        "subagents",
+        "skills",
+        "hooks",
+        "permissions",
+      ]);
     });
 
     it("should not create config file if it already exists", async () => {
@@ -266,15 +261,14 @@ describe("init", () => {
       expect(content).toContain("name: project-context");
     });
 
-    it("should create ignore sample file", async () => {
+    it("should not create a deprecated ignore sample file", async () => {
       await init();
 
-      const ignoreFilePath = join(RULESYNC_RELATIVE_DIR_PATH, RULESYNC_AIIGNORE_FILE_NAME);
-      const writeCall = vi.mocked(writeFileContent).mock.calls.find((c) => c[0] === ignoreFilePath);
-
-      expect(writeCall).toBeDefined();
-      const content = writeCall?.[1] ?? "";
-      expect(content).toContain("credentials/");
+      expect(
+        vi
+          .mocked(writeFileContent)
+          .mock.calls.some((call) => call[0] === RULESYNC_AIIGNORE_RELATIVE_FILE_PATH),
+      ).toBe(false);
     });
 
     it("should create hooks sample file", async () => {
@@ -312,6 +306,12 @@ describe("init", () => {
         .mock.calls.find((call) => call[0] === RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH);
       expect(writeCall).toBeDefined();
       expect(JSON.parse(writeCall?.[1] ?? "{}")).toMatchObject({
+        permission: {
+          read: {
+            ".env": "deny",
+            "credentials/**": "deny",
+          },
+        },
         codexcli: {
           approval_policy: "on-request",
           approvals_reviewer: "auto_review",
