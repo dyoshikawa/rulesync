@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { fileExists } from "./file.js";
+import { assertWritablePathInsideRoot, fileExists } from "./file.js";
 
 export type RulesyncSourcePath = {
   relativeDirPath: string;
@@ -28,9 +28,19 @@ export async function resolveRulesyncSourceWritePath({
   paths: RulesyncSourceSettablePaths;
 }): Promise<RulesyncSourcePath> {
   for (const candidate of getRulesyncSourceCandidates({ paths })) {
-    if (await fileExists(join(outputRoot, candidate.relativeDirPath, candidate.relativeFilePath))) {
+    const targetPath = join(outputRoot, candidate.relativeDirPath, candidate.relativeFilePath);
+    if (await fileExists(targetPath)) {
+      await assertWritablePathInsideRoot({ rootPath: outputRoot, targetPath });
       return candidate;
     }
   }
+  await assertWritablePathInsideRoot({
+    rootPath: outputRoot,
+    targetPath: join(
+      outputRoot,
+      paths.recommended.relativeDirPath,
+      paths.recommended.relativeFilePath,
+    ),
+  });
   return paths.recommended;
 }
