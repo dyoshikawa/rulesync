@@ -12,6 +12,7 @@ import { CodexcliMcp } from "./codexcli-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CopilotcliMcp } from "./copilotcli-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
+import { KiroMcp } from "./kiro-mcp.js";
 import {
   McpProcessor,
   type McpProcessorToolTarget,
@@ -950,6 +951,27 @@ describe("McpProcessor", () => {
       await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
 
       expect(rulesyncMcp.stripMcpServerFields).toHaveBeenCalledWith([]);
+    });
+
+    it("should preserve disabledTools but strip enabledTools for Kiro targets", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      vi.spyOn(KiroMcp, "fromRulesyncMcp").mockReturnValue({} as KiroMcp);
+
+      const processor = new McpProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "kiro-cli",
+      });
+
+      await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+      expect(rulesyncMcp.stripMcpServerFields).toHaveBeenCalledWith(["enabledTools"]);
     });
   });
 

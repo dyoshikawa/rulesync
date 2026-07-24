@@ -1,4 +1,4 @@
-import { z } from "zod/mini";
+import { nonnegative, z } from "zod/mini";
 
 /**
  * Control characters that must be stripped from command and matcher fields
@@ -45,6 +45,10 @@ export const HookDefinitionSchema = z.looseObject({
   // https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/hooks.md
   url: z.optional(safeString),
   timeout: z.optional(z.number()),
+  // Kiro CLI caches successful hook results for this many seconds. Zero
+  // disables caching; AgentSpawn hooks ignore the setting upstream.
+  // https://kiro.dev/docs/cli/hooks/
+  cacheTtl: z.optional(z.number().check(nonnegative())),
   matcher: z.optional(safeString),
   prompt: z.optional(safeString),
   loop_limit: z.optional(z.nullable(z.number())),

@@ -156,18 +156,15 @@ async function importIgnoreCore(params: {
     return 0;
   }
 
-  if (config.getGlobal()) {
-    logger.debug("Skipping ignore file import (not supported in global mode)");
-    return 0;
-  }
-
-  if (!IgnoreProcessor.getToolTargets().includes(tool)) {
+  const global = config.getGlobal();
+  if (!IgnoreProcessor.getToolTargets({ global }).includes(tool)) {
     return 0;
   }
 
   const ignoreProcessor = new IgnoreProcessor({
     outputRoot: getToolOutputRoot({ config, tool }),
     toolTarget: tool,
+    global,
     logger,
     featureOptions: config.getFeatureOptions(tool, "ignore"),
   });

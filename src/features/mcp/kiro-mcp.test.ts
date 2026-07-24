@@ -38,7 +38,12 @@ describe("KiroMcp", () => {
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({
           mcpServers: {
-            exposedServer: { command: "node", args: ["server.js"], exposed: true },
+            exposedServer: {
+              command: "node",
+              args: ["server.js"],
+              exposed: true,
+              disabledTools: ["delete"],
+            },
             hiddenServer: { command: "python", args: ["hidden.py"] },
           },
         }),
@@ -51,7 +56,11 @@ describe("KiroMcp", () => {
       expect(kiroMcp.getRelativeFilePath()).toBe("mcp.json");
       expect(JSON.parse(kiroMcp.getFileContent())).toEqual({
         mcpServers: {
-          exposedServer: { command: "node", args: ["server.js"] },
+          exposedServer: {
+            command: "node",
+            args: ["server.js"],
+            disabledTools: ["delete"],
+          },
           hiddenServer: { command: "python", args: ["hidden.py"] },
         },
       });
@@ -75,7 +84,11 @@ describe("KiroMcp", () => {
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify({
           mcpServers: {
-            api: { command: "node", args: ["server.js"] },
+            api: {
+              command: "node",
+              args: ["server.js"],
+              disabledTools: ["delete", "write"],
+            },
           },
         }),
         validate: true,
@@ -85,7 +98,11 @@ describe("KiroMcp", () => {
 
       expect(rulesyncMcp.getFilePath()).toBe(join(testDir, ".rulesync", "mcp.jsonc"));
       expect(rulesyncMcp.getMcpServers()).toEqual({
-        api: { command: "node", args: ["server.js"] },
+        api: {
+          command: "node",
+          args: ["server.js"],
+          disabledTools: ["delete", "write"],
+        },
       });
     });
   });

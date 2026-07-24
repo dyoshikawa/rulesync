@@ -592,7 +592,7 @@ Break down tasks into steps.
     const testDir = getTestDir();
 
     const subagentContent = JSON.stringify(
-      { name: "planner", description: "Plans tasks", prompt: "Break down tasks into steps." },
+      { description: "Plans tasks", prompt: "Break down tasks into steps." },
       null,
       2,
     );
@@ -604,13 +604,14 @@ Break down tasks into steps.
       join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
     );
     expect(importedContent).toContain("planner");
+    expect(importedContent).toContain("kiro");
   });
 
   it("should import kiro-cli subagents (JSON format)", async () => {
     const testDir = getTestDir();
 
     const subagentContent = JSON.stringify(
-      { name: "planner", description: "Plans tasks", prompt: "Break down tasks into steps." },
+      { description: "Plans tasks", prompt: "Break down tasks into steps." },
       null,
       2,
     );
@@ -622,6 +623,7 @@ Break down tasks into steps.
       join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
     );
     expect(importedContent).toContain("planner");
+    expect(importedContent).toContain("kiro-cli");
   });
 
   it("should import kiro-ide subagents (Markdown format)", async () => {

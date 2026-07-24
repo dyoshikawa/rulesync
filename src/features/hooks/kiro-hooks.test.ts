@@ -114,6 +114,27 @@ describe("KiroHooks", () => {
       expect(parsed.hooks.preToolUse[0].timeout_ms).toBe(5000);
     });
 
+    it("should emit cacheTtl as cache_ttl_seconds", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              beforeSubmitPrompt: [{ command: "echo context", cacheTtl: 60 }],
+            },
+          }),
+        }),
+      );
+
+      const kiroHooks = await KiroHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const parsed = JSON.parse(kiroHooks.getFileContent());
+      expect(parsed.hooks.userPromptSubmit[0].cache_ttl_seconds).toBe(60);
+    });
+
     it("should skip prompt-type hooks", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({
@@ -284,6 +305,25 @@ describe("KiroHooks", () => {
         type: "command",
         command: "echo check",
         matcher: "Bash",
+      });
+    });
+
+    it("should import cache_ttl_seconds as cacheTtl", () => {
+      const kiroHooks = new KiroHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              userPromptSubmit: [{ command: "echo context", cache_ttl_seconds: 60 }],
+            },
+          }),
+        }),
+      );
+
+      const parsed = kiroHooks.toRulesyncHooks().getJson();
+
+      expect(parsed.hooks.beforeSubmitPrompt?.[0]).toMatchObject({
+        command: "echo context",
+        cacheTtl: 60,
       });
     });
 

@@ -75,7 +75,9 @@ describe("importFromTool", () => {
     };
 
     vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode"]);
-    vi.mocked(IgnoreProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+    vi.mocked(IgnoreProcessor.getToolTargets).mockImplementation(({ global = false } = {}) =>
+      global ? ["kiro-cli"] : ["claudecode"],
+    );
     vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
@@ -247,7 +249,7 @@ describe("importFromTool", () => {
       expect(IgnoreProcessor).not.toHaveBeenCalled();
     });
 
-    it("should skip ignore import in global mode", async () => {
+    it("should skip global ignore import for unsupported targets", async () => {
       mockConfig.getFeatures.mockReturnValue(["ignore"]);
       mockConfig.getGlobal.mockReturnValue(true);
 
@@ -259,6 +261,25 @@ describe("importFromTool", () => {
 
       expect(result.ignoreCount).toBe(0);
       expect(IgnoreProcessor).not.toHaveBeenCalled();
+    });
+
+    it("should import Kiro ignore files in global mode", async () => {
+      mockConfig.getFeatures.mockReturnValue(["ignore"]);
+      mockConfig.getGlobal.mockReturnValue(true);
+
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "kiro-cli",
+      });
+
+      expect(result.ignoreCount).toBe(1);
+      expect(IgnoreProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolTarget: "kiro-cli",
+          global: true,
+        }),
+      );
     });
 
     it("should return 0 when tool is not supported", async () => {

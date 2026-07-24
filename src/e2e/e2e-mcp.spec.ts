@@ -95,6 +95,31 @@ describe("E2E: mcp", () => {
     expect(generatedContent).toContain("test-server");
   });
 
+  it.each(["kiro", "kiro-cli", "kiro-ide"] as const)(
+    "should preserve disabledTools for $target mcp",
+    async (target) => {
+      const testDir = getTestDir();
+      await writeFileContent(
+        join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+        JSON.stringify({
+          mcpServers: {
+            restricted: {
+              command: "echo",
+              disabledTools: ["delete", "write"],
+            },
+          },
+        }),
+      );
+
+      await runGenerate({ target, features: "mcp" });
+
+      const generated = JSON.parse(
+        await readFileContent(join(testDir, ".kiro", "settings", "mcp.json")),
+      );
+      expect(generated.mcpServers.restricted.disabledTools).toEqual(["delete", "write"]);
+    },
+  );
+
   it("should map Kimi Code MCP transports and skip unsupported WebSocket servers", async () => {
     const testDir = getTestDir();
 
@@ -632,6 +657,28 @@ describe("E2E: mcp (import)", () => {
     const importedContent = await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH));
     expect(importedContent).toContain("test-server");
     expect(importedContent).toContain("hello");
+  });
+
+  it("should import Kiro MCP disabledTools", async () => {
+    const testDir = getTestDir();
+    await writeFileContent(
+      join(testDir, ".kiro", "settings", "mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          restricted: {
+            command: "echo",
+            disabledTools: ["delete", "write"],
+          },
+        },
+      }),
+    );
+
+    await runImport({ target: "kiro-cli", features: "mcp" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.mcpServers.restricted.disabledTools).toEqual(["delete", "write"]);
   });
 
   // Zed stores MCP servers under `context_servers` (not `mcpServers`) inside a

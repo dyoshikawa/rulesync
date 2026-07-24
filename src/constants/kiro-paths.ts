@@ -24,3 +24,4 @@ export const KIRO_IDE_HOOKS_DIR_PATH = join(KIRO_DIR, "hooks");
 export const KIRO_IDE_HOOKS_FILE_NAME = "rulesync.json";
 export const KIRO_MCP_FILE_NAME = "mcp.json";
 export const KIRO_IGNORE_FILE_NAME = ".kiroignore";
+export const KIRO_GLOBAL_IGNORE_FILE_NAME = "kiroignore";

@@ -2,7 +2,11 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { KIRO_IGNORE_FILE_NAME } from "../constants/kiro-paths.js";
+import {
+  KIRO_GLOBAL_IGNORE_FILE_NAME,
+  KIRO_IGNORE_FILE_NAME,
+  KIRO_SETTINGS_DIR_PATH,
+} from "../constants/kiro-paths.js";
 import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
@@ -10,6 +14,7 @@ import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
   runImport,
+  useGlobalTestDirectories,
   useTestDirectory,
 } from "./e2e-helper.js";
 
@@ -197,5 +202,60 @@ credentials/
     );
     expect(importedContent).toContain("tmp/");
     expect(importedContent).toContain("credentials/");
+  });
+});
+
+describe("E2E: ignore (global mode)", () => {
+  const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
+  const globalTargets = ["kiro", "kiro-cli", "kiro-ide"] as const;
+
+  it("global matrix must cover every native global ignore tool target", () => {
+    assertGenerateMatrixCoversTargets({
+      processor: IgnoreProcessor,
+      testedTargets: globalTargets,
+      global: true,
+    });
+  });
+
+  it.each(globalTargets)("should generate $target ignore in the home directory", async (target) => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    await writeFileContent(
+      join(projectDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH),
+      "credentials/\n*.secret\n",
+    );
+
+    await runGenerate({
+      target,
+      features: "ignore",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generatedContent = await readFileContent(
+      join(homeDir, KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME),
+    );
+    expect(generatedContent).toContain("credentials/");
+    expect(generatedContent).toContain("*.secret");
+  });
+
+  it("should import the Kiro CLI user-level ignore file", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    await writeFileContent(
+      join(homeDir, KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME),
+      "private/\n",
+    );
+
+    await runImport({
+      target: "kiro-cli",
+      features: "ignore",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    expect(await readFileContent(join(projectDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH))).toContain(
+      "private/",
+    );
   });
 });

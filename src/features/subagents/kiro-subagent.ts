@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -16,7 +16,7 @@ import {
 } from "./tool-subagent.js";
 
 const KiroCliSubagentJsonSchema = z.looseObject({
-  name: z.string(),
+  name: z.optional(z.string()),
   description: z.optional(z.nullable(z.string())),
   prompt: z.optional(z.nullable(z.string())),
   tools: z.optional(z.nullable(z.array(z.string()))),
@@ -78,6 +78,10 @@ export class KiroSubagent extends ToolSubagent {
     return this.body;
   }
 
+  protected static getToolTarget(): "kiro" | "kiro-cli" {
+    return "kiro";
+  }
+
   toRulesyncSubagent(): RulesyncSubagent {
     let parsed: KiroCliSubagentJson;
     try {
@@ -91,6 +95,7 @@ export class KiroSubagent extends ToolSubagent {
       );
     }
     const { name, description, prompt, ...restFields } = parsed;
+    const toolTarget = (this.constructor as typeof KiroSubagent).getToolTarget();
 
     // Build kiro section with all fields except name, description, and prompt
     const kiroSection: Record<string, unknown> = {
@@ -98,8 +103,8 @@ export class KiroSubagent extends ToolSubagent {
     };
 
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
-      targets: ["kiro"],
-      name,
+      targets: [toolTarget],
+      name: name ?? basename(this.getRelativeFilePath(), ".json"),
       description: description ?? undefined,
       // Only include kiro section if there are fields
       ...(Object.keys(kiroSection).length > 0 && { kiro: kiroSection }),
@@ -141,7 +146,7 @@ export class KiroSubagent extends ToolSubagent {
     const paths = this.getSettablePaths({ global });
     const relativeFilePath = rulesyncSubagent.getRelativeFilePath().replace(/\.md$/, ".json");
 
-    return new KiroSubagent({
+    return new this({
       outputRoot,
       body,
       relativeDirPath: paths.relativeDirPath,
@@ -168,7 +173,7 @@ export class KiroSubagent extends ToolSubagent {
   static isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {
     return this.isTargetedByRulesyncSubagentDefault({
       rulesyncSubagent,
-      toolTarget: "kiro",
+      toolTarget: this.getToolTarget(),
     });
   }
 
@@ -182,7 +187,7 @@ export class KiroSubagent extends ToolSubagent {
     const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
 
-    const subagent = new KiroSubagent({
+    const subagent = new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
@@ -209,7 +214,7 @@ export class KiroSubagent extends ToolSubagent {
     relativeDirPath,
     relativeFilePath,
   }: ToolSubagentForDeletionParams): KiroSubagent {
-    return new KiroSubagent({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

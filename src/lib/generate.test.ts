@@ -163,7 +163,9 @@ describe("generate", () => {
     vi.mocked(readFileContentOrNull).mockResolvedValue(null);
 
     vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode"]);
-    vi.mocked(IgnoreProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+    vi.mocked(IgnoreProcessor.getToolTargets).mockImplementation(({ global = false } = {}) =>
+      global ? ["kiro-cli"] : ["claudecode"],
+    );
     vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
@@ -356,7 +358,7 @@ describe("generate", () => {
       expect(IgnoreProcessor).not.toHaveBeenCalled();
     });
 
-    it("should skip ignore generation in global mode", async () => {
+    it("should skip ignore generation for targets without global support", async () => {
       mockConfig.getFeatures.mockReturnValue(["ignore"]);
       mockConfig.getGlobal.mockReturnValue(true);
 
@@ -364,6 +366,23 @@ describe("generate", () => {
 
       expect(result.ignoreCount).toBe(0);
       expect(IgnoreProcessor).not.toHaveBeenCalled();
+    });
+
+    it("should generate Kiro ignore files in global mode", async () => {
+      mockConfig.getFeatures.mockReturnValue(["ignore"]);
+      mockConfig.getGlobal.mockReturnValue(true);
+      mockConfig.getTargets.mockReturnValue(["kiro-cli"]);
+      mockConfig.getConfigFileTargets.mockReturnValue(["kiro-cli"]);
+
+      const result = await generate({ logger, config: mockConfig as never });
+
+      expect(result.ignoreCount).toBe(1);
+      expect(IgnoreProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolTarget: "kiro-cli",
+          global: true,
+        }),
+      );
     });
 
     it("should handle errors gracefully and continue", async () => {
@@ -1113,7 +1132,9 @@ describe("generate", () => {
       mockConfig.getFeatures.mockImplementation((target?: string) =>
         target === "hermesagent" ? ["ignore"] : [],
       );
-      vi.mocked(IgnoreProcessor.getToolTargets).mockReturnValue(["hermesagent"]);
+      vi.mocked(IgnoreProcessor.getToolTargets).mockImplementation(({ global = false } = {}) =>
+        global ? [] : ["hermesagent"],
+      );
 
       const mockLogger = createMockLogger();
       await generate({ logger: mockLogger, config: mockConfig as never });

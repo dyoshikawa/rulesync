@@ -1,6 +1,10 @@
 import { join } from "node:path";
 
-import { KIRO_IGNORE_FILE_NAME } from "../../constants/kiro-paths.js";
+import {
+  KIRO_GLOBAL_IGNORE_FILE_NAME,
+  KIRO_IGNORE_FILE_NAME,
+  KIRO_SETTINGS_DIR_PATH,
+} from "../../constants/kiro-paths.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
@@ -9,13 +13,16 @@ import {
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
   ToolIgnoreSettablePaths,
+  ToolIgnoreSettablePathsParams,
 } from "./tool-ignore.js";
 
 export class KiroIgnore extends ToolIgnore {
-  static getSettablePaths(): ToolIgnoreSettablePaths {
+  static getSettablePaths({
+    global = false,
+  }: ToolIgnoreSettablePathsParams = {}): ToolIgnoreSettablePaths {
     return {
-      relativeDirPath: ".",
-      relativeFilePath: KIRO_IGNORE_FILE_NAME,
+      relativeDirPath: global ? KIRO_SETTINGS_DIR_PATH : ".",
+      relativeFilePath: global ? KIRO_GLOBAL_IGNORE_FILE_NAME : KIRO_IGNORE_FILE_NAME,
     };
   }
 
@@ -26,33 +33,35 @@ export class KiroIgnore extends ToolIgnore {
   static fromRulesyncIgnore({
     outputRoot = process.cwd(),
     rulesyncIgnore,
+    global = false,
   }: ToolIgnoreFromRulesyncIgnoreParams): KiroIgnore {
+    const paths = this.getSettablePaths({ global });
     return new KiroIgnore({
       outputRoot,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
       fileContent: rulesyncIgnore.getFileContent(),
+      global,
     });
   }
 
   static async fromFile({
     outputRoot = process.cwd(),
     validate = true,
+    global = false,
   }: ToolIgnoreFromFileParams): Promise<KiroIgnore> {
+    const paths = this.getSettablePaths({ global });
     const fileContent = await readFileContent(
-      join(
-        outputRoot,
-        this.getSettablePaths().relativeDirPath,
-        this.getSettablePaths().relativeFilePath,
-      ),
+      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
     );
 
     return new KiroIgnore({
       outputRoot,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
+      global,
     });
   }
 
@@ -60,6 +69,7 @@ export class KiroIgnore extends ToolIgnore {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolIgnoreForDeletionParams): KiroIgnore {
     return new KiroIgnore({
       outputRoot,
@@ -67,6 +77,7 @@ export class KiroIgnore extends ToolIgnore {
       relativeFilePath,
       fileContent: "",
       validate: false,
+      global,
     });
   }
 }

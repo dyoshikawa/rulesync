@@ -1,5 +1,4 @@
 import { KiroSubagent } from "./kiro-subagent.js";
-import { RulesyncSubagent } from "./rulesync-subagent.js";
 
 /**
  * Subagent generator for the **Kiro CLI**.
@@ -11,10 +10,7 @@ import { RulesyncSubagent } from "./rulesync-subagent.js";
  * {@link import("./kiro-ide-subagent.js").KiroIdeSubagent}.)
  */
 export class KiroCliSubagent extends KiroSubagent {
-  static isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {
-    return this.isTargetedByRulesyncSubagentDefault({
-      rulesyncSubagent,
-      toolTarget: "kiro-cli",
-    });
+  protected static getToolTarget(): "kiro-cli" {
+    return "kiro-cli";
   }
 }
