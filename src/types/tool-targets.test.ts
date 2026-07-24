@@ -21,6 +21,7 @@ describe("tool targets", () => {
         "amp",
         "antigravity-cli",
         "antigravity-ide",
+        "antigravity-plugin",
         "augmentcode",
         "augmentcode-legacy",
         "claudecode",
@@ -53,6 +54,7 @@ describe("tool targets", () => {
         "warp",
         "devin",
         "zed",
+        "claudecode-plugin",
         "agentsskills",
       ];
 

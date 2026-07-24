@@ -9,6 +9,9 @@ rulesync init
 # Import existing configurations (to .rulesync/rules/ by default)
 rulesync import --targets claudecode --features rules,mcp,commands,subagents,skills,permissions
 
+# Import components from an existing plugin directory
+rulesync import --targets claudecode-plugin --features skills,hooks --output-root ./plugins/review-tools
+
 # Convert configurations from one tool to other tools (skips .rulesync/)
 rulesync convert --from cursor --to copilot,claudecode
 rulesync convert --from cursor --to copilot,claudecode --features rules,mcp
@@ -24,6 +27,9 @@ rulesync generate --targets "*" --features "*"
 # Generate specific features for specific tools
 rulesync generate --targets copilot,cursor,cline --features rules,mcp
 rulesync generate --targets claudecode --features rules,subagents
+
+# Generate components inside an existing plugin directory
+rulesync generate --targets antigravity-plugin --features rules,mcp,skills,hooks --output-roots ./plugins/review-tools
 
 # Generate only rules (no MCP, permissions, commands, or subagents)
 rulesync generate --targets "*" --features rules

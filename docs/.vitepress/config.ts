@@ -83,6 +83,7 @@ export default defineConfig({
         items: [
           { text: "Why Rulesync?", link: "/guide/why-rulesync" },
           { text: "Configuration", link: "/guide/configuration" },
+          { text: "Plugin Packaging", link: "/guide/plugin-packaging" },
           { text: "Global Mode", link: "/guide/global-mode" },
           { text: "Separate Input Root", link: "/guide/separate-input-root" },
           {

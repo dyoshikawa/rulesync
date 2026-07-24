@@ -12,6 +12,7 @@ import { AiassistantMcp } from "./aiassistant-mcp.js";
 import { AmpMcp } from "./amp-mcp.js";
 import { AntigravityCliMcp } from "./antigravity-cli-mcp.js";
 import { AntigravityIdeMcp } from "./antigravity-ide-mcp.js";
+import { AntigravityPluginMcp } from "./antigravity-plugin-mcp.js";
 import { AugmentcodeMcp } from "./augmentcode-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
@@ -141,6 +142,18 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     },
   ],
   [
+    "antigravity-plugin",
+    {
+      class: AntigravityPluginMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsEnabledTools: false,
+        supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
     "augmentcode",
     {
       // AugmentCode (Auggie CLI) persists MCP servers in the shared settings
@@ -163,6 +176,18 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       meta: {
         supportsProject: true,
         supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "claudecode-plugin",
+    {
+      class: ClaudecodeMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
       },

@@ -4,6 +4,7 @@ import type { RulesyncFeatures } from "../../types/features.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import { ALL_TOOL_TARGETS, type ToolTarget, ToolTargetSchema } from "../../types/tool-targets.js";
 import type { Logger } from "../../utils/logger.js";
+import { isPackagingToolTarget } from "../../utils/plugin-root.js";
 import { calculateTotalCount } from "../../utils/result.js";
 
 export type ConvertOptions = Omit<
@@ -32,6 +33,15 @@ export async function convertCommand(logger: Logger, options: ConvertOptions): P
   const fromTool = parseToolTarget(options.from ?? "", "source");
   const toToolsRaw = (options.to ?? []).map((t) => parseToolTarget(t, "destination"));
   const toTools = Array.from(new Set(toToolsRaw));
+
+  const packagingTarget = [fromTool, ...toTools].find(isPackagingToolTarget);
+  if (packagingTarget) {
+    throw new CLIError(
+      `Plugin packaging target '${packagingTarget}' is not supported by convert. ` +
+        "Use import --output-root and generate --output-roots with an explicit plugin directory.",
+      ErrorCodes.CONVERT_FAILED,
+    );
+  }
 
   if (toTools.includes(fromTool)) {
     throw new CLIError(

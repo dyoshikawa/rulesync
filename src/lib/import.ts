@@ -9,12 +9,14 @@ import { RulesyncMcp } from "../features/mcp/rulesync-mcp.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { RulesyncPermissions } from "../features/permissions/rulesync-permissions.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
+import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import type { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { resolveToolOutputRoot } from "../utils/kimi-code.js";
 import type { Logger } from "../utils/logger.js";
+import { assertPluginRootSafe, isPackagingToolTarget } from "../utils/plugin-root.js";
 import {
   resolveRulesyncSourceWritePath,
   type RulesyncSourceSettablePaths,
@@ -24,24 +26,27 @@ async function applyRulesyncSourcePath<T extends RulesyncFile>({
   files,
   paths,
   sourceClass,
+  outputRoot,
 }: {
   files: T[];
   paths: RulesyncSourceSettablePaths;
   sourceClass: new (params: RulesyncFileParams) => T;
+  outputRoot?: string;
 }): Promise<T[]> {
   const first = files[0];
   if (!first) {
     return files;
   }
 
+  const destinationOutputRoot = outputRoot ?? first.getOutputRoot();
   const destination = await resolveRulesyncSourceWritePath({
-    outputRoot: first.getOutputRoot(),
+    outputRoot: destinationOutputRoot,
     paths,
   });
   return files.map(
     (file) =>
       new sourceClass({
-        outputRoot: file.getOutputRoot(),
+        outputRoot: destinationOutputRoot,
         relativeDirPath: destination.relativeDirPath,
         relativeFilePath: destination.relativeFilePath,
         fileContent: file.getFileContent(),
@@ -79,6 +84,11 @@ export async function importFromTool(params: {
   logger: Logger;
 }): Promise<ImportResult> {
   const { config, tool, logger } = params;
+
+  await assertPluginRootSafe({
+    toolTarget: tool,
+    outputRoot: getToolOutputRoot({ config, tool }),
+  });
 
   const rulesCount = await importRulesCore({ config, tool, logger });
   const ignoreCount = await importIgnoreCore({ config, tool, logger });
@@ -226,6 +236,7 @@ async function importMcpCore(params: {
     files: convertedFiles,
     paths: RulesyncMcp.getSettablePaths(),
     sourceClass: RulesyncMcp,
+    outputRoot: isPackagingToolTarget(tool) ? process.cwd() : undefined,
   });
   const { count: writtenCount } = await mcpProcessor.writeAiFiles(rulesyncFiles);
 
@@ -352,7 +363,25 @@ async function importSkillsCore(params: {
   }
 
   const rulesyncDirs = await skillsProcessor.convertToolDirsToRulesyncDirs(toolDirs);
-  const { count: writtenCount } = await skillsProcessor.writeAiDirs(rulesyncDirs);
+  const rebasedRulesyncDirs = rulesyncDirs.map((dir) => {
+    if (!isPackagingToolTarget(tool)) {
+      return dir;
+    }
+    if (!(dir instanceof RulesyncSkill)) {
+      return dir;
+    }
+    return new RulesyncSkill({
+      outputRoot: process.cwd(),
+      relativeDirPath: dir.getRelativeDirPath(),
+      dirName: dir.getDirName(),
+      frontmatter: dir.getFrontmatter(),
+      body: dir.getBody(),
+      otherFiles: dir.getOtherFiles(),
+      validate: true,
+      global: false,
+    });
+  });
+  const { count: writtenCount } = await skillsProcessor.writeAiDirs(rebasedRulesyncDirs);
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} skill directories`);
@@ -403,6 +432,7 @@ async function importHooksCore(params: {
     files: convertedFiles,
     paths: RulesyncHooks.getSettablePaths(),
     sourceClass: RulesyncHooks,
+    outputRoot: isPackagingToolTarget(tool) ? process.cwd() : undefined,
   });
   const { count: writtenCount } = await hooksProcessor.writeAiFiles(rulesyncFiles);
 

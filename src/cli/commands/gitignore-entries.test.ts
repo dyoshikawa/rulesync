@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
-import { ALL_TOOL_TARGETS } from "../../types/tool-targets.js";
+import { ALL_TOOL_TARGETS, PACKAGING_TOOL_TARGETS } from "../../types/tool-targets.js";
 import {
   deriveAllGitignoreEntries,
   deriveAllGitignoreEntriesUnfiltered,
@@ -180,14 +180,22 @@ describe("registry derivation", () => {
 });
 
 describe("ALL_GITIGNORE_ENTRIES", () => {
-  it("should contain every distinct entry from the registry", () => {
+  it("should contain every distinct non-packaging entry from the registry", () => {
     // The registry can register the same entry under multiple feature tags;
-    // `ALL_GITIGNORE_ENTRIES` is the deduplicated view, so its length matches
-    // the unique entry count rather than the raw registry length.
-    const distinctRegistryEntries = new Set(GITIGNORE_ENTRY_REGISTRY.map((tag) => tag.entry));
-    expect(ALL_GITIGNORE_ENTRIES.length).toBe(distinctRegistryEntries.size);
-    for (const tag of GITIGNORE_ENTRY_REGISTRY) {
-      expect(ALL_GITIGNORE_ENTRIES).toContain(tag.entry);
+    // `ALL_GITIGNORE_ENTRIES` is the default, deduplicated view and excludes
+    // package-root paths that must be explicitly requested.
+    const defaultRegistryEntries = new Set(
+      GITIGNORE_ENTRY_REGISTRY.filter((tag) => {
+        const targets = Array.isArray(tag.target) ? tag.target : [tag.target];
+        return targets.some(
+          (target) =>
+            !PACKAGING_TOOL_TARGETS.includes(target as (typeof PACKAGING_TOOL_TARGETS)[number]),
+        );
+      }).map((tag) => tag.entry),
+    );
+    expect(ALL_GITIGNORE_ENTRIES.length).toBe(defaultRegistryEntries.size);
+    for (const entry of defaultRegistryEntries) {
+      expect(ALL_GITIGNORE_ENTRIES).toContain(entry);
     }
   });
 });
@@ -264,7 +272,54 @@ describe("filterGitignoreEntries", () => {
 
     it("should return all entries when target is wildcard", () => {
       const result = filterGitignoreEntries({ logger, targets: ["*"] });
-      expect(result).toEqual([...ALL_GITIGNORE_ENTRIES]);
+      const nonPackagingEntries = new Set(
+        GITIGNORE_ENTRY_REGISTRY.filter((tag) => {
+          const targets = Array.isArray(tag.target) ? tag.target : [tag.target];
+          return targets.some(
+            (target) =>
+              !PACKAGING_TOOL_TARGETS.includes(target as (typeof PACKAGING_TOOL_TARGETS)[number]),
+          );
+        }).map((tag) => tag.entry),
+      );
+      const packagingEntries = GITIGNORE_ENTRY_REGISTRY.filter((tag) => {
+        const targets = Array.isArray(tag.target) ? tag.target : [tag.target];
+        return targets.some((target) =>
+          PACKAGING_TOOL_TARGETS.includes(target as (typeof PACKAGING_TOOL_TARGETS)[number]),
+        );
+      })
+        .map((tag) => tag.entry)
+        .filter((entry) => !nonPackagingEntries.has(entry));
+
+      for (const entry of packagingEntries) {
+        expect(result).not.toContain(entry);
+      }
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it("should include plugin package paths only when explicitly targeted", () => {
+      const defaults = filterGitignoreEntries({ logger });
+      const wildcard = filterGitignoreEntries({ logger, targets: ["*"] });
+      const claudePlugin = filterGitignoreEntries({
+        logger,
+        targets: ["claudecode-plugin"],
+      });
+      const antigravityPlugin = filterGitignoreEntries({
+        logger,
+        targets: ["antigravity-plugin"],
+      });
+      const wildcardAndClaudePlugin = filterGitignoreEntries({
+        logger,
+        targets: ["*", "claudecode-plugin"],
+      });
+
+      expect(defaults).not.toContain("**/commands/");
+      expect(defaults).not.toContain("**/rules/");
+      expect(wildcard).not.toContain("**/commands/");
+      expect(wildcard).not.toContain("**/rules/");
+      expect(claudePlugin).toContain("**/commands/");
+      expect(antigravityPlugin).toContain("**/rules/");
+      expect(wildcardAndClaudePlugin).toContain("**/commands/");
+      expect(wildcardAndClaudePlugin).not.toContain("**/rules/");
     });
   });
 

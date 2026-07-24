@@ -38,8 +38,10 @@ import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
 import { AmpHooks } from "./amp-hooks.js";
 import { AntigravityCliHooks, AntigravityIdeHooks } from "./antigravity-hooks.js";
+import { AntigravityPluginHooks } from "./antigravity-plugin-hooks.js";
 import { AugmentcodeHooks } from "./augmentcode-hooks.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
+import { ClaudecodePluginHooks } from "./claudecode-plugin-hooks.js";
 import { CodexcliHooks } from "./codexcli-hooks.js";
 import { CopilotHooks } from "./copilot-hooks.js";
 import { CopilotcliHooks } from "./copilotcli-hooks.js";
@@ -196,6 +198,20 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     },
   ],
   [
+    "antigravity-plugin",
+    {
+      class: AntigravityPluginHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsImport: true,
+      },
+      supportedEvents: ANTIGRAVITY_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
     "cursor",
     {
       class: CursorHooks,
@@ -221,6 +237,20 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: CLAUDE_HOOK_EVENTS,
       // All five documented handler types are emitted faithfully with their
       // type-specific payload fields. https://code.claude.com/docs/en/hooks
+      supportedHookTypes: ["command", "prompt", "http", "mcp_tool", "agent"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "claudecode-plugin",
+    {
+      class: ClaudecodePluginHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsImport: true,
+      },
+      supportedEvents: CLAUDE_HOOK_EVENTS,
       supportedHookTypes: ["command", "prompt", "http", "mcp_tool", "agent"],
       supportsMatcher: true,
     },

@@ -59,6 +59,16 @@ describe("MCP Convert Tools", () => {
       expect(result.error).toContain("must not include the source tool");
     });
 
+    it.each([
+      { from: "claudecode-plugin", to: ["cursor"] },
+      { from: "cursor", to: ["antigravity-plugin"] },
+    ])("should reject plugin packaging targets", async (options) => {
+      const result = await executeConvert(options);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/Plugin packaging target .* is not supported by convert/);
+    });
+
     it("should succeed with valid from and to", async () => {
       // Create CLAUDE.md file to convert from
       await writeFileContent(

@@ -14,7 +14,10 @@ import {
   type Feature,
   type RulesyncFeatures,
 } from "../../types/features.js";
-import { ALL_TOOL_TARGETS_WITH_WILDCARD } from "../../types/tool-targets.js";
+import {
+  ALL_TOOL_TARGETS_WITH_WILDCARD,
+  PACKAGING_TOOL_TARGETS,
+} from "../../types/tool-targets.js";
 import type { Logger } from "../../utils/logger.js";
 import {
   deriveAllGitignoreEntries,
@@ -143,10 +146,16 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
 
 export const ALL_GITIGNORE_ENTRIES: ReadonlyArray<string> = (() => {
   // The registry may register the SAME entry under multiple feature tags
-  // The exported list dedupes while preserving the original insertion order.
+  // The exported default list excludes opt-in packaging targets and dedupes
+  // while preserving the original insertion order.
   const seen = new Set<string>();
   const result: string[] = [];
   for (const tag of GITIGNORE_ENTRY_REGISTRY) {
+    const targets = normalizeGitignoreEntryTargets(tag.target);
+    const isPackagingOnly = targets.every((target) =>
+      PACKAGING_TOOL_TARGETS.includes(target as (typeof PACKAGING_TOOL_TARGETS)[number]),
+    );
+    if (isPackagingOnly) continue;
     if (seen.has(tag.entry)) continue;
     seen.add(tag.entry);
     result.push(tag.entry);
@@ -172,8 +181,13 @@ const isTargetSelected = (
   const targets = normalizeGitignoreEntryTargets(target);
 
   if (targets.includes("common")) return true;
-  if (!selectedTargets || selectedTargets.length === 0) return true;
-  if (selectedTargets.includes("*")) return true;
+  if (!selectedTargets || selectedTargets.length === 0 || selectedTargets.includes("*")) {
+    return targets.some(
+      (candidate) =>
+        selectedTargets?.includes(candidate) ||
+        !PACKAGING_TOOL_TARGETS.includes(candidate as (typeof PACKAGING_TOOL_TARGETS)[number]),
+    );
+  }
   return targets.some((candidate) => selectedTargets.includes(candidate));
 };
 
@@ -185,7 +199,11 @@ const getSelectedGitignoreEntryTargets = (
 
   if (targets.includes("common")) return ["common"];
   if (!selectedTargets || selectedTargets.length === 0 || selectedTargets.includes("*")) {
-    return targets;
+    return targets.filter(
+      (candidate) =>
+        selectedTargets?.includes(candidate) ||
+        !PACKAGING_TOOL_TARGETS.includes(candidate as (typeof PACKAGING_TOOL_TARGETS)[number]),
+    );
   }
 
   return targets.filter((candidate) => selectedTargets.includes(candidate));

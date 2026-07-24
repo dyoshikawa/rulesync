@@ -12,6 +12,7 @@ import type { Feature } from "../types/features.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { resolveToolOutputRoot } from "../utils/kimi-code.js";
 import type { Logger } from "../utils/logger.js";
+import { isPackagingToolTarget } from "../utils/plugin-root.js";
 
 export type ConvertResult = {
   rulesCount: number;
@@ -61,6 +62,14 @@ export async function convertFromTool(params: {
   toTools: ToolTarget[];
   logger: Logger;
 }): Promise<ConvertResult> {
+  const packagingTarget = [params.fromTool, ...params.toTools].find(isPackagingToolTarget);
+  if (packagingTarget) {
+    throw new Error(
+      `Plugin packaging target '${packagingTarget}' is not supported by convert. ` +
+        "Use import and generate with explicit plugin directories.",
+    );
+  }
+
   const ctx: ConvertContext = params;
 
   const [

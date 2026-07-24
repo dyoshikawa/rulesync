@@ -81,22 +81,28 @@ describe("Config", () => {
   });
 
   describe("getTargets with wildcard expansion", () => {
-    it("should exclude legacy targets when wildcard is used", () => {
+    it("should exclude legacy and packaging targets when wildcard is used", () => {
       const config = createConfig({ targets: ["*"] });
       const targets = config.getTargets();
 
       expect(targets).not.toContain("claudecode-legacy");
       expect(targets).not.toContain("augmentcode-legacy");
+      expect(targets).not.toContain("claudecode-plugin");
+      expect(targets).not.toContain("antigravity-plugin");
       expect(targets).toContain("claudecode");
       expect(targets).toContain("augmentcode");
     });
 
-    it("should include all non-legacy targets when wildcard is used", () => {
+    it("should include all non-legacy, non-packaging targets when wildcard is used", () => {
       const config = createConfig({ targets: ["*"] });
       const targets = config.getTargets();
 
       const expectedTargets = ALL_TOOL_TARGETS.filter(
-        (t) => t !== "claudecode-legacy" && t !== "augmentcode-legacy",
+        (t) =>
+          t !== "claudecode-legacy" &&
+          t !== "augmentcode-legacy" &&
+          t !== "claudecode-plugin" &&
+          t !== "antigravity-plugin",
       );
 
       expect(targets).toEqual(expectedTargets);
@@ -120,6 +126,17 @@ describe("Config", () => {
       const config = createConfig({ targets: ["cursor", "*"] });
       const targets = config.getTargets();
 
+      expect(targets).not.toContain("*");
+    });
+
+    it("should preserve packaging targets explicitly listed with wildcard", () => {
+      const config = createConfig({
+        targets: ["*", "claudecode-plugin", "antigravity-plugin"],
+      });
+      const targets = config.getTargets();
+
+      expect(targets).toContain("claudecode-plugin");
+      expect(targets).toContain("antigravity-plugin");
       expect(targets).not.toContain("*");
     });
   });

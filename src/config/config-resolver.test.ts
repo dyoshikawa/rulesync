@@ -253,6 +253,20 @@ describe("config-resolver", () => {
       expect(configFileTargets).not.toContain("claudecode-legacy");
     });
 
+    it("preserves packaging targets explicitly listed with wildcard", async () => {
+      const configContent = JSON.stringify({
+        outputRoots: ["./"],
+        targets: ["*", "claudecode-plugin"],
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getConfigFileTargets()).toContain("claudecode-plugin");
+    });
+
     it("keeps the full config-file target list even when CLI -t selects one target", async () => {
       const configContent = JSON.stringify({ outputRoots: ["./"], targets: ["*"] });
       await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);

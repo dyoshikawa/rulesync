@@ -24,6 +24,10 @@ const subagentsGenerateTargets = [
     outputPath: join(".claude", "agents", "planner.md"),
   },
   {
+    target: "claudecode-plugin",
+    outputPath: join("agents", "planner.md"),
+  },
+  {
     target: "cursor",
     outputPath: join(".cursor", "agents", "planner.md"),
   },

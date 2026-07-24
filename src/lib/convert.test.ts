@@ -109,6 +109,23 @@ describe("convertFromTool", () => {
     vi.clearAllMocks();
   });
 
+  describe("validation", () => {
+    it.each([
+      { fromTool: "claudecode-plugin" as const, toTools: ["cursor" as const] },
+      { fromTool: "cursor" as const, toTools: ["antigravity-plugin" as const] },
+    ])("should reject plugin packaging targets", async ({ fromTool, toTools }) => {
+      await expect(
+        convertFromTool({
+          logger,
+          config: mockConfig as never,
+          fromTool,
+          toTools,
+        }),
+      ).rejects.toThrow(/Plugin packaging target .* is not supported by convert/);
+      expect(RulesProcessor).not.toHaveBeenCalled();
+    });
+  });
+
   describe("rules feature", () => {
     it("should convert rules from source to destinations", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);

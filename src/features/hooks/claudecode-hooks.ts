@@ -86,10 +86,10 @@ export class ClaudecodeHooks extends ToolHooks {
     validate = true,
     global = false,
   }: ToolHooksFromFileParams): Promise<ClaudecodeHooks> {
-    const paths = ClaudecodeHooks.getSettablePaths({ global });
+    const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? '{"hooks":{}}';
-    return new ClaudecodeHooks({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -108,7 +108,7 @@ export class ClaudecodeHooks extends ToolHooks {
     global?: boolean;
     logger?: Logger;
   }): Promise<ClaudecodeHooks> {
-    const paths = ClaudecodeHooks.getSettablePaths({ global });
+    const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = await readOrInitializeFileContent(
       filePath,
@@ -128,7 +128,7 @@ export class ClaudecodeHooks extends ToolHooks {
       patch: { hooks: claudeHooks },
       filePath,
     });
-    return new ClaudecodeHooks({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -171,7 +171,7 @@ export class ClaudecodeHooks extends ToolHooks {
     relativeDirPath,
     relativeFilePath,
   }: ToolHooksForDeletionParams): ClaudecodeHooks {
-    return new ClaudecodeHooks({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,
