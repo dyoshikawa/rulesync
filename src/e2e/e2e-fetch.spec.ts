@@ -1,16 +1,19 @@
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchCommand } from "../cli/commands/fetch.js";
+import { createProgram } from "../cli/program.js";
 import { SKILL_FILE_NAME } from "../constants/general.js";
 import {
   RULESYNC_RULES_RELATIVE_DIR_PATH,
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
-import { createMockLogger } from "../test-utils/mock-logger.js";
 import { fileExists, readFileContent } from "../utils/file.js";
 import { useTestDirectory } from "./e2e-helper.js";
+
+const REMOTE_RULE_PATH = posix.join("rules", "overview.md");
+const REMOTE_SKILL_DIR_PATH = posix.join("skills", "test-skill");
+const REMOTE_SKILL_PATH = posix.join(REMOTE_SKILL_DIR_PATH, SKILL_FILE_NAME);
 
 vi.mock("../lib/github-client.js", () => ({
   GitHubClient: class MockGitHubClient {
@@ -44,7 +47,7 @@ vi.mock("../lib/github-client.js", () => ({
         return Promise.resolve([
           {
             name: "overview.md",
-            path: "rules/overview.md",
+            path: REMOTE_RULE_PATH,
             type: "file",
             sha: "rule-sha",
             size: 20,
@@ -56,7 +59,7 @@ vi.mock("../lib/github-client.js", () => ({
         return Promise.resolve([
           {
             name: "test-skill",
-            path: "skills/test-skill",
+            path: REMOTE_SKILL_DIR_PATH,
             type: "dir",
             sha: "skill-dir-sha",
             size: 0,
@@ -64,11 +67,11 @@ vi.mock("../lib/github-client.js", () => ({
           },
         ]);
       }
-      if (path === "skills/test-skill") {
+      if (path === REMOTE_SKILL_DIR_PATH) {
         return Promise.resolve([
           {
             name: SKILL_FILE_NAME,
-            path: `skills/test-skill/${SKILL_FILE_NAME}`,
+            path: REMOTE_SKILL_PATH,
             type: "file",
             sha: "skill-file-sha",
             size: 30,
@@ -83,7 +86,7 @@ vi.mock("../lib/github-client.js", () => ({
     }
 
     getFileContent(_owner: string, _repo: string, path: string): Promise<string> {
-      if (path === `skills/test-skill/${SKILL_FILE_NAME}`) {
+      if (path === REMOTE_SKILL_PATH) {
         return Promise.resolve("# Test Skill\n");
       }
       if (path === "rules/overview.md") {
@@ -105,17 +108,33 @@ vi.mock("../lib/github-client.js", () => ({
 describe("E2E: fetch", () => {
   const { getTestDir } = useTestDirectory();
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("should make omitted features equivalent to explicit skills for a mixed repository", async () => {
     const testDir = getTestDir();
-    const defaultLogger = { ...createMockLogger(), jsonMode: true };
-    const explicitLogger = createMockLogger();
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    await fetchCommand(defaultLogger, { source: "owner/repo" });
-    await fetchCommand(explicitLogger, {
-      source: "owner/repo",
-      features: ["skills"],
-      output: "explicit",
-    });
+    await createProgram().parseAsync(["node", "rulesync", "--json", "fetch", "owner/repo"]);
+    const defaultOutput = JSON.parse(String(logSpy.mock.calls.at(-1)?.[0])) as {
+      data: { created: string[]; totalFetched: number };
+    };
+
+    await createProgram().parseAsync([
+      "node",
+      "rulesync",
+      "--json",
+      "fetch",
+      "owner/repo",
+      "-f",
+      "skills",
+      "--output",
+      "explicit",
+    ]);
+    const explicitOutput = JSON.parse(String(logSpy.mock.calls.at(-1)?.[0])) as {
+      data: { created: string[]; totalFetched: number };
+    };
 
     const defaultSkillPath = join(
       testDir,
@@ -132,12 +151,13 @@ describe("E2E: fetch", () => {
     );
     expect(await fileExists(join(testDir, "explicit", "rules", "overview.md"))).toBe(false);
 
-    expect(defaultLogger.success).toHaveBeenCalledWith(
-      expect.stringContaining(`skills/test-skill/${SKILL_FILE_NAME} (created)`),
-    );
-    expect(defaultLogger.captureData).toHaveBeenCalledWith("created", [
-      `skills/test-skill/${SKILL_FILE_NAME}`,
-    ]);
-    expect(defaultLogger.captureData).toHaveBeenCalledWith("totalFetched", 1);
+    expect(defaultOutput.data).toMatchObject({
+      created: [REMOTE_SKILL_PATH],
+      totalFetched: 1,
+    });
+    expect(explicitOutput.data).toMatchObject({
+      created: [REMOTE_SKILL_PATH],
+      totalFetched: 1,
+    });
   });
 });
