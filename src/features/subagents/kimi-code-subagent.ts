@@ -17,8 +17,16 @@ import {
   type ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
+const KimiCodeAgentNameSchema = z.pipe(
+  z.string(),
+  z.custom<string>(
+    (value) => typeof value === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value),
+    "must be a kebab-case name",
+  ),
+);
+
 const KimiCodeSubagentFrontmatterSchema = z.looseObject({
-  name: z.optional(z.string()),
+  name: z.optional(KimiCodeAgentNameSchema),
   description: z.string(),
   whenToUse: z.optional(z.string()),
   override: z.optional(z.boolean()),
@@ -77,9 +85,10 @@ export class KimiCodeSubagent extends ToolSubagent {
   toRulesyncSubagent(): RulesyncSubagent {
     const { name, description, ...rest } = this.frontmatter;
     const fileName = basename(this.getRelativeFilePath(), extname(this.getRelativeFilePath()));
+    const resolvedName = KimiCodeAgentNameSchema.parse(name ?? fileName);
     const frontmatter: RulesyncSubagentFrontmatter = {
       targets: ["*"],
-      name: name ?? fileName,
+      name: resolvedName,
       description,
       ...(Object.keys(rest).length > 0 && { "kimi-code": rest }),
     };
@@ -87,7 +96,7 @@ export class KimiCodeSubagent extends ToolSubagent {
     return new RulesyncSubagent({
       outputRoot: ".",
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-      relativeFilePath: this.getRelativeFilePath(),
+      relativeFilePath: `${resolvedName}.md`,
       frontmatter,
       body: this.body,
       validate: true,

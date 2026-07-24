@@ -307,7 +307,11 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     "kimi-code",
     {
       class: KimiCodeSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: join("**", "*.md"),
+      },
     },
   ],
   [
@@ -504,7 +508,24 @@ export class SubagentsProcessor extends FeatureProcessor {
       rulesyncSubagents.push(toolSubagent.toRulesyncSubagent());
     }
 
-    return rulesyncSubagents;
+    const uniqueRulesyncSubagents: RulesyncSubagent[] = [];
+    const seenOutputPaths = new Set<string>();
+    for (const rulesyncSubagent of rulesyncSubagents) {
+      const outputPath = join(
+        rulesyncSubagent.getRelativeDirPath(),
+        rulesyncSubagent.getRelativeFilePath(),
+      );
+      if (seenOutputPaths.has(outputPath)) {
+        this.logger.warn(
+          `Multiple ${this.toolTarget} subagents resolve to "${outputPath}"; keeping the first and ignoring this copy.`,
+        );
+        continue;
+      }
+      seenOutputPaths.add(outputPath);
+      uniqueRulesyncSubagents.push(rulesyncSubagent);
+    }
+
+    return uniqueRulesyncSubagents;
   }
 
   /**

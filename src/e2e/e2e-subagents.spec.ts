@@ -414,6 +414,54 @@ Break down tasks into steps.
     expect(importedContent).toContain("planner");
   });
 
+  it("should recursively import Kimi Code subagents and flatten them by agent name", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".kimi-code", "agents", "review", "security.md"),
+      [
+        "---",
+        "name: security-reviewer",
+        'description: "Reviews security-sensitive changes"',
+        "---",
+        "Review the change for security issues.",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".kimi-code", "agents", "audit", "security.md"),
+      [
+        "---",
+        "name: security-auditor",
+        'description: "Audits security controls"',
+        "---",
+        "Audit the configured security controls.",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".kimi-code", "agents", "z-duplicate", "reviewer.md"),
+      [
+        "---",
+        "name: security-reviewer",
+        'description: "Duplicate reviewer"',
+        "---",
+        "This duplicate must not overwrite the first reviewer.",
+      ].join("\n"),
+    );
+
+    await runImport({ target: "kimi-code", features: "subagents" });
+
+    const reviewer = await readFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "security-reviewer.md"),
+    );
+    expect(reviewer).toContain("Review the change");
+    expect(reviewer).not.toContain("duplicate must not overwrite");
+    expect(
+      await readFileContent(
+        join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "security-auditor.md"),
+      ),
+    ).toContain("Audit the configured");
+  });
+
   it("should import goose subagents (sub-recipe YAML)", async () => {
     const testDir = getTestDir();
 

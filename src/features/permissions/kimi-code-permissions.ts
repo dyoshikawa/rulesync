@@ -48,7 +48,7 @@ const KIMI_CODE_TOOL_TO_CATEGORY: Record<string, string> = Object.fromEntries(
 
 function buildKimiCodePattern(category: string, pattern: string): string | null {
   if (category.startsWith("mcp__")) {
-    return category;
+    return pattern === "*" || pattern === "" ? category : null;
   }
   if (category === "mcp") {
     return pattern === "*" || pattern === "" ? "mcp__*" : `mcp__${pattern}`;
@@ -67,9 +67,8 @@ function canonicalToKimiCodeRules({
   config: PermissionsConfig;
   logger?: Logger;
 }): KimiCodePermissionRule[] {
-  const result: KimiCodePermissionRule[] = [];
+  const canonicalRules: KimiCodePermissionRule[] = [];
   const overrideRules = config["kimi-code"]?.rules ?? [];
-  result.push(...overrideRules);
 
   for (const [category, rules] of Object.entries(config.permission)) {
     const isSupported =
@@ -83,18 +82,85 @@ function canonicalToKimiCodeRules({
       continue;
     }
     for (const [pattern, decision] of Object.entries(rules)) {
+      if (category.startsWith("mcp__") && pattern !== "*" && pattern !== "") {
+        if (decision === "deny") {
+          logger?.warn(
+            `Kimi Code permissions: broadening argument-specific deny for "${category}" to the whole MCP tool because Kimi does not match MCP tool arguments.`,
+          );
+          canonicalRules.push({
+            decision,
+            pattern: category,
+            scope: "user",
+          });
+        } else {
+          logger?.warn(
+            `Kimi Code permissions: skipping argument-specific ${decision} for "${category}" because Kimi does not match MCP tool arguments.`,
+          );
+        }
+        continue;
+      }
       const kimiCodePattern = buildKimiCodePattern(category, pattern);
       if (!kimiCodePattern) {
         continue;
       }
-      result.push({
+      canonicalRules.push({
         decision,
         pattern: kimiCodePattern,
         scope: "user",
       });
     }
   }
-  return result;
+  return [...overrideRules, ...sortKimiCodeRulesFailClosed(canonicalRules)];
+}
+
+function getKimiCodePatternSpecificity(pattern: string): {
+  tool: string;
+  literalLength: number;
+  wildcardCount: number;
+  hasArguments: boolean;
+} {
+  const opening = pattern.indexOf("(");
+  const hasArguments = opening >= 0 && pattern.endsWith(")");
+  const tool = hasArguments ? pattern.slice(0, opening) : pattern;
+  const argument = hasArguments ? pattern.slice(opening + 1, -1) : "";
+  return {
+    tool,
+    literalLength: argument
+      .replaceAll("*", "")
+      .replaceAll("?", "")
+      .replaceAll("[", "")
+      .replaceAll("]", "").length,
+    wildcardCount: [...argument].filter((character) => "*?[]".includes(character)).length,
+    hasArguments,
+  };
+}
+
+function sortKimiCodeRulesFailClosed(rules: KimiCodePermissionRule[]): KimiCodePermissionRule[] {
+  const actionPriority: Record<PermissionAction, number> = {
+    deny: 0,
+    ask: 1,
+    allow: 2,
+  };
+  return rules
+    .map((rule, index) => ({
+      rule,
+      index,
+      specificity: getKimiCodePatternSpecificity(rule.pattern),
+    }))
+    .toSorted((left, right) => {
+      const toolOrder = left.specificity.tool.localeCompare(right.specificity.tool);
+      if (toolOrder !== 0) return toolOrder;
+      if (left.specificity.hasArguments !== right.specificity.hasArguments) {
+        return left.specificity.hasArguments ? -1 : 1;
+      }
+      const literalOrder = right.specificity.literalLength - left.specificity.literalLength;
+      if (literalOrder !== 0) return literalOrder;
+      const wildcardOrder = left.specificity.wildcardCount - right.specificity.wildcardCount;
+      if (wildcardOrder !== 0) return wildcardOrder;
+      const actionOrder = actionPriority[left.rule.decision] - actionPriority[right.rule.decision];
+      return actionOrder !== 0 ? actionOrder : left.index - right.index;
+    })
+    .map(({ rule }) => rule);
 }
 
 function parseKimiCodePattern(pattern: string): { category: string; pattern: string } | null {
@@ -126,6 +192,11 @@ function kimiCodeRulesToCanonical(rules: unknown): {
     return { permission, nativeRules };
   }
 
+  const validRules: Array<{
+    rule: KimiCodePermissionRule;
+    parsed: { category: string; pattern: string } | null;
+    hasNativeOnlyFields: boolean;
+  }> = [];
   for (const raw of rules) {
     if (!isRecord(raw)) {
       continue;
@@ -141,19 +212,31 @@ function kimiCodeRulesToCanonical(rules: unknown): {
     const parsed = parseKimiCodePattern(pattern);
     const hasNativeOnlyFields =
       (typeof raw.scope === "string" && raw.scope !== "user") || typeof raw.reason === "string";
-    if (!parsed || hasNativeOnlyFields) {
-      nativeRules.push({
+    validRules.push({
+      rule: {
         decision,
         pattern,
         ...(typeof raw.scope === "string" && { scope: raw.scope }),
         ...(typeof raw.reason === "string" && { reason: raw.reason }),
-      });
-      continue;
-    }
+      },
+      parsed,
+      hasNativeOnlyFields,
+    });
+  }
+
+  if (validRules.some(({ parsed, hasNativeOnlyFields }) => !parsed || hasNativeOnlyFields)) {
+    return {
+      permission,
+      nativeRules: validRules.map(({ rule }) => rule),
+    };
+  }
+
+  for (const { rule, parsed } of validRules) {
+    if (!parsed) continue;
     const categoryRules = (permission[parsed.category] ??= {});
     // Kimi uses first-match-wins semantics. A later duplicate is unreachable,
     // so keep the first canonical value instead of reversing its effect.
-    categoryRules[parsed.pattern] ??= decision;
+    categoryRules[parsed.pattern] ??= rule.decision;
   }
   return { permission, nativeRules };
 }
