@@ -219,6 +219,16 @@ describe("file utilities", () => {
       expect(result).toBe("content\n");
     });
 
+    it("should normalize Windows line endings throughout the content", () => {
+      const result = addTrailingNewline("line1\r\nline2\r\nline3\r\n");
+      expect(result).toBe("line1\nline2\nline3\n");
+    });
+
+    it("should normalize standalone carriage returns", () => {
+      const result = addTrailingNewline("line1\rline2\r");
+      expect(result).toBe("line1\nline2\n");
+    });
+
     it("should handle multiple lines with trailing whitespace", () => {
       const result = addTrailingNewline("line1\nline2  \t");
       expect(result).toBe("line1\nline2\n");

@@ -152,4 +152,24 @@ Body
       fileContentsEquivalent({ filePath: "/x/foo.txt", expected: "a\n", existing: "b\n" }),
     ).toBe(false);
   });
+
+  it("treats CRLF and LF as equivalent for text files", () => {
+    expect(
+      fileContentsEquivalent({
+        filePath: "/x/foo.txt",
+        expected: "line1\nline2\n",
+        existing: "line1\r\nline2\r\n",
+      }),
+    ).toBe(true);
+  });
+
+  it("treats standalone carriage returns and LF as equivalent for text files", () => {
+    expect(
+      fileContentsEquivalent({
+        filePath: "/x/foo.txt",
+        expected: "line1\nline2\n",
+        existing: "line1\rline2\r",
+      }),
+    ).toBe(true);
+  });
 });
