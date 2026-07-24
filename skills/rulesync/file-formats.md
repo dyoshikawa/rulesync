@@ -861,22 +861,20 @@ Vibe (mistral-vibe) MCP servers live in `[[mcp_servers]]` arrays of the shared `
 
 > **Reasonix note:** MCP servers are written as `[[plugins]]` array-of-tables entries (Reasonix's MCP-compatible external plugins) in `reasonix.toml` (project) / `~/.reasonix/config.toml` (global, via `--global`). Each entry carries a `name` plus the standard transport fields: `type` selects the transport (`stdio` default — `command`/`args`/`env`; `http`, a.k.a. `streamable-http` — `url`/`headers`), and the deprecated `sse` transport is collapsed onto `http`. The file is treated as shared Reasonix config: Rulesync only replaces the `plugins` key and preserves every other table (providers, ui, agent, …) on round-trip, and it is never deleted. Reasonix has no per-server tool allow/deny lists, but each plugin entry may carry an optional `trusted_read_only_tools` array (raw MCP tool names pre-seeded as trusted for planner/read-only use); it also supports `call_timeout_seconds` (a per-server MCP call timeout) and `tool_timeout_seconds` (a per-tool inline table keyed by raw MCP tool name). None of these have a deep canonical mapping, so they round-trip as passthrough fields on the canonical MCP server object. See the [Reasonix plugins guide](https://github.com/esengine/deepseek-reasonix/blob/main-v2/docs/GUIDE.md#plugins-mcp) and [SPEC.md](https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md) (`[[plugins]]` schema).
 
-## `.rulesync/.aiignore` or `.rulesyncignore`
+## `.rulesync/.aiignore` or `.rulesyncignore` (deprecated)
 
-Rulesync supports a single ignore list that can live in either location below:
+> **Deprecation notice:** The `ignore` feature is deprecated in favor of the more expressive [`permissions` feature](#rulesync-permissions-jsonc). Existing ignore configurations, generation, import, conversion, and explicit `rulesync add ignore` scaffolding remain supported throughout Rulesync 14.x. Removal, if any, will be decided separately and will not occur before a future major release. `rulesync init` no longer enables or scaffolds ignore for new projects.
 
-- `.rulesync/.aiignore` (recommended)
-- `.rulesyncignore` (project root)
+Rulesync continues to support a single legacy ignore list in either location:
+
+- `.rulesync/.aiignore` (preferred legacy location)
+- `.rulesyncignore` (older project-root location)
 
 Rules and behavior:
 
 - You may use either location.
-- When both exist, Rulesync prefers `.rulesync/.aiignore` (recommended) over `.rulesyncignore` (legacy) when reading.
-- If neither file exists yet, Rulesync defaults to creating `.rulesync/.aiignore`.
-
-Notes:
-
-- Running `rulesync init` will create `.rulesync/.aiignore` if no ignore file is present.
+- When both exist, Rulesync prefers `.rulesync/.aiignore` over `.rulesyncignore` when reading.
+- Explicitly running `rulesync add ignore` creates `.rulesync/.aiignore` when neither location exists.
 
 Example:
 
@@ -884,6 +882,24 @@ Example:
 tmp/
 credentials/
 ```
+
+### Migrating to permissions
+
+Move each ignore pattern into the `read` category of `.rulesync/permissions.jsonc` with the `deny` action:
+
+```jsonc
+{
+  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/permissions-schema.json",
+  "permission": {
+    "read": {
+      "tmp/**": "deny",
+      "credentials/**": "deny",
+    },
+  },
+}
+```
+
+This is the closest replacement for preventing an agent from reading ignored paths. If the old policy was also intended to prevent changes, repeat the patterns under `edit` and `write`. Target tools differ in the permission categories they can represent, so review the [Supported Tools and Features](./supported-tools.md) table and the tool-specific permission notes below before removing the old ignore feature from a multi-tool project.
 
 ### Where ignore patterns are written per tool
 
@@ -1224,4 +1240,4 @@ For Reasonix, this generates `permissions.allow`, `permissions.ask`, and `permis
 >
 > The `[[plugins]].trusted_read_only_tools` MCP read-only trust list is per-plugin (an array-of-tables shared with the MCP feature) and is not covered by this override.
 
-> **Note: Interaction with ignore feature.** Both the ignore feature and the permissions feature can manage `Read` tool deny entries in `.claude/settings.json`. When both features configure the `Read` tool, the **permissions feature takes precedence** and a warning is emitted. If you only need to restrict file reads based on glob patterns, use the ignore feature (`.rulesync/.aiignore`). Use permissions only when you need fine-grained `allow`/`ask`/`deny` control over the `Read` tool.
+> **Note: Interaction with deprecated ignore feature.** Both the ignore feature and the permissions feature can manage `Read` tool deny entries in `.claude/settings.json`. When both features configure the `Read` tool, the **permissions feature takes precedence** and a warning is emitted. Migrate the ignore patterns to `read` deny rules in `.rulesync/permissions.jsonc`, then remove `ignore` from the project features and delete the obsolete ignore source.

@@ -7,7 +7,7 @@
 rulesync init
 
 # Import existing configurations (to .rulesync/rules/ by default)
-rulesync import --targets claudecode --features rules,ignore,mcp,commands,subagents,skills
+rulesync import --targets claudecode --features rules,mcp,commands,subagents,skills,permissions
 
 # Convert configurations from one tool to other tools (skips .rulesync/)
 rulesync convert --from cursor --to copilot,claudecode
@@ -25,7 +25,7 @@ rulesync generate --targets "*" --features "*"
 rulesync generate --targets copilot,cursor,cline --features rules,mcp
 rulesync generate --targets claudecode --features rules,subagents
 
-# Generate only rules (no MCP, ignore files, commands, or subagents)
+# Generate only rules (no MCP, permissions, commands, or subagents)
 rulesync generate --targets "*" --features rules
 
 # Generate simulated commands and subagents
@@ -77,24 +77,26 @@ rulesync update --check
 rulesync update --force
 ```
 
+> **Deprecated feature:** `ignore` remains available to existing projects throughout Rulesync 14.x, but new projects should use `permissions`. Any removal will be decided separately and will not occur before a future major release.
+
 ## Generate Command
 
 The `generate` command reads source files from `.rulesync/` and writes AI tool configuration files to the output directories.
 
 ### Options
 
-| Option                      | Description                                                                                       | Default               |
-| --------------------------- | ------------------------------------------------------------------------------------------------- | --------------------- |
-| `--targets, -t <tools>`     | Comma-separated list of tools (e.g. `claudecode,copilot` or `*`)                                  | From `rulesync.jsonc` |
-| `--features, -f <features>` | Comma-separated list of features (rules, commands, subagents, skills, ignore, mcp, hooks, checks) | From `rulesync.jsonc` |
-| `--input-root <path>`       | Path to the directory containing `.rulesync/` source files (currently `generate` only)            | CWD                   |
-| `--dry-run`                 | Show what would change without writing files                                                      | `false`               |
-| `--check`                   | Like `--dry-run` but exits with code 1 if files are not up to date                                | `false`               |
-| `--global`                  | Generate for global (user-scope) configuration files                                              | `false`               |
-| `--simulate-commands`       | Generate simulated commands for tools that do not support them natively                           | `false`               |
-| `--simulate-subagents`      | Generate simulated subagents for tools that do not support them natively                          | `false`               |
-| `--simulate-skills`         | Generate simulated skills for tools that do not support them natively                             | `false`               |
-| `--delete`                  | Delete existing generated files before writing                                                    | From `rulesync.jsonc` |
+| Option                      | Description                                                                                                                | Default               |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `--targets, -t <tools>`     | Comma-separated list of tools (e.g. `claudecode,copilot` or `*`)                                                           | From `rulesync.jsonc` |
+| `--features, -f <features>` | Comma-separated list of features (rules, commands, subagents, skills, mcp, hooks, permissions, checks; deprecated: ignore) | From `rulesync.jsonc` |
+| `--input-root <path>`       | Path to the directory containing `.rulesync/` source files (currently `generate` only)                                     | CWD                   |
+| `--dry-run`                 | Show what would change without writing files                                                                               | `false`               |
+| `--check`                   | Like `--dry-run` but exits with code 1 if files are not up to date                                                         | `false`               |
+| `--global`                  | Generate for global (user-scope) configuration files                                                                       | `false`               |
+| `--simulate-commands`       | Generate simulated commands for tools that do not support them natively                                                    | `false`               |
+| `--simulate-subagents`      | Generate simulated subagents for tools that do not support them natively                                                   | `false`               |
+| `--simulate-skills`         | Generate simulated skills for tools that do not support them natively                                                      | `false`               |
+| `--delete`                  | Delete existing generated files before writing                                                                             | From `rulesync.jsonc` |
 
 ### Examples
 
@@ -173,8 +175,10 @@ rulesync add check --name security
 # Singleton features
 rulesync add mcp
 rulesync add hooks
-rulesync add ignore
 rulesync add permissions
+
+# Deprecated compatibility scaffold; prefer permissions
+rulesync add ignore
 ```
 
 Named features accept a name with or without the `.md` suffix. Skills use the directory layout `.rulesync/skills/<name>/SKILL.md`; the other named features create `<name>.md` in their canonical Rulesync directory. Names cannot contain path separators.
