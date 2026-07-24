@@ -1,6 +1,10 @@
 import { join, resolve } from "node:path";
 
-import { KIMI_CODE_CONFIG_FILE_NAME, KIMI_CODE_DIR } from "../../constants/kimi-code-paths.js";
+import { KIMI_CODE_CONFIG_FILE_NAME } from "../../constants/kimi-code-paths.js";
+import {
+  RULESYNC_HOOKS_FILE_NAME,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_KIMI_CODE_EVENT_NAMES,
@@ -11,11 +15,15 @@ import {
   type HooksConfig,
 } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
+import {
+  getKimiCodeRelativeDirPath,
+  getKimiCodeRulesyncOutputRoot,
+} from "../../utils/kimi-code.js";
 import type { Logger } from "../../utils/logger.js";
 import {
   applySharedConfigPatch,
+  KIMI_CODE_CONFIG_SHARED_FILE_KEY,
   parseSharedConfig,
-  sharedConfigFileKey,
   stringifySharedConfig,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -45,18 +53,22 @@ function runFromTrustedDirectory({
 }): string {
   if (process.platform === "win32") {
     const escapedDirectory = trustedDirectory.replaceAll("%", "%%").replaceAll('"', '""');
-    return `cd /d "${escapedDirectory}" && ${command}`;
+    return `set "RULESYNC_KIMI_HOOK_CWD=1" && cd /d "${escapedDirectory}" && ${command}`;
   }
   const escapedDirectory = trustedDirectory.replaceAll("'", `'"'"'`);
-  return `cd -- '${escapedDirectory}' && ${command}`;
+  return `export RULESYNC_KIMI_HOOK_CWD=1 && cd -- '${escapedDirectory}' && ${command}`;
 }
 
 function stripTrustedDirectoryWrapper(command: string): string {
-  const posix = command.match(/^cd -- '(?:[^']|'"'"')*' && ([\s\S]*)$/);
+  const posix = command.match(
+    /^export RULESYNC_KIMI_HOOK_CWD=1 && cd -- '(?:[^']|'"'"')*' && ([\s\S]*)$/,
+  );
   if (posix?.[1]) {
     return posix[1];
   }
-  const windows = command.match(/^cd \/d "(?:""|[^"])*" && ([\s\S]*)$/);
+  const windows = command.match(
+    /^set "RULESYNC_KIMI_HOOK_CWD=1" && cd \/d "(?:""|[^"])*" && ([\s\S]*)$/,
+  );
   return windows?.[1] ?? command;
 }
 
@@ -159,13 +171,13 @@ export class KimiCodeHooks extends ToolHooks {
   constructor(params: KimiCodeHooksParams) {
     super({
       ...params,
-      ...KimiCodeHooks.getSettablePaths(),
+      ...KimiCodeHooks.getSettablePaths({ global: params.global ?? true }),
     });
   }
 
-  static getSettablePaths() {
+  static getSettablePaths({ global = true }: { global?: boolean } = {}) {
     return {
-      relativeDirPath: KIMI_CODE_DIR,
+      relativeDirPath: getKimiCodeRelativeDirPath({ global }),
       relativeFilePath: KIMI_CODE_CONFIG_FILE_NAME,
     };
   }
@@ -183,9 +195,9 @@ export class KimiCodeHooks extends ToolHooks {
   }
 
   setFileContent(fileContent: string): void {
-    const paths = KimiCodeHooks.getSettablePaths();
+    const paths = KimiCodeHooks.getSettablePaths({ global: this.global });
     this.fileContent = applySharedConfigPatch({
-      fileKey: sharedConfigFileKey(paths),
+      fileKey: KIMI_CODE_CONFIG_SHARED_FILE_KEY,
       feature: "hooks",
       existingContent: fileContent,
       patch: parseSharedConfig({ format: "toml", fileContent: this.fileContent }),
@@ -196,15 +208,16 @@ export class KimiCodeHooks extends ToolHooks {
   static async fromFile({
     outputRoot = process.cwd(),
     validate = true,
+    global = true,
   }: ToolHooksFromFileParams): Promise<KimiCodeHooks> {
-    const paths = this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
     return new KimiCodeHooks({
       outputRoot,
       fileContent: await readFileContent(
         join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       ),
       validate,
-      global: true,
+      global,
     });
   }
 
@@ -233,7 +246,13 @@ export class KimiCodeHooks extends ToolHooks {
 
   toRulesyncHooks(): RulesyncHooks {
     const config = parseSharedConfig({ format: "toml", fileContent: this.getFileContent() });
-    return this.toRulesyncHooksDefault({
+    return new RulesyncHooks({
+      outputRoot: getKimiCodeRulesyncOutputRoot({
+        nativeOutputRoot: this.outputRoot,
+        global: this.global,
+      }),
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_HOOKS_FILE_NAME,
       fileContent: JSON.stringify(
         buildImportedHooksConfig({
           hooks: kimiCodeHooksToCanonical(config.hooks),

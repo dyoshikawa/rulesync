@@ -3,14 +3,19 @@ import { basename, extname, join } from "node:path";
 import { z } from "zod/mini";
 
 import {
-  KIMI_CODE_AGENTS_DIR_PATH,
+  KIMI_CODE_AGENTS_DIR_NAME,
   KIMI_CODE_SHARED_AGENTS_DIR_PATH,
 } from "../../constants/kimi-code-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
+import { getHomeDirectory, readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  getKimiCodeHome,
+  getKimiCodeRelativeDirPath,
+  getKimiCodeRulesyncOutputRoot,
+} from "../../utils/kimi-code.js";
 import { RulesyncSubagent, type RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
@@ -71,10 +76,23 @@ export class KimiCodeSubagent extends ToolSubagent {
     this.body = body;
   }
 
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolSubagentSettablePaths {
+  static getSettablePaths({
+    global = false,
+  }: { global?: boolean } = {}): ToolSubagentSettablePaths {
+    const customHome = global ? getKimiCodeHome() : undefined;
     return {
-      relativeDirPath: KIMI_CODE_AGENTS_DIR_PATH,
-      importDirPaths: [KIMI_CODE_SHARED_AGENTS_DIR_PATH],
+      relativeDirPath: getKimiCodeRelativeDirPath({
+        global,
+        relativeDirPath: KIMI_CODE_AGENTS_DIR_NAME,
+      }),
+      importDirPaths: [
+        customHome
+          ? {
+              outputRoot: getHomeDirectory(),
+              relativeDirPath: KIMI_CODE_SHARED_AGENTS_DIR_PATH,
+            }
+          : KIMI_CODE_SHARED_AGENTS_DIR_PATH,
+      ],
     };
   }
 
@@ -86,10 +104,14 @@ export class KimiCodeSubagent extends ToolSubagent {
     return this.body;
   }
 
-  toRulesyncSubagent(): RulesyncSubagent {
-    const { name, description, ...rest } = this.frontmatter;
+  override getImportIdentity(): string {
     const fileName = basename(this.getRelativeFilePath(), extname(this.getRelativeFilePath()));
-    const resolvedName = KimiCodeAgentNameSchema.parse(name ?? fileName);
+    return KimiCodeAgentNameSchema.parse(this.frontmatter.name ?? fileName).toLowerCase();
+  }
+
+  toRulesyncSubagent(): RulesyncSubagent {
+    const { name: _name, description, ...rest } = this.frontmatter;
+    const resolvedName = this.getImportIdentity();
     const frontmatter: RulesyncSubagentFrontmatter = {
       targets: ["*"],
       name: resolvedName,
@@ -98,7 +120,10 @@ export class KimiCodeSubagent extends ToolSubagent {
     };
 
     return new RulesyncSubagent({
-      outputRoot: this.outputRoot,
+      outputRoot: getKimiCodeRulesyncOutputRoot({
+        nativeOutputRoot: this.outputRoot,
+        global: this.global,
+      }),
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
       relativeFilePath: `${resolvedName}.md`,
       frontmatter,

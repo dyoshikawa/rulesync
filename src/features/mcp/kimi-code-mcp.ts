@@ -1,10 +1,18 @@
 import { join } from "node:path";
 
-import { KIMI_CODE_DIR, KIMI_CODE_MCP_FILE_NAME } from "../../constants/kimi-code-paths.js";
+import { KIMI_CODE_MCP_FILE_NAME } from "../../constants/kimi-code-paths.js";
+import {
+  RULESYNC_MCP_FILE_NAME,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers, type McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import {
+  getKimiCodeRelativeDirPath,
+  getKimiCodeRulesyncOutputRoot,
+} from "../../utils/kimi-code.js";
 import type { Logger } from "../../utils/logger.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -160,9 +168,9 @@ export class KimiCodeMcp extends ToolMcp {
     return !this.global;
   }
 
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolMcpSettablePaths {
+  static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolMcpSettablePaths {
     return {
-      relativeDirPath: KIMI_CODE_DIR,
+      relativeDirPath: getKimiCodeRelativeDirPath({ global }),
       relativeFilePath: KIMI_CODE_MCP_FILE_NAME,
     };
   }
@@ -229,7 +237,13 @@ export class KimiCodeMcp extends ToolMcp {
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    return this.toRulesyncMcpDefault({
+    return new RulesyncMcp({
+      outputRoot: getKimiCodeRulesyncOutputRoot({
+        nativeOutputRoot: this.outputRoot,
+        global: this.global,
+      }),
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_MCP_FILE_NAME,
       fileContent: JSON.stringify(
         {
           ...this.json,

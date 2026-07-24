@@ -9,7 +9,11 @@ import { DirFeatureProcessor } from "../../types/dir-feature-processor.js";
 import { skillsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { directoryExists, findFilesByGlobs } from "../../utils/file.js";
+import {
+  assertWritablePathInsideRoot,
+  directoryExists,
+  findFilesByGlobs,
+} from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSkill } from "./agentsmd-skill.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
@@ -601,7 +605,9 @@ export class SkillsProcessor extends DirFeatureProcessor {
     const seenSkillNames = new Set<string>();
     const toolSkills: ToolSkill[] = [];
     for (const root of roots) {
-      const skillsDirPath = join(this.outputRoot, root);
+      const rootOutputRoot = typeof root === "string" ? this.outputRoot : root.outputRoot;
+      const relativeDirPath = typeof root === "string" ? root : root.relativeDirPath;
+      const skillsDirPath = join(rootOutputRoot, relativeDirPath);
       if (!(await directoryExists(skillsDirPath))) {
         continue;
       }
@@ -615,8 +621,8 @@ export class SkillsProcessor extends DirFeatureProcessor {
         if (
           factory.class.isDirOwned &&
           !(await factory.class.isDirOwned({
-            outputRoot: this.outputRoot,
-            relativeDirPath: root,
+            outputRoot: rootOutputRoot,
+            relativeDirPath,
             dirName,
             inputRoot: this.inputRoot,
           }))
@@ -629,8 +635,8 @@ export class SkillsProcessor extends DirFeatureProcessor {
       const directorySkills = await Promise.all(
         ownedDirNames.map((dirName) =>
           factory.class.fromDir({
-            outputRoot: this.outputRoot,
-            relativeDirPath: root,
+            outputRoot: rootOutputRoot,
+            relativeDirPath,
             dirName,
             global: this.global,
           }),
@@ -655,8 +661,8 @@ export class SkillsProcessor extends DirFeatureProcessor {
       const flatSkills = await Promise.all(
         flatFilePaths.map((filePath) =>
           fromFlatFile({
-            outputRoot: this.outputRoot,
-            relativeDirPath: root,
+            outputRoot: rootOutputRoot,
+            relativeDirPath,
             relativeFilePath: basename(filePath),
             global: this.global,
           }),
@@ -673,7 +679,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
     }
 
     this.logger.debug(
-      `Successfully loaded ${toolSkills.length} skills from ${roots.length} root(s): ${roots.join(", ")}`,
+      `Successfully loaded ${toolSkills.length} skills from ${roots.length} root(s)`,
     );
     return toolSkills;
   }
@@ -689,8 +695,19 @@ export class SkillsProcessor extends DirFeatureProcessor {
       if (!(await directoryExists(skillsDirPath))) {
         continue;
       }
-      const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
+      await assertWritablePathInsideRoot({
+        rootPath: this.outputRoot,
+        targetPath: skillsDirPath,
+      });
+      const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), {
+        type: "dir",
+        followSymbolicLinks: false,
+      });
       for (const dirPath of dirPaths) {
+        await assertWritablePathInsideRoot({
+          rootPath: skillsDirPath,
+          targetPath: dirPath,
+        });
         const dirName = basename(dirPath);
         // Directories owned by another feature (see the `isDirOwned` factory
         // hook) must never be deleted as orphan skills — e.g. a Reasonix

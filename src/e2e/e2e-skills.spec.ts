@@ -1,10 +1,11 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
-import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import { ensureDir, fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -398,6 +399,26 @@ This is the fallback skill body content.`;
         "This shared logical duplicate must lose.",
       ].join("\n"),
     );
+    await writeFileContent(
+      join(testDir, ".kimi-code", "skills", "collision", "SKILL.md"),
+      [
+        "---",
+        "name: directory-logical",
+        'description: "Directory collision skill"',
+        "---",
+        "Directory collision body.",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".kimi-code", "skills", "collision.md"),
+      [
+        "---",
+        "name: flat-logical",
+        'description: "Flat collision skill"',
+        "---",
+        "Flat collision body.",
+      ].join("\n"),
+    );
 
     await runImport({ target: "kimi-code", features: "skills" });
 
@@ -412,7 +433,7 @@ This is the fallback skill body content.`;
       await readFileContent(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "shared", "SKILL.md")),
     ).toContain("Shared-only skill body");
     const logicalReview = await readFileContent(
-      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "primary", "SKILL.md"),
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "logical-review", "SKILL.md"),
     );
     expect(logicalReview).toContain("Primary directory-form logical skill");
     expect(logicalReview).not.toContain("logical duplicate must lose");
@@ -424,6 +445,16 @@ This is the fallback skill body content.`;
         join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "different-path", "SKILL.md"),
       ),
     ).toBe(false);
+    expect(
+      await readFileContent(
+        join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "directory-logical", "SKILL.md"),
+      ),
+    ).toContain("Directory collision body");
+    expect(
+      await readFileContent(
+        join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "flat-logical", "SKILL.md"),
+      ),
+    ).toContain("Flat collision body");
   });
 
   it("should not delete Kimi shared-root skills", async () => {
@@ -448,6 +479,29 @@ This is the fallback skill body content.`;
     });
 
     expect(await readFileContent(sharedSkillPath)).toContain("User-owned shared skill");
+  });
+
+  it("should reject a symlinked Kimi managed skills root during deletion", async () => {
+    const testDir = getTestDir();
+    const protectedDir = join(testDir, "protected-skills");
+    const protectedFile = join(protectedDir, "protected", "SKILL.md");
+    const managedRoot = join(testDir, ".kimi-code", "skills");
+    await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+    await writeFileContent(
+      protectedFile,
+      ["---", "name: protected", 'description: "Protected skill"', "---", "Keep me."].join("\n"),
+    );
+    await ensureDir(join(testDir, ".kimi-code"));
+    await symlink(protectedDir, managedRoot, process.platform === "win32" ? "junction" : "dir");
+
+    await expect(
+      runGenerate({
+        target: "kimi-code",
+        features: "skills",
+        deleteFiles: true,
+      }),
+    ).rejects.toThrow();
+    expect(await readFileContent(protectedFile)).toContain("Keep me.");
   });
 });
 

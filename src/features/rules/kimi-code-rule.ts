@@ -1,8 +1,16 @@
 import { join } from "node:path";
 
-import { KIMI_CODE_DIR, KIMI_CODE_RULE_FILE_NAME } from "../../constants/kimi-code-paths.js";
+import { KIMI_CODE_RULE_FILE_NAME } from "../../constants/kimi-code-paths.js";
+import {
+  RULESYNC_OVERVIEW_FILE_NAME,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
+import {
+  getKimiCodeRelativeDirPath,
+  getKimiCodeRulesyncOutputRoot,
+} from "../../utils/kimi-code.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -43,12 +51,12 @@ export class KimiCodeRule extends ToolRule {
     });
   }
 
-  static getSettablePaths(
-    _options: { global?: boolean; excludeToolDir?: boolean } = {},
-  ): KimiCodeRuleSettablePaths {
+  static getSettablePaths({
+    global = false,
+  }: { global?: boolean; excludeToolDir?: boolean } = {}): KimiCodeRuleSettablePaths {
     return {
       root: {
-        relativeDirPath: KIMI_CODE_DIR,
+        relativeDirPath: getKimiCodeRelativeDirPath({ global }),
         relativeFilePath: KIMI_CODE_RULE_FILE_NAME,
       },
     };
@@ -94,7 +102,20 @@ export class KimiCodeRule extends ToolRule {
   }
 
   toRulesyncRule(): RulesyncRule {
-    return this.toRulesyncRuleDefault();
+    return new RulesyncRule({
+      outputRoot: getKimiCodeRulesyncOutputRoot({
+        nativeOutputRoot: this.outputRoot,
+        global: this.global,
+      }),
+      relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_OVERVIEW_FILE_NAME,
+      frontmatter: {
+        root: true,
+        targets: ["*"],
+        globs: ["**/*"],
+      },
+      body: this.getFileContent(),
+    });
   }
 
   validate(): ValidationResult {
@@ -114,7 +135,9 @@ export class KimiCodeRule extends ToolRule {
       fileContent: "",
       validate: false,
       global,
-      root: relativeDirPath === KIMI_CODE_DIR && relativeFilePath === KIMI_CODE_RULE_FILE_NAME,
+      root:
+        relativeDirPath === getKimiCodeRelativeDirPath({ global }) &&
+        relativeFilePath === KIMI_CODE_RULE_FILE_NAME,
     });
   }
 

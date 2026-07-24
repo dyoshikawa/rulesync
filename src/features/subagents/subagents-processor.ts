@@ -603,7 +603,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     // Orphan deletion must only ever target the canonical generation directory,
     // so that import-only discovery roots (e.g. Junie's `.agents/`) are never
     // removed. Importing, on the other hand, scans every discovery root.
-    const dirPaths = forDeletion
+    const roots = forDeletion
       ? [paths.relativeDirPath]
       : [paths.relativeDirPath, ...(paths.importDirPaths ?? [])];
 
@@ -611,11 +611,13 @@ export class SubagentsProcessor extends FeatureProcessor {
     // Tracks subagent relative paths already loaded so that a duplicate in a
     // lower-precedence import root does not silently shadow an earlier one.
     const seenRelativeFilePaths = new Set<string>();
-    for (const dirPath of dirPaths) {
-      const baseDir = join(this.outputRoot, dirPath);
+    for (const root of roots) {
+      const rootOutputRoot = typeof root === "string" ? this.outputRoot : root.outputRoot;
+      const dirPath = typeof root === "string" ? root : root.relativeDirPath;
+      const baseDir = join(rootOutputRoot, dirPath);
       if (forDeletion && (await directoryExists(baseDir))) {
         await assertWritablePathInsideRoot({
-          rootPath: this.outputRoot,
+          rootPath: rootOutputRoot,
           targetPath: baseDir,
         });
       }
@@ -640,7 +642,7 @@ export class SubagentsProcessor extends FeatureProcessor {
             // Called through factory.class so a future implementation may
             // safely reference `this` (its own statics), like the other hooks.
             factory.class.isFileOwned!({
-              outputRoot: this.outputRoot,
+              outputRoot: rootOutputRoot,
               relativeDirPath: dirPath,
               relativeFilePath: toRelativeFilePath(path),
             }),
@@ -662,7 +664,7 @@ export class SubagentsProcessor extends FeatureProcessor {
           ...ownedFilePaths
             .map((path) =>
               factory.class.forDeletion({
-                outputRoot: this.outputRoot,
+                outputRoot: rootOutputRoot,
                 relativeDirPath: dirPath,
                 relativeFilePath: toRelativeFilePath(path),
                 global: this.global,
@@ -676,7 +678,7 @@ export class SubagentsProcessor extends FeatureProcessor {
       const loaded = await Promise.all(
         ownedFilePaths.map((path) =>
           factory.class.fromFile({
-            outputRoot: this.outputRoot,
+            outputRoot: rootOutputRoot,
             relativeDirPath: dirPath,
             relativeFilePath: toRelativeFilePath(path),
             global: this.global,
@@ -691,7 +693,7 @@ export class SubagentsProcessor extends FeatureProcessor {
       // failing, keeping the earlier (higher-precedence) root's file.
       const deduped: ToolFile[] = [];
       for (const subagent of loaded) {
-        const key = subagent.getRelativeFilePath();
+        const key = subagent.getImportIdentity();
         if (seenRelativeFilePaths.has(key)) {
           this.logger.warn(
             `Duplicate ${this.toolTarget} subagent "${key}" found in ${dirPath}; ` +
@@ -714,7 +716,7 @@ export class SubagentsProcessor extends FeatureProcessor {
         global: this.global,
       });
       for (const subagent of additionalSubagents) {
-        const key = subagent.getRelativeFilePath();
+        const key = subagent.getImportIdentity();
         if (seenRelativeFilePaths.has(key)) {
           this.logger.warn(
             `Duplicate ${this.toolTarget} subagent "${key}" defined inline; ` +
@@ -728,7 +730,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     }
 
     this.logger.debug(
-      `Successfully loaded ${toolSubagents.length} ${this.toolTarget} subagents from ${dirPaths.join(", ")}`,
+      `Successfully loaded ${toolSubagents.length} ${this.toolTarget} subagents from ${roots.length} root(s)`,
     );
     return toolSubagents;
   }

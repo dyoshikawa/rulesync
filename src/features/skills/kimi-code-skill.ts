@@ -4,14 +4,20 @@ import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import {
+  KIMI_CODE_SKILLS_DIR_NAME,
   KIMI_CODE_SHARED_SKILLS_DIR_PATH,
   KIMI_CODE_SKILLS_DIR_PATH,
 } from "../../constants/kimi-code-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import type { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
+import { getHomeDirectory, readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
+import {
+  getKimiCodeHome,
+  getKimiCodeRelativeDirPath,
+  getKimiCodeRulesyncOutputRoot,
+} from "../../utils/kimi-code.js";
 import {
   RulesyncSkill,
   type RulesyncSkillFrontmatterInput,
@@ -57,6 +63,13 @@ type KimiCodeSkillParams = {
   global?: boolean;
 };
 
+function logicalSkillDirName(name: string): string {
+  const normalized = name.toLowerCase();
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalized)
+    ? normalized
+    : `kimi-${encodeURIComponent(normalized)}`;
+}
+
 /**
  * Kimi Code Agent Skill.
  *
@@ -94,10 +107,21 @@ export class KimiCodeSkill extends ToolSkill {
     }
   }
 
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolSkillSettablePaths {
+  static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolSkillSettablePaths {
+    const customHome = global ? getKimiCodeHome() : undefined;
     return {
-      relativeDirPath: KIMI_CODE_SKILLS_DIR_PATH,
-      importOnlySkillRoots: [KIMI_CODE_SHARED_SKILLS_DIR_PATH],
+      relativeDirPath: getKimiCodeRelativeDirPath({
+        global,
+        relativeDirPath: KIMI_CODE_SKILLS_DIR_NAME,
+      }),
+      importOnlySkillRoots: [
+        customHome
+          ? {
+              outputRoot: getHomeDirectory(),
+              relativeDirPath: KIMI_CODE_SHARED_SKILLS_DIR_PATH,
+            }
+          : KIMI_CODE_SHARED_SKILLS_DIR_PATH,
+      ],
     };
   }
 
@@ -150,9 +174,12 @@ export class KimiCodeSkill extends ToolSkill {
     };
 
     return new RulesyncSkill({
-      outputRoot: this.outputRoot,
+      outputRoot: getKimiCodeRulesyncOutputRoot({
+        nativeOutputRoot: this.outputRoot,
+        global: this.global,
+      }),
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
+      dirName: logicalSkillDirName(name),
       frontmatter,
       body: this.getBody(),
       otherFiles: this.getOtherFiles(),

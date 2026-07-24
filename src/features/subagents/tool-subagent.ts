@@ -20,7 +20,13 @@ export type ToolSubagentSettablePaths = {
    * (e.g. Junie also reads the cross-tool `.agents/` directory). Omitted by
    * tools that have a single subagent directory.
    */
-  importDirPaths?: string[];
+  importDirPaths?: Array<
+    | string
+    | {
+        outputRoot: string;
+        relativeDirPath: string;
+      }
+  >;
 };
 
 export type ToolSubagentFromFileParams = AiFileFromFileParams & {
@@ -56,6 +62,11 @@ export abstract class ToolSubagent extends ToolFile {
   }
 
   abstract toRulesyncSubagent(): RulesyncSubagent;
+
+  /** Identity used to resolve duplicate imports across discovery roots. */
+  getImportIdentity(): string {
+    return this.getRelativeFilePath();
+  }
 
   /**
    * Optional fan-out hook for tools whose native format aggregates several

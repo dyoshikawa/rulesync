@@ -486,6 +486,43 @@ Break down tasks into steps.
     ).toContain("shared agent root");
   });
 
+  it("should preserve distinct Kimi subagents with the same relative path", async () => {
+    const testDir = getTestDir();
+    await writeFileContent(
+      join(testDir, ".kimi-code", "agents", "team", "reviewer.md"),
+      [
+        "---",
+        "name: primary-reviewer",
+        'description: "Primary reviewer"',
+        "---",
+        "Primary reviewer body.",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".agents", "agents", "team", "reviewer.md"),
+      [
+        "---",
+        "name: shared-reviewer",
+        'description: "Shared reviewer"',
+        "---",
+        "Shared reviewer body.",
+      ].join("\n"),
+    );
+
+    await runImport({ target: "kimi-code", features: "subagents" });
+
+    expect(
+      await readFileContent(
+        join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "primary-reviewer.md"),
+      ),
+    ).toContain("Primary reviewer body");
+    expect(
+      await readFileContent(
+        join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "shared-reviewer.md"),
+      ),
+    ).toContain("Shared reviewer body");
+  });
+
   it("should not delete Kimi Code subagents from the shared .agents root", async () => {
     const testDir = getTestDir();
     const sharedAgentPath = join(testDir, ".agents", "agents", "shared-reviewer.md");

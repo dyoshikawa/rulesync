@@ -833,6 +833,10 @@ describe("E2E: hooks (global mode)", () => {
         'event = "PreToolUse"',
         'matcher = "Bash"',
         'command = ".kimi-code/hooks/check.sh"',
+        "",
+        "[[hooks]]",
+        'event = "Stop"',
+        `command = "cd -- '/opt/company/security-hooks' && ./gate.sh"`,
       ].join("\n"),
     );
 
@@ -853,6 +857,12 @@ describe("E2E: hooks (global mode)", () => {
         command: ".kimi-code/hooks/check.sh",
       },
     ]);
+    expect(imported.hooks.stop).toEqual([
+      {
+        type: "command",
+        command: "cd -- '/opt/company/security-hooks' && ./gate.sh",
+      },
+    ]);
 
     await runGenerate({
       target: "kimi-code",
@@ -863,8 +873,11 @@ describe("E2E: hooks (global mode)", () => {
     });
     const regenerated = smolToml.parse(
       await readFileContent(join(homeDir, ".kimi-code", "config.toml")),
-    ) as { hooks: Array<{ command: string }> };
+    ) as { hooks: Array<{ event: string; command: string }> };
     expect(regenerated.hooks[0]?.command.match(/cd (?:--|\/d) /g)).toHaveLength(1);
+    const regeneratedStop = regenerated.hooks.find(({ event }) => event === "Stop");
+    expect(regeneratedStop?.command).toContain("RULESYNC_KIMI_HOOK_CWD=1");
+    expect(regeneratedStop?.command).toContain("cd -- '/opt/company/security-hooks' && ./gate.sh");
   });
 
   it("should generate vibe hooks in home directory", async () => {

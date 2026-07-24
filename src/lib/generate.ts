@@ -26,6 +26,7 @@ import type { RulesyncFile } from "../types/rulesync-file.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
 import { fileExists, toPosixPath } from "../utils/file.js";
+import { resolveToolOutputRoot } from "../utils/kimi-code.js";
 import type { Logger } from "../utils/logger.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
 import { deriveSharedWriteSteps } from "./shared-file-derive.js";
@@ -602,7 +603,11 @@ async function generateRulesCore(params: {
       }
 
       const processor = new RulesProcessor({
-        outputRoot: outputRoot,
+        outputRoot: resolveToolOutputRoot({
+          outputRoot,
+          toolTarget,
+          global: config.getGlobal(),
+        }),
         inputRoot: config.getInputRoot(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
@@ -731,7 +736,11 @@ async function generateMcpCore(params: {
       }
 
       const processor = new McpProcessor({
-        outputRoot: outputRoot,
+        outputRoot: resolveToolOutputRoot({
+          outputRoot,
+          toolTarget,
+          global: config.getGlobal(),
+        }),
         inputRoot: config.getInputRoot(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
@@ -839,7 +848,11 @@ async function generateSubagentsCore(params: {
       }
 
       const processor = new SubagentsProcessor({
-        outputRoot: outputRoot,
+        outputRoot: resolveToolOutputRoot({
+          outputRoot,
+          toolTarget,
+          global: config.getGlobal(),
+        }),
         inputRoot: config.getInputRoot(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
@@ -891,7 +904,11 @@ async function generateSkillsCore(params: {
       }
 
       const processor = new SkillsProcessor({
-        outputRoot: outputRoot,
+        outputRoot: resolveToolOutputRoot({
+          outputRoot,
+          toolTarget,
+          global: config.getGlobal(),
+        }),
         inputRoot: config.getInputRoot(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
@@ -951,7 +968,11 @@ async function generateHooksCore(params: {
       }
 
       const processor = new HooksProcessor({
-        outputRoot,
+        outputRoot: resolveToolOutputRoot({
+          outputRoot,
+          toolTarget,
+          global: config.getGlobal(),
+        }),
         inputRoot: config.getInputRoot(),
         toolTarget,
         global: config.getGlobal(),
@@ -999,7 +1020,11 @@ async function generatePermissionsCore(params: {
 
       try {
         const processor = new PermissionsProcessor({
-          outputRoot,
+          outputRoot: resolveToolOutputRoot({
+            outputRoot,
+            toolTarget,
+            global: config.getGlobal(),
+          }),
           inputRoot: config.getInputRoot(),
           toolTarget,
           global: config.getGlobal(),

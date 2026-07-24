@@ -1,15 +1,23 @@
 import { join } from "node:path";
 
-import { KIMI_CODE_CONFIG_FILE_NAME, KIMI_CODE_DIR } from "../../constants/kimi-code-paths.js";
+import { KIMI_CODE_CONFIG_FILE_NAME } from "../../constants/kimi-code-paths.js";
+import {
+  RULESYNC_PERMISSIONS_FILE_NAME,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { readFileContent } from "../../utils/file.js";
+import {
+  getKimiCodeRelativeDirPath,
+  getKimiCodeRulesyncOutputRoot,
+} from "../../utils/kimi-code.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
+  KIMI_CODE_CONFIG_SHARED_FILE_KEY,
   parseSharedConfig,
-  sharedConfigFileKey,
   stringifySharedConfig,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -214,13 +222,15 @@ export class KimiCodePermissions extends ToolPermissions {
   constructor(params: KimiCodePermissionsParams) {
     super({
       ...params,
-      ...KimiCodePermissions.getSettablePaths(),
+      ...KimiCodePermissions.getSettablePaths({ global: params.global ?? true }),
     });
   }
 
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
+  static getSettablePaths({
+    global = true,
+  }: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return {
-      relativeDirPath: KIMI_CODE_DIR,
+      relativeDirPath: getKimiCodeRelativeDirPath({ global }),
       relativeFilePath: KIMI_CODE_CONFIG_FILE_NAME,
     };
   }
@@ -238,9 +248,9 @@ export class KimiCodePermissions extends ToolPermissions {
   }
 
   setFileContent(fileContent: string): void {
-    const paths = KimiCodePermissions.getSettablePaths();
+    const paths = KimiCodePermissions.getSettablePaths({ global: this.global });
     this.fileContent = applySharedConfigPatch({
-      fileKey: sharedConfigFileKey(paths),
+      fileKey: KIMI_CODE_CONFIG_SHARED_FILE_KEY,
       feature: "permissions",
       existingContent: fileContent,
       patch: parseSharedConfig({ format: "toml", fileContent: this.fileContent }),
@@ -251,15 +261,16 @@ export class KimiCodePermissions extends ToolPermissions {
   static async fromFile({
     outputRoot = process.cwd(),
     validate = true,
+    global = true,
   }: ToolPermissionsFromFileParams): Promise<KimiCodePermissions> {
-    const paths = this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
     return new KimiCodePermissions({
       outputRoot,
       fileContent: await readFileContent(
         join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       ),
       validate,
-      global: true,
+      global,
     });
   }
 
@@ -303,7 +314,13 @@ export class KimiCodePermissions extends ToolPermissions {
         : {}),
       ...(nativeRules.length > 0 && { rules: nativeRules }),
     };
-    return this.toRulesyncPermissionsDefault({
+    return new RulesyncPermissions({
+      outputRoot: getKimiCodeRulesyncOutputRoot({
+        nativeOutputRoot: this.outputRoot,
+        global: this.global,
+      }),
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
       fileContent: JSON.stringify(
         {
           permission,

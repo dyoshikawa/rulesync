@@ -19,7 +19,13 @@ export type ToolSkillSettablePaths = {
   /** Extra directories to scan for import and deletion (e.g. Rovo Dev `.agents/skills/` alongside `.rovodev/skills/`). */
   alternativeSkillRoots?: string[];
   /** Extra read-only discovery roots that generation and orphan deletion must not manage. */
-  importOnlySkillRoots?: string[];
+  importOnlySkillRoots?: Array<
+    | string
+    | {
+        outputRoot: string;
+        relativeDirPath: string;
+      }
+  >;
 };
 
 /** Ordered skill directory roots: primary first. */
@@ -28,7 +34,9 @@ export function toolSkillSearchRoots(paths: ToolSkillSettablePaths): string[] {
 }
 
 /** Ordered import roots: managed roots first, followed by read-only discovery roots. */
-export function toolSkillImportRoots(paths: ToolSkillSettablePaths): string[] {
+export function toolSkillImportRoots(
+  paths: ToolSkillSettablePaths,
+): Array<string | { outputRoot: string; relativeDirPath: string }> {
   return [...toolSkillSearchRoots(paths), ...(paths.importOnlySkillRoots ?? [])];
 }
 
