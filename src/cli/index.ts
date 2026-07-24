@@ -128,7 +128,7 @@ const main = async () => {
     )
     .option(
       "-f, --features <features>",
-      `Comma-separated list of features to fetch (${ALL_FEATURES.join(",")}) or '*' for all`,
+      `Comma-separated list of features to fetch (${ALL_FEATURES.join(",")}) or '*' for all. Default: skills`,
       parseCommaSeparatedList,
     )
     .option("-r, --ref <ref>", "Branch, tag, or commit SHA to fetch from")

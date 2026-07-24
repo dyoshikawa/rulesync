@@ -455,6 +455,140 @@ describe("fetchFiles", () => {
     expect(summary.files[0]?.relativePath).toBe("rules/overview.md");
   });
 
+  it("should fetch only skills when features are omitted", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        if (path === "rules") {
+          return Promise.resolve([
+            {
+              name: "overview.md",
+              path: "rules/overview.md",
+              type: "file",
+              sha: "abc",
+              size: 200,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: "test-skill",
+              path: "skills/test-skill",
+              type: "dir",
+              sha: "def",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/test-skill") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/test-skill/SKILL.md",
+              type: "file",
+              sha: "ghi",
+              size: 150,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill\n\nTest skill");
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      outputRoot: testDir,
+    });
+
+    expect(summary.files).toEqual([
+      { relativePath: "skills/test-skill/SKILL.md", status: "created" },
+    ]);
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalledWith(
+      "owner",
+      "repo",
+      "rules",
+      "main",
+    );
+  });
+
+  it("should fetch all features when the wildcard is explicit", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        if (path === "rules") {
+          return Promise.resolve([
+            {
+              name: "overview.md",
+              path: "rules/overview.md",
+              type: "file",
+              sha: "abc",
+              size: 200,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: "test-skill",
+              path: "skills/test-skill",
+              type: "dir",
+              sha: "def",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/test-skill") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/test-skill/SKILL.md",
+              type: "file",
+              sha: "ghi",
+              size: 150,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("content");
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { features: ["*"] },
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath)).toEqual([
+      "rules/overview.md",
+      "skills/test-skill/SKILL.md",
+    ]);
+  });
+
+  it("should fetch no features when an empty array is explicit", async () => {
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { features: [] },
+      outputRoot: testDir,
+    });
+
+    expect(summary.files).toEqual([]);
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
+  });
+
   it("should skip existing files with skip strategy", async () => {
     // Create an existing file
     await ensureDir(join(testDir, ".rulesync", "rules"));
