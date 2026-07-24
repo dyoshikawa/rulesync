@@ -16,7 +16,7 @@ If you're new to the project, you can ask [DeepWiki](https://deepwiki.com/dyoshi
 ## Development Setup
 
 ```bash
-git clone https://github.com/dyoshikawa/rulesync # Should be your fork repository url actually
+git clone https://github.com/dyoshikawa/rulesync # Should be your fork repository URL actually
 cd rulesync
 pnpm i
 pnpm cicheck # Run code style check, type check, and tests
@@ -28,19 +28,19 @@ pnpm dev import -t claudecode -f "*"
 pnpm dev generate
 ```
 
-## How to add support for a new Tool/Feature
+## How to Add Support for a New Tool/Feature
 
 To add support for a new Tool/Feature (e.g., rules), modify these files:
 
-1. `src/features/{feature}/{tool}-{feature}.ts` - create implementation
-2. `src/features/{feature}/{tool}-{feature}.test.ts` - create tests
-3. `src/types/tool-targets.ts` - add to `ALL_TOOL_TARGETS`
-4. `src/types/tool-targets.test.ts` - add to expected targets
-5. `src/features/{feature}/{feature}-processor.ts` - register in factory
-6. `src/cli/commands/gitignore.ts` - add output file pattern
-7. `src/cli/commands/gitignore.test.ts` - update test
-8. `README.md` - add to Supported Tools table
-9. Run `pnpm dev gitignore` to update project `.gitignore`
+1. `src/features/{feature}/{tool}-{feature}.ts` - create implementation.
+2. `src/features/{feature}/{tool}-{feature}.test.ts` - create tests.
+3. `src/types/tool-targets.ts` - add to `ALL_TOOL_TARGETS`.
+4. `src/types/tool-targets.test.ts` - add to expected targets.
+5. `src/features/{feature}/{feature}-processor.ts` - register in factory.
+6. `src/cli/commands/gitignore.ts` - add output file pattern.
+7. `src/cli/commands/gitignore.test.ts` - update test.
+8. `README.md` - add to Supported Tools table.
+9. Run `pnpm dev gitignore` to update project `.gitignore`.
 
 See [.rulesync/rules/feature-change-guidelines.md](.rulesync/rules/feature-change-guidelines.md) for additional guidance.
 
