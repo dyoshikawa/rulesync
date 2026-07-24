@@ -19,7 +19,6 @@ import {
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
-import { RulesyncCommand } from "../features/commands/rulesync-command.js";
 import { RulesyncHooks } from "../features/hooks/rulesync-hooks.js";
 import { RulesyncMcp } from "../features/mcp/rulesync-mcp.js";
 import { RulesyncRule } from "../features/rules/rulesync-rule.js";
@@ -29,7 +28,6 @@ import { ensureDir, fileExists, writeFileContent } from "../utils/file.js";
 import { init } from "./init.js";
 
 vi.mock("../utils/file.js");
-vi.mock("../features/commands/rulesync-command.js");
 vi.mock("../features/hooks/rulesync-hooks.js");
 vi.mock("../features/mcp/rulesync-mcp.js");
 vi.mock("../features/rules/rulesync-rule.js");
@@ -60,9 +58,6 @@ describe("init", () => {
           relativeFilePath: ".mcp.json",
         },
       ],
-    } as never);
-    vi.mocked(RulesyncCommand.getSettablePaths).mockReturnValue({
-      relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
     } as never);
     vi.mocked(RulesyncSubagent.getSettablePaths).mockReturnValue({
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -125,7 +120,6 @@ describe("init", () => {
       const expectedPaths = [
         join(RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
         RULESYNC_MCP_RELATIVE_FILE_PATH,
-        join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
         join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
         join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "project-context", SKILL_FILE_NAME),
         RULESYNC_HOOKS_RELATIVE_FILE_PATH,
@@ -145,7 +139,7 @@ describe("init", () => {
 
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RELATIVE_DIR_PATH);
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
+      expect(ensureDir).not.toHaveBeenCalledWith(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(
         join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "project-context"),
@@ -172,7 +166,6 @@ describe("init", () => {
       expect(config.features).toEqual([
         "rules",
         "mcp",
-        "commands",
         "subagents",
         "skills",
         "hooks",
@@ -220,7 +213,7 @@ describe("init", () => {
       expect(content).toContain('"mcpServers"');
     });
 
-    it("should create command sample file", async () => {
+    it("should not create a command sample file", async () => {
       await init();
 
       const commandFilePath = join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md");
@@ -228,9 +221,7 @@ describe("init", () => {
         .mocked(writeFileContent)
         .mock.calls.find((c) => c[0] === commandFilePath);
 
-      expect(writeCall).toBeDefined();
-      const content = writeCall?.[1] ?? "";
-      expect(content).toContain("description: 'Review a pull request'");
+      expect(writeCall).toBeUndefined();
     });
 
     it("should create subagent sample file", async () => {

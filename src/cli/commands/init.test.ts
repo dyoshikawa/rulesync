@@ -15,7 +15,6 @@ import {
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
-import { RulesyncCommand } from "../../features/commands/rulesync-command.js";
 import { RulesyncHooks } from "../../features/hooks/rulesync-hooks.js";
 import { RulesyncMcp } from "../../features/mcp/rulesync-mcp.js";
 import { RulesyncRule } from "../../features/rules/rulesync-rule.js";
@@ -27,7 +26,6 @@ import { initCommand } from "./init.js";
 
 // Mock dependencies
 vi.mock("../../utils/file.js");
-vi.mock("../../features/commands/rulesync-command.js");
 vi.mock("../../features/hooks/rulesync-hooks.js");
 vi.mock("../../features/mcp/rulesync-mcp.js");
 vi.mock("../../features/rules/rulesync-rule.js");
@@ -64,9 +62,6 @@ describe("initCommand", () => {
           relativeFilePath: ".mcp.json",
         },
       ],
-    } as any);
-    vi.mocked(RulesyncCommand.getSettablePaths).mockReturnValue({
-      relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
     } as any);
     vi.mocked(RulesyncSubagent.getSettablePaths).mockReturnValue({
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -113,13 +108,13 @@ describe("initCommand", () => {
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RELATIVE_DIR_PATH);
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
+      expect(ensureDir).not.toHaveBeenCalledWith(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(
         join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "project-context"),
       );
-      expect(ensureDir).toHaveBeenCalledTimes(8);
+      expect(ensureDir).toHaveBeenCalledTimes(7);
     });
 
     it("should call createSampleFiles", async () => {
@@ -258,16 +253,6 @@ describe("initCommand", () => {
       expect(writeFileContent).toHaveBeenCalled();
       expect(mockLogger.success).not.toHaveBeenCalledWith(expect.stringContaining("Created"));
     });
-
-    it("should handle RulesyncCommand.getSettablePaths errors", async () => {
-      vi.mocked(RulesyncCommand.getSettablePaths).mockImplementation(() => {
-        throw new Error("Command configuration error");
-      });
-
-      await expect(initCommand(mockLogger)).rejects.toThrow("Command configuration error");
-
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RELATIVE_DIR_PATH);
-    });
   });
 
   describe("integration scenarios", () => {
@@ -280,7 +265,7 @@ describe("initCommand", () => {
 
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RULES_RELATIVE_DIR_PATH);
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
+      expect(ensureDir).not.toHaveBeenCalledWith(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       expect(ensureDir).toHaveBeenCalledWith(
         join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "project-context"),
@@ -310,7 +295,6 @@ describe("initCommand", () => {
         RULESYNC_RELATIVE_DIR_PATH,
         RULESYNC_RULES_RELATIVE_DIR_PATH,
         RULESYNC_RELATIVE_DIR_PATH,
-        RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "project-context"),
         RULESYNC_RELATIVE_DIR_PATH,
