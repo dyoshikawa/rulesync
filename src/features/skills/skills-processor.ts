@@ -655,9 +655,12 @@ export class SkillsProcessor extends DirFeatureProcessor {
         continue;
       }
       const fromFlatFile = factory.class.fromFlatFile;
-      const flatFilePaths = await findFilesByGlobs(join(skillsDirPath, "*.md"), {
-        type: "file",
-      });
+      const directoryStems = new Set(ownedDirNames);
+      const flatFilePaths = (
+        await findFilesByGlobs(join(skillsDirPath, "*.md"), {
+          type: "file",
+        })
+      ).filter((filePath) => !directoryStems.has(basename(filePath, ".md")));
       const flatSkills = await Promise.all(
         flatFilePaths.map((filePath) =>
           fromFlatFile({

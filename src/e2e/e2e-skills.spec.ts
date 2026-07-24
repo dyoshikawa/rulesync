@@ -451,10 +451,10 @@ This is the fallback skill body content.`;
       ),
     ).toContain("Directory collision body");
     expect(
-      await readFileContent(
+      await fileExists(
         join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "flat-logical", "SKILL.md"),
       ),
-    ).toContain("Flat collision body");
+    ).toBe(false);
   });
 
   it("should not delete Kimi shared-root skills", async () => {
