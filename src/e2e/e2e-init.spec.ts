@@ -60,11 +60,25 @@ describe("E2E: init", () => {
     const permissions = parseJsonc(
       await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
     ) as Record<string, unknown>;
+    expect(permissions.permission).toMatchObject({
+      read: {
+        ".env": "deny",
+        "credentials/**": "deny",
+      },
+    });
     expect(permissions.codexcli).toEqual({
       approval_policy: "on-request",
       approvals_reviewer: "auto_review",
       base_permission_profile: ":danger-full-access",
     });
+
+    await runGenerate({ target: "claudecode", features: "permissions" });
+    const claude = parseJsonc(await readFileContent(join(testDir, ".claude", "settings.json"))) as {
+      permissions?: {
+        deny?: string[];
+      };
+    };
+    expect(claude.permissions?.deny).toContain("Read(credentials/**)");
 
     await runGenerate({ target: "codexcli", features: "permissions" });
     const codex = smolToml.parse(

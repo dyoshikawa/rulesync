@@ -986,7 +986,8 @@ Example:
       "src/**": "allow"
     },
     "read": {
-      ".env": "deny"
+      ".env": "deny",
+      "credentials/**": "deny"
     }
   }
 }

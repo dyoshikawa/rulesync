@@ -306,6 +306,12 @@ describe("init", () => {
         .mock.calls.find((call) => call[0] === RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH);
       expect(writeCall).toBeDefined();
       expect(JSON.parse(writeCall?.[1] ?? "{}")).toMatchObject({
+        permission: {
+          read: {
+            ".env": "deny",
+            "credentials/**": "deny",
+          },
+        },
         codexcli: {
           approval_policy: "on-request",
           approvals_reviewer: "auto_review",

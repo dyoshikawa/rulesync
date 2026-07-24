@@ -326,7 +326,8 @@ function singletonTemplate(feature: ScaffoldFeature): string {
       "src/**": "allow"
     },
     "read": {
-      ".env": "deny"
+      ".env": "deny",
+      "credentials/**": "deny"
     }
   },
   "codexcli": {
