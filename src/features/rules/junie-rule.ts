@@ -149,19 +149,17 @@ export class JunieRule extends ToolRule {
       if (!("root" in paths) || !paths.root) {
         throw new Error("JunieRule global settable paths must include a root path");
       }
-      if (!rulesyncRule.getFrontmatter().root) {
-        throw new Error(
-          `JunieRule does not support non-root rules in global mode; expected a root rule but got '${rulesyncRule.getRelativeFilePath()}'`,
-        );
-      }
-      return new JunieRule(
-        this.buildToolRuleParamsDefault({
-          outputRoot,
-          rulesyncRule,
-          validate,
-          rootPath: paths.root,
-        }),
-      );
+      const frontmatter = rulesyncRule.getFrontmatter();
+      return new JunieRule({
+        outputRoot,
+        relativeDirPath: paths.root.relativeDirPath,
+        relativeFilePath: paths.root.relativeFilePath,
+        fileContent: rulesyncRule.getBody(),
+        validate,
+        root: frontmatter.root ?? false,
+        description: frontmatter.description,
+        globs: frontmatter.globs,
+      });
     }
 
     // Both root and non-root rules target the single root `.junie/AGENTS.md`;
