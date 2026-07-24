@@ -10,7 +10,7 @@ npm install -g rulesync
 rulesync init
 
 # Install official skills (recommended)
-rulesync fetch dyoshikawa/rulesync --features skills
+rulesync fetch dyoshikawa/rulesync
 
 # Or add skill sources to rulesync.jsonc and run 'rulesync install' (see "Declarative Skill Sources")
 ```

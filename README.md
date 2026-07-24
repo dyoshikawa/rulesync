@@ -53,7 +53,7 @@ See [Installation docs](https://dyoshikawa.github.io/rulesync/getting-started/in
 rulesync init
 
 # Install official skills (recommended)
-rulesync fetch dyoshikawa/rulesync --features skills
+rulesync fetch dyoshikawa/rulesync
 
 # Generate unified configurations with all features
 rulesync generate --targets "*" --features "*"

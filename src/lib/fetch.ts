@@ -228,10 +228,13 @@ async function convertFetchedFilesToRulesync(params: {
 }
 
 /**
- * Resolve features from options, handling wildcard
+ * Resolve features from options, defaulting to skills and handling wildcard.
  */
 function resolveFeatures(features?: string[]): Feature[] {
-  if (!features || features.length === 0 || features.includes("*")) {
+  if (features === undefined) {
+    return ["skills"];
+  }
+  if (features.includes("*")) {
     return [...ALL_FEATURES];
   }
   return features.filter((f): f is Feature => ALL_FEATURES.includes(f as Feature));

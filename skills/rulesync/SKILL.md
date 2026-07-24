@@ -44,7 +44,7 @@ rulesync generate --targets "*" --features "*"
 | `rulesync init`                                  | Scaffold project with config and sample rules    |
 | `rulesync generate --targets "*" --features "*"` | Generate all tool configs from unified rules     |
 | `rulesync import --targets <tool>`               | Import existing tool config into unified format  |
-| `rulesync fetch owner/repo --features skills`    | Fetch rules or skills from a remote repository   |
+| `rulesync fetch owner/repo`                      | Fetch skills from a remote repository            |
 | `rulesync install`                               | Install skill sources declared in rulesync.jsonc |
 | `rulesync generate --check`                      | CI check that generated files are up to date     |
 | `rulesync generate --dry-run`                    | Preview changes without writing files            |

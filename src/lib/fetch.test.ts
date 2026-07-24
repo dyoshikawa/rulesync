@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -37,6 +37,58 @@ vi.mock("./github-client.js", () => ({
     }
   },
 }));
+
+function mockMixedFeatureRepository(): { rulePath: string; skillPath: string } {
+  const rulePath = posix.join("rules", "overview.md");
+  const skillDirPath = posix.join("skills", "test-skill");
+  const skillPath = posix.join(skillDirPath, "SKILL.md");
+
+  mockClientInstance.listDirectory.mockImplementation(
+    (owner: string, repo: string, path: string) => {
+      if (path === "rules") {
+        return Promise.resolve([
+          {
+            name: "overview.md",
+            path: rulePath,
+            type: "file",
+            sha: "abc",
+            size: 200,
+            download_url: "https://example.com",
+          },
+        ]);
+      }
+      if (path === "skills") {
+        return Promise.resolve([
+          {
+            name: "test-skill",
+            path: skillDirPath,
+            type: "dir",
+            sha: "def",
+            size: 0,
+            download_url: null,
+          },
+        ]);
+      }
+      if (path === skillDirPath) {
+        return Promise.resolve([
+          {
+            name: "SKILL.md",
+            path: skillPath,
+            type: "file",
+            sha: "ghi",
+            size: 150,
+            download_url: "https://example.com",
+          },
+        ]);
+      }
+      const error = new Error("Not found");
+      Object.assign(error, { statusCode: 404 });
+      return Promise.reject(error);
+    },
+  );
+
+  return { rulePath, skillPath };
+}
 
 describe("parseSource", () => {
   describe("GitHub URL parsing", () => {
@@ -453,6 +505,51 @@ describe("fetchFiles", () => {
 
     expect(summary.files).toHaveLength(1);
     expect(summary.files[0]?.relativePath).toBe("rules/overview.md");
+  });
+
+  it("should fetch only skills when features are omitted", async () => {
+    const { skillPath } = mockMixedFeatureRepository();
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill\n\nTest skill");
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      outputRoot: testDir,
+    });
+
+    expect(summary.files).toEqual([{ relativePath: skillPath, status: "created" }]);
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalledWith(
+      "owner",
+      "repo",
+      "rules",
+      "main",
+    );
+  });
+
+  it("should fetch all features when the wildcard is explicit", async () => {
+    const { rulePath, skillPath } = mockMixedFeatureRepository();
+    mockClientInstance.getFileContent.mockResolvedValue("content");
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { features: ["*"] },
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath)).toEqual([rulePath, skillPath]);
+  });
+
+  it("should fetch no features when an empty array is explicit", async () => {
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { features: [] },
+      outputRoot: testDir,
+    });
+
+    expect(summary.files).toEqual([]);
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
   });
 
   it("should skip existing files with skip strategy", async () => {

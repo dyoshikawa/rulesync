@@ -4,7 +4,7 @@ Rulesync provides official skills that you can install using the fetch command o
 
 ```bash
 # One-time fetch
-rulesync fetch dyoshikawa/rulesync --features skills
+rulesync fetch dyoshikawa/rulesync
 
 # Or declare in rulesync.jsonc and run 'rulesync install'
 ```

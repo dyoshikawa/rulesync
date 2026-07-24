@@ -256,25 +256,25 @@ rulesync fetch owner/repo@ref:path   # Both ref and path
 
 ### Options
 
-| Option                  | Description                                                                                        | Default                          |
-| ----------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------- |
-| `--target, -t <target>` | Target format to interpret files as (e.g., 'rulesync', 'claudecode')                               | `rulesync`                       |
-| `--features <features>` | Comma-separated features to fetch (rules, commands, subagents, skills, ignore, mcp, hooks, checks) | `*` (all)                        |
-| `--output <dir>`        | Output directory relative to project root                                                          | `.rulesync`                      |
-| `--conflict <strategy>` | Conflict resolution: `overwrite` or `skip`                                                         | `overwrite`                      |
-| `--ref <ref>`           | Git ref (branch/tag/commit) to fetch from                                                          | Default branch                   |
-| `--path <path>`         | Subdirectory in the repository                                                                     | `.` (root)                       |
-| `--token <token>`       | Git provider token for private repositories                                                        | `GITHUB_TOKEN` or `GH_TOKEN` env |
+| Option                  | Description                                                                                                     | Default                          |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `--target, -t <target>` | Target format to interpret files as (e.g., 'rulesync', 'claudecode')                                            | `rulesync`                       |
+| `--features <features>` | Comma-separated features to fetch (rules, commands, subagents, skills, ignore, mcp, hooks, permissions, checks) | `skills`                         |
+| `--output <dir>`        | Output directory relative to project root                                                                       | `.rulesync`                      |
+| `--conflict <strategy>` | Conflict resolution: `overwrite` or `skip`                                                                      | `overwrite`                      |
+| `--ref <ref>`           | Git ref (branch/tag/commit) to fetch from                                                                       | Default branch                   |
+| `--path <path>`         | Subdirectory in the repository                                                                                  | `.` (root)                       |
+| `--token <token>`       | Git provider token for private repositories                                                                     | `GITHUB_TOKEN` or `GH_TOKEN` env |
 
 ### Examples
 
 ```bash
 # Fetch skills from external repositories
-rulesync fetch vercel-labs/agent-skills --features skills
-rulesync fetch anthropics/skills --features skills
+rulesync fetch vercel-labs/agent-skills
+rulesync fetch anthropics/skills
 
 # Fetch all features from a public repository
-rulesync fetch dyoshikawa/rulesync --path .rulesync
+rulesync fetch dyoshikawa/rulesync --path .rulesync --features "*"
 
 # Fetch only rules and commands from a specific tag
 rulesync fetch owner/repo@v1.0.0 --features rules,commands
