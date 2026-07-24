@@ -4,11 +4,19 @@ import { ConfigResolver } from "../../config/config-resolver.js";
 import { CommandsProcessor } from "../../features/commands/commands-processor.js";
 import { IgnoreProcessor } from "../../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../../features/mcp/mcp-processor.js";
+import { RulesyncMcp } from "../../features/mcp/rulesync-mcp.js";
 import { RulesProcessor } from "../../features/rules/rules-processor.js";
 import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import type { ImportOptions } from "./import.js";
 import { importCommand } from "./import.js";
+
+const createConvertedMcp = () =>
+  new RulesyncMcp({
+    relativeDirPath: ".rulesync",
+    relativeFilePath: "mcp.json",
+    fileContent: '{ "mcpServers": {} }',
+  });
 
 // Mock all dependencies
 vi.mock("../../config/config-resolver.js");
@@ -177,7 +185,7 @@ describe("importCommand", () => {
     it("should import MCP files when feature is enabled and tool is supported", async () => {
       const mockMcpProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "mcp1" }]),
-        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ mcp: "converted" }]),
+        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([createConvertedMcp()]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(McpProcessor).mockImplementation(function () {
@@ -335,7 +343,7 @@ describe("importCommand", () => {
 
       const mockMcpProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([{ file: "mcp1" }]),
-        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ mcp: "converted" }]),
+        convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([createConvertedMcp()]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 3, paths: [] }),
       };
       vi.mocked(McpProcessor).mockImplementation(function () {
@@ -471,7 +479,7 @@ describe("importCommand", () => {
       vi.mocked(McpProcessor).mockImplementation(function () {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([{ file: "test1" }]),
-          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ test: "converted" }]),
+          convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([createConvertedMcp()]),
           writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
         } as any;
       });

@@ -7,6 +7,7 @@ import * as smolToml from "smol-toml";
 import { describe, expect, it } from "vitest";
 
 import {
+  RULESYNC_MCP_LEGACY_RELATIVE_FILE_PATH,
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
 } from "../constants/rulesync-paths.js";
@@ -185,11 +186,11 @@ describe("E2E: mcp", () => {
 
     // The stale .json variant must lose to the .jsonc variant.
     await writeFileContent(
-      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      join(testDir, RULESYNC_MCP_LEGACY_RELATIVE_FILE_PATH),
       JSON.stringify({ mcpServers: { staleServer: { type: "stdio", command: "echo" } } }),
     );
     await writeFileContent(
-      join(testDir, ".rulesync", "mcp.jsonc"),
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
       `{
         "mcpServers": {
           // JSONC source with comments and trailing commas
@@ -816,7 +817,7 @@ describe("E2E: mcp (global mode)", () => {
     );
     await writeFileContent(legacyPath, legacyContent);
 
-    // Source: a fresh server in .rulesync/mcp.json.
+    // Source: a fresh server in .rulesync/mcp.jsonc.
     const mcpContent = JSON.stringify(
       {
         root: true,

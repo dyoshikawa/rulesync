@@ -5,7 +5,12 @@ import { z } from "zod/mini";
 import { RULESYNC_MCP_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { RulesyncMcp } from "../features/mcp/rulesync-mcp.js";
 import { formatError } from "../utils/error.js";
-import { ensureDir, fileExists, removeFile, writeFileContent } from "../utils/file.js";
+import { ensureDir, removeFile, writeFileContent } from "../utils/file.js";
+import { parseJsonc } from "../utils/jsonc.js";
+import {
+  getRulesyncSourceCandidates,
+  resolveRulesyncSourceWritePath,
+} from "../utils/rulesync-source-path.js";
 
 const maxMcpSizeBytes = 1024 * 1024; // 1MB
 
@@ -54,12 +59,12 @@ async function putMcpFile({ content }: { content: string }): Promise<{
     );
   }
 
-  // Validate JSON format
+  // Validate JSONC format
   try {
-    JSON.parse(content);
+    parseJsonc(content);
   } catch (error) {
     throw new Error(
-      `Invalid JSON format in MCP file (${RULESYNC_MCP_RELATIVE_FILE_PATH}): ${formatError(error)}`,
+      `Invalid JSONC format in MCP file (${RULESYNC_MCP_RELATIVE_FILE_PATH}): ${formatError(error)}`,
       {
         cause: error,
       },
@@ -69,20 +74,10 @@ async function putMcpFile({ content }: { content: string }): Promise<{
   try {
     const outputRoot = process.cwd();
     const paths = RulesyncMcp.getSettablePaths();
-
-    // A .jsonc variant takes precedence at read time, so writing the .json
-    // variant while it exists would be silently ignored — and rewriting the
-    // .jsonc file here would destroy its comments. Refuse instead.
-    const jsoncRelativePath = join(paths.jsonc.relativeDirPath, paths.jsonc.relativeFilePath);
-    if (await fileExists(join(outputRoot, jsoncRelativePath))) {
-      throw new Error(
-        `${jsoncRelativePath} exists and takes precedence over ${RULESYNC_MCP_RELATIVE_FILE_PATH}. Edit ${jsoncRelativePath} directly instead.`,
-      );
-    }
-
-    // Use recommended path
-    const relativeDirPath = paths.recommended.relativeDirPath;
-    const relativeFilePath = paths.recommended.relativeFilePath;
+    const { relativeDirPath, relativeFilePath } = await resolveRulesyncSourceWritePath({
+      outputRoot,
+      paths,
+    });
     const fullPath = join(outputRoot, relativeDirPath, relativeFilePath);
 
     // Create a RulesyncMcp instance to validate the content
@@ -126,26 +121,9 @@ async function deleteMcpFile(): Promise<{
     const outputRoot = process.cwd();
     const paths = RulesyncMcp.getSettablePaths();
 
-    // Try to delete both recommended and legacy paths
-    const recommendedPath = join(
-      outputRoot,
-      paths.recommended.relativeDirPath,
-      paths.recommended.relativeFilePath,
-    );
-    const legacyPath = join(
-      outputRoot,
-      paths.legacy.relativeDirPath,
-      paths.legacy.relativeFilePath,
-    );
-
-    // Remove recommended path if it exists
-    await removeFile(recommendedPath);
-
-    // Remove the .jsonc variant if it exists
-    await removeFile(join(outputRoot, paths.jsonc.relativeDirPath, paths.jsonc.relativeFilePath));
-
-    // Remove legacy path if it exists
-    await removeFile(legacyPath);
+    for (const candidate of getRulesyncSourceCandidates({ paths })) {
+      await removeFile(join(outputRoot, candidate.relativeDirPath, candidate.relativeFilePath));
+    }
 
     const relativePathFromCwd = join(
       paths.recommended.relativeDirPath,
@@ -192,7 +170,7 @@ export const mcpTools = {
   putMcpFile: {
     name: "putMcpFile",
     description:
-      "Create or update the MCP configuration file (upsert operation). content parameter is required and must be valid JSON.",
+      "Create or update the MCP configuration file (upsert operation). content parameter is required and must be valid JSONC.",
     parameters: mcpToolSchemas.putMcpFile,
     execute: async (args: { content: string }) => {
       const result = await putMcpFile({ content: args.content });

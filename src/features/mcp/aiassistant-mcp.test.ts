@@ -113,7 +113,7 @@ describe("AiassistantMcp", () => {
       const rulesync = aiassistant.toRulesyncMcp();
       expect(rulesync).toBeInstanceOf(RulesyncMcp);
       expect(rulesync.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
-      expect(rulesync.getRelativeFilePath()).toBe("mcp.json");
+      expect(rulesync.getRelativeFilePath()).toBe("mcp.jsonc");
       expect(JSON.parse(rulesync.getFileContent())).toEqual({
         $schema: RULESYNC_MCP_SCHEMA_URL,
         ...JSON.parse(content),

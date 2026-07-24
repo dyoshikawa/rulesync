@@ -25,7 +25,7 @@ const PermissionRulesSchema = z.record(z.string(), PermissionActionSchema);
  * key it appears under. During generation the categories placed here are
  * merged over the shared `permission` block per category (the tool-scoped
  * category replaces the shared one wholesale), mirroring how
- * `.rulesync/hooks.json` merges `{toolname}.hooks` per event.
+ * `.rulesync/hooks.jsonc` merges `{toolname}.hooks` per event.
  *
  * @example
  * { "claudecode": { "permission": { "bash": { "git push *": "deny" } } } }

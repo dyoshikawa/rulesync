@@ -2,8 +2,8 @@ import { join } from "node:path";
 
 import {
   RULESYNC_PERMISSIONS_FILE_NAME,
-  RULESYNC_PERMISSIONS_JSONC_FILE_NAME,
-  RULESYNC_PERMISSIONS_JSONC_RELATIVE_FILE_PATH,
+  RULESYNC_PERMISSIONS_LEGACY_FILE_NAME,
+  RULESYNC_PERMISSIONS_LEGACY_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
@@ -15,6 +15,10 @@ import type { ToolTarget } from "../../types/tool-targets.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
+import {
+  getRulesyncSourceCandidates,
+  type RulesyncSourceSettablePaths,
+} from "../../utils/rulesync-source-path.js";
 import { isRecord } from "../../utils/type-guards.js";
 
 export type RulesyncPermissionsParams = RulesyncFileParams;
@@ -24,14 +28,7 @@ export type RulesyncPermissionsFromFileParams = Pick<
   "outputRoot" | "validate"
 >;
 
-export type RulesyncPermissionsSettablePaths = {
-  relativeDirPath: string;
-  relativeFilePath: string;
-  jsonc: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-};
+export type RulesyncPermissionsSettablePaths = RulesyncSourceSettablePaths;
 
 export class RulesyncPermissions extends RulesyncFile {
   private readonly json: PermissionsConfig;
@@ -52,12 +49,16 @@ export class RulesyncPermissions extends RulesyncFile {
 
   static getSettablePaths(): RulesyncPermissionsSettablePaths {
     return {
-      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      jsonc: {
+      recommended: {
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: RULESYNC_PERMISSIONS_JSONC_FILE_NAME,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
       },
+      legacy: [
+        {
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_LEGACY_FILE_NAME,
+        },
+      ],
     };
   }
 
@@ -75,12 +76,7 @@ export class RulesyncPermissions extends RulesyncFile {
   }: RulesyncPermissionsFromFileParams): Promise<RulesyncPermissions> {
     const paths = RulesyncPermissions.getSettablePaths();
     // The .jsonc variant takes precedence when both files exist.
-    const candidates = [
-      paths.jsonc,
-      { relativeDirPath: paths.relativeDirPath, relativeFilePath: paths.relativeFilePath },
-    ];
-
-    for (const candidate of candidates) {
+    for (const candidate of getRulesyncSourceCandidates({ paths })) {
       const filePath = join(outputRoot, candidate.relativeDirPath, candidate.relativeFilePath);
       if (!(await fileExists(filePath))) {
         continue;
@@ -96,7 +92,7 @@ export class RulesyncPermissions extends RulesyncFile {
     }
 
     throw new Error(
-      `No ${RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH} or ${RULESYNC_PERMISSIONS_JSONC_RELATIVE_FILE_PATH} found.`,
+      `No ${RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH} or ${RULESYNC_PERMISSIONS_LEGACY_RELATIVE_FILE_PATH} found.`,
     );
   }
 
@@ -109,7 +105,7 @@ export class RulesyncPermissions extends RulesyncFile {
    * tool-scoped `{toolname}.permission` block over the shared `permission`
    * block, per category (the tool-scoped category replaces the shared one
    * wholesale — mirroring how `{toolname}.hooks` merges per event in
-   * `.rulesync/hooks.json`). The consumed `permission` key is stripped from
+   * `.rulesync/hooks.jsonc`). The consumed `permission` key is stripped from
    * the override block so verbatim-passthrough translators (e.g. the Hermes
    * deep merge or the Codex CLI top-level key whitelist) never see it.
    *

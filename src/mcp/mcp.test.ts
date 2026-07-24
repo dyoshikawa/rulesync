@@ -3,11 +3,12 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  RULESYNC_MCP_LEGACY_RELATIVE_FILE_PATH,
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../utils/file.js";
+import { ensureDir, fileExists, writeFileContent } from "../utils/file.js";
 import { mcpTools } from "./mcp.js";
 
 describe("MCP Tools", () => {
@@ -40,7 +41,10 @@ describe("MCP Tools", () => {
         },
       };
 
-      await writeFileContent(join(rulesyncDir, "mcp.json"), JSON.stringify(mcpConfig, null, 2));
+      await writeFileContent(
+        join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+        JSON.stringify(mcpConfig, null, 2),
+      );
 
       const result = await mcpTools.getMcpFile.execute();
       const parsed = JSON.parse(result);
@@ -112,7 +116,10 @@ describe("MCP Tools", () => {
         },
       };
 
-      await writeFileContent(join(rulesyncDir, "mcp.json"), JSON.stringify(mcpConfig, null, 2));
+      await writeFileContent(
+        join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+        JSON.stringify(mcpConfig, null, 2),
+      );
 
       const result = await mcpTools.getMcpFile.execute();
       const parsed = JSON.parse(result);
@@ -142,7 +149,10 @@ describe("MCP Tools", () => {
         },
       };
 
-      await writeFileContent(join(rulesyncDir, "mcp.json"), JSON.stringify(mcpConfig, null, 2));
+      await writeFileContent(
+        join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+        JSON.stringify(mcpConfig, null, 2),
+      );
 
       const result = await mcpTools.getMcpFile.execute();
       const parsed = JSON.parse(result);
@@ -200,7 +210,10 @@ describe("MCP Tools", () => {
         },
       };
 
-      await writeFileContent(join(rulesyncDir, "mcp.json"), JSON.stringify(initialConfig, null, 2));
+      await writeFileContent(
+        join(testDir, RULESYNC_MCP_LEGACY_RELATIVE_FILE_PATH),
+        JSON.stringify(initialConfig, null, 2),
+      );
 
       // Update the file
       const updatedConfig = {
@@ -219,9 +232,11 @@ describe("MCP Tools", () => {
       });
       const parsed = JSON.parse(result);
 
+      expect(parsed.relativePathFromCwd).toBe(RULESYNC_MCP_LEGACY_RELATIVE_FILE_PATH);
       const contentParsed = JSON.parse(parsed.content);
       expect(contentParsed.mcpServers.context7).toBeDefined();
       expect(contentParsed.mcpServers.serena).toBeUndefined();
+      expect(await fileExists(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH))).toBe(false);
     });
 
     it("should reject invalid JSON content", async () => {
@@ -232,7 +247,7 @@ describe("MCP Tools", () => {
         mcpTools.putMcpFile.execute({
           content: "not valid json {{{",
         }),
-      ).rejects.toThrow(/Invalid JSON format/i);
+      ).rejects.toThrow(/Invalid JSONC format/i);
     });
 
     it("should reject oversized MCP files", async () => {
@@ -377,14 +392,18 @@ describe("MCP Tools", () => {
       expect(parsed.content).toContain("serena");
     });
 
-    it("should refuse putMcpFile when mcp.jsonc exists", async () => {
+    it("should update mcp.jsonc when it exists", async () => {
       const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
       await writeFileContent(join(rulesyncDir, "mcp.jsonc"), '{ "mcpServers": {} }');
 
-      await expect(
-        mcpTools.putMcpFile.execute({ content: JSON.stringify({ mcpServers: {} }) }),
-      ).rejects.toThrow(/mcp\.jsonc/);
+      const result = await mcpTools.putMcpFile.execute({
+        content:
+          '{ // JSONC remains accepted\n "mcpServers": { "updated": { "command": "node", }, }, }',
+      });
+
+      expect(JSON.parse(result).relativePathFromCwd).toBe(RULESYNC_MCP_RELATIVE_FILE_PATH);
+      expect(await mcpTools.getMcpFile.execute()).toContain("updated");
     });
 
     it("should delete the mcp.jsonc variant too", async () => {
@@ -415,7 +434,10 @@ describe("MCP Tools", () => {
         },
       };
 
-      await writeFileContent(join(rulesyncDir, "mcp.json"), JSON.stringify(mcpConfig, null, 2));
+      await writeFileContent(
+        join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+        JSON.stringify(mcpConfig, null, 2),
+      );
 
       // Verify it exists
       await expect(mcpTools.getMcpFile.execute()).resolves.toBeDefined();
@@ -457,7 +479,10 @@ describe("MCP Tools", () => {
         },
       };
 
-      await writeFileContent(join(rulesyncDir, "mcp.json"), JSON.stringify(mcpConfig, null, 2));
+      await writeFileContent(
+        join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+        JSON.stringify(mcpConfig, null, 2),
+      );
       await writeFileContent(join(rulesyncDir, ".mcp.json"), JSON.stringify(mcpConfig, null, 2));
 
       // Delete them

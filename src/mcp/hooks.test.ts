@@ -3,11 +3,12 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  RULESYNC_HOOKS_LEGACY_RELATIVE_FILE_PATH,
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../utils/file.js";
+import { ensureDir, fileExists, writeFileContent } from "../utils/file.js";
 import { hooksTools } from "./hooks.js";
 
 describe("Hooks Tools", () => {
@@ -40,7 +41,10 @@ describe("Hooks Tools", () => {
         },
       };
 
-      await writeFileContent(join(rulesyncDir, "hooks.json"), JSON.stringify(hooksConfig, null, 2));
+      await writeFileContent(
+        join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+        JSON.stringify(hooksConfig, null, 2),
+      );
 
       const result = await hooksTools.getHooksFile.execute();
       const parsed = JSON.parse(result);
@@ -98,7 +102,7 @@ describe("Hooks Tools", () => {
         hooksTools.putHooksFile.execute({
           content: "not valid json {{{",
         }),
-      ).rejects.toThrow(/Invalid JSON format/i);
+      ).rejects.toThrow(/Invalid JSONC format/i);
     });
 
     it("should reject oversized hooks files", async () => {
@@ -141,14 +145,18 @@ describe("Hooks Tools", () => {
       expect(parsed.content).toContain("echo hi");
     });
 
-    it("should refuse putHooksFile when hooks.jsonc exists", async () => {
+    it("should update hooks.jsonc when it exists", async () => {
       const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
       await writeFileContent(join(rulesyncDir, "hooks.jsonc"), '{ "hooks": {} }');
 
-      await expect(
-        hooksTools.putHooksFile.execute({ content: JSON.stringify({ hooks: {} }) }),
-      ).rejects.toThrow(/hooks\.jsonc/);
+      const result = await hooksTools.putHooksFile.execute({
+        content:
+          '{ // JSONC remains accepted\n "hooks": { "sessionStart": [{ "command": "echo updated", },], }, }',
+      });
+
+      expect(JSON.parse(result).relativePathFromCwd).toBe(RULESYNC_HOOKS_RELATIVE_FILE_PATH);
+      expect(await hooksTools.getHooksFile.execute()).toContain("echo updated");
     });
 
     it("should delete the hooks.jsonc variant too", async () => {
@@ -178,7 +186,10 @@ describe("Hooks Tools", () => {
         },
       };
 
-      await writeFileContent(join(rulesyncDir, "hooks.json"), JSON.stringify(hooksConfig, null, 2));
+      await writeFileContent(
+        join(testDir, RULESYNC_HOOKS_LEGACY_RELATIVE_FILE_PATH),
+        JSON.stringify(hooksConfig, null, 2),
+      );
 
       // Verify it exists
       await expect(hooksTools.getHooksFile.execute()).resolves.toBeDefined();
@@ -188,9 +199,25 @@ describe("Hooks Tools", () => {
       const parsed = JSON.parse(result);
 
       expect(parsed.relativePathFromCwd).toBe(RULESYNC_HOOKS_RELATIVE_FILE_PATH);
+      expect(await fileExists(join(testDir, RULESYNC_HOOKS_LEGACY_RELATIVE_FILE_PATH))).toBe(false);
 
       // Verify it's deleted
       await expect(hooksTools.getHooksFile.execute()).rejects.toThrow();
+    });
+
+    it("should update an existing legacy JSON file without creating JSONC", async () => {
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_HOOKS_LEGACY_RELATIVE_FILE_PATH),
+        '{ "hooks": {} }',
+      );
+
+      const result = await hooksTools.putHooksFile.execute({
+        content: '{ "hooks": { "sessionStart": [{ "command": "echo legacy" }] } }',
+      });
+
+      expect(JSON.parse(result).relativePathFromCwd).toBe(RULESYNC_HOOKS_LEGACY_RELATIVE_FILE_PATH);
+      expect(await fileExists(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH))).toBe(false);
     });
 
     it("should succeed when deleting non-existent hooks file (idempotent)", async () => {

@@ -3,11 +3,12 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  RULESYNC_PERMISSIONS_LEGACY_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../utils/file.js";
+import { ensureDir, fileExists, writeFileContent } from "../utils/file.js";
 import { permissionsTools } from "./permissions.js";
 
 describe("Permissions Tools", () => {
@@ -40,7 +41,7 @@ describe("Permissions Tools", () => {
       };
 
       await writeFileContent(
-        join(rulesyncDir, "permissions.json"),
+        join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
         JSON.stringify(permissionsConfig, null, 2),
       );
 
@@ -97,7 +98,7 @@ describe("Permissions Tools", () => {
         permissionsTools.putPermissionsFile.execute({
           content: "not valid json {{{",
         }),
-      ).rejects.toThrow(/Invalid JSON format/i);
+      ).rejects.toThrow(/Invalid JSONC format/i);
     });
 
     it("should reject oversized permissions files", async () => {
@@ -139,16 +140,18 @@ describe("Permissions Tools", () => {
       expect(parsed.content).toContain("git *");
     });
 
-    it("should refuse putPermissionsFile when permissions.jsonc exists", async () => {
+    it("should update permissions.jsonc when it exists", async () => {
       const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
       await writeFileContent(join(rulesyncDir, "permissions.jsonc"), '{ "permission": {} }');
 
-      await expect(
-        permissionsTools.putPermissionsFile.execute({
-          content: JSON.stringify({ permission: {} }),
-        }),
-      ).rejects.toThrow(/permissions\.jsonc/);
+      const result = await permissionsTools.putPermissionsFile.execute({
+        content:
+          '{ // JSONC remains accepted\n "permission": { "bash": { "git status": "allow", }, }, }',
+      });
+
+      expect(JSON.parse(result).relativePathFromCwd).toBe(RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH);
+      expect(await permissionsTools.getPermissionsFile.execute()).toContain("git status");
     });
 
     it("should delete the permissions.jsonc variant too", async () => {
@@ -176,7 +179,7 @@ describe("Permissions Tools", () => {
       };
 
       await writeFileContent(
-        join(rulesyncDir, "permissions.json"),
+        join(testDir, RULESYNC_PERMISSIONS_LEGACY_RELATIVE_FILE_PATH),
         JSON.stringify(permissionsConfig, null, 2),
       );
 
@@ -188,6 +191,9 @@ describe("Permissions Tools", () => {
       const parsed = JSON.parse(result);
 
       expect(parsed.relativePathFromCwd).toBe(RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH);
+      expect(await fileExists(join(testDir, RULESYNC_PERMISSIONS_LEGACY_RELATIVE_FILE_PATH))).toBe(
+        false,
+      );
 
       // Verify it's deleted
       await expect(permissionsTools.getPermissionsFile.execute()).rejects.toThrow();
@@ -201,6 +207,23 @@ describe("Permissions Tools", () => {
       const parsed = JSON.parse(result);
 
       expect(parsed.relativePathFromCwd).toBe(RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH);
+    });
+
+    it("should update an existing legacy JSON file without creating JSONC", async () => {
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_PERMISSIONS_LEGACY_RELATIVE_FILE_PATH),
+        '{ "permission": {} }',
+      );
+
+      const result = await permissionsTools.putPermissionsFile.execute({
+        content: '{ "permission": { "bash": { "git diff": "allow" } } }',
+      });
+
+      expect(JSON.parse(result).relativePathFromCwd).toBe(
+        RULESYNC_PERMISSIONS_LEGACY_RELATIVE_FILE_PATH,
+      );
+      expect(await fileExists(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH))).toBe(false);
     });
   });
 });

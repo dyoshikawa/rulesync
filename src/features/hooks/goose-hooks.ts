@@ -117,7 +117,7 @@ export class GooseHooks extends ToolHooks {
     // event maps 1:1 to a canonical event, so a key absent from
     // GOOSE_TO_CANONICAL_EVENT_NAMES is cruft rather than a tool-specific event
     // worth passing through; keeping it would inject an invalid PascalCase key
-    // into the canonical `.rulesync/hooks.json`.
+    // into the canonical `.rulesync/hooks.jsonc`.
     const recognizedHooks =
       parsed.hooks && typeof parsed.hooks === "object" && !Array.isArray(parsed.hooks)
         ? Object.fromEntries(

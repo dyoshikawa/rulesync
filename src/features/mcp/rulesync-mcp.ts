@@ -5,7 +5,7 @@ import { z } from "zod/mini";
 
 import {
   RULESYNC_MCP_FILE_NAME,
-  RULESYNC_MCP_JSONC_FILE_NAME,
+  RULESYNC_MCP_LEGACY_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
@@ -21,6 +21,10 @@ import { fileExists, readFileContent } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
+import {
+  getRulesyncSourceCandidates,
+  type RulesyncSourceSettablePaths,
+} from "../../utils/rulesync-source-path.js";
 import { isRecord } from "../../utils/type-guards.js";
 
 // Schema for rulesync MCP server (extends base schema with optional targets)
@@ -42,8 +46,8 @@ type RulesyncMcpConfig = z.infer<typeof RulesyncMcpConfigSchema>;
  * Tool-scoped MCP block: servers that apply only to one tool. A named entry
  * replaces/adds the same-named shared server wholesale for that tool; `null`
  * removes the shared server for that tool. Mirrors `{toolname}.hooks` in
- * `.rulesync/hooks.json` and `{toolname}.permission` in
- * `.rulesync/permissions.json`.
+ * `.rulesync/hooks.jsonc` and `{toolname}.permission` in
+ * `.rulesync/permissions.jsonc`.
  */
 const toolScopedMcpSchema = z.looseObject({
   mcpServers: z.optional(z.record(z.string(), z.nullable(RulesyncMcpServerSchema))),
@@ -93,20 +97,7 @@ export type RulesyncMcpParams = RulesyncFileParams;
 
 export type RulesyncMcpFromFileParams = Pick<RulesyncFileFromFileParams, "outputRoot" | "validate">;
 
-export type RulesyncMcpSettablePaths = {
-  recommended: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  jsonc: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  legacy: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-};
+export type RulesyncMcpSettablePaths = RulesyncSourceSettablePaths;
 
 export class RulesyncMcp extends RulesyncFile {
   private readonly json: RulesyncMcpConfig;
@@ -132,14 +123,16 @@ export class RulesyncMcp extends RulesyncFile {
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: RULESYNC_MCP_FILE_NAME,
       },
-      jsonc: {
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: RULESYNC_MCP_JSONC_FILE_NAME,
-      },
-      legacy: {
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: ".mcp.json",
-      },
+      legacy: [
+        {
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_MCP_LEGACY_FILE_NAME,
+        },
+        {
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: ".mcp.json",
+        },
+      ],
     };
   }
 
@@ -157,58 +150,36 @@ export class RulesyncMcp extends RulesyncFile {
     logger,
   }: RulesyncMcpFromFileParams & { logger?: Logger }): Promise<RulesyncMcp> {
     const paths = this.getSettablePaths();
+    for (const candidate of getRulesyncSourceCandidates({ paths })) {
+      const filePath = join(outputRoot, candidate.relativeDirPath, candidate.relativeFilePath);
+      if (!(await fileExists(filePath))) {
+        continue;
+      }
+      if (candidate.relativeFilePath === ".mcp.json") {
+        const recommendedPath = join(
+          outputRoot,
+          paths.recommended.relativeDirPath,
+          paths.recommended.relativeFilePath,
+        );
+        logger?.warn(
+          `⚠️  Using deprecated path "${filePath}". Please migrate to "${recommendedPath}"`,
+        );
+      }
+      const fileContent = await readFileContent(filePath);
+      return new RulesyncMcp({
+        outputRoot,
+        relativeDirPath: candidate.relativeDirPath,
+        relativeFilePath: candidate.relativeFilePath,
+        fileContent,
+        validate,
+      });
+    }
+
     const recommendedPath = join(
       outputRoot,
       paths.recommended.relativeDirPath,
       paths.recommended.relativeFilePath,
     );
-    const jsoncPath = join(outputRoot, paths.jsonc.relativeDirPath, paths.jsonc.relativeFilePath);
-    const legacyPath = join(
-      outputRoot,
-      paths.legacy.relativeDirPath,
-      paths.legacy.relativeFilePath,
-    );
-
-    // The .jsonc variant takes precedence when both files exist.
-    if (await fileExists(jsoncPath)) {
-      const fileContent = await readFileContent(jsoncPath);
-      return new RulesyncMcp({
-        outputRoot,
-        relativeDirPath: paths.jsonc.relativeDirPath,
-        relativeFilePath: paths.jsonc.relativeFilePath,
-        fileContent,
-        validate,
-      });
-    }
-
-    // Check if recommended path exists
-    if (await fileExists(recommendedPath)) {
-      const fileContent = await readFileContent(recommendedPath);
-      return new RulesyncMcp({
-        outputRoot,
-        relativeDirPath: paths.recommended.relativeDirPath,
-        relativeFilePath: paths.recommended.relativeFilePath,
-        fileContent,
-        validate,
-      });
-    }
-
-    // Fall back to legacy path
-    if (await fileExists(legacyPath)) {
-      logger?.warn(
-        `⚠️  Using deprecated path "${legacyPath}". Please migrate to "${recommendedPath}"`,
-      );
-      const fileContent = await readFileContent(legacyPath);
-      return new RulesyncMcp({
-        outputRoot,
-        relativeDirPath: paths.legacy.relativeDirPath,
-        relativeFilePath: paths.legacy.relativeFilePath,
-        fileContent,
-        validate,
-      });
-    }
-
-    // If neither exists, try to read recommended path (will throw appropriate error)
     const fileContent = await readFileContent(recommendedPath);
     return new RulesyncMcp({
       outputRoot,

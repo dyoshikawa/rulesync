@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   RULESYNC_HOOKS_FILE_NAME,
-  RULESYNC_HOOKS_JSONC_FILE_NAME,
+  RULESYNC_HOOKS_LEGACY_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
@@ -36,7 +36,7 @@ describe("RulesyncHooks", () => {
 
       const instance = new RulesyncHooks({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: RULESYNC_HOOKS_JSONC_FILE_NAME,
+        relativeFilePath: RULESYNC_HOOKS_FILE_NAME,
         fileContent: jsoncContent,
       });
 
@@ -61,13 +61,13 @@ describe("RulesyncHooks", () => {
       const jsonData = { hooks: { sessionStart: [{ command: "echo hi" }] } };
       await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
       await writeFileContent(
-        join(testDir, RULESYNC_RELATIVE_DIR_PATH, RULESYNC_HOOKS_FILE_NAME),
+        join(testDir, RULESYNC_RELATIVE_DIR_PATH, RULESYNC_HOOKS_LEGACY_FILE_NAME),
         JSON.stringify(jsonData),
       );
 
       const instance = await RulesyncHooks.fromFile({ validate: true });
 
-      expect(instance.getRelativeFilePath()).toBe(RULESYNC_HOOKS_FILE_NAME);
+      expect(instance.getRelativeFilePath()).toBe(RULESYNC_HOOKS_LEGACY_FILE_NAME);
       expect(instance.getJson()).toEqual(jsonData);
     });
 
@@ -80,30 +80,30 @@ describe("RulesyncHooks", () => {
       }`;
       await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
       await writeFileContent(
-        join(testDir, RULESYNC_RELATIVE_DIR_PATH, RULESYNC_HOOKS_JSONC_FILE_NAME),
+        join(testDir, RULESYNC_RELATIVE_DIR_PATH, RULESYNC_HOOKS_FILE_NAME),
         jsoncContent,
       );
 
       const instance = await RulesyncHooks.fromFile({ validate: true });
 
-      expect(instance.getRelativeFilePath()).toBe(RULESYNC_HOOKS_JSONC_FILE_NAME);
+      expect(instance.getRelativeFilePath()).toBe(RULESYNC_HOOKS_FILE_NAME);
       expect(instance.getJson()).toEqual({ hooks: { sessionStart: [{ command: "echo hi" }] } });
     });
 
     it("should prefer hooks.jsonc over hooks.json when both exist", async () => {
       await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
       await writeFileContent(
-        join(testDir, RULESYNC_RELATIVE_DIR_PATH, RULESYNC_HOOKS_FILE_NAME),
+        join(testDir, RULESYNC_RELATIVE_DIR_PATH, RULESYNC_HOOKS_LEGACY_FILE_NAME),
         JSON.stringify({ hooks: { stop: [{ command: "from-json" }] } }),
       );
       await writeFileContent(
-        join(testDir, RULESYNC_RELATIVE_DIR_PATH, RULESYNC_HOOKS_JSONC_FILE_NAME),
+        join(testDir, RULESYNC_RELATIVE_DIR_PATH, RULESYNC_HOOKS_FILE_NAME),
         JSON.stringify({ hooks: { stop: [{ command: "from-jsonc" }] } }),
       );
 
       const instance = await RulesyncHooks.fromFile({ validate: true });
 
-      expect(instance.getRelativeFilePath()).toBe(RULESYNC_HOOKS_JSONC_FILE_NAME);
+      expect(instance.getRelativeFilePath()).toBe(RULESYNC_HOOKS_FILE_NAME);
       expect(instance.getJson()).toEqual({ hooks: { stop: [{ command: "from-jsonc" }] } });
     });
 
@@ -111,7 +111,7 @@ describe("RulesyncHooks", () => {
       await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
 
       await expect(RulesyncHooks.fromFile({ validate: true })).rejects.toThrow(
-        /hooks\.json.*hooks\.jsonc/,
+        /hooks\.jsonc.*hooks\.json/,
       );
     });
   });

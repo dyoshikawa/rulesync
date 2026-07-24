@@ -2,13 +2,22 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
+import {
+  RULESYNC_HOOKS_LEGACY_RELATIVE_FILE_PATH,
+  RULESYNC_MCP_LEGACY_RELATIVE_FILE_PATH,
+  RULESYNC_MCP_RELATIVE_FILE_PATH,
+  RULESYNC_PERMISSIONS_LEGACY_RELATIVE_FILE_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../constants/rulesync-paths.js";
 import { ChecksProcessor } from "../features/checks/checks-processor.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
+import { RulesyncHooks } from "../features/hooks/rulesync-hooks.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
+import { RulesyncMcp } from "../features/mcp/rulesync-mcp.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
+import { RulesyncPermissions } from "../features/permissions/rulesync-permissions.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
@@ -19,9 +28,11 @@ import { importFromTool } from "./import.js";
 
 const logger = createMockLogger();
 
-const createMockProcessor = () => ({
+const createMockProcessor = ({
+  convertedFiles = [{ file: "rulesync" }],
+}: { convertedFiles?: unknown[] } = {}) => ({
   loadToolFiles: vi.fn().mockResolvedValue([{ file: "tool" }]),
-  convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue([{ file: "rulesync" }]),
+  convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue(convertedFiles),
   writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
 });
 
@@ -80,7 +91,15 @@ describe("importFromTool", () => {
       return createMockProcessor() as unknown as IgnoreProcessor;
     });
     vi.mocked(McpProcessor).mockImplementation(function () {
-      return createMockProcessor() as unknown as McpProcessor;
+      return createMockProcessor({
+        convertedFiles: [
+          new RulesyncMcp({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: "mcp.json",
+            fileContent: '{ "mcpServers": {} }',
+          }),
+        ],
+      }) as unknown as McpProcessor;
     });
     vi.mocked(SubagentsProcessor).mockImplementation(function () {
       return createMockProcessor() as unknown as SubagentsProcessor;
@@ -92,10 +111,26 @@ describe("importFromTool", () => {
       return createMockSkillsProcessor() as unknown as SkillsProcessor;
     });
     vi.mocked(HooksProcessor).mockImplementation(function () {
-      return createMockProcessor() as unknown as HooksProcessor;
+      return createMockProcessor({
+        convertedFiles: [
+          new RulesyncHooks({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: "hooks.json",
+            fileContent: '{ "hooks": {} }',
+          }),
+        ],
+      }) as unknown as HooksProcessor;
     });
     vi.mocked(PermissionsProcessor).mockImplementation(function () {
-      return createMockProcessor() as unknown as PermissionsProcessor;
+      return createMockProcessor({
+        convertedFiles: [
+          new RulesyncPermissions({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: "permissions.json",
+            fileContent: '{ "permission": {} }',
+          }),
+        ],
+      }) as unknown as PermissionsProcessor;
     });
     vi.mocked(ChecksProcessor).mockImplementation(function () {
       return createMockProcessor() as unknown as ChecksProcessor;
@@ -286,14 +321,27 @@ describe("importFromTool", () => {
       );
     });
 
-    it("should warn when the imported mcp.json is shadowed by mcp.jsonc", async () => {
+    it("should write to an existing MCP JSONC source", async () => {
       const { testDir, cleanup } = await setupTestDirectory();
       try {
         await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
         await writeFileContent(
-          join(testDir, RULESYNC_RELATIVE_DIR_PATH, "mcp.jsonc"),
+          join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
           '{ "mcpServers": {} }',
         );
+        const mockProcessor = createMockProcessor({
+          convertedFiles: [
+            new RulesyncMcp({
+              outputRoot: testDir,
+              relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+              relativeFilePath: "mcp.json",
+              fileContent: '{ "mcpServers": { "imported": { "command": "node" } } }',
+            }),
+          ],
+        });
+        vi.mocked(McpProcessor).mockImplementation(function () {
+          return mockProcessor as unknown as McpProcessor;
+        });
         mockConfig.getFeatures.mockReturnValue(["mcp"]);
         mockConfig.getOutputRoots.mockReturnValue([testDir]);
 
@@ -303,7 +351,45 @@ describe("importFromTool", () => {
           tool: "claudecode",
         });
 
-        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("mcp.jsonc"));
+        const writtenFiles = mockProcessor.writeAiFiles.mock.calls[0]?.[0] as RulesyncMcp[];
+        expect(writtenFiles[0]?.getRelativeFilePath()).toBe("mcp.jsonc");
+      } finally {
+        await cleanup();
+      }
+    });
+
+    it("should update an existing legacy MCP JSON source without creating JSONC", async () => {
+      const { testDir, cleanup } = await setupTestDirectory();
+      try {
+        await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+        await writeFileContent(
+          join(testDir, RULESYNC_MCP_LEGACY_RELATIVE_FILE_PATH),
+          '{ "mcpServers": {} }',
+        );
+        const mockProcessor = createMockProcessor({
+          convertedFiles: [
+            new RulesyncMcp({
+              outputRoot: testDir,
+              relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+              relativeFilePath: "mcp.json",
+              fileContent: '{ "mcpServers": {} }',
+            }),
+          ],
+        });
+        vi.mocked(McpProcessor).mockImplementation(function () {
+          return mockProcessor as unknown as McpProcessor;
+        });
+        mockConfig.getFeatures.mockReturnValue(["mcp"]);
+        mockConfig.getOutputRoots.mockReturnValue([testDir]);
+
+        await importFromTool({
+          logger,
+          config: mockConfig as never,
+          tool: "claudecode",
+        });
+
+        const writtenFiles = mockProcessor.writeAiFiles.mock.calls[0]?.[0] as RulesyncMcp[];
+        expect(writtenFiles[0]?.getRelativeFilePath()).toBe("mcp.json");
       } finally {
         await cleanup();
       }
@@ -646,6 +732,44 @@ describe("importFromTool", () => {
       );
     });
 
+    it("should update an existing legacy hooks JSON source without creating JSONC", async () => {
+      const { testDir, cleanup } = await setupTestDirectory();
+      try {
+        await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+        await writeFileContent(
+          join(testDir, RULESYNC_HOOKS_LEGACY_RELATIVE_FILE_PATH),
+          '{ "hooks": {} }',
+        );
+        const mockProcessor = createMockProcessor({
+          convertedFiles: [
+            new RulesyncHooks({
+              outputRoot: testDir,
+              relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+              relativeFilePath: "hooks.json",
+              fileContent: '{ "hooks": {} }',
+            }),
+          ],
+        });
+        vi.mocked(HooksProcessor).mockImplementation(function () {
+          return mockProcessor as unknown as HooksProcessor;
+        });
+        mockConfig.getFeatures.mockReturnValue(["hooks"]);
+        mockConfig.getOutputRoots.mockReturnValue([testDir]);
+        vi.mocked(HooksProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+
+        await importFromTool({
+          logger,
+          config: mockConfig as never,
+          tool: "claudecode",
+        });
+
+        const writtenFiles = mockProcessor.writeAiFiles.mock.calls[0]?.[0] as RulesyncHooks[];
+        expect(writtenFiles[0]?.getRelativeFilePath()).toBe("hooks.json");
+      } finally {
+        await cleanup();
+      }
+    });
+
     it("should return 0 when no tool files found", async () => {
       mockConfig.getFeatures.mockReturnValue(["hooks"]);
       vi.mocked(HooksProcessor.getToolTargets).mockReturnValue(["claudecode"]);
@@ -702,6 +826,43 @@ describe("importFromTool", () => {
           toolTarget: "claudecode",
         }),
       );
+    });
+
+    it("should update an existing legacy permissions JSON source without creating JSONC", async () => {
+      const { testDir, cleanup } = await setupTestDirectory();
+      try {
+        await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+        await writeFileContent(
+          join(testDir, RULESYNC_PERMISSIONS_LEGACY_RELATIVE_FILE_PATH),
+          '{ "permission": {} }',
+        );
+        const mockProcessor = createMockProcessor({
+          convertedFiles: [
+            new RulesyncPermissions({
+              outputRoot: testDir,
+              relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+              relativeFilePath: "permissions.json",
+              fileContent: '{ "permission": {} }',
+            }),
+          ],
+        });
+        vi.mocked(PermissionsProcessor).mockImplementation(function () {
+          return mockProcessor as unknown as PermissionsProcessor;
+        });
+        mockConfig.getFeatures.mockReturnValue(["permissions"]);
+        mockConfig.getOutputRoots.mockReturnValue([testDir]);
+
+        await importFromTool({
+          logger,
+          config: mockConfig as never,
+          tool: "claudecode",
+        });
+
+        const writtenFiles = mockProcessor.writeAiFiles.mock.calls[0]?.[0] as RulesyncPermissions[];
+        expect(writtenFiles[0]?.getRelativeFilePath()).toBe("permissions.json");
+      } finally {
+        await cleanup();
+      }
     });
 
     it("should return 0 permissions when feature is not enabled", async () => {
