@@ -36,8 +36,8 @@ jobs:
         # Keep the environment override and CLI flag together so publishing
         # cannot fall back to the installation proxy if either is refactored.
         env:
-          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
-        run: pnpm publish --registry="$NPM_CONFIG_REGISTRY"
+          PNPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+        run: pnpm publish --registry="$PNPM_CONFIG_REGISTRY"
 
       - name: Publish target draft release
         env:
