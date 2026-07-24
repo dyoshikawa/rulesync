@@ -43,6 +43,22 @@ const CanonicalPermissionsOverrideSchema = z.looseObject({
 });
 export type CanonicalPermissionsOverride = z.infer<typeof CanonicalPermissionsOverrideSchema>;
 
+const KimiCodePermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+  defaultPermissionMode: z.optional(z.enum(["manual", "yolo", "auto"])),
+  rules: z.optional(
+    z.array(
+      z.looseObject({
+        decision: PermissionActionSchema,
+        pattern: z.string(),
+        scope: z.optional(z.enum(["turn-override", "session-runtime", "project", "user"])),
+        reason: z.optional(z.string()),
+      }),
+    ),
+  ),
+});
+export type KimiCodePermissionsOverride = z.infer<typeof KimiCodePermissionsOverrideSchema>;
+
 /**
  * OpenCode-specific permission value. Unlike the shared canonical block, which
  * only accepts a pattern-to-action map, OpenCode also allows a bare action
@@ -690,6 +706,7 @@ const PermissionsConfigSchema = z.looseObject({
   devin: z.optional(CanonicalPermissionsOverrideSchema),
   goose: z.optional(CanonicalPermissionsOverrideSchema),
   grokcli: z.optional(CanonicalPermissionsOverrideSchema),
+  "kimi-code": z.optional(KimiCodePermissionsOverrideSchema),
   rovodev: z.optional(CanonicalPermissionsOverrideSchema),
   zed: z.optional(CanonicalPermissionsOverrideSchema),
 });

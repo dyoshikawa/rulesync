@@ -5,6 +5,7 @@ import * as smolToml from "smol-toml";
 import { describe, expect, it } from "vitest";
 
 import {
+  RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_JSONC_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_SCHEMA_URL,
@@ -70,6 +71,7 @@ const permissionsGlobalTargets = [
   "grokcli",
   "takt",
   "hermesagent",
+  "kimi-code",
   "reasonix",
   "devin",
   "factorydroid",
@@ -1356,6 +1358,133 @@ describe("E2E: permissions (global mode)", () => {
       expect(generated).toContain("rm *");
     },
   );
+
+  it("should generate Kimi Code permissions in the shared user config", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        permission: {
+          bash: { "git status *": "allow", "rm *": "deny" },
+          read: { "*": "allow" },
+        },
+        "kimi-code": {
+          defaultPermissionMode: "manual",
+        },
+      }),
+    );
+
+    await runGenerate({
+      target: "kimi-code",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = smolToml.parse(
+      await readFileContent(join(homeDir, ".kimi-code", "config.toml")),
+    );
+    expect(generated.default_permission_mode).toBe("manual");
+    expect(generated.permission).toEqual({
+      rules: [
+        { decision: "allow", pattern: "Bash(git status *)", scope: "user" },
+        { decision: "deny", pattern: "Bash(rm *)", scope: "user" },
+        { decision: "allow", pattern: "Read", scope: "user" },
+      ],
+    });
+  });
+
+  it("should import Kimi Code permissions from the shared user config", async () => {
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(homeDir, ".kimi-code", "config.toml"),
+      [
+        'default_permission_mode = "auto"',
+        "",
+        "[[permission.rules]]",
+        'decision = "allow"',
+        'pattern = "Bash(git *)"',
+        "",
+        "[[permission.rules]]",
+        'decision = "deny"',
+        'pattern = "CustomTool"',
+        'scope = "project"',
+        'reason = "Project policy"',
+      ].join("\n"),
+    );
+
+    await runImport({
+      target: "kimi-code",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = JSON.parse(
+      await readFileContent(join(homeDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.permission.bash["git *"]).toBe("allow");
+    expect(imported["kimi-code"]).toEqual({
+      defaultPermissionMode: "auto",
+      rules: [
+        {
+          decision: "deny",
+          pattern: "CustomTool",
+          scope: "project",
+          reason: "Project policy",
+        },
+      ],
+    });
+  });
+
+  it("should merge Kimi Code hooks and permissions without clobbering user config", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(join(homeDir, ".kimi-code", "config.toml"), "telemetry = false\n");
+    await writeFileContent(
+      join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        version: 1,
+        hooks: {
+          preToolUse: [{ matcher: "Bash", command: ".rulesync/hooks/check.sh" }],
+        },
+      }),
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        permission: {
+          bash: { "git *": "allow" },
+        },
+      }),
+    );
+
+    await runGenerate({
+      target: "kimi-code",
+      features: "hooks,permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = smolToml.parse(
+      await readFileContent(join(homeDir, ".kimi-code", "config.toml")),
+    );
+    expect(generated.telemetry).toBe(false);
+    expect(generated.hooks).toEqual([
+      {
+        event: "PreToolUse",
+        matcher: "Bash",
+        command: ".rulesync/hooks/check.sh",
+      },
+    ]);
+    expect(generated.permission).toEqual({
+      rules: [{ decision: "allow", pattern: "Bash(git *)", scope: "user" }],
+    });
+  });
 
   it("should generate claudecode permissions in home directory with --global", async () => {
     const projectDir = getProjectDir();

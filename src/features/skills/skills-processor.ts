@@ -32,6 +32,7 @@ import { GrokcliSkill } from "./grokcli-skill.js";
 import { HermesagentSkill } from "./hermesagent-skill.js";
 import { JunieSkill } from "./junie-skill.js";
 import { KiloSkill } from "./kilo-skill.js";
+import { KimiCodeSkill } from "./kimi-code-skill.js";
 import { KiroCliSkill } from "./kiro-cli-skill.js";
 import { KiroIdeSkill } from "./kiro-ide-skill.js";
 import { KiroSkill } from "./kiro-skill.js";
@@ -279,6 +280,13 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "kilo",
     {
       class: KiloSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "kimi-code",
+    {
+      class: KimiCodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

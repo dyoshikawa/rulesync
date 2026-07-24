@@ -64,6 +64,10 @@ const skillsGenerateTargets = [
     outputPath: join(".kilo", "skills", "test-skill", "SKILL.md"),
   },
   {
+    target: "kimi-code",
+    outputPath: join(".kimi-code", "skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "roo",
     outputPath: join(".roo", "skills", "test-skill", "SKILL.md"),
   },
@@ -280,6 +284,10 @@ describe("E2E: skills (import)", () => {
     { target: "deepagents", sourcePath: join(".deepagents", "skills", "test-skill", "SKILL.md") },
     { target: "cline", sourcePath: join(".cline", "skills", "test-skill", "SKILL.md") },
     { target: "kilo", sourcePath: join(".kilo", "skills", "test-skill", "SKILL.md") },
+    {
+      target: "kimi-code",
+      sourcePath: join(".kimi-code", "skills", "test-skill", "SKILL.md"),
+    },
     { target: "roo", sourcePath: join(".roo", "skills", "test-skill", "SKILL.md") },
     { target: "rovodev", sourcePath: join(".rovodev", "skills", "test-skill", "SKILL.md") },
     { target: "devin", sourcePath: join(".devin", "skills", "test-skill", "SKILL.md") },
@@ -395,6 +403,10 @@ const skillsGlobalTargets = [
   {
     target: "kilo",
     outputPath: join(".kilo", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "kimi-code",
+    outputPath: join(".kimi-code", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "roo",

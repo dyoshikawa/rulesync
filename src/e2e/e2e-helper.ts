@@ -88,12 +88,24 @@ export async function runGenerate({
 export async function runImport({
   target,
   features,
+  global = false,
+  env,
 }: {
   target: string;
   features: string;
+  global?: boolean;
+  env?: Record<string, string>;
 }): Promise<{ stdout: string; stderr: string }> {
-  const args = [...rulesyncArgs, "import", "--targets", target, "--features", features];
-  return execFileAsync(rulesyncCmd, args);
+  const args = [
+    ...rulesyncArgs,
+    "import",
+    "--targets",
+    target,
+    "--features",
+    features,
+    ...(global ? ["--global"] : []),
+  ];
+  return execFileAsync(rulesyncCmd, args, env ? { env: { ...process.env, ...env } } : {});
 }
 
 /**

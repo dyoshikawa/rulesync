@@ -27,6 +27,7 @@ import { GrokcliSubagent } from "./grokcli-subagent.js";
 import { HermesagentSubagent } from "./hermesagent-subagent.js";
 import { JunieSubagent } from "./junie-subagent.js";
 import { KiloSubagent } from "./kilo-subagent.js";
+import { KimiCodeSubagent } from "./kimi-code-subagent.js";
 import { KiroCliSubagent } from "./kiro-cli-subagent.js";
 import { KiroIdeSubagent } from "./kiro-ide-subagent.js";
 import { KiroSubagent } from "./kiro-subagent.js";
@@ -299,6 +300,13 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     "kilo",
     {
       class: KiloSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+    },
+  ],
+  [
+    "kimi-code",
+    {
+      class: KimiCodeSubagent,
       meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
     },
   ],

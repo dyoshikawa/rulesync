@@ -636,7 +636,13 @@ const hooksGlobalTargets = [
 // As with the project-scope list, the completeness check only enforces that this
 // enumeration matches the processor's declared set — not that a matching `it`
 // exists for each name; keep it in sync with the actual `it`s by hand.
-const hooksGlobalStandaloneTargets = ["devin", "vibe", "hermesagent", "reasonix"] as const;
+const hooksGlobalStandaloneTargets = [
+  "devin",
+  "vibe",
+  "hermesagent",
+  "kimi-code",
+  "reasonix",
+] as const;
 
 describe("E2E: hooks (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
@@ -769,6 +775,67 @@ describe("E2E: hooks (global mode)", () => {
     expect(parsed.hooks.Stop).toBeDefined();
     expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/pre-run.sh");
     expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/on-stop.sh");
+  });
+
+  it("should generate Kimi Code hooks in the shared user config", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        version: 1,
+        hooks: {
+          sessionStart: [{ command: ".rulesync/hooks/session-start.sh" }],
+          stop: [{ command: ".rulesync/hooks/audit.sh" }],
+        },
+      }),
+    );
+
+    await runGenerate({
+      target: "kimi-code",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = await readFileContent(join(homeDir, ".kimi-code", "config.toml"));
+    expect(generated).toContain('event = "SessionStart"');
+    expect(generated).toContain('event = "Stop"');
+    expect(generated).toContain(".rulesync/hooks/session-start.sh");
+    expect(generated).toContain(".rulesync/hooks/audit.sh");
+  });
+
+  it("should import Kimi Code hooks from the shared user config", async () => {
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(homeDir, ".kimi-code", "config.toml"),
+      [
+        "[[hooks]]",
+        'event = "PreToolUse"',
+        'matcher = "Bash"',
+        'command = ".kimi-code/hooks/check.sh"',
+      ].join("\n"),
+    );
+
+    await runImport({
+      target: "kimi-code",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = JSON.parse(
+      await readFileContent(join(homeDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.hooks.preToolUse).toEqual([
+      {
+        type: "command",
+        matcher: "Bash",
+        command: ".kimi-code/hooks/check.sh",
+      },
+    ]);
   });
 
   it("should generate vibe hooks in home directory", async () => {

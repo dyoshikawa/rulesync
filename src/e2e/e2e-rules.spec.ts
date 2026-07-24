@@ -34,6 +34,7 @@ const rulesRootTargets = [
   { target: "goose", outputPath: ".goosehints" },
   { target: "copilotcli", outputPath: join(".github", "copilot-instructions.md") },
   { target: "kilo", outputPath: "AGENTS.md" },
+  { target: "kimi-code", outputPath: join(".kimi-code", "AGENTS.md") },
   { target: "agentsmd", outputPath: "AGENTS.md" },
   { target: "factorydroid", outputPath: "AGENTS.md" },
   { target: "deepagents", outputPath: join(".deepagents", "AGENTS.md") },
@@ -698,6 +699,11 @@ describe("E2E: rules (import)", () => {
     },
     { target: "qwencode", sourcePath: "QWEN.md", importedFileName: "overview.md" },
     {
+      target: "kimi-code",
+      sourcePath: join(".kimi-code", "AGENTS.md"),
+      importedFileName: "overview.md",
+    },
+    {
       target: "junie",
       sourcePath: join(".junie", "AGENTS.md"),
       importedFileName: "overview.md",
@@ -784,6 +790,7 @@ const rulesGlobalTargets = [
   { target: "deepagents", outputPath: join(".deepagents", "deepagents", "AGENTS.md") },
   { target: "factorydroid", outputPath: join(".factory", "AGENTS.md") },
   { target: "kilo", outputPath: join(".config", "kilo", "AGENTS.md") },
+  { target: "kimi-code", outputPath: join(".kimi-code", "AGENTS.md") },
   { target: "rovodev", outputPath: join(".rovodev", "AGENTS.md") },
   { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
   { target: "pi", outputPath: join(".pi", "agent", "AGENTS.md") },

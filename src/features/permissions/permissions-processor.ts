@@ -24,6 +24,7 @@ import { GrokcliPermissions } from "./grokcli-permissions.js";
 import { HermesagentPermissions } from "./hermesagent-permissions.js";
 import { JuniePermissions } from "./junie-permissions.js";
 import { KiloPermissions } from "./kilo-permissions.js";
+import { KimiCodePermissions } from "./kimi-code-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
 import { QwencodePermissions } from "./qwencode-permissions.js";
@@ -244,6 +245,17 @@ export const toolPermissionsFactories = new Map<
     "hermesagent",
     {
       class: HermesagentPermissions,
+      meta: {
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "kimi-code",
+    {
+      class: KimiCodePermissions,
       meta: {
         supportsProject: false,
         supportsGlobal: true,

@@ -1069,6 +1069,7 @@ Content that would fail parsing`;
         "grokcli",
         "junie",
         "kilo",
+        "kimi-code",
         "kiro",
         "kiro-cli",
         "kiro-ide",
@@ -1116,6 +1117,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("factorydroid");
       expect(globalTargets).toContain("junie");
       expect(globalTargets).toContain("kilo");
+      expect(globalTargets).toContain("kimi-code");
       expect(globalTargets).toContain("goose");
       expect(globalTargets).toContain("grokcli");
       expect(globalTargets).toContain("opencode");
@@ -1130,7 +1132,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("kiro-cli");
       expect(globalTargets).toContain("kiro-ide");
       expect(globalTargets).toContain("reasonix");
-      expect(globalTargets.length).toBe(29);
+      expect(globalTargets.length).toBe(30);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
