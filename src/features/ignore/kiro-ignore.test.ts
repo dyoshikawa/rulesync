@@ -25,6 +25,22 @@ describe("KiroIgnore", () => {
     vi.restoreAllMocks();
   });
 
+  describe("getSettablePaths", () => {
+    it("should return the workspace ignore path by default", () => {
+      expect(KiroIgnore.getSettablePaths()).toEqual({
+        relativeDirPath: ".",
+        relativeFilePath: ".kiroignore",
+      });
+    });
+
+    it("should return the user-level ignore path in global mode", () => {
+      expect(KiroIgnore.getSettablePaths({ global: true })).toEqual({
+        relativeDirPath: join(".kiro", "settings"),
+        relativeFilePath: "kiroignore",
+      });
+    });
+  });
+
   describe("constructor", () => {
     it("should create instance with default parameters", () => {
       const kiroIgnore = new KiroIgnore({
@@ -154,6 +170,22 @@ describe("KiroIgnore", () => {
       expect(kiroIgnore.getOutputRoot()).toBe("/custom/base");
       expect(kiroIgnore.getFilePath()).toBe("/custom/base/.kiroignore");
       expect(kiroIgnore.getFileContent()).toBe(fileContent);
+    });
+
+    it("should create the user-level Kiro ignore file in global mode", () => {
+      const rulesyncIgnore = new RulesyncIgnore({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".rulesignore",
+        fileContent: "*.secret",
+      });
+
+      const kiroIgnore = KiroIgnore.fromRulesyncIgnore({
+        outputRoot: testDir,
+        rulesyncIgnore,
+        global: true,
+      });
+
+      expect(kiroIgnore.getFilePath()).toBe(join(testDir, ".kiro", "settings", "kiroignore"));
     });
 
     it("should handle empty content", () => {

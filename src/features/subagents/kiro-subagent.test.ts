@@ -75,17 +75,18 @@ describe("KiroSubagent", () => {
       }).toThrow(/Invalid JSON in/);
     });
 
-    it("should throw error for missing required name field when validate is true", () => {
-      expect(() => {
-        new KiroSubagent({
-          outputRoot: testDir,
-          relativeDirPath: ".kiro/agents",
-          relativeFilePath: "missing-name.json",
-          body: JSON.stringify({ description: "no name" }),
-          fileContent: "",
-          validate: true,
-        });
-      }).toThrow(/Invalid JSON in/);
+    it("should accept an omitted name field", () => {
+      expect(
+        () =>
+          new KiroSubagent({
+            outputRoot: testDir,
+            relativeDirPath: ".kiro/agents",
+            relativeFilePath: "missing-name.json",
+            body: JSON.stringify({ description: "Name comes from the filename" }),
+            fileContent: "",
+            validate: true,
+          }),
+      ).not.toThrow();
     });
 
     it("should create instance with invalid JSON body when validate is false", () => {
@@ -134,6 +135,23 @@ describe("KiroSubagent", () => {
     });
     expect(rulesyncSubagent.getBody()).toBe("Review the provided changes");
     expect(rulesyncSubagent.getRelativeFilePath()).toBe("review.md");
+  });
+
+  it("should derive an omitted agent name from the JSON filename", () => {
+    const subagent = new KiroSubagent({
+      outputRoot: testDir,
+      relativeDirPath: ".kiro/agents",
+      relativeFilePath: "filename-agent.json",
+      body: JSON.stringify({ description: "Filename-derived agent" }),
+      fileContent: "",
+      validate: true,
+    });
+
+    expect(subagent.toRulesyncSubagent().getFrontmatter()).toMatchObject({
+      targets: ["kiro"],
+      name: "filename-agent",
+      description: "Filename-derived agent",
+    });
   });
 
   it("should create KiroSubagent from RulesyncSubagent with frontmatter", () => {

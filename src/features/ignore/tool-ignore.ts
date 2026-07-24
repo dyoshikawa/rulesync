@@ -31,16 +31,19 @@ export type ToolIgnoreSettablePaths = {
 
 export type ToolIgnoreFromFileParams = Pick<AiFileFromFileParams, "outputRoot" | "validate"> & {
   options?: ToolIgnoreFeatureOptions;
+  global?: boolean;
 };
 
 export type ToolIgnoreForDeletionParams = {
   outputRoot?: string;
   relativeDirPath: string;
   relativeFilePath: string;
+  global?: boolean;
 };
 
 export type ToolIgnoreSettablePathsParams = {
   options?: ToolIgnoreFeatureOptions;
+  global?: boolean;
 };
 export abstract class ToolIgnore extends ToolFile {
   protected patterns: string[];

@@ -199,12 +199,9 @@ function buildRulesStrategy(ctx: ConvertContext) {
 
 function buildIgnoreStrategy(ctx: ConvertContext) {
   const { config, logger } = ctx;
-  if (config.getGlobal()) {
-    logger.debug("Skipping ignore conversion (not supported in global mode)");
-    return null;
-  }
+  const global = config.getGlobal();
   const outputRoot = getOutputRoot(config);
-  const allTargets = IgnoreProcessor.getToolTargets();
+  const allTargets = IgnoreProcessor.getToolTargets({ global });
 
   return {
     feature: "ignore" as const,
@@ -212,8 +209,9 @@ function buildIgnoreStrategy(ctx: ConvertContext) {
     allTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
       new IgnoreProcessor({
-        outputRoot,
+        outputRoot: resolveToolOutputRoot({ outputRoot, toolTarget, global }),
         toolTarget,
+        global,
         dryRun,
         logger,
         featureOptions: config.getFeatureOptions(toolTarget, "ignore"),

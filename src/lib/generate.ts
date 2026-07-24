@@ -653,17 +653,14 @@ async function generateIgnoreCore(params: {
 }): Promise<FeatureGenerateResult> {
   const { config, logger } = params;
 
-  const supportedIgnoreTargets = config.getGlobal() ? [] : IgnoreProcessor.getToolTargets();
+  const global = config.getGlobal();
+  const supportedIgnoreTargets = IgnoreProcessor.getToolTargets({ global });
   warnUnsupportedTargets({
     config,
     supportedTargets: supportedIgnoreTargets,
     featureName: "ignore",
     logger,
   });
-
-  if (config.getGlobal()) {
-    return { count: 0, paths: [], hasDiff: false };
-  }
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -686,6 +683,7 @@ async function generateIgnoreCore(params: {
           outputRoot,
           inputRoot: config.getInputRoot(),
           toolTarget,
+          global,
           dryRun: config.isPreviewMode(),
           logger,
           featureOptions: config.getFeatureOptions(toolTarget, "ignore"),

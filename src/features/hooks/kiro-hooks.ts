@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { z } from "zod/mini";
+import { nonnegative, z } from "zod/mini";
 
 import { KIRO_AGENTS_DIR_PATH, KIRO_HOOKS_FILE_NAME } from "../../constants/kiro-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
@@ -43,6 +43,7 @@ function buildKiroEntriesForEvent(definitions: HooksConfig["hooks"][string]): un
       ...(def.timeout !== undefined &&
         def.timeout !== null &&
         def.timeout > 0 && { timeout_ms: def.timeout }),
+      ...(def.cacheTtl !== undefined && { cache_ttl_seconds: def.cacheTtl }),
       ...(def.name !== undefined && def.name !== null && { name: def.name }),
       ...(def.description !== undefined &&
         def.description !== null && { description: def.description }),
@@ -95,9 +96,16 @@ const KiroHookEntrySchema = z.looseObject({
   command: z.optional(safeString),
   matcher: z.optional(z.string()),
   timeout_ms: z.optional(z.number()),
+  cache_ttl_seconds: z.optional(z.number().check(nonnegative())),
   name: z.optional(z.string()),
   description: z.optional(z.string()),
 });
+type KiroHookEntry = z.infer<typeof KiroHookEntrySchema>;
+
+function importCacheTtl(entry: KiroHookEntry): { cacheTtl?: number } {
+  if (entry.cache_ttl_seconds === undefined) return {};
+  return { cacheTtl: entry.cache_ttl_seconds };
+}
 
 /**
  * Extract hooks from Kiro CLI agent config into canonical format.
@@ -124,6 +132,7 @@ function kiroHooksToCanonical(kiroHooks: unknown): HooksConfig["hooks"] {
           entry.matcher !== "" && { matcher: entry.matcher }),
         ...(entry.timeout_ms !== undefined &&
           entry.timeout_ms !== null && { timeout: entry.timeout_ms }),
+        ...importCacheTtl(entry),
         ...(entry.name !== undefined && entry.name !== null && { name: entry.name }),
         ...(entry.description !== undefined &&
           entry.description !== null && { description: entry.description }),

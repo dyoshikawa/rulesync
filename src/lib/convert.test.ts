@@ -65,7 +65,9 @@ describe("convertFromTool", () => {
     };
 
     vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["cursor", "claudecode", "copilot"]);
-    vi.mocked(IgnoreProcessor.getToolTargets).mockReturnValue(["cursor", "claudecode"]);
+    vi.mocked(IgnoreProcessor.getToolTargets).mockImplementation(({ global = false } = {}) =>
+      global ? ["kiro-cli", "kiro-ide"] : ["cursor", "claudecode"],
+    );
     vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["cursor", "claudecode", "copilot"]);
     vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode", "copilot"]);
     vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["cursor", "claudecode"]);
@@ -207,7 +209,7 @@ describe("convertFromTool", () => {
   });
 
   describe("ignore feature", () => {
-    it("should skip ignore in global mode", async () => {
+    it("should skip global ignore conversion for unsupported targets", async () => {
       mockConfig.getFeatures.mockReturnValue(["ignore"]);
       mockConfig.getGlobal.mockReturnValue(true);
 
@@ -220,6 +222,25 @@ describe("convertFromTool", () => {
 
       expect(result.ignoreCount).toBe(0);
       expect(IgnoreProcessor).not.toHaveBeenCalled();
+    });
+
+    it("should convert Kiro ignore files in global mode", async () => {
+      mockConfig.getFeatures.mockReturnValue(["ignore"]);
+      mockConfig.getGlobal.mockReturnValue(true);
+
+      const result = await convertFromTool({
+        logger,
+        config: mockConfig as never,
+        fromTool: "kiro-cli",
+        toTools: ["kiro-ide"],
+      });
+
+      expect(result.ignoreCount).toBe(1);
+      expect(IgnoreProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          global: true,
+        }),
+      );
     });
 
     it("should convert ignore files from source to destination", async () => {

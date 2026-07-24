@@ -222,6 +222,31 @@ describe("E2E: hooks", () => {
     expect(generatedContent).not.toContain("echo stale");
   });
 
+  it("should round-trip Kiro CLI hook cache TTL", async () => {
+    const testDir = getTestDir();
+    await writeFileContent(
+      join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        hooks: {
+          beforeSubmitPrompt: [{ command: "echo context", cacheTtl: 60 }],
+        },
+      }),
+    );
+
+    await runGenerate({ target: "kiro-cli", features: "hooks" });
+
+    const generatedPath = join(testDir, ".kiro", "agents", "default.json");
+    const generated = JSON.parse(await readFileContent(generatedPath));
+    expect(generated.hooks.userPromptSubmit[0].cache_ttl_seconds).toBe(60);
+
+    await runImport({ target: "kiro-cli", features: "hooks" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.hooks.beforeSubmitPrompt[0].cacheTtl).toBe(60);
+  });
+
   it("should map canonical stop/subagentStop to copilot agentStop/subagentStop", async () => {
     const testDir = getTestDir();
 

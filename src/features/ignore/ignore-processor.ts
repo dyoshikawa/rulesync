@@ -80,6 +80,7 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
 ]);
 
 const ignoreProcessorToolTargets: ToolTarget[] = [...toolIgnoreFactories.keys()];
+const ignoreProcessorGlobalToolTargets: ToolTarget[] = ["kiro", "kiro-cli", "kiro-ide"];
 
 type GetFactory = (target: IgnoreProcessorToolTarget) => ToolIgnoreFactory;
 
@@ -95,12 +96,14 @@ export class IgnoreProcessor extends FeatureProcessor {
   private readonly toolTarget: IgnoreProcessorToolTarget;
   private readonly getFactory: GetFactory;
   private readonly featureOptions: FeatureOptions | undefined;
+  private readonly global: boolean;
 
   constructor({
     outputRoot = process.cwd(),
     inputRoot = process.cwd(),
     toolTarget,
     getFactory = defaultGetFactory,
+    global = false,
     dryRun = false,
     logger,
     featureOptions,
@@ -109,6 +112,7 @@ export class IgnoreProcessor extends FeatureProcessor {
     inputRoot?: string;
     toolTarget: ToolTarget;
     getFactory?: GetFactory;
+    global?: boolean;
     dryRun?: boolean;
     logger: Logger;
     featureOptions?: FeatureOptions;
@@ -123,6 +127,7 @@ export class IgnoreProcessor extends FeatureProcessor {
     this.toolTarget = result.data;
     this.getFactory = getFactory;
     this.featureOptions = featureOptions;
+    this.global = global;
   }
 
   async writeToolIgnoresFromRulesyncIgnores(rulesyncIgnores: RulesyncIgnore[]): Promise<void> {
@@ -156,13 +161,17 @@ export class IgnoreProcessor extends FeatureProcessor {
   } = {}): Promise<ToolFile[]> {
     try {
       const factory = this.getFactory(this.toolTarget);
-      const paths = factory.class.getSettablePaths({ options: this.featureOptions });
+      const paths = factory.class.getSettablePaths({
+        options: this.featureOptions,
+        global: this.global,
+      });
 
       if (forDeletion) {
         const toolIgnore = factory.class.forDeletion({
           outputRoot: this.outputRoot,
           relativeDirPath: paths.relativeDirPath,
           relativeFilePath: paths.relativeFilePath,
+          global: this.global,
         });
         const hasOwnershipGuard = factory.class.canDeleteAuxiliaryFiles !== undefined;
         const canDelete =
@@ -194,7 +203,11 @@ export class IgnoreProcessor extends FeatureProcessor {
   async loadToolIgnores(): Promise<ToolIgnore[]> {
     const factory = this.getFactory(this.toolTarget);
     return [
-      await factory.class.fromFile({ outputRoot: this.outputRoot, options: this.featureOptions }),
+      await factory.class.fromFile({
+        outputRoot: this.outputRoot,
+        options: this.featureOptions,
+        global: this.global,
+      }),
     ];
   }
 
@@ -216,6 +229,7 @@ export class IgnoreProcessor extends FeatureProcessor {
       outputRoot: this.outputRoot,
       rulesyncIgnore,
       options: this.featureOptions,
+      global: this.global,
     });
 
     const auxiliaryFiles = await factory.class.getAuxiliaryFiles?.({
@@ -245,7 +259,7 @@ export class IgnoreProcessor extends FeatureProcessor {
    */
   static getToolTargets({ global = false }: { global?: boolean } = {}): ToolTarget[] {
     if (global) {
-      throw new Error("IgnoreProcessor does not support global mode");
+      return ignoreProcessorGlobalToolTargets;
     }
     return ignoreProcessorToolTargets;
   }

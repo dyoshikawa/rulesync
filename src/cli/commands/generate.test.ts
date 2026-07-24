@@ -80,7 +80,9 @@ describe("generateCommand", () => {
 
     // Setup processor static method mocks
     vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode"]);
-    vi.mocked(IgnoreProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+    vi.mocked(IgnoreProcessor.getToolTargets).mockImplementation(({ global = false } = {}) =>
+      global ? ["kiro-cli"] : ["claudecode"],
+    );
     vi.mocked(McpProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(CommandsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
@@ -946,12 +948,27 @@ describe("generateCommand", () => {
       );
     });
 
-    it("should skip ignore generation in global mode", async () => {
+    it("should skip ignore generation for targets without global support", async () => {
       const options: GenerateOptions = {};
 
       await generateCommand(mockLogger, options);
 
       expect(IgnoreProcessor).not.toHaveBeenCalled();
+    });
+
+    it("should generate Kiro ignore files in global mode", async () => {
+      mockConfig.getTargets.mockReturnValue(["kiro-cli"]);
+      mockConfig.getFeatures.mockReturnValue(["ignore"]);
+      const options: GenerateOptions = {};
+
+      await generateCommand(mockLogger, options);
+
+      expect(IgnoreProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolTarget: "kiro-cli",
+          global: true,
+        }),
+      );
     });
 
     it("should generate claudecode subagents in global mode", async () => {
