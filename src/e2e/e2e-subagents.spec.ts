@@ -462,6 +462,53 @@ Break down tasks into steps.
     ).toContain("Audit the configured");
   });
 
+  it("should import Kimi Code subagents from the shared .agents root", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".agents", "agents", "shared-reviewer.md"),
+      [
+        "---",
+        "name: shared-reviewer",
+        'description: "Reviews from the shared root"',
+        "---",
+        "Review changes from the shared agent root.",
+      ].join("\n"),
+    );
+
+    await runImport({ target: "kimi-code", features: "subagents" });
+
+    expect(
+      await readFileContent(
+        join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "shared-reviewer.md"),
+      ),
+    ).toContain("shared agent root");
+  });
+
+  it("should not delete Kimi Code subagents from the shared .agents root", async () => {
+    const testDir = getTestDir();
+    const sharedAgentPath = join(testDir, ".agents", "agents", "shared-reviewer.md");
+    await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+    await writeFileContent(
+      sharedAgentPath,
+      [
+        "---",
+        "name: shared-reviewer",
+        'description: "Shared reviewer"',
+        "---",
+        "User-owned shared reviewer.",
+      ].join("\n"),
+    );
+
+    await runGenerate({
+      target: "kimi-code",
+      features: "subagents",
+      deleteFiles: true,
+    });
+
+    expect(await readFileContent(sharedAgentPath)).toContain("User-owned shared reviewer");
+  });
+
   it("should import goose subagents (sub-recipe YAML)", async () => {
     const testDir = getTestDir();
 
@@ -646,5 +693,52 @@ Non-root subagent body
     );
     expect(generatedContent).toContain("Root subagent body");
     expect(generatedContent).not.toContain("Non-root subagent body");
+  });
+
+  it("should import shared global Kimi subagents without overriding Kimi-specific agents", async () => {
+    const homeDir = getHomeDir();
+    const primaryAgent = [
+      "---",
+      "name: reviewer",
+      'description: "Primary reviewer"',
+      "---",
+      "Primary Kimi-specific reviewer.",
+    ].join("\n");
+    const sharedDuplicate = [
+      "---",
+      "name: reviewer",
+      'description: "Shared duplicate reviewer"',
+      "---",
+      "Lower-precedence shared reviewer.",
+    ].join("\n");
+    const sharedAgent = [
+      "---",
+      "name: shared-helper",
+      'description: "Shared helper"',
+      "---",
+      "Shared global helper.",
+    ].join("\n");
+
+    await writeFileContent(join(homeDir, ".kimi-code", "agents", "reviewer.md"), primaryAgent);
+    await writeFileContent(join(homeDir, ".agents", "agents", "reviewer.md"), sharedDuplicate);
+    await writeFileContent(join(homeDir, ".agents", "agents", "shared-helper.md"), sharedAgent);
+
+    await runImport({
+      target: "kimi-code",
+      features: "subagents",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const reviewer = await readFileContent(
+      join(homeDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "reviewer.md"),
+    );
+    expect(reviewer).toContain("Primary Kimi-specific reviewer");
+    expect(reviewer).not.toContain("Lower-precedence shared reviewer");
+    expect(
+      await readFileContent(
+        join(homeDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "shared-helper.md"),
+      ),
+    ).toContain("Shared global helper");
   });
 });

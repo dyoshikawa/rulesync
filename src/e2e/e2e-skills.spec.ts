@@ -340,6 +340,72 @@ This is the fallback skill body content.`;
     );
     expect(importedContent).toContain("fallback skill body content");
   });
+
+  it("should import Kimi flat and shared skills with Kimi-specific precedence", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".kimi-code", "skills", "review.md"),
+      "Primary flat skill description\n\nPrimary flat skill body.",
+    );
+    await writeFileContent(
+      join(testDir, ".agents", "skills", "review", "SKILL.md"),
+      [
+        "---",
+        "name: review",
+        'description: "Lower-precedence shared skill"',
+        "---",
+        "Shared duplicate body.",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".agents", "skills", "shared", "SKILL.md"),
+      [
+        "---",
+        "name: shared",
+        'description: "Shared Agent Skill"',
+        "---",
+        "Shared-only skill body.",
+      ].join("\n"),
+    );
+
+    await runImport({ target: "kimi-code", features: "skills" });
+
+    const review = await readFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "review", "SKILL.md"),
+    );
+    expect(review).toContain("name: review");
+    expect(review).toContain("description: Primary flat skill description");
+    expect(review).toContain("Primary flat skill body");
+    expect(review).not.toContain("Shared duplicate body");
+    expect(
+      await readFileContent(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "shared", "SKILL.md")),
+    ).toContain("Shared-only skill body");
+  });
+
+  it("should not delete Kimi shared-root skills", async () => {
+    const testDir = getTestDir();
+    const sharedSkillPath = join(testDir, ".agents", "skills", "shared", "SKILL.md");
+    await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+    await writeFileContent(
+      sharedSkillPath,
+      [
+        "---",
+        "name: shared",
+        'description: "Shared Agent Skill"',
+        "---",
+        "User-owned shared skill.",
+      ].join("\n"),
+    );
+
+    await runGenerate({
+      target: "kimi-code",
+      features: "skills",
+      deleteFiles: true,
+    });
+
+    expect(await readFileContent(sharedSkillPath)).toContain("User-owned shared skill");
+  });
 });
 
 // Skills written under the pseudo-home dir.
@@ -562,6 +628,30 @@ Non-root skill body
     );
     expect(generatedContent).toContain("Root skill body");
     expect(generatedContent).not.toContain("Non-root skill body");
+  });
+
+  it("should import Kimi flat skills from the shared global root", async () => {
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(homeDir, ".agents", "skills", "global-review.md"),
+      ["---", 'description: "Reviews changes globally"', "---", "Global flat skill body."].join(
+        "\n",
+      ),
+    );
+
+    await runImport({
+      target: "kimi-code",
+      features: "skills",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = await readFileContent(
+      join(homeDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "global-review", "SKILL.md"),
+    );
+    expect(imported).toContain("name: global-review");
+    expect(imported).toContain("Global flat skill body");
   });
 });
 

@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { basename, extname, join } from "node:path";
 
 import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
@@ -51,8 +51,10 @@ import {
   ToolSkill,
   ToolSkillForDeletionParams,
   ToolSkillFromDirParams,
+  ToolSkillFromFlatFileParams,
   ToolSkillFromRulesyncSkillParams,
   ToolSkillSettablePaths,
+  toolSkillImportRoots,
   toolSkillSearchRoots,
 } from "./tool-skill.js";
 import { VibeSkill } from "./vibe-skill.js";
@@ -68,6 +70,11 @@ type ToolSkillFactory = {
     isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean;
     fromRulesyncSkill(params: ToolSkillFromRulesyncSkillParams): ToolSkill;
     fromDir(params: ToolSkillFromDirParams): Promise<ToolSkill>;
+    /**
+     * Optional loader for tools that also discover flat `<name>.md` skills.
+     * Directory-form skills are loaded first and take precedence.
+     */
+    fromFlatFile?(params: ToolSkillFromFlatFileParams): Promise<ToolSkill>;
     forDeletion(params: ToolSkillForDeletionParams): ToolSkill;
     getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths;
     /**
@@ -589,20 +596,20 @@ export class SkillsProcessor extends DirFeatureProcessor {
   async loadToolDirs(): Promise<AiDir[]> {
     const factory = this.getFactory(this.toolTarget);
     const paths = factory.class.getSettablePaths({ global: this.global });
-    const roots = toolSkillSearchRoots(paths);
+    const roots = toolSkillImportRoots(paths);
 
-    const seenDirNames = new Set<string>();
-    const loadEntries: Array<{ root: string; dirName: string }> = [];
-
+    const seenSkillNames = new Set<string>();
+    const toolSkills: ToolSkill[] = [];
     for (const root of roots) {
       const skillsDirPath = join(this.outputRoot, root);
       if (!(await directoryExists(skillsDirPath))) {
         continue;
       }
       const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
+      const ownedDirNames: string[] = [];
       for (const dirPath of dirPaths) {
         const dirName = basename(dirPath);
-        if (seenDirNames.has(dirName)) {
+        if (seenSkillNames.has(dirName)) {
           continue;
         }
         // Directories owned by another feature (see the `isDirOwned` factory
@@ -619,21 +626,59 @@ export class SkillsProcessor extends DirFeatureProcessor {
         ) {
           continue;
         }
-        seenDirNames.add(dirName);
-        loadEntries.push({ root, dirName });
+        ownedDirNames.push(dirName);
+      }
+
+      const directorySkills = await Promise.all(
+        ownedDirNames.map((dirName) =>
+          factory.class.fromDir({
+            outputRoot: this.outputRoot,
+            relativeDirPath: root,
+            dirName,
+            global: this.global,
+          }),
+        ),
+      );
+      for (const skill of directorySkills) {
+        const skillName = skill.getDirName();
+        if (seenSkillNames.has(skillName)) {
+          continue;
+        }
+        seenSkillNames.add(skillName);
+        toolSkills.push(skill);
+      }
+
+      if (!factory.class.fromFlatFile) {
+        continue;
+      }
+      const fromFlatFile = factory.class.fromFlatFile;
+      const flatFilePaths = await findFilesByGlobs(join(skillsDirPath, "*.md"), {
+        type: "file",
+      });
+      const flatSkills = await Promise.all(
+        flatFilePaths
+          .filter((filePath) => {
+            const fileName = basename(filePath);
+            return !seenSkillNames.has(fileName.slice(0, -extname(fileName).length));
+          })
+          .map((filePath) =>
+            fromFlatFile({
+              outputRoot: this.outputRoot,
+              relativeDirPath: root,
+              relativeFilePath: basename(filePath),
+              global: this.global,
+            }),
+          ),
+      );
+      for (const skill of flatSkills) {
+        const skillName = skill.getDirName();
+        if (seenSkillNames.has(skillName)) {
+          continue;
+        }
+        seenSkillNames.add(skillName);
+        toolSkills.push(skill);
       }
     }
-
-    const toolSkills = await Promise.all(
-      loadEntries.map(({ root, dirName }) =>
-        factory.class.fromDir({
-          outputRoot: this.outputRoot,
-          relativeDirPath: root,
-          dirName,
-          global: this.global,
-        }),
-      ),
-    );
 
     this.logger.debug(
       `Successfully loaded ${toolSkills.length} skills from ${roots.length} root(s): ${roots.join(", ")}`,

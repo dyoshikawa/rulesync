@@ -1,12 +1,17 @@
-import { join } from "node:path";
+import { basename, extname, join } from "node:path";
 
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { KIMI_CODE_SKILLS_DIR_PATH } from "../../constants/kimi-code-paths.js";
+import {
+  KIMI_CODE_SHARED_SKILLS_DIR_PATH,
+  KIMI_CODE_SKILLS_DIR_PATH,
+} from "../../constants/kimi-code-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import type { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
+import { readFileContent } from "../../utils/file.js";
+import { parseFrontmatter } from "../../utils/frontmatter.js";
 import {
   RulesyncSkill,
   type RulesyncSkillFrontmatterInput,
@@ -16,6 +21,7 @@ import {
   ToolSkill,
   type ToolSkillForDeletionParams,
   type ToolSkillFromDirParams,
+  type ToolSkillFromFlatFileParams,
   type ToolSkillFromRulesyncSkillParams,
   type ToolSkillSettablePaths,
 } from "./tool-skill.js";
@@ -23,6 +29,15 @@ import {
 const KimiCodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
+  type: z.optional(z.enum(["prompt", "inline", "flow"])),
+  whenToUse: z.optional(z.string()),
+  disableModelInvocation: z.optional(z.boolean()),
+  arguments: z.optional(z.union([z.string(), z.array(z.string())])),
+});
+
+const KimiCodeFlatSkillFrontmatterSchema = z.looseObject({
+  name: z.optional(z.string()),
+  description: z.optional(z.string()),
   type: z.optional(z.enum(["prompt", "inline", "flow"])),
   whenToUse: z.optional(z.string()),
   disableModelInvocation: z.optional(z.boolean()),
@@ -80,7 +95,10 @@ export class KimiCodeSkill extends ToolSkill {
   }
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolSkillSettablePaths {
-    return { relativeDirPath: KIMI_CODE_SKILLS_DIR_PATH };
+    return {
+      relativeDirPath: KIMI_CODE_SKILLS_DIR_PATH,
+      importOnlySkillRoots: [KIMI_CODE_SHARED_SKILLS_DIR_PATH],
+    };
   }
 
   getFrontmatter(): KimiCodeSkillFrontmatter {
@@ -188,6 +206,41 @@ export class KimiCodeSkill extends ToolSkill {
       ...loaded,
       frontmatter: result.data,
       validate: true,
+    });
+  }
+
+  static async fromFlatFile({
+    outputRoot = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+    global = false,
+  }: ToolSkillFromFlatFileParams): Promise<KimiCodeSkill> {
+    const filePath = join(outputRoot, relativeDirPath, relativeFilePath);
+    const fileContent = await readFileContent(filePath);
+    const { frontmatter, body } = parseFrontmatter(fileContent, filePath);
+    const result = KimiCodeFlatSkillFrontmatterSchema.safeParse(frontmatter);
+    if (!result.success) {
+      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
+    }
+    const fileName = basename(relativeFilePath, extname(relativeFilePath));
+    const firstBodyLine = body
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line !== "");
+    const normalizedFrontmatter: KimiCodeSkillFrontmatter = {
+      ...result.data,
+      name: result.data.name ?? fileName,
+      description:
+        result.data.description ?? firstBodyLine?.slice(0, 240) ?? "No description provided.",
+    };
+    return new KimiCodeSkill({
+      outputRoot,
+      relativeDirPath,
+      dirName: fileName,
+      frontmatter: normalizedFrontmatter,
+      body: body.trim(),
+      validate: true,
+      global,
     });
   }
 

@@ -36,6 +36,35 @@ type KimiCodeHookEntry = {
   timeout?: number;
 };
 
+function containsProjectRelativePath(command: string): boolean {
+  const shellWords = command.match(/"[^"]*"|'[^']*'|[^\s;&|()]+/g) ?? [];
+  return shellWords.some((word) => {
+    const unquoted = word.replace(/^(["'])(.*)\1$/, "$2").replace(/^[<>]+/, "");
+    if (/^(?:\$PWD|\$\{PWD\}|\$\(pwd\)|%CD%)(?:[\\/]|$)/i.test(unquoted)) {
+      return true;
+    }
+    if (
+      unquoted === "" ||
+      unquoted.startsWith("-") ||
+      unquoted.startsWith("$") ||
+      unquoted.startsWith("~/") ||
+      /^[a-z][a-z0-9+.-]*:\/\//i.test(unquoted) ||
+      /^[\\/]/.test(unquoted) ||
+      /^[a-z]:[\\/]/i.test(unquoted)
+    ) {
+      return false;
+    }
+    return (
+      unquoted.startsWith("./") ||
+      unquoted.startsWith("../") ||
+      unquoted.startsWith(".\\") ||
+      unquoted.startsWith("..\\") ||
+      unquoted.includes("/") ||
+      /^[a-z0-9_.-]+\\[a-z0-9_.-]/i.test(unquoted)
+    );
+  });
+}
+
 function buildEffectiveHooks(
   config: HooksConfig,
   toolOverrideHooks: HooksConfig["hooks"] | undefined,
@@ -71,6 +100,12 @@ function canonicalToKimiCodeHooks({
     }
     for (const definition of definitions) {
       if ((definition.type ?? "command") !== "command" || !definition.command) {
+        continue;
+      }
+      if (containsProjectRelativePath(definition.command)) {
+        logger?.warn(
+          `Kimi Code hooks: skipping project-relative command for "${event}" because global hooks run from every session project; use an absolute path or a command on PATH.`,
+        );
         continue;
       }
       const timeout = definition.timeout;

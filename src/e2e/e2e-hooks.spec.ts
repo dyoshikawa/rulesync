@@ -786,8 +786,9 @@ describe("E2E: hooks (global mode)", () => {
       JSON.stringify({
         version: 1,
         hooks: {
-          sessionStart: [{ command: ".rulesync/hooks/session-start.sh" }],
-          stop: [{ command: ".rulesync/hooks/audit.sh" }],
+          sessionStart: [{ command: "notify-send 'Kimi started'" }],
+          stop: [{ command: "echo 'Kimi stopped'" }],
+          preToolUse: [{ command: "bash .rulesync/hooks/untrusted.sh" }],
         },
       }),
     );
@@ -802,8 +803,9 @@ describe("E2E: hooks (global mode)", () => {
     const generated = await readFileContent(join(homeDir, ".kimi-code", "config.toml"));
     expect(generated).toContain('event = "SessionStart"');
     expect(generated).toContain('event = "Stop"');
-    expect(generated).toContain(".rulesync/hooks/session-start.sh");
-    expect(generated).toContain(".rulesync/hooks/audit.sh");
+    expect(generated).toContain("notify-send 'Kimi started'");
+    expect(generated).toContain("echo 'Kimi stopped'");
+    expect(generated).not.toContain("untrusted.sh");
   });
 
   it("should import Kimi Code hooks from the shared user config", async () => {

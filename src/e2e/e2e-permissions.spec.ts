@@ -1569,7 +1569,7 @@ describe("E2E: permissions (global mode)", () => {
       JSON.stringify({
         version: 1,
         hooks: {
-          preToolUse: [{ matcher: "Bash", command: ".rulesync/hooks/check.sh" }],
+          preToolUse: [{ matcher: "Bash", command: "security-check" }],
         },
       }),
     );
@@ -1597,7 +1597,7 @@ describe("E2E: permissions (global mode)", () => {
       {
         event: "PreToolUse",
         matcher: "Bash",
-        command: ".rulesync/hooks/check.sh",
+        command: "security-check",
       },
     ]);
     expect(generated.permission).toEqual({
