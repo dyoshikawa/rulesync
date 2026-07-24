@@ -25,6 +25,10 @@ import { WarpRule } from "./warp-rule.js";
 
 const logger = createMockLogger();
 
+const globalFoldTargets = RulesProcessor.getToolTargets({ global: true }).filter(
+  (target) => RulesProcessor.getFactory(target)?.meta.foldsNonRootIntoRoot === true,
+);
+
 describe("RulesProcessor", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -2320,12 +2324,22 @@ targets: ["claudecode"]
       );
     });
 
-    it.each([
-      ["codexcli", ".codex"],
-      ["pi", join(".pi", "agent")],
-    ] as const)(
+    it("should expose every global-capable folded target to the regression matrix", () => {
+      expect(globalFoldTargets).toEqual([
+        "codexcli",
+        "deepagents",
+        "goose",
+        "grokcli",
+        "junie",
+        "kimi-code",
+        "pi",
+        "reasonix",
+      ]);
+    });
+
+    it.each(globalFoldTargets)(
       "should retain and fold global non-root rules for %s",
-      async (toolTarget, expectedRelativeDirPath) => {
+      async (toolTarget) => {
         await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
         await writeFileContent(
           join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
@@ -2355,9 +2369,13 @@ targets: ["${toolTarget}"]
         expect(rulesyncFiles).toHaveLength(2);
 
         const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+        const globalRootPath = RulesProcessor.getFactory(toolTarget)?.class.getSettablePaths({
+          global: true,
+        }).root;
         expect(toolFiles).toHaveLength(1);
-        expect(toolFiles[0]?.getRelativeDirPath()).toBe(expectedRelativeDirPath);
-        expect(toolFiles[0]?.getRelativeFilePath()).toBe("AGENTS.md");
+        expect(globalRootPath).toBeDefined();
+        expect(toolFiles[0]?.getRelativeDirPath()).toBe(globalRootPath?.relativeDirPath);
+        expect(toolFiles[0]?.getRelativeFilePath()).toBe(globalRootPath?.relativeFilePath);
         expect(toolFiles[0]?.getFileContent()).toContain("# Global root");
         expect(toolFiles[0]?.getFileContent()).toContain("# Global detail");
         expect(warnSpy).not.toHaveBeenCalledWith(
@@ -2365,6 +2383,40 @@ targets: ["${toolTarget}"]
         );
       },
     );
+
+    it("should keep ignoring global non-root rules for root-only targets", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+        `---
+root: true
+targets: ["cline"]
+---
+# Global root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "detail.md"),
+        `---
+targets: ["cline"]
+---
+# Global detail`,
+      );
+
+      const warnSpy = vi.spyOn(logger, "warn");
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "cline",
+        global: true,
+      });
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+      expect(rulesyncFiles).toHaveLength(1);
+      expect((rulesyncFiles[0] as RulesyncRule).getFrontmatter().root).toBe(true);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("non-root rulesync rules found, but it's in global mode"),
+      );
+    });
 
     it("should filter non-root rules by target in global mode", async () => {
       await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));

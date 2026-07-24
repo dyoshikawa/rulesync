@@ -904,6 +904,7 @@ globs: ["src/**/*"]
 
   it.each([
     { target: "codexcli", outputPath: join(".codex", "AGENTS.md") },
+    { target: "junie", outputPath: join(".junie", "AGENTS.md") },
     { target: "pi", outputPath: join(".pi", "agent", "AGENTS.md") },
   ] as const)(
     "should fold $target non-root rules into its global root file",

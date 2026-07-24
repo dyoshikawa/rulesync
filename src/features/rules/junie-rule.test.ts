@@ -703,7 +703,7 @@ describe("JunieRule", () => {
       expect(junieRule.getFileContent()).toContain("# Global Junie Guidelines");
     });
 
-    it("should reject non-root rules in global mode", () => {
+    it("should create a global fold candidate from a non-root RulesyncRule", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "detail.md",
@@ -716,13 +716,16 @@ describe("JunieRule", () => {
         body: "# Detail",
       });
 
-      expect(() =>
-        JunieRule.fromRulesyncRule({
-          outputRoot: testDir,
-          rulesyncRule,
-          global: true,
-        }),
-      ).toThrow(/non-root rules in global mode/);
+      const junieRule = JunieRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule,
+        global: true,
+      });
+
+      expect(junieRule.getRelativeDirPath()).toBe(".junie");
+      expect(junieRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(junieRule.getFileContent()).toBe("# Detail");
+      expect(junieRule.isRoot()).toBe(false);
     });
 
     it("should read the global root guideline file", async () => {

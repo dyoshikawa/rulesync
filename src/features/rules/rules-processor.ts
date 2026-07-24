@@ -1404,7 +1404,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
       const globalPaths = factory.class.getSettablePaths({ global: true });
       const supportsGlobalNonRoot =
         ("nonRoot" in globalPaths && globalPaths.nonRoot !== null) ||
-        factory.meta.foldsNonRootIntoRoot === true;
+        (factory.meta.supportsGlobal && factory.meta.foldsNonRootIntoRoot === true);
 
       const nonRootRules = rulesyncRules.filter(
         (rule) =>
