@@ -44,7 +44,7 @@ async function createConfigFile(): Promise<InitFileResult> {
     JSON.stringify(
       {
         $schema: RULESYNC_CONFIG_SCHEMA_URL,
-        targets: ["copilot", "cursor", "claudecode", "codexcli"],
+        targets: ["codexcli", "claudecode", "opencode"],
         features: [
           "rules",
           "ignore",
