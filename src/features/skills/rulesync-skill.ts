@@ -166,6 +166,14 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       "user-invocable": z.optional(z.boolean()),
     }),
   ),
+  "kimi-code": z.optional(
+    z.looseObject({
+      type: z.optional(z.enum(["prompt", "inline", "flow"])),
+      whenToUse: z.optional(z.string()),
+      disableModelInvocation: z.optional(z.boolean()),
+      arguments: z.optional(z.union([z.string(), z.array(z.string())])),
+    }),
+  ),
   agentsskills: z.optional(
     z.looseObject({
       license: z.optional(z.string()),
@@ -302,6 +310,12 @@ export type RulesyncSkillFrontmatterInput = {
   factorydroid?: {
     "disable-model-invocation"?: boolean;
     "user-invocable"?: boolean;
+  };
+  "kimi-code"?: {
+    type?: "prompt" | "inline" | "flow";
+    whenToUse?: string;
+    disableModelInvocation?: boolean;
+    arguments?: string | string[];
   };
   agentsskills?: {
     license?: string;

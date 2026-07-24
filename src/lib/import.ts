@@ -20,6 +20,7 @@ import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { fileExists } from "../utils/file.js";
+import { resolveToolOutputRoot } from "../utils/kimi-code.js";
 import type { Logger } from "../utils/logger.js";
 
 /**
@@ -53,6 +54,14 @@ export type ImportResult = {
   permissionsCount: number;
   checksCount: number;
 };
+
+function getToolOutputRoot({ config, tool }: { config: Config; tool: ToolTarget }): string {
+  return resolveToolOutputRoot({
+    outputRoot: config.getOutputRoots(tool)[0] ?? ".",
+    toolTarget: tool,
+    global: config.getGlobal(),
+  });
+}
 
 /**
  * Import configuration files from AI tools.
@@ -107,7 +116,7 @@ async function importRulesCore(params: {
   }
 
   const rulesProcessor = new RulesProcessor({
-    outputRoot: config.getOutputRoots()[0] ?? ".",
+    outputRoot: getToolOutputRoot({ config, tool }),
     toolTarget: tool,
     global,
     logger,
@@ -150,7 +159,7 @@ async function importIgnoreCore(params: {
   }
 
   const ignoreProcessor = new IgnoreProcessor({
-    outputRoot: config.getOutputRoots()[0] ?? ".",
+    outputRoot: getToolOutputRoot({ config, tool }),
     toolTarget: tool,
     logger,
     featureOptions: config.getFeatureOptions(tool, "ignore"),
@@ -196,7 +205,7 @@ async function importMcpCore(params: {
   }
 
   const mcpProcessor = new McpProcessor({
-    outputRoot: config.getOutputRoots()[0] ?? ".",
+    outputRoot: getToolOutputRoot({ config, tool }),
     toolTarget: tool,
     global,
     logger,
@@ -247,7 +256,7 @@ async function importCommandsCore(params: {
   }
 
   const commandsProcessor = new CommandsProcessor({
-    outputRoot: config.getOutputRoots()[0] ?? ".",
+    outputRoot: getToolOutputRoot({ config, tool }),
     toolTarget: tool,
     global,
     logger,
@@ -288,7 +297,7 @@ async function importSubagentsCore(params: {
   }
 
   const subagentsProcessor = new SubagentsProcessor({
-    outputRoot: config.getOutputRoots()[0] ?? ".",
+    outputRoot: getToolOutputRoot({ config, tool }),
     toolTarget: tool,
     global: config.getGlobal(),
     logger,
@@ -330,7 +339,7 @@ async function importSkillsCore(params: {
   }
 
   const skillsProcessor = new SkillsProcessor({
-    outputRoot: config.getOutputRoots()[0] ?? ".",
+    outputRoot: getToolOutputRoot({ config, tool }),
     toolTarget: tool,
     global,
     logger,
@@ -377,7 +386,7 @@ async function importHooksCore(params: {
   }
 
   const hooksProcessor = new HooksProcessor({
-    outputRoot: config.getOutputRoots()[0] ?? ".",
+    outputRoot: getToolOutputRoot({ config, tool }),
     toolTarget: tool,
     global,
     logger,
@@ -435,7 +444,7 @@ async function importPermissionsCore(params: {
   }
 
   const permissionsProcessor = new PermissionsProcessor({
-    outputRoot: config.getOutputRoots()[0] ?? ".",
+    outputRoot: getToolOutputRoot({ config, tool }),
     toolTarget: tool,
     global: config.getGlobal(),
     logger,

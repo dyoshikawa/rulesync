@@ -10,6 +10,7 @@ import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import type { Feature } from "../types/features.js";
 import type { ToolTarget } from "../types/tool-targets.js";
+import { resolveToolOutputRoot } from "../utils/kimi-code.js";
 import type { Logger } from "../utils/logger.js";
 
 export type ConvertResult = {
@@ -178,7 +179,13 @@ function buildRulesStrategy(ctx: ConvertContext) {
     itemLabel: "rule file(s)",
     allTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
-      new RulesProcessor({ outputRoot, toolTarget, global, dryRun, logger }),
+      new RulesProcessor({
+        outputRoot: resolveToolOutputRoot({ outputRoot, toolTarget, global }),
+        toolTarget,
+        global,
+        dryRun,
+        logger,
+      }),
     loadSource: (p) => p.loadToolFiles(),
     toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
     fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
@@ -233,7 +240,13 @@ function buildMcpStrategy(ctx: ConvertContext) {
     itemLabel: "MCP file(s)",
     allTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
-      new McpProcessor({ outputRoot, toolTarget, global, dryRun, logger }),
+      new McpProcessor({
+        outputRoot: resolveToolOutputRoot({ outputRoot, toolTarget, global }),
+        toolTarget,
+        global,
+        dryRun,
+        logger,
+      }),
     loadSource: (p) => p.loadToolFiles(),
     toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
     fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
@@ -286,7 +299,13 @@ function buildSubagentsStrategy(ctx: ConvertContext) {
     itemLabel: "subagent file(s)",
     allTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
-      new SubagentsProcessor({ outputRoot, toolTarget, global, dryRun, logger }),
+      new SubagentsProcessor({
+        outputRoot: resolveToolOutputRoot({ outputRoot, toolTarget, global }),
+        toolTarget,
+        global,
+        dryRun,
+        logger,
+      }),
     loadSource: (p) => p.loadToolFiles(),
     toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
     fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
@@ -309,7 +328,13 @@ function buildSkillsStrategy(ctx: ConvertContext) {
     itemLabel: "skill(s)",
     allTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
-      new SkillsProcessor({ outputRoot, toolTarget, global, dryRun, logger }),
+      new SkillsProcessor({
+        outputRoot: resolveToolOutputRoot({ outputRoot, toolTarget, global }),
+        toolTarget,
+        global,
+        dryRun,
+        logger,
+      }),
     loadSource: (p) => p.loadToolDirs(),
     toRulesync: (p, dirs) => p.convertToolDirsToRulesyncDirs(dirs),
     fromRulesync: (p, dirs) => p.convertRulesyncDirsToToolDirs(dirs),
@@ -334,7 +359,13 @@ function buildHooksStrategy(ctx: ConvertContext) {
     allTargets,
     importableTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
-      new HooksProcessor({ outputRoot, toolTarget, global, dryRun, logger }),
+      new HooksProcessor({
+        outputRoot: resolveToolOutputRoot({ outputRoot, toolTarget, global }),
+        toolTarget,
+        global,
+        dryRun,
+        logger,
+      }),
     loadSource: (p) => p.loadToolFiles(),
     toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
     fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
@@ -359,7 +390,13 @@ function buildPermissionsStrategy(ctx: ConvertContext) {
     allTargets,
     importableTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
-      new PermissionsProcessor({ outputRoot, toolTarget, global, dryRun, logger }),
+      new PermissionsProcessor({
+        outputRoot: resolveToolOutputRoot({ outputRoot, toolTarget, global }),
+        toolTarget,
+        global,
+        dryRun,
+        logger,
+      }),
     loadSource: (p) => p.loadToolFiles(),
     toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
     fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),

@@ -9,7 +9,11 @@ import { DirFeatureProcessor } from "../../types/dir-feature-processor.js";
 import { skillsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { directoryExists, findFilesByGlobs } from "../../utils/file.js";
+import {
+  assertWritablePathInsideRoot,
+  directoryExists,
+  findFilesByGlobs,
+} from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSkill } from "./agentsmd-skill.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
@@ -32,6 +36,7 @@ import { GrokcliSkill } from "./grokcli-skill.js";
 import { HermesagentSkill } from "./hermesagent-skill.js";
 import { JunieSkill } from "./junie-skill.js";
 import { KiloSkill } from "./kilo-skill.js";
+import { KimiCodeSkill } from "./kimi-code-skill.js";
 import { KiroCliSkill } from "./kiro-cli-skill.js";
 import { KiroIdeSkill } from "./kiro-ide-skill.js";
 import { KiroSkill } from "./kiro-skill.js";
@@ -50,8 +55,10 @@ import {
   ToolSkill,
   ToolSkillForDeletionParams,
   ToolSkillFromDirParams,
+  ToolSkillFromFlatFileParams,
   ToolSkillFromRulesyncSkillParams,
   ToolSkillSettablePaths,
+  toolSkillImportRoots,
   toolSkillSearchRoots,
 } from "./tool-skill.js";
 import { VibeSkill } from "./vibe-skill.js";
@@ -67,6 +74,11 @@ type ToolSkillFactory = {
     isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean;
     fromRulesyncSkill(params: ToolSkillFromRulesyncSkillParams): ToolSkill;
     fromDir(params: ToolSkillFromDirParams): Promise<ToolSkill>;
+    /**
+     * Optional loader for tools that also discover flat `<name>.md` skills.
+     * Directory-form skills are loaded first and take precedence.
+     */
+    fromFlatFile?(params: ToolSkillFromFlatFileParams): Promise<ToolSkill>;
     forDeletion(params: ToolSkillForDeletionParams): ToolSkill;
     getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths;
     /**
@@ -279,6 +291,13 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "kilo",
     {
       class: KiloSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "kimi-code",
+    {
+      class: KimiCodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
@@ -581,54 +600,89 @@ export class SkillsProcessor extends DirFeatureProcessor {
   async loadToolDirs(): Promise<AiDir[]> {
     const factory = this.getFactory(this.toolTarget);
     const paths = factory.class.getSettablePaths({ global: this.global });
-    const roots = toolSkillSearchRoots(paths);
+    const roots = toolSkillImportRoots(paths);
 
-    const seenDirNames = new Set<string>();
-    const loadEntries: Array<{ root: string; dirName: string }> = [];
-
+    const seenSkillNames = new Set<string>();
+    const toolSkills: ToolSkill[] = [];
     for (const root of roots) {
-      const skillsDirPath = join(this.outputRoot, root);
+      const rootOutputRoot = typeof root === "string" ? this.outputRoot : root.outputRoot;
+      const relativeDirPath = typeof root === "string" ? root : root.relativeDirPath;
+      const skillsDirPath = join(rootOutputRoot, relativeDirPath);
       if (!(await directoryExists(skillsDirPath))) {
         continue;
       }
       const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
+      const ownedDirNames: string[] = [];
       for (const dirPath of dirPaths) {
         const dirName = basename(dirPath);
-        if (seenDirNames.has(dirName)) {
-          continue;
-        }
         // Directories owned by another feature (see the `isDirOwned` factory
         // hook) are skipped so e.g. a Reasonix subagent profile is not
         // imported as a regular skill.
         if (
           factory.class.isDirOwned &&
           !(await factory.class.isDirOwned({
-            outputRoot: this.outputRoot,
-            relativeDirPath: root,
+            outputRoot: rootOutputRoot,
+            relativeDirPath,
             dirName,
             inputRoot: this.inputRoot,
           }))
         ) {
           continue;
         }
-        seenDirNames.add(dirName);
-        loadEntries.push({ root, dirName });
+        ownedDirNames.push(dirName);
+      }
+
+      const directorySkills = await Promise.all(
+        ownedDirNames.map((dirName) =>
+          factory.class.fromDir({
+            outputRoot: rootOutputRoot,
+            relativeDirPath,
+            dirName,
+            global: this.global,
+          }),
+        ),
+      );
+      for (const skill of directorySkills) {
+        const skillName = skill.getImportIdentity();
+        if (seenSkillNames.has(skillName)) {
+          continue;
+        }
+        seenSkillNames.add(skillName);
+        toolSkills.push(skill);
+      }
+
+      if (!factory.class.fromFlatFile) {
+        continue;
+      }
+      const fromFlatFile = factory.class.fromFlatFile;
+      const directoryStems = new Set(ownedDirNames);
+      const flatFilePaths = (
+        await findFilesByGlobs(join(skillsDirPath, "*.md"), {
+          type: "file",
+        })
+      ).filter((filePath) => !directoryStems.has(basename(filePath, ".md")));
+      const flatSkills = await Promise.all(
+        flatFilePaths.map((filePath) =>
+          fromFlatFile({
+            outputRoot: rootOutputRoot,
+            relativeDirPath,
+            relativeFilePath: basename(filePath),
+            global: this.global,
+          }),
+        ),
+      );
+      for (const skill of flatSkills) {
+        const skillName = skill.getImportIdentity();
+        if (seenSkillNames.has(skillName)) {
+          continue;
+        }
+        seenSkillNames.add(skillName);
+        toolSkills.push(skill);
       }
     }
 
-    const toolSkills = await Promise.all(
-      loadEntries.map(({ root, dirName }) =>
-        factory.class.fromDir({
-          outputRoot: this.outputRoot,
-          relativeDirPath: root,
-          dirName,
-          global: this.global,
-        }),
-      ),
-    );
-
     this.logger.debug(
-      `Successfully loaded ${toolSkills.length} skills from ${roots.length} root(s): ${roots.join(", ")}`,
+      `Successfully loaded ${toolSkills.length} skills from ${roots.length} root(s)`,
     );
     return toolSkills;
   }
@@ -644,8 +698,19 @@ export class SkillsProcessor extends DirFeatureProcessor {
       if (!(await directoryExists(skillsDirPath))) {
         continue;
       }
-      const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
+      await assertWritablePathInsideRoot({
+        rootPath: this.outputRoot,
+        targetPath: skillsDirPath,
+      });
+      const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), {
+        type: "dir",
+        followSymbolicLinks: false,
+      });
       for (const dirPath of dirPaths) {
+        await assertWritablePathInsideRoot({
+          rootPath: skillsDirPath,
+          targetPath: dirPath,
+        });
         const dirName = basename(dirPath);
         // Directories owned by another feature (see the `isDirOwned` factory
         // hook) must never be deleted as orphan skills — e.g. a Reasonix

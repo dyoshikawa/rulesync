@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import * as smolToml from "smol-toml";
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
@@ -636,7 +637,13 @@ const hooksGlobalTargets = [
 // As with the project-scope list, the completeness check only enforces that this
 // enumeration matches the processor's declared set — not that a matching `it`
 // exists for each name; keep it in sync with the actual `it`s by hand.
-const hooksGlobalStandaloneTargets = ["devin", "vibe", "hermesagent", "reasonix"] as const;
+const hooksGlobalStandaloneTargets = [
+  "devin",
+  "vibe",
+  "hermesagent",
+  "kimi-code",
+  "reasonix",
+] as const;
 
 describe("E2E: hooks (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
@@ -769,6 +776,108 @@ describe("E2E: hooks (global mode)", () => {
     expect(parsed.hooks.Stop).toBeDefined();
     expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/pre-run.sh");
     expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/on-stop.sh");
+  });
+
+  it("should generate Kimi Code hooks in the shared user config", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        version: 1,
+        hooks: {
+          sessionStart: [{ command: "notify-send 'Kimi started'" }],
+          stop: [{ command: "echo 'Kimi stopped'" }],
+          preToolUse: [{ command: "bash evil.sh" }],
+          postToolUse: [{ command: "npm test" }],
+        },
+      }),
+    );
+
+    await runGenerate({
+      target: "kimi-code",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = await readFileContent(join(homeDir, ".kimi-code", "config.toml"));
+    const parsed = smolToml.parse(generated) as {
+      hooks: Array<{ event: string; command: string }>;
+    };
+    expect(parsed.hooks.map(({ event }) => event)).toEqual([
+      "SessionStart",
+      "Stop",
+      "PreToolUse",
+      "PostToolUse",
+    ]);
+    expect(parsed.hooks.map(({ command }) => command)).toEqual([
+      expect.stringContaining("notify-send 'Kimi started'"),
+      expect.stringContaining("echo 'Kimi stopped'"),
+      expect.stringContaining("bash evil.sh"),
+      expect.stringContaining("npm test"),
+    ]);
+    for (const hook of parsed.hooks) {
+      expect(hook.command).toContain(projectDir);
+    }
+  });
+
+  it("should import Kimi Code hooks from the shared user config", async () => {
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(homeDir, ".kimi-code", "config.toml"),
+      [
+        "[[hooks]]",
+        'event = "PreToolUse"',
+        'matcher = "Bash"',
+        'command = ".kimi-code/hooks/check.sh"',
+        "",
+        "[[hooks]]",
+        'event = "Stop"',
+        `command = "cd -- '/opt/company/security-hooks' && ./gate.sh"`,
+      ].join("\n"),
+    );
+
+    await runImport({
+      target: "kimi-code",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = JSON.parse(
+      await readFileContent(join(homeDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.hooks.preToolUse).toEqual([
+      {
+        type: "command",
+        matcher: "Bash",
+        command: ".kimi-code/hooks/check.sh",
+      },
+    ]);
+    expect(imported.hooks.stop).toEqual([
+      {
+        type: "command",
+        command: "cd -- '/opt/company/security-hooks' && ./gate.sh",
+      },
+    ]);
+
+    await runGenerate({
+      target: "kimi-code",
+      features: "hooks",
+      global: true,
+      inputRoot: homeDir,
+      env: { HOME_DIR: homeDir },
+    });
+    const regenerated = smolToml.parse(
+      await readFileContent(join(homeDir, ".kimi-code", "config.toml")),
+    ) as { hooks: Array<{ event: string; command: string }> };
+    expect(regenerated.hooks[0]?.command.match(/cd (?:--|\/d) /g)).toHaveLength(1);
+    const regeneratedStop = regenerated.hooks.find(({ event }) => event === "Stop");
+    expect(regeneratedStop?.command).toContain("RULESYNC_KIMI_HOOK_CWD=1");
+    expect(regeneratedStop?.command).toContain("cd -- '/opt/company/security-hooks' && ./gate.sh");
   });
 
   it("should generate vibe hooks in home directory", async () => {

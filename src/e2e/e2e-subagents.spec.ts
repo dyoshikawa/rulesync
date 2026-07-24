@@ -1,10 +1,11 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
-import { readFileContent, writeFileContent } from "../utils/file.js";
+import { ensureDir, readFileContent, writeFileContent } from "../utils/file.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -71,6 +72,10 @@ const subagentsGenerateTargets = [
     outputPath: join(".kilo", "agents", "planner.md"),
   },
   {
+    target: "kimi-code",
+    outputPath: join(".kimi-code", "agents", "planner.md"),
+  },
+  {
     target: "opencode",
     outputPath: join(".opencode", "agents", "planner.md"),
   },
@@ -125,6 +130,7 @@ const subagentsGlobalTargets = [
   { target: "kiro-cli", outputPath: join(".kiro", "agents", "planner.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "agents", "planner.md") },
   { target: "kilo", outputPath: join(".config", "kilo", "agents", "planner.md") },
+  { target: "kimi-code", outputPath: join(".kimi-code", "agents", "planner.md") },
   { target: "opencode", outputPath: join(".config", "opencode", "agents", "planner.md") },
   { target: "rovodev", outputPath: join(".rovodev", "subagents", "planner.md") },
   { target: "takt", outputPath: join(".takt", "facets", "personas", "planner.md") },
@@ -359,6 +365,7 @@ describe("E2E: subagents (import)", () => {
     { target: "claudecode", sourcePath: join(".claude", "agents", "planner.md") },
     { target: "cursor", sourcePath: join(".cursor", "agents", "planner.md") },
     { target: "copilot", sourcePath: join(".github", "agents", "planner.md") },
+    { target: "kimi-code", sourcePath: join(".kimi-code", "agents", "planner.md") },
     { target: "opencode", sourcePath: join(".opencode", "agents", "planner.md") },
     { target: "deepagents", sourcePath: join(".deepagents", "agents", "planner", "AGENTS.md") },
     { target: "junie", sourcePath: join(".junie", "agents", "planner.md") },
@@ -406,6 +413,157 @@ Break down tasks into steps.
       join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
     );
     expect(importedContent).toContain("planner");
+  });
+
+  it("should recursively import Kimi Code subagents and flatten them by agent name", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".kimi-code", "agents", "review", "security.md"),
+      [
+        "---",
+        "name: security-reviewer",
+        'description: "Reviews security-sensitive changes"',
+        "---",
+        "Review the change for security issues.",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".kimi-code", "agents", "audit", "security.md"),
+      [
+        "---",
+        "name: security-auditor",
+        'description: "Audits security controls"',
+        "---",
+        "Audit the configured security controls.",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".kimi-code", "agents", "z-duplicate", "reviewer.md"),
+      [
+        "---",
+        "name: security-reviewer",
+        'description: "Duplicate reviewer"',
+        "---",
+        "This duplicate must not overwrite the first reviewer.",
+      ].join("\n"),
+    );
+
+    await runImport({ target: "kimi-code", features: "subagents" });
+
+    const reviewer = await readFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "security-reviewer.md"),
+    );
+    expect(reviewer).toContain("Review the change");
+    expect(reviewer).not.toContain("duplicate must not overwrite");
+    expect(
+      await readFileContent(
+        join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "security-auditor.md"),
+      ),
+    ).toContain("Audit the configured");
+  });
+
+  it("should import Kimi Code subagents from the shared .agents root", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".agents", "agents", "shared-reviewer.md"),
+      [
+        "---",
+        "name: shared-reviewer",
+        'description: "Reviews from the shared root"',
+        "---",
+        "Review changes from the shared agent root.",
+      ].join("\n"),
+    );
+
+    await runImport({ target: "kimi-code", features: "subagents" });
+
+    expect(
+      await readFileContent(
+        join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "shared-reviewer.md"),
+      ),
+    ).toContain("shared agent root");
+  });
+
+  it("should preserve distinct Kimi subagents with the same relative path", async () => {
+    const testDir = getTestDir();
+    await writeFileContent(
+      join(testDir, ".kimi-code", "agents", "team", "reviewer.md"),
+      [
+        "---",
+        "name: primary-reviewer",
+        'description: "Primary reviewer"',
+        "---",
+        "Primary reviewer body.",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".agents", "agents", "team", "reviewer.md"),
+      [
+        "---",
+        "name: shared-reviewer",
+        'description: "Shared reviewer"',
+        "---",
+        "Shared reviewer body.",
+      ].join("\n"),
+    );
+
+    await runImport({ target: "kimi-code", features: "subagents" });
+
+    expect(
+      await readFileContent(
+        join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "primary-reviewer.md"),
+      ),
+    ).toContain("Primary reviewer body");
+    expect(
+      await readFileContent(
+        join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "shared-reviewer.md"),
+      ),
+    ).toContain("Shared reviewer body");
+  });
+
+  it("should not delete Kimi Code subagents from the shared .agents root", async () => {
+    const testDir = getTestDir();
+    const sharedAgentPath = join(testDir, ".agents", "agents", "shared-reviewer.md");
+    await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+    await writeFileContent(
+      sharedAgentPath,
+      [
+        "---",
+        "name: shared-reviewer",
+        'description: "Shared reviewer"',
+        "---",
+        "User-owned shared reviewer.",
+      ].join("\n"),
+    );
+
+    await runGenerate({
+      target: "kimi-code",
+      features: "subagents",
+      deleteFiles: true,
+    });
+
+    expect(await readFileContent(sharedAgentPath)).toContain("User-owned shared reviewer");
+  });
+
+  it("should not follow directory symlinks while deleting Kimi Code subagents", async () => {
+    const testDir = getTestDir();
+    const protectedDir = join(testDir, "protected-agents");
+    const protectedFile = join(protectedDir, "notes.md");
+    const linkedDir = join(testDir, ".kimi-code", "agents", "external");
+    await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+    await writeFileContent(protectedFile, "Protected notes.\n");
+    await ensureDir(join(testDir, ".kimi-code", "agents"));
+    await symlink(protectedDir, linkedDir, process.platform === "win32" ? "junction" : "dir");
+
+    await runGenerate({
+      target: "kimi-code",
+      features: "subagents",
+      deleteFiles: true,
+    });
+
+    expect(await readFileContent(protectedFile)).toBe("Protected notes.\n");
   });
 
   it("should import goose subagents (sub-recipe YAML)", async () => {
@@ -592,5 +750,52 @@ Non-root subagent body
     );
     expect(generatedContent).toContain("Root subagent body");
     expect(generatedContent).not.toContain("Non-root subagent body");
+  });
+
+  it("should import shared global Kimi subagents without overriding Kimi-specific agents", async () => {
+    const homeDir = getHomeDir();
+    const primaryAgent = [
+      "---",
+      "name: reviewer",
+      'description: "Primary reviewer"',
+      "---",
+      "Primary Kimi-specific reviewer.",
+    ].join("\n");
+    const sharedDuplicate = [
+      "---",
+      "name: reviewer",
+      'description: "Shared duplicate reviewer"',
+      "---",
+      "Lower-precedence shared reviewer.",
+    ].join("\n");
+    const sharedAgent = [
+      "---",
+      "name: shared-helper",
+      'description: "Shared helper"',
+      "---",
+      "Shared global helper.",
+    ].join("\n");
+
+    await writeFileContent(join(homeDir, ".kimi-code", "agents", "reviewer.md"), primaryAgent);
+    await writeFileContent(join(homeDir, ".agents", "agents", "reviewer.md"), sharedDuplicate);
+    await writeFileContent(join(homeDir, ".agents", "agents", "shared-helper.md"), sharedAgent);
+
+    await runImport({
+      target: "kimi-code",
+      features: "subagents",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const reviewer = await readFileContent(
+      join(homeDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "reviewer.md"),
+    );
+    expect(reviewer).toContain("Primary Kimi-specific reviewer");
+    expect(reviewer).not.toContain("Lower-precedence shared reviewer");
+    expect(
+      await readFileContent(
+        join(homeDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "shared-helper.md"),
+      ),
+    ).toContain("Shared global helper");
   });
 });

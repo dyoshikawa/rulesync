@@ -645,6 +645,60 @@ export const GROKCLI_HOOK_EVENTS: readonly HookEvent[] = [
 ];
 
 /**
+ * Hook events supported by Kimi Code.
+ *
+ * Kimi Code also exposes `Interrupt`, which has no canonical rulesync event.
+ *
+ * @see https://moonshotai.github.io/kimi-code/en/customization/hooks.html
+ */
+export const KIMI_CODE_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "beforeSubmitPrompt",
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+  "permissionRequest",
+  "stop",
+  "stopFailure",
+  "notification",
+  "subagentStart",
+  "subagentStop",
+  "preCompact",
+  "postCompact",
+];
+
+export const CANONICAL_TO_KIMI_CODE_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  postToolUseFailure: "PostToolUseFailure",
+  permissionRequest: "PermissionRequest",
+  stop: "Stop",
+  stopFailure: "StopFailure",
+  notification: "Notification",
+  subagentStart: "SubagentStart",
+  subagentStop: "SubagentStop",
+  preCompact: "PreCompact",
+  postCompact: "PostCompact",
+};
+
+export const KIMI_CODE_NATIVE_HOOK_EVENTS = [
+  ...Object.values(CANONICAL_TO_KIMI_CODE_EVENT_NAMES),
+  "PermissionResult",
+  "Interrupt",
+] as const;
+
+export const KIMI_CODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_KIMI_CODE_EVENT_NAMES).map(([canonical, kimiCode]) => [
+    kimiCode,
+    canonical,
+  ]),
+);
+
+/**
  * Hook events supported by Hermes Agent's native Shell Hooks system.
  *
  * Hermes validates hook events against a fixed `VALID_HOOKS` set:
@@ -750,6 +804,7 @@ export const HooksConfigSchema = z.looseObject({
   vibe: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   reasonix: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   grokcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  "kimi-code": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   qwencode: z.optional(
     z.looseObject({
       hooks: z.optional(hooksRecordSchema),

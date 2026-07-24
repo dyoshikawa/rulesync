@@ -270,6 +270,7 @@ rulesync.local.jsonc
 **/.junie/AGENTS.md
 **/.junie/guidelines.md
 **/.kilo/rules/
+**/.kimi-code/AGENTS.md
 **/.kiro/steering/
 **/.opencode/memories/
 **/.pi/APPEND_SYSTEM.md
@@ -314,6 +315,7 @@ rulesync.local.jsonc
 **/.grok/skills/
 **/.junie/skills/
 **/.kilo/skills/
+**/.kimi-code/skills/
 **/.kiro/skills/
 **/.opencode/skills/
 **/.pi/skills/
@@ -340,6 +342,7 @@ rulesync.local.jsonc
 **/.junie/agents/
 **/.kiro/agents/
 **/.kilo/agents/
+**/.kimi-code/agents/
 **/.opencode/agents/
 **/.qwen/agents/
 **/.rovodev/subagents/
@@ -355,6 +358,7 @@ rulesync.local.jsonc
 **/.deepagents/.mcp.json
 **/.factory/mcp.json
 **/.agents/plugins/rulesync/.mcp.json
+**/.kimi-code/mcp.json
 **/.kiro/settings/mcp.json
 **/.junie/mcp/mcp.json
 **/.qwen/settings.json

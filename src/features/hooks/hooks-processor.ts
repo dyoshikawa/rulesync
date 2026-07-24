@@ -19,6 +19,7 @@ import {
   HERMESAGENT_HOOK_EVENTS,
   JUNIE_HOOK_EVENTS,
   KILO_HOOK_EVENTS,
+  KIMI_CODE_HOOK_EVENTS,
   KIRO_HOOK_EVENTS,
   KIRO_IDE_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
@@ -51,6 +52,7 @@ import { GrokcliHooks } from "./grokcli-hooks.js";
 import { HermesagentHooks } from "./hermesagent-hooks.js";
 import { JunieHooks } from "./junie-hooks.js";
 import { KiloHooks } from "./kilo-hooks.js";
+import { KimiCodeHooks } from "./kimi-code-hooks.js";
 import { KiroCliHooks } from "./kiro-cli-hooks.js";
 import { KiroHooks } from "./kiro-hooks.js";
 import { KiroIdeHooks } from "./kiro-ide-hooks.js";
@@ -363,6 +365,17 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // `matcher` is only valid on pre_tool_call/post_tool_call; the adapter
       // itself drops it (with a warning) on the other supported events.
       supportsMatcher: true,
+    },
+  ],
+  [
+    "kimi-code",
+    {
+      class: KimiCodeHooks,
+      meta: { supportsProject: false, supportsGlobal: true, supportsImport: true },
+      supportedEvents: KIMI_CODE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+      passthroughOverrideEvents: true,
     },
   ],
   [

@@ -39,6 +39,7 @@ const mcpGenerateTargets = [
   { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
   { target: "goose", outputPath: join(".agents", "plugins", "rulesync", ".mcp.json") },
   { target: "kilo", outputPath: "kilo.jsonc" },
+  { target: "kimi-code", outputPath: join(".kimi-code", "mcp.json") },
   { target: "roo", outputPath: join(".roo", "mcp.json") },
   { target: "kiro", outputPath: join(".kiro", "settings", "mcp.json") },
   { target: "kiro-cli", outputPath: join(".kiro", "settings", "mcp.json") },
@@ -91,6 +92,57 @@ describe("E2E: mcp", () => {
 
     const generatedContent = await readFileContent(join(testDir, outputPath));
     expect(generatedContent).toContain("test-server");
+  });
+
+  it("should map Kimi Code MCP transports and skip unsupported WebSocket servers", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        mcpServers: {
+          local: {
+            type: "local",
+            command: ["node", "server.js"],
+            enabledTools: ["read"],
+          },
+          remote: {
+            type: "streamable-http",
+            url: "https://example.com/mcp",
+            bearerTokenEnvVar: "MCP_TOKEN",
+          },
+          events: {
+            type: "sse",
+            url: "https://example.com/events",
+          },
+          socket: {
+            type: "ws",
+            url: "wss://example.com/mcp",
+          },
+        },
+      }),
+    );
+
+    await runGenerate({ target: "kimi-code", features: "mcp" });
+
+    const generated = JSON.parse(await readFileContent(join(testDir, ".kimi-code", "mcp.json")));
+    expect(generated.mcpServers).toEqual({
+      local: {
+        transport: "stdio",
+        command: "node",
+        args: ["server.js"],
+        enabledTools: ["read"],
+      },
+      remote: {
+        transport: "http",
+        url: "https://example.com/mcp",
+        bearerTokenEnvVar: "MCP_TOKEN",
+      },
+      events: {
+        transport: "sse",
+        url: "https://example.com/events",
+      },
+    });
   });
 
   it("should apply tool-scoped {toolname}.mcpServers blocks and the deprecated targets filter", async () => {
@@ -484,6 +536,7 @@ describe("E2E: mcp (import)", () => {
     { target: "copilotcli", sourcePath: join(".github", "mcp.json") },
     { target: "deepagents", sourcePath: join(".deepagents", ".mcp.json") },
     { target: "factorydroid", sourcePath: join(".factory", "mcp.json") },
+    { target: "kimi-code", sourcePath: join(".kimi-code", "mcp.json") },
     { target: "roo", sourcePath: join(".roo", "mcp.json") },
     { target: "kiro", sourcePath: join(".kiro", "settings", "mcp.json") },
     { target: "junie", sourcePath: join(".junie", "mcp", "mcp.json") },
@@ -626,6 +679,7 @@ const mcpGlobalTargets = [
     outputPath: join(".cline", "data", "settings", "cline_mcp_settings.json"),
   },
   { target: "kilo", outputPath: join(".config", "kilo", "kilo.jsonc") },
+  { target: "kimi-code", outputPath: join(".kimi-code", "mcp.json") },
   { target: "junie", outputPath: join(".junie", "mcp", "mcp.json") },
   { target: "amp", outputPath: join(".config", "amp", "settings.json") },
   {

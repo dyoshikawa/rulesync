@@ -18,6 +18,14 @@ export type ToolSkillSettablePaths = {
   relativeDirPath: string;
   /** Extra directories to scan for import and deletion (e.g. Rovo Dev `.agents/skills/` alongside `.rovodev/skills/`). */
   alternativeSkillRoots?: string[];
+  /** Extra read-only discovery roots that generation and orphan deletion must not manage. */
+  importOnlySkillRoots?: Array<
+    | string
+    | {
+        outputRoot: string;
+        relativeDirPath: string;
+      }
+  >;
 };
 
 /** Ordered skill directory roots: primary first. */
@@ -25,10 +33,24 @@ export function toolSkillSearchRoots(paths: ToolSkillSettablePaths): string[] {
   return [paths.relativeDirPath, ...(paths.alternativeSkillRoots ?? [])];
 }
 
+/** Ordered import roots: managed roots first, followed by read-only discovery roots. */
+export function toolSkillImportRoots(
+  paths: ToolSkillSettablePaths,
+): Array<string | { outputRoot: string; relativeDirPath: string }> {
+  return [...toolSkillSearchRoots(paths), ...(paths.importOnlySkillRoots ?? [])];
+}
+
 export type ToolSkillFromDirParams = {
   outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
+  global?: boolean;
+};
+
+export type ToolSkillFromFlatFileParams = {
+  outputRoot?: string;
+  relativeDirPath: string;
+  relativeFilePath: string;
   global?: boolean;
 };
 
@@ -150,6 +172,14 @@ export abstract class ToolSkill extends AiDir {
    */
   static isTargetedByRulesyncSkill(_rulesyncSkill: RulesyncSkill): boolean {
     throw new Error("Please implement this method in the subclass.");
+  }
+
+  /**
+   * Identity used to resolve duplicates across discovery roots during import.
+   * Most tools identify a skill by its directory name.
+   */
+  getImportIdentity(): string {
+    return this.getDirName();
   }
 
   /**

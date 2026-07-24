@@ -9,7 +9,12 @@ import { ToolFile } from "../../types/tool-file.js";
 import { subagentsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { directoryExists, findFilesByGlobs, listDirectoryFiles } from "../../utils/file.js";
+import {
+  assertWritablePathInsideRoot,
+  directoryExists,
+  findFilesByGlobs,
+  listDirectoryFiles,
+} from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
 import { AugmentcodeSubagent } from "./augmentcode-subagent.js";
@@ -27,6 +32,7 @@ import { GrokcliSubagent } from "./grokcli-subagent.js";
 import { HermesagentSubagent } from "./hermesagent-subagent.js";
 import { JunieSubagent } from "./junie-subagent.js";
 import { KiloSubagent } from "./kilo-subagent.js";
+import { KimiCodeSubagent } from "./kimi-code-subagent.js";
 import { KiroCliSubagent } from "./kiro-cli-subagent.js";
 import { KiroIdeSubagent } from "./kiro-ide-subagent.js";
 import { KiroSubagent } from "./kiro-subagent.js";
@@ -303,6 +309,17 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     },
   ],
   [
+    "kimi-code",
+    {
+      class: KimiCodeSubagent,
+      meta: {
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: join("**", "*.md"),
+      },
+    },
+  ],
+  [
     "opencode",
     {
       class: OpenCodeSubagent,
@@ -496,7 +513,24 @@ export class SubagentsProcessor extends FeatureProcessor {
       rulesyncSubagents.push(toolSubagent.toRulesyncSubagent());
     }
 
-    return rulesyncSubagents;
+    const uniqueRulesyncSubagents: RulesyncSubagent[] = [];
+    const seenOutputPaths = new Set<string>();
+    for (const rulesyncSubagent of rulesyncSubagents) {
+      const outputPath = join(
+        rulesyncSubagent.getRelativeDirPath(),
+        rulesyncSubagent.getRelativeFilePath(),
+      );
+      if (seenOutputPaths.has(outputPath)) {
+        this.logger.warn(
+          `Multiple ${this.toolTarget} subagents resolve to "${outputPath}"; keeping the first and ignoring this copy.`,
+        );
+        continue;
+      }
+      seenOutputPaths.add(outputPath);
+      uniqueRulesyncSubagents.push(rulesyncSubagent);
+    }
+
+    return uniqueRulesyncSubagents;
   }
 
   /**
@@ -569,7 +603,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     // Orphan deletion must only ever target the canonical generation directory,
     // so that import-only discovery roots (e.g. Junie's `.agents/`) are never
     // removed. Importing, on the other hand, scans every discovery root.
-    const dirPaths = forDeletion
+    const roots = forDeletion
       ? [paths.relativeDirPath]
       : [paths.relativeDirPath, ...(paths.importDirPaths ?? [])];
 
@@ -577,9 +611,19 @@ export class SubagentsProcessor extends FeatureProcessor {
     // Tracks subagent relative paths already loaded so that a duplicate in a
     // lower-precedence import root does not silently shadow an earlier one.
     const seenRelativeFilePaths = new Set<string>();
-    for (const dirPath of dirPaths) {
-      const baseDir = join(this.outputRoot, dirPath);
-      const subagentFilePaths = await findFilesByGlobs(join(baseDir, factory.meta.filePattern));
+    for (const root of roots) {
+      const rootOutputRoot = typeof root === "string" ? this.outputRoot : root.outputRoot;
+      const dirPath = typeof root === "string" ? root : root.relativeDirPath;
+      const baseDir = join(rootOutputRoot, dirPath);
+      if (forDeletion && (await directoryExists(baseDir))) {
+        await assertWritablePathInsideRoot({
+          rootPath: rootOutputRoot,
+          targetPath: baseDir,
+        });
+      }
+      const subagentFilePaths = await findFilesByGlobs(join(baseDir, factory.meta.filePattern), {
+        followSymbolicLinks: !forDeletion,
+      });
 
       // Compute the per-subagent file path relative to the tool's base directory.
       // For flat layouts (e.g. `<name>.md`) this is identical to `basename(path)`,
@@ -598,7 +642,7 @@ export class SubagentsProcessor extends FeatureProcessor {
             // Called through factory.class so a future implementation may
             // safely reference `this` (its own statics), like the other hooks.
             factory.class.isFileOwned!({
-              outputRoot: this.outputRoot,
+              outputRoot: rootOutputRoot,
               relativeDirPath: dirPath,
               relativeFilePath: toRelativeFilePath(path),
             }),
@@ -608,11 +652,19 @@ export class SubagentsProcessor extends FeatureProcessor {
       }
 
       if (forDeletion) {
+        await Promise.all(
+          ownedFilePaths.map((path) =>
+            assertWritablePathInsideRoot({
+              rootPath: baseDir,
+              targetPath: path,
+            }),
+          ),
+        );
         toolSubagents.push(
           ...ownedFilePaths
             .map((path) =>
               factory.class.forDeletion({
-                outputRoot: this.outputRoot,
+                outputRoot: rootOutputRoot,
                 relativeDirPath: dirPath,
                 relativeFilePath: toRelativeFilePath(path),
                 global: this.global,
@@ -626,7 +678,7 @@ export class SubagentsProcessor extends FeatureProcessor {
       const loaded = await Promise.all(
         ownedFilePaths.map((path) =>
           factory.class.fromFile({
-            outputRoot: this.outputRoot,
+            outputRoot: rootOutputRoot,
             relativeDirPath: dirPath,
             relativeFilePath: toRelativeFilePath(path),
             global: this.global,
@@ -641,7 +693,7 @@ export class SubagentsProcessor extends FeatureProcessor {
       // failing, keeping the earlier (higher-precedence) root's file.
       const deduped: ToolFile[] = [];
       for (const subagent of loaded) {
-        const key = subagent.getRelativeFilePath();
+        const key = subagent.getImportIdentity();
         if (seenRelativeFilePaths.has(key)) {
           this.logger.warn(
             `Duplicate ${this.toolTarget} subagent "${key}" found in ${dirPath}; ` +
@@ -664,7 +716,7 @@ export class SubagentsProcessor extends FeatureProcessor {
         global: this.global,
       });
       for (const subagent of additionalSubagents) {
-        const key = subagent.getRelativeFilePath();
+        const key = subagent.getImportIdentity();
         if (seenRelativeFilePaths.has(key)) {
           this.logger.warn(
             `Duplicate ${this.toolTarget} subagent "${key}" defined inline; ` +
@@ -678,7 +730,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     }
 
     this.logger.debug(
-      `Successfully loaded ${toolSubagents.length} ${this.toolTarget} subagents from ${dirPaths.join(", ")}`,
+      `Successfully loaded ${toolSubagents.length} ${this.toolTarget} subagents from ${roots.length} root(s)`,
     );
     return toolSubagents;
   }

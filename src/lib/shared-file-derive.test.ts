@@ -167,6 +167,10 @@ describe("shared-file write derivation", () => {
           "permissions",
           "subagents",
         ],
+        ".kimi-code/config.toml": [
+          "hooks",
+          "permissions",
+        ],
         ".kiro/agents/default.json": [
           "hooks",
           "permissions",

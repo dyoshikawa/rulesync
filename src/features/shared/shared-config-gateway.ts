@@ -256,6 +256,7 @@ export const TAKT_CONFIG_SHARED_FILE_KEY = ".takt/config.yaml";
 export const CODEXCLI_CONFIG_SHARED_FILE_KEY = ".codex/config.toml";
 export const GROKCLI_CONFIG_SHARED_FILE_KEY = ".grok/config.toml";
 export const VIBE_CONFIG_SHARED_FILE_KEY = ".vibe/config.toml";
+export const KIMI_CODE_CONFIG_SHARED_FILE_KEY = ".kimi-code/config.toml";
 export const REASONIX_PROJECT_CONFIG_SHARED_FILE_KEY = "reasonix.toml";
 export const REASONIX_GLOBAL_CONFIG_SHARED_FILE_KEY = ".reasonix/config.toml";
 
@@ -543,6 +544,19 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       permissions: {
         kind: "replace-owned-keys",
         ownedKeys: ["tools", "enabled_tools", "disabled_tools"],
+      },
+    },
+  },
+  // Kimi Code's user config: hooks owns the flat `hooks` array; permissions
+  // owns the ordered rule list and optional coarse default mode.
+  [KIMI_CODE_CONFIG_SHARED_FILE_KEY]: {
+    format: "toml",
+    invalidRootPolicy: "error",
+    features: {
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      permissions: {
+        kind: "replace-owned-keys",
+        ownedKeys: ["permission", "default_permission_mode"],
       },
     },
   },

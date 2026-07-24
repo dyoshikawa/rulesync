@@ -1,10 +1,11 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
-import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import { ensureDir, fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -62,6 +63,10 @@ const skillsGenerateTargets = [
   {
     target: "kilo",
     outputPath: join(".kilo", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "kimi-code",
+    outputPath: join(".kimi-code", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "roo",
@@ -280,6 +285,10 @@ describe("E2E: skills (import)", () => {
     { target: "deepagents", sourcePath: join(".deepagents", "skills", "test-skill", "SKILL.md") },
     { target: "cline", sourcePath: join(".cline", "skills", "test-skill", "SKILL.md") },
     { target: "kilo", sourcePath: join(".kilo", "skills", "test-skill", "SKILL.md") },
+    {
+      target: "kimi-code",
+      sourcePath: join(".kimi-code", "skills", "test-skill", "SKILL.md"),
+    },
     { target: "roo", sourcePath: join(".roo", "skills", "test-skill", "SKILL.md") },
     { target: "rovodev", sourcePath: join(".rovodev", "skills", "test-skill", "SKILL.md") },
     { target: "devin", sourcePath: join(".devin", "skills", "test-skill", "SKILL.md") },
@@ -331,6 +340,168 @@ This is the fallback skill body content.`;
       join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "fallback-skill", "SKILL.md"),
     );
     expect(importedContent).toContain("fallback skill body content");
+  });
+
+  it("should import Kimi flat and shared skills with Kimi-specific precedence", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".kimi-code", "skills", "review.md"),
+      "Primary flat skill description\n\nPrimary flat skill body.",
+    );
+    await writeFileContent(
+      join(testDir, ".agents", "skills", "review", "SKILL.md"),
+      [
+        "---",
+        "name: review",
+        'description: "Lower-precedence shared skill"',
+        "---",
+        "Shared duplicate body.",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".agents", "skills", "shared", "SKILL.md"),
+      [
+        "---",
+        "name: shared",
+        'description: "Shared Agent Skill"',
+        "---",
+        "Shared-only skill body.",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".kimi-code", "skills", "primary", "SKILL.md"),
+      [
+        "---",
+        "name: Logical-Review",
+        'description: "Directory-form logical skill"',
+        "---",
+        "Primary directory-form logical skill.",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".kimi-code", "skills", "alternate.md"),
+      [
+        "---",
+        "name: logical-review",
+        'description: "Flat logical duplicate"',
+        "---",
+        "This flat logical duplicate must lose.",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".agents", "skills", "different-path", "SKILL.md"),
+      [
+        "---",
+        "name: LOGICAL-REVIEW",
+        'description: "Shared logical duplicate"',
+        "---",
+        "This shared logical duplicate must lose.",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".kimi-code", "skills", "collision", "SKILL.md"),
+      [
+        "---",
+        "name: directory-logical",
+        'description: "Directory collision skill"',
+        "---",
+        "Directory collision body.",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".kimi-code", "skills", "collision.md"),
+      [
+        "---",
+        "name: flat-logical",
+        'description: "Flat collision skill"',
+        "---",
+        "Flat collision body.",
+      ].join("\n"),
+    );
+
+    await runImport({ target: "kimi-code", features: "skills" });
+
+    const review = await readFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "review", "SKILL.md"),
+    );
+    expect(review).toContain("name: review");
+    expect(review).toContain("description: Primary flat skill description");
+    expect(review).toContain("Primary flat skill body");
+    expect(review).not.toContain("Shared duplicate body");
+    expect(
+      await readFileContent(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "shared", "SKILL.md")),
+    ).toContain("Shared-only skill body");
+    const logicalReview = await readFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "logical-review", "SKILL.md"),
+    );
+    expect(logicalReview).toContain("Primary directory-form logical skill");
+    expect(logicalReview).not.toContain("logical duplicate must lose");
+    expect(
+      await fileExists(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "alternate", "SKILL.md")),
+    ).toBe(false);
+    expect(
+      await fileExists(
+        join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "different-path", "SKILL.md"),
+      ),
+    ).toBe(false);
+    expect(
+      await readFileContent(
+        join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "directory-logical", "SKILL.md"),
+      ),
+    ).toContain("Directory collision body");
+    expect(
+      await fileExists(
+        join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "flat-logical", "SKILL.md"),
+      ),
+    ).toBe(false);
+  });
+
+  it("should not delete Kimi shared-root skills", async () => {
+    const testDir = getTestDir();
+    const sharedSkillPath = join(testDir, ".agents", "skills", "shared", "SKILL.md");
+    await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+    await writeFileContent(
+      sharedSkillPath,
+      [
+        "---",
+        "name: shared",
+        'description: "Shared Agent Skill"',
+        "---",
+        "User-owned shared skill.",
+      ].join("\n"),
+    );
+
+    await runGenerate({
+      target: "kimi-code",
+      features: "skills",
+      deleteFiles: true,
+    });
+
+    expect(await readFileContent(sharedSkillPath)).toContain("User-owned shared skill");
+  });
+
+  it("should reject a symlinked Kimi managed skills root during deletion", async () => {
+    const testDir = getTestDir();
+    const protectedDir = join(testDir, "protected-skills");
+    const protectedFile = join(protectedDir, "protected", "SKILL.md");
+    const managedRoot = join(testDir, ".kimi-code", "skills");
+    await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+    await writeFileContent(
+      protectedFile,
+      ["---", "name: protected", 'description: "Protected skill"', "---", "Keep me."].join("\n"),
+    );
+    await ensureDir(join(testDir, ".kimi-code"));
+    await symlink(protectedDir, managedRoot, process.platform === "win32" ? "junction" : "dir");
+
+    await expect(
+      runGenerate({
+        target: "kimi-code",
+        features: "skills",
+        deleteFiles: true,
+      }),
+    ).rejects.toThrow();
+    expect(await readFileContent(protectedFile)).toContain("Keep me.");
   });
 });
 
@@ -395,6 +566,10 @@ const skillsGlobalTargets = [
   {
     target: "kilo",
     outputPath: join(".kilo", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "kimi-code",
+    outputPath: join(".kimi-code", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "roo",
@@ -550,6 +725,30 @@ Non-root skill body
     );
     expect(generatedContent).toContain("Root skill body");
     expect(generatedContent).not.toContain("Non-root skill body");
+  });
+
+  it("should import Kimi flat skills from the shared global root", async () => {
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(homeDir, ".agents", "skills", "global-review.md"),
+      ["---", 'description: "Reviews changes globally"', "---", "Global flat skill body."].join(
+        "\n",
+      ),
+    );
+
+    await runImport({
+      target: "kimi-code",
+      features: "skills",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = await readFileContent(
+      join(homeDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "global-review", "SKILL.md"),
+    );
+    expect(imported).toContain("name: global-review");
+    expect(imported).toContain("Global flat skill body");
   });
 });
 
