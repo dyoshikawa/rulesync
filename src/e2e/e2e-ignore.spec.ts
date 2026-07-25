@@ -74,10 +74,14 @@ credentials/
       await writeFileContent(join(testDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH), ignoreContent);
 
       const homeDir = join(testDir, "home");
+      const hermesHome = join(testDir, "hermes-profile");
       await runGenerate({
         target,
         features: "ignore",
-        env: { HOME_DIR: homeDir },
+        env: {
+          HOME_DIR: homeDir,
+          ...(target === "hermesagent" ? { HERMES_HOME: hermesHome } : {}),
+        },
       });
 
       const generatedContent = await readFileContent(join(testDir, outputPath));
@@ -101,12 +105,9 @@ credentials/
       }
 
       if (target === "hermesagent") {
-        expect(await readFileContent(join(homeDir, ".hermes", "config.yaml"))).toContain(
-          "rulesync-ignore",
-        );
-        expect(await readFileContent(join(homeDir, ".hermes", ".env"))).toBe(
-          "HERMES_ENABLE_PROJECT_PLUGINS=true\n",
-        );
+        expect(await readFileContent(join(hermesHome, "config.yaml"))).toContain("rulesync-ignore");
+        expect(await fileExists(join(hermesHome, ".env"))).toBe(false);
+        expect(await fileExists(join(homeDir, ".hermes", "config.yaml"))).toBe(false);
       }
     },
   );

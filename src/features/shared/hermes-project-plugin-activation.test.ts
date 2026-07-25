@@ -1,17 +1,19 @@
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { readFileContent, readFileContentOrNull, writeFileContent } from "../../utils/file.js";
-import {
-  activateHermesProjectPlugins,
-  enableHermesProjectPluginsInDotenv,
-} from "./hermes-project-plugin-activation.js";
+import { activateHermesProjectPlugins } from "./hermes-project-plugin-activation.js";
 import { parseSharedConfig } from "./shared-config-gateway.js";
 
 const previousHomeDir = process.env.HOME_DIR;
+const previousHermesHome = process.env.HERMES_HOME;
+
+beforeEach(() => {
+  delete process.env.HERMES_HOME;
+});
 
 afterEach(() => {
   if (previousHomeDir === undefined) {
@@ -19,31 +21,15 @@ afterEach(() => {
   } else {
     process.env.HOME_DIR = previousHomeDir;
   }
+  if (previousHermesHome === undefined) {
+    delete process.env.HERMES_HOME;
+  } else {
+    process.env.HERMES_HOME = previousHermesHome;
+  }
 });
 
 describe("Hermes project plugin activation", () => {
-  it("normalizes the exact dotenv key without disturbing unrelated content", () => {
-    expect(
-      enableHermesProjectPluginsInDotenv(
-        [
-          "# HERMES_ENABLE_PROJECT_PLUGINS=false",
-          "TOKEN=secret",
-          "export HERMES_ENABLE_PROJECT_PLUGINS=0",
-          "HERMES_ENABLE_PROJECT_PLUGINS=false",
-          "",
-        ].join("\r\n"),
-      ),
-    ).toBe(
-      [
-        "# HERMES_ENABLE_PROJECT_PLUGINS=false",
-        "TOKEN=secret",
-        "export HERMES_ENABLE_PROJECT_PLUGINS=true",
-        "",
-      ].join("\n"),
-    );
-  });
-
-  it("adds enabled plugins and the project-plugin environment flag", async () => {
+  it("adds enabled plugins without changing the global project-plugin trust gate", async () => {
     const { testDir, cleanup } = await setupTestDirectory({ home: true });
     process.env.HOME_DIR = testDir;
     try {
@@ -65,15 +51,16 @@ describe("Hermes project plugin activation", () => {
         "TOKEN=secret\nHERMES_ENABLE_PROJECT_PLUGINS=false\n",
       );
 
+      const logger = createMockLogger();
       const result = await activateHermesProjectPlugins({
         pluginNames: ["rulesync-ignore", "rulesync-checks"],
         dryRun: false,
-        logger: createMockLogger(),
+        logger,
       });
 
       expect(result).toEqual({
-        count: 2,
-        paths: [".hermes/config.yaml", ".hermes/.env"],
+        count: 1,
+        paths: [".hermes/config.yaml"],
         hasDiff: true,
       });
       expect(
@@ -89,14 +76,17 @@ describe("Hermes project plugin activation", () => {
         },
       });
       expect(await readFileContent(join(testDir, ".hermes", ".env"))).toBe(
-        "TOKEN=secret\nHERMES_ENABLE_PROJECT_PLUGINS=true\n",
+        "TOKEN=secret\nHERMES_ENABLE_PROJECT_PLUGINS=false\n",
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("HERMES_ENABLE_PROJECT_PLUGINS=true"),
       );
     } finally {
       await cleanup();
     }
   });
 
-  it("honors dry-run without writing either user-level file", async () => {
+  it("honors dry-run without writing the user-level config", async () => {
     const { testDir, cleanup } = await setupTestDirectory({ home: true });
     process.env.HOME_DIR = testDir;
     try {
@@ -108,10 +98,37 @@ describe("Hermes project plugin activation", () => {
       });
 
       expect(result.hasDiff).toBe(true);
-      expect(result.paths).toEqual([".hermes/config.yaml", ".hermes/.env"]);
+      expect(result.paths).toEqual([".hermes/config.yaml"]);
       expect(await readFileContentOrNull(join(testDir, ".hermes", "config.yaml"))).toBeNull();
       expect(await readFileContentOrNull(join(testDir, ".hermes", ".env"))).toBeNull();
-      expect(logger.info).toHaveBeenCalledTimes(2);
+      expect(logger.info).toHaveBeenCalledTimes(1);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("writes activation to the active HERMES_HOME profile", async () => {
+    const { testDir, cleanup } = await setupTestDirectory({ home: true });
+    const profileDir = join(testDir, "profiles", "reviewer");
+    process.env.HOME_DIR = testDir;
+    process.env.HERMES_HOME = profileDir;
+    try {
+      const result = await activateHermesProjectPlugins({
+        pluginNames: ["rulesync-subagents"],
+        dryRun: false,
+        logger: createMockLogger(),
+      });
+
+      expect(result).toEqual({
+        count: 1,
+        paths: ["config.yaml"],
+        hasDiff: true,
+      });
+      expect(await readFileContent(join(profileDir, "config.yaml"))).toContain(
+        "rulesync-subagents",
+      );
+      expect(await readFileContentOrNull(join(testDir, ".hermes", "config.yaml"))).toBeNull();
+      expect(await readFileContentOrNull(join(profileDir, ".env"))).toBeNull();
     } finally {
       await cleanup();
     }

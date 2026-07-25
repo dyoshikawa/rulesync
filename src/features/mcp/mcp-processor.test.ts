@@ -12,6 +12,7 @@ import { CodexcliMcp } from "./codexcli-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CopilotcliMcp } from "./copilotcli-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
+import { HermesagentMcp } from "./hermesagent-mcp.js";
 import { KiroMcp } from "./kiro-mcp.js";
 import {
   McpProcessor,
@@ -946,6 +947,28 @@ describe("McpProcessor", () => {
         logger: createMockLogger(),
         outputRoot: testDir,
         toolTarget: "opencode",
+      });
+
+      await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+      expect(rulesyncMcp.stripMcpServerFields).toHaveBeenCalledWith([]);
+    });
+
+    it("should not strip enabledTools and disabledTools for Hermes Agent", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      vi.spyOn(HermesagentMcp, "fromRulesyncMcp").mockResolvedValue({} as HermesagentMcp);
+
+      const processor = new McpProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "hermesagent",
+        global: true,
       });
 
       await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);

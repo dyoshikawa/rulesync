@@ -778,6 +778,9 @@ describe("E2E: mcp (global mode)", () => {
         "    url: https://example.com/mcp",
         "    idle_timeout_seconds: 300",
         "    max_lifetime_seconds: 3600",
+        "    tools:",
+        "      include: [read]",
+        "      exclude: [delete]",
         "    oauth:",
         "      redirect_uri: http://localhost:8080/callback",
         "      redirect_port: 8080",
@@ -798,6 +801,8 @@ describe("E2E: mcp (global mode)", () => {
     );
     expect(imported.mcpServers.remote).toEqual({
       url: "https://example.com/mcp",
+      enabledTools: ["read"],
+      disabledTools: ["delete"],
     });
     expect(imported.hermesagent.mcpServers.remote).toMatchObject({
       idle_timeout_seconds: 300,
@@ -827,6 +832,8 @@ describe("E2E: mcp (global mode)", () => {
               command: "echo",
               args: ["hello"],
               env: {},
+              enabledTools: ["read"],
+              disabledTools: ["delete"],
             },
           },
         },
@@ -844,6 +851,15 @@ describe("E2E: mcp (global mode)", () => {
 
       const generatedContent = await readFileContent(join(homeDir, outputPath));
       expect(generatedContent).toContain("test-server");
+      if (target === "hermesagent") {
+        const parsed = toTable(load(generatedContent) as Record<string, unknown>);
+        const mcpServers = toTable(parsed.mcp_servers);
+        const server = toTable(mcpServers["test-server"]);
+        expect(toTable(server.tools)).toEqual({
+          include: ["read"],
+          exclude: ["delete"],
+        });
+      }
     },
   );
 

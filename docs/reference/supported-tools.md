@@ -15,7 +15,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | GitHub Copilot            | copilot            | ✅ 🌏 |        |    ✅    |    ✅    |   ✅ 🌏   | ✅ 🌏  |  ✅   |     ✅      |        |
 | GitHub Copilot CLI        | copilotcli         | ✅ 🌏 |        |  ✅ 🌏   |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |        |
 | Goose                     | goose              | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   |   ✅   | ✅ 🌏 |     🌏      |        |
-| Hermes Agent              | hermesagent        |  ✅   |   ✅   |    🌏    |    🌏    |   ✅ 🌏   |   🌏   |  🌏   |     🌏      |   ✅   |
+| Hermes Agent              | hermesagent        |  ✅   |   ✅   |  🌏 🔧   |    🌏    |   ✅ 🌏   |   🌏   |  🌏   |     🌏      |   ✅   |
 | Grok CLI                  | grokcli            | ✅ 🌏 |        |  ✅ 🌏   |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Cursor                    | cursor             |  ✅   |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | deepagents-cli            | deepagents         | ✅ 🌏 |        |  ✅ 🌏   |          |   ✅ 🌏   | ✅ 🌏  |  🌏   |             |        |
@@ -62,10 +62,11 @@ hooks, and permissions. Generation, `--check`, and import round-trips are
 covered for both advertised scopes.
 
 Rulesync honors Hermes profiles through `HERMES_HOME`. Project plugins are
-activated by adding their names to `$HERMES_HOME/config.yaml` and setting
-`HERMES_ENABLE_PROJECT_PLUGINS=true` in `$HERMES_HOME/.env`. A future Hermes
-release that changes its loaders, schemas, or plugin API requires a new
-compatibility validation.
+registered by adding their names to `$HERMES_HOME/config.yaml`, but Rulesync
+does not persist Hermes's global project-plugin trust gate. Run Hermes from a
+trusted project root with `HERMES_ENABLE_PROJECT_PLUGINS=true` for an explicit,
+session-scoped opt-in. A future Hermes release that changes its loaders,
+schemas, or plugin API requires a new compatibility validation.
 
 ## Deprecation notes
 

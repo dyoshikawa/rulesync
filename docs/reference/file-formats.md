@@ -452,7 +452,7 @@ Besides `mode`, the `kilo` subagent block accepts these optional fields (all pre
 | `steps`       | array of object  | Ordered step definitions                                                         |
 | `options`     | object           | Free-form key/value options                                                      |
 
-> **Hermes Agent note:** Project generation writes subagent JSON specs under `.hermes/rulesync/subagents/` and installs `.hermes/plugins/rulesync-subagents/`. The plugin resolves specs relative to its own installation, so the same code works in project and global scope. For project scope, Rulesync also enables `rulesync-subagents` in `~/.hermes/config.yaml` and writes `HERMES_ENABLE_PROJECT_PLUGINS=true` to `~/.hermes/.env`.
+> **Hermes Agent note:** Project generation writes subagent JSON specs under `.hermes/rulesync/subagents/` and installs `.hermes/plugins/rulesync-subagents/`. The plugin resolves specs relative to its own installation, so the same code works in project and global scope. For project scope, Rulesync also enables `rulesync-subagents` in `$HERMES_HOME/config.yaml`. Run Hermes from the trusted project root with `HERMES_ENABLE_PROJECT_PLUGINS=true`; Rulesync deliberately does not persist that global trust gate.
 
 ## `.rulesync/checks/*.md`
 
@@ -477,14 +477,13 @@ Amp and Hermes Agent consume checks. Amp receives one Markdown file per check:
 - **Project scope:** `.agents/checks/<name>.md`
 - **Global scope** (`--global`): `~/.config/amp/checks/<name>.md`
 
-For Hermes Agent, Rulesync writes project-local JSON specs under `.hermes/plugins/rulesync-checks/checks/` and a `rulesync-checks` plugin beside them. Its one-shot [`pre_verify` hook](https://hermes-agent.nousresearch.com/docs/user-guide/features/hooks/#pre-verify) fires only for coding turns with changed paths and `attempt == 0`, then asks Hermes to run all configured checks before finishing. `tools` is preserved as advisory guidance because Hermes does not enforce an Amp-style per-check tool allowlist. Enable and run the project plugin from the project root:
+For Hermes Agent, Rulesync writes project-local JSON specs under `.hermes/plugins/rulesync-checks/checks/` and a `rulesync-checks` plugin beside them. Its one-shot [`pre_verify` hook](https://hermes-agent.nousresearch.com/docs/user-guide/features/hooks/#pre-verify) fires only for coding turns with changed paths and `attempt == 0`, then asks Hermes to run all configured checks before finishing. `tools` is preserved as advisory guidance because Hermes does not enforce an Amp-style per-check tool allowlist. Run Hermes with the project plugin explicitly trusted for that invocation:
 
 ```sh
-HERMES_ENABLE_PROJECT_PLUGINS=1 hermes plugins enable rulesync-checks
 HERMES_ENABLE_PROJECT_PLUGINS=1 hermes
 ```
 
-These manual activation commands are no longer required after generation. Rulesync adds `rulesync-checks` to `plugins.enabled` in `~/.hermes/config.yaml` and writes `HERMES_ENABLE_PROJECT_PLUGINS=true` to `~/.hermes/.env`. Existing plugin configuration and unrelated environment entries are preserved; an explicit `plugins.disabled` conflict fails generation.
+Rulesync adds `rulesync-checks` to `plugins.enabled` in `$HERMES_HOME/config.yaml` but deliberately leaves `$HERMES_HOME/.env` unchanged, preserving Hermes's global trust boundary. Existing plugin configuration is preserved; an explicit `plugins.disabled` conflict fails generation.
 
 The emitted Amp frontmatter is derived from the source as follows:
 
@@ -926,14 +925,13 @@ Code's settings file as `permissions.deny` entries (`Read(<pattern>)`).
 
 Kiro reads `.kiroignore` in project scope and `~/.kiro/settings/kiroignore` in user scope. The `kiro`, `kiro-cli`, and `kiro-ide` targets therefore support `--global` for the deprecated ignore feature even though other ignore targets remain project-only.
 
-Hermes Agent uses a project-local `rulesync-ignore` plugin under `.hermes/plugins/`. It applies the canonical gitignore-style patterns through [`pre_tool_call`](https://hermes-agent.nousresearch.com/docs/user-guide/features/hooks/#pre-tool-call) to `read_file`, `write_file`, and `patch` before execution, and filters ignored paths from `search_files` results through `transform_tool_result`. This is defense in depth around Hermes file tools; terminal commands and paths already present in conversation context are outside the plugin's enforcement surface. Hermes deliberately requires [explicit trust for project plugins](https://hermes-agent.nousresearch.com/docs/user-guide/features/plugins/), so enable and run it from the project root:
+Hermes Agent uses a project-local `rulesync-ignore` plugin under `.hermes/plugins/`. It applies the canonical gitignore-style patterns through [`pre_tool_call`](https://hermes-agent.nousresearch.com/docs/user-guide/features/hooks/#pre-tool-call) to `read_file`, `write_file`, and `patch` before execution, and filters ignored paths from `search_files` results through `transform_tool_result`. This is defense in depth around Hermes file tools; terminal commands and paths already present in conversation context are outside the plugin's enforcement surface. Hermes deliberately requires [explicit trust for project plugins](https://hermes-agent.nousresearch.com/docs/user-guide/features/plugins/), so run it from the trusted project root with that invocation opted in:
 
 ```sh
-HERMES_ENABLE_PROJECT_PLUGINS=1 hermes plugins enable rulesync-ignore
 HERMES_ENABLE_PROJECT_PLUGINS=1 hermes
 ```
 
-These manual activation commands are no longer required after generation. Rulesync adds `rulesync-ignore` to `plugins.enabled` in `~/.hermes/config.yaml` and writes `HERMES_ENABLE_PROJECT_PLUGINS=true` to `~/.hermes/.env`. Existing configuration is preserved, explicit `plugins.disabled` conflicts fail, and `--delete` retains the additive user-level activation.
+Rulesync adds `rulesync-ignore` to `plugins.enabled` in `$HERMES_HOME/config.yaml` but deliberately leaves `$HERMES_HOME/.env` unchanged. Existing configuration is preserved, explicit `plugins.disabled` conflicts fail, and `--delete` retains the additive user-level activation.
 
 For Cursor, Rulesync emits only `.cursorignore` — the file that **blocks access
 entirely** (semantic search, Tab, Agent, Inline Edit, and `@`-mentions). Cursor

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { RULESYNC_CHECKS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { ChecksProcessor } from "../features/checks/checks-processor.js";
-import { readFileContent, writeFileContent } from "../utils/file.js";
+import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -84,9 +84,7 @@ Look for injection vulnerabilities.
         expect(await readFileContent(join(homeDir, ".hermes", "config.yaml"))).toContain(
           "rulesync-checks",
         );
-        expect(await readFileContent(join(homeDir, ".hermes", ".env"))).toBe(
-          "HERMES_ENABLE_PROJECT_PLUGINS=true\n",
-        );
+        expect(await fileExists(join(homeDir, ".hermes", ".env"))).toBe(false);
       }
       expect(generatedContent).toContain("Look for injection vulnerabilities.");
     },

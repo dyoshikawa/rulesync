@@ -1,8 +1,8 @@
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import {
+  HERMESAGENT_CONFIG_FILE_NAME,
   HERMESAGENT_CONFIG_FILE_PATH,
-  HERMESAGENT_DOTENV_FILE_PATH,
   HERMESAGENT_PROJECT_PLUGINS_ENV_VAR,
 } from "../../constants/hermesagent-paths.js";
 import { fileContentsEquivalent } from "../../utils/content-equivalence.js";
@@ -67,38 +67,6 @@ function mergeEnabledPlugins({
   });
 }
 
-export function enableHermesProjectPluginsInDotenv(existingContent: string): string {
-  const assignment = `${HERMESAGENT_PROJECT_PLUGINS_ENV_VAR}=true`;
-  const matcher = new RegExp(
-    `^(\\s*(?:export\\s+)?)${HERMESAGENT_PROJECT_PLUGINS_ENV_VAR}\\s*=.*$`,
-  );
-  const lines = existingContent.replaceAll("\r\n", "\n").split("\n");
-  const result: string[] = [];
-  let found = false;
-
-  for (const line of lines) {
-    const match = matcher.exec(line);
-    if (!match) {
-      result.push(line);
-      continue;
-    }
-    if (found) {
-      continue;
-    }
-    result.push(`${match[1] ?? ""}${assignment}`);
-    found = true;
-  }
-
-  if (!found) {
-    while (result.at(-1) === "") {
-      result.pop();
-    }
-    result.push(assignment);
-  }
-
-  return `${result.join("\n").replace(/\n+$/u, "")}\n`;
-}
-
 async function writeActivationFile({
   filePath,
   relativePath,
@@ -146,40 +114,36 @@ export async function activateHermesProjectPlugins({
     return { count: 0, paths: [], hasDiff: false };
   }
 
-  const homeDirectory = getHomeDirectory();
-  const configPath = join(homeDirectory, HERMESAGENT_CONFIG_FILE_PATH);
-  const dotenvPath = join(homeDirectory, HERMESAGENT_DOTENV_FILE_PATH);
+  const configuredHermesHome = process.env.HERMES_HOME?.trim();
+  const configRoot = configuredHermesHome ? resolve(configuredHermesHome) : getHomeDirectory();
+  const relativeConfigPath = configuredHermesHome
+    ? HERMESAGENT_CONFIG_FILE_NAME
+    : HERMESAGENT_CONFIG_FILE_PATH;
+  const configPath = join(configRoot, relativeConfigPath);
   const existingConfig = (await readFileContentOrNull(configPath)) ?? "";
-  const existingDotenv = (await readFileContentOrNull(dotenvPath)) ?? "";
   const expectedConfig = mergeEnabledPlugins({
     existingContent: existingConfig,
     filePath: configPath,
     pluginNames,
   });
-  const expectedDotenv = enableHermesProjectPluginsInDotenv(existingDotenv);
   const paths: string[] = [];
+
+  logger.warn(
+    "Hermes project plugins require explicit trust. Run Hermes from this trusted repository " +
+      `with ${HERMESAGENT_PROJECT_PLUGINS_ENV_VAR}=true. RuleSync does not persist this ` +
+      "global setting.",
+  );
 
   if (
     await writeActivationFile({
       filePath: configPath,
-      relativePath: HERMESAGENT_CONFIG_FILE_PATH,
+      relativePath: relativeConfigPath,
       expectedContent: expectedConfig,
       dryRun,
       logger,
     })
   ) {
-    paths.push(HERMESAGENT_CONFIG_FILE_PATH);
-  }
-  if (
-    await writeActivationFile({
-      filePath: dotenvPath,
-      relativePath: HERMESAGENT_DOTENV_FILE_PATH,
-      expectedContent: expectedDotenv,
-      dryRun,
-      logger,
-    })
-  ) {
-    paths.push(HERMESAGENT_DOTENV_FILE_PATH);
+    paths.push(relativeConfigPath);
   }
 
   return { count: paths.length, paths, hasDiff: paths.length > 0 };

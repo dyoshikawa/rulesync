@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
-import { ensureDir, readFileContent, writeFileContent } from "../utils/file.js";
+import { ensureDir, fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -209,9 +209,7 @@ You are the planner. Analyze files and create a plan.
         expect(await readFileContent(join(homeDir, ".hermes", "config.yaml"))).toContain(
           "rulesync-subagents",
         );
-        expect(await readFileContent(join(homeDir, ".hermes", ".env"))).toBe(
-          "HERMES_ENABLE_PROJECT_PLUGINS=true\n",
-        );
+        expect(await fileExists(join(homeDir, ".hermes", ".env"))).toBe(false);
         expect(
           await readFileContent(
             join(testDir, ".hermes", "plugins", "rulesync-subagents", "__init__.py"),
