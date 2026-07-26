@@ -2307,6 +2307,55 @@ describe("E2E: permissions (global mode)", () => {
     expect(parsed.terminal).toBe("tmux");
   });
 
+  it("should import native Hermes permission settings without private provenance", async () => {
+    const homeDir = getHomeDir();
+    await writeFileContent(
+      join(homeDir, ".hermes", "config.yaml"),
+      [
+        "model: hermes-large",
+        'command_allowlist: ["git *", "pnpm *"]',
+        "approvals:",
+        '  deny: ["rm -rf *"]',
+        "  mode: smart",
+        "security:",
+        "  allow_private_urls: false",
+        "  website_blocklist:",
+        "    enabled: true",
+        "    domains: [evil.example.com]",
+        "skills:",
+        "  write_approval: true",
+        "memory:",
+        "  write_approval: false",
+      ].join("\n"),
+    );
+
+    await runImport({
+      target: "hermesagent",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = JSON.parse(
+      await readFileContent(join(homeDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.permission).toEqual({
+      bash: {
+        "git *": "allow",
+        "pnpm *": "allow",
+        "rm -rf *": "deny",
+      },
+      webfetch: { "evil.example.com": "deny" },
+    });
+    expect(imported.hermes).toEqual({
+      approvals: { mode: "smart" },
+      security: { allow_private_urls: false },
+      skills: { write_approval: true },
+      memory: { write_approval: false },
+    });
+    expect(imported.model).toBeUndefined();
+  });
+
   it("should generate reasonix permissions in home directory with --global", async () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

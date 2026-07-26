@@ -1,3 +1,6 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
 import { describe, expect, test } from "vitest";
 
 import {
@@ -6,11 +9,48 @@ import {
   HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH,
 } from "../../constants/hermesagent-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { HermesagentSubagent } from "./hermesagent-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 
 describe("HermesagentSubagent", () => {
+  test("loads a generated subagent from its Hermes directory", async () => {
+    const { testDir, cleanup } = await setupTestDirectory();
+    const specDir = join(testDir, HERMESAGENT_RULESYNC_SUBAGENTS_DIR_PATH);
+    await mkdir(specDir, { recursive: true });
+    await writeFile(
+      join(specDir, "reviewer.json"),
+      JSON.stringify({
+        slug: "reviewer",
+        name: "Reviewer",
+        description: "Review code changes",
+        prompt: "Review code carefully.",
+      }),
+      "utf8",
+    );
+
+    try {
+      const subagent = await HermesagentSubagent.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: HERMESAGENT_RULESYNC_SUBAGENTS_DIR_PATH,
+        relativeFilePath: "reviewer.json",
+        global: false,
+      });
+
+      const imported = subagent.toRulesyncSubagent();
+      expect(imported.getRelativePathFromCwd()).toBe(
+        `${RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH}/reviewer.md`,
+      );
+      expect(imported.getFilePath()).toBe(
+        join(process.cwd(), RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "reviewer.md"),
+      );
+      expect(imported.getBody()).toBe("Review code carefully.");
+    } finally {
+      await cleanup();
+    }
+  });
+
   test("generates native Hermes delegation plugin files", () => {
     const rulesyncSubagent = new RulesyncSubagent({
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -27,7 +67,7 @@ describe("HermesagentSubagent", () => {
     });
 
     expect(files.map((file) => file.getRelativeFilePath()).toSorted()).toEqual(
-      [`reviewer.json`, `plugin.yaml`, `__init__.py`, `config.yaml`].toSorted(),
+      [`reviewer.json`, `plugin.yaml`, `__init__.py`].toSorted(),
     );
 
     const subagentSpec = files.find((file) => file.getRelativeFilePath() === `reviewer.json`);
@@ -46,12 +86,12 @@ describe("HermesagentSubagent", () => {
     expect(plugin?.getFileContent()).toContain("ctx.dispatch_tool(");
     expect(plugin?.getFileContent()).toContain('"delegate_task"');
     expect(plugin?.getFileContent()).toContain("ctx.register_command");
+    expect(plugin?.getFileContent()).toContain(
+      'Path(__file__).resolve().parents[2] / "rulesync" / "subagents"',
+    );
 
     const manifest = files.find((file) => file.getRelativeFilePath() === `plugin.yaml`);
     expect(manifest?.getFileContent()).toContain("name: rulesync-subagents");
-
-    const config = files.find((file) => file.getRelativeFilePath() === `config.yaml`);
-    expect(config?.getFileContent()).toContain("rulesync-subagents");
   });
 
   test("declares the Hermes subagent directory as settable", () => {
@@ -84,6 +124,7 @@ describe("HermesagentSubagent", () => {
   test("preserves existing Hermes config when enabling subagents plugin", () => {
     const files = HermesagentSubagent.fromRulesyncSubagents({
       rulesyncSubagents: [],
+      global: true,
     });
     const config = files.find((file) => file.getRelativeFilePath() === "config.yaml");
 
@@ -107,5 +148,12 @@ plugins:
     expect(parsed.plugins).toEqual({
       enabled: ["existing-plugin", "rulesync-subagents"],
     });
+    expect(HermesagentSubagent.getExtraSharedWritePaths()).toEqual([]);
+    expect(HermesagentSubagent.getExtraSharedWritePaths({ global: true })).toEqual([
+      {
+        relativeDirPath: HERMESAGENT_GLOBAL_DIR,
+        relativeFilePath: "config.yaml",
+      },
+    ]);
   });
 });

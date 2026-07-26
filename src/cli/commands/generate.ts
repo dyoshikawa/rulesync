@@ -80,6 +80,7 @@ function buildSummaryParts(result: GenerateResult): string[] {
     { count: result.hooksCount, label: "hooks" },
     { count: result.permissionsCount, label: "permissions" },
     { count: result.checksCount, label: "checks" },
+    { count: result.activationCount, label: "Hermes activation files" },
   ];
 
   const parts: string[] = [];
@@ -127,6 +128,7 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
     permissions: { count: result.permissionsCount, paths: result.permissionsPaths },
     checks: { count: result.checksCount, paths: result.checksPaths },
     rules: { count: result.rulesCount, paths: result.rulesPaths },
+    activation: { count: result.activationCount, paths: result.activationPaths },
   };
 
   // Map feature keys to human-readable labels with pluralization
@@ -140,6 +142,7 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
     hooks: (count) => `${count === 1 ? "hooks file" : "hooks files"}`,
     permissions: (count) => `${count === 1 ? "permissions file" : "permissions files"}`,
     checks: (count) => `${count === 1 ? "check" : "checks"}`,
+    activation: (count) => `${count === 1 ? "Hermes activation file" : "Hermes activation files"}`,
   };
 
   for (const [feature, data] of Object.entries(featureResults)) {

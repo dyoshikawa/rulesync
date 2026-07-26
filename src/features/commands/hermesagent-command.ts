@@ -67,7 +67,7 @@ import json
 from pathlib import Path
 
 
-COMMANDS_DIR = Path.home() / ".hermes" / "rulesync" / "commands"
+COMMANDS_DIR = Path(__file__).resolve().parents[2] / "rulesync" / "commands"
 
 
 def _load_commands():

@@ -62,6 +62,25 @@ describe("HermesagentSkill", () => {
         frontmatter: {
           name: "Test Skill",
           description: "Test skill description",
+          agentsskills: {
+            license: "MIT",
+            "allowed-tools": ["terminal"],
+          },
+          hermesagent: {
+            name: "Ignored override",
+            version: "1.2.3",
+            author: "Rulesync",
+            platforms: ["darwin", "linux"],
+            environments: ["cli"],
+            required_environment_variables: ["API_TOKEN"],
+            required_credential_files: ["~/.config/example/credentials"],
+            metadata: {
+              hermes: {
+                setup: { script: "scripts/setup.sh" },
+                blueprint: { enabled: true },
+              },
+            },
+          },
         },
         body: "Test body content",
         validate: true,
@@ -75,6 +94,20 @@ describe("HermesagentSkill", () => {
       expect(skill.getFrontmatter()).toEqual({
         name: "Test Skill",
         description: "Test skill description",
+        license: "MIT",
+        "allowed-tools": ["terminal"],
+        version: "1.2.3",
+        author: "Rulesync",
+        platforms: ["darwin", "linux"],
+        environments: ["cli"],
+        required_environment_variables: ["API_TOKEN"],
+        required_credential_files: ["~/.config/example/credentials"],
+        metadata: {
+          hermes: {
+            setup: { script: "scripts/setup.sh" },
+            blueprint: { enabled: true },
+          },
+        },
       });
     });
   });
@@ -87,6 +120,21 @@ describe("HermesagentSkill", () => {
         frontmatter: {
           name: "Test Skill",
           description: "Test description",
+          license: "Apache-2.0",
+          compatibility: "Hermes Agent v0.19.0",
+          "allowed-tools": ["terminal"],
+          version: "2.0.0",
+          author: { name: "Rulesync" },
+          platforms: ["darwin"],
+          environments: ["cli"],
+          required_environment_variables: ["API_TOKEN"],
+          required_credential_files: ["~/.config/example/credentials"],
+          metadata: {
+            hermes: {
+              config: { mode: "strict" },
+              blueprint: { enabled: true },
+            },
+          },
         },
         body: "Test body",
         validate: true,
@@ -97,6 +145,25 @@ describe("HermesagentSkill", () => {
       expect(rulesyncSkill.getFrontmatter()).toMatchObject({
         name: "Test Skill",
         description: "Test description",
+        agentsskills: {
+          license: "Apache-2.0",
+          compatibility: "Hermes Agent v0.19.0",
+          "allowed-tools": ["terminal"],
+        },
+        hermesagent: {
+          version: "2.0.0",
+          author: { name: "Rulesync" },
+          platforms: ["darwin"],
+          environments: ["cli"],
+          required_environment_variables: ["API_TOKEN"],
+          required_credential_files: ["~/.config/example/credentials"],
+          metadata: {
+            hermes: {
+              config: { mode: "strict" },
+              blueprint: { enabled: true },
+            },
+          },
+        },
       });
       expect(rulesyncSkill.getBody()).toBe("Test body");
     });

@@ -141,6 +141,7 @@ function buildSuccessResponse(params: {
       hooksCount: generateResult.hooksCount,
       permissionsCount: generateResult.permissionsCount,
       checksCount: generateResult.checksCount,
+      activationCount: generateResult.activationCount,
       totalCount,
     },
     config: {

@@ -707,15 +707,14 @@ export const KIMI_CODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object
  *
  * Hermes validates hook events against a fixed `VALID_HOOKS` set:
  * `pre_tool_call`, `post_tool_call`, `pre_llm_call`, `post_llm_call`,
- * `pre_verify`, `on_session_start`, `on_session_end`, `on_session_finalize`,
+ * `pre_verify`, `pre_api_request`, `post_api_request`, `api_request_error`,
+ * `on_session_start`, `on_session_end`, `on_session_finalize`,
  * `on_session_reset`, `subagent_start`, `subagent_stop`, `pre_gateway_dispatch`,
  * `pre_approval_request`, `post_approval_response`, `transform_tool_result`,
- * `transform_terminal_output`, `transform_llm_output`. Only the events with a
- * clean 1:1 canonical equivalent are mapped here; the remaining `VALID_HOOKS`
- * entries (`pre_verify`, `on_session_finalize`, `on_session_reset`,
- * `pre_gateway_dispatch`, `pre_approval_request`, `post_approval_response`, the
- * `transform_*` result-rewriting hooks) have no canonical rulesync equivalent,
- * so no canonical event maps to them.
+ * `transform_terminal_output`, `transform_llm_output`, and the three
+ * `kanban_task_*` events. Only the events with a clean 1:1 canonical equivalent
+ * are mapped here. All other native events round-trip through
+ * `hermesagent.hooks`.
  * @see https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/hooks.md
  */
 export const HERMESAGENT_HOOK_EVENTS: readonly HookEvent[] = [
@@ -728,6 +727,32 @@ export const HERMESAGENT_HOOK_EVENTS: readonly HookEvent[] = [
   "subagentStart",
   "subagentStop",
 ];
+
+export const HERMESAGENT_NATIVE_HOOK_EVENTS = [
+  "pre_tool_call",
+  "post_tool_call",
+  "transform_terminal_output",
+  "transform_tool_result",
+  "transform_llm_output",
+  "pre_llm_call",
+  "post_llm_call",
+  "pre_verify",
+  "pre_api_request",
+  "post_api_request",
+  "api_request_error",
+  "on_session_start",
+  "on_session_end",
+  "on_session_finalize",
+  "on_session_reset",
+  "subagent_start",
+  "subagent_stop",
+  "pre_gateway_dispatch",
+  "pre_approval_request",
+  "post_approval_response",
+  "kanban_task_claimed",
+  "kanban_task_completed",
+  "kanban_task_blocked",
+] as const;
 
 /**
  * Map canonical camelCase event names to Hermes Agent's native `VALID_HOOKS`

@@ -990,6 +990,45 @@ describe("E2E: hooks (global mode)", () => {
     expect(generatedContent).not.toContain(".rulesync/hooks/wt.sh");
   });
 
+  it("should import Hermes native-only hooks without dropping them", async () => {
+    const homeDir = getHomeDir();
+    await writeFileContent(
+      join(homeDir, ".hermes", "config.yaml"),
+      [
+        "hooks:",
+        "  pre_tool_call:",
+        "    - command: .rulesync/hooks/audit.sh",
+        "      matcher: terminal",
+        "  pre_api_request:",
+        "    - command: .rulesync/hooks/sign-request.sh",
+      ].join("\n"),
+    );
+
+    await runImport({
+      target: "hermesagent",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = JSON.parse(
+      await readFileContent(join(homeDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.hooks.preToolUse).toEqual([
+      {
+        type: "command",
+        command: ".rulesync/hooks/audit.sh",
+        matcher: "terminal",
+      },
+    ]);
+    expect(imported.hermesagent.hooks.pre_api_request).toEqual([
+      {
+        type: "command",
+        command: ".rulesync/hooks/sign-request.sh",
+      },
+    ]);
+  });
+
   it("should generate reasonix hooks in home directory", async () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

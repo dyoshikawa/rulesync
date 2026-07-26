@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
-import { ensureDir, readFileContent, writeFileContent } from "../utils/file.js";
+import { ensureDir, fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -119,6 +119,10 @@ const subagentsGenerateTargets = [
     target: "roo",
     outputPath: ".roomodes",
   },
+  {
+    target: "hermesagent",
+    outputPath: join(".hermes", "rulesync", "subagents", "planner.json"),
+  },
 ] as const;
 
 const subagentsGlobalTargets = [
@@ -158,9 +162,6 @@ const subagentsGlobalTargets = [
     outputPath: join(".reasonix", "skills", "planner", "SKILL.md"),
   },
   {
-    // Hermes Agent has no project-scoped subagent location; subagents are
-    // emitted as JSON specs under ~/.hermes/rulesync/subagents/<slug>.json,
-    // discovered by the generated rulesync-subagents plugin (global only).
     target: "hermesagent",
     outputPath: join(".hermes", "rulesync", "subagents", "planner.json"),
   },
@@ -173,10 +174,6 @@ describe("E2E: subagents", () => {
     assertGenerateMatrixCoversTargets({
       processor: SubagentsProcessor,
       testedTargets: subagentsGenerateTargets.map((e) => e.target),
-      // Hermes Agent is a native subagents tool but has no project-scoped
-      // single-file output; its generate path emits only global JSON specs, so
-      // it is exercised by the global matrix instead of this project matrix.
-      untested: ["hermesagent"],
     });
   });
 
@@ -197,11 +194,28 @@ You are the planner. Analyze files and create a plan.
         subagentContent,
       );
 
-      await runGenerate({ target, features: "subagents" });
+      const homeDir = join(testDir, "home");
+      await runGenerate({
+        target,
+        features: "subagents",
+        env: { HOME_DIR: homeDir },
+      });
 
       const generatedContent = await readFileContent(join(testDir, outputPath));
       expect(generatedContent).toContain("planner");
       expect(generatedContent).toContain("Analyze files and create a plan.");
+
+      if (target === "hermesagent") {
+        expect(await readFileContent(join(homeDir, ".hermes", "config.yaml"))).toContain(
+          "rulesync-subagents",
+        );
+        expect(await fileExists(join(homeDir, ".hermes", ".env"))).toBe(false);
+        expect(
+          await readFileContent(
+            join(testDir, ".hermes", "plugins", "rulesync-subagents", "__init__.py"),
+          ),
+        ).toContain('Path(__file__).resolve().parents[2] / "rulesync" / "subagents"');
+      }
     },
   );
 
@@ -364,6 +378,27 @@ You are a subagent-only helper.
 
 describe("E2E: subagents (import)", () => {
   const { getTestDir } = useTestDirectory();
+
+  it("should import Hermes project subagents into the RuleSync source directory", async () => {
+    const testDir = getTestDir();
+    await writeFileContent(
+      join(testDir, ".hermes", "rulesync", "subagents", "planner.json"),
+      JSON.stringify({
+        slug: "planner",
+        name: "Planner",
+        description: "Plans implementation tasks",
+        prompt: "Break down tasks into steps.",
+      }),
+    );
+
+    await runImport({ target: "hermesagent", features: "subagents" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+    );
+    expect(importedContent).toContain("Planner");
+    expect(importedContent).toContain("Break down tasks into steps.");
+  });
 
   it.each([
     { target: "claudecode", sourcePath: join(".claude", "agents", "planner.md") },
@@ -672,6 +707,32 @@ Break down tasks into steps.
 
 describe("E2E: subagents (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
+
+  it("should import Hermes global subagents into the global RuleSync source directory", async () => {
+    const homeDir = getHomeDir();
+    await writeFileContent(
+      join(homeDir, ".hermes", "rulesync", "subagents", "planner.json"),
+      JSON.stringify({
+        slug: "planner",
+        name: "Planner",
+        description: "Plans implementation tasks",
+        prompt: "Break down tasks into steps.",
+      }),
+    );
+
+    await runImport({
+      target: "hermesagent",
+      features: "subagents",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const importedContent = await readFileContent(
+      join(homeDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+    );
+    expect(importedContent).toContain("Planner");
+    expect(importedContent).toContain("Break down tasks into steps.");
+  });
 
   it("global matrix must cover every native global subagents tool target", () => {
     assertGenerateMatrixCoversTargets({

@@ -8,6 +8,7 @@ import { type AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_HERMESAGENT_EVENT_NAMES,
   HERMESAGENT_HOOK_EVENTS,
+  HERMESAGENT_NATIVE_HOOK_EVENTS,
   HERMESAGENT_TO_CANONICAL_EVENT_NAMES,
   type HookDefinition,
   type HooksConfig,
@@ -46,25 +47,12 @@ type HermesHookEntry = {
  * `matcher`.
  * @see https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/hooks.md
  */
-const HERMESAGENT_MATCHER_EVENTS: ReadonlySet<string> = new Set(["preToolUse", "postToolUse"]);
-
-/**
- * Filter the shared canonical hooks to the events Hermes understands and merge
- * the `hermesagent`-specific override block on top.
- */
-function buildEffectiveHooks(
-  config: HooksConfig,
-  toolOverrideHooks: HooksConfig["hooks"] | undefined,
-): HooksConfig["hooks"] {
-  const supported: Set<string> = new Set(HERMESAGENT_HOOK_EVENTS);
-  const shared: HooksConfig["hooks"] = {};
-  for (const [event, defs] of Object.entries(config.hooks)) {
-    if (supported.has(event)) {
-      shared[event] = defs;
-    }
-  }
-  return { ...shared, ...toolOverrideHooks };
-}
+const HERMESAGENT_MATCHER_EVENTS: ReadonlySet<string> = new Set([
+  "pre_tool_call",
+  "post_tool_call",
+]);
+const HERMESAGENT_CANONICAL_EVENTS: ReadonlySet<string> = new Set(HERMESAGENT_HOOK_EVENTS);
+const HERMESAGENT_NATIVE_EVENTS: ReadonlySet<string> = new Set(HERMESAGENT_NATIVE_HOOK_EVENTS);
 
 /**
  * Convert the canonical hooks config into Hermes's native
@@ -78,6 +66,69 @@ function buildEffectiveHooks(
  * warning, mirroring how other adapters (e.g. AugmentCode) handle
  * matcher-less lifecycle events.
  */
+function definitionsToHermesEntries({
+  event,
+  sourceEvent = event,
+  definitions,
+  logger,
+}: {
+  event: string;
+  sourceEvent?: string;
+  definitions: HookDefinition[];
+  logger?: Logger;
+}): HermesHookEntry[] {
+  const supportsMatcher = HERMESAGENT_MATCHER_EVENTS.has(event);
+  const entries: HermesHookEntry[] = [];
+  for (const definition of definitions) {
+    const hookType = definition.type ?? "command";
+    if (
+      hookType !== "command" ||
+      typeof definition.command !== "string" ||
+      definition.command === ""
+    ) {
+      continue;
+    }
+
+    const entry: HermesHookEntry = { command: definition.command };
+    if (typeof definition.matcher === "string" && definition.matcher !== "") {
+      if (supportsMatcher) {
+        entry.matcher = definition.matcher;
+      } else {
+        logger?.warn(
+          `matcher "${definition.matcher}" on "${sourceEvent}" hook will be ignored — Hermes Agent only supports matchers on pre_tool_call/post_tool_call`,
+        );
+      }
+    }
+    if (typeof definition.timeout === "number") {
+      entry.timeout = definition.timeout;
+    }
+    entries.push(entry);
+  }
+  return entries;
+}
+
+function setHermesHookEntries({
+  result,
+  event,
+  sourceEvent,
+  definitions,
+  logger,
+}: {
+  result: Record<string, HermesHookEntry[]>;
+  event: string;
+  sourceEvent?: string;
+  definitions: HookDefinition[];
+  logger?: Logger;
+}): void {
+  if (PROTOTYPE_POLLUTION_KEYS.has(event)) {
+    return;
+  }
+  const entries = definitionsToHermesEntries({ event, sourceEvent, definitions, logger });
+  if (entries.length > 0) {
+    result[event] = entries;
+  }
+}
+
 function canonicalToHermesHooks({
   config,
   toolOverrideHooks,
@@ -87,45 +138,50 @@ function canonicalToHermesHooks({
   toolOverrideHooks: HooksConfig["hooks"] | undefined;
   logger?: Logger;
 }): Record<string, HermesHookEntry[]> {
-  const effectiveHooks = buildEffectiveHooks(config, toolOverrideHooks);
   const result: Record<string, HermesHookEntry[]> = {};
 
-  for (const [canonicalEvent, defs] of Object.entries(effectiveHooks)) {
-    const nativeEvent = CANONICAL_TO_HERMESAGENT_EVENT_NAMES[canonicalEvent];
-    if (!nativeEvent) {
+  for (const [canonicalEvent, definitions] of Object.entries(config.hooks)) {
+    if (!HERMESAGENT_CANONICAL_EVENTS.has(canonicalEvent)) {
       continue;
     }
-
-    const supportsMatcher = HERMESAGENT_MATCHER_EVENTS.has(canonicalEvent);
-    const entries: HermesHookEntry[] = [];
-    for (const def of defs) {
-      const hookType = def.type ?? "command";
-      if (hookType !== "command") {
-        continue;
-      }
-      if (typeof def.command !== "string" || def.command === "") {
-        continue;
-      }
-
-      const entry: HermesHookEntry = { command: def.command };
-      if (typeof def.matcher === "string" && def.matcher !== "") {
-        if (supportsMatcher) {
-          entry.matcher = def.matcher;
-        } else {
-          logger?.warn(
-            `matcher "${def.matcher}" on "${canonicalEvent}" hook will be ignored — Hermes Agent only supports matchers on pre_tool_call/post_tool_call`,
-          );
-        }
-      }
-      if (typeof def.timeout === "number") {
-        entry.timeout = def.timeout;
-      }
-      entries.push(entry);
+    const nativeEvent = CANONICAL_TO_HERMESAGENT_EVENT_NAMES[canonicalEvent];
+    if (nativeEvent) {
+      setHermesHookEntries({
+        result,
+        event: nativeEvent,
+        sourceEvent: canonicalEvent,
+        definitions,
+        logger,
+      });
     }
+  }
 
-    if (entries.length > 0) {
-      result[nativeEvent] = entries;
+  for (const [canonicalEvent, definitions] of Object.entries(toolOverrideHooks ?? {})) {
+    if (!HERMESAGENT_CANONICAL_EVENTS.has(canonicalEvent)) {
+      continue;
     }
+    const nativeEvent = CANONICAL_TO_HERMESAGENT_EVENT_NAMES[canonicalEvent];
+    if (nativeEvent) {
+      setHermesHookEntries({
+        result,
+        event: nativeEvent,
+        sourceEvent: canonicalEvent,
+        definitions,
+        logger,
+      });
+    }
+  }
+
+  for (const [nativeEvent, definitions] of Object.entries(toolOverrideHooks ?? {})) {
+    if (HERMESAGENT_CANONICAL_EVENTS.has(nativeEvent)) {
+      continue;
+    }
+    if (!HERMESAGENT_NATIVE_EVENTS.has(nativeEvent)) {
+      logger?.warn(
+        `Hermes hook event "${nativeEvent}" is not documented by Hermes Agent v0.19.0; preserving it for forward compatibility.`,
+      );
+    }
+    setHermesHookEntries({ result, event: nativeEvent, definitions, logger });
   }
 
   return result;
@@ -135,8 +191,8 @@ function canonicalToHermesHooks({
  * Reverse {@link canonicalToHermesHooks}: parse Hermes's native
  * `hooks: { <event>: [...] }` map back into a canonical event → definition[]
  * record. Native events with no canonical equivalent (`pre_verify`,
- * `transform_tool_result`, ...) are skipped since there is nothing to round
- * -trip them into.
+ * `transform_tool_result`, ...) retain their native names so
+ * {@link buildImportedHooksConfig} places them under `hermesagent.hooks`.
  */
 function hermesHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
   const canonical: HooksConfig["hooks"] = {};
@@ -148,10 +204,7 @@ function hermesHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
     if (PROTOTYPE_POLLUTION_KEYS.has(nativeEvent) || !Array.isArray(entries)) {
       continue;
     }
-    const canonicalEvent = HERMESAGENT_TO_CANONICAL_EVENT_NAMES[nativeEvent];
-    if (!canonicalEvent) {
-      continue;
-    }
+    const rulesyncEvent = HERMESAGENT_TO_CANONICAL_EVENT_NAMES[nativeEvent] ?? nativeEvent;
 
     const defs: HookDefinition[] = [];
     for (const raw of entries) {
@@ -163,7 +216,11 @@ function hermesHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
         continue;
       }
       const def: HookDefinition = { type: "command", command: entry.command };
-      if (typeof entry.matcher === "string" && entry.matcher !== "") {
+      if (
+        HERMESAGENT_MATCHER_EVENTS.has(nativeEvent) &&
+        typeof entry.matcher === "string" &&
+        entry.matcher !== ""
+      ) {
         def.matcher = entry.matcher;
       }
       if (typeof entry.timeout === "number") {
@@ -173,7 +230,7 @@ function hermesHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
     }
 
     if (defs.length > 0) {
-      canonical[canonicalEvent] = defs;
+      canonical[rulesyncEvent] = defs;
     }
   }
 

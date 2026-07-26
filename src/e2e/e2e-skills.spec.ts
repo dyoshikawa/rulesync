@@ -659,6 +659,45 @@ describe("E2E: skills (global mode)", () => {
     });
   });
 
+  it("should import Hermes skill metadata into a target override", async () => {
+    const homeDir = getHomeDir();
+    await writeFileContent(
+      join(homeDir, ".hermes", "skills", "test-skill", "SKILL.md"),
+      [
+        "---",
+        "name: test-skill",
+        "description: Hermes metadata E2E",
+        "version: 2.0.0",
+        "author:",
+        "  name: Rulesync",
+        "platforms: [darwin]",
+        "required_environment_variables: [API_TOKEN]",
+        "metadata:",
+        "  hermes:",
+        "    config:",
+        "      mode: strict",
+        "---",
+        "Skill body.",
+        "",
+      ].join("\n"),
+    );
+
+    await runImport({
+      target: "hermesagent",
+      features: "skills",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = await readFileContent(
+      join(homeDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill", "SKILL.md"),
+    );
+    expect(imported).toContain("hermesagent:");
+    expect(imported).toContain("version: 2.0.0");
+    expect(imported).toContain("required_environment_variables:");
+    expect(imported).toContain("mode: strict");
+  });
+
   it.each(skillsGlobalTargets)(
     "should generate $target skills in home directory",
     async ({ target, outputPath }) => {

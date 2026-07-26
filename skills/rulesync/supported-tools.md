@@ -15,7 +15,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | GitHub Copilot            | copilot            | ✅ 🌏 |        |    ✅    |    ✅    |   ✅ 🌏   | ✅ 🌏  |  ✅   |     ✅      |        |
 | GitHub Copilot CLI        | copilotcli         | ✅ 🌏 |        |  ✅ 🌏   |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |        |
 | Goose                     | goose              | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   |   ✅   | ✅ 🌏 |     🌏      |        |
-| Hermes Agent              | hermesagent        |  ✅   |   ✅   |    🌏    |    🌏    |   ✅ 🌏   |   🌏   |  🌏   |     🌏      |   ✅   |
+| Hermes Agent              | hermesagent        |  ✅   |   ✅   |  🌏 🔧   |    🌏    |   ✅ 🌏   |   🌏   |  🌏   |     🌏      |   ✅   |
 | Grok CLI                  | grokcli            | ✅ 🌏 |        |  ✅ 🌏   |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Cursor                    | cursor             |  ✅   |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | deepagents-cli            | deepagents         | ✅ 🌏 |        |  ✅ 🌏   |          |   ✅ 🌏   | ✅ 🌏  |  🌏   |             |        |
@@ -52,6 +52,21 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 - 🎮: Supports simulated commands/subagents/skills (Project mode only)
 - 🔧: Supports MCP tool config (`enabledTools`/`disabledTools`)
 - ⚠️: Deprecated — still supported, but see the note below
+
+## Hermes Agent compatibility
+
+The `hermesagent` target is validated against Hermes Agent v0.19.0 (release
+`v2026.7.20`). The supported contract covers project rules, ignore patterns,
+subagents, and checks, plus global MCP servers, commands, subagents, skills,
+hooks, and permissions. Generation, `--check`, and import round-trips are
+covered for both advertised scopes.
+
+Rulesync honors Hermes profiles through `HERMES_HOME`. Project plugins are
+registered by adding their names to `$HERMES_HOME/config.yaml`, but Rulesync
+does not persist Hermes's global project-plugin trust gate. Run Hermes from a
+trusted project root with `HERMES_ENABLE_PROJECT_PLUGINS=true` for an explicit,
+session-scoped opt-in. A future Hermes release that changes its loaders,
+schemas, or plugin API requires a new compatibility validation.
 
 ## Deprecation notes
 

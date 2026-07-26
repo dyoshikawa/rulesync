@@ -332,14 +332,14 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     {
       // Hermes Agent reads MCP servers from the `mcp_servers` key of the global
       // user config `~/.hermes/config.yaml` (the HERMES_HOME directory); it has
-      // no project-scoped MCP location. Servers follow the MCP spec verbatim, so
-      // there are no per-server tool allow/deny lists.
+      // no project-scoped MCP location. Per-server tool filtering uses
+      // `tools.include` and `tools.exclude`.
       class: HermesagentMcp,
       meta: {
         supportsProject: false,
         supportsGlobal: true,
-        supportsEnabledTools: false,
-        supportsDisabledTools: false,
+        supportsEnabledTools: true,
+        supportsDisabledTools: true,
       },
     },
   ],

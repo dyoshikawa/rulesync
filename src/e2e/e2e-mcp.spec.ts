@@ -768,6 +768,54 @@ describe("E2E: mcp (global mode)", () => {
     });
   });
 
+  it("should import Hermes OAuth and lifecycle settings into a target override", async () => {
+    const homeDir = getHomeDir();
+    await writeFileContent(
+      join(homeDir, ".hermes", "config.yaml"),
+      [
+        "mcp_servers:",
+        "  remote:",
+        "    url: https://example.com/mcp",
+        "    idle_timeout_seconds: 300",
+        "    max_lifetime_seconds: 3600",
+        "    tools:",
+        "      include: [read]",
+        "      exclude: [delete]",
+        "    oauth:",
+        "      redirect_uri: http://localhost:8080/callback",
+        "      redirect_port: 8080",
+        "      client_id: rulesync-e2e",
+        "      scopes: [read, write]",
+      ].join("\n"),
+    );
+
+    await runImport({
+      target: "hermesagent",
+      features: "mcp",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = JSON.parse(
+      await readFileContent(join(homeDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.mcpServers.remote).toEqual({
+      url: "https://example.com/mcp",
+      enabledTools: ["read"],
+      disabledTools: ["delete"],
+    });
+    expect(imported.hermesagent.mcpServers.remote).toMatchObject({
+      idle_timeout_seconds: 300,
+      max_lifetime_seconds: 3600,
+      oauth: {
+        redirect_uri: "http://localhost:8080/callback",
+        redirect_port: 8080,
+        client_id: "rulesync-e2e",
+        scopes: ["read", "write"],
+      },
+    });
+  });
+
   it.each(mcpGlobalTargets)(
     "should generate $target mcp in home directory",
     async ({ target, outputPath }) => {
@@ -784,6 +832,8 @@ describe("E2E: mcp (global mode)", () => {
               command: "echo",
               args: ["hello"],
               env: {},
+              enabledTools: ["read"],
+              disabledTools: ["delete"],
             },
           },
         },
@@ -801,6 +851,15 @@ describe("E2E: mcp (global mode)", () => {
 
       const generatedContent = await readFileContent(join(homeDir, outputPath));
       expect(generatedContent).toContain("test-server");
+      if (target === "hermesagent") {
+        const parsed = toTable(load(generatedContent) as Record<string, unknown>);
+        const mcpServers = toTable(parsed.mcp_servers);
+        const server = toTable(mcpServers["test-server"]);
+        expect(toTable(server.tools)).toEqual({
+          include: ["read"],
+          exclude: ["delete"],
+        });
+      }
     },
   );
 
