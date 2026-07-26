@@ -10,9 +10,9 @@ import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import type { Feature } from "../types/features.js";
 import type { ToolTarget } from "../types/tool-targets.js";
-import { resolveToolOutputRoot } from "../utils/kimi-code.js";
 import type { Logger } from "../utils/logger.js";
 import { isPackagingToolTarget } from "../utils/plugin-root.js";
+import { resolveToolOutputRoot } from "../utils/tool-output-root.js";
 
 export type ConvertResult = {
   rulesCount: number;

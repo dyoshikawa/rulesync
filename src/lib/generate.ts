@@ -35,10 +35,10 @@ import type { RulesyncFile } from "../types/rulesync-file.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
 import { fileExists, toPosixPath } from "../utils/file.js";
-import { resolveToolOutputRoot } from "../utils/kimi-code.js";
 import type { Logger } from "../utils/logger.js";
 import { assertPluginRootSafe } from "../utils/plugin-root.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
+import { resolveToolOutputRoot } from "../utils/tool-output-root.js";
 import { deriveSharedWriteSteps } from "./shared-file-derive.js";
 
 export type GenerateResult = {
@@ -876,7 +876,11 @@ async function generateCommandsCore(params: {
       }
 
       const processor = new CommandsProcessor({
-        outputRoot: outputRoot,
+        outputRoot: resolveToolOutputRoot({
+          outputRoot,
+          toolTarget,
+          global: config.getGlobal(),
+        }),
         inputRoot: config.getInputRoot(),
         toolTarget: toolTarget,
         global: config.getGlobal(),

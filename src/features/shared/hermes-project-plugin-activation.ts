@@ -1,7 +1,6 @@
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 
 import {
-  HERMESAGENT_CONFIG_FILE_NAME,
   HERMESAGENT_CONFIG_FILE_PATH,
   HERMESAGENT_PROJECT_PLUGINS_ENV_VAR,
 } from "../../constants/hermesagent-paths.js";
@@ -12,6 +11,10 @@ import {
   readFileContentOrNull,
   writeFileContent,
 } from "../../utils/file.js";
+import {
+  getHermesagentRelativeFilePath,
+  resolveHermesagentOutputRoot,
+} from "../../utils/hermesagent.js";
 import type { Logger } from "../../utils/logger.js";
 import type { FeatureGenerateResult } from "../../utils/result.js";
 import { isPlainObject } from "../../utils/type-guards.js";
@@ -114,11 +117,14 @@ export async function activateHermesProjectPlugins({
     return { count: 0, paths: [], hasDiff: false };
   }
 
-  const configuredHermesHome = process.env.HERMES_HOME?.trim();
-  const configRoot = configuredHermesHome ? resolve(configuredHermesHome) : getHomeDirectory();
-  const relativeConfigPath = configuredHermesHome
-    ? HERMESAGENT_CONFIG_FILE_NAME
-    : HERMESAGENT_CONFIG_FILE_PATH;
+  const configRoot = resolveHermesagentOutputRoot({
+    outputRoot: getHomeDirectory(),
+    global: true,
+  });
+  const relativeConfigPath = getHermesagentRelativeFilePath({
+    global: true,
+    relativeFilePath: HERMESAGENT_CONFIG_FILE_PATH,
+  });
   const configPath = join(configRoot, relativeConfigPath);
   const existingConfig = (await readFileContentOrNull(configPath)) ?? "";
   const expectedConfig = mergeEnabledPlugins({

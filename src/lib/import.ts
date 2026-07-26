@@ -14,13 +14,13 @@ import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import type { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js";
 import type { ToolTarget } from "../types/tool-targets.js";
-import { resolveToolOutputRoot } from "../utils/kimi-code.js";
 import type { Logger } from "../utils/logger.js";
 import { assertPluginRootSafe, isPackagingToolTarget } from "../utils/plugin-root.js";
 import {
   resolveRulesyncSourceWritePath,
   type RulesyncSourceSettablePaths,
 } from "../utils/rulesync-source-path.js";
+import { resolveToolOutputRoot } from "../utils/tool-output-root.js";
 
 async function applyRulesyncSourcePath<T extends RulesyncFile>({
   files,

@@ -56,11 +56,13 @@ export abstract class ToolHooks extends ToolFile {
 
   protected toRulesyncHooksDefault({
     fileContent = undefined,
+    outputRoot = this.outputRoot,
   }: {
     fileContent?: string;
+    outputRoot?: string;
   } = {}): RulesyncHooks {
     return new RulesyncHooks({
-      outputRoot: this.outputRoot,
+      outputRoot,
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: RULESYNC_HOOKS_FILE_NAME,
       fileContent: fileContent ?? this.fileContent,

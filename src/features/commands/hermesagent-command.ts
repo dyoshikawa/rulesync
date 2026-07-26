@@ -20,6 +20,11 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { findFilesByGlobs, readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import {
+  getHermesagentRelativeDirPath,
+  getHermesagentRelativeFilePath,
+  getHermesagentRulesyncOutputRoot,
+} from "../../utils/hermesagent.js";
+import {
   applySharedConfigPatch,
   HERMES_CONFIG_SHARED_FILE_KEY,
   parseSharedConfig,
@@ -171,11 +176,27 @@ class HermesagentCommandAuxiliaryFile extends ToolFile {
   }
 
   shouldMergeExistingFileContent(): boolean {
-    return this.getRelativePathFromCwd() === toPosixPath(HERMESAGENT_CONFIG_FILE_PATH);
+    return (
+      this.getRelativePathFromCwd() ===
+      toPosixPath(
+        getHermesagentRelativeFilePath({
+          global: this.global,
+          relativeFilePath: HERMESAGENT_CONFIG_FILE_PATH,
+        }),
+      )
+    );
   }
 
   setFileContent(newFileContent: string): void {
-    if (this.getRelativePathFromCwd() === toPosixPath(HERMESAGENT_CONFIG_FILE_PATH)) {
+    if (
+      this.getRelativePathFromCwd() ===
+      toPosixPath(
+        getHermesagentRelativeFilePath({
+          global: this.global,
+          relativeFilePath: HERMESAGENT_CONFIG_FILE_PATH,
+        }),
+      )
+    ) {
       super.setFileContent(getEnabledPluginConfigContent(newFileContent));
       return;
     }
@@ -185,16 +206,35 @@ class HermesagentCommandAuxiliaryFile extends ToolFile {
   getFileContent(): string {
     if (
       this.getRelativePathFromCwd() ===
-      toPosixPath(HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_MANIFEST_PATH)
+      toPosixPath(
+        getHermesagentRelativeFilePath({
+          global: this.global,
+          relativeFilePath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_MANIFEST_PATH,
+        }),
+      )
     ) {
       return getPluginManifestContent();
     }
     if (
-      this.getRelativePathFromCwd() === toPosixPath(HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_INIT_PATH)
+      this.getRelativePathFromCwd() ===
+      toPosixPath(
+        getHermesagentRelativeFilePath({
+          global: this.global,
+          relativeFilePath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_INIT_PATH,
+        }),
+      )
     ) {
       return getPluginInitContent();
     }
-    if (this.getRelativePathFromCwd() === toPosixPath(HERMESAGENT_CONFIG_FILE_PATH)) {
+    if (
+      this.getRelativePathFromCwd() ===
+      toPosixPath(
+        getHermesagentRelativeFilePath({
+          global: this.global,
+          relativeFilePath: HERMESAGENT_CONFIG_FILE_PATH,
+        }),
+      )
+    ) {
       return getEnabledPluginConfigContent(super.getFileContent());
     }
     return super.getFileContent();
@@ -206,14 +246,27 @@ export class HermesagentCommand extends ToolCommand {
     return this.isTargetedByRulesyncCommandDefault({ rulesyncCommand, toolTarget: "hermesagent" });
   }
 
-  static getSettablePaths(): { relativeDirPath: string } {
-    return { relativeDirPath: HERMESAGENT_RULESYNC_COMMANDS_DIR_PATH };
+  static getSettablePaths({ global = false }: { global?: boolean } = {}): {
+    relativeDirPath: string;
+  } {
+    return {
+      relativeDirPath: getHermesagentRelativeDirPath({
+        global,
+        relativeDirPath: HERMESAGENT_RULESYNC_COMMANDS_DIR_PATH,
+      }),
+    };
   }
 
-  static getExtraSharedWritePaths(): { relativeDirPath: string; relativeFilePath: string }[] {
+  static getExtraSharedWritePaths({ global = false }: { global?: boolean } = {}): {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  }[] {
     return [
       {
-        relativeDirPath: HERMESAGENT_GLOBAL_DIR,
+        relativeDirPath: getHermesagentRelativeDirPath({
+          global,
+          relativeDirPath: HERMESAGENT_GLOBAL_DIR,
+        }),
         relativeFilePath: basename(HERMESAGENT_CONFIG_FILE_PATH),
       },
     ];
@@ -270,6 +323,7 @@ export class HermesagentCommand extends ToolCommand {
   static async getAuxiliaryFiles({
     toolCommands,
     outputRoot,
+    global = false,
     forDeletion = false,
   }: {
     toolCommands: ToolCommand[];
@@ -281,21 +335,33 @@ export class HermesagentCommand extends ToolCommand {
     const pluginFiles: ToolFile[] = [
       new HermesagentCommandAuxiliaryFile({
         outputRoot,
-        relativeDirPath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_DIR_PATH,
+        relativeDirPath: getHermesagentRelativeDirPath({
+          global,
+          relativeDirPath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_DIR_PATH,
+        }),
         relativeFilePath: basename(HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_MANIFEST_PATH),
         fileContent: "",
+        global,
       }),
       new HermesagentCommandAuxiliaryFile({
         outputRoot,
-        relativeDirPath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_DIR_PATH,
+        relativeDirPath: getHermesagentRelativeDirPath({
+          global,
+          relativeDirPath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_DIR_PATH,
+        }),
         relativeFilePath: basename(HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_OWNERSHIP_PATH),
         fileContent: "Generated and owned by RuleSync.\n",
+        global,
       }),
       new HermesagentCommandAuxiliaryFile({
         outputRoot,
-        relativeDirPath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_DIR_PATH,
+        relativeDirPath: getHermesagentRelativeDirPath({
+          global,
+          relativeDirPath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_DIR_PATH,
+        }),
         relativeFilePath: basename(HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_INIT_PATH),
         fileContent: "",
+        global,
       }),
     ];
     if (forDeletion) return pluginFiles;
@@ -303,16 +369,32 @@ export class HermesagentCommand extends ToolCommand {
       ...pluginFiles,
       new HermesagentCommandAuxiliaryFile({
         outputRoot,
-        relativeDirPath: HERMESAGENT_GLOBAL_DIR,
+        relativeDirPath: getHermesagentRelativeDirPath({
+          global,
+          relativeDirPath: HERMESAGENT_GLOBAL_DIR,
+        }),
         relativeFilePath: basename(HERMESAGENT_CONFIG_FILE_PATH),
         fileContent: "",
+        global,
       }),
     ];
   }
 
-  static async canDeleteAuxiliaryFiles({ outputRoot }: { outputRoot: string }): Promise<boolean> {
+  static async canDeleteAuxiliaryFiles({
+    outputRoot,
+    global = false,
+  }: {
+    outputRoot: string;
+    global?: boolean;
+  }): Promise<boolean> {
     const marker = await readFileContentOrNull(
-      join(outputRoot, HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_OWNERSHIP_PATH),
+      join(
+        outputRoot,
+        getHermesagentRelativeFilePath({
+          global,
+          relativeFilePath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_OWNERSHIP_PATH,
+        }),
+      ),
     );
     return marker === "Generated and owned by RuleSync.\n";
   }
@@ -323,7 +405,7 @@ export class HermesagentCommand extends ToolCommand {
     relativeFilePath,
     validate = true,
   }: ToolCommandFromFileParams): Promise<HermesagentCommand> {
-    const relativeDirPath = HERMESAGENT_RULESYNC_COMMANDS_DIR_PATH;
+    const relativeDirPath = this.getSettablePaths({ global }).relativeDirPath;
     return new HermesagentCommand({
       fileContent: await readFile(join(outputRoot, relativeDirPath, relativeFilePath), "utf8"),
       global,
@@ -353,6 +435,7 @@ export class HermesagentCommand extends ToolCommand {
   static override fromRulesyncCommand({
     outputRoot,
     rulesyncCommand,
+    global = false,
   }: ToolCommandFromRulesyncCommandParams): HermesagentCommand {
     const slug = hermesSlashName(basename(rulesyncCommand.getRelativeFilePath(), ".md"));
     const spec: HermesCommandSpec = {
@@ -362,9 +445,10 @@ export class HermesagentCommand extends ToolCommand {
     };
     return new HermesagentCommand({
       outputRoot,
-      relativeDirPath: HERMESAGENT_RULESYNC_COMMANDS_DIR_PATH,
+      relativeDirPath: this.getSettablePaths({ global }).relativeDirPath,
       relativeFilePath: `${slug}.json`,
       fileContent: `${JSON.stringify(spec, null, 2)}\n`,
+      global,
     });
   }
 
@@ -386,7 +470,10 @@ export class HermesagentCommand extends ToolCommand {
       frontmatter: { description: spec.description },
       body: spec.prompt,
       fileContent: "",
-      outputRoot: this.outputRoot,
+      outputRoot: getHermesagentRulesyncOutputRoot({
+        nativeOutputRoot: this.outputRoot,
+        global: this.global,
+      }),
     });
   }
 }

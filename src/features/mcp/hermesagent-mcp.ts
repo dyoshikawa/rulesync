@@ -8,6 +8,10 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import {
+  getHermesagentRelativeDirPath,
+  getHermesagentRulesyncOutputRoot,
+} from "../../utils/hermesagent.js";
+import {
   omitPrototypePollutionKeys,
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
@@ -326,9 +330,12 @@ export class HermesagentMcp extends ToolMcp {
     return false;
   }
 
-  static getSettablePaths(_options?: { global?: boolean }): ToolMcpSettablePaths {
+  static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolMcpSettablePaths {
     return {
-      relativeDirPath: HERMESAGENT_GLOBAL_DIR,
+      relativeDirPath: getHermesagentRelativeDirPath({
+        global,
+        relativeDirPath: HERMESAGENT_GLOBAL_DIR,
+      }),
       relativeFilePath: HERMESAGENT_CONFIG_FILE_NAME,
     };
   }
@@ -398,6 +405,10 @@ export class HermesagentMcp extends ToolMcp {
     const mcpServers = isRecord(this.config.mcp_servers) ? this.config.mcp_servers : {};
     const { mcpServers: servers, hermesOverrides } = convertFromHermesFormat(mcpServers);
     return this.toRulesyncMcpDefault({
+      outputRoot: getHermesagentRulesyncOutputRoot({
+        nativeOutputRoot: this.outputRoot,
+        global: this.global,
+      }),
       fileContent: JSON.stringify(
         {
           mcpServers: servers,
