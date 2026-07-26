@@ -927,7 +927,9 @@ export class RulesProcessor extends FeatureProcessor {
       })
       .filter((rule): rule is ToolRule => rule !== null);
 
-    this.mergeRulesByOutputPath(toolRules);
+    this.mergeRulesByOutputPath(toolRules, {
+      mergeNonRootRules: meta.foldsNonRootIntoRoot === true,
+    });
 
     this.applyLocalRootRules({ toolRules, localRootRules, factory });
 
@@ -1111,15 +1113,19 @@ export class RulesProcessor extends FeatureProcessor {
    *
    * Project and global modes can compose multiple root rules into one target
    * file. This is also used for tools whose rules engine reads only one root file and therefore
-   * folds non-root rule bodies into it. Grouping by output path preserves tools
-   * that intentionally route rules to separate files, such as Pi's
-   * `APPEND_SYSTEM.md`.
+   * folds non-root rule bodies into it. Modular non-root files cannot be safely
+   * concatenated after rendering because their metadata formats may conflict,
+   * so collisions between those files are rejected.
    *
-   * The root rule (if any) becomes the merge target and leads the merged content;
-   * otherwise the first rule is used. Source discovery order is preserved and
-   * fragments are separated by one blank line. Mutates `toolRules` in place.
+   * The root rule becomes the merge target for root groups. Explicitly folding
+   * tools use the first rule when no root exists. Source discovery order is
+   * preserved and fragments are separated by one blank line. Mutates `toolRules`
+   * in place.
    */
-  private mergeRulesByOutputPath(toolRules: ToolRule[]): void {
+  private mergeRulesByOutputPath(
+    toolRules: ToolRule[],
+    { mergeNonRootRules }: { mergeNonRootRules: boolean },
+  ): void {
     if (toolRules.length <= 1) {
       return;
     }
@@ -1140,11 +1146,37 @@ export class RulesProcessor extends FeatureProcessor {
       }
     }
 
+    const caseFoldedPaths = new Map<string, string>();
+    for (const path of groups.keys()) {
+      const caseFoldedPath = path.normalize("NFC").toLowerCase();
+      const existingPath = caseFoldedPaths.get(caseFoldedPath);
+      if (existingPath && existingPath !== path) {
+        throw new Error(
+          `Generated rule output paths differ only by case for target '${this.toolTarget}': '${existingPath}', '${path}'`,
+        );
+      }
+      caseFoldedPaths.set(caseFoldedPath, path);
+    }
+
     const survivors = new Set<ToolRule>();
-    for (const group of groups.values()) {
-      // The root-path group prefers the root rule as its merge target; other
-      // groups fold into their first rule in source order.
-      const target = group.find((rule) => rule.isRoot()) ?? group[0];
+    for (const [path, group] of groups) {
+      if (group.length === 1) {
+        const rule = group[0];
+        if (rule) {
+          survivors.add(rule);
+        }
+        continue;
+      }
+
+      // Root-path groups prefer the root rule as their merge target. Explicitly
+      // folding tools use their first rule when no root exists.
+      const rootRule = group.find((rule) => rule.isRoot());
+      if (!rootRule && !mergeNonRootRules) {
+        throw new Error(
+          `Multiple generated rules resolve to output path '${path}' for target '${this.toolTarget}', but this target does not support composing modular rule files`,
+        );
+      }
+      const target = rootRule ?? group[0];
       if (!target) {
         continue;
       }

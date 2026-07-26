@@ -1420,6 +1420,119 @@ Content that would fail parsing`;
         },
       );
 
+      it.each(["devin", "antigravity-ide"] as const)(
+        "should reject metadata-bearing project rules normalized to the same $toolTarget path",
+        async (toolTarget) => {
+          const processor = new RulesProcessor({
+            logger,
+            outputRoot: testDir,
+            toolTarget,
+          });
+          const rulesyncRules = [
+            new RulesyncRule({
+              outputRoot: testDir,
+              relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+              relativeFilePath: "CodingGuidelines.md",
+              frontmatter: {
+                root: false,
+                targets: [toolTarget],
+                description: "First normalized rule",
+                globs: ["**/*"],
+              },
+              body: "# First Normalized Rule",
+            }),
+            new RulesyncRule({
+              outputRoot: testDir,
+              relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+              relativeFilePath: "coding_guidelines.md",
+              frontmatter: {
+                root: false,
+                targets: [toolTarget],
+                description: "Second normalized rule",
+                globs: ["src/**/*"],
+              },
+              body: "# Second Normalized Rule",
+            }),
+          ];
+
+          await expect(processor.convertRulesyncFilesToToolFiles(rulesyncRules)).rejects.toThrow(
+            `Multiple generated rules resolve to output path`,
+          );
+        },
+      );
+
+      it("should reject Takt rules with the same overridden output name", async () => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "takt",
+        });
+        const rulesyncRules = [
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "first.md",
+            frontmatter: {
+              root: true,
+              targets: ["takt"],
+              takt: { name: "same", extends: "base-one" },
+            },
+            body: "# First Takt Rule",
+          }),
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "second.md",
+            frontmatter: {
+              root: true,
+              targets: ["takt"],
+              takt: { name: "same", extends: "base-two" },
+            },
+            body: "# Second Takt Rule",
+          }),
+        ];
+
+        await expect(processor.convertRulesyncFilesToToolFiles(rulesyncRules)).rejects.toThrow(
+          `Multiple generated rules resolve to output path '${join(".takt", "facets", "policies", "same.md")}'`,
+        );
+      });
+
+      it("should reject generated output paths that differ only by case", async () => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "takt",
+        });
+        const rulesyncRules = [
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "first.md",
+            frontmatter: {
+              root: true,
+              targets: ["takt"],
+              takt: { name: "Policy" },
+            },
+            body: "# Uppercase Policy",
+          }),
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "second.md",
+            frontmatter: {
+              root: true,
+              targets: ["takt"],
+              takt: { name: "policy" },
+            },
+            body: "# Lowercase Policy",
+          }),
+        ];
+
+        await expect(processor.convertRulesyncFilesToToolFiles(rulesyncRules)).rejects.toThrow(
+          "Generated rule output paths differ only by case",
+        );
+      });
+
       it("should convert using global paths when global=true for codexcli", async () => {
         const processor = new RulesProcessor({
           logger,
