@@ -927,9 +927,7 @@ export class RulesProcessor extends FeatureProcessor {
       })
       .filter((rule): rule is ToolRule => rule !== null);
 
-    if (meta.foldsNonRootIntoRoot || this.global) {
-      this.mergeRulesByOutputPath(toolRules);
-    }
+    this.mergeRulesByOutputPath(toolRules);
 
     this.applyLocalRootRules({ toolRules, localRootRules, factory });
 
@@ -1111,8 +1109,8 @@ export class RulesProcessor extends FeatureProcessor {
   /**
    * Merge rules that resolve to the same output path.
    *
-   * Global mode can compose multiple root rules into one target file. This is
-   * also used for tools whose rules engine reads only one root file and therefore
+   * Project and global modes can compose multiple root rules into one target
+   * file. This is also used for tools whose rules engine reads only one root file and therefore
    * folds non-root rule bodies into it. Grouping by output path preserves tools
    * that intentionally route rules to separate files, such as Pi's
    * `APPEND_SYSTEM.md`.
@@ -1417,12 +1415,6 @@ As this project's AI coding tool, you must follow the additional conventions bel
     const targetedRootRules = rootRules.filter((rule) =>
       factory.class.isTargetedByRulesyncRule(rule),
     );
-
-    if (!this.global && targetedRootRules.length > 1) {
-      throw new Error(
-        `Multiple root rulesync rules found for target '${this.toolTarget}': ${formatRulePaths(targetedRootRules)}`,
-      );
-    }
 
     if (targetedRootRules.length === 0 && rulesyncRules.length > 0) {
       this.logger.warn(
