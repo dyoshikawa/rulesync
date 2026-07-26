@@ -927,8 +927,8 @@ export class RulesProcessor extends FeatureProcessor {
       })
       .filter((rule): rule is ToolRule => rule !== null);
 
-    if (meta.foldsNonRootIntoRoot) {
-      this.foldNonRootRulesIntoRootRule(toolRules);
+    if (meta.foldsNonRootIntoRoot || this.global) {
+      this.mergeRulesByOutputPath(toolRules);
     }
 
     this.applyLocalRootRules({ toolRules, localRootRules, factory });
@@ -1109,20 +1109,19 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   /**
-   * Fold every non-root rule body into the single root rule file.
+   * Merge rules that resolve to the same output path.
    *
-   * Used for tools whose rules engine reads only one root `AGENTS.md` and neither
-   * scans a `memories/` directory nor follows references (deepagents' dcode reads
-   * `.deepagents/AGENTS.md`; Warp reads root/subdir `AGENTS.md` but never
-   * `.warp/memories/`). Those rule classes emit both root and non-root rules to
-   * the same root path, so all bodies must be merged into one instance to avoid
-   * colliding on that path (last-writer-wins would silently drop content).
+   * Global mode can compose multiple root rules into one target file. This is
+   * also used for tools whose rules engine reads only one root file and therefore
+   * folds non-root rule bodies into it. Grouping by output path preserves tools
+   * that intentionally route rules to separate files, such as Pi's
+   * `APPEND_SYSTEM.md`.
    *
    * The root rule (if any) becomes the merge target and leads the merged content;
-   * otherwise the first rule is used so a rule set without a root overview still
-   * produces a single, complete file. Mutates `toolRules` in place.
+   * otherwise the first rule is used. Source discovery order is preserved and
+   * fragments are separated by one blank line. Mutates `toolRules` in place.
    */
-  private foldNonRootRulesIntoRootRule(toolRules: ToolRule[]): void {
+  private mergeRulesByOutputPath(toolRules: ToolRule[]): void {
     if (toolRules.length <= 1) {
       return;
     }
@@ -1419,7 +1418,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
       factory.class.isTargetedByRulesyncRule(rule),
     );
 
-    if (targetedRootRules.length > 1) {
+    if (!this.global && targetedRootRules.length > 1) {
       throw new Error(
         `Multiple root rulesync rules found for target '${this.toolTarget}': ${formatRulePaths(targetedRootRules)}`,
       );

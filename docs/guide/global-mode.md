@@ -48,5 +48,5 @@ Currently, supports rules generation for Claude Code, GitHub Copilot, and OpenCo
 > Currently, when in the directory enabled global mode:
 >
 > - `rulesync.jsonc` only supports `global`, `features`, `delete` and `verbose`. `Features` can be set `"rules"` and `"commands"`. Other parameters are ignored.
-> - Tools support only a single `root: true` file in global mode as a target, e.g. you can't have 2 root files targeting Claude.
+> - Multiple `root: true` files can target the same tool. When they resolve to the same global output path, Rulesync combines their rendered content in deterministic source-discovery order with a blank line between files.
 > - Only Claude Code is supported for global mode commands.

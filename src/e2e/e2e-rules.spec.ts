@@ -871,9 +871,23 @@ globs: ["**/*"]
 
 This is a global test rule for E2E testing.
 `;
+      const additionalRuleContent = `---
+root: true
+targets: ["*"]
+description: "Additional global test rule"
+---
+
+# Additional Root Fragment
+
+This is an additional global test rule for E2E testing.
+`;
       await writeFileContent(
         join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
         ruleContent,
+      );
+      await writeFileContent(
+        join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "additional-global-rule.md"),
+        additionalRuleContent,
       );
 
       await runGenerate({
@@ -885,6 +899,12 @@ This is a global test rule for E2E testing.
 
       const generatedContent = await readFileContent(join(homeDir, outputPath));
       expect(generatedContent).toContain("Global Test Rule");
+      expect(generatedContent).toContain("Additional Root Fragment");
+      expect(generatedContent.split("Global Test Rule")).toHaveLength(2);
+      expect(generatedContent.split("Additional Root Fragment")).toHaveLength(2);
+      expect(generatedContent.indexOf("Additional Root Fragment")).toBeLessThan(
+        generatedContent.indexOf("Global Test Rule"),
+      );
     },
   );
 

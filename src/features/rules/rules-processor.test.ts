@@ -1318,6 +1318,46 @@ Content that would fail parsing`;
         expect(result[0]?.getRelativeFilePath()).toBe("CLAUDE.md");
       });
 
+      it("should merge multiple global root rules that resolve to the same path", async () => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode",
+          global: true,
+        });
+
+        const rulesyncRules = [
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "10-overview.md",
+            frontmatter: {
+              root: true,
+              targets: ["*"],
+            },
+            body: "# Global Overview",
+          }),
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "20-personal-assistant.md",
+            frontmatter: {
+              root: true,
+              targets: ["claudecode"],
+            },
+            body: "# Personal Assistant",
+          }),
+        ];
+
+        const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+        expect(result).toHaveLength(1);
+        expect(result[0]).toBeInstanceOf(ClaudecodeRule);
+        expect(result[0]?.getRelativeDirPath()).toBe(".claude");
+        expect(result[0]?.getRelativeFilePath()).toBe("CLAUDE.md");
+        expect(result[0]?.getFileContent()).toBe("# Global Overview\n\n# Personal Assistant");
+      });
+
       it("should convert using global paths when global=true for codexcli", async () => {
         const processor = new RulesProcessor({
           logger,
@@ -2286,6 +2326,40 @@ targets: ["opencode"]
       const result = await processor.loadRulesyncFiles();
       expect(result).toHaveLength(1);
       expect((result[0] as RulesyncRule).getFrontmatter().targets).toEqual(["claudecode"]);
+    });
+
+    it("should retain multiple matching root rules in global mode", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "10-overview.md"),
+        `---
+root: true
+targets: ["*"]
+---
+# Global Overview`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "20-personal-assistant.md"),
+        `---
+root: true
+targets: ["claudecode"]
+---
+# Personal Assistant`,
+      );
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+        global: true,
+      });
+
+      const result = await processor.loadRulesyncFiles();
+      expect(result).toHaveLength(2);
+      expect(result.map((rule) => (rule as RulesyncRule).getBody())).toEqual([
+        "# Global Overview",
+        "# Personal Assistant",
+      ]);
     });
 
     it("should warn with target name when no root matches specific target", async () => {
