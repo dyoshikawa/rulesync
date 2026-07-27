@@ -1,11 +1,13 @@
 import { toPosixPath } from "../utils/file.js";
 
 /**
- * Project-scope outputs that rulesync merges into rather than fully owns
- * (user-managed settings files). Most paths come straight from a tool's default
- * `getSettablePaths`; `.amp/settings.jsonc` (runtime probe twin of
- * `.amp/settings.json`) and `.claude/settings.local.json` (claudecode ignore
- * `fileMode: "local"` variant) are emitted only under non-default options.
+ * Tool outputs that rulesync merges into rather than fully owns (user-managed
+ * settings files), as paths relative to the output root. Most come straight from
+ * a tool's default `getSettablePaths`; the rest are twins a generator only
+ * chooses at write time or under non-default options: `.amp/settings.jsonc`
+ * (runtime probe twin of `.amp/settings.json`), `opencode.jsonc` / `kilo.jsonc`
+ * (preferred over the `.json` twin when neither file exists yet), and
+ * `.claude/settings.local.json` (claudecode ignore `fileMode: "local"`).
  *
  * Two behaviors are derived from this single list:
  *
@@ -36,17 +38,21 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   "kilo.json",
   "kilo.jsonc",
   "opencode.json",
+  "opencode.jsonc",
 ];
 
 /**
- * Whether a relative output path (POSIX or native separators) is one of the
- * shared, user-managed config files above. Matches the same any-depth semantics
- * as the derived gitignore entries: the path matches when it is exactly a listed
- * path, or ends with a slash followed by one.
+ * Whether an output path is one of the shared, user-managed config files above.
+ *
+ * `relativePath` is the tool-relative path (`relativeDirPath` + file name, POSIX
+ * or native separators), never the output root, so the comparison is exact
+ * rather than a suffix match. Global-scope outputs are covered exactly when the
+ * tool keeps the same relative layout under the home directory (e.g.
+ * `~/.claude/settings.json`); a tool that relocates its global file (e.g. Zed's
+ * `~/.config/zed/settings.json`) is not matched, which is harmless because the
+ * `git status` noise this guards against is project-scope by nature.
  */
 export function isSharedUserManagedConfigPath(relativePath: string): boolean {
   const normalized = toPosixPath(relativePath).replace(/^\.\//, "");
-  return SHARED_USER_MANAGED_CONFIG_PATHS.some(
-    (path) => normalized === path || normalized.endsWith(`/${path}`),
-  );
+  return SHARED_USER_MANAGED_CONFIG_PATHS.includes(normalized);
 }

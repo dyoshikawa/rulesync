@@ -22,7 +22,13 @@ const PARSE_FAILED: ParseResult = { ok: false };
  * jsonc-parser (valid JSON parses the same as JSONC). Returns `ok: false` for
  * unknown extensions and for content that does not parse.
  */
-function tryParseStructured(filePath: string, content: string): ParseResult {
+function tryParseStructured({
+  filePath,
+  content,
+}: {
+  filePath: string;
+  content: string;
+}): ParseResult {
   const ext = extname(filePath).toLowerCase();
 
   switch (ext) {
@@ -91,8 +97,8 @@ function tryFileContentsEquivalent(
     return tryMarkdownEquivalent(expected, existing);
   }
 
-  const parsedExpected = tryParseStructured(filePath, expected);
-  const parsedExisting = tryParseStructured(filePath, existing);
+  const parsedExpected = tryParseStructured({ filePath, content: expected });
+  const parsedExisting = tryParseStructured({ filePath, content: existing });
 
   if (!parsedExpected.ok || !parsedExisting.ok) {
     return undefined;
@@ -113,12 +119,19 @@ function tryFileContentsEquivalent(
  *   `[{}]` counts as content while `{"a":{}}` does not.
  * - An object with a non-plain prototype counts as content. That covers `Date` /
  *   `TomlDate` values (whose payload is invisible to `Object.values`) and a
- *   `{"__proto__": {...}}` entry, which jsonc-parser resolves by replacing the
- *   prototype rather than creating an own property.
+ *   `{"__proto__": {…}}` entry, which jsonc-parser resolves by replacing the
+ *   prototype rather than creating an own property. (`{"__proto__": null}` still
+ *   counts as empty — a null prototype hides nothing.)
  * - A value already on the current path counts as content, so a self-referential
  *   YAML anchor cannot drive this into infinite recursion.
  */
-function isEmptyStructuredValue(value: unknown, seen: Set<object> = new Set()): boolean {
+function isEmptyStructuredValue({
+  value,
+  seen = new Set(),
+}: {
+  value: unknown;
+  seen?: Set<object>;
+}): boolean {
   if (value === null || value === undefined) {
     return true;
   }
@@ -134,7 +147,9 @@ function isEmptyStructuredValue(value: unknown, seen: Set<object> = new Set()): 
       return false;
     }
     seen.add(value);
-    const empty = Object.values(value).every((child) => isEmptyStructuredValue(child, seen));
+    const empty = Object.values(value).every((child) =>
+      isEmptyStructuredValue({ value: child, seen }),
+    );
     seen.delete(value);
     return empty;
   }
@@ -161,9 +176,9 @@ export function fileContentIsEmptyPayload({
     return true;
   }
 
-  const parsed = tryParseStructured(filePath, content);
+  const parsed = tryParseStructured({ filePath, content });
 
-  return parsed.ok && isEmptyStructuredValue(parsed.value);
+  return parsed.ok && isEmptyStructuredValue({ value: parsed.value });
 }
 
 /**

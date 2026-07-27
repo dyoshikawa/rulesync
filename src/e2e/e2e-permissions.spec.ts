@@ -89,12 +89,15 @@ describe("E2E: permissions", () => {
   });
 
   it.each([
-    { target: "antigravity-ide", relativePath: [".antigravity", "settings.json"] },
-    { target: "factorydroid", relativePath: [".factory", "settings.json"] },
-    { target: "copilot", relativePath: [".vscode", "settings.json"] },
+    { target: "antigravity-ide", relativePaths: [[".antigravity", "settings.json"]] },
+    { target: "factorydroid", relativePaths: [[".factory", "settings.json"]] },
+    { target: "copilot", relativePaths: [[".vscode", "settings.json"]] },
+    // opencode writes the `.jsonc` twin when neither file exists yet, so both
+    // spellings must stay absent.
+    { target: "opencode", relativePaths: [["opencode.json"], ["opencode.jsonc"]] },
   ])(
     "should not create the shared $target config file when the permissions payload is empty",
-    async ({ target, relativePath }) => {
+    async ({ target, relativePaths }) => {
       const testDir = getTestDir();
 
       // A permissions file whose categories map to nothing this tool models, so
@@ -108,7 +111,9 @@ describe("E2E: permissions", () => {
 
       await runGenerate({ target, features: "permissions" });
 
-      expect(await fileExists(join(testDir, ...relativePath))).toBe(false);
+      for (const relativePath of relativePaths) {
+        expect(await fileExists(join(testDir, ...relativePath))).toBe(false);
+      }
     },
   );
 
