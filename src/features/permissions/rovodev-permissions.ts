@@ -69,10 +69,10 @@ const TOOL_KEY_TO_CATEGORY: Record<RovodevToolPermissionKey, "read" | "edit"> = 
 
 // Every per-tool key rulesync writes, from both directions of the mapping so a
 // key added to only one of them is still cleaned up on the next generate.
-const MANAGED_TOOL_KEYS: readonly string[] = [
+const MANAGED_TOOL_KEYS: readonly RovodevToolPermissionKey[] = [
   ...new Set([
     ...Object.values(CATEGORY_TO_TOOL_KEYS).flat(),
-    ...Object.keys(TOOL_KEY_TO_CATEGORY),
+    ...(Object.keys(TOOL_KEY_TO_CATEGORY) as RovodevToolPermissionKey[]),
   ]),
 ];
 
@@ -202,86 +202,17 @@ export class RovodevPermissions extends ToolPermissions {
       config: rulesyncConfig,
       logger,
     });
-    // A source that states no rule at all is a deliberate clean slate, so the
-    // owned keys are still cleared. A source that states rules none of which
-    // Rovo Dev can express is not: rewriting the block would relax the user's
-    // levels back to Rovo Dev's defaults with nothing of ours to replace them.
-    const sourceStatesRules = Object.values(rulesyncConfig.permission).some(
-      (rules) => Object.keys(rules).length > 0,
-    );
-
-    // Merge into `toolPermissions`, preserving every other top-level key
-    // (`agent`, `sessions`, `mcp`, etc.) and any unmanaged keys inside the
-    // existing `toolPermissions` block.
-    const existingToolPermissions = isRecord(config.toolPermissions)
-      ? { ...config.toolPermissions }
-      : {};
-    const skipsWriteEntirely = Object.keys(toolPermissions).length === 0 && sourceStatesRules;
-    if (skipsWriteEntirely) {
-      logger?.warn(
-        `Rovo Dev permissions: leaving the existing toolPermissions block in ${filePath} as it ` +
-          `is, because nothing in the rulesync source maps to Rovo Dev.`,
-      );
-    } else {
-      const hasExistingToolsRecord = isRecord(existingToolPermissions.tools);
-      const existingTools = hasExistingToolsRecord
-        ? { ...(existingToolPermissions.tools as Record<string, unknown>) }
-        : {};
-      // Ownership means a rule that is gone from the rulesync source is gone
-      // from the file, but `allowedExternalPaths` in particular is also written
-      // from inside a Rovo Dev session by `/directories`, so say what is being
-      // dropped rather than let it vanish silently.
-      const newTools = toolPermissions.tools ?? {};
-      const droppedKeys = [
-        ...OWNED_TOOL_PERMISSION_KEYS.filter(
-          (ownedKey) =>
-            existingToolPermissions[ownedKey] !== undefined &&
-            toolPermissions[ownedKey] === undefined,
-        ),
-        // A per-tool level is a session-written surface too: Rovo Dev rewrites
-        // one of these keys when the user answers "always allow"/"always deny"
-        // to a prompt.
-        ...MANAGED_TOOL_KEYS.filter(
-          (toolKey) =>
-            (existingTools[toolKey] !== undefined ||
-              existingToolPermissions[toolKey] !== undefined) &&
-            newTools[toolKey as keyof typeof newTools] === undefined,
-        ).map((toolKey) => `tools.${toolKey}`),
-      ];
-      if (droppedKeys.length > 0) {
-        logger?.warn(
-          `Rovo Dev permissions: removing ${droppedKeys.map((key) => `"${key}"`).join(", ")} from ` +
-            `${filePath} because the rulesync source no longer produces them.`,
-        );
-      }
-
-      // Every key rulesync manages is owned, so drop whatever a previous run
-      // left behind before writing the current set. Without this, a rule the
-      // user has since removed from `.rulesync/permissions.*` stays in the file:
-      // still live in `tools`/`bash`/`allowedExternalPaths`, and — for the
-      // legacy flat per-tool copies an older rulesync wrote one level up, which
-      // Rovo Dev ignores but this adapter still imports — resurrected on the
-      // next import. Tool keys rulesync has no category for are left untouched.
-      for (const ownedKey of OWNED_TOOL_PERMISSION_KEYS) {
-        delete existingToolPermissions[ownedKey];
-      }
-      for (const toolKey of MANAGED_TOOL_KEYS) {
-        delete existingToolPermissions[toolKey];
-        delete existingTools[toolKey];
-      }
-      const tools = { ...existingTools, ...toolPermissions.tools };
-      if (hasExistingToolsRecord) {
-        // Re-added below only when non-empty, so an emptied block leaves no
-        // `tools: {}`. A `tools` of some other shape is not ours to interpret,
-        // so it is left in place unless this run has levels to write there.
-        delete existingToolPermissions.tools;
-      }
-      config.toolPermissions = {
-        ...existingToolPermissions,
-        ...toolPermissions,
-        ...(Object.keys(tools).length > 0 ? { tools } : {}),
-      };
-    }
+    config.toolPermissions = resolveToolPermissionsBlock({
+      existing: config.toolPermissions,
+      generated: toolPermissions,
+      // A source that states no rule at all is a deliberate clean slate; one
+      // whose rules Rovo Dev simply cannot express is not.
+      sourceStatesRules: Object.values(rulesyncConfig.permission).some(
+        (rules) => Object.keys(rules).length > 0,
+      ),
+      filePath,
+      logger,
+    });
 
     return new RovodevPermissions({
       outputRoot,
@@ -332,6 +263,191 @@ export class RovodevPermissions extends ToolPermissions {
       global: true,
     });
   }
+}
+
+/**
+ * Resolve the `toolPermissions` block to write, merging the generated levels
+ * over the existing file. Every other top-level key of `config.yml` is the
+ * caller's to preserve; inside this block, keys rulesync manages are owned and
+ * keys it does not are kept as-is.
+ */
+function resolveToolPermissionsBlock({
+  existing,
+  generated,
+  sourceStatesRules,
+  filePath,
+  logger,
+}: {
+  existing: unknown;
+  generated: RovodevToolPermissions;
+  sourceStatesRules: boolean;
+  filePath: string;
+  logger?: Logger;
+}): Record<string, unknown> {
+  const existingToolPermissions = isRecord(existing) ? { ...existing } : {};
+
+  if (Object.keys(generated).length === 0 && sourceStatesRules) {
+    // Nothing to write, so the block stays — except for the grants a previous
+    // run left there. Whatever the user revoked is in that set, and dropping an
+    // `allow` only ever falls back to Rovo Dev's stricter default, so this half
+    // of the ownership is safe to apply with nothing to replace it with.
+    const strippedKeys = stripPermissiveOwnedValues(existingToolPermissions);
+    logger?.warn(
+      `Rovo Dev permissions: the rulesync source produced no rule Rovo Dev can express, so the ` +
+        `toolPermissions block in ${filePath} keeps its current levels` +
+        (strippedKeys.length > 0
+          ? `, minus the grants ${strippedKeys.map((key) => `"${key}"`).join(", ")}.`
+          : `.`),
+    );
+    return existingToolPermissions;
+  }
+
+  const hasExistingToolsRecord = isRecord(existingToolPermissions.tools);
+  const existingTools = hasExistingToolsRecord
+    ? { ...(existingToolPermissions.tools as Record<string, unknown>) }
+    : {};
+  warnAboutDroppedOwnedKeys({
+    existingToolPermissions,
+    existingTools,
+    generated,
+    filePath,
+    logger,
+  });
+
+  // Every key rulesync manages is owned, so drop whatever a previous run left
+  // behind before writing the current set. Without this, a rule the user has
+  // since removed from `.rulesync/permissions.*` stays in the file: still live
+  // in `tools`/`bash`/`allowedExternalPaths`, and — for the legacy flat per-tool
+  // copies an older rulesync wrote one level up, which Rovo Dev ignores but this
+  // adapter still imports — resurrected on the next import. Tool keys rulesync
+  // has no category for are left untouched.
+  for (const ownedKey of OWNED_TOOL_PERMISSION_KEYS) {
+    delete existingToolPermissions[ownedKey];
+  }
+  for (const toolKey of MANAGED_TOOL_KEYS) {
+    delete existingToolPermissions[toolKey];
+    delete existingTools[toolKey];
+  }
+  const tools = { ...existingTools, ...generated.tools };
+  if (hasExistingToolsRecord) {
+    // Re-added below only when non-empty, so an emptied block leaves no
+    // `tools: {}`. A `tools` of some other shape is not ours to interpret, so it
+    // is left in place unless this run has levels to write there.
+    delete existingToolPermissions.tools;
+  }
+  return {
+    ...existingToolPermissions,
+    ...generated,
+    ...(Object.keys(tools).length > 0 ? { tools } : {}),
+  };
+}
+
+/**
+ * Name the owned keys this generate is about to remove. `allowedExternalPaths`
+ * and the per-tool levels are written from inside a Rovo Dev session too — by
+ * `/directories` and by an "always allow" answer to a prompt — so their removal
+ * must not be silent.
+ */
+function warnAboutDroppedOwnedKeys({
+  existingToolPermissions,
+  existingTools,
+  generated,
+  filePath,
+  logger,
+}: {
+  existingToolPermissions: Record<string, unknown>;
+  existingTools: Record<string, unknown>;
+  generated: RovodevToolPermissions;
+  filePath: string;
+  logger?: Logger;
+}): void {
+  const newTools = generated.tools ?? {};
+  const droppedKeys = [
+    ...OWNED_TOOL_PERMISSION_KEYS.filter(
+      (ownedKey) =>
+        existingToolPermissions[ownedKey] !== undefined && generated[ownedKey] === undefined,
+    ),
+    // Only the nested block counts — the legacy flat copies are keys Rovo Dev
+    // never read, so removing one loses nothing.
+    ...MANAGED_TOOL_KEYS.filter(
+      (toolKey) => existingTools[toolKey] !== undefined && newTools[toolKey] === undefined,
+    ).map((toolKey) => `tools.${toolKey}`),
+  ];
+  if (droppedKeys.length > 0) {
+    logger?.warn(
+      `Rovo Dev permissions: removing ${droppedKeys.map((key) => `"${key}"`).join(", ")} from ` +
+        `${filePath} because the rulesync source no longer produces them.`,
+    );
+  }
+}
+
+/**
+ * Remove the permissive values rulesync owns, leaving the restrictive ones in
+ * place. Used when a generate has no rule of its own to write: dropping an
+ * `allow` hands the decision back to Rovo Dev's default, so it can never grant
+ * more than the file already did.
+ */
+function stripPermissiveOwnedValues(toolPermissions: Record<string, unknown>): string[] {
+  const strippedKeys: string[] = [];
+
+  if (isRecord(toolPermissions.tools)) {
+    const tools = { ...toolPermissions.tools };
+    for (const toolKey of MANAGED_TOOL_KEYS) {
+      if (tools[toolKey] === "allow") {
+        delete tools[toolKey];
+        strippedKeys.push(`tools.${toolKey}`);
+      }
+    }
+    if (Object.keys(tools).length > 0) {
+      toolPermissions.tools = tools;
+    } else {
+      delete toolPermissions.tools;
+    }
+  }
+
+  // The legacy copies one level up are keys Rovo Dev never reads, but this
+  // adapter still imports them, so a stale grant there is worth the same sweep.
+  for (const toolKey of MANAGED_TOOL_KEYS) {
+    if (toolPermissions[toolKey] === "allow") {
+      delete toolPermissions[toolKey];
+      strippedKeys.push(toolKey);
+    }
+  }
+
+  if (toolPermissions.allowedExternalPaths !== undefined) {
+    delete toolPermissions.allowedExternalPaths;
+    strippedKeys.push("allowedExternalPaths");
+  }
+
+  const bash = toolPermissions.bash;
+  if (isRecord(bash)) {
+    const stripped: Record<string, unknown> = { ...bash };
+    if (stripped.default === "allow") {
+      delete stripped.default;
+      strippedKeys.push("bash.default");
+    }
+    if (Array.isArray(stripped.commands)) {
+      const kept = stripped.commands.filter(
+        (entry) => !(isRecord(entry) && entry.permission === "allow"),
+      );
+      if (kept.length !== stripped.commands.length) {
+        strippedKeys.push("bash.commands");
+      }
+      if (kept.length > 0) {
+        stripped.commands = kept;
+      } else {
+        delete stripped.commands;
+      }
+    }
+    if (Object.keys(stripped).length > 0) {
+      toolPermissions.bash = stripped;
+    } else {
+      delete toolPermissions.bash;
+      strippedKeys.push("bash");
+    }
+  }
+
+  return strippedKeys;
 }
 
 /**

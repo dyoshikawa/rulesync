@@ -479,11 +479,72 @@ describe("RovodevPermissions", () => {
       expect(tp.bash).toEqual({ default: "deny" });
       expect(toolLevelsOf(perms.getFileContent())).toEqual({ create_file: "deny" });
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("nothing in the rulesync source maps to Rovo Dev"),
+        expect.stringContaining("produced no rule Rovo Dev can express"),
       );
     });
 
-    it("clears the owned keys when the source states no rule at all", async () => {
+    it("leaves the block alone when a mapped category has only patterns it cannot express", async () => {
+      // The category maps, but Rovo Dev's per-tool keys hold no per-path rules,
+      // so this run still has nothing to write in their place.
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({ toolPermissions: { tools: { create_file: "deny" } } }),
+      );
+
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ edit: { "src/**": "deny" } }),
+        global: true,
+      });
+
+      expect(toolLevelsOf(perms.getFileContent())).toEqual({ create_file: "deny" });
+    });
+
+    it("strips the grants but keeps the restrictions when it has nothing to write", async () => {
+      // Whatever the user revoked is among the grants a previous run left here,
+      // and dropping an `allow` only falls back to Rovo Dev's stricter default.
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({
+          toolPermissions: {
+            bash: {
+              default: "allow",
+              commands: [
+                { command: "git status", permission: "allow" },
+                { command: "rm -rf .*", permission: "deny" },
+              ],
+            },
+            allowedExternalPaths: ["/srv/shared"],
+            tools: { create_file: "allow", delete_file: "deny" },
+            customKey: "kept",
+          },
+        }),
+      );
+      const mockLogger = createMockLogger();
+
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ webfetch: { "*": "deny" } }),
+        logger: mockLogger,
+        global: true,
+      });
+
+      const tp = toolPermissionsOf(perms.getFileContent());
+      expect(tp.bash).toEqual({ commands: [{ command: "rm -rf .*", permission: "deny" }] });
+      expect(tp.allowedExternalPaths).toBeUndefined();
+      expect(toolLevelsOf(perms.getFileContent())).toEqual({ delete_file: "deny" });
+      expect(tp.customKey).toBe("kept");
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('"tools.create_file"'));
+    });
+
+    it.each<{ name: string; permission: Record<string, Record<string, string>> }>([
+      { name: "no category at all", permission: {} },
+      { name: "a category with no rules", permission: { read: {} } },
+    ])("clears the owned keys when the source states $name", async ({ permission }) => {
       // An empty source is a deliberate clean slate, unlike one whose rules
       // simply have no Rovo Dev counterpart.
       const dirPath = join(testDir, ".rovodev");
@@ -498,7 +559,7 @@ describe("RovodevPermissions", () => {
 
       const perms = await RovodevPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
-        rulesyncPermissions: rulesyncPermissions({}),
+        rulesyncPermissions: rulesyncPermissions(permission),
         logger: mockLogger,
         global: true,
       });
