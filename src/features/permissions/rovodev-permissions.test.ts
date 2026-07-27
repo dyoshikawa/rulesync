@@ -26,6 +26,12 @@ function toolPermissionsOf(yamlContent: string): Record<string, unknown> {
   return isRecord(parsed.toolPermissions) ? parsed.toolPermissions : {};
 }
 
+/** Per-tool levels live under `toolPermissions.tools`, not one level up. */
+function toolLevelsOf(yamlContent: string): Record<string, unknown> {
+  const toolPermissions = toolPermissionsOf(yamlContent);
+  return isRecord(toolPermissions.tools) ? toolPermissions.tools : {};
+}
+
 describe("RovodevPermissions", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -107,15 +113,15 @@ describe("RovodevPermissions", () => {
         global: true,
       });
 
-      const tp = toolPermissionsOf(perms.getFileContent());
-      expect(tp.open_files).toBe("allow");
-      expect(tp.grep).toBe("allow");
-      expect(tp.expand_code_chunks).toBe("allow");
-      expect(tp.expand_folder).toBe("allow");
-      expect(tp.find_and_replace_code).toBe("deny");
-      expect(tp.create_file).toBe("deny");
-      expect(tp.delete_file).toBe("deny");
-      expect(tp.move_file).toBe("deny");
+      const tools = toolLevelsOf(perms.getFileContent());
+      expect(tools.open_files).toBe("allow");
+      expect(tools.grep).toBe("allow");
+      expect(tools.expand_code_chunks).toBe("allow");
+      expect(tools.expand_folder).toBe("allow");
+      expect(tools.find_and_replace_code).toBe("deny");
+      expect(tools.create_file).toBe("deny");
+      expect(tools.delete_file).toBe("deny");
+      expect(tools.move_file).toBe("deny");
     });
 
     it("routes non-catch-all allow paths to allowedExternalPaths", async () => {
@@ -142,8 +148,8 @@ describe("RovodevPermissions", () => {
         global: true,
       });
 
-      const tp = toolPermissionsOf(perms.getFileContent());
-      expect(tp.webfetch).toBeUndefined();
+      const tools = toolLevelsOf(perms.getFileContent());
+      expect(tools.webfetch).toBeUndefined();
       expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("webfetch"));
     });
 
@@ -159,10 +165,10 @@ describe("RovodevPermissions", () => {
         global: true,
       });
 
-      const tp = toolPermissionsOf(perms.getFileContent());
+      const tools = toolLevelsOf(perms.getFileContent());
       // edit (deny) deterministically wins over write (allow) on the shared tools.
-      expect(tp.create_file).toBe("deny");
-      expect(tp.find_and_replace_code).toBe("deny");
+      expect(tools.create_file).toBe("deny");
+      expect(tools.find_and_replace_code).toBe("deny");
       expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.stringContaining('"edit" value takes precedence'),
       );
@@ -234,8 +240,62 @@ describe("RovodevPermissions", () => {
       );
 
       const perms = await RovodevPermissions.fromFile({ outputRoot: testDir, global: true });
+      // `fromFile` returns the file verbatim, so this reads the fixture's own
+      // (legacy, flat) shape rather than the nested one generate now writes.
       const tp = toolPermissionsOf(perms.getFileContent());
       expect(tp.grep).toBe("deny");
+    });
+  });
+
+  describe("toolPermissions.tools nesting", () => {
+    it("imports a legacy flat block written by an earlier rulesync", () => {
+      // Generate used to write per-tool levels one level too shallow. Those
+      // files must still import rather than round-tripping to nothing.
+      const perms = new RovodevPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rovodev",
+        relativeFilePath: "config.yml",
+        fileContent: dump({ toolPermissions: { grep: "deny", create_file: "ask" } }),
+        global: true,
+      });
+
+      const json = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(json.permission.read["*"]).toBe("deny");
+      expect(json.permission.edit["*"]).toBe("ask");
+    });
+
+    it("prefers the nested block when both depths carry a value", () => {
+      const perms = new RovodevPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rovodev",
+        relativeFilePath: "config.yml",
+        fileContent: dump({
+          toolPermissions: { grep: "allow", tools: { grep: "deny" } },
+        }),
+        global: true,
+      });
+
+      const json = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(json.permission.read["*"]).toBe("deny");
+    });
+
+    it("preserves a hand-written tool key rulesync has no category for", async () => {
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({ toolPermissions: { tools: { createTechnicalPlan: "allow" } } }),
+      );
+
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ read: { "*": "deny" } }),
+        global: true,
+      });
+
+      const tools = toolLevelsOf(perms.getFileContent());
+      expect(tools.createTechnicalPlan).toBe("allow");
+      expect(tools.grep).toBe("deny");
     });
   });
 });

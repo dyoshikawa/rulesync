@@ -80,7 +80,14 @@ type RovodevBash = {
 type RovodevToolPermissions = {
   bash?: RovodevBash;
   allowedExternalPaths?: string[];
-} & Partial<Record<RovodevToolPermissionKey, PermissionAction>>;
+  /**
+   * Per-tool levels live one level down, under `toolPermissions.tools`. Writing
+   * them directly under `toolPermissions` produces a file Rovo Dev ignores.
+   *
+   * @see https://support.atlassian.com/rovo/docs/use-tools-in-rovo-dev-cli/
+   */
+  tools?: Partial<Record<RovodevToolPermissionKey, PermissionAction>>;
+};
 
 /**
  * Permissions adapter for Rovo Dev CLI.
@@ -187,7 +194,17 @@ export class RovodevPermissions extends ToolPermissions {
     const existingToolPermissions = isRecord(config.toolPermissions)
       ? { ...config.toolPermissions }
       : {};
-    config.toolPermissions = { ...existingToolPermissions, ...toolPermissions };
+    const existingTools = isRecord(existingToolPermissions.tools)
+      ? existingToolPermissions.tools
+      : {};
+    config.toolPermissions = {
+      ...existingToolPermissions,
+      ...toolPermissions,
+      // `tools` is a nested block, so merge into it rather than replacing it —
+      // a tool the user set by hand that rulesync has no category for must
+      // survive.
+      ...(toolPermissions.tools && { tools: { ...existingTools, ...toolPermissions.tools } }),
+    };
 
     return new RovodevPermissions({
       outputRoot,
@@ -292,7 +309,8 @@ function convertRulesyncToRovodevToolPermissions({
     for (const [pattern, action] of Object.entries(rules)) {
       if (pattern === CATCH_ALL_PATTERN) {
         for (const toolKey of toolKeys) {
-          toolPermissions[toolKey] = action;
+          toolPermissions.tools ??= {};
+          toolPermissions.tools[toolKey] = action;
         }
         continue;
       }
@@ -366,8 +384,11 @@ function convertRovodevToolPermissionsToRulesync(
     }
   }
 
+  // Read from `toolPermissions.tools`, falling back to the top level for a file
+  // an earlier rulesync wrote at the wrong depth, so those still import.
+  const nestedTools = isRecord(toolPermissions.tools) ? toolPermissions.tools : {};
   for (const [toolKey, category] of Object.entries(TOOL_KEY_TO_CATEGORY)) {
-    const value = toolPermissions[toolKey];
+    const value = nestedTools[toolKey] ?? toolPermissions[toolKey];
     if (isPermissionAction(value)) {
       permission[category] ??= {};
       permission[category][CATCH_ALL_PATTERN] = value;
