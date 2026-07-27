@@ -86,7 +86,7 @@ export class ReplitSkill extends ToolSkill {
     // `.agents/skills/` (project) and `~/.agents/skills/` (personal/global). The
     // relative path is the same; the resolution root (cwd vs. home) is supplied
     // via outputRoot by the processor.
-    // https://docs.replit.com/core-concepts/agent/skills (user-level scope)
+    // https://docs.replit.com/features/agent/skills (user-level scope)
     // https://agentskills.io/specification (`~/.agents/skills/` personal path)
     return {
       relativeDirPath: REPLIT_SKILLS_DIR_PATH,
@@ -179,8 +179,8 @@ export class ReplitSkill extends ToolSkill {
     const replitFrontmatter: ReplitSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...replitSection,
       ...(allowedToolsString && { "allowed-tools": allowedToolsString }),
+      ...replitSection,
     };
 
     return new ReplitSkill({

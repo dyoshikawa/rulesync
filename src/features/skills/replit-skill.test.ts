@@ -187,6 +187,71 @@ This is the body of the replit skill.`;
   });
 
   describe("spec-conformant frontmatter", () => {
+    it("should round-trip a canonical list through generate and import", async () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "round-trip-skill",
+        frontmatter: {
+          name: "round-trip-skill",
+          description: "Round trip",
+          replit: { "allowed-tools": ["Bash", "Read"], license: "MIT" },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const emitted = ReplitSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(emitted.getFrontmatter()["allowed-tools"]).toBe("Bash Read");
+      expect(emitted.toRulesyncSkill().getFrontmatter().replit).toEqual({
+        "allowed-tools": ["Bash", "Read"],
+        license: "MIT",
+      });
+    });
+
+    it("should drop an empty allowed-tools list rather than emitting an empty value", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "empty-skill",
+        frontmatter: {
+          name: "empty-skill",
+          description: "Empty",
+          replit: { "allowed-tools": [] },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      expect(ReplitSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()).toEqual({
+        name: "empty-skill",
+        description: "Empty",
+      });
+    });
+
+    it("should import a spec-conformant SKILL.md from disk", async () => {
+      // The path a real user hits: `fromDir` re-parses the frontmatter, so the
+      // widened schema has to hold there too, not only in the constructor.
+      const skillDir = join(testDir, ".agents", "skills", "spec-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---
+name: spec-skill
+description: Spec-conformant skill
+allowed-tools: Bash(git:*) Read
+compatibility: Requires git and docker
+---
+
+Body.`,
+      );
+
+      const skill = await ReplitSkill.fromDir({ outputRoot: testDir, dirName: "spec-skill" });
+
+      expect(skill.getFrontmatter()["allowed-tools"]).toBe("Bash(git:*) Read");
+      expect(skill.getFrontmatter().compatibility).toBe("Requires git and docker");
+    });
+
     it("should construct from the spec's string forms without throwing", () => {
       const skill = new ReplitSkill({
         outputRoot: testDir,
