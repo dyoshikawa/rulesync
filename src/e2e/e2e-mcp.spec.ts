@@ -441,6 +441,37 @@ describe("E2E: mcp", () => {
     expect(hasError, `MCP daemon produced errors: ${stderrOutput}`).toBe(false);
   });
 
+  it("should carry disabledTools through the Vibe processor in both directions", async () => {
+    const testDir = getTestDir();
+
+    // Through the processor, not the adapter: the factory's
+    // `supportsDisabledTools` flag strips the field before the adapter sees it,
+    // so a unit test on the adapter alone cannot catch a regression here.
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        mcpServers: { srv: { command: "node", args: ["server.js"], disabledTools: ["rm"] } },
+      }),
+    );
+
+    await runGenerate({ target: "vibe", features: "mcp" });
+
+    const generated = toTable(
+      smolToml.parse(await readFileContent(join(testDir, ".vibe", "config.toml"))),
+    );
+    expect(toTableArray(generated.mcp_servers)[0]).toMatchObject({
+      name: "srv",
+      disabled_tools: ["rm"],
+    });
+
+    await runImport({ target: "vibe", features: "mcp" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.mcpServers.srv.disabledTools).toEqual(["rm"]);
+  });
+
   it("should generate Vibe MCP and permissions into shared config.toml", async () => {
     const testDir = getTestDir();
 
@@ -486,7 +517,9 @@ describe("E2E: mcp", () => {
     ]);
     expect(bash.permission).toBe("ask");
     expect(bash.allowlist).toEqual(["git *"]);
-    expect(parsed.disabled_tools).toContain("write_file");
+    // The canonical `edit` category targets Vibe's `edit` tool; `write_file` is
+    // a separate, create-only tool.
+    expect(parsed.disabled_tools).toContain("edit");
   });
 
   it("should generate Takt MCP transport allowlist into .takt/config.yaml", async () => {

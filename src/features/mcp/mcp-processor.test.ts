@@ -22,6 +22,7 @@ import {
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
+import { VibeMcp } from "./vibe-mcp.js";
 
 // Mock all MCP classes with their static methods
 vi.mock("./claudecode-mcp.js");
@@ -990,6 +991,30 @@ describe("McpProcessor", () => {
         logger: createMockLogger(),
         outputRoot: testDir,
         toolTarget: "kiro-cli",
+      });
+
+      await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+      expect(rulesyncMcp.stripMcpServerFields).toHaveBeenCalledWith(["enabledTools"]);
+    });
+
+    it("should preserve disabledTools but strip enabledTools for Vibe", async () => {
+      // Vibe's `_MCPBase.disabled_tools` is the canonical field; it has no
+      // per-server `enabled_tools`. Stripping the wrong one here made the
+      // adapter's mapping unreachable, which only an e2e run could catch.
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      vi.spyOn(VibeMcp, "fromRulesyncMcp").mockResolvedValue({} as VibeMcp);
+
+      const processor = new McpProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "vibe",
       });
 
       await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);

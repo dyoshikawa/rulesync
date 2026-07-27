@@ -8,6 +8,20 @@ import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import { VibeMcp } from "./vibe-mcp.js";
 
+const buildRulesyncMcp = ({
+  testDir,
+  servers,
+}: {
+  testDir: string;
+  servers: Record<string, Record<string, unknown>>;
+}): RulesyncMcp =>
+  new RulesyncMcp({
+    outputRoot: testDir,
+    relativeDirPath: ".rulesync",
+    relativeFilePath: "mcp.json",
+    fileContent: JSON.stringify({ mcpServers: servers }),
+  });
+
 describe("VibeMcp", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -245,5 +259,75 @@ describe("VibeMcp", () => {
     });
 
     expect(vibeMcp.isDeletable()).toBe(false);
+  });
+
+  it("should preserve the keys a user sets through Vibe's /mcp panel", async () => {
+    // `mcp_servers` is replaced as a whole array on each generate, so a toggle
+    // the user made in the TUI has to be carried over explicitly.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        "[[mcp_servers]]",
+        'name = "srv"',
+        'transport = "stdio"',
+        'command = "node"',
+        "disabled = true",
+        'disabled_tools = ["danger"]',
+        "sampling_enabled = true",
+        'prompt = "Use sparingly"',
+      ].join("\n"),
+    );
+
+    const vibeMcp = await VibeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: buildRulesyncMcp({ testDir, servers: { srv: { command: "node" } } }),
+    });
+
+    const server = (smolToml.parse(vibeMcp.getFileContent()) as any).mcp_servers[0];
+    expect(server).toMatchObject({
+      name: "srv",
+      command: "node",
+      disabled: true,
+      disabled_tools: ["danger"],
+      sampling_enabled: true,
+      prompt: "Use sparingly",
+    });
+  });
+
+  it("should let the rulesync source override a user toggle", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[[mcp_servers]]", 'name = "srv"', 'command = "node"', "disabled = true"].join("\n"),
+    );
+
+    const vibeMcp = await VibeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: buildRulesyncMcp({
+        testDir,
+        servers: { srv: { command: "node", disabled: false } },
+      }),
+    });
+
+    const server = (smolToml.parse(vibeMcp.getFileContent()) as any).mcp_servers[0];
+    expect(server.disabled).toBe(false);
+  });
+
+  it("should map disabled_tools to the canonical disabledTools in both directions", async () => {
+    const vibeMcp = await VibeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: buildRulesyncMcp({
+        testDir,
+        servers: { srv: { command: "node", disabledTools: ["danger"] } },
+      }),
+    });
+
+    const server = (smolToml.parse(vibeMcp.getFileContent()) as any).mcp_servers[0];
+    expect(server.disabled_tools).toEqual(["danger"]);
+    expect(server.disabledTools).toBeUndefined();
+
+    const imported = JSON.parse(vibeMcp.toRulesyncMcp().getFileContent());
+    expect(imported.mcpServers.srv.disabledTools).toEqual(["danger"]);
   });
 });

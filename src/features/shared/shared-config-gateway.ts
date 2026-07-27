@@ -532,14 +532,13 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       permissions: { kind: "replace-owned-keys", ownedKeys: ["permission", "ui"] },
     },
   },
-  // Mistral Vibe config: hooks owns the `enable_experimental_hooks` flag; mcp
+  // Mistral Vibe config: mcp
   // owns `mcp_servers`; permissions owns `tools`/`enabled_tools`/`disabled_tools`.
   // `tools` is recomputed from the existing file (unmanaged tool entries and
   // sensitive-pattern overrides preserved) before being applied.
   [VIBE_CONFIG_SHARED_FILE_KEY]: {
     format: "toml",
     features: {
-      hooks: { kind: "replace-owned-keys", ownedKeys: ["enable_experimental_hooks"] },
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] },
       permissions: {
         kind: "replace-owned-keys",
