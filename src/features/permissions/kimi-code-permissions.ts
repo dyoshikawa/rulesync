@@ -64,6 +64,36 @@ function buildKimiCodePattern(category: string, pattern: string): string | null 
   return pattern === "*" || pattern === "" ? tool : `${tool}(${pattern})`;
 }
 
+/**
+ * Merge the authored `[tools]` entries over whatever the existing `config.toml`
+ * already had, so a partial override preserves the sibling list. Returns
+ * `undefined` when neither side has anything, leaving the key unwritten.
+ */
+function mergeKimiCodeToolsSection({
+  existingContent,
+  patch,
+}: {
+  existingContent: string;
+  patch: Record<string, unknown>;
+}): { enabled?: string[]; disabled?: string[] } | undefined {
+  let existing: unknown;
+  try {
+    existing = parseSharedConfig({ format: "toml", fileContent: existingContent }).tools;
+  } catch {
+    existing = undefined;
+  }
+  const merged = {
+    ...(isRecord(existing) ? existing : {}),
+    ...(isRecord(patch.tools) ? patch.tools : {}),
+  };
+  const enabled = toNonEmptyStringList(merged.enabled);
+  const disabled = toNonEmptyStringList(merged.disabled);
+  if (!enabled && !disabled) {
+    return undefined;
+  }
+  return { ...(enabled && { enabled }), ...(disabled && { disabled }) };
+}
+
 /** String entries of a list, or `undefined` when there are none to write. */
 function toNonEmptyStringList(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) {
@@ -283,11 +313,16 @@ export class KimiCodePermissions extends ToolPermissions {
 
   setFileContent(fileContent: string): void {
     const paths = KimiCodePermissions.getSettablePaths({ global: this.global });
+    const patch = parseSharedConfig({ format: "toml", fileContent: this.fileContent });
+    // The gateway replaces an owned key wholesale, and `tools` is a table, so
+    // it is recomputed from the existing file: authoring only `enabled` must
+    // not delete a hand-written `disabled` list.
+    const mergedTools = mergeKimiCodeToolsSection({ existingContent: fileContent, patch });
     this.fileContent = applySharedConfigPatch({
       fileKey: KIMI_CODE_CONFIG_SHARED_FILE_KEY,
       feature: "permissions",
       existingContent: fileContent,
-      patch: parseSharedConfig({ format: "toml", fileContent: this.fileContent }),
+      patch: { ...patch, ...(mergedTools && { tools: mergedTools }) },
       filePath: join(paths.relativeDirPath, paths.relativeFilePath),
     });
   }

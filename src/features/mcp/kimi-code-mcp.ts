@@ -161,9 +161,23 @@ function fromKimiCodeServers(servers: McpServers): McpServers {
  * @see https://moonshotai.github.io/kimi-code/en/customization/mcp.html
  */
 
-type KimiCodeMcpExtraParams = {
-  configDefaults?: { startupTimeoutMs?: number; toolTimeoutMs?: number };
+/** Kimi's `[mcp]` global defaults, in rulesync's camelCase spelling. */
+export type KimiCodeMcpDefaults = {
+  startupTimeoutMs?: number;
+  toolTimeoutMs?: number;
 };
+
+type KimiCodeMcpExtraParams = {
+  configDefaults?: KimiCodeMcpDefaults;
+};
+
+/** Path of the shared user `config.toml`, relative to the output root. */
+function kimiCodeConfigRelativePath(): { relativeDirPath: string; relativeFilePath: string } {
+  return {
+    relativeDirPath: getKimiCodeRelativeDirPath({ global: true }),
+    relativeFilePath: KIMI_CODE_CONFIG_FILE_NAME,
+  };
+}
 
 /**
  * Read the `[mcp]` defaults back out of the shared user `config.toml` so a
@@ -171,17 +185,15 @@ type KimiCodeMcpExtraParams = {
  * no defaults rather than failing the import: this file belongs to three
  * features plus the user.
  */
-async function readKimiCodeMcpDefaults({
+async function readKimiCodeMcpSection({
   outputRoot,
 }: {
   outputRoot: string;
-}): Promise<{ startupTimeoutMs?: number; toolTimeoutMs?: number }> {
-  const configPath = join(
-    outputRoot,
-    getKimiCodeRelativeDirPath({ global: true }),
-    KIMI_CODE_CONFIG_FILE_NAME,
+}): Promise<Record<string, unknown>> {
+  const paths = kimiCodeConfigRelativePath();
+  const content = await readFileContentOrNull(
+    join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
   );
-  const content = await readFileContentOrNull(configPath);
   if (content === null) {
     return {};
   }
@@ -191,9 +203,15 @@ async function readKimiCodeMcpDefaults({
   } catch {
     return {};
   }
-  if (!isRecord(mcp)) {
-    return {};
-  }
+  return isRecord(mcp) ? mcp : {};
+}
+
+async function readKimiCodeMcpDefaults({
+  outputRoot,
+}: {
+  outputRoot: string;
+}): Promise<KimiCodeMcpDefaults> {
+  const mcp = await readKimiCodeMcpSection({ outputRoot });
   return {
     ...(typeof mcp.startup_timeout_ms === "number" && {
       startupTimeoutMs: mcp.startup_timeout_ms,
@@ -211,6 +229,11 @@ async function readKimiCodeMcpDefaults({
  * Written as an auxiliary file so it goes through the normal write phase and
  * respects `--dry-run`, and merged through the shared-config gateway so the
  * `hooks` and `permissions` sections of the same `config.toml` survive.
+ *
+ * The gateway replaces an owned key wholesale, and `mcp` is a table, so the
+ * section is recomputed from the existing file: authoring only
+ * `startupTimeoutMs` must not delete a hand-written `tool_timeout_ms`. Same
+ * approach the `.vibe/config.toml` `tools` writer takes.
  *
  * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#mcp
  */
@@ -230,17 +253,20 @@ export class KimiCodeMcpConfigToml extends ToolFile {
     defaults,
   }: {
     outputRoot: string;
-    defaults: { startupTimeoutMs?: number; toolTimeoutMs?: number };
+    defaults: KimiCodeMcpDefaults;
   }): Promise<KimiCodeMcpConfigToml> {
-    const relativeDirPath = getKimiCodeRelativeDirPath({ global: true });
-    const configPath = join(outputRoot, relativeDirPath, KIMI_CODE_CONFIG_FILE_NAME);
+    const paths = kimiCodeConfigRelativePath();
+    const relativeConfigPath = join(paths.relativeDirPath, paths.relativeFilePath);
+    const configPath = join(outputRoot, relativeConfigPath);
     const existingContent = (await readFileContentOrNull(configPath)) ?? "";
+    const existingSection = await readKimiCodeMcpSection({ outputRoot });
     const fileContent = applySharedConfigPatch({
       fileKey: KIMI_CODE_CONFIG_SHARED_FILE_KEY,
       feature: "mcp",
       existingContent,
       patch: {
         mcp: {
+          ...existingSection,
           ...(defaults.startupTimeoutMs !== undefined && {
             startup_timeout_ms: defaults.startupTimeoutMs,
           }),
@@ -249,13 +275,14 @@ export class KimiCodeMcpConfigToml extends ToolFile {
           }),
         },
       },
-      filePath: configPath,
+      // Relative, matching the hooks and permissions writers of the same file,
+      // so an error message does not leak the user's home path.
+      filePath: relativeConfigPath,
     });
 
     return new KimiCodeMcpConfigToml({
       outputRoot,
-      relativeDirPath,
-      relativeFilePath: KIMI_CODE_CONFIG_FILE_NAME,
+      ...paths,
       fileContent,
     });
   }
