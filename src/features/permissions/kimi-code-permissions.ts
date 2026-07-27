@@ -66,8 +66,13 @@ function buildKimiCodePattern(category: string, pattern: string): string | null 
 
 /**
  * Merge the authored `[tools]` entries over whatever the existing `config.toml`
- * already had, so a partial override preserves the sibling list. Returns
- * `undefined` when neither side has anything, leaving the key unwritten.
+ * already had. Every value is carried through exactly as it stands, including
+ * an empty list: for Kimi, `enabled = []` is an allowlist admitting nothing —
+ * the strictest possible setting — while the key being absent means no
+ * allowlist at all. Rewriting one into the other would silently unlock every
+ * tool, so nothing here is normalized or dropped.
+ *
+ * Returns `undefined` when neither side has anything, leaving the key unwritten.
  */
 function mergeKimiCodeToolsSection({
   existingContent,
@@ -86,56 +91,38 @@ function mergeKimiCodeToolsSection({
     ...(isRecord(existing) ? existing : {}),
     ...(isRecord(patch.tools) ? patch.tools : {}),
   };
-  // Keep everything the user (or a future Kimi release) put in the section, and
-  // normalize only the two lists rulesync manages. A list that normalizes to
-  // nothing is dropped; a value of some other type is left exactly as authored
-  // rather than silently deleted.
-  for (const key of ["enabled", "disabled"] as const) {
-    if (!(key in merged)) {
-      continue;
-    }
-    const list = toNonEmptyStringList(merged[key]);
-    if (list) {
-      merged[key] = list;
-    } else if (Array.isArray(merged[key])) {
-      delete merged[key];
-    }
-  }
   return Object.keys(merged).length > 0 ? merged : undefined;
 }
 
-/** String entries of a list, or `undefined` when there are none to write. */
-function toNonEmptyStringList(value: unknown): string[] | undefined {
-  if (!Array.isArray(value)) {
-    return undefined;
-  }
-  const entries = value.filter((entry): entry is string => typeof entry === "string");
-  return entries.length > 0 ? entries : undefined;
-}
-
 /**
- * Build Kimi's `[tools]` section, dropping empty lists so an override that says
- * nothing does not write an empty table. Entries pass through verbatim: the
- * section uses agent-file tool syntax (exact built-in names, `mcp__server__*`
- * globs), not the canonical category/pattern shape.
+ * Build Kimi's `[tools]` section from a rulesync override, or read one back on
+ * import. Entries pass through verbatim: the section uses agent-file tool syntax
+ * (exact built-in names, `mcp__server__*` globs), not the canonical
+ * category/pattern shape, and an empty list is a meaningful setting rather than
+ * an omission.
+ *
+ * On import the two lists rulesync models are only carried across when they are
+ * string arrays, because that is what the override schema accepts; a
+ * hand-written value of some other type stays in `config.toml`, which the merge
+ * above preserves.
  *
  * Note that this section is registered in Kimi's v2 engine, so today it applies
  * under `kimi web` and experimental `kimi -p` rather than the interactive TUI.
  *
  * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#tools
  */
-function buildKimiCodeToolsSection(
-  tools: unknown,
-): { enabled?: string[]; disabled?: string[] } | undefined {
+function buildKimiCodeToolsSection(tools: unknown): Record<string, unknown> | undefined {
   if (!isRecord(tools)) {
     return undefined;
   }
-  const enabled = toNonEmptyStringList(tools.enabled);
-  const disabled = toNonEmptyStringList(tools.disabled);
-  if (!enabled && !disabled) {
-    return undefined;
-  }
-  return { ...(enabled && { enabled }), ...(disabled && { disabled }) };
+  const section = Object.fromEntries(
+    Object.entries(tools).filter(([key, value]) =>
+      key === "enabled" || key === "disabled"
+        ? Array.isArray(value) && value.every((entry) => typeof entry === "string")
+        : true,
+    ),
+  );
+  return Object.keys(section).length > 0 ? section : undefined;
 }
 
 function canonicalToKimiCodeRules({

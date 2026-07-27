@@ -179,12 +179,6 @@ function kimiCodeConfigRelativePath(): { relativeDirPath: string; relativeFilePa
   };
 }
 
-/**
- * Read the `[mcp]` defaults back out of the shared user `config.toml` so a
- * generate → import round trip keeps them. Absent or unparseable content yields
- * no defaults rather than failing the import: this file belongs to three
- * features plus the user.
- */
 type KimiCodeConfigRead =
   | { readonly parsed: true; readonly content: string; readonly mcp: Record<string, unknown> }
   | { readonly parsed: false; readonly content: string };
@@ -214,6 +208,12 @@ async function readKimiCodeConfig({
   }
 }
 
+/**
+ * Read the `[mcp]` defaults back out of the shared user `config.toml` so a
+ * generate → import round trip keeps them. Absent or unparseable content yields
+ * no defaults rather than failing the import: this file belongs to three
+ * features plus the user.
+ */
 async function readKimiCodeMcpDefaults({
   outputRoot,
 }: {

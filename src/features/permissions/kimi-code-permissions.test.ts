@@ -90,7 +90,6 @@ describe("KimiCodePermissions [tools] section", () => {
   it.each([
     { name: "an absent tools block", override: {} },
     { name: "an empty tools block", override: { tools: {} } },
-    { name: "empty lists", override: { tools: { enabled: [], disabled: [] } } },
     { name: "a non-record tools value", override: { tools: "nope" } },
   ])("should not write the section for $name", ({ override }) => {
     const config = generate({ json: { permission: {}, "kimi-code": override } });
@@ -98,15 +97,49 @@ describe("KimiCodePermissions [tools] section", () => {
     expect(config.tools).toBeUndefined();
   });
 
-  it("should drop non-string entries rather than writing them", () => {
+  it("should keep an empty allowlist, which admits nothing rather than everything", () => {
+    // For Kimi `enabled = []` is an allowlist matching no tool — the strictest
+    // setting there is — while an absent key means no allowlist at all.
     const config = generate({
-      json: {
-        permission: {},
-        "kimi-code": { tools: { enabled: ["Bash", 42, null, "Read"] } },
-      },
+      json: { permission: {}, "kimi-code": { tools: { enabled: [] } } },
     });
 
-    expect(config.tools).toEqual({ enabled: ["Bash", "Read"] });
+    expect(config.tools).toEqual({ enabled: [] });
+  });
+
+  it("should not delete a user's empty allowlist when the override says nothing", () => {
+    const config = generate({
+      json: { permission: {} },
+      existingContent: '[tools]\nenabled = []\ndisabled = ["Bash"]\n',
+    });
+
+    expect(config.tools).toEqual({ enabled: [], disabled: ["Bash"] });
+  });
+
+  it("should round-trip an empty allowlist rather than losing it on import", () => {
+    const permissions = new KimiCodePermissions({
+      outputRoot: ".",
+      fileContent: "[tools]\nenabled = []\n",
+      global: true,
+    });
+
+    const imported = JSON.parse(permissions.toRulesyncPermissions().getFileContent());
+
+    expect(imported["kimi-code"].tools).toEqual({ enabled: [] });
+  });
+
+  it("should leave a hand-written value of an unexpected type out of the import", () => {
+    // It stays in config.toml — the merge preserves it — but the override
+    // schema only models string lists.
+    const permissions = new KimiCodePermissions({
+      outputRoot: ".",
+      fileContent: '[tools]\nenabled = ["Bash"]\ndisabled = "NotAList"\n',
+      global: true,
+    });
+
+    const imported = JSON.parse(permissions.toRulesyncPermissions().getFileContent());
+
+    expect(imported["kimi-code"].tools).toEqual({ enabled: ["Bash"] });
   });
 
   it("should round-trip the section back into the kimi-code override on import", () => {
