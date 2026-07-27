@@ -1324,6 +1324,27 @@ As this project's AI coding tool, you must follow the additional conventions bel
       return toolRule.toRulesyncRule();
     });
 
+    // Several tool files can derive the same rulesync file name — most easily
+    // with the AGENTS.md standard's nested files, where every source is named
+    // `AGENTS.md` and the rulesync name comes from the directory. The writer
+    // overwrites, so without this the earlier rule disappears silently.
+    const claimedBy = new Map<string, string>();
+    for (const [index, rulesyncRule] of rulesyncRules.entries()) {
+      const target = rulesyncRule.getRelativeFilePath();
+      const source = join(
+        toolRules[index]!.getRelativeDirPath(),
+        toolRules[index]!.getRelativeFilePath(),
+      );
+      const previous = claimedBy.get(target);
+      if (previous === undefined) {
+        claimedBy.set(target, source);
+        continue;
+      }
+      this.logger.warn(
+        `Both ${previous} and ${source} import to ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, target)}; only the last one is kept.`,
+      );
+    }
+
     return rulesyncRules;
   }
 
@@ -1642,10 +1663,14 @@ As this project's AI coding tool, you must follow the additional conventions bel
       // Pattern-discovered rule files (the AGENTS.md standard's nested
       // subproject files). Import only — see `getNestedFileGlobs`.
       const nestedToolRules = await (async () => {
-        const patterns = factory.class.getNestedFilePatterns?.({
-          outputRoot: this.outputRoot,
-          global: this.global,
-        });
+        // Never in global mode: the output root is the home directory there, and
+        // walking all of it looking for subprojects is both wrong and expensive.
+        const patterns = this.global
+          ? undefined
+          : factory.class.getNestedFilePatterns?.({
+              outputRoot: this.outputRoot,
+              global: this.global,
+            });
         if (forDeletion || !patterns || patterns.include.length === 0) {
           return [];
         }
@@ -1661,7 +1686,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
           ignore: patterns.ignore,
         });
 
-        const rules = await Promise.all(
+        return await Promise.all(
           filePaths.map((filePath) => {
             const relativeDirPath = resolveRelativeDirPath(filePath);
             checkPathTraversal({
@@ -1676,26 +1701,6 @@ As this project's AI coding tool, you must follow the additional conventions bel
             });
           }),
         );
-
-        // Every nested file shares one file name, so the rulesync name is derived
-        // from the directory. Two directories can still derive the same name
-        // (`packages/api` and `packages-api`), and the later import would
-        // overwrite the earlier one without a word.
-        const claimedBy = new Map<string, string>();
-        for (const rule of rules) {
-          const source = join(rule.getRelativeDirPath(), rule.getRelativeFilePath());
-          const rulesyncName = rule.toRulesyncRule().getRelativeFilePath();
-          const previous = claimedBy.get(rulesyncName);
-          if (previous === undefined) {
-            claimedBy.set(rulesyncName, source);
-          } else {
-            this.logger.warn(
-              `Both ${previous} and ${source} import to ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, rulesyncName)}; only the last one is kept.`,
-            );
-          }
-        }
-
-        return rules;
       })();
       this.logger.debug(`Found ${nestedToolRules.length} nested tool rule files`);
 

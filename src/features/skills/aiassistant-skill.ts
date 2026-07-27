@@ -7,6 +7,7 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
+import { toSpecConformantAgentSkillFields } from "./agentsskills-skill.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -153,6 +154,11 @@ export class AiassistantSkill extends ToolSkill {
     const aiassistantFrontmatter: AiassistantSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      // This target writes to `.agents/skills/`, the Agent Skills project
+      // location that `agentsskills` also owns, so it emits the same normalized
+      // shared block. Otherwise whichever target ran last decided whether the
+      // standard's optional fields survived.
+      ...toSpecConformantAgentSkillFields(rulesyncFrontmatter.agentsskills),
     };
 
     return new AiassistantSkill({

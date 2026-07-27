@@ -5,7 +5,10 @@ import {
   AGENTSMD_MEMORIES_DIR_PATH,
   AGENTSMD_RULE_FILE_NAME,
 } from "../../constants/agentsmd-paths.js";
-import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_OVERVIEW_FILE_NAME,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent, toPosixPath } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -34,16 +37,20 @@ export type AgentsMdRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
 };
 
 /**
- * Directories never scanned for nested `AGENTS.md` files. Hidden directories are
- * excluded because an `AGENTS.md` inside one is another tool's generated output
- * (rulesync writes several itself), not a subproject. The rest are dependency,
- * vendoring and build trees: an `AGENTS.md` there describes somebody else's
- * project, and is usually gitignored, so importing it would move content the
- * user deliberately kept out of the repository into version-controlled
- * `.rulesync/rules/`.
+ * Dependency trees never scanned for nested `AGENTS.md` files, at any depth. An
+ * `AGENTS.md` there describes somebody else's project, and neither name is ever
+ * a package name. Hidden directories are excluded separately, because an
+ * `AGENTS.md` inside one is another tool's generated output (rulesync writes
+ * several itself).
  */
-const NESTED_SCAN_EXCLUDED_DIRS = [
-  "node_modules",
+const NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH = ["node_modules", "__pycache__"];
+
+/**
+ * Build, vendoring and scratch directories, excluded at the **project root
+ * only**. A top-level `build/` is a build directory; `packages/build/` is a
+ * package, and dropping it silently would lose a real subproject.
+ */
+const NESTED_SCAN_EXCLUDED_ROOT_DIRS = [
   "vendor",
   "third_party",
   "dist",
@@ -54,7 +61,6 @@ const NESTED_SCAN_EXCLUDED_DIRS = [
   "tmp",
   "temp",
   "venv",
-  "__pycache__",
 ];
 
 export class AgentsMdRule extends ToolRule {
@@ -104,7 +110,8 @@ export class AgentsMdRule extends ToolRule {
         // Enumerated separately as the root rule.
         `${root}/${AGENTSMD_RULE_FILE_NAME}`,
         `${root}/**/.*/**`,
-        ...NESTED_SCAN_EXCLUDED_DIRS.map((dir) => `${root}/**/${dir}/**`),
+        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `${root}/**/${dir}/**`),
+        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${root}/${dir}/**`),
       ],
     };
   }
@@ -153,8 +160,10 @@ export class AgentsMdRule extends ToolRule {
 
     return new AgentsMdRule({
       outputRoot,
+      // `join` so the stored path uses native separators like every other
+      // construction path (`fromRulesyncRule` builds it the same way).
       relativeDirPath: isNested
-        ? normalizedDirPath
+        ? join(normalizedDirPath)
         : isRoot
           ? this.getSettablePaths().root.relativeDirPath
           : this.getSettablePaths().nonRoot.relativeDirPath,
@@ -206,11 +215,18 @@ export class AgentsMdRule extends ToolRule {
 
     // Every nested file is named `AGENTS.md`, so the rulesync file is named after
     // the directory it scopes; `subprojectPath` sends it back to the same place
-    // on the next generate.
+    // on the next generate. A subproject that would claim the reserved root-rule
+    // name gets a suffix instead: overwriting `overview.md` would drop the root
+    // rule entirely, and the next `--delete` would then remove the root
+    // `AGENTS.md` along with it.
+    const derivedName = `${subprojectPath.replaceAll("/", "-")}.md`;
     return new RulesyncRule({
       outputRoot: process.cwd(),
       relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-      relativeFilePath: `${subprojectPath.replaceAll("/", "-")}.md`,
+      relativeFilePath:
+        derivedName === RULESYNC_OVERVIEW_FILE_NAME
+          ? `${subprojectPath.replaceAll("/", "-")}-agents.md`
+          : derivedName,
       frontmatter: {
         root: false,
         targets: ["*"],

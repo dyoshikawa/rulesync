@@ -686,6 +686,39 @@ describe("RulesProcessor", () => {
       expect(claudecodePaths).toContain(join("backend", "api-rule.md"));
     });
 
+    it("should discover nested AGENTS.md files on import but never for deletion", async () => {
+      await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
+      await writeFileContent(join(testDir, "packages", "api", "AGENTS.md"), "# API");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "agentsmd" });
+
+      const imported = await processor.loadToolFiles();
+      expect(
+        imported.map((file) => join(file.getRelativeDirPath(), file.getRelativeFilePath())),
+      ).toContain(join("packages", "api", "AGENTS.md"));
+
+      // A nested file rulesync did not write must never become a deletion
+      // candidate — it is the user's own file, anywhere in the tree.
+      const forDeletion = await processor.loadToolFiles({ forDeletion: true });
+      expect(
+        forDeletion.map((file) => join(file.getRelativeDirPath(), file.getRelativeFilePath())),
+      ).not.toContain(join("packages", "api", "AGENTS.md"));
+    });
+
+    it("should warn when two rule files import to the same rulesync file name", async () => {
+      await writeFileContent(join(testDir, "packages", "api", "AGENTS.md"), "# API");
+      await writeFileContent(join(testDir, "packages-api", "AGENTS.md"), "# Also API");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "agentsmd" });
+      await processor.convertToolFilesToRulesyncFiles(await processor.loadToolFiles());
+
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes(join(RULESYNC_RULES_RELATIVE_DIR_PATH, "packages-api.md")),
+        ),
+      ).toBe(true);
+    });
+
     it("should load CLAUDE.md from .claude/ directory when only .claude/CLAUDE.md exists", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Project from .claude dir");

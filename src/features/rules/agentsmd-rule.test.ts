@@ -400,6 +400,49 @@ describe("AgentsMdRule", () => {
       expect(regenerated.getRelativeFilePath()).toBe("AGENTS.md");
     });
 
+    it("should exclude build directories only at the project root", async () => {
+      // A top-level `build/` is a build directory; `packages/build/` is a package.
+      for (const relativePath of [
+        join("build", "AGENTS.md"),
+        join("packages", "build", "AGENTS.md"),
+        join("packages", "app", "node_modules", "dep", "AGENTS.md"),
+      ]) {
+        await writeFileContent(join(testDir, relativePath), "# rule");
+      }
+
+      const patterns = AgentsMdRule.getNestedFilePatterns({ outputRoot: testDir });
+      const matched = await findFilesByGlobs(patterns.include, {
+        type: "file",
+        followSymbolicLinks: false,
+        ignore: patterns.ignore,
+      });
+
+      expect(matched.map((filePath) => toPosixPath(relative(testDir, filePath)))).toEqual([
+        "packages/build/AGENTS.md",
+      ]);
+    });
+
+    it("should not claim the reserved overview.md name for an `overview` subproject", async () => {
+      // Overwriting overview.md would drop the root rule, and the next
+      // `--delete` would then remove the root AGENTS.md too.
+      const subprojectDir = join(testDir, "overview");
+      await ensureDir(subprojectDir);
+      await writeFileContent(join(subprojectDir, "AGENTS.md"), "# Overview subproject");
+
+      const rulesyncRule = (
+        await AgentsMdRule.fromFile({
+          outputRoot: testDir,
+          relativeDirPath: "overview",
+          relativeFilePath: "AGENTS.md",
+        })
+      ).toRulesyncRule();
+
+      expect(rulesyncRule.getRelativeFilePath()).toBe("overview-agents.md");
+      expect(rulesyncRule.getFrontmatter()).toMatchObject({
+        agentsmd: { subprojectPath: "overview" },
+      });
+    });
+
     it("should not treat the project root file or a memories file as a subproject", async () => {
       await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
       const memoriesDir = join(testDir, ".agents", "memories");

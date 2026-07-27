@@ -13,6 +13,7 @@ import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { toPosixPath } from "../../utils/file.js";
 import { loadYaml } from "../../utils/yaml.js";
+import { toSpecConformantAgentSkillFields } from "./agentsskills-skill.js";
 import {
   RulesyncSkill,
   RulesyncSkillFrontmatter,
@@ -268,12 +269,21 @@ export class CodexCliSkill extends ToolSkill {
     const settablePaths = CodexCliSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
+    // This target writes to `.agents/skills/`, the Agent Skills project location
+    // that `agentsskills` also owns, so it emits the same normalized shared
+    // block. Otherwise whichever target ran last decided whether the standard's
+    // optional fields survived.
+    const sharedFields = toSpecConformantAgentSkillFields(rulesyncFrontmatter.agentsskills);
+    const shortDescription = rulesyncFrontmatter.codexcli?.["short-description"];
     const codexFrontmatter: CodexCliSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...(rulesyncFrontmatter.codexcli?.["short-description"] && {
+      ...sharedFields,
+      // Codex's own metadata key is merged into, not over, the shared map.
+      ...((sharedFields.metadata || shortDescription) && {
         metadata: {
-          "short-description": rulesyncFrontmatter.codexcli["short-description"],
+          ...sharedFields.metadata,
+          ...(shortDescription && { "short-description": shortDescription }),
         },
       }),
     };
