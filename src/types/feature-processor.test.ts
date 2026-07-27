@@ -18,13 +18,22 @@ vi.mock("../utils/file.js", async () => {
   };
 });
 
-function createMockFile(filePath: string): AiFile {
+function createMockFile(
+  filePath: string,
+  {
+    fileContent = "content",
+    skipCreationWhenPayloadEmpty = false,
+  }: { fileContent?: string; skipCreationWhenPayloadEmpty?: boolean } = {},
+): AiFile {
   return {
     getFilePath: () => filePath,
-    getFileContent: () => "content",
+    getFileContent: () => fileContent,
     getRelativePathFromCwd: () => filePath,
     // Declared on the AiFile base class; defaults to false for non-merging files.
     shouldMergeExistingFileContent: () => false,
+    // Declared on the AiFile base class; defaults to `!isDeletable()`, i.e. true
+    // only for shared config files rulesync merges into but does not own.
+    shouldSkipCreationWhenPayloadEmpty: () => skipCreationWhenPayloadEmpty,
   } as AiFile;
 }
 
@@ -203,6 +212,75 @@ describe("FeatureProcessor", () => {
 
       expect(result).toEqual({ count: 2, paths: ["/path/to/file1.md", "/path/to/file2.md"] });
       expect(writeFileContent).not.toHaveBeenCalled();
+    });
+
+    it("should not create a missing merge-target file when the payload is empty", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+      const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const files = [
+        createMockFile("/path/to/settings.json", {
+          fileContent: "{}",
+          skipCreationWhenPayloadEmpty: true,
+        }),
+        createMockFile("/path/to/config.json", {
+          fileContent: JSON.stringify({ mcpServers: {}, permissions: {} }),
+          skipCreationWhenPayloadEmpty: true,
+        }),
+      ];
+
+      const result = await processor.writeAiFiles(files);
+
+      expect(result).toEqual({ count: 0, paths: [] });
+      expect(writeFileContent).not.toHaveBeenCalled();
+    });
+
+    it("should still create a missing merge-target file when the payload has content", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+      const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const files = [
+        createMockFile("/path/to/settings.json", {
+          fileContent: JSON.stringify({ permissions: { allow: ["read"] } }),
+          skipCreationWhenPayloadEmpty: true,
+        }),
+      ];
+
+      const result = await processor.writeAiFiles(files);
+
+      expect(result).toEqual({ count: 1, paths: ["/path/to/settings.json"] });
+      expect(writeFileContent).toHaveBeenCalledTimes(1);
+    });
+
+    it("should still write an empty payload into a merge-target file that already exists", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue(
+        JSON.stringify({ permissions: { allow: ["read"] } }),
+      );
+      const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const files = [
+        createMockFile("/path/to/settings.json", {
+          fileContent: "{}",
+          skipCreationWhenPayloadEmpty: true,
+        }),
+      ];
+
+      const result = await processor.writeAiFiles(files);
+
+      expect(result).toEqual({ count: 1, paths: ["/path/to/settings.json"] });
+      expect(writeFileContent).toHaveBeenCalledTimes(1);
+    });
+
+    it("should create a missing rulesync-owned file even when the payload is empty", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+      const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const files = [createMockFile("/path/to/hooks.json", { fileContent: "{}" })];
+
+      const result = await processor.writeAiFiles(files);
+
+      expect(result).toEqual({ count: 1, paths: ["/path/to/hooks.json"] });
+      expect(writeFileContent).toHaveBeenCalledTimes(1);
     });
   });
 

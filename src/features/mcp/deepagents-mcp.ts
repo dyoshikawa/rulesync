@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { DEEPAGENTS_DIR, DEEPAGENTS_MCP_FILE_NAME } from "../../constants/deepagents-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -66,10 +66,10 @@ export class DeepagentsMcp extends ToolMcp {
   }: ToolMcpFromRulesyncMcpParams): Promise<DeepagentsMcp> {
     const paths = this.getSettablePaths({ global });
 
-    const fileContent = await readOrInitializeFileContent(
-      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
-      JSON.stringify({ mcpServers: {} }, null, 2),
-    );
+    const fileContent =
+      (await readFileContentOrNull(
+        join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
+      )) ?? JSON.stringify({ mcpServers: {} }, null, 2);
     const json = JSON.parse(fileContent);
 
     const mcpJson = { ...json, mcpServers: rulesyncMcp.getMcpServers() };

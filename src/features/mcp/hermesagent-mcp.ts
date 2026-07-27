@@ -6,7 +6,7 @@ import {
 } from "../../constants/hermesagent-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import {
   omitPrototypePollutionKeys,
   PROTOTYPE_POLLUTION_KEYS,
@@ -366,10 +366,10 @@ export class HermesagentMcp extends ToolMcp {
     }
     const paths = this.getSettablePaths({ global });
 
-    const fileContent = await readOrInitializeFileContent(
-      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
-      "",
-    );
+    const fileContent =
+      (await readFileContentOrNull(
+        join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
+      )) ?? "";
     const config = parseSharedConfig({ format: "yaml", fileContent });
 
     // Merge the `mcp_servers:` block into the shared config, preserving other

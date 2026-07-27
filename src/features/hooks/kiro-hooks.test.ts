@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { readOrInitializeFileContent, ensureDir, writeFileContent } from "../../utils/file.js";
+import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { KiroHooks } from "./kiro-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
@@ -170,7 +170,7 @@ describe("KiroHooks", () => {
 
       const configPath = join(testDir, ".kiro", "agents", "default.json");
       await ensureDir(join(testDir, ".kiro", "agents"));
-      await readOrInitializeFileContent(configPath, JSON.stringify(mockConfig));
+      await writeFileContent(configPath, JSON.stringify(mockConfig));
 
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({

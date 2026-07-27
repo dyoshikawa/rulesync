@@ -201,8 +201,9 @@ export class QwencodePermissions extends ToolPermissions {
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<QwencodePermissions> {
     const paths = QwencodePermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    // Use null-fallback (instead of readOrInitializeFileContent) so generation has no filesystem
-    // side effects when the destination directory does not yet exist (important for dry-run).
+    // Read without initializing so generation has no filesystem side effects
+    // when the destination directory does not yet exist (important for dry-run);
+    // the actual write happens later in `writeAiFiles`.
     const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
 
     let settings: QwenSettings;

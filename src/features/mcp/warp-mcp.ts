@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { WARP_DIR, WARP_MCP_FILE_NAME } from "../../constants/warp-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -90,10 +90,10 @@ export class WarpMcp extends ToolMcp {
   }: ToolMcpFromRulesyncMcpParams): Promise<WarpMcp> {
     const paths = this.getSettablePaths({ global });
 
-    const fileContent = await readOrInitializeFileContent(
-      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
-      JSON.stringify({ mcpServers: {} }, null, 2),
-    );
+    const fileContent =
+      (await readFileContentOrNull(
+        join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
+      )) ?? JSON.stringify({ mcpServers: {} }, null, 2);
     const json = this.parseJsonOrThrow(fileContent, paths.relativeDirPath, paths.relativeFilePath);
 
     const warpConfig = { ...json, mcpServers: rulesyncMcp.getMcpServers() };

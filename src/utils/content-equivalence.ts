@@ -95,6 +95,85 @@ function tryFileContentsEquivalent(
 }
 
 /**
+ * Structured parse for known extensions. Returns `undefined` when the content
+ * cannot be parsed as that format (or the extension is not a structured one).
+ */
+function tryParseStructured(filePath: string, content: string): unknown | undefined {
+  const ext = extname(filePath).toLowerCase();
+
+  switch (ext) {
+    case ".json":
+    case ".jsonc": {
+      const errors: ParseError[] = [];
+      const parsed = parseJsonc(content, errors);
+      return errors.length > 0 ? undefined : parsed;
+    }
+    case ".yaml":
+    case ".yml":
+      try {
+        return loadYaml(content);
+      } catch {
+        return undefined;
+      }
+    case ".toml":
+      try {
+        return smolToml.parse(content);
+      } catch {
+        return undefined;
+      }
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Whether a parsed structured value carries no information: `null`/`undefined`,
+ * an empty array, or an object whose every value is itself empty by this same
+ * rule. Any scalar (string, number, boolean) counts as content.
+ */
+function isEmptyStructuredValue(value: unknown): boolean {
+  if (value === null || value === undefined) {
+    return true;
+  }
+  if (Array.isArray(value)) {
+    return value.length === 0;
+  }
+  if (typeof value === "object") {
+    return Object.values(value).every(isEmptyStructuredValue);
+  }
+  return false;
+}
+
+/**
+ * Whether generated content carries nothing worth writing — an empty structured
+ * document such as `{}`, `{"permissions":{}}` or `{"mcpServers":{}}`, or (for
+ * unstructured formats) whitespace-only text.
+ *
+ * Used to avoid creating shared, user-managed config files that rulesync merges
+ * into but does not own: writing an empty file there hands the user a file to
+ * manage without giving them anything in return.
+ */
+export function fileContentIsEmptyPayload({
+  filePath,
+  content,
+}: {
+  filePath: string;
+  content: string;
+}): boolean {
+  if (content.trim() === "") {
+    return true;
+  }
+
+  const parsed = tryParseStructured(filePath, content);
+
+  if (parsed === undefined) {
+    return false;
+  }
+
+  return isEmptyStructuredValue(parsed);
+}
+
+/**
  * Whether on-disk content is equivalent to generated content for --check / dry-run.
  *
  * Uses structured comparison for JSON/JSONC (via jsonc-parser), YAML, TOML, and Markdown-like

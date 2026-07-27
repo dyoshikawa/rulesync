@@ -12,7 +12,7 @@ import {
   CANONICAL_TO_ANTIGRAVITY_EVENT_NAMES,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
@@ -161,11 +161,8 @@ class AntigravityHooks extends ToolHooks {
     logger?: Logger;
   }): Promise<AntigravityHooks> {
     const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     // hooks.json is dedicated to hooks, so any existing content is fully
-    // replaced; reading it first keeps a stable round-trip when unchanged.
-    await readOrInitializeFileContent(filePath, JSON.stringify({}, null, 2));
-
+    // replaced; the write happens later in `writeAiFiles`.
     const config = rulesyncHooks.getJson();
     const eventMap = canonicalToToolHooks({
       config,

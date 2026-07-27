@@ -130,5 +130,20 @@ export abstract class AiFile {
     return true;
   }
 
+  /**
+   * Returns whether rulesync should refrain from creating this file when it does
+   * not exist yet and the generated payload carries no content.
+   *
+   * Defaults to the shared/user-managed config files that rulesync merges into
+   * rather than owns (the same files that `isDeletable()` protects). Those paths
+   * are deliberately not gitignored, so materializing an empty `{}` there hands
+   * the user an untracked file to manage without giving them anything in return.
+   * Files rulesync fully owns are still written, because their mere existence is
+   * part of what rulesync generates.
+   */
+  shouldSkipCreationWhenPayloadEmpty(): boolean {
+    return !this.isDeletable();
+  }
+
   abstract validate(): ValidationResult;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fileContentsEquivalent } from "./content-equivalence.js";
+import { fileContentIsEmptyPayload, fileContentsEquivalent } from "./content-equivalence.js";
 import { addTrailingNewline } from "./file.js";
 import { stringifyFrontmatter } from "./frontmatter.js";
 
@@ -171,5 +171,62 @@ Body
         existing: "line1\rline2\r",
       }),
     ).toBe(true);
+  });
+});
+
+describe("fileContentIsEmptyPayload", () => {
+  it("treats whitespace-only content as empty for any extension", () => {
+    expect(fileContentIsEmptyPayload({ filePath: "/x/settings.json", content: "" })).toBe(true);
+    expect(fileContentIsEmptyPayload({ filePath: "/x/config.toml", content: "\n  \n" })).toBe(true);
+    expect(fileContentIsEmptyPayload({ filePath: "/x/notes.txt", content: "  " })).toBe(true);
+  });
+
+  it("treats structurally empty JSON documents as empty", () => {
+    expect(fileContentIsEmptyPayload({ filePath: "/x/settings.json", content: "{}" })).toBe(true);
+    expect(
+      fileContentIsEmptyPayload({ filePath: "/x/settings.json", content: '{"permissions":{}}' }),
+    ).toBe(true);
+    expect(
+      fileContentIsEmptyPayload({
+        filePath: "/x/config.json",
+        content: '{"mcpServers":{},"permissions":{"allow":[]}}',
+      }),
+    ).toBe(true);
+  });
+
+  it("treats any scalar value as content", () => {
+    expect(
+      fileContentIsEmptyPayload({ filePath: "/x/settings.json", content: '{"enabled":false}' }),
+    ).toBe(false);
+    expect(
+      fileContentIsEmptyPayload({
+        filePath: "/x/settings.json",
+        content: '{"permissions":{"allow":["read"]}}',
+      }),
+    ).toBe(false);
+  });
+
+  it("handles YAML and TOML documents", () => {
+    expect(
+      fileContentIsEmptyPayload({ filePath: "/x/config.yaml", content: "extensions: {}" }),
+    ).toBe(true);
+    expect(
+      fileContentIsEmptyPayload({ filePath: "/x/config.yaml", content: "extensions:\n  a: 1\n" }),
+    ).toBe(false);
+    expect(fileContentIsEmptyPayload({ filePath: "/x/config.toml", content: "# comment\n" })).toBe(
+      true,
+    );
+    expect(
+      fileContentIsEmptyPayload({ filePath: "/x/config.toml", content: 'model = "x"\n' }),
+    ).toBe(false);
+  });
+
+  it("treats unparseable or unstructured content as non-empty", () => {
+    expect(fileContentIsEmptyPayload({ filePath: "/x/settings.json", content: "{not json" })).toBe(
+      false,
+    );
+    expect(fileContentIsEmptyPayload({ filePath: "/x/AGENTS.md", content: "# Title\n" })).toBe(
+      false,
+    );
   });
 });

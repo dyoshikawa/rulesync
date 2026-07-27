@@ -8,7 +8,7 @@ import {
   type PermissionsConfig,
 } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -158,7 +158,7 @@ export class JuniePermissions extends ToolPermissions {
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<JuniePermissions> {
     const paths = JuniePermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const existingContent = await readOrInitializeFileContent(filePath, "{}");
+    const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
 
     let existing: JunieAllowlist;
     try {

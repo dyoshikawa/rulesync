@@ -143,19 +143,6 @@ export async function ensureDir(dirPath: string): Promise<void> {
   }
 }
 
-export async function readOrInitializeFileContent(
-  filePath: string,
-  initialContent: string = "",
-): Promise<string> {
-  if (await fileExists(filePath)) {
-    return await readFileContent(filePath);
-  } else {
-    await ensureDir(dirname(filePath));
-    await writeFileContent(filePath, initialContent);
-    return initialContent;
-  }
-}
-
 /**
  * Converts OS-native path separators to POSIX forward slashes.
  * Use this instead of `path.posix.join` when input segments may already
