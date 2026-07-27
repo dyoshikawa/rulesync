@@ -187,7 +187,7 @@ This is the body of the replit skill.`;
   });
 
   describe("spec-conformant frontmatter", () => {
-    it("should round-trip a canonical list through generate and import", async () => {
+    it("should round-trip a canonical list through generate and import", () => {
       const rulesyncSkill = new RulesyncSkill({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
