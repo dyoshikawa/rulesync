@@ -282,7 +282,7 @@ export const KILO_HOOK_EVENTS: readonly HookEvent[] = OPENCODE_HOOK_EVENTS;
  * Only canonical events with a semantically faithful Pi extension event are
  * listed; see CANONICAL_TO_PI_EVENT_NAMES for the mapping.
  *
- * @see https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md
+ * @see https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md
  */
 export const PI_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -293,6 +293,7 @@ export const PI_HOOK_EVENTS: readonly HookEvent[] = [
   "beforeSubmitPrompt",
   "stop",
   "preCompact",
+  "postCompact",
 ];
 
 /**
@@ -1045,7 +1046,7 @@ export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> =
  * Pi events without a faithful canonical counterpart (e.g. `turn_start`,
  * `agent_settled`) are intentionally unmapped.
  *
- * @see https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md
+ * @see https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md
  */
 export const CANONICAL_TO_PI_EVENT_NAMES: Record<string, string> = {
   sessionStart: "session_start",
@@ -1056,6 +1057,9 @@ export const CANONICAL_TO_PI_EVENT_NAMES: Record<string, string> = {
   beforeSubmitPrompt: "input",
   stop: "agent_end",
   preCompact: "session_before_compact",
+  // Pi documents `session_compact` alongside `session_before_compact`, and
+  // v0.79.10 gave both the same `reason` / `willRetry` metadata.
+  postCompact: "session_compact",
 };
 
 /** Map canonical hook events to Amp Plugin API events. */

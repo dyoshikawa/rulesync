@@ -69,6 +69,7 @@ describe("PiHooks", () => {
           beforeSubmitPrompt: [{ command: "pre-prompt.sh" }],
           preModelInvocation: [{ command: "pre-model.sh" }],
           preCompact: [{ command: "pre-compact.sh" }],
+          postCompact: [{ command: "post-compact.sh" }],
           // notification has no Pi extension event equivalent
           notification: [{ command: "notify.sh" }],
           // afterFileEdit has no Pi extension event equivalent
@@ -94,6 +95,11 @@ describe("PiHooks", () => {
       expect(content).toContain("pre-model.sh");
       expect(content).toContain('pi.on("session_before_compact", async () => {');
       expect(content).toContain("pre-compact.sh");
+      // Distinct from preCompact: Pi documents both, and an unmapped event is
+      // dropped without a warning, so this is the only guard against silently
+      // losing the subscription again.
+      expect(content).toContain('pi.on("session_compact", async () => {');
+      expect(content).toContain("post-compact.sh");
 
       // Unsupported events should not appear
       expect(content).not.toContain("notify.sh");

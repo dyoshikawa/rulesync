@@ -92,7 +92,7 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
  * platform shell. The generated extension observes events only: it never
  * blocks or mutates Pi events.
  *
- * @see https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md
+ * @see https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md
  */
 export function generatePiExtensionCode({
   config,

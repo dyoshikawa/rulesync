@@ -25,7 +25,7 @@ import {
  * `.pi/extensions/rulesync-hooks.ts` (project) and
  * `~/.pi/agent/extensions/rulesync-hooks.ts` (global).
  *
- * @see https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md
+ * @see https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md
  */
 export class PiHooks extends ToolHooks {
   constructor(params: AiFileParams) {
