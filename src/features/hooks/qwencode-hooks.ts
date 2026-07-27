@@ -12,7 +12,7 @@ import {
   CANONICAL_TO_QWENCODE_EVENT_NAMES,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import { compact } from "../../utils/object.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
@@ -268,10 +268,7 @@ export class QwencodeHooks extends ToolHooks {
   }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): Promise<QwencodeHooks> {
     const paths = QwencodeHooks.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const existingContent = await readOrInitializeFileContent(
-      filePath,
-      JSON.stringify({}, null, 2),
-    );
+    const existingContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
     const config = rulesyncHooks.getJson();
     const patch: Record<string, unknown> = { hooks: canonicalToQwencodeHooks(config) };
     // Round-trip Qwen Code's top-level switch that disables every hook.

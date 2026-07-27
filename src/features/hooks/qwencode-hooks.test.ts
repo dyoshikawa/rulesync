@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { readOrInitializeFileContent, ensureDir, writeFileContent } from "../../utils/file.js";
+import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { QwencodeHooks } from "./qwencode-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
@@ -136,7 +136,7 @@ describe("QwencodeHooks", () => {
 
       const settingsPath = join(testDir, ".qwen", "settings.json");
       await ensureDir(join(testDir, ".qwen"));
-      await readOrInitializeFileContent(settingsPath, JSON.stringify(mockSettings));
+      await writeFileContent(settingsPath, JSON.stringify(mockSettings));
 
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({

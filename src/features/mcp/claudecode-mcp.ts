@@ -6,7 +6,7 @@ import {
   CLAUDECODE_MCP_FILE_NAME,
 } from "../../constants/claudecode-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
-import { fileExists, readFileContent, readOrInitializeFileContent } from "../../utils/file.js";
+import { fileExists, readFileContent, readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -133,10 +133,10 @@ export class ClaudecodeMcp extends ToolMcp {
   }: ToolMcpFromRulesyncMcpParams): Promise<ClaudecodeMcp> {
     const paths = this.getSettablePaths({ global });
 
-    const fileContent = await readOrInitializeFileContent(
-      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
-      JSON.stringify({ mcpServers: {} }, null, 2),
-    );
+    const fileContent =
+      (await readFileContentOrNull(
+        join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
+      )) ?? JSON.stringify({ mcpServers: {} }, null, 2);
     const json = JSON.parse(fileContent);
 
     const mcpJson = { ...json, mcpServers: rulesyncMcp.getMcpServers() };

@@ -10,7 +10,7 @@ import {
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
@@ -172,10 +172,7 @@ export class DevinPermissions extends ToolPermissions {
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<DevinPermissions> {
     const paths = DevinPermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const existingContent = await readOrInitializeFileContent(
-      filePath,
-      JSON.stringify({}, null, 2),
-    );
+    const existingContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
 
     let settings: Record<string, unknown>;
     try {

@@ -5,7 +5,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import { applyPermissions } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -119,10 +119,7 @@ export class ClaudecodePermissions extends ToolPermissions {
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<ClaudecodePermissions> {
     const paths = ClaudecodePermissions.getSettablePaths();
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const existingContent = await readOrInitializeFileContent(
-      filePath,
-      JSON.stringify({}, null, 2),
-    );
+    const existingContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
     let settings: ClaudeSettingsJson;
     try {
       settings = JSON.parse(existingContent);

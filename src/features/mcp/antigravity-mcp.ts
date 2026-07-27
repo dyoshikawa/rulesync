@@ -6,7 +6,7 @@ import {
   ANTIGRAVITY_MCP_FILE_NAME,
 } from "../../constants/antigravity-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -126,10 +126,10 @@ export class AntigravityMcp extends ToolMcp {
   }: ToolMcpFromRulesyncMcpParams): Promise<AntigravityMcp> {
     const paths = this.getSettablePaths({ global });
 
-    const fileContent = await readOrInitializeFileContent(
-      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
-      JSON.stringify({ mcpServers: {} }, null, 2),
-    );
+    const fileContent =
+      (await readFileContentOrNull(
+        join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
+      )) ?? JSON.stringify({ mcpServers: {} }, null, 2);
     const json = JSON.parse(fileContent);
     const newJson = { ...json, mcpServers: toAntigravityMcpServers(rulesyncMcp.getMcpServers()) };
 

@@ -11,7 +11,7 @@ import {
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { warnWithFallback } from "../../utils/logger.js";
 import {
@@ -384,10 +384,10 @@ export class GooseMcp extends ToolMcp {
       });
     }
 
-    const fileContent = await readOrInitializeFileContent(
-      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
-      "",
-    );
+    const fileContent =
+      (await readFileContentOrNull(
+        join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
+      )) ?? "";
     const config = parseGooseConfig(fileContent, paths.relativeDirPath, paths.relativeFilePath);
 
     // Merge the `extensions:` block into the shared config, preserving other

@@ -13,7 +13,7 @@ import {
   safeString,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
@@ -195,10 +195,7 @@ export class KiroHooks extends ToolHooks {
   }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): Promise<KiroHooks> {
     const paths = KiroHooks.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const existingContent = await readOrInitializeFileContent(
-      filePath,
-      JSON.stringify({}, null, 2),
-    );
+    const existingContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
     const config = rulesyncHooks.getJson();
     const kiroHooks = canonicalToKiroHooks(config, this.getOverrideKey());
     const fileContent = applySharedConfigPatch({

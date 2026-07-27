@@ -4,7 +4,7 @@ import { ROVODEV_DIR, ROVODEV_MCP_FILE_NAME } from "../../constants/rovodev-path
 import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -110,10 +110,10 @@ export class RovodevMcp extends ToolMcp {
     }
     const paths = this.getSettablePaths({ global });
 
-    const fileContent = await readOrInitializeFileContent(
-      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
-      JSON.stringify({ mcpServers: {} }, null, 2),
-    );
+    const fileContent =
+      (await readFileContentOrNull(
+        join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
+      )) ?? JSON.stringify({ mcpServers: {} }, null, 2);
     const json = parseRovodevMcpJson(fileContent, paths.relativeDirPath, paths.relativeFilePath);
 
     // Use getMcpServers() (not getJson()) so rulesync-only fields and

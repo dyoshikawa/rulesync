@@ -13,7 +13,7 @@ import {
   DEVIN_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
@@ -149,10 +149,8 @@ export class DevinHooks extends ToolHooks {
       // Global hooks live under the `hooks` key of the shared config.json, which
       // also carries `mcpServers` / `permissions` from the other features, so
       // read-modify-write and preserve the sibling keys.
-      const existingContent = await readOrInitializeFileContent(
-        filePath,
-        JSON.stringify({}, null, 2),
-      );
+      const existingContent =
+        (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
       fileContent = applySharedConfigPatch({
         fileKey: sharedConfigFileKey(paths),
         feature: "hooks",
@@ -161,9 +159,8 @@ export class DevinHooks extends ToolHooks {
         filePath,
       });
     } else {
-      // The project hooks.v1.json is dedicated to hooks; reading it first keeps a
-      // stable round-trip when unchanged.
-      await readOrInitializeFileContent(filePath, JSON.stringify({}, null, 2));
+      // The project hooks.v1.json is dedicated to hooks, so any existing content
+      // is fully replaced; the write happens later in `writeAiFiles`.
       fileContent = JSON.stringify(devinHooks, null, 2);
     }
 

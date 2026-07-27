@@ -8,7 +8,7 @@ import {
 } from "../../constants/copilot-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServerSchema, type McpServer, type McpServers } from "../../types/mcp.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -195,10 +195,10 @@ export class CopilotcliMcp extends ToolMcp {
   }: ToolMcpFromRulesyncMcpParams): Promise<CopilotcliMcp> {
     const paths = this.getSettablePaths({ global });
 
-    const fileContent = await readOrInitializeFileContent(
-      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
-      JSON.stringify({ mcpServers: {} }, null, 2),
-    );
+    const fileContent =
+      (await readFileContentOrNull(
+        join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
+      )) ?? JSON.stringify({ mcpServers: {} }, null, 2);
     const json = JSON.parse(fileContent);
 
     // Convert rulesync format to Copilot CLI format (add "type": "stdio")

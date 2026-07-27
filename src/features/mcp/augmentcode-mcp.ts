@@ -8,7 +8,7 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers } from "../../types/mcp.js";
 import { readAugmentcodeSettingsWithLocalOverlay } from "../../utils/augmentcode-settings.js";
 import { formatError } from "../../utils/error.js";
-import { readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -137,10 +137,7 @@ export class AugmentcodeMcp extends ToolMcp {
     const paths = this.getSettablePaths({ global });
 
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const existingContent = await readOrInitializeFileContent(
-      filePath,
-      JSON.stringify({}, null, 2),
-    );
+    const existingContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
 
     return new AugmentcodeMcp({
       outputRoot,

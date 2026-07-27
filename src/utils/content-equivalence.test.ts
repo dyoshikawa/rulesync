@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fileContentsEquivalent } from "./content-equivalence.js";
+import { fileContentIsEmptyPayload, fileContentsEquivalent } from "./content-equivalence.js";
 import { addTrailingNewline } from "./file.js";
 import { stringifyFrontmatter } from "./frontmatter.js";
 
@@ -171,5 +171,110 @@ Body
         existing: "line1\rline2\r",
       }),
     ).toBe(true);
+  });
+});
+
+describe("fileContentIsEmptyPayload", () => {
+  it("treats whitespace-only content as empty for any extension", () => {
+    expect(fileContentIsEmptyPayload({ filePath: "/x/settings.json", content: "" })).toBe(true);
+    expect(fileContentIsEmptyPayload({ filePath: "/x/config.toml", content: "\n  \n" })).toBe(true);
+    expect(fileContentIsEmptyPayload({ filePath: "/x/notes.txt", content: "  " })).toBe(true);
+  });
+
+  it("treats structurally empty JSON documents as empty", () => {
+    expect(fileContentIsEmptyPayload({ filePath: "/x/settings.json", content: "{}" })).toBe(true);
+    expect(
+      fileContentIsEmptyPayload({ filePath: "/x/settings.json", content: '{"permissions":{}}' }),
+    ).toBe(true);
+    expect(
+      fileContentIsEmptyPayload({
+        filePath: "/x/config.json",
+        content: '{"mcpServers":{},"permissions":{"allow":[]}}',
+      }),
+    ).toBe(true);
+  });
+
+  it("treats any scalar value as content", () => {
+    expect(
+      fileContentIsEmptyPayload({ filePath: "/x/settings.json", content: '{"enabled":false}' }),
+    ).toBe(false);
+    expect(
+      fileContentIsEmptyPayload({
+        filePath: "/x/settings.json",
+        content: '{"permissions":{"allow":["read"]}}',
+      }),
+    ).toBe(false);
+  });
+
+  it("handles YAML and TOML documents", () => {
+    expect(
+      fileContentIsEmptyPayload({ filePath: "/x/config.yaml", content: "extensions: {}" }),
+    ).toBe(true);
+    expect(
+      fileContentIsEmptyPayload({ filePath: "/x/config.yaml", content: "extensions:\n  a: 1\n" }),
+    ).toBe(false);
+    expect(fileContentIsEmptyPayload({ filePath: "/x/config.toml", content: "# comment\n" })).toBe(
+      true,
+    );
+    expect(
+      fileContentIsEmptyPayload({ filePath: "/x/config.toml", content: 'model = "x"\n' }),
+    ).toBe(false);
+  });
+
+  it("treats unparseable or unstructured content as non-empty", () => {
+    expect(fileContentIsEmptyPayload({ filePath: "/x/settings.json", content: "{not json" })).toBe(
+      false,
+    );
+    expect(fileContentIsEmptyPayload({ filePath: "/x/AGENTS.md", content: "# Title\n" })).toBe(
+      false,
+    );
+  });
+
+  it("treats a comment-only YAML document as empty", () => {
+    // `loadYaml` legitimately returns `undefined` here, which must not be
+    // confused with a parse failure.
+    expect(fileContentIsEmptyPayload({ filePath: "/x/config.yaml", content: "# comment\n" })).toBe(
+      true,
+    );
+  });
+
+  it("treats a null document and empty containers as empty", () => {
+    expect(fileContentIsEmptyPayload({ filePath: "/x/settings.json", content: "null" })).toBe(true);
+    expect(fileContentIsEmptyPayload({ filePath: "/x/settings.json", content: "[]" })).toBe(true);
+    expect(
+      fileContentIsEmptyPayload({ filePath: "/x/settings.jsonc", content: "// note\n{}\n" }),
+    ).toBe(true);
+  });
+
+  it("treats a non-empty array as content regardless of its elements", () => {
+    expect(fileContentIsEmptyPayload({ filePath: "/x/settings.json", content: '{"a":[{}]}' })).toBe(
+      false,
+    );
+    expect(fileContentIsEmptyPayload({ filePath: "/x/settings.json", content: "[{}]" })).toBe(
+      false,
+    );
+  });
+
+  it("treats a __proto__ entry as content instead of losing its payload", () => {
+    // jsonc-parser resolves `__proto__` by replacing the prototype, so the
+    // nested servers would be invisible to a plain own-property walk.
+    expect(
+      fileContentIsEmptyPayload({
+        filePath: "/x/settings.json",
+        content: '{"mcpServers":{"__proto__":{"evil":1}}}',
+      }),
+    ).toBe(false);
+  });
+
+  it("does not recurse forever on a self-referential YAML anchor", () => {
+    expect(
+      fileContentIsEmptyPayload({ filePath: "/x/config.yaml", content: "&r\nfoo: *r\n" }),
+    ).toBe(false);
+  });
+
+  it("treats a date-only TOML document as content", () => {
+    expect(
+      fileContentIsEmptyPayload({ filePath: "/x/config.toml", content: "updated = 2026-01-01\n" }),
+    ).toBe(false);
   });
 });

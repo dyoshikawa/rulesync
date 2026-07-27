@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { ZED_DIR, ZED_GLOBAL_DIR, ZED_SETTINGS_FILE_NAME } from "../../constants/zed-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -78,7 +78,7 @@ export class ZedMcp extends ToolMcp {
     const paths = this.getSettablePaths({ global });
 
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const existingContent = await readOrInitializeFileContent(filePath, "{}");
+    const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
 
     return new ZedMcp({
       outputRoot,

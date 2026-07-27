@@ -18,14 +18,26 @@ vi.mock("../utils/file.js", async () => {
   };
 });
 
-function createMockFile(filePath: string): AiFile {
-  return {
+/**
+ * Minimal `AiFile` stand-in. `shouldSkipCreationWhenPayloadEmpty` deliberately
+ * delegates to the real `AiFile.prototype` implementation (which keys off the
+ * relative path), so these tests exercise the production predicate rather than a
+ * hand-written stub.
+ */
+function createMockFile(
+  filePath: string,
+  { fileContent = "content" }: { fileContent?: string } = {},
+): AiFile {
+  const file = {
     getFilePath: () => filePath,
-    getFileContent: () => "content",
+    getFileContent: () => fileContent,
     getRelativePathFromCwd: () => filePath,
     // Declared on the AiFile base class; defaults to false for non-merging files.
     shouldMergeExistingFileContent: () => false,
+    shouldSkipCreationWhenPayloadEmpty: () =>
+      AiFile.prototype.shouldSkipCreationWhenPayloadEmpty.call(file),
   } as AiFile;
+  return file;
 }
 
 class TestProcessor extends FeatureProcessor {
@@ -203,6 +215,67 @@ describe("FeatureProcessor", () => {
 
       expect(result).toEqual({ count: 2, paths: ["/path/to/file1.md", "/path/to/file2.md"] });
       expect(writeFileContent).not.toHaveBeenCalled();
+    });
+
+    it("should not create a missing shared config file when the payload is empty", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+      const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const files = [
+        createMockFile(".antigravity/settings.json", { fileContent: "{}" }),
+        createMockFile(".devin/config.json", {
+          fileContent: JSON.stringify({ mcpServers: {}, permissions: {} }),
+        }),
+      ];
+
+      const result = await processor.writeAiFiles(files);
+
+      expect(result).toEqual({ count: 0, paths: [] });
+      expect(writeFileContent).not.toHaveBeenCalled();
+    });
+
+    it("should still create a missing shared config file when the payload has content", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+      const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const files = [
+        createMockFile(".antigravity/settings.json", {
+          fileContent: JSON.stringify({ permissions: { allow: ["read"] } }),
+        }),
+      ];
+
+      const result = await processor.writeAiFiles(files);
+
+      expect(result).toEqual({ count: 1, paths: [".antigravity/settings.json"] });
+      expect(writeFileContent).toHaveBeenCalledTimes(1);
+    });
+
+    it("should still write an empty payload into a shared config file that already exists", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue(
+        JSON.stringify({ permissions: { allow: ["read"] } }),
+      );
+      const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const files = [createMockFile(".antigravity/settings.json", { fileContent: "{}" })];
+
+      const result = await processor.writeAiFiles(files);
+
+      expect(result).toEqual({ count: 1, paths: [".antigravity/settings.json"] });
+      expect(writeFileContent).toHaveBeenCalledTimes(1);
+    });
+
+    it("should create a missing rulesync-owned file even when the payload is empty", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+      const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      // `.agents/hooks.json` is owned wholesale by rulesync, so its existence is
+      // part of what generation produces even when it holds no hooks.
+      const files = [createMockFile(".agents/hooks.json", { fileContent: "{}" })];
+
+      const result = await processor.writeAiFiles(files);
+
+      expect(result).toEqual({ count: 1, paths: [".agents/hooks.json"] });
+      expect(writeFileContent).toHaveBeenCalledTimes(1);
     });
   });
 

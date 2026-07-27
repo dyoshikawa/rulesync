@@ -9,7 +9,7 @@ import {
   CANONICAL_TO_CLAUDE_EVENT_NAMES,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import {
   applySharedConfigPatch,
@@ -110,10 +110,7 @@ export class ClaudecodeHooks extends ToolHooks {
   }): Promise<ClaudecodeHooks> {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const existingContent = await readOrInitializeFileContent(
-      filePath,
-      JSON.stringify({}, null, 2),
-    );
+    const existingContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
     const config = rulesyncHooks.getJson();
     const claudeHooks = canonicalToToolHooks({
       config,

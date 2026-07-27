@@ -1,4 +1,4 @@
-import { fileContentsEquivalent } from "../utils/content-equivalence.js";
+import { fileContentIsEmptyPayload, fileContentsEquivalent } from "../utils/content-equivalence.js";
 import {
   addTrailingNewline,
   readFileContentOrNull,
@@ -69,6 +69,18 @@ export abstract class FeatureProcessor {
 
       const contentWithNewline = addTrailingNewline(aiFile.getFileContent());
       const existingContent = existingFileContent;
+
+      // Never bring a shared, user-managed config file into existence just to
+      // hold an empty payload — that is pure `git status` noise for paths
+      // rulesync merges into but does not own. An existing file is still
+      // rewritten, so user-authored content is never dropped.
+      if (
+        existingContent === null &&
+        aiFile.shouldSkipCreationWhenPayloadEmpty() &&
+        fileContentIsEmptyPayload({ filePath, content: contentWithNewline })
+      ) {
+        continue;
+      }
 
       if (
         fileContentsEquivalent({

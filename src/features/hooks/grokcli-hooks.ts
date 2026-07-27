@@ -8,7 +8,7 @@ import {
   GROKCLI_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull, readOrInitializeFileContent } from "../../utils/file.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
@@ -126,7 +126,6 @@ export class GrokcliHooks extends ToolHooks {
     logger?: Logger;
   }): Promise<GrokcliHooks> {
     const paths = GrokcliHooks.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const config = rulesyncHooks.getJson();
     const grokHooks = canonicalToToolHooks({
       config,
@@ -134,9 +133,8 @@ export class GrokcliHooks extends ToolHooks {
       converterConfig: GROKCLI_CONVERTER_CONFIG,
       logger,
     });
-    // The standalone rulesync.json is dedicated to hooks; reading it first keeps
-    // a stable round-trip when unchanged.
-    await readOrInitializeFileContent(filePath, JSON.stringify({ hooks: {} }, null, 2));
+    // The standalone rulesync.json is dedicated to hooks, so any existing
+    // content is fully replaced; the write happens later in `writeAiFiles`.
     const fileContent = JSON.stringify({ hooks: grokHooks }, null, 2);
     return new GrokcliHooks({
       outputRoot,

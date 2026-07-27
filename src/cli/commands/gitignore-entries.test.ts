@@ -100,6 +100,9 @@ describe("registry derivation", () => {
       "**/.amp/settings.jsonc",
       // claudecode ignore feature with `fileMode: "local"`.
       "**/.claude/settings.local.json",
+      // Preferred over `opencode.json` when neither file exists yet, so it is
+      // chosen at write time rather than declared by getSettablePaths.
+      "**/opencode.jsonc",
     ]);
     const rawEntries = new Set(deriveAllGitignoreEntriesUnfiltered().map((tag) => tag.entry));
     const stale = [...DERIVED_PATHS_NOT_GITIGNORED].filter(
