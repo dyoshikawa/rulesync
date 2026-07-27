@@ -2185,9 +2185,11 @@ describe("E2E: permissions (global mode)", () => {
       { command: "git status", permission: "allow" },
       { command: "rm -rf .*", permission: "deny" },
     ]);
-    // `read` -> inspection tools, `edit` -> mutation tools.
-    expect(toolPermissions.open_files).toBe("allow");
-    expect(toolPermissions.create_file).toBe("deny");
+    // `read` -> inspection tools, `edit` -> mutation tools, nested under
+    // `toolPermissions.tools` where Rovo Dev reads them.
+    const tools = toTable(toolPermissions.tools);
+    expect(tools.open_files).toBe("allow");
+    expect(tools.create_file).toBe("deny");
     // Unrelated user settings preserved by the non-destructive merge.
     expect(toTable(root.agent).model).toBe("claude");
     expect(toTable(root.sessions).retention).toBe(30);

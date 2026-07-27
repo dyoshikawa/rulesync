@@ -7,6 +7,7 @@ import {
   RULESYNC_MCP_SCHEMA_URL,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { RovodevMcp } from "./rovodev-mcp.js";
@@ -253,6 +254,241 @@ describe("RovodevMcp", () => {
         global: false,
       });
       expect(nonGlobalInstance.isDeletable()).toBe(false);
+    });
+  });
+
+  describe("transport translation", () => {
+    it("writes the canonical type as Rovo Dev's transport key", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            remote: { type: "streamable-http", url: "https://example.com/mcp" },
+            local: { type: "local", command: "node" },
+          },
+        }),
+      });
+
+      const rovodevMcp = await RovodevMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const servers = JSON.parse(rovodevMcp.getFileContent()).mcpServers;
+      expect(servers.remote).toEqual({ transport: "http", url: "https://example.com/mcp" });
+      expect(servers.local).toEqual({ transport: "stdio", command: "node" });
+    });
+
+    it("skips a server whose transport Rovo Dev does not have", async () => {
+      // Emitting it without a transport key leaves Rovo Dev to guess, so the
+      // entry is dropped instead (same as the Kimi Code adapter).
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            socket: { type: "ws", url: "wss://example.com/mcp" },
+            kept: { type: "http", url: "https://example.com/mcp" },
+          },
+        }),
+      });
+
+      const rovodevMcp = await RovodevMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+        logger,
+      });
+
+      const servers = JSON.parse(rovodevMcp.getFileContent()).mcpServers;
+      expect(servers.socket).toBeUndefined();
+      expect(servers.kept).toEqual({ transport: "http", url: "https://example.com/mcp" });
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes('"ws" transport is unsupported'),
+        ),
+      ).toBe(true);
+    });
+
+    it("skips a disabled server, which mcp.json cannot express", async () => {
+      // Rovo Dev disables servers through `mcp.disabledMcpServers` in
+      // config.yml, so an entry written here would simply run.
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            off: { type: "http", url: "https://example.com/mcp", disabled: true },
+            on: { type: "http", url: "https://example.com/mcp", disabled: false },
+          },
+        }),
+      });
+
+      const rovodevMcp = await RovodevMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+        logger,
+      });
+
+      const servers = JSON.parse(rovodevMcp.getFileContent()).mcpServers;
+      expect(servers.off).toBeUndefined();
+      // `disabled: false` is dropped too — mcp.json is not where a Rovo Dev
+      // server is switched on and off.
+      expect(servers.on).toEqual({ transport: "http", url: "https://example.com/mcp" });
+      expect(
+        logger.warn.mock.calls.some(([message]) => String(message).includes('skipping "off"')),
+      ).toBe(true);
+    });
+
+    it("reads the transport key back as the canonical type", () => {
+      const rovodevMcp = new RovodevMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rovodev",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { remote: { transport: "sse", url: "https://example.com/mcp" } },
+        }),
+        global: true,
+      });
+
+      const imported = JSON.parse(rovodevMcp.toRulesyncMcp().getFileContent());
+      expect(imported.mcpServers.remote).toEqual({
+        type: "sse",
+        url: "https://example.com/mcp",
+      });
+    });
+
+    it.each([
+      { canonical: "stdio", rovodev: "stdio" },
+      { canonical: "local", rovodev: "stdio" },
+      { canonical: "http", rovodev: "http" },
+      { canonical: "streamable-http", rovodev: "http" },
+      { canonical: "sse", rovodev: "sse" },
+    ])("writes canonical $canonical as $rovodev", async ({ canonical, rovodev }) => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { server: { type: canonical } } }),
+      });
+
+      const rovodevMcp = await RovodevMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      expect(JSON.parse(rovodevMcp.getFileContent()).mcpServers.server).toEqual({
+        transport: rovodev,
+      });
+    });
+
+    it.each(["stdio", "http", "sse"])("reads %s back as the canonical type", (transport) => {
+      const rovodevMcp = new RovodevMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rovodev",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { server: { transport } } }),
+        global: true,
+      });
+
+      const imported = JSON.parse(rovodevMcp.toRulesyncMcp().getFileContent());
+      expect(imported.mcpServers.server).toEqual({ type: transport });
+    });
+
+    it("imports a file an earlier rulesync wrote with the canonical type key", () => {
+      const rovodevMcp = new RovodevMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rovodev",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { legacy: { type: "streamable-http", url: "https://example.com/mcp" } },
+        }),
+        global: true,
+      });
+
+      const imported = JSON.parse(rovodevMcp.toRulesyncMcp().getFileContent());
+      expect(imported.mcpServers.legacy).toEqual({
+        type: "streamable-http",
+        url: "https://example.com/mcp",
+      });
+    });
+
+    it("round-trips a canonical config, normalizing local to stdio", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { local: { type: "local", command: "node" } },
+        }),
+      });
+
+      const rovodevMcp = await RovodevMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const imported = JSON.parse(rovodevMcp.toRulesyncMcp().getFileContent());
+
+      // `local` and `stdio` are the same transport, so the rename is the only
+      // difference the round-trip introduces.
+      expect(imported.mcpServers.local).toEqual({ type: "stdio", command: "node" });
+    });
+
+    it("drops a transport value outside Rovo Dev's vocabulary on import", () => {
+      // The canonical transport field is a strict enum, so carrying an unknown
+      // value over would make .rulesync/mcp.json unparseable for every target.
+      const rovodevMcp = new RovodevMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rovodev",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { odd: { transport: "websocket", url: "https://example.com/mcp" } },
+        }),
+        global: true,
+      });
+
+      const imported = JSON.parse(rovodevMcp.toRulesyncMcp().getFileContent());
+      expect(imported.mcpServers.odd).toEqual({ url: "https://example.com/mcp" });
+    });
+
+    it("does not resolve a transport name off the prototype chain", () => {
+      const rovodevMcp = new RovodevMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rovodev",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { odd: { transport: "toString", url: "https://example.com/mcp" } },
+        }),
+        global: true,
+      });
+
+      const imported = JSON.parse(rovodevMcp.toRulesyncMcp().getFileContent());
+      expect(imported.mcpServers.odd).toEqual({ url: "https://example.com/mcp" });
+    });
+
+    it("skips a server entry that is not an object rather than throwing", () => {
+      const rovodevMcp = new RovodevMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rovodev",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { broken: null, alsoBroken: "oops", ok: { transport: "stdio" } },
+        }),
+        global: true,
+      });
+
+      const imported = JSON.parse(rovodevMcp.toRulesyncMcp().getFileContent());
+      expect(imported.mcpServers).toEqual({ ok: { type: "stdio" } });
     });
   });
 });

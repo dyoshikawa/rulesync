@@ -5,6 +5,7 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -43,6 +44,82 @@ function parseRovodevMcpJson(
  * Same shape as Cursor: { mcpServers: { ... } }. See Rovodev MCP docs.
  * Project-level MCP is not supported; use --global when generating.
  */
+
+/**
+ * Rovo Dev documents the per-server transport key as `transport`, with the
+ * values `stdio` | `http` | `sse`. Canonical rulesync configs spell it `type`,
+ * so translate rather than passing the canonical key through — Rovo Dev has no
+ * documented `type` alias.
+ *
+ * @see https://support.atlassian.com/rovo/docs/connect-to-an-mcp-server-in-rovo-dev-cli/
+ */
+const CANONICAL_TO_ROVODEV_TRANSPORT: Record<string, string> = {
+  stdio: "stdio",
+  local: "stdio",
+  http: "http",
+  "streamable-http": "http",
+  sse: "sse",
+};
+
+const ROVODEV_TO_CANONICAL_TRANSPORT: Record<string, string> = {
+  stdio: "stdio",
+  http: "http",
+  sse: "sse",
+};
+
+// Own properties only: a server declaring `__proto__` would otherwise resolve to
+// `Object.prototype` and land in the config as a transport value.
+function lookupTransport(map: Record<string, string>, key: string): string | undefined {
+  return Object.hasOwn(map, key) ? map[key] : undefined;
+}
+
+function toRovodevServer(
+  name: string,
+  server: Record<string, unknown>,
+  logger?: Logger,
+): Record<string, unknown> | null {
+  // `disabled` is dropped either way: `mcp.json` has no such key, so keeping a
+  // `false` would suggest the file is where a server is switched on and off.
+  const { type, transport, disabled, ...rest } = server;
+  // Rovo Dev disables a server through `mcp.disabledMcpServers` in `config.yml`,
+  // not through a per-server key in `mcp.json`, so a `disabled` server written
+  // here would simply run. Omit it instead — the same end state, fail-closed.
+  if (disabled === true) {
+    logger?.warn(
+      `Rovo Dev MCP: skipping "${name}" because it is disabled and mcp.json has no disable flag.`,
+    );
+    return null;
+  }
+  const declared =
+    typeof transport === "string" ? transport : typeof type === "string" ? type : undefined;
+  if (declared === undefined) {
+    return rest;
+  }
+  const mapped = lookupTransport(CANONICAL_TO_ROVODEV_TRANSPORT, declared);
+  if (mapped === undefined) {
+    // `ws` is the only canonical transport Rovo Dev has no equivalent for.
+    // Skip the whole entry rather than emit one whose transport is anyone's
+    // guess, matching the Kimi Code adapter over the same vocabulary.
+    logger?.warn(
+      `Rovo Dev MCP: skipping "${name}" because the "${declared}" transport is unsupported.`,
+    );
+    return null;
+  }
+  return { ...rest, transport: mapped };
+}
+
+function fromRovodevServer(server: Record<string, unknown>): Record<string, unknown> {
+  const { transport, ...rest } = server;
+  if (typeof transport !== "string") {
+    return rest;
+  }
+  const mapped = lookupTransport(ROVODEV_TO_CANONICAL_TRANSPORT, transport);
+  // A value outside Rovo Dev's vocabulary (a typo, or one Atlassian adds later)
+  // is dropped rather than carried over: the canonical transport field is a
+  // strict enum, so writing it through would make `.rulesync/mcp.json` fail to
+  // parse on the next run — for every target, not just this one.
+  return mapped === undefined ? rest : { ...rest, type: mapped };
+}
 
 export class RovodevMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
@@ -104,6 +181,7 @@ export class RovodevMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
     global = false,
+    logger,
   }: ToolMcpFromRulesyncMcpParams): Promise<RovodevMcp> {
     if (!global) {
       throw new Error("Rovodev MCP is global-only; use --global to sync ~/.rovodev/mcp.json");
@@ -119,7 +197,14 @@ export class RovodevMcp extends ToolMcp {
     // Use getMcpServers() (not getJson()) so rulesync-only fields and
     // codex-only fields (`envVars`) are stripped before writing the
     // rovodev config.
-    const mcpServers = rulesyncMcp.getMcpServers();
+    const mcpServers = Object.fromEntries(
+      Object.entries(rulesyncMcp.getMcpServers())
+        .map(([name, server]) => {
+          const converted = toRovodevServer(name, server as Record<string, unknown>, logger);
+          return converted === null ? null : ([name, converted] as const);
+        })
+        .filter((entry) => entry !== null),
+    );
 
     const rovodevConfig = { ...json, mcpServers };
 
@@ -134,7 +219,14 @@ export class RovodevMcp extends ToolMcp {
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    const mcpServers = isMcpServers(this.json.mcpServers) ? this.json.mcpServers : {};
+    const rawServers = isMcpServers(this.json.mcpServers) ? this.json.mcpServers : {};
+    const mcpServers = Object.fromEntries(
+      Object.entries(rawServers)
+        // `isMcpServers` only checks the container, so a hand-written `null` or
+        // scalar entry reaches here; skip it rather than destructure it.
+        .filter(([, server]) => isPlainObject(server))
+        .map(([name, server]) => [name, fromRovodevServer(server as Record<string, unknown>)]),
+    );
     // Do not spread the full Rovodev JSON: future tool-specific top-level keys must not leak
     // into rulesync mcp.json (unlike Cursor, which intentionally preserves extra keys today).
     return this.toRulesyncMcpDefault({
