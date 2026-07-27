@@ -208,9 +208,39 @@ export class RovodevPermissions extends ToolPermissions {
     const existingToolPermissions = isRecord(config.toolPermissions)
       ? { ...config.toolPermissions }
       : {};
-    const existingTools = isRecord(existingToolPermissions.tools)
-      ? { ...existingToolPermissions.tools }
+    // A rulesync source with nothing this adapter can express — only categories
+    // Rovo Dev has no target for, say — leaves the block alone. Clearing the
+    // owned keys would relax the user's levels back to Rovo Dev's defaults
+    // without a single rule of our own to put in their place.
+    if (Object.keys(toolPermissions).length === 0) {
+      return new RovodevPermissions({
+        outputRoot,
+        relativeDirPath: paths.relativeDirPath,
+        relativeFilePath: paths.relativeFilePath,
+        fileContent: dump(config),
+        validate: true,
+        global: true,
+      });
+    }
+    const hasExistingToolsRecord = isRecord(existingToolPermissions.tools);
+    const existingTools = hasExistingToolsRecord
+      ? { ...(existingToolPermissions.tools as Record<string, unknown>) }
       : {};
+    // Ownership means a rule that is gone from the rulesync source is gone from
+    // the file, but `allowedExternalPaths` in particular is also written from
+    // inside a Rovo Dev session by `/directories`, so say what is being dropped
+    // rather than let it vanish silently.
+    const droppedKeys = OWNED_TOOL_PERMISSION_KEYS.filter(
+      (ownedKey) =>
+        existingToolPermissions[ownedKey] !== undefined && toolPermissions[ownedKey] === undefined,
+    );
+    if (droppedKeys.length > 0) {
+      logger?.warn(
+        `Rovo Dev permissions: removing ${droppedKeys.map((key) => `"${key}"`).join(", ")} from ` +
+          `${filePath} because the rulesync source no longer produces it.`,
+      );
+    }
+
     // Every key rulesync manages is owned, so drop whatever a previous run left
     // behind before writing the current set. Without this, a rule the user has
     // since removed from `.rulesync/permissions.*` stays in the file: still live
@@ -226,8 +256,12 @@ export class RovodevPermissions extends ToolPermissions {
       delete existingTools[toolKey];
     }
     const tools = { ...existingTools, ...toolPermissions.tools };
-    // Re-added below only when non-empty, so an emptied block leaves no `tools: {}`.
-    delete existingToolPermissions.tools;
+    if (hasExistingToolsRecord) {
+      // Re-added below only when non-empty, so an emptied block leaves no
+      // `tools: {}`. A `tools` of some other shape is not ours to interpret, so
+      // it is left in place unless this run has per-tool levels to write there.
+      delete existingToolPermissions.tools;
+    }
     config.toolPermissions = {
       ...existingToolPermissions,
       ...toolPermissions,
@@ -300,24 +334,20 @@ function convertRulesyncToRovodevToolPermissions({
 
   // `edit` and `write` collapse onto the same Rovo Dev file-mutation tools, so a
   // conflicting catch-all between them cannot be represented. Warn that the loss
-  // is happening, and resolve it deterministically in favour of `edit` (the
-  // canonical category the mutation tools map back to on import).
+  // is happening, and keep the stricter of the two — the same fail-closed rule
+  // the import direction uses when those tools disagree, so the resolution never
+  // grants more than the author asked for.
   const editCatchAll = config.permission.edit?.[CATCH_ALL_PATTERN];
   const writeCatchAll = config.permission.write?.[CATCH_ALL_PATTERN];
   if (editCatchAll && writeCatchAll && editCatchAll !== writeCatchAll) {
     logger?.warn(
       `Rovo Dev maps both "edit" and "write" onto the same file-mutation tools, but they have ` +
         `conflicting catch-all permissions ("edit": "${editCatchAll}", "write": "${writeCatchAll}"). ` +
-        `The "edit" value takes precedence.`,
+        `The stricter of the two ("${strictestAction(editCatchAll, writeCatchAll)}") is used.`,
     );
   }
 
-  // Apply `edit` after `write` so the overlapping tool keys resolve deterministically
-  // to `edit`, consistent with the import direction.
-  const orderedEntries = Object.entries(config.permission).toSorted(
-    ([a], [b]) => (a === "edit" ? 1 : 0) - (b === "edit" ? 1 : 0),
-  );
-  for (const [category, rules] of orderedEntries) {
+  for (const [category, rules] of Object.entries(config.permission)) {
     if (category === "bash") {
       const bash = convertBashRules(rules);
       if (bash) {
@@ -338,7 +368,9 @@ function convertRulesyncToRovodevToolPermissions({
       if (pattern === CATCH_ALL_PATTERN) {
         toolPermissions.tools ??= {};
         for (const toolKey of toolKeys) {
-          toolPermissions.tools[toolKey] = action;
+          // `edit` and `write` write to the same keys, so fold rather than
+          // overwrite; with one category per key this just stores `action`.
+          toolPermissions.tools[toolKey] = strictestAction(toolPermissions.tools[toolKey], action);
         }
         continue;
       }
@@ -419,7 +451,9 @@ function convertRovodevToolPermissionsToRulesync(
     // `tools` is what Rovo Dev actually reads, so a key present there settles
     // the level even when its value is unusable; the legacy flat copy is only
     // consulted when `tools` says nothing about the key at all.
-    const value = toolKey in nestedTools ? nestedTools[toolKey] : toolPermissions[toolKey];
+    const value = Object.hasOwn(nestedTools, toolKey)
+      ? nestedTools[toolKey]
+      : toolPermissions[toolKey];
     if (!isPermissionAction(value)) {
       continue;
     }

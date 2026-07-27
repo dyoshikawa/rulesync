@@ -67,6 +67,12 @@ const ROVODEV_TO_CANONICAL_TRANSPORT: Record<string, string> = {
   sse: "sse",
 };
 
+// Own properties only: a server declaring `__proto__` would otherwise resolve to
+// `Object.prototype` and land in the config as a transport value.
+function lookupTransport(map: Record<string, string>, key: string): string | undefined {
+  return Object.hasOwn(map, key) ? map[key] : undefined;
+}
+
 function toRovodevServer(
   name: string,
   server: Record<string, unknown>,
@@ -89,7 +95,7 @@ function toRovodevServer(
   if (declared === undefined) {
     return rest;
   }
-  const mapped = CANONICAL_TO_ROVODEV_TRANSPORT[declared];
+  const mapped = lookupTransport(CANONICAL_TO_ROVODEV_TRANSPORT, declared);
   if (mapped === undefined) {
     // `ws` is the only canonical transport Rovo Dev has no equivalent for.
     // Skip the whole entry rather than emit one whose transport is anyone's
@@ -107,7 +113,7 @@ function fromRovodevServer(server: Record<string, unknown>): Record<string, unkn
   if (typeof transport !== "string") {
     return rest;
   }
-  const mapped = ROVODEV_TO_CANONICAL_TRANSPORT[transport];
+  const mapped = lookupTransport(ROVODEV_TO_CANONICAL_TRANSPORT, transport);
   // A value outside Rovo Dev's vocabulary (a typo, or one Atlassian adds later)
   // is dropped rather than carried over: the canonical transport field is a
   // strict enum, so writing it through would make `.rulesync/mcp.json` fail to

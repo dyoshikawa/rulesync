@@ -153,26 +153,31 @@ describe("RovodevPermissions", () => {
       expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("webfetch"));
     });
 
-    it("warns and lets edit win when edit and write set conflicting catch-alls", async () => {
-      const mockLogger = createMockLogger();
-      const perms = await RovodevPermissions.fromRulesyncPermissions({
-        outputRoot: testDir,
-        rulesyncPermissions: rulesyncPermissions({
-          write: { "*": "allow" },
-          edit: { "*": "deny" },
-        }),
-        logger: mockLogger,
-        global: true,
-      });
+    it.each([
+      { name: "edit is stricter", permission: { write: { "*": "allow" }, edit: { "*": "deny" } } },
+      { name: "write is stricter", permission: { write: { "*": "deny" }, edit: { "*": "allow" } } },
+    ])(
+      "warns and keeps the stricter level when edit and write conflict ($name)",
+      async ({ permission }) => {
+        // Both categories drive the same Rovo Dev tools, so one of the two
+        // authored levels cannot be written at all; dropping the stricter one would
+        // grant more than the author asked for.
+        const mockLogger = createMockLogger();
+        const perms = await RovodevPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: rulesyncPermissions(permission),
+          logger: mockLogger,
+          global: true,
+        });
 
-      const tools = toolLevelsOf(perms.getFileContent());
-      // edit (deny) deterministically wins over write (allow) on the shared tools.
-      expect(tools.create_file).toBe("deny");
-      expect(tools.find_and_replace_code).toBe("deny");
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('"edit" value takes precedence'),
-      );
-    });
+        const tools = toolLevelsOf(perms.getFileContent());
+        expect(tools.create_file).toBe("deny");
+        expect(tools.find_and_replace_code).toBe("deny");
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('The stricter of the two ("deny") is used'),
+        );
+      },
+    );
 
     it("merges into config.yml preserving all other top-level keys", async () => {
       const dirPath = join(testDir, ".rovodev");
@@ -265,18 +270,26 @@ describe("RovodevPermissions", () => {
     });
 
     it("prefers the nested block when both depths carry a value", () => {
+      // Deliberately the direction where the nested value is the *looser* one,
+      // so a regression to reading the legacy copy is visible here.
       const perms = new RovodevPermissions({
         outputRoot: testDir,
         relativeDirPath: ".rovodev",
         relativeFilePath: "config.yml",
         fileContent: dump({
-          toolPermissions: { grep: "allow", tools: { grep: "deny" } },
+          toolPermissions: {
+            grep: "deny",
+            open_files: "allow",
+            expand_folder: "allow",
+            expand_code_chunks: "allow",
+            tools: { grep: "allow" },
+          },
         }),
         global: true,
       });
 
       const json = JSON.parse(perms.toRulesyncPermissions().getFileContent());
-      expect(json.permission.read["*"]).toBe("deny");
+      expect(json.permission.read["*"]).toBe("allow");
     });
 
     it("deletes the legacy flat copies so import cannot resurrect them", async () => {
@@ -326,6 +339,29 @@ describe("RovodevPermissions", () => {
       expect(toolPermissionsOf(perms.getFileContent()).tools).toBeUndefined();
     });
 
+    it("warns when it removes an owned key the source no longer produces", async () => {
+      // `/directories` writes to allowedExternalPaths from inside a session, so
+      // its removal must not be silent.
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({ toolPermissions: { allowedExternalPaths: ["/srv/shared"] } }),
+      );
+      const mockLogger = createMockLogger();
+
+      await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ read: { "*": "deny" } }),
+        logger: mockLogger,
+        global: true,
+      });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('removing "allowedExternalPaths"'),
+      );
+    });
+
     it("drops bash and allowedExternalPaths the rulesync source no longer sets", async () => {
       // Same ownership as the per-tool keys: a revoked blanket allow, or a path
       // grant the user has withdrawn, must not stay live in config.yml.
@@ -363,15 +399,15 @@ describe("RovodevPermissions", () => {
         relativeDirPath: ".rovodev",
         relativeFilePath: "config.yml",
         fileContent: dump({
-          toolPermissions: { grep: "allow", open_files: "allow", tools: { grep: "Nope" } },
+          toolPermissions: { grep: "deny", tools: { grep: "Nope" } },
         }),
         global: true,
       });
 
       const json = JSON.parse(perms.toRulesyncPermissions().getFileContent());
-      // `grep` is answered (badly) by the nested block and skipped; the other
-      // three read tools still come from the legacy copies.
-      expect(json.permission.read["*"]).toBe("allow");
+      // Nothing is recorded: `grep` is the only key either depth mentions, and
+      // the nested block — the one Rovo Dev reads — does not answer it usably.
+      expect(json.permission.read).toBeUndefined();
     });
 
     it("collapses disagreeing tool keys onto the strictest level", () => {
@@ -414,6 +450,32 @@ describe("RovodevPermissions", () => {
       const json = JSON.parse(perms.toRulesyncPermissions().getFileContent());
       expect(json.permission.read["*"]).toBe("deny");
       expect(json.permission.read["/tmp/shared"]).toBe("allow");
+    });
+
+    it("leaves the block alone when nothing in the source maps to Rovo Dev", async () => {
+      // Clearing the owned keys here would relax the user's levels back to Rovo
+      // Dev's defaults without a single rule of our own to replace them with.
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({
+          toolPermissions: {
+            bash: { default: "deny" },
+            tools: { create_file: "deny" },
+          },
+        }),
+      );
+
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ webfetch: { "*": "deny" } }),
+        global: true,
+      });
+
+      const tp = toolPermissionsOf(perms.getFileContent());
+      expect(tp.bash).toEqual({ default: "deny" });
+      expect(toolLevelsOf(perms.getFileContent())).toEqual({ create_file: "deny" });
     });
 
     it("preserves a hand-written tool key rulesync has no category for", async () => {

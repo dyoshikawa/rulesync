@@ -461,6 +461,21 @@ describe("RovodevMcp", () => {
       expect(imported.mcpServers.odd).toEqual({ url: "https://example.com/mcp" });
     });
 
+    it("does not resolve a transport name off the prototype chain", () => {
+      const rovodevMcp = new RovodevMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rovodev",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { odd: { transport: "toString", url: "https://example.com/mcp" } },
+        }),
+        global: true,
+      });
+
+      const imported = JSON.parse(rovodevMcp.toRulesyncMcp().getFileContent());
+      expect(imported.mcpServers.odd).toEqual({ url: "https://example.com/mcp" });
+    });
+
     it("skips a server entry that is not an object rather than throwing", () => {
       const rovodevMcp = new RovodevMcp({
         outputRoot: testDir,
