@@ -59,7 +59,8 @@ describe("AgentsSkillsSkill", () => {
         license: "MIT",
         compatibility: { "agent-skills": ">=1.0.0" },
         metadata: { version: "1.2.3" },
-        "allowed-tools": "shell",
+        // Normalized back to the canonical rulesync array on import.
+        "allowed-tools": ["shell"],
       });
 
       const roundTripped = AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill });
@@ -277,9 +278,15 @@ Body.`;
 
       const warnings = logger.warn.mock.calls.map(([message]) => String(message));
       expect(warnings).toHaveLength(3);
-      expect(warnings[0]).toContain("lowercase letters, digits and single hyphens");
-      expect(warnings[1]).toContain('must match its parent directory name "My_Bad--Name"');
-      expect(warnings[2]).toContain("`description` is required and must not be empty");
+      expect(warnings.some((w) => w.includes("lowercase letters, digits and single hyphens"))).toBe(
+        true,
+      );
+      expect(
+        warnings.some((w) => w.includes('must match its parent directory name "My_Bad--Name"')),
+      ).toBe(true);
+      expect(
+        warnings.some((w) => w.includes("`description` is required and must not be empty")),
+      ).toBe(true);
       for (const warning of warnings) {
         expect(warning).toContain(join(".agents", "skills", "My_Bad--Name", SKILL_FILE_NAME));
       }
@@ -306,6 +313,145 @@ Body.`;
       expect(warnings.some((w) => w.includes("`name` is 65 characters"))).toBe(true);
       expect(warnings.some((w) => w.includes("`description` is 1025 characters"))).toBe(true);
       expect(warnings.some((w) => w.includes("`compatibility` is 501 characters"))).toBe(true);
+    });
+
+    it("should encode a self-referential metadata value instead of throwing", () => {
+      // YAML anchors let a hand-written SKILL.md produce a genuinely circular
+      // object, which a plain JSON.stringify would reject.
+      const circular: Record<string, unknown> = { label: "root" };
+      circular.self = circular;
+
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "demo-skill",
+        frontmatter: {
+          name: "demo-skill",
+          description: "Demo skill.",
+          agentsskills: { metadata: { graph: circular } },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const metadata = AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()
+        .metadata as Record<string, string>;
+      expect(metadata.graph).toBe('{"label":"root","self":"[repeated reference]"}');
+    });
+
+    it("should encode each shared metadata node once so aliases cannot blow up the output", () => {
+      // Without this, N levels of YAML aliases expand exponentially: a few
+      // hundred bytes of input becomes tens of megabytes of JSON.
+      const leaf = { value: "x" };
+      const shared = { a: leaf, b: leaf, c: leaf };
+
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "demo-skill",
+        frontmatter: {
+          name: "demo-skill",
+          description: "Demo skill.",
+          agentsskills: { metadata: { shared } },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const metadata = AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()
+        .metadata as Record<string, string>;
+      expect(metadata.shared).toBe(
+        '{"a":{"value":"x"},"b":"[repeated reference]","c":"[repeated reference]"}',
+      );
+    });
+
+    it("should warn when an allowed-tools entry contains whitespace", () => {
+      const logger = createMockLogger();
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "demo-skill",
+        frontmatter: {
+          name: "demo-skill",
+          description: "Demo skill.",
+          agentsskills: { "allowed-tools": ["Read", "Bash(git status)"] },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const skill = AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill, logger });
+
+      expect(skill.getFrontmatter()["allowed-tools"]).toBe("Read Bash(git status)");
+      const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('"Bash(git status)" contains whitespace');
+    });
+
+    it("should render a YAML timestamp as its ISO form rather than a quoted JSON string", () => {
+      // js-yaml resolves `released: 2024-01-01` into a Date; JSON-encoding it
+      // would fold its own quotes into the emitted scalar.
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "demo-skill",
+        frontmatter: {
+          name: "demo-skill",
+          description: "Demo skill.",
+          agentsskills: {
+            metadata: { released: new Date("2024-01-01T00:00:00.000Z"), stable: true },
+          },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      expect(
+        AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter().metadata,
+      ).toEqual({ released: "2024-01-01T00:00:00.000Z", stable: "true" });
+    });
+
+    it("should drop values that normalize to the empty string instead of emitting them", () => {
+      // The spec requires `compatibility` to be 1-500 characters when present,
+      // and an empty `allowed-tools` says nothing.
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "demo-skill",
+        frontmatter: {
+          name: "demo-skill",
+          description: "Demo skill.",
+          agentsskills: { compatibility: {}, "allowed-tools": [] },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      expect(AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()).toEqual({
+        name: "demo-skill",
+        description: "Demo skill.",
+      });
+    });
+
+    it("should warn when an object compatibility exceeds 500 characters only after flattening", () => {
+      const logger = createMockLogger();
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "demo-skill",
+        frontmatter: {
+          name: "demo-skill",
+          description: "Demo skill.",
+          agentsskills: { compatibility: { runtime: "n".repeat(500) } },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill, logger });
+
+      const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(warnings.some((w) => w.includes("`compatibility` is 509 characters"))).toBe(true);
     });
 
     it("should not warn for a fully conformant skill", () => {

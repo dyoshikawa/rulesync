@@ -118,6 +118,34 @@ describe("SkillsProcessor", () => {
       expect(claudecodeSkill.getFrontmatter().description).toBe("Test skill description");
     });
 
+    it("should pass its logger to the tool skill so spec diagnostics reach the user", async () => {
+      const logger = createMockLogger();
+      const agentsSkillsProcessor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "agentsskills",
+      });
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "My_Bad--Name",
+        frontmatter: {
+          name: "My_Bad--Name",
+          description: "Test skill description",
+        },
+        body: "Test skill content",
+        validate: false,
+      });
+
+      await agentsSkillsProcessor.convertRulesyncDirsToToolDirs([rulesyncSkill]);
+
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes("lowercase letters, digits and single hyphens"),
+        ),
+      ).toBe(true);
+    });
+
     it("should filter out non-RulesyncSkill instances", async () => {
       const rulesyncSkill = new RulesyncSkill({
         outputRoot: testDir,

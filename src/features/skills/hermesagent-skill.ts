@@ -1,6 +1,10 @@
 import { HERMESAGENT_SKILLS_DIR_PATH } from "../../constants/hermesagent-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import { AgentsSkillsSkill, type AgentsSkillsSkillParams } from "./agentsskills-skill.js";
+import {
+  AgentsSkillsSkill,
+  type AgentsSkillsSkillParams,
+  toSpecConformantAgentSkillFields,
+} from "./agentsskills-skill.js";
 import { RulesyncSkill, type RulesyncSkillFrontmatterInput } from "./rulesync-skill.js";
 import type {
   ToolSkillForDeletionParams,
@@ -36,10 +40,21 @@ export class HermesagentSkill extends AgentsSkillsSkill {
     rulesyncSkill,
     validate = true,
     global = false,
+    logger,
   }: ToolSkillFromRulesyncSkillParams): HermesagentSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
-    const shared = rulesyncFrontmatter.agentsskills ?? {};
+    // The `agentsskills` block is the same rulesync source the native Agent
+    // Skills target reads, so it goes through the same normalization: one input
+    // must not produce two different on-disk spellings.
+    const shared = toSpecConformantAgentSkillFields(rulesyncFrontmatter.agentsskills);
     const hermes = rulesyncFrontmatter.hermesagent ?? {};
+
+    HermesagentSkill.reportSpecViolations({
+      relativeDirPath: HERMESAGENT_SKILLS_DIR_PATH,
+      dirName: rulesyncSkill.getDirName(),
+      rulesyncFrontmatter,
+      logger,
+    });
 
     return new this({
       outputRoot,

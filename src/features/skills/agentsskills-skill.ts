@@ -7,7 +7,13 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
-import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { type Logger, warnWithFallback } from "../../utils/logger.js";
+import {
+  RulesyncSkill,
+  type RulesyncSkillFrontmatter,
+  RulesyncSkillFrontmatterInput,
+  SkillFile,
+} from "./rulesync-skill.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -42,16 +48,48 @@ const COMPATIBILITY_MAX_LENGTH = 500;
 const NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
+ * Placeholder for an object that has already been encoded once in the same
+ * value. YAML anchors let one document reference the same node repeatedly, and
+ * js-yaml resolves those into genuinely shared (possibly self-referential)
+ * objects — so encoding each node at most once is what keeps a hand-written
+ * `SKILL.md` from making the encoding throw on a cycle or blow up
+ * exponentially on a chain of aliases.
+ */
+const REPEATED_REFERENCE_PLACEHOLDER = "[repeated reference]";
+
+/**
  * Render a non-string YAML value as the string the spec requires. Scalars use
- * their natural text form (`1` → `"1"`), containers are JSON-encoded so the
- * original structure stays readable rather than collapsing to `[object Object]`.
+ * their natural text form (`1` → `"1"`, a YAML timestamp → its ISO form),
+ * containers are JSON-encoded so the original structure stays readable rather
+ * than collapsing to `[object Object]`.
  */
 function stringifyValue(value: unknown): string {
   if (typeof value === "string") {
     return value;
   }
+  // js-yaml resolves a YAML timestamp into a Date, which is an object but not a
+  // container: JSON-encoding it would wrap its own quotes into the string.
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
   if (typeof value === "object" && value !== null) {
-    return JSON.stringify(value);
+    const seen = new WeakSet<object>();
+    try {
+      return JSON.stringify(value, (_key, entry: unknown) => {
+        if (typeof entry !== "object" || entry === null) {
+          return entry;
+        }
+        if (seen.has(entry)) {
+          return REPEATED_REFERENCE_PLACEHOLDER;
+        }
+        seen.add(entry);
+        return entry;
+      });
+    } catch {
+      // Values JSON cannot represent at all (e.g. a BigInt) still have to
+      // become some string rather than aborting the whole generate run.
+      return String(value);
+    }
   }
   return String(value);
 }
@@ -63,6 +101,16 @@ function stringifyValue(value: unknown): string {
  */
 function toAllowedToolsString(value: string | string[]): string {
   return Array.isArray(value) ? value.join(" ") : value;
+}
+
+/**
+ * Inverse of {@link toAllowedToolsString}: normalize back to the canonical
+ * rulesync array representation on import, so a generate → import round trip
+ * leaves `.rulesync/skills/**` in the shape it started in. Mirrors
+ * `DeepagentsSkill`.
+ */
+function toAllowedToolsArray(value: string | string[]): string[] {
+  return Array.isArray(value) ? value : value.split(/\s+/).filter((tool) => tool.length > 0);
 }
 
 /**
@@ -89,24 +137,68 @@ function toStringMetadata(metadata: Record<string, unknown>): Record<string, str
   );
 }
 
+/** The Agent Skills fields a rulesync skill carries in its `agentsskills` block. */
+export type AgentsSkillsSharedFields = {
+  license?: string;
+  compatibility?: string;
+  metadata?: Record<string, string>;
+  "allowed-tools"?: string;
+};
+
 /**
- * Collect the normative `name` / `description` violations the Agent Skills spec
- * defines. These are reported as warnings rather than errors: import stays
- * lenient per the spec's client-implementation guide, and failing generation
- * outright would break existing skill directories. What must not happen is
- * emitting a skill that conformant clients silently skip without saying so.
+ * Convert the rulesync `agentsskills` block into the shapes the specification
+ * requires. Shared with `HermesagentSkill`, which writes the same fields to its
+ * own skill location, so one rulesync input can never produce two different
+ * on-disk spellings.
+ *
+ * A value that normalizes to the empty string is dropped rather than emitted:
+ * the spec requires `compatibility` to be 1–500 characters when present, and an
+ * empty `allowed-tools` says nothing.
+ *
+ * @see https://agentskills.io/specification
+ */
+export function toSpecConformantAgentSkillFields(
+  section: RulesyncSkillFrontmatter["agentsskills"] | undefined,
+): AgentsSkillsSharedFields {
+  if (section === undefined) {
+    return {};
+  }
+  const compatibility =
+    section.compatibility === undefined ? undefined : toCompatibilityString(section.compatibility);
+  const allowedTools =
+    section["allowed-tools"] === undefined
+      ? undefined
+      : toAllowedToolsString(section["allowed-tools"]);
+
+  return {
+    ...(section.license !== undefined && { license: section.license }),
+    ...(compatibility !== undefined && compatibility.length > 0 && { compatibility }),
+    ...(section.metadata !== undefined && { metadata: toStringMetadata(section.metadata) }),
+    ...(allowedTools !== undefined && allowedTools.length > 0 && { "allowed-tools": allowedTools }),
+  };
+}
+
+/**
+ * Collect the normative violations the Agent Skills spec defines for a skill
+ * about to be written. These are reported as warnings rather than errors:
+ * import stays lenient per the spec's client-implementation guide, and failing
+ * generation outright would break existing skill directories. What must not
+ * happen is emitting a skill that conformant clients silently skip without
+ * saying so.
  *
  * @see https://agentskills.io/specification
  * @see https://agentskills.io/client-implementation/adding-skills-support
  */
-function collectSpecViolations({
+export function collectAgentSkillViolations({
   name,
   description,
   dirName,
+  section,
 }: {
   name: string;
   description: string;
   dirName: string;
+  section?: RulesyncSkillFrontmatter["agentsskills"];
 }): string[] {
   const violations: string[] = [];
 
@@ -138,6 +230,22 @@ function collectSpecViolations({
     violations.push(
       `\`description\` is ${description.length} characters; the Agent Skills spec allows at most ${DESCRIPTION_MAX_LENGTH}`,
     );
+  }
+
+  const { compatibility } = toSpecConformantAgentSkillFields(section);
+  if (compatibility !== undefined && compatibility.length > COMPATIBILITY_MAX_LENGTH) {
+    violations.push(
+      `\`compatibility\` is ${compatibility.length} characters; the Agent Skills spec allows at most ${COMPATIBILITY_MAX_LENGTH}`,
+    );
+  }
+
+  const allowedTools = section?.["allowed-tools"];
+  if (Array.isArray(allowedTools)) {
+    for (const tool of allowedTools.filter((entry) => /\s/.test(entry))) {
+      violations.push(
+        `\`allowed-tools\` entry "${tool}" contains whitespace, so the space-separated form the Agent Skills spec requires will read it back as several entries`,
+      );
+    }
   }
 
   return violations;
@@ -233,13 +341,18 @@ export class AgentsSkillsSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    // `allowed-tools` is normalized back to the canonical rulesync array so a
+    // generate → import round trip leaves the source frontmatter unchanged.
+    const allowedTools =
+      frontmatter["allowed-tools"] === undefined
+        ? undefined
+        : toAllowedToolsArray(frontmatter["allowed-tools"]);
     const agentsskillsSection = {
       ...(frontmatter.license !== undefined && { license: frontmatter.license }),
       ...(frontmatter.compatibility !== undefined && { compatibility: frontmatter.compatibility }),
       ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
-      ...(frontmatter["allowed-tools"] !== undefined && {
-        "allowed-tools": frontmatter["allowed-tools"],
-      }),
+      ...(allowedTools !== undefined &&
+        allowedTools.length > 0 && { "allowed-tools": allowedTools }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -269,51 +382,58 @@ export class AgentsSkillsSkill extends ToolSkill {
   }: ToolSkillFromRulesyncSkillParams): AgentsSkillsSkill {
     const settablePaths = AgentsSkillsSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
-    const agentsskillsSection = rulesyncFrontmatter.agentsskills;
     const dirName = rulesyncSkill.getDirName();
-    const skillPath = join(settablePaths.relativeDirPath, dirName, SKILL_FILE_NAME);
-
-    const compatibility =
-      agentsskillsSection?.compatibility === undefined
-        ? undefined
-        : toCompatibilityString(agentsskillsSection.compatibility);
-    if (compatibility !== undefined && compatibility.length > COMPATIBILITY_MAX_LENGTH) {
-      logger?.warn(
-        `${skillPath}: \`compatibility\` is ${compatibility.length} characters; the Agent Skills spec allows at most ${COMPATIBILITY_MAX_LENGTH}`,
-      );
-    }
 
     const agentsSkillsFrontmatter: AgentsSkillsSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...(agentsskillsSection?.license !== undefined && { license: agentsskillsSection.license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(agentsskillsSection?.metadata !== undefined && {
-        metadata: toStringMetadata(agentsskillsSection.metadata),
-      }),
-      ...(agentsskillsSection?.["allowed-tools"] !== undefined && {
-        "allowed-tools": toAllowedToolsString(agentsskillsSection["allowed-tools"]),
-      }),
+      ...toSpecConformantAgentSkillFields(rulesyncFrontmatter.agentsskills),
     };
 
-    for (const violation of collectSpecViolations({
-      name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
+    AgentsSkillsSkill.reportSpecViolations({
+      relativeDirPath: settablePaths.relativeDirPath,
       dirName,
-    })) {
-      logger?.warn(`${skillPath}: ${violation}`);
-    }
+      rulesyncFrontmatter,
+      logger,
+    });
 
     return new this({
       outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
-      dirName: rulesyncSkill.getDirName(),
+      dirName,
       frontmatter: agentsSkillsFrontmatter,
       body: rulesyncSkill.getBody(),
       otherFiles: rulesyncSkill.getOtherFiles(),
       validate,
       global,
     });
+  }
+
+  /**
+   * Warn about every Agent Skills spec violation in the skill about to be
+   * written. Shared with `HermesagentSkill` so both locations report the same
+   * diagnostics for the same rulesync source.
+   */
+  protected static reportSpecViolations({
+    relativeDirPath,
+    dirName,
+    rulesyncFrontmatter,
+    logger,
+  }: {
+    relativeDirPath: string;
+    dirName: string;
+    rulesyncFrontmatter: RulesyncSkillFrontmatter;
+    logger?: Logger;
+  }): void {
+    const skillPath = join(relativeDirPath, dirName, SKILL_FILE_NAME);
+    for (const violation of collectAgentSkillViolations({
+      name: rulesyncFrontmatter.name,
+      description: rulesyncFrontmatter.description,
+      dirName,
+      section: rulesyncFrontmatter.agentsskills,
+    })) {
+      warnWithFallback(logger, `${skillPath}: ${violation}`);
+    }
   }
 
   static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {

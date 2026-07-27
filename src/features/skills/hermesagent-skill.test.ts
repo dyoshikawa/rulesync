@@ -95,7 +95,9 @@ describe("HermesagentSkill", () => {
         name: "Test Skill",
         description: "Test skill description",
         license: "MIT",
-        "allowed-tools": ["terminal"],
+        // Normalized to the Agent Skills space-separated form, exactly as the
+        // native `agentsskills` target writes it from the same rulesync input.
+        "allowed-tools": "terminal",
         version: "1.2.3",
         author: "Rulesync",
         platforms: ["darwin", "linux"],
