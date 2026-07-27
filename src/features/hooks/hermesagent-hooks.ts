@@ -14,6 +14,10 @@ import {
   type HooksConfig,
 } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
+import {
+  getHermesagentRelativeDirPath,
+  getHermesagentRulesyncOutputRoot,
+} from "../../utils/hermesagent.js";
 import type { Logger } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import {
@@ -253,9 +257,12 @@ function hermesHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
  * @see https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/hooks.md
  */
 export class HermesagentHooks extends ToolHooks {
-  static getSettablePaths() {
+  static getSettablePaths({ global = false }: { global?: boolean } = {}) {
     return {
-      relativeDirPath: HERMESAGENT_GLOBAL_DIR,
+      relativeDirPath: getHermesagentRelativeDirPath({
+        global,
+        relativeDirPath: HERMESAGENT_GLOBAL_DIR,
+      }),
       relativeFilePath: HERMESAGENT_CONFIG_FILE_NAME,
     };
   }
@@ -263,7 +270,7 @@ export class HermesagentHooks extends ToolHooks {
   constructor(params: HermesagentHooksParams) {
     super({
       ...params,
-      ...HermesagentHooks.getSettablePaths(),
+      ...HermesagentHooks.getSettablePaths({ global: params.global }),
     });
   }
 
@@ -281,19 +288,24 @@ export class HermesagentHooks extends ToolHooks {
   static async fromFile({
     outputRoot = process.cwd(),
     validate = true,
+    global = false,
   }: ToolHooksFromFileParams): Promise<HermesagentHooks> {
-    const paths = this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
     return new HermesagentHooks({
       outputRoot,
       fileContent: await readFileContent(
         join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       ),
       validate,
+      global,
     });
   }
 
-  static forDeletion({ outputRoot = process.cwd() }: ToolHooksForDeletionParams): HermesagentHooks {
-    return new HermesagentHooks({ outputRoot, fileContent: "", validate: false });
+  static forDeletion({
+    outputRoot = process.cwd(),
+    global = false,
+  }: ToolHooksForDeletionParams): HermesagentHooks {
+    return new HermesagentHooks({ outputRoot, fileContent: "", validate: false, global });
   }
 
   shouldMergeExistingFileContent(): boolean {
@@ -313,6 +325,10 @@ export class HermesagentHooks extends ToolHooks {
     const config = parseSharedConfig({ format: "yaml", fileContent: this.getFileContent() });
     const hooks = hermesHooksToCanonical(config.hooks);
     return this.toRulesyncHooksDefault({
+      outputRoot: getHermesagentRulesyncOutputRoot({
+        nativeOutputRoot: this.outputRoot,
+        global: this.global,
+      }),
       fileContent: JSON.stringify(
         buildImportedHooksConfig({ hooks, overrideKey: "hermesagent" }),
         null,
@@ -325,6 +341,7 @@ export class HermesagentHooks extends ToolHooks {
     outputRoot,
     rulesyncHooks,
     logger,
+    global = false,
   }: ToolHooksFromRulesyncHooksParams & { logger?: Logger }): HermesagentHooks {
     const config = rulesyncHooks.getJson();
     const hermesHooks = canonicalToHermesHooks({
@@ -339,6 +356,7 @@ export class HermesagentHooks extends ToolHooks {
         format: "yaml",
         document: { hooks: hermesHooks },
       }),
+      global,
     });
   }
 }

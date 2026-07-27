@@ -61,12 +61,18 @@ subagents, and checks, plus global MCP servers, commands, subagents, skills,
 hooks, and permissions. Generation, `--check`, and import round-trips are
 covered for both advertised scopes.
 
-Rulesync honors Hermes profiles through `HERMES_HOME`. Project plugins are
-registered by adding their names to `$HERMES_HOME/config.yaml`, but Rulesync
-does not persist Hermes's global project-plugin trust gate. Run Hermes from a
-trusted project root with `HERMES_ENABLE_PROJECT_PLUGINS=true` for an explicit,
-session-scoped opt-in. A future Hermes release that changes its loaders,
-schemas, or plugin API requires a new compatibility validation.
+Rulesync honors Hermes profiles through `HERMES_HOME`. When it is set, its value
+is the profile root itself: global configuration is read and written directly
+under `$HERMES_HOME` (`config.yaml`, `skills/`, `plugins/`, and `rulesync/`),
+without appending `.hermes`. When it is unset, the default remains
+`~/.hermes`. Project-scoped paths remain rooted in the project.
+
+Project plugins are registered by adding their names to
+`$HERMES_HOME/config.yaml`, but Rulesync does not persist Hermes's global
+project-plugin trust gate. Run Hermes from a trusted project root with
+`HERMES_ENABLE_PROJECT_PLUGINS=true` for an explicit, session-scoped opt-in. A
+future Hermes release that changes its loaders, schemas, or plugin API requires
+a new compatibility validation.
 
 ## Deprecation notes
 

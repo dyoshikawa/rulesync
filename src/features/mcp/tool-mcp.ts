@@ -65,8 +65,10 @@ export abstract class ToolMcp extends ToolFile {
 
   protected toRulesyncMcpDefault({
     fileContent = undefined,
+    outputRoot = this.outputRoot,
   }: {
     fileContent?: string;
+    outputRoot?: string;
   } = {}): RulesyncMcp {
     const content = fileContent ?? this.fileContent;
     const { $schema: _, ...json } = JSON.parse(content);
@@ -75,7 +77,7 @@ export abstract class ToolMcp extends ToolFile {
       ...json,
     };
     return new RulesyncMcp({
-      outputRoot: this.outputRoot,
+      outputRoot,
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: RULESYNC_MCP_FILE_NAME,
       fileContent: JSON.stringify(withSchema, null, 2),

@@ -1,6 +1,10 @@
 import { HERMESAGENT_SKILLS_DIR_PATH } from "../../constants/hermesagent-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import {
+  getHermesagentRelativeDirPath,
+  getHermesagentRulesyncOutputRoot,
+} from "../../utils/hermesagent.js";
+import {
   AgentsSkillsSkill,
   type AgentsSkillsSkillParams,
   toAllowedToolsArray,
@@ -23,16 +27,19 @@ export class HermesagentSkill extends AgentsSkillsSkill {
     );
   }
 
-  static getSettablePaths() {
+  static getSettablePaths({ global = false }: { global?: boolean } = {}) {
     return {
-      relativeDirPath: HERMESAGENT_SKILLS_DIR_PATH,
+      relativeDirPath: getHermesagentRelativeDirPath({
+        global,
+        relativeDirPath: HERMESAGENT_SKILLS_DIR_PATH,
+      }),
     };
   }
 
   constructor(params: AgentsSkillsSkillParams) {
     super({
       ...params,
-      relativeDirPath: HERMESAGENT_SKILLS_DIR_PATH,
+      relativeDirPath: HermesagentSkill.getSettablePaths({ global: params.global }).relativeDirPath,
     });
   }
 
@@ -72,7 +79,7 @@ export class HermesagentSkill extends AgentsSkillsSkill {
 
     return new this({
       outputRoot,
-      relativeDirPath: HERMESAGENT_SKILLS_DIR_PATH,
+      relativeDirPath: this.getSettablePaths({ global }).relativeDirPath,
       dirName,
       frontmatter,
       body: rulesyncSkill.getBody(),
@@ -117,7 +124,10 @@ export class HermesagentSkill extends AgentsSkillsSkill {
       ...(Object.keys(hermesagent).length > 0 && { hermesagent }),
     };
     return new RulesyncSkill({
-      outputRoot: this.outputRoot,
+      outputRoot: getHermesagentRulesyncOutputRoot({
+        nativeOutputRoot: this.outputRoot,
+        global: this.global,
+      }),
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
       dirName: this.getDirName(),
       frontmatter: rulesyncFrontmatter,
@@ -153,7 +163,7 @@ export class HermesagentSkill extends AgentsSkillsSkill {
   }: ToolSkillForDeletionParams): HermesagentSkill {
     return new this({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? HERMESAGENT_SKILLS_DIR_PATH,
+      relativeDirPath: relativeDirPath ?? this.getSettablePaths({ global }).relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

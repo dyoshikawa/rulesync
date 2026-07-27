@@ -22,6 +22,7 @@ import {
   toPosixPath,
   writeFileContent,
 } from "../../utils/file.js";
+import { getHermesagentRelativeFilePath } from "../../utils/hermesagent.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "./agentsmd-command.js";
 import { AntigravityCliCommand } from "./antigravity-cli-command.js";
@@ -93,7 +94,10 @@ type ToolCommandFactory = {
       global?: boolean;
       forDeletion?: boolean;
     }): Promise<ToolFile[]> | ToolFile[];
-    canDeleteAuxiliaryFiles?(params: { outputRoot: string }): Promise<boolean> | boolean;
+    canDeleteAuxiliaryFiles?(params: {
+      outputRoot: string;
+      global?: boolean;
+    }): Promise<boolean> | boolean;
     validateRulesyncCommands?(params: {
       inputRoot: string;
       rulesyncCommands: RulesyncCommand[];
@@ -738,7 +742,10 @@ export class CommandsProcessor extends FeatureProcessor {
       const hasOwnershipGuard = factory.class.canDeleteAuxiliaryFiles !== undefined;
       const canDelete =
         !hasOwnershipGuard ||
-        (await factory.class.canDeleteAuxiliaryFiles?.({ outputRoot: this.outputRoot })) === true;
+        (await factory.class.canDeleteAuxiliaryFiles?.({
+          outputRoot: this.outputRoot,
+          global: this.global,
+        })) === true;
       if (!canDelete) return [];
       const auxiliaryFiles = await factory.class.getAuxiliaryFiles?.({
         toolCommands,
@@ -798,7 +805,10 @@ export class CommandsProcessor extends FeatureProcessor {
   ): Promise<number> {
     const ownershipPath = join(
       this.outputRoot,
-      HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_OWNERSHIP_PATH,
+      getHermesagentRelativeFilePath({
+        global: this.global,
+        relativeFilePath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_OWNERSHIP_PATH,
+      }),
     );
     const shouldDisableHermesCommandsPlugin =
       this.toolTarget === "hermesagent" &&
@@ -807,7 +817,13 @@ export class CommandsProcessor extends FeatureProcessor {
     let changedCount = await super.removeOrphanAiFiles(existingFiles, generatedFiles);
 
     if (!shouldDisableHermesCommandsPlugin) return changedCount;
-    const configPath = join(this.outputRoot, HERMESAGENT_CONFIG_FILE_PATH);
+    const configPath = join(
+      this.outputRoot,
+      getHermesagentRelativeFilePath({
+        global: this.global,
+        relativeFilePath: HERMESAGENT_CONFIG_FILE_PATH,
+      }),
+    );
     const currentContent = await readFileContentOrNull(configPath);
     if (currentContent === null) return changedCount;
     const nextContent = getDisabledHermesCommandsPluginConfigContent(currentContent);

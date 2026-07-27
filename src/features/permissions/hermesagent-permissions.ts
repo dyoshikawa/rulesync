@@ -15,6 +15,10 @@ import {
   RulesyncPermissionsFileSchema,
 } from "../../types/permissions.js";
 import { readFileContent } from "../../utils/file.js";
+import {
+  getHermesagentRelativeDirPath,
+  getHermesagentRulesyncOutputRoot,
+} from "../../utils/hermesagent.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
@@ -174,9 +178,12 @@ function buildHermesOverride(
 }
 
 export class HermesagentPermissions extends ToolPermissions {
-  static getSettablePaths() {
+  static getSettablePaths({ global = false }: { global?: boolean } = {}) {
     return {
-      relativeDirPath: HERMESAGENT_GLOBAL_DIR,
+      relativeDirPath: getHermesagentRelativeDirPath({
+        global,
+        relativeDirPath: HERMESAGENT_GLOBAL_DIR,
+      }),
       relativeFilePath: HERMESAGENT_CONFIG_FILE_NAME,
     };
   }
@@ -184,7 +191,7 @@ export class HermesagentPermissions extends ToolPermissions {
   constructor(params: HermesagentPermissionsParams) {
     super({
       ...params,
-      ...HermesagentPermissions.getSettablePaths(),
+      ...HermesagentPermissions.getSettablePaths({ global: params.global }),
     });
   }
 
@@ -199,21 +206,24 @@ export class HermesagentPermissions extends ToolPermissions {
   static async fromFile({
     outputRoot = process.cwd(),
     validate = true,
+    global = false,
   }: ToolPermissionsFromFileParams): Promise<HermesagentPermissions> {
-    const paths = this.getSettablePaths();
+    const paths = this.getSettablePaths({ global });
     return new HermesagentPermissions({
       outputRoot,
       fileContent: await readFileContent(
         join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       ),
       validate,
+      global,
     });
   }
 
   static forDeletion({
     outputRoot = process.cwd(),
+    global = false,
   }: ToolPermissionsForDeletionParams): HermesagentPermissions {
-    return new HermesagentPermissions({ outputRoot, fileContent: "", validate: false });
+    return new HermesagentPermissions({ outputRoot, fileContent: "", validate: false, global });
   }
 
   shouldMergeExistingFileContent(): boolean {
@@ -269,7 +279,10 @@ export class HermesagentPermissions extends ToolPermissions {
       ...(Object.keys(hermes).length > 0 && { hermes }),
     };
     return new RulesyncPermissions({
-      outputRoot: this.outputRoot,
+      outputRoot: getHermesagentRulesyncOutputRoot({
+        nativeOutputRoot: this.outputRoot,
+        global: this.global,
+      }),
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
       fileContent: JSON.stringify(imported, null, 2),
@@ -279,6 +292,7 @@ export class HermesagentPermissions extends ToolPermissions {
   static fromRulesyncPermissions({
     outputRoot,
     rulesyncPermissions,
+    global = false,
   }: ToolPermissionsFromRulesyncPermissionsParams): HermesagentPermissions {
     const permissions = rulesyncPermissions.getJson();
     const permissionBlock = permissions.permission ?? {};
@@ -324,6 +338,7 @@ export class HermesagentPermissions extends ToolPermissions {
     return new HermesagentPermissions({
       outputRoot,
       fileContent: stringifySharedConfig({ format: "yaml", document: config }),
+      global,
     });
   }
 }

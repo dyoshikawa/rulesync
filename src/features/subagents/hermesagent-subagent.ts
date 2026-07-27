@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { basename, join } from "node:path";
 
 import {
   HERMESAGENT_CONFIG_FILE_PATH,
@@ -11,6 +11,10 @@ import {
 } from "../../constants/hermesagent-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { type ValidationResult } from "../../types/ai-file.js";
+import {
+  getHermesagentRelativeDirPath,
+  getHermesagentRulesyncOutputRoot,
+} from "../../utils/hermesagent.js";
 import {
   applySharedConfigPatch,
   HERMES_CONFIG_SHARED_FILE_KEY,
@@ -183,18 +187,16 @@ export class HermesagentSubagent extends ToolSubagent {
     relativeFilePath,
     validate = true,
   }: ToolSubagentFromFileParams): Promise<HermesagentSubagent> {
+    const resolvedRelativeDirPath =
+      relativeDirPath ?? this.getSettablePaths({ global }).relativeDirPath;
     return new HermesagentSubagent({
       fileContent: await readFile(
-        join(
-          outputRoot,
-          relativeDirPath ?? HERMESAGENT_RULESYNC_SUBAGENTS_DIR_PATH,
-          relativeFilePath,
-        ),
+        join(outputRoot, resolvedRelativeDirPath, relativeFilePath),
         "utf8",
       ),
       global,
       outputRoot,
-      relativeDirPath: relativeDirPath ?? dirname(relativeFilePath),
+      relativeDirPath: resolvedRelativeDirPath,
       relativeFilePath: basename(relativeFilePath),
       validate,
     });
@@ -214,30 +216,43 @@ export class HermesagentSubagent extends ToolSubagent {
     return [
       ...rulesyncSubagents.map((rulesyncSubagent) =>
         HermesagentSubagent.fromRulesyncSubagent({
-          relativeDirPath: HERMESAGENT_RULESYNC_SUBAGENTS_DIR_PATH,
+          relativeDirPath: this.getSettablePaths({ global }).relativeDirPath,
           rulesyncSubagent,
           outputRoot,
+          global,
         }),
       ),
       new HermesagentSubagent({
-        relativeDirPath: HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH,
+        relativeDirPath: getHermesagentRelativeDirPath({
+          global,
+          relativeDirPath: HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH,
+        }),
         relativeFilePath: basename(HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_MANIFEST_PATH),
         fileContent: "",
         outputRoot,
+        global,
       }),
       new HermesagentSubagent({
-        relativeDirPath: HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH,
+        relativeDirPath: getHermesagentRelativeDirPath({
+          global,
+          relativeDirPath: HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH,
+        }),
         relativeFilePath: basename(HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_INIT_PATH),
         fileContent: "",
         outputRoot,
+        global,
       }),
       ...(global
         ? [
             new HermesagentSubagent({
-              relativeDirPath: HERMESAGENT_GLOBAL_DIR,
+              relativeDirPath: getHermesagentRelativeDirPath({
+                global,
+                relativeDirPath: HERMESAGENT_GLOBAL_DIR,
+              }),
               relativeFilePath: basename(HERMESAGENT_CONFIG_FILE_PATH),
               fileContent: "",
               outputRoot,
+              global,
             }),
           ]
         : []),
@@ -247,21 +262,28 @@ export class HermesagentSubagent extends ToolSubagent {
   static fromRulesyncSubagent({
     rulesyncSubagent,
     outputRoot,
+    global = false,
   }: ToolSubagentFromRulesyncSubagentParams): HermesagentSubagent {
     const spec = getSubagentSpec(rulesyncSubagent);
     const slug = String(spec.slug);
 
     return new HermesagentSubagent({
-      relativeDirPath: HERMESAGENT_RULESYNC_SUBAGENTS_DIR_PATH,
+      relativeDirPath: this.getSettablePaths({ global }).relativeDirPath,
       relativeFilePath: `${slug}.json`,
       fileContent: `${JSON.stringify(spec, null, 2)}\n`,
       outputRoot,
+      global,
     });
   }
 
-  static getSettablePaths(): { relativeDirPath: string } {
+  static getSettablePaths({ global = false }: { global?: boolean } = {}): {
+    relativeDirPath: string;
+  } {
     return {
-      relativeDirPath: HERMESAGENT_RULESYNC_SUBAGENTS_DIR_PATH,
+      relativeDirPath: getHermesagentRelativeDirPath({
+        global,
+        relativeDirPath: HERMESAGENT_RULESYNC_SUBAGENTS_DIR_PATH,
+      }),
     };
   }
 
@@ -278,7 +300,10 @@ export class HermesagentSubagent extends ToolSubagent {
     return global
       ? [
           {
-            relativeDirPath: HERMESAGENT_GLOBAL_DIR,
+            relativeDirPath: getHermesagentRelativeDirPath({
+              global,
+              relativeDirPath: HERMESAGENT_GLOBAL_DIR,
+            }),
             relativeFilePath: basename(HERMESAGENT_CONFIG_FILE_PATH),
           },
         ]
@@ -307,7 +332,12 @@ export class HermesagentSubagent extends ToolSubagent {
         name: json.name ?? slug,
         description: json.description,
       },
-      outputRoot: this.global ? this.outputRoot : process.cwd(),
+      outputRoot: this.global
+        ? getHermesagentRulesyncOutputRoot({
+            nativeOutputRoot: this.outputRoot,
+            global: this.global,
+          })
+        : process.cwd(),
     });
   }
 

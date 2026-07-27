@@ -10,9 +10,9 @@ import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import type { Feature } from "../types/features.js";
 import type { ToolTarget } from "../types/tool-targets.js";
-import { resolveToolOutputRoot } from "../utils/kimi-code.js";
 import type { Logger } from "../utils/logger.js";
 import { isPackagingToolTarget } from "../utils/plugin-root.js";
+import { resolveToolOutputRoot } from "../utils/tool-output-root.js";
 
 export type ConvertResult = {
   rulesCount: number;
@@ -277,7 +277,7 @@ function buildCommandsStrategy(ctx: ConvertContext) {
     allTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
       new CommandsProcessor({
-        outputRoot,
+        outputRoot: resolveToolOutputRoot({ outputRoot, toolTarget, global }),
         toolTarget,
         global,
         dryRun,
@@ -426,7 +426,13 @@ function buildChecksStrategy(ctx: ConvertContext) {
     itemLabel: "check file(s)",
     allTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
-      new ChecksProcessor({ outputRoot, toolTarget, global, dryRun, logger }),
+      new ChecksProcessor({
+        outputRoot: resolveToolOutputRoot({ outputRoot, toolTarget, global }),
+        toolTarget,
+        global,
+        dryRun,
+        logger,
+      }),
     loadSource: (p) => p.loadToolFiles(),
     toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
     fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
