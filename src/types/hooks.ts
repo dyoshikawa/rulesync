@@ -282,7 +282,7 @@ export const KILO_HOOK_EVENTS: readonly HookEvent[] = OPENCODE_HOOK_EVENTS;
  * Only canonical events with a semantically faithful Pi extension event are
  * listed; see CANONICAL_TO_PI_EVENT_NAMES for the mapping.
  *
- * @see https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md
+ * @see https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md
  */
 export const PI_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -1046,7 +1046,7 @@ export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> =
  * Pi events without a faithful canonical counterpart (e.g. `turn_start`,
  * `agent_settled`) are intentionally unmapped.
  *
- * @see https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md
+ * @see https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md
  */
 export const CANONICAL_TO_PI_EVENT_NAMES: Record<string, string> = {
   sessionStart: "session_start",
