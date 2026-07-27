@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, readFileContentOrNull, writeFileContent } from "../../utils/file.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
-import { VibeConfigToml, VibeHooks } from "./vibe-hooks.js";
+import { VibeHooks } from "./vibe-hooks.js";
 
 function createMockAiFileParams(
   override: Partial<ConstructorParameters<typeof RulesyncHooks>[0]> = {},
@@ -74,19 +74,19 @@ describe("VibeHooks", () => {
       expect(Array.isArray(parsed.hooks)).toBe(true);
 
       const byType = Object.fromEntries(parsed.hooks.map((h) => [h.type, h]));
-      expect(byType.before_tool).toBeDefined();
-      expect(byType.before_tool.match).toBe("bash");
-      expect(byType.before_tool.command).toBe("uv run python ./guard-bash");
-      expect(byType.before_tool.timeout).toBe(30);
-      expect(byType.before_tool.name).toBe("deny-rm-rf");
-      expect(byType.before_tool.description).toBe("Reject dangerous shell commands.");
+      expect(byType.pre_tool).toBeDefined();
+      expect(byType.pre_tool.match).toBe("bash");
+      expect(byType.pre_tool.command).toBe("uv run python ./guard-bash");
+      expect(byType.pre_tool.timeout).toBe(30);
+      expect(byType.pre_tool.name).toBe("deny-rm-rf");
+      expect(byType.pre_tool.description).toBe("Reject dangerous shell commands.");
 
-      expect(byType.after_tool).toBeDefined();
-      expect(byType.after_tool.match).toBe("re:^serena_.*$");
+      expect(byType.post_tool).toBeDefined();
+      expect(byType.post_tool.match).toBe("re:^serena_.*$");
 
-      expect(byType.post_agent_turn).toBeDefined();
-      // `match` applies to tool hooks only; post_agent_turn carries no matcher.
-      expect(byType.post_agent_turn.match).toBeUndefined();
+      expect(byType.post_agent).toBeDefined();
+      // `match` applies to tool hooks only; post_agent carries no matcher.
+      expect(byType.post_agent.match).toBeUndefined();
     });
 
     it("should drop unsupported events and non-command hook types", async () => {
@@ -114,7 +114,7 @@ describe("VibeHooks", () => {
         hooks: Array<Record<string, unknown>>;
       };
       expect(parsed.hooks).toHaveLength(1);
-      expect(parsed.hooks[0]?.type).toBe("before_tool");
+      expect(parsed.hooks[0]?.type).toBe("pre_tool");
       expect(parsed.hooks[0]?.command).toBe("echo keep");
     });
 
@@ -194,14 +194,14 @@ describe("VibeHooks", () => {
         hooks: [
           {
             name: "deny-rm-rf",
-            type: "before_tool",
+            type: "pre_tool",
             match: "bash",
             command: "uv run python ./guard-bash",
             timeout: 60,
             strict: false,
             description: "Reject dangerous shell commands.",
           },
-          { name: "turn", type: "post_agent_turn", match: "*", command: "echo done" },
+          { name: "turn", type: "post_agent", match: "*", command: "echo done" },
         ],
       });
 
@@ -237,7 +237,7 @@ describe("VibeHooks", () => {
       await writeFileContent(
         join(testDir, ".vibe", "hooks.toml"),
         smolToml.stringify({
-          hooks: [{ name: "h", type: "before_tool", match: "bash", command: "echo hi" }],
+          hooks: [{ name: "h", type: "pre_tool", match: "bash", command: "echo hi" }],
         }),
       );
 
@@ -262,62 +262,5 @@ describe("VibeHooks", () => {
       );
       expect(hooks.isDeletable()).toBe(true);
     });
-  });
-});
-
-describe("VibeConfigToml", () => {
-  let testDir: string;
-  let cleanup: () => Promise<void>;
-
-  beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
-  });
-
-  afterEach(async () => {
-    await cleanup();
-  });
-
-  it("should enable experimental hooks", async () => {
-    const configToml = await VibeConfigToml.fromOutputRoot({ outputRoot: testDir });
-    expect(configToml.getFileContent()).toContain("enable_experimental_hooks = true");
-  });
-
-  it("should preserve existing config.toml keys when enabling hooks", async () => {
-    await ensureDir(join(testDir, ".vibe"));
-    await writeFileContent(
-      join(testDir, ".vibe", "config.toml"),
-      '[[mcp_servers]]\nname = "myserver"\ncommand = "node"\n',
-    );
-
-    const configToml = await VibeConfigToml.fromOutputRoot({ outputRoot: testDir });
-    const content = configToml.getFileContent();
-    expect(content).toContain("enable_experimental_hooks = true");
-    expect(content).toContain("mcp_servers");
-    expect(content).toContain("myserver");
-  });
-
-  it("should be non-deletable (config holds other Vibe settings)", () => {
-    const configToml = new VibeConfigToml({
-      outputRoot: testDir,
-      relativeDirPath: ".vibe",
-      relativeFilePath: "config.toml",
-      fileContent: "enable_experimental_hooks = true\n",
-    });
-    expect(configToml.isDeletable()).toBe(false);
-  });
-
-  it("should throw a readable error when existing config.toml is invalid", async () => {
-    await ensureDir(join(testDir, ".vibe"));
-    await writeFileContent(join(testDir, ".vibe", "config.toml"), "[features");
-
-    await expect(VibeConfigToml.fromOutputRoot({ outputRoot: testDir })).rejects.toThrow(
-      "Failed to parse existing Vibe config",
-    );
-  });
-
-  it("should set correct file paths", async () => {
-    const configToml = await VibeConfigToml.fromOutputRoot({ outputRoot: testDir });
-    expect(configToml.getRelativeDirPath()).toBe(".vibe");
-    expect(configToml.getRelativeFilePath()).toBe("config.toml");
   });
 });

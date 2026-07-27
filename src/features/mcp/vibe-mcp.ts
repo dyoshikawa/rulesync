@@ -40,6 +40,13 @@ const VIBE_MCP_SERVER_FIELDS = [
   "auth",
   "startup_timeout_sec",
   "tool_timeout_sec",
+  // Vibe's `/mcp` panel persists these into `config.toml` when a user toggles a
+  // server or one of its tools. Without them here a whole-array rewrite of
+  // `mcp_servers` on the next generate would wipe the user's toggle.
+  "prompt",
+  "sampling_enabled",
+  "disabled",
+  "disabled_tools",
 ] as const;
 
 // Legacy top-level static-auth keys. Vibe auto-promotes these into an `[auth]`

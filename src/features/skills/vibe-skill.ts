@@ -140,10 +140,13 @@ export class VibeSkill extends ToolSkill {
     }
   }
 
-  static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolSkillSettablePaths {
+  static getSettablePaths(_options: { global?: boolean } = {}): ToolSkillSettablePaths {
+    // Vibe's `user_skills_dirs` returns both `~/.vibe/skills` and
+    // `~/.agents/skills`, and its project discovery covers the matching pair, so
+    // the shared root is an alternative at either scope.
     return {
       relativeDirPath: join(".vibe", "skills"),
-      ...(global ? {} : { alternativeSkillRoots: [join(".agents", "skills")] }),
+      alternativeSkillRoots: [join(".agents", "skills")],
     };
   }
 

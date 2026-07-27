@@ -515,15 +515,19 @@ export const AUGMENTCODE_HOOK_EVENTS: readonly HookEvent[] = [
 /**
  * Hook events supported by Mistral Vibe (mistral-vibe).
  *
- * Vibe exposes three experimental hook events in `.vibe/hooks.toml`:
- * `before_tool` ← `preToolUse`, `after_tool` ← `postToolUse`, and
- * `post_agent_turn` ← `stop` (fires after every assistant turn that ends
- * without pending tool calls — the closest canonical equivalent to a
- * "turn end"/"stop" event, matching how codexcli/copilot map their
- * stop events). Only the tool events (`before_tool`/`after_tool`) carry the
- * `match` tool-name matcher (fnmatch glob or `re:` regex) and the `strict`
- * flag; `post_agent_turn` carries neither. Only `type: "command"` hooks are
- * relevant.
+ * Vibe exposes three hook events in `.vibe/hooks.toml`: `pre_tool` ←
+ * `preToolUse`, `post_tool` ← `postToolUse`, and `post_agent` ← `stop` (fires
+ * after every assistant turn that ends without pending tool calls — the closest
+ * canonical equivalent to a "turn end"/"stop" event, matching how
+ * codexcli/copilot map their stop events). Only the tool events
+ * (`pre_tool`/`post_tool`) carry the `match` tool-name matcher (fnmatch glob or
+ * `re:` regex) and the `strict` flag; `post_agent` carries neither. Only
+ * `type: "command"` hooks are relevant.
+ *
+ * v2.21.0 graduated hooks from experimental and renamed all three types
+ * (`before_tool` → `pre_tool`, `after_tool` → `post_tool`, `post_agent_turn` →
+ * `post_agent`). `HookType` is a strict enum, so an entry using an old name is
+ * rejected outright and reported as a `HookConfigIssue`.
  * @see https://github.com/mistralai/mistral-vibe/blob/main/README.md
  */
 export const VIBE_HOOK_EVENTS: readonly HookEvent[] = ["preToolUse", "postToolUse", "stop"];
@@ -1262,15 +1266,19 @@ export const JUNIE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fro
 /**
  * Map canonical camelCase event names to Mistral Vibe snake_case.
  *
- * Vibe documents three experimental hook events. The canonical `stop` event maps
- * to Vibe's `post_agent_turn` (fires after every assistant turn ending without
- * pending tool calls) — the closest documented "turn end"/"stop" equivalent.
+ * Vibe documents three hook events. The canonical `stop` event maps to Vibe's
+ * `post_agent` (fires after every assistant turn ending without pending tool
+ * calls) — the closest documented "turn end"/"stop" equivalent.
+ *
+ * These are the v2.21.0 names; the pre-2.21.0 spellings (`before_tool`,
+ * `after_tool`, `post_agent_turn`) are rejected by Vibe's strict `HookType`
+ * enum.
  * @see https://github.com/mistralai/mistral-vibe/blob/main/README.md
  */
 export const CANONICAL_TO_VIBE_EVENT_NAMES: Record<string, string> = {
-  preToolUse: "before_tool",
-  postToolUse: "after_tool",
-  stop: "post_agent_turn",
+  preToolUse: "pre_tool",
+  postToolUse: "post_tool",
+  stop: "post_agent",
 };
 
 /**

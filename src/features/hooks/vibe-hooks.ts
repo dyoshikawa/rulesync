@@ -2,7 +2,6 @@ import { join } from "node:path";
 
 import * as smolToml from "smol-toml";
 
-import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_VIBE_EVENT_NAMES,
@@ -11,10 +10,8 @@ import {
   VIBE_HOOK_EVENTS,
   VIBE_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
@@ -27,7 +24,6 @@ import {
 
 const VIBE_DIR = ".vibe";
 const VIBE_HOOKS_FILE_NAME = "hooks.toml";
-const VIBE_CONFIG_FILE_NAME = "config.toml";
 
 /**
  * One serialized `[[hooks]]` entry in `.vibe/hooks.toml`.
@@ -45,11 +41,11 @@ type VibeHookEntry = {
 
 /**
  * Vibe scopes the tool-name `match` glob and the `strict` flag to tool hooks
- * (`before_tool` / `after_tool`) only; `post_agent_turn` fires after every
+ * (`pre_tool` / `post_tool`) only; `post_agent` fires after every
  * assistant turn and carries no matcher.
  * @see https://github.com/mistralai/mistral-vibe/blob/main/README.md
  */
-const VIBE_TOOL_EVENTS: ReadonlySet<string> = new Set(["before_tool", "after_tool"]);
+const VIBE_TOOL_EVENTS: ReadonlySet<string> = new Set(["pre_tool", "post_tool"]);
 
 const SUPPORTED_VIBE_EVENTS: ReadonlySet<string> = new Set(VIBE_HOOK_EVENTS);
 
@@ -95,7 +91,7 @@ function canonicalToVibeHooks(
         type: vibeEvent,
         command: def.command,
       };
-      // The tool-name `match` glob applies to tool hooks only; `post_agent_turn`
+      // The tool-name `match` glob applies to tool hooks only; `post_agent`
       // carries no matcher, so omit it there.
       if (isToolEvent) {
         entry.match = typeof def.matcher === "string" && def.matcher !== "" ? def.matcher : "*";
@@ -189,69 +185,13 @@ function parseVibeToml(fileContent: string): Record<string, unknown> {
 }
 
 /**
- * Build the content for `.vibe/config.toml` with
- * `enable_experimental_hooks = true`. Reads the existing config (if any),
- * parses TOML, sets the flag while preserving every other key, and returns the
- * serialized content without writing to disk. The caller writes it through the
- * normal write phase (respecting dry-run mode).
- */
-async function buildVibeConfigTomlContent({ outputRoot }: { outputRoot: string }): Promise<string> {
-  const configPath = join(outputRoot, VIBE_DIR, VIBE_CONFIG_FILE_NAME);
-  const existingContent = (await readFileContentOrNull(configPath)) ?? "";
-  try {
-    parseVibeToml(existingContent);
-  } catch (error) {
-    throw new Error(
-      `Failed to parse existing Vibe config at ${configPath}: ${formatError(error)}`,
-      { cause: error },
-    );
-  }
-  return applySharedConfigPatch({
-    fileKey: sharedConfigFileKey({
-      relativeDirPath: VIBE_DIR,
-      relativeFilePath: VIBE_CONFIG_FILE_NAME,
-    }),
-    feature: "hooks",
-    existingContent,
-    patch: { enable_experimental_hooks: true },
-    filePath: configPath,
-  });
-}
-
-/**
- * Represents the `.vibe/config.toml` file as a generated ToolFile so it goes
- * through the normal write phase and respects dry-run mode. The flag merge
- * preserves any existing config keys (MCP servers, permissions, etc.).
- */
-export class VibeConfigToml extends ToolFile {
-  override isDeletable(): boolean {
-    // The config file holds other Vibe settings (MCP, permissions), so never
-    // delete it when hooks are removed — only the flag is rulesync-managed.
-    return false;
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
-  }
-
-  static async fromOutputRoot({ outputRoot }: { outputRoot: string }): Promise<VibeConfigToml> {
-    const fileContent = await buildVibeConfigTomlContent({ outputRoot });
-    return new VibeConfigToml({
-      outputRoot,
-      relativeDirPath: VIBE_DIR,
-      relativeFilePath: VIBE_CONFIG_FILE_NAME,
-      fileContent,
-    });
-  }
-}
-
-/**
- * Mistral Vibe experimental hooks adapter.
+ * Mistral Vibe hooks adapter.
  *
  * Emits the flat `[[hooks]]` array to `.vibe/hooks.toml` (project) or
- * `~/.vibe/hooks.toml` (global; the processor sets outputRoot to HOME), and an
- * auxiliary `.vibe/config.toml` setting `enable_experimental_hooks = true` to
- * unlock the experimental hooks runtime.
+ * `~/.vibe/hooks.toml` (global; the processor sets outputRoot to HOME).
+ * v2.21.0 graduated hooks from experimental and removed the
+ * `enable_experimental_hooks` flag, so declaring a hook is all that is needed
+ * and no auxiliary `.vibe/config.toml` write happens.
  * @see https://github.com/mistralai/mistral-vibe/blob/main/README.md
  */
 export class VibeHooks extends ToolHooks {
@@ -268,9 +208,6 @@ export class VibeHooks extends ToolHooks {
 
   // Vibe enables hooks by also writing `.vibe/config.toml`, a file the MCP and
   // permissions features share. Declared here because it is not a settable path.
-  static getExtraSharedWritePaths(): SharedWritePath[] {
-    return [{ relativeDirPath: VIBE_DIR, relativeFilePath: VIBE_CONFIG_FILE_NAME }];
-  }
 
   static async fromFile({
     outputRoot = process.cwd(),
@@ -353,14 +290,5 @@ export class VibeHooks extends ToolHooks {
       fileContent: smolToml.stringify({}),
       validate: false,
     });
-  }
-
-  static async getAuxiliaryFiles({
-    outputRoot = process.cwd(),
-  }: {
-    outputRoot?: string;
-    global?: boolean;
-  } = {}): Promise<ToolFile[]> {
-    return [await VibeConfigToml.fromOutputRoot({ outputRoot })];
   }
 }

@@ -68,14 +68,16 @@ describe("VibePermissions", () => {
     expect(parsed.tools.bash.allowlist).toEqual(["git status"]);
     expect(parsed.tools.bash.denylist).toEqual(["rm -rf *"]);
     expect(parsed.tools.read_file.permission).toBe("always");
-    expect(parsed.disabled_tools).toEqual(["write_file"]);
+    // The canonical `edit` category targets Vibe's `edit` tool, not `write_file`
+    // (create-only since v2.14.0).
+    expect(parsed.disabled_tools).toEqual(["edit"]);
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('pattern-level "ask" rules'));
   });
 
   it("should import Vibe tool filters and per-tool permissions", () => {
     const fileContent = [
       'enabled_tools = ["read_file"]',
-      'disabled_tools = ["write_file"]',
+      'disabled_tools = ["edit"]',
       "",
       "[tools.bash]",
       'permission = "ask"',
@@ -230,7 +232,7 @@ describe("VibePermissions", () => {
     expect(vibePermissions.isDeletable()).toBe(false);
   });
 
-  it("should merge edit and write categories to same write_file tool", async () => {
+  it("should keep the edit and write categories on their own Vibe tools", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
       relativeDirPath: ".rulesync",
@@ -253,15 +255,15 @@ describe("VibePermissions", () => {
     });
     const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
 
-    expect(parsed.tools.write_file.allowlist).toEqual(["*.md", "*.txt"]);
+    // Vibe's `edit` and `write_file` are distinct tools, so the two canonical
+    // categories must not collapse onto one allowlist.
+    expect(parsed.tools.edit.allowlist).toEqual(["*.md"]);
+    expect(parsed.tools.write_file.allowlist).toEqual(["*.txt"]);
   });
 
   it("should clear a stale disabled_tools entry when rulesync now allows the tool", async () => {
     await ensureDir(join(testDir, ".vibe"));
-    await writeFileContent(
-      join(testDir, ".vibe", "config.toml"),
-      'disabled_tools = ["write_file"]',
-    );
+    await writeFileContent(join(testDir, ".vibe", "config.toml"), 'disabled_tools = ["edit"]');
 
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
@@ -282,8 +284,8 @@ describe("VibePermissions", () => {
 
     // The stale deny filter must not survive the new "allow" source of truth.
     expect(parsed.disabled_tools).toBeUndefined();
-    expect(parsed.enabled_tools).toEqual(["write_file"]);
-    expect(parsed.tools.write_file.permission).toBe("always");
+    expect(parsed.enabled_tools).toEqual(["edit"]);
+    expect(parsed.tools.edit.permission).toBe("always");
   });
 
   it("should clear a stale enabled_tools entry when rulesync now denies the tool", async () => {
@@ -388,6 +390,6 @@ describe("VibePermissions", () => {
     const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
 
     expect(parsed.enabled_tools).toEqual(["custom_tool"]);
-    expect(parsed.disabled_tools).toEqual(["other_tool", "write_file"]);
+    expect(parsed.disabled_tools).toEqual(["edit", "other_tool"]);
   });
 });

@@ -534,10 +534,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     {
       class: VibeHooks,
       meta: {
-        // Mistral Vibe experimental hooks live in `.vibe/hooks.toml` (project) /
-        // `~/.vibe/hooks.toml` (global) and are gated behind
-        // `enable_experimental_hooks = true` in `.vibe/config.toml`, which
-        // rulesync merges via VibeHooks.getAuxiliaryFiles.
+        // Mistral Vibe hooks live in `.vibe/hooks.toml` (project) /
+        // `~/.vibe/hooks.toml` (global). Since v2.21.0 they load unconditionally
+        // when declared — the experimental gate flag is gone.
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,

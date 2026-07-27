@@ -190,7 +190,6 @@ describe("shared-file write derivation", () => {
           "permissions",
         ],
         ".vibe/config.toml": [
-          "hooks",
           "mcp",
           "permissions",
         ],
