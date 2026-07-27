@@ -202,7 +202,7 @@ export class RovodevPermissions extends ToolPermissions {
       config: rulesyncConfig,
       logger,
     });
-    config.toolPermissions = resolveToolPermissionsBlock({
+    const resolvedToolPermissions = resolveToolPermissionsBlock({
       existing: config.toolPermissions,
       generated: toolPermissions,
       // A source that states no rule at all is a deliberate clean slate; one
@@ -213,6 +213,11 @@ export class RovodevPermissions extends ToolPermissions {
       filePath,
       logger,
     });
+    // `undefined` means the block is not this run's to touch, so a `config.yml`
+    // without one does not gain an empty `toolPermissions:`.
+    if (resolvedToolPermissions !== undefined) {
+      config.toolPermissions = resolvedToolPermissions;
+    }
 
     return new RovodevPermissions({
       outputRoot,
@@ -283,10 +288,15 @@ function resolveToolPermissionsBlock({
   sourceStatesRules: boolean;
   filePath: string;
   logger?: Logger;
-}): Record<string, unknown> {
+}): Record<string, unknown> | undefined {
   const existingToolPermissions = isRecord(existing) ? { ...existing } : {};
 
   if (Object.keys(generated).length === 0 && sourceStatesRules) {
+    if (!isRecord(existing)) {
+      // Nothing of ours to write and nothing of theirs to read: an absent block
+      // stays absent, and one of some other shape is left for its author.
+      return undefined;
+    }
     // Nothing to write, so the block stays — except for the grants a previous
     // run left there. Whatever the user revoked is in that set, and dropping an
     // `allow` only ever falls back to Rovo Dev's stricter default, so this half
@@ -439,11 +449,11 @@ function stripPermissiveOwnedValues(toolPermissions: Record<string, unknown>): s
         delete stripped.commands;
       }
     }
+    // An emptied container is not itself a grant, so it is not named again.
     if (Object.keys(stripped).length > 0) {
       toolPermissions.bash = stripped;
     } else {
       delete toolPermissions.bash;
-      strippedKeys.push("bash");
     }
   }
 

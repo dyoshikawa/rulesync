@@ -520,6 +520,8 @@ describe("RovodevPermissions", () => {
             },
             allowedExternalPaths: ["/srv/shared"],
             tools: { create_file: "allow", delete_file: "deny" },
+            // A legacy flat grant an older rulesync wrote one level up.
+            grep: "allow",
             customKey: "kept",
           },
         }),
@@ -537,8 +539,27 @@ describe("RovodevPermissions", () => {
       expect(tp.bash).toEqual({ commands: [{ command: "rm -rf .*", permission: "deny" }] });
       expect(tp.allowedExternalPaths).toBeUndefined();
       expect(toolLevelsOf(perms.getFileContent())).toEqual({ delete_file: "deny" });
+      expect(tp.grep).toBeUndefined();
       expect(tp.customKey).toBe("kept");
       expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('"tools.create_file"'));
+    });
+
+    it("leaves a config.yml without a toolPermissions block alone", async () => {
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(join(dirPath, "config.yml"), dump({ agent: { model: "claude" } }));
+
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ webfetch: { "*": "deny" } }),
+        global: true,
+      });
+
+      const parsed = load(perms.getFileContent());
+      if (!isRecord(parsed)) throw new Error("expected object");
+      // No empty `toolPermissions: {}` where the user had no block at all.
+      expect(parsed.toolPermissions).toBeUndefined();
+      expect(parsed.agent).toEqual({ model: "claude" });
     });
 
     it.each<{ name: string; permission: Record<string, Record<string, string>> }>([
