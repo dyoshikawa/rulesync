@@ -1,6 +1,10 @@
 #!/bin/bash
+set -euo pipefail
 
-. ~/.bashrc
+# `~/.bashrc` returns early for non-interactive shells, and `mise activate` only
+# updates PATH from PROMPT_COMMAND, which never runs in a script. Use shims so
+# mise-managed tools (pnpm, node, go, ...) are directly callable here.
+eval "$(mise activate bash --shims)"
 
 # Ensure node_modules and pnpm-store volumes have correct ownership for non-root user
 sudo chown -R node:node /workspace/node_modules 2>/dev/null || true
@@ -14,6 +18,6 @@ sudo chown -R node:node /workspace-worktrees 2>/dev/null || true
 pnpm config set store-dir /home/node/.pnpm-store
 
 # Install project dependencies
-mise exec -c "pnpm i"
+pnpm install
 
 gh auth setup-git
