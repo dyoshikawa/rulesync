@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HERMESAGENT_SKILLS_DIR_PATH } from "../../constants/hermesagent-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { HermesagentSkill } from "./hermesagent-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
@@ -54,6 +55,72 @@ describe("HermesagentSkill", () => {
   });
 
   describe("fromRulesyncSkill", () => {
+    it("should not warn about source allowed-tools entries a hermesagent override replaces", () => {
+      const logger = createMockLogger();
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "test-skill",
+          description: "Test skill description",
+          agentsskills: { "allowed-tools": ["Bash(git log)"] },
+          hermesagent: { "allowed-tools": "Read" },
+        },
+        body: "Test body content",
+        validate: true,
+      });
+
+      const skill = HermesagentSkill.fromRulesyncSkill({ rulesyncSkill, logger });
+
+      expect(skill.getFrontmatter()["allowed-tools"]).toBe("Read");
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+    it("should keep structured metadata that Hermes reads natively", () => {
+      // Hermes resolves `metadata.hermes.*` as structured YAML, so the Agent
+      // Skills string-map coercion must not apply on this target.
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "test-skill",
+          description: "Test skill description",
+          agentsskills: { metadata: { hermes: { requires_toolsets: ["terminal"] } } },
+        },
+        body: "Test body content",
+        validate: true,
+      });
+
+      expect(
+        HermesagentSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter().metadata,
+      ).toEqual({ hermes: { requires_toolsets: ["terminal"] } });
+    });
+
+    it("should warn when a hermesagent override reintroduces a non-conformant shape", () => {
+      const logger = createMockLogger();
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "test-skill",
+          description: "Test skill description",
+          agentsskills: { "allowed-tools": ["Read"], compatibility: "fine" },
+          hermesagent: { "allowed-tools": ["Read", "Write"], compatibility: { a: "b" } },
+        },
+        body: "Test body content",
+        validate: true,
+      });
+
+      HermesagentSkill.fromRulesyncSkill({ rulesyncSkill, logger });
+
+      const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(
+        warnings.some((w) => w.includes("`allowed-tools` must be a space-separated string")),
+      ).toBe(true);
+      expect(warnings.some((w) => w.includes("`compatibility` must be a string"))).toBe(true);
+    });
     it("should create an instance routed to the Hermes skills directory", () => {
       const rulesyncSkill = new RulesyncSkill({
         outputRoot: testDir,
@@ -95,7 +162,9 @@ describe("HermesagentSkill", () => {
         name: "Test Skill",
         description: "Test skill description",
         license: "MIT",
-        "allowed-tools": ["terminal"],
+        // Normalized to the Agent Skills space-separated form, exactly as the
+        // native `agentsskills` target writes it from the same rulesync input.
+        "allowed-tools": "terminal",
         version: "1.2.3",
         author: "Rulesync",
         platforms: ["darwin", "linux"],
@@ -113,6 +182,25 @@ describe("HermesagentSkill", () => {
   });
 
   describe("toRulesyncSkill", () => {
+    it("should normalize a space-separated allowed-tools scalar back to the canonical array", () => {
+      // Generation now writes the spec's scalar form, so import has to reverse
+      // it or a generate → import round trip rewrites the rulesync source.
+      const skill = new HermesagentSkill({
+        outputRoot: testDir,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "test-skill",
+          description: "Test description",
+          "allowed-tools": "Read Write",
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      expect(skill.toRulesyncSkill().getFrontmatter().agentsskills).toEqual({
+        "allowed-tools": ["Read", "Write"],
+      });
+    });
     it("should convert back to a RulesyncSkill", () => {
       const skill = new HermesagentSkill({
         outputRoot: testDir,

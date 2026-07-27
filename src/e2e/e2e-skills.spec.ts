@@ -198,6 +198,41 @@ This is the test skill body content.
     },
   );
 
+  // The Agent Skills spec types `allowed-tools` as a space-separated string,
+  // `compatibility` as a string and `metadata` as a string→string map, so the
+  // legacy rulesync list/object/number spellings must not reach the file.
+  // https://agentskills.io/specification
+  it("should write spec-conformant scalar frontmatter for agentsskills", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill", "SKILL.md"),
+      `---
+name: test-skill
+description: "A test skill for E2E testing"
+targets: ["*"]
+agentsskills:
+  allowed-tools: ["Read", "Bash(git:*)"]
+  compatibility:
+    runtime: node
+  metadata:
+    version: 1
+---
+This is the test skill body content.
+`,
+    );
+
+    await runGenerate({ target: "agentsskills", features: "skills" });
+
+    const generatedContent = await readFileContent(
+      join(testDir, ".agents", "skills", "test-skill", "SKILL.md"),
+    );
+    expect(generatedContent).toContain("allowed-tools: Read Bash(git:*)");
+    expect(generatedContent).toContain("compatibility: 'runtime: node'");
+    expect(generatedContent).toContain("version: '1'");
+    expect(generatedContent).not.toContain("- Read");
+  });
+
   it.each([
     {
       target: "agentsmd",
