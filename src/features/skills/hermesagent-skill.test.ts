@@ -55,6 +55,27 @@ describe("HermesagentSkill", () => {
   });
 
   describe("fromRulesyncSkill", () => {
+    it("should not warn about source allowed-tools entries a hermesagent override replaces", () => {
+      const logger = createMockLogger();
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "test-skill",
+          description: "Test skill description",
+          agentsskills: { "allowed-tools": ["Bash(git log)"] },
+          hermesagent: { "allowed-tools": "Read" },
+        },
+        body: "Test body content",
+        validate: true,
+      });
+
+      const skill = HermesagentSkill.fromRulesyncSkill({ rulesyncSkill, logger });
+
+      expect(skill.getFrontmatter()["allowed-tools"]).toBe("Read");
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
     it("should keep structured metadata that Hermes reads natively", () => {
       // Hermes resolves `metadata.hermes.*` as structured YAML, so the Agent
       // Skills string-map coercion must not apply on this target.

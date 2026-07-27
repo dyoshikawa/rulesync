@@ -141,7 +141,7 @@ function toStringMetadata(metadata: Record<string, unknown>): Record<string, str
 type AgentsSkillsSharedFields = {
   license?: string;
   compatibility?: string;
-  metadata?: Record<string, string> | Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   "allowed-tools"?: string;
 };
 
@@ -260,7 +260,13 @@ function collectAgentSkillViolations({
     violations.push(
       "`allowed-tools` must be a space-separated string; the Agent Skills spec does not allow a list here",
     );
-  } else if (Array.isArray(sourceAllowedTools)) {
+  } else if (
+    Array.isArray(sourceAllowedTools) &&
+    // Only when the emitted value is the joined source. A tool-specific
+    // override replaces it outright, and warning about entries that never reach
+    // the file would contradict checking what is actually written.
+    frontmatter["allowed-tools"] === toAllowedToolsString(sourceAllowedTools)
+  ) {
     for (const tool of sourceAllowedTools.filter((entry) => /\s/.test(entry))) {
       violations.push(
         `\`allowed-tools\` entry "${tool}" contains whitespace, so the space-separated form the Agent Skills spec requires will read it back as several entries`,

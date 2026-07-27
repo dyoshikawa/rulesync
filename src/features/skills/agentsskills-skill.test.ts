@@ -288,7 +288,11 @@ Body.`;
         warnings.some((w) => w.includes("`description` is required and must not be empty")),
       ).toBe(true);
       for (const warning of warnings) {
-        expect(warning).toContain(join(".agents", "skills", "My_Bad--Name", SKILL_FILE_NAME));
+        // The reported path is rooted at outputRoot so a global-scope skill
+        // points at the file that actually gets written.
+        expect(warning).toContain(
+          join(testDir, ".agents", "skills", "My_Bad--Name", SKILL_FILE_NAME),
+        );
       }
     });
 
