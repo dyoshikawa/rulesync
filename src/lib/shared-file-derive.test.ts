@@ -169,6 +169,7 @@ describe("shared-file write derivation", () => {
         ],
         ".kimi-code/config.toml": [
           "hooks",
+          "mcp",
           "permissions",
         ],
         ".kiro/agents/default.json": [

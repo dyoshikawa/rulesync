@@ -53,6 +53,19 @@ const toolScopedMcpSchema = z.looseObject({
   mcpServers: z.optional(z.record(z.string(), z.nullable(RulesyncMcpServerSchema))),
 });
 
+/**
+ * Kimi Code's tool-scoped block also carries the `[mcp]` defaults from its
+ * shared user config: connect and per-tool-call timeouts that apply to *every*
+ * MCP server, including ones rulesync did not write. Per-server
+ * `startupTimeoutMs` / `toolTimeoutMs` in `mcpServers` still win.
+ *
+ * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#mcp
+ */
+const kimiCodeScopedMcpSchema = z.extend(toolScopedMcpSchema, {
+  startupTimeoutMs: z.optional(z.number()),
+  toolTimeoutMs: z.optional(z.number()),
+});
+
 export const RulesyncMcpFileSchema = z.looseObject({
   $schema: z.optional(z.string()),
   ...RulesyncMcpConfigSchema.shape,
@@ -80,7 +93,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   hermesagent: z.optional(toolScopedMcpSchema),
   junie: z.optional(toolScopedMcpSchema),
   kilo: z.optional(toolScopedMcpSchema),
-  "kimi-code": z.optional(toolScopedMcpSchema),
+  "kimi-code": z.optional(kimiCodeScopedMcpSchema),
   kiro: z.optional(toolScopedMcpSchema),
   opencode: z.optional(toolScopedMcpSchema),
   qwencode: z.optional(toolScopedMcpSchema),

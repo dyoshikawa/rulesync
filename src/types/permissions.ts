@@ -56,6 +56,22 @@ const KimiCodePermissionsOverrideSchema = z.looseObject({
       }),
     ),
   ),
+  /**
+   * Kimi's `[tools]` section: a separate enforcement layer from
+   * `[[permission.rules]]`. A rule prompts; this removes the tool from every
+   * agent in every session, so the model never sees it. Entries use the same
+   * syntax as an agent file's `tools`/`disallowedTools` — exact built-in names
+   * and `mcp__server__*` globs — which is not the canonical
+   * `category`/`pattern` shape, hence a native passthrough block.
+   *
+   * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#tools
+   */
+  tools: z.optional(
+    z.looseObject({
+      enabled: z.optional(z.array(z.string())),
+      disabled: z.optional(z.array(z.string())),
+    }),
+  ),
 });
 export type KimiCodePermissionsOverride = z.infer<typeof KimiCodePermissionsOverrideSchema>;
 

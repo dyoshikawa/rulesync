@@ -136,6 +136,9 @@ describe("shared-file cross-feature write contract", () => {
             args: ["server.js"],
           },
         },
+        // Exercises the MCP feature as a writer of a config file the hooks and
+        // permissions features share, so the no-data-loss contract covers it.
+        "kimi-code": { startupTimeoutMs: 45000, toolTimeoutMs: 90000 },
       }),
     );
     await writeFileContent(
@@ -155,6 +158,9 @@ describe("shared-file cross-feature write contract", () => {
           bash: { "git status *": "allow", "rm *": "deny" },
           read: { ".env.production": "deny" },
         },
+        // Kimi's `[tools]` sits in the same shared config as its hooks and
+        // permission rules, so the contract exercises all three writers.
+        "kimi-code": { tools: { enabled: ["Bash", "Read"] } },
       }),
     );
     await writeFileContent(

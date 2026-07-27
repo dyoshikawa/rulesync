@@ -70,6 +70,18 @@ type ToolMcpFactory = {
     fromFile(params: ToolMcpFromFileParams): Promise<ToolMcp>;
     forDeletion(params: ToolMcpForDeletionParams): ToolMcp;
     getSettablePaths(options?: { global?: boolean }): ToolMcpSettablePaths;
+    /**
+     * Extra files this tool's MCP config lives in beyond its own settable path
+     * — e.g. Kimi Code's `[mcp]` defaults, which belong to the shared user
+     * `config.toml` rather than to `mcp.json`. Mirrors the hooks processor's
+     * hook of the same name. See {@link KimiCodeMcp.getAuxiliaryFiles}.
+     */
+    getAuxiliaryFiles?(params: {
+      outputRoot?: string;
+      global?: boolean;
+      rulesyncMcp: RulesyncMcp;
+      logger?: Logger;
+    }): ToolFile[] | Promise<ToolFile[]>;
   };
   meta: {
     /** Whether the tool supports project-level MCP configuration */
@@ -727,7 +739,19 @@ export class McpProcessor extends FeatureProcessor {
       }),
     );
 
-    return toolMcps;
+    // The unfiltered source: an auxiliary file reads the target's own override
+    // block, not the per-target server list `forTarget` resolves above.
+    // Optional on the factory type, matching the hooks processor: every real
+    // tool class inherits the no-op from `ToolMcp`, but the tests drive this
+    // with minimal stand-ins that implement only what they exercise.
+    const auxiliaryFiles = await factory.class.getAuxiliaryFiles?.({
+      outputRoot: this.outputRoot,
+      global: this.global,
+      rulesyncMcp,
+      logger: this.logger,
+    });
+
+    return [...toolMcps, ...(auxiliaryFiles ?? [])];
   }
 
   /**

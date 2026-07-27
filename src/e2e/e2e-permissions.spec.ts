@@ -1425,6 +1425,50 @@ describe("E2E: permissions (global mode)", () => {
     });
   });
 
+  it("should generate and import the Kimi Code global tool switch", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    // `[tools]` is a second enforcement layer beside `[[permission.rules]]`: a
+    // rule prompts, this removes the tool from every agent in every session.
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        permission: { bash: { "git status *": "allow" } },
+        "kimi-code": {
+          tools: { enabled: ["Bash", "Read"], disabled: ["mcp__github__*"] },
+        },
+      }),
+    );
+
+    await runGenerate({
+      target: "kimi-code",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = smolToml.parse(
+      await readFileContent(join(homeDir, ".kimi-code", "config.toml")),
+    );
+    expect(generated.tools).toEqual({ enabled: ["Bash", "Read"], disabled: ["mcp__github__*"] });
+
+    await runImport({
+      target: "kimi-code",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = JSON.parse(
+      await readFileContent(join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported["kimi-code"].tools).toEqual({
+      enabled: ["Bash", "Read"],
+      disabled: ["mcp__github__*"],
+    });
+  });
+
   it("should keep Kimi Code permission rules fail-closed and avoid broadening MCP grants", async () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

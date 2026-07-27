@@ -53,6 +53,21 @@ export abstract class ToolMcp extends ToolFile {
     }
   }
 
+  /**
+   * Files this tool's MCP config also lives in, beyond its own settable path.
+   * Empty for every tool whose MCP config is one self-contained file; see
+   * `KimiCodeMcp`, whose global timeout defaults belong to a shared
+   * `config.toml`. Mirrors the same hook on `ToolHooks`.
+   */
+  static async getAuxiliaryFiles(_params: {
+    outputRoot?: string;
+    global?: boolean;
+    rulesyncMcp: RulesyncMcp;
+    logger?: Logger;
+  }): Promise<ToolFile[]> {
+    return [];
+  }
+
   static getSettablePaths(): ToolMcpSettablePaths {
     throw new Error("Please implement this method in the subclass.");
   }
