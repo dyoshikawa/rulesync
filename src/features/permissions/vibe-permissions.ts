@@ -41,7 +41,8 @@ type VibeConfig = Record<string, unknown> & {
  * `WebSearch` → `web_search`, alongside `read_file`, `write_file`, `bash` and
  * `grep`. `edit` and `write_file` are distinct tools — `write_file` has been
  * create-only since v2.14.0 — so the canonical `edit` and `write` categories
- * must not collapse onto one name.
+ * must not collapse onto one name. Vibe's subagent tool is `task`, the same
+ * rename OpenCode needed.
  */
 const CANONICAL_TO_VIBE_TOOL_NAMES: Record<string, string> = {
   bash: "bash",
@@ -50,6 +51,7 @@ const CANONICAL_TO_VIBE_TOOL_NAMES: Record<string, string> = {
   write: "write_file",
   webfetch: "web_fetch",
   websearch: "web_search",
+  agent: "task",
 };
 
 const VIBE_TO_CANONICAL_TOOL_NAMES: Record<string, string> = {
@@ -59,6 +61,7 @@ const VIBE_TO_CANONICAL_TOOL_NAMES: Record<string, string> = {
   write_file: "write",
   web_fetch: "webfetch",
   web_search: "websearch",
+  task: "agent",
 };
 
 export class VibePermissions extends ToolPermissions {

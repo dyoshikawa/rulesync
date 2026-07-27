@@ -392,4 +392,27 @@ describe("VibePermissions", () => {
     expect(parsed.enabled_tools).toEqual(["custom_tool"]);
     expect(parsed.disabled_tools).toEqual(["edit", "other_tool"]);
   });
+
+  it("should map the agent category to Vibe's task tool in both directions", async () => {
+    // Vibe's subagent tool is `task`; emitting `agent` left the deny inert,
+    // so subagent spawning stayed enabled. Same rename OpenCode needed.
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({ permission: { agent: { "*": "deny" } } }),
+    });
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.disabled_tools).toEqual(["task"]);
+    expect(parsed.tools.agent).toBeUndefined();
+
+    const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+    expect(imported.permission.agent["*"]).toBe("deny");
+  });
 });

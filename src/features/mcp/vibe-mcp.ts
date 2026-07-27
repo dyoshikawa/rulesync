@@ -6,7 +6,11 @@ import { ValidationResult } from "../../types/ai-file.js";
 import type { McpServer, McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import {
+  applySharedConfigPatch,
+  parseSharedConfig,
+  sharedConfigFileKey,
+} from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -126,16 +130,12 @@ export class VibeMcp extends ToolMcp {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
-    let existingServers: VibeMcpServer[];
-    try {
-      existingServers = normalizeMcpServersArray(parseVibeConfig(existingContent).mcp_servers);
-    } catch (error) {
-      // Name the file the way the shared-config gateway does; smol-toml's own
-      // message says only that some TOML somewhere is invalid.
-      throw new Error(`Failed to parse shared config at ${filePath}: ${formatError(error)}`, {
-        cause: error,
-      });
-    }
+    // Through the gateway rather than `parseVibeConfig`, so a malformed file
+    // reports the same message this write path produces a few lines later
+    // instead of smol-toml's bare one, which names no file.
+    const existingServers = normalizeMcpServersArray(
+      parseSharedConfig({ format: "toml", fileContent: existingContent, filePath }).mcp_servers,
+    );
     const existingByName = new Map(existingServers.map((server) => [server.name, server]));
 
     const mcpServers = Object.entries(rulesyncMcp.getMcpServers()).map(([name, server]) =>

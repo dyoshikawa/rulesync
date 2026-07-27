@@ -456,10 +456,10 @@ describe("E2E: mcp", () => {
 
     await runGenerate({ target: "vibe", features: "mcp" });
 
-    const generated = smolToml.parse(
-      await readFileContent(join(testDir, ".vibe", "config.toml")),
-    ) as Record<string, unknown>;
-    expect((generated.mcp_servers as Record<string, unknown>[])[0]).toMatchObject({
+    const generated = toTable(
+      smolToml.parse(await readFileContent(join(testDir, ".vibe", "config.toml"))),
+    );
+    expect(toTableArray(generated.mcp_servers)[0]).toMatchObject({
       name: "srv",
       disabled_tools: ["rm"],
     });
