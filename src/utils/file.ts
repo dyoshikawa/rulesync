@@ -328,11 +328,22 @@ export async function findFilesByGlobs(
      * `!` patterns: globby rewrites a negative pattern that contains no glob
      * metacharacter as cwd-relative, so an absolute `!/abs/path/file.md` silently
      * matches nothing.
+     *
+     * Match the form of the include patterns: when those are absolute, a
+     * relative `ignore` such as `dist/**` silently excludes nothing. Either use
+     * absolute ignore patterns or anchor them with a leading `**\/`.
      */
     ignore?: string[];
+    /** Base directory for `gitignore` resolution and relative patterns. */
+    cwd?: string;
+    /**
+     * Skip files excluded by the project's `.gitignore` files, resolved from
+     * `cwd`. A no-op outside a git repository.
+     */
+    gitignore?: boolean;
   } = {},
 ): Promise<string[]> {
-  const { type = "all", followSymbolicLinks = true, ignore } = options;
+  const { type = "all", followSymbolicLinks = true, ignore, cwd, gitignore } = options;
   const globbyOptions =
     type === "file"
       ? { onlyFiles: true, onlyDirectories: false }
@@ -351,6 +362,8 @@ export async function findFilesByGlobs(
     absolute: true,
     followSymbolicLinks,
     ...(ignore ? { ignore: ignore.map((pattern) => pattern.replaceAll("\\", "/")) } : {}),
+    ...(cwd ? { cwd } : {}),
+    ...(gitignore ? { gitignore } : {}),
     ...globbyOptions,
   });
   // Deduplicate by real path so that directory symlink cycles (which globby follows up to

@@ -9,7 +9,7 @@ import {
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
-import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import { ensureDir, fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -781,6 +781,9 @@ This is a test project for E2E testing.
   it("should import nested agentsmd rules and round-trip their subproject scope", async () => {
     const testDir = getTestDir();
 
+    // The nested scan respects .gitignore, so the test project needs to be its
+    // own repository root — otherwise this repo's ignored `tmp/` hides it.
+    await ensureDir(join(testDir, ".git"));
     await writeFileContent(join(testDir, "AGENTS.md"), "# Project Overview\n");
     await writeFileContent(join(testDir, "packages", "api", "AGENTS.md"), "# API Instructions\n");
     // Vendored and generated trees must stay out of the scan.

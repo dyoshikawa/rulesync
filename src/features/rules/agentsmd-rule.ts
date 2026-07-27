@@ -219,13 +219,16 @@ export class AgentsMdRule extends ToolRule {
     // name gets a suffix instead: overwriting `overview.md` would drop the root
     // rule entirely, and the next `--delete` would then remove the root
     // `AGENTS.md` along with it.
-    const derivedName = `${subprojectPath.replaceAll("/", "-")}.md`;
+    // Compared case-insensitively: on a case-insensitive filesystem an
+    // `Overview/` subproject would otherwise still land on the root rule's file.
+    const slug = subprojectPath.replaceAll("/", "-");
+    const derivedName = `${slug}.md`;
     return new RulesyncRule({
       outputRoot: process.cwd(),
       relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
       relativeFilePath:
-        derivedName === RULESYNC_OVERVIEW_FILE_NAME
-          ? `${subprojectPath.replaceAll("/", "-")}-agents.md`
+        derivedName.toLowerCase() === RULESYNC_OVERVIEW_FILE_NAME.toLowerCase()
+          ? `${slug}-agents.md`
           : derivedName,
       frontmatter: {
         root: false,
