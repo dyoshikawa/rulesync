@@ -67,6 +67,20 @@ const TOOL_KEY_TO_CATEGORY: Record<RovodevToolPermissionKey, "read" | "edit"> = 
   move_file: "edit",
 };
 
+// Every per-tool key rulesync writes, from both directions of the mapping so a
+// key added to only one of them is still cleaned up on the next generate.
+const MANAGED_TOOL_KEYS: readonly string[] = [
+  ...new Set([
+    ...Object.values(CATEGORY_TO_TOOL_KEYS).flat(),
+    ...Object.keys(TOOL_KEY_TO_CATEGORY),
+  ]),
+];
+
+// Keys directly under `toolPermissions` that rulesync rewrites from
+// `.rulesync/permissions.*` on every generate. `tools` is handled separately
+// because only the managed tool keys inside it are owned.
+const OWNED_TOOL_PERMISSION_KEYS = ["bash", "allowedExternalPaths"] as const;
+
 type RovodevBashCommand = {
   command: string;
   permission: PermissionAction;
@@ -197,14 +211,17 @@ export class RovodevPermissions extends ToolPermissions {
     const existingTools = isRecord(existingToolPermissions.tools)
       ? { ...existingToolPermissions.tools }
       : {};
-    // The eight per-tool keys are rulesync-owned, so drop whatever a previous
-    // run left behind before writing the current set. Without this, a level the
-    // user has since removed from `.rulesync/permissions.*` stays in the file:
-    // still live in `tools`, and — for the legacy flat copies an older rulesync
-    // wrote one level up, which Rovo Dev ignores but this adapter still imports
-    // — resurrected on the next import. Tool keys rulesync has no category for
-    // are left untouched.
-    for (const toolKey of Object.keys(TOOL_KEY_TO_CATEGORY)) {
+    // Every key rulesync manages is owned, so drop whatever a previous run left
+    // behind before writing the current set. Without this, a rule the user has
+    // since removed from `.rulesync/permissions.*` stays in the file: still live
+    // in `tools`/`bash`/`allowedExternalPaths`, and — for the legacy flat
+    // per-tool copies an older rulesync wrote one level up, which Rovo Dev
+    // ignores but this adapter still imports — resurrected on the next import.
+    // Tool keys rulesync has no category for are left untouched.
+    for (const ownedKey of OWNED_TOOL_PERMISSION_KEYS) {
+      delete existingToolPermissions[ownedKey];
+    }
+    for (const toolKey of MANAGED_TOOL_KEYS) {
       delete existingToolPermissions[toolKey];
       delete existingTools[toolKey];
     }
@@ -399,27 +416,49 @@ function convertRovodevToolPermissionsToRulesync(
   // an earlier rulesync wrote at the wrong depth, so those still import.
   const nestedTools = isRecord(toolPermissions.tools) ? toolPermissions.tools : {};
   for (const [toolKey, category] of Object.entries(TOOL_KEY_TO_CATEGORY)) {
-    // A hand-edited value the level enum does not accept must not shadow a
-    // usable legacy one, so pick on validity rather than on presence.
-    const nested = nestedTools[toolKey];
-    const value = isPermissionAction(nested) ? nested : toolPermissions[toolKey];
-    if (isPermissionAction(value)) {
-      permission[category] ??= {};
-      permission[category][CATCH_ALL_PATTERN] = value;
+    // `tools` is what Rovo Dev actually reads, so a key present there settles
+    // the level even when its value is unusable; the legacy flat copy is only
+    // consulted when `tools` says nothing about the key at all.
+    const value = toolKey in nestedTools ? nestedTools[toolKey] : toolPermissions[toolKey];
+    if (!isPermissionAction(value)) {
+      continue;
     }
+    permission[category] ??= {};
+    // A category maps onto four tool keys that can disagree — Rovo Dev rewrites
+    // a single key when the user answers "always allow" to one prompt. They
+    // collapse back onto one catch-all here, so take the strictest rather than
+    // whichever key is iterated last, which would quietly widen the other three.
+    const current = permission[category][CATCH_ALL_PATTERN];
+    permission[category][CATCH_ALL_PATTERN] = strictestAction(current, value);
   }
 
   if (isStringArray(toolPermissions.allowedExternalPaths)) {
     for (const path of toolPermissions.allowedExternalPaths) {
       permission.read ??= {};
-      // Never widen a level already read from the tool keys: Rovo Dev appends to
-      // this list at runtime whenever the user approves an external path, so a
-      // stray `*` entry would otherwise turn a `read` deny into an allow.
+      // Never widen a level already read from the tool keys: the `/directories`
+      // command edits this list from inside a Rovo Dev session, so a stray `*`
+      // entry would otherwise turn a `read` deny into an allow.
       permission.read[path] ??= "allow";
     }
   }
 
   return { permission };
+}
+
+// Ordered strictest first, so two levels that collapse onto one canonical rule
+// resolve to the safer of the pair rather than to iteration order.
+const ACTION_STRICTNESS: readonly PermissionAction[] = ["deny", "ask", "allow"];
+
+function strictestAction(
+  current: PermissionAction | undefined,
+  candidate: PermissionAction,
+): PermissionAction {
+  if (current === undefined) {
+    return candidate;
+  }
+  return ACTION_STRICTNESS.indexOf(current) <= ACTION_STRICTNESS.indexOf(candidate)
+    ? current
+    : candidate;
 }
 
 function isPermissionAction(value: unknown): value is PermissionAction {

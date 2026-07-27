@@ -340,11 +340,9 @@ describe("RovodevMcp", () => {
 
       const servers = JSON.parse(rovodevMcp.getFileContent()).mcpServers;
       expect(servers.off).toBeUndefined();
-      expect(servers.on).toEqual({
-        transport: "http",
-        url: "https://example.com/mcp",
-        disabled: false,
-      });
+      // `disabled: false` is dropped too — mcp.json is not where a Rovo Dev
+      // server is switched on and off.
+      expect(servers.on).toEqual({ transport: "http", url: "https://example.com/mcp" });
       expect(
         logger.warn.mock.calls.some(([message]) => String(message).includes('skipping "off"')),
       ).toBe(true);
@@ -444,6 +442,23 @@ describe("RovodevMcp", () => {
       // `local` and `stdio` are the same transport, so the rename is the only
       // difference the round-trip introduces.
       expect(imported.mcpServers.local).toEqual({ type: "stdio", command: "node" });
+    });
+
+    it("drops a transport value outside Rovo Dev's vocabulary on import", () => {
+      // The canonical transport field is a strict enum, so carrying an unknown
+      // value over would make .rulesync/mcp.json unparseable for every target.
+      const rovodevMcp = new RovodevMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rovodev",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { odd: { transport: "websocket", url: "https://example.com/mcp" } },
+        }),
+        global: true,
+      });
+
+      const imported = JSON.parse(rovodevMcp.toRulesyncMcp().getFileContent());
+      expect(imported.mcpServers.odd).toEqual({ url: "https://example.com/mcp" });
     });
 
     it("skips a server entry that is not an object rather than throwing", () => {

@@ -72,11 +72,13 @@ function toRovodevServer(
   server: Record<string, unknown>,
   logger?: Logger,
 ): Record<string, unknown> | null {
-  const { type, transport, ...rest } = server;
+  // `disabled` is dropped either way: `mcp.json` has no such key, so keeping a
+  // `false` would suggest the file is where a server is switched on and off.
+  const { type, transport, disabled, ...rest } = server;
   // Rovo Dev disables a server through `mcp.disabledMcpServers` in `config.yml`,
   // not through a per-server key in `mcp.json`, so a `disabled` server written
   // here would simply run. Omit it instead — the same end state, fail-closed.
-  if (server.disabled === true) {
+  if (disabled === true) {
     logger?.warn(
       `Rovo Dev MCP: skipping "${name}" because it is disabled and mcp.json has no disable flag.`,
     );
@@ -106,7 +108,11 @@ function fromRovodevServer(server: Record<string, unknown>): Record<string, unkn
     return rest;
   }
   const mapped = ROVODEV_TO_CANONICAL_TRANSPORT[transport];
-  return mapped === undefined ? { ...rest, transport } : { ...rest, type: mapped };
+  // A value outside Rovo Dev's vocabulary (a typo, or one Atlassian adds later)
+  // is dropped rather than carried over: the canonical transport field is a
+  // strict enum, so writing it through would make `.rulesync/mcp.json` fail to
+  // parse on the next run — for every target, not just this one.
+  return mapped === undefined ? rest : { ...rest, type: mapped };
 }
 
 export class RovodevMcp extends ToolMcp {

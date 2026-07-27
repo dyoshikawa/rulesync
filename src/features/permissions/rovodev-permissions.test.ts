@@ -322,15 +322,75 @@ describe("RovodevPermissions", () => {
         global: true,
       });
 
-      expect(toolLevelsOf(perms.getFileContent())).toEqual({});
+      // Absent, not an empty map: an emptied block leaves no `tools: {}` behind.
+      expect(toolPermissionsOf(perms.getFileContent()).tools).toBeUndefined();
     });
 
-    it("prefers a usable legacy value over an invalid nested one", () => {
+    it("drops bash and allowedExternalPaths the rulesync source no longer sets", async () => {
+      // Same ownership as the per-tool keys: a revoked blanket allow, or a path
+      // grant the user has withdrawn, must not stay live in config.yml.
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({
+          toolPermissions: {
+            bash: { default: "allow", commands: [{ command: "rm -rf .*", permission: "allow" }] },
+            allowedExternalPaths: ["/srv/shared"],
+            customKey: "kept",
+          },
+        }),
+      );
+
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ read: { "*": "deny" } }),
+        global: true,
+      });
+
+      const tp = toolPermissionsOf(perms.getFileContent());
+      expect(tp.bash).toBeUndefined();
+      expect(tp.allowedExternalPaths).toBeUndefined();
+      expect(tp.customKey).toBe("kept");
+    });
+
+    it("ignores the legacy value for a key the nested block already answers", () => {
+      // Rovo Dev reads only the nested block, so a key present there settles the
+      // level even when the value is unusable; importing the legacy copy would
+      // record a level the tool is not actually applying.
       const perms = new RovodevPermissions({
         outputRoot: testDir,
         relativeDirPath: ".rovodev",
         relativeFilePath: "config.yml",
-        fileContent: dump({ toolPermissions: { grep: "deny", tools: { grep: "Allow" } } }),
+        fileContent: dump({
+          toolPermissions: { grep: "allow", open_files: "allow", tools: { grep: "Nope" } },
+        }),
+        global: true,
+      });
+
+      const json = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      // `grep` is answered (badly) by the nested block and skipped; the other
+      // three read tools still come from the legacy copies.
+      expect(json.permission.read["*"]).toBe("allow");
+    });
+
+    it("collapses disagreeing tool keys onto the strictest level", () => {
+      // Rovo Dev rewrites a single tool key when the user answers "always allow"
+      // to one prompt, so the four keys of a category can disagree.
+      const perms = new RovodevPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rovodev",
+        relativeFilePath: "config.yml",
+        fileContent: dump({
+          toolPermissions: {
+            tools: {
+              open_files: "deny",
+              expand_code_chunks: "deny",
+              expand_folder: "ask",
+              grep: "allow",
+            },
+          },
+        }),
         global: true,
       });
 
