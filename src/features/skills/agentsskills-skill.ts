@@ -444,7 +444,7 @@ export class AgentsSkillsSkill extends ToolSkill {
    * skill points at the file that actually gets written under the home
    * directory rather than a same-named project path.
    */
-  protected static reportSpecViolations({
+  static reportSpecViolations({
     outputRoot,
     relativeDirPath,
     dirName,

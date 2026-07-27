@@ -4,9 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { AgentsmdSkill } from "./agentsmd-skill.js";
+import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 
 describe("AgentsmdSkill", () => {
@@ -123,6 +125,61 @@ This is the body of the agentsmd skill.`;
       expect(agentsmdSkill.getFrontmatter()).toEqual({
         name: "Test Skill",
         description: "Test skill description",
+      });
+    });
+
+    it("should report the same spec violations the native writer would", () => {
+      const logger = createMockLogger();
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "My_Bad--Name",
+        frontmatter: { name: "My_Bad--Name", description: "Test skill description" },
+        body: "Test body content",
+        validate: true,
+      });
+
+      AgentsmdSkill.fromRulesyncSkill({ rulesyncSkill, logger });
+
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes("lowercase letters, digits and single hyphens"),
+        ),
+      ).toBe(true);
+    });
+
+    it("should emit the same frontmatter as the native writer that owns .agents/skills/", () => {
+      // Both targets resolve to `.agents/skills/<name>/SKILL.md`, so whichever
+      // runs last must not change the file or drop the Agent Skills fields.
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "test-skill",
+          description: "Test skill description",
+          agentsskills: {
+            license: "Apache-2.0",
+            compatibility: "Requires Python 3.14+ and uv",
+            metadata: { version: 1 },
+            "allowed-tools": ["Read", "Bash(git:*)"],
+          },
+        },
+        body: "Test body content",
+        validate: true,
+      });
+
+      const agentsmdSkill = AgentsmdSkill.fromRulesyncSkill({ rulesyncSkill });
+      const agentsSkillsSkill = AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill });
+
+      expect(agentsmdSkill.getFrontmatter()).toEqual(agentsSkillsSkill.getFrontmatter());
+      expect(agentsmdSkill.getFrontmatter()).toEqual({
+        name: "test-skill",
+        description: "Test skill description",
+        license: "Apache-2.0",
+        compatibility: "Requires Python 3.14+ and uv",
+        metadata: { version: "1" },
+        "allowed-tools": "Read Bash(git:*)",
       });
     });
   });

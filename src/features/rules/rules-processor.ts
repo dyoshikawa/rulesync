@@ -15,7 +15,12 @@ import { ToolFile } from "../../types/tool-file.js";
 import { rulesProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { checkPathTraversal, findFilesByGlobs, toPosixPath } from "../../utils/file.js";
+import {
+  checkPathTraversal,
+  filterOutPathsInGitIgnoredDirectories,
+  findFilesByGlobs,
+  toPosixPath,
+} from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
@@ -71,6 +76,7 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
+  ToolRuleNestedFilePatterns,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
 } from "./tool-rule.js";
@@ -245,6 +251,15 @@ type ToolRuleFactory = {
      * are cleaned up when no rule targets them. See {@link PiRule.getExtraFixedFiles}.
      */
     getExtraFixedFiles?(params: { global?: boolean }): ToolRuleExtraFixedFile[];
+    /**
+     * Patterns for rule files this tool discovers by glob rather than at a fixed
+     * path, used when the tool's scoping mechanism is the same file name repeated
+     * in subdirectories (the AGENTS.md standard's nested files). Import-only:
+     * the matches are hand-authored files outside any rulesync-owned directory,
+     * so enumerating them for `--delete` would sweep away work rulesync never
+     * wrote. See {@link AgentsMdRule.getNestedFilePatterns}.
+     */
+    getNestedFilePatterns?(params: { outputRoot: string }): ToolRuleNestedFilePatterns;
   };
   meta: {
     /** File extension for the rule file */
@@ -1311,6 +1326,29 @@ As this project's AI coding tool, you must follow the additional conventions bel
       return toolRule.toRulesyncRule();
     });
 
+    // Several tool files can derive the same rulesync file name — most easily
+    // with the AGENTS.md standard's nested files, where every source is named
+    // `AGENTS.md` and the rulesync name comes from the directory. The writer
+    // overwrites, so without this the earlier rule disappears silently.
+    // Keyed case-insensitively, because on a case-insensitive filesystem
+    // `Docs.md` and `docs.md` are one file.
+    const claimedBy = new Map<string, string>();
+    for (const [index, rulesyncRule] of rulesyncRules.entries()) {
+      const target = rulesyncRule.getRelativeFilePath();
+      const source = join(
+        toolRules[index]!.getRelativeDirPath(),
+        toolRules[index]!.getRelativeFilePath(),
+      );
+      const previous = claimedBy.get(target.toLowerCase());
+      if (previous === undefined) {
+        claimedBy.set(target.toLowerCase(), source);
+        continue;
+      }
+      this.logger.warn(
+        `Both ${previous} and ${source} import to ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, target)} (compared case-insensitively, as on macOS and Windows); the last one wins wherever they collide.`,
+      );
+    }
+
     return rulesyncRules;
   }
 
@@ -1626,6 +1664,57 @@ As this project's AI coding tool, you must follow the additional conventions bel
       })();
       this.logger.debug(`Found ${extraFixedToolRules.length} extra fixed tool rule files`);
 
+      // Pattern-discovered rule files (the AGENTS.md standard's nested
+      // subproject files). Import only — see `getNestedFileGlobs`.
+      const nestedToolRules = await (async () => {
+        // Never in global mode: the output root is the home directory there, and
+        // walking all of it looking for subprojects is both wrong and expensive.
+        const patterns = this.global
+          ? undefined
+          : factory.class.getNestedFilePatterns?.({ outputRoot: this.outputRoot });
+        if (forDeletion || !patterns || patterns.include.length === 0) {
+          return [];
+        }
+
+        // Symlinks are not followed. Unlike the fixed-path scans, this one walks
+        // the whole project tree, so a symlink committed to a repository could
+        // otherwise pull a file from outside the project (a key, a dotfile) into
+        // version-controlled `.rulesync/rules/`. Not following them also keeps a
+        // pair of directory symlinks from exploding the traversal.
+        const matchedPaths = await findFilesByGlobs(patterns.include, {
+          type: "file",
+          followSymbolicLinks: false,
+          ignore: patterns.ignore,
+        });
+
+        // The project's own statement of what is not its source. Without it a
+        // vendored dependency's rule file — third-party content the user
+        // deliberately kept untracked — would be copied into version-controlled
+        // `.rulesync/rules/`, and targets that concatenate non-root rules into
+        // one file would then load it unconditionally.
+        const filePaths = filterOutPathsInGitIgnoredDirectories({
+          rootDir: this.outputRoot,
+          filePaths: matchedPaths,
+        });
+
+        return await Promise.all(
+          filePaths.map((filePath) => {
+            const relativeDirPath = resolveRelativeDirPath(filePath);
+            checkPathTraversal({
+              relativePath: relativeDirPath,
+              intendedRootDir: this.outputRoot,
+            });
+            return factory.class.fromFile({
+              outputRoot: this.outputRoot,
+              relativeDirPath,
+              relativeFilePath: basename(filePath),
+              global: this.global,
+            });
+          }),
+        );
+      })();
+      this.logger.debug(`Found ${nestedToolRules.length} nested tool rule files`);
+
       const nonRootToolRules = await (async () => {
         if (!settablePaths.nonRoot) {
           return [];
@@ -1697,6 +1786,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
         ...localRootToolRules,
         ...rootMirrorDeletionRules,
         ...extraFixedToolRules,
+        ...nestedToolRules,
         ...nonRootToolRules,
       ];
     } catch (error) {

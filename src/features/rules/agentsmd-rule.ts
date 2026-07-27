@@ -5,14 +5,19 @@ import {
   AGENTSMD_MEMORIES_DIR_PATH,
   AGENTSMD_RULE_FILE_NAME,
 } from "../../constants/agentsmd-paths.js";
+import {
+  RULESYNC_OVERVIEW_FILE_NAME,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { readFileContent } from "../../utils/file.js";
+import { readFileContent, toPosixPath } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
+  ToolRuleNestedFilePatterns,
   ToolRuleSettablePaths,
   buildToolPath,
 } from "./tool-rule.js";
@@ -30,6 +35,33 @@ export type AgentsMdRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
     relativeDirPath: string;
   };
 };
+
+/**
+ * Dependency trees never scanned for nested `AGENTS.md` files, at any depth. An
+ * `AGENTS.md` there describes somebody else's project, and neither name is ever
+ * a package name. Hidden directories are excluded separately, because an
+ * `AGENTS.md` inside one is another tool's generated output (rulesync writes
+ * several itself).
+ */
+const NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH = ["node_modules", "__pycache__"];
+
+/**
+ * Build, vendoring and scratch directories, excluded at the **project root
+ * only**. A top-level `build/` is a build directory; `packages/build/` is a
+ * package, and dropping it silently would lose a real subproject.
+ */
+const NESTED_SCAN_EXCLUDED_ROOT_DIRS = [
+  "vendor",
+  "third_party",
+  "dist",
+  "build",
+  "out",
+  "target",
+  "coverage",
+  "tmp",
+  "temp",
+  "venv",
+];
 
 export class AgentsMdRule extends ToolRule {
   constructor({ fileContent, root, ...rest }: AgentsMdRuleParams) {
@@ -57,23 +89,84 @@ export class AgentsMdRule extends ToolRule {
     };
   }
 
+  /**
+   * Patterns for the nested `AGENTS.md` files that are the standard's only scoping
+   * mechanism — "Agents automatically read the nearest file in the directory
+   * tree, so the closest one takes precedence and every subproject can ship
+   * tailored instructions." The project root file is excluded because it is
+   * enumerated separately as the root rule.
+   *
+   * Import-only. The matches are hand-authored files anywhere in the tree rather
+   * than files under a rulesync-owned directory, so enumerating them for
+   * `--delete` would sweep away work rulesync never wrote.
+   *
+   * @see https://agents.md/
+   */
+  static getNestedFilePatterns({ outputRoot }: { outputRoot: string }): ToolRuleNestedFilePatterns {
+    const root = toPosixPath(outputRoot);
+    return {
+      include: [`${root}/**/${AGENTSMD_RULE_FILE_NAME}`],
+      ignore: [
+        // Enumerated separately as the root rule.
+        `${root}/${AGENTSMD_RULE_FILE_NAME}`,
+        `${root}/**/.*/**`,
+        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `${root}/**/${dir}/**`),
+        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${root}/${dir}/**`),
+      ],
+    };
+  }
+
+  /**
+   * The subproject directory this rule scopes, or `undefined` for the project
+   * root file and for the modular `.agents/memories/` files.
+   */
+  getSubprojectPath(): string | undefined {
+    if (this.isRoot() || this.getRelativeFilePath() !== AGENTSMD_RULE_FILE_NAME) {
+      return undefined;
+    }
+    const relativeDirPath = toPosixPath(this.getRelativeDirPath());
+    if (relativeDirPath === "." || relativeDirPath === "" || relativeDirPath.startsWith(".")) {
+      return undefined;
+    }
+    return relativeDirPath;
+  }
+
   static async fromFile({
     outputRoot = process.cwd(),
+    relativeDirPath,
     relativeFilePath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<AgentsMdRule> {
-    // Determine if it's a root file based on path
-    const isRoot = relativeFilePath === AGENTSMD_RULE_FILE_NAME;
-    const relativePath = isRoot
-      ? AGENTSMD_RULE_FILE_NAME
-      : join(AGENTSMD_MEMORIES_DIR_PATH, relativeFilePath);
+    // A nested subproject file is an `AGENTS.md` somewhere other than the project
+    // root and outside the tool's own `.agents/` tree.
+    const normalizedDirPath = relativeDirPath === undefined ? "." : toPosixPath(relativeDirPath);
+    const isNested =
+      relativeFilePath === AGENTSMD_RULE_FILE_NAME &&
+      normalizedDirPath !== "." &&
+      normalizedDirPath !== "" &&
+      !normalizedDirPath.startsWith(".");
+    // Only the file at the project root is the root rule. A modular file that
+    // happens to be named `AGENTS.md` under `.agents/memories/` is not.
+    const isRoot =
+      !isNested &&
+      relativeFilePath === AGENTSMD_RULE_FILE_NAME &&
+      (normalizedDirPath === "." || normalizedDirPath === "");
+    const relativePath = isNested
+      ? join(normalizedDirPath, relativeFilePath)
+      : isRoot
+        ? AGENTSMD_RULE_FILE_NAME
+        : join(AGENTSMD_MEMORIES_DIR_PATH, relativeFilePath);
     const fileContent = await readFileContent(join(outputRoot, relativePath));
 
     return new AgentsMdRule({
       outputRoot,
-      relativeDirPath: isRoot
-        ? this.getSettablePaths().root.relativeDirPath
-        : this.getSettablePaths().nonRoot.relativeDirPath,
+      // `join` so the stored path uses native separators like every other
+      // construction path (`fromRulesyncRule` builds it the same way).
+      relativeDirPath: isNested
+        ? join(normalizedDirPath)
+        : isRoot
+          ? this.getSettablePaths().root.relativeDirPath
+          : this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: isRoot ? AGENTSMD_RULE_FILE_NAME : relativeFilePath,
       fileContent,
       validate,
@@ -115,7 +208,37 @@ export class AgentsMdRule extends ToolRule {
   }
 
   toRulesyncRule(): RulesyncRule {
-    return this.toRulesyncRuleDefault();
+    const subprojectPath = this.getSubprojectPath();
+    if (subprojectPath === undefined) {
+      return this.toRulesyncRuleDefault();
+    }
+
+    // Every nested file is named `AGENTS.md`, so the rulesync file is named after
+    // the directory it scopes; `subprojectPath` sends it back to the same place
+    // on the next generate. A subproject that would claim the reserved root-rule
+    // name gets a suffix instead: overwriting `overview.md` would drop the root
+    // rule entirely, and the next `--delete` would then remove the root
+    // `AGENTS.md` along with it.
+    // Compared case-insensitively: on a case-insensitive filesystem an
+    // `Overview/` subproject would otherwise still land on the root rule's file.
+    const slug = subprojectPath.replaceAll("/", "-");
+    const derivedName = `${slug}.md`;
+    return new RulesyncRule({
+      outputRoot: process.cwd(),
+      relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+      relativeFilePath:
+        derivedName.toLowerCase() === RULESYNC_OVERVIEW_FILE_NAME.toLowerCase()
+          ? `${slug}-agents.md`
+          : derivedName,
+      frontmatter: {
+        root: false,
+        targets: ["*"],
+        description: this.getDescription(),
+        globs: [`${subprojectPath}/**/*`],
+        agentsmd: { subprojectPath },
+      },
+      body: this.getFileContent(),
+    });
   }
 
   validate(): ValidationResult {

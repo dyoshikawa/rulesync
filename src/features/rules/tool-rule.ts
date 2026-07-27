@@ -44,6 +44,21 @@ export type ToolRuleExtraFixedFile = {
   relativeFilePath: string;
 };
 
+/**
+ * Glob patterns for rule files a tool discovers by pattern rather than at a
+ * fixed path (the AGENTS.md standard's nested subproject files). Returned by the
+ * optional static `getNestedFilePatterns` hook and consumed by the
+ * RulesProcessor on import.
+ *
+ * `ignore` is separate from `include` rather than expressed as `!` patterns
+ * because globby rewrites a negative pattern containing no glob metacharacter as
+ * cwd-relative, which makes an absolute one silently match nothing.
+ */
+export type ToolRuleNestedFilePatterns = {
+  include: string[];
+  ignore: string[];
+};
+
 export type ToolRuleSettablePaths = {
   root?: {
     relativeDirPath: string;

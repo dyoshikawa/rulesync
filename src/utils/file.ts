@@ -14,7 +14,7 @@ import os from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { kebabCase } from "es-toolkit";
-import { globbySync } from "globby";
+import { globbySync, isGitIgnoredSync } from "globby";
 
 import { formatError } from "./error.js";
 import { isEnvTest } from "./vitest.js";
@@ -141,6 +141,57 @@ export async function ensureDir(dirPath: string): Promise<void> {
   } catch {
     await mkdir(dirPath, { recursive: true });
   }
+}
+
+/**
+ * Drop paths that sit inside a directory the project's git ignore rules exclude.
+ *
+ * Deliberately tests the **directories** above each file rather than the file
+ * itself. A project that ran `rulesync gitignore` has patterns for rulesync's
+ * own outputs — `**\/AGENTS.md` among them — so a file-level test would exclude
+ * every match and quietly disable the scan. What this is for is skipping
+ * vendored and generated *trees*: content the project deliberately does not
+ * track, which must not be copied into version-controlled rulesync sources.
+ *
+ * Ignore rules come from the `.gitignore` files at and below `rootDir`; a parent
+ * repository's rules are not consulted, so running against a subdirectory of a
+ * repository only sees that subdirectory's own rules.
+ */
+export function filterOutPathsInGitIgnoredDirectories({
+  rootDir,
+  filePaths,
+}: {
+  rootDir: string;
+  filePaths: string[];
+}): string[] {
+  if (filePaths.length === 0) {
+    // Building the matcher scans the tree for `.gitignore` files, which is not
+    // worth doing when there is nothing to filter.
+    return filePaths;
+  }
+
+  const isIgnored = isGitIgnoredSync({ cwd: rootDir });
+  const resolvedRoot = resolve(rootDir);
+  const cache = new Map<string, boolean>();
+
+  const isInIgnoredDirectory = (directory: string): boolean => {
+    const cached = cache.get(directory);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const parent = dirname(directory);
+    // Stop at `rootDir`, and at the filesystem root for a path that never
+    // reaches it — `dirname("/")` is `"/"`, so walking up would not terminate.
+    const ignored =
+      directory !== resolvedRoot &&
+      parent !== directory &&
+      // The trailing slash is what makes a `vendored/` rule match the directory.
+      (isIgnored(`${toPosixPath(directory)}/`) || isInIgnoredDirectory(parent));
+    cache.set(directory, ignored);
+    return ignored;
+  };
+
+  return filePaths.filter((filePath) => !isInIgnoredDirectory(dirname(resolve(filePath))));
 }
 
 /**
@@ -320,9 +371,23 @@ export async function findFiles(dir: string, extension: string = ".md"): Promise
 
 export async function findFilesByGlobs(
   globs: string | string[],
-  options: { type?: "file" | "dir" | "all"; followSymbolicLinks?: boolean } = {},
+  options: {
+    type?: "file" | "dir" | "all";
+    followSymbolicLinks?: boolean;
+    /**
+     * Patterns to exclude, passed to globby's `ignore`. Prefer this over inline
+     * `!` patterns: globby rewrites a negative pattern that contains no glob
+     * metacharacter as cwd-relative, so an absolute `!/abs/path/file.md` silently
+     * matches nothing.
+     *
+     * Match the form of the include patterns: when those are absolute, a
+     * relative `ignore` such as `dist/**` silently excludes nothing. Either use
+     * absolute ignore patterns or anchor them with a leading `**\/`.
+     */
+    ignore?: string[];
+  } = {},
 ): Promise<string[]> {
-  const { type = "all", followSymbolicLinks = true } = options;
+  const { type = "all", followSymbolicLinks = true, ignore } = options;
   const globbyOptions =
     type === "file"
       ? { onlyFiles: true, onlyDirectories: false }
@@ -340,6 +405,7 @@ export async function findFilesByGlobs(
   const results = globbySync(normalizedGlobs, {
     absolute: true,
     followSymbolicLinks,
+    ...(ignore ? { ignore: ignore.map((pattern) => pattern.replaceAll("\\", "/")) } : {}),
     ...globbyOptions,
   });
   // Deduplicate by real path so that directory symlink cycles (which globby follows up to
