@@ -532,8 +532,13 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       meta: {
         supportsProject: true,
         supportsGlobal: true,
+        // Vibe has no per-server `enabled_tools`, but `_MCPBase.disabled_tools`
+        // is exactly the canonical field ("tool names, without the server
+        // prefix, to disable"). Leaving it false stripped the value before the
+        // adapter saw it, so import wrote `disabledTools` that generate then
+        // dropped — re-enabling the tools the user had disabled.
         supportsEnabledTools: false,
-        supportsDisabledTools: false,
+        supportsDisabledTools: true,
       },
     },
   ],

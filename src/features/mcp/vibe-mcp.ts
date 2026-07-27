@@ -126,12 +126,17 @@ export class VibeMcp extends ToolMcp {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
-    const existingByName = new Map(
-      normalizeMcpServersArray(parseVibeConfig(existingContent).mcp_servers).map((server) => [
-        server.name,
-        server,
-      ]),
-    );
+    let existingServers: VibeMcpServer[];
+    try {
+      existingServers = normalizeMcpServersArray(parseVibeConfig(existingContent).mcp_servers);
+    } catch (error) {
+      // Name the file the way the shared-config gateway does; smol-toml's own
+      // message says only that some TOML somewhere is invalid.
+      throw new Error(`Failed to parse shared config at ${filePath}: ${formatError(error)}`, {
+        cause: error,
+      });
+    }
+    const existingByName = new Map(existingServers.map((server) => [server.name, server]));
 
     const mcpServers = Object.entries(rulesyncMcp.getMcpServers()).map(([name, server]) =>
       rulesyncMcpServerToVibe(name, server, existingByName.get(name)),

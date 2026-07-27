@@ -441,6 +441,37 @@ describe("E2E: mcp", () => {
     expect(hasError, `MCP daemon produced errors: ${stderrOutput}`).toBe(false);
   });
 
+  it("should carry disabledTools through the Vibe processor in both directions", async () => {
+    const testDir = getTestDir();
+
+    // Through the processor, not the adapter: the factory's
+    // `supportsDisabledTools` flag strips the field before the adapter sees it,
+    // so a unit test on the adapter alone cannot catch a regression here.
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        mcpServers: { srv: { command: "node", args: ["server.js"], disabledTools: ["rm"] } },
+      }),
+    );
+
+    await runGenerate({ target: "vibe", features: "mcp" });
+
+    const generated = smolToml.parse(
+      await readFileContent(join(testDir, ".vibe", "config.toml")),
+    ) as Record<string, unknown>;
+    expect((generated.mcp_servers as Record<string, unknown>[])[0]).toMatchObject({
+      name: "srv",
+      disabled_tools: ["rm"],
+    });
+
+    await runImport({ target: "vibe", features: "mcp" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.mcpServers.srv.disabledTools).toEqual(["rm"]);
+  });
+
   it("should generate Vibe MCP and permissions into shared config.toml", async () => {
     const testDir = getTestDir();
 
