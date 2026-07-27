@@ -17,6 +17,7 @@ import {
   createPathResolver,
   directoryExists,
   ensureDir,
+  filterOutPathsInGitIgnoredDirectories,
   fileExists,
   findFiles,
   findFilesByGlobs,
@@ -379,6 +380,44 @@ describe("file utilities", () => {
 
         expect(await directoryExists(join(testDir, "nested"))).toBe(true);
         expect(await fileExists(testFilePath)).toBe(true);
+      });
+    });
+
+    describe("filterOutPathsInGitIgnoredDirectories", () => {
+      it("should drop files inside an ignored directory but keep the rest", async () => {
+        await writeFileContent(join(testDir, ".gitignore"), "vendored/\n");
+        await ensureDir(join(testDir, ".git"));
+        const kept = join(testDir, "packages", "api", "AGENTS.md");
+        const dropped = join(testDir, "vendored", "dep", "AGENTS.md");
+        await writeFileContent(kept, "keep");
+        await writeFileContent(dropped, "drop");
+
+        expect(
+          filterOutPathsInGitIgnoredDirectories({ rootDir: testDir, filePaths: [kept, dropped] }),
+        ).toEqual([kept]);
+      });
+
+      it("should ignore a rule that matches the files themselves", async () => {
+        // `rulesync gitignore` writes `**/AGENTS.md` for its own output; testing
+        // the files rather than their directories would disable every scan.
+        await writeFileContent(join(testDir, ".gitignore"), "**/AGENTS.md\n");
+        await ensureDir(join(testDir, ".git"));
+        const filePath = join(testDir, "packages", "api", "AGENTS.md");
+        await writeFileContent(filePath, "keep");
+
+        expect(
+          filterOutPathsInGitIgnoredDirectories({ rootDir: testDir, filePaths: [filePath] }),
+        ).toEqual([filePath]);
+      });
+
+      it("should keep everything when the project has no ignore rules", async () => {
+        await ensureDir(join(testDir, ".git"));
+        const filePath = join(testDir, "packages", "api", "AGENTS.md");
+        await writeFileContent(filePath, "keep");
+
+        expect(
+          filterOutPathsInGitIgnoredDirectories({ rootDir: testDir, filePaths: [filePath] }),
+        ).toEqual([filePath]);
       });
     });
 

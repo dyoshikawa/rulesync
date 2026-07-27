@@ -15,7 +15,12 @@ import { ToolFile } from "../../types/tool-file.js";
 import { rulesProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { checkPathTraversal, findFilesByGlobs, toPosixPath } from "../../utils/file.js";
+import {
+  checkPathTraversal,
+  filterOutPathsInGitIgnoredDirectories,
+  findFilesByGlobs,
+  toPosixPath,
+} from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
@@ -1340,7 +1345,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
         continue;
       }
       this.logger.warn(
-        `Both ${previous} and ${source} import to ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, target)}; only the last one is kept.`,
+        `Both ${previous} and ${source} import to ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, target)} (compared case-insensitively, as on macOS and Windows); the last one wins wherever they collide.`,
       );
     }
 
@@ -1676,17 +1681,20 @@ As this project's AI coding tool, you must follow the additional conventions bel
         // otherwise pull a file from outside the project (a key, a dotfile) into
         // version-controlled `.rulesync/rules/`. Not following them also keeps a
         // pair of directory symlinks from exploding the traversal.
-        const filePaths = await findFilesByGlobs(patterns.include, {
+        const matchedPaths = await findFilesByGlobs(patterns.include, {
           type: "file",
           followSymbolicLinks: false,
           ignore: patterns.ignore,
-          // `.gitignore` is the project's own statement of what is not its
-          // source. Without it a vendored dependency's rule file — third-party
-          // content the user deliberately kept untracked — would be copied into
-          // version-controlled `.rulesync/rules/`, and targets that concatenate
-          // non-root rules into one file would then load it unconditionally.
-          cwd: this.outputRoot,
-          gitignore: true,
+        });
+
+        // The project's own statement of what is not its source. Without it a
+        // vendored dependency's rule file — third-party content the user
+        // deliberately kept untracked — would be copied into version-controlled
+        // `.rulesync/rules/`, and targets that concatenate non-root rules into
+        // one file would then load it unconditionally.
+        const filePaths = filterOutPathsInGitIgnoredDirectories({
+          rootDir: this.outputRoot,
+          filePaths: matchedPaths,
         });
 
         return await Promise.all(
