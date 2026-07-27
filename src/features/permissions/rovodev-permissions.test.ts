@@ -279,6 +279,83 @@ describe("RovodevPermissions", () => {
       expect(json.permission.read["*"]).toBe("deny");
     });
 
+    it("deletes the legacy flat copies so import cannot resurrect them", async () => {
+      // The flat keys are dead weight in the file — Rovo Dev ignores them — but
+      // this adapter still imports them, so leaving them behind would restore a
+      // category the user has since deleted from .rulesync/permissions.*.
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({ toolPermissions: { grep: "allow", create_file: "allow", customKey: "kept" } }),
+      );
+
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ read: { "*": "deny" } }),
+        global: true,
+      });
+
+      const tp = toolPermissionsOf(perms.getFileContent());
+      expect(tp.grep).toBeUndefined();
+      expect(tp.create_file).toBeUndefined();
+      expect(tp.customKey).toBe("kept");
+
+      const json = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(json.permission.read["*"]).toBe("deny");
+      expect(json.permission.edit).toBeUndefined();
+    });
+
+    it("drops a per-tool level the rulesync source no longer sets", async () => {
+      // The eight per-tool keys are rulesync-owned, so a revoked category must
+      // disappear from the nested block instead of staying live.
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({ toolPermissions: { tools: { grep: "allow", create_file: "allow" } } }),
+      );
+
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ bash: { "*": "deny" } }),
+        global: true,
+      });
+
+      expect(toolLevelsOf(perms.getFileContent())).toEqual({});
+    });
+
+    it("prefers a usable legacy value over an invalid nested one", () => {
+      const perms = new RovodevPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rovodev",
+        relativeFilePath: "config.yml",
+        fileContent: dump({ toolPermissions: { grep: "deny", tools: { grep: "Allow" } } }),
+        global: true,
+      });
+
+      const json = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(json.permission.read["*"]).toBe("deny");
+    });
+
+    it("does not let an allowedExternalPaths catch-all widen a denied category", () => {
+      // Rovo Dev appends to this list itself whenever the user approves an
+      // external path at runtime, so it must not overwrite an authored level.
+      const perms = new RovodevPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rovodev",
+        relativeFilePath: "config.yml",
+        fileContent: dump({
+          toolPermissions: { tools: { grep: "deny" }, allowedExternalPaths: ["*", "/tmp/shared"] },
+        }),
+        global: true,
+      });
+
+      const json = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(json.permission.read["*"]).toBe("deny");
+      expect(json.permission.read["/tmp/shared"]).toBe("allow");
+    });
+
     it("preserves a hand-written tool key rulesync has no category for", async () => {
       const dirPath = join(testDir, ".rovodev");
       await ensureDir(dirPath);

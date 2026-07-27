@@ -51,7 +51,7 @@ function parseRovodevMcpJson(
  * so translate rather than passing the canonical key through — Rovo Dev has no
  * documented `type` alias.
  *
- * @see https://support.atlassian.com/rovo/docs/use-mcp-servers-in-rovo-dev-cli/
+ * @see https://support.atlassian.com/rovo/docs/connect-to-an-mcp-server-in-rovo-dev-cli/
  */
 const CANONICAL_TO_ROVODEV_TRANSPORT: Record<string, string> = {
   stdio: "stdio",
@@ -71,8 +71,17 @@ function toRovodevServer(
   name: string,
   server: Record<string, unknown>,
   logger?: Logger,
-): Record<string, unknown> {
+): Record<string, unknown> | null {
   const { type, transport, ...rest } = server;
+  // Rovo Dev disables a server through `mcp.disabledMcpServers` in `config.yml`,
+  // not through a per-server key in `mcp.json`, so a `disabled` server written
+  // here would simply run. Omit it instead — the same end state, fail-closed.
+  if (server.disabled === true) {
+    logger?.warn(
+      `Rovo Dev MCP: skipping "${name}" because it is disabled and mcp.json has no disable flag.`,
+    );
+    return null;
+  }
   const declared =
     typeof transport === "string" ? transport : typeof type === "string" ? type : undefined;
   if (declared === undefined) {
@@ -81,10 +90,12 @@ function toRovodevServer(
   const mapped = CANONICAL_TO_ROVODEV_TRANSPORT[declared];
   if (mapped === undefined) {
     // `ws` is the only canonical transport Rovo Dev has no equivalent for.
+    // Skip the whole entry rather than emit one whose transport is anyone's
+    // guess, matching the Kimi Code adapter over the same vocabulary.
     logger?.warn(
-      `Rovo Dev has no "${declared}" MCP transport; writing "${name}" without a transport key.`,
+      `Rovo Dev MCP: skipping "${name}" because the "${declared}" transport is unsupported.`,
     );
-    return rest;
+    return null;
   }
   return { ...rest, transport: mapped };
 }
@@ -175,10 +186,12 @@ export class RovodevMcp extends ToolMcp {
     // codex-only fields (`envVars`) are stripped before writing the
     // rovodev config.
     const mcpServers = Object.fromEntries(
-      Object.entries(rulesyncMcp.getMcpServers()).map(([name, server]) => [
-        name,
-        toRovodevServer(name, server as Record<string, unknown>, logger),
-      ]),
+      Object.entries(rulesyncMcp.getMcpServers())
+        .map(([name, server]) => {
+          const converted = toRovodevServer(name, server as Record<string, unknown>, logger);
+          return converted === null ? null : ([name, converted] as const);
+        })
+        .filter((entry) => entry !== null),
     );
 
     const rovodevConfig = { ...json, mcpServers };
@@ -196,10 +209,11 @@ export class RovodevMcp extends ToolMcp {
   toRulesyncMcp(): RulesyncMcp {
     const rawServers = isMcpServers(this.json.mcpServers) ? this.json.mcpServers : {};
     const mcpServers = Object.fromEntries(
-      Object.entries(rawServers).map(([name, server]) => [
-        name,
-        fromRovodevServer(server as Record<string, unknown>),
-      ]),
+      Object.entries(rawServers)
+        // `isMcpServers` only checks the container, so a hand-written `null` or
+        // scalar entry reaches here; skip it rather than destructure it.
+        .filter(([, server]) => isPlainObject(server))
+        .map(([name, server]) => [name, fromRovodevServer(server as Record<string, unknown>)]),
     );
     // Do not spread the full Rovodev JSON: future tool-specific top-level keys must not leak
     // into rulesync mcp.json (unlike Cursor, which intentionally preserves extra keys today).

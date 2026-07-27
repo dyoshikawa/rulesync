@@ -195,15 +195,26 @@ export class RovodevPermissions extends ToolPermissions {
       ? { ...config.toolPermissions }
       : {};
     const existingTools = isRecord(existingToolPermissions.tools)
-      ? existingToolPermissions.tools
+      ? { ...existingToolPermissions.tools }
       : {};
+    // The eight per-tool keys are rulesync-owned, so drop whatever a previous
+    // run left behind before writing the current set. Without this, a level the
+    // user has since removed from `.rulesync/permissions.*` stays in the file:
+    // still live in `tools`, and — for the legacy flat copies an older rulesync
+    // wrote one level up, which Rovo Dev ignores but this adapter still imports
+    // — resurrected on the next import. Tool keys rulesync has no category for
+    // are left untouched.
+    for (const toolKey of Object.keys(TOOL_KEY_TO_CATEGORY)) {
+      delete existingToolPermissions[toolKey];
+      delete existingTools[toolKey];
+    }
+    const tools = { ...existingTools, ...toolPermissions.tools };
+    // Re-added below only when non-empty, so an emptied block leaves no `tools: {}`.
+    delete existingToolPermissions.tools;
     config.toolPermissions = {
       ...existingToolPermissions,
       ...toolPermissions,
-      // `tools` is a nested block, so merge into it rather than replacing it —
-      // a tool the user set by hand that rulesync has no category for must
-      // survive.
-      ...(toolPermissions.tools && { tools: { ...existingTools, ...toolPermissions.tools } }),
+      ...(Object.keys(tools).length > 0 ? { tools } : {}),
     };
 
     return new RovodevPermissions({
@@ -308,8 +319,8 @@ function convertRulesyncToRovodevToolPermissions({
 
     for (const [pattern, action] of Object.entries(rules)) {
       if (pattern === CATCH_ALL_PATTERN) {
+        toolPermissions.tools ??= {};
         for (const toolKey of toolKeys) {
-          toolPermissions.tools ??= {};
           toolPermissions.tools[toolKey] = action;
         }
         continue;
@@ -388,7 +399,10 @@ function convertRovodevToolPermissionsToRulesync(
   // an earlier rulesync wrote at the wrong depth, so those still import.
   const nestedTools = isRecord(toolPermissions.tools) ? toolPermissions.tools : {};
   for (const [toolKey, category] of Object.entries(TOOL_KEY_TO_CATEGORY)) {
-    const value = nestedTools[toolKey] ?? toolPermissions[toolKey];
+    // A hand-edited value the level enum does not accept must not shadow a
+    // usable legacy one, so pick on validity rather than on presence.
+    const nested = nestedTools[toolKey];
+    const value = isPermissionAction(nested) ? nested : toolPermissions[toolKey];
     if (isPermissionAction(value)) {
       permission[category] ??= {};
       permission[category][CATCH_ALL_PATTERN] = value;
@@ -398,7 +412,10 @@ function convertRovodevToolPermissionsToRulesync(
   if (isStringArray(toolPermissions.allowedExternalPaths)) {
     for (const path of toolPermissions.allowedExternalPaths) {
       permission.read ??= {};
-      permission.read[path] = "allow";
+      // Never widen a level already read from the tool keys: Rovo Dev appends to
+      // this list at runtime whenever the user approves an external path, so a
+      // stray `*` entry would otherwise turn a `read` deny into an allow.
+      permission.read[path] ??= "allow";
     }
   }
 
