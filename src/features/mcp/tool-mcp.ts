@@ -63,6 +63,7 @@ export abstract class ToolMcp extends ToolFile {
     outputRoot?: string;
     global?: boolean;
     rulesyncMcp: RulesyncMcp;
+    logger?: Logger;
   }): Promise<ToolFile[]> {
     return [];
   }

@@ -64,6 +64,29 @@ describe("KimiCodePermissions [tools] section", () => {
     expect(config.tools).toEqual({ disabled: ["EnterPlanMode"] });
   });
 
+  it("should preserve keys in the section that rulesync does not manage", () => {
+    const config = generate({
+      json: { permission: {}, "kimi-code": { tools: { disabled: ["mcp__github__*"] } } },
+      existingContent: '[tools]\nenabled = ["Bash"]\nsome_future_key = true\nmax_concurrent = 4\n',
+    });
+
+    expect(config.tools).toEqual({
+      enabled: ["Bash"],
+      disabled: ["mcp__github__*"],
+      some_future_key: true,
+      max_concurrent: 4,
+    });
+  });
+
+  it("should leave a mistyped list exactly as authored rather than deleting it", () => {
+    const config = generate({
+      json: { permission: {}, "kimi-code": { tools: { enabled: ["Bash"] } } },
+      existingContent: '[tools]\ndisabled = "NotAList"\n',
+    });
+
+    expect(config.tools).toEqual({ enabled: ["Bash"], disabled: "NotAList" });
+  });
+
   it.each([
     { name: "an absent tools block", override: {} },
     { name: "an empty tools block", override: { tools: {} } },

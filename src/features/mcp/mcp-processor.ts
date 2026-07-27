@@ -80,6 +80,7 @@ type ToolMcpFactory = {
       outputRoot?: string;
       global?: boolean;
       rulesyncMcp: RulesyncMcp;
+      logger?: Logger;
     }): ToolFile[] | Promise<ToolFile[]>;
   };
   meta: {
@@ -738,10 +739,16 @@ export class McpProcessor extends FeatureProcessor {
       }),
     );
 
+    // The unfiltered source: an auxiliary file reads the target's own override
+    // block, not the per-target server list `forTarget` resolves above.
+    // Optional on the factory type, matching the hooks processor: every real
+    // tool class inherits the no-op from `ToolMcp`, but the tests drive this
+    // with minimal stand-ins that implement only what they exercise.
     const auxiliaryFiles = await factory.class.getAuxiliaryFiles?.({
       outputRoot: this.outputRoot,
       global: this.global,
       rulesyncMcp,
+      logger: this.logger,
     });
 
     return [...toolMcps, ...(auxiliaryFiles ?? [])];

@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { readFileContent, writeFileContent } from "../../utils/file.js";
 import { KimiCodeMcp, KimiCodeMcpConfigToml } from "./kimi-code-mcp.js";
@@ -80,33 +81,44 @@ describe("KimiCodeMcp global config defaults", () => {
     });
   });
 
-  describe("KimiCodeMcpConfigToml", () => {
-    it("should never be deletable, because three features and the user share the file", async () => {
-      const file = await KimiCodeMcpConfigToml.fromDefaults({
-        outputRoot: testDir,
-        defaults: { startupTimeoutMs: 1000 },
-      });
+  describe("the emitted config file", () => {
+    const emit = async ({
+      defaults,
+      outputRoot,
+    }: {
+      defaults: Record<string, number>;
+      outputRoot: string;
+    }) =>
+      (
+        await KimiCodeMcp.getAuxiliaryFiles({
+          outputRoot,
+          global: true,
+          rulesyncMcp: rulesyncMcp({ mcpServers: {}, "kimi-code": defaults }),
+        })
+      )[0];
 
-      expect(file.isDeletable()).toBe(false);
-      expect(file.validate()).toEqual({ success: true, error: null });
+    it("should never be deletable, because three features and the user share the file", async () => {
+      const file = await emit({ defaults: { startupTimeoutMs: 1000 }, outputRoot: testDir });
+
+      expect(file).toBeInstanceOf(KimiCodeMcpConfigToml);
+      expect(file!.isDeletable()).toBe(false);
+      expect(file!.validate()).toEqual({ success: true, error: null });
     });
 
-    it("should preserve the sibling timeout when only one is authored", async () => {
+    it("should preserve the sibling timeout and unknown keys when only one is authored", async () => {
       // The gateway replaces an owned key wholesale and `mcp` is a table, so a
-      // partial override must not delete the other documented key.
+      // partial override must not delete anything else in the section.
       await writeFileContent(
         join(testDir, ...CONFIG_PATH),
-        'my_unmanaged = "keep"\n\n[mcp]\nstartup_timeout_ms = 1000\ntool_timeout_ms = 2000\n',
+        'my_unmanaged = "keep"\n\n[mcp]\nstartup_timeout_ms = 1000\ntool_timeout_ms = 2000\nsome_future_key = "x"\n',
       );
 
-      const file = await KimiCodeMcpConfigToml.fromDefaults({
-        outputRoot: testDir,
-        defaults: { startupTimeoutMs: 45000 },
-      });
+      const file = await emit({ defaults: { startupTimeoutMs: 45000 }, outputRoot: testDir });
 
-      expect(file.getFileContent()).toContain("startup_timeout_ms = 45000");
-      expect(file.getFileContent()).toContain("tool_timeout_ms = 2000");
-      expect(file.getFileContent()).toContain('my_unmanaged = "keep"');
+      expect(file!.getFileContent()).toContain("startup_timeout_ms = 45000");
+      expect(file!.getFileContent()).toContain("tool_timeout_ms = 2000");
+      expect(file!.getFileContent()).toContain('some_future_key = "x"');
+      expect(file!.getFileContent()).toContain('my_unmanaged = "keep"');
     });
 
     it("should preserve the hooks and permission sections of the shared file", async () => {
@@ -122,14 +134,30 @@ describe("KimiCodeMcp global config defaults", () => {
         ].join("\n"),
       );
 
-      const file = await KimiCodeMcpConfigToml.fromDefaults({
+      const file = await emit({ defaults: { toolTimeoutMs: 90000 }, outputRoot: testDir });
+
+      expect(file!.getFileContent()).toContain('event = "SessionStart"');
+      expect(file!.getFileContent()).toContain('pattern = "Bash(rm *)"');
+      expect(file!.getFileContent()).toContain("tool_timeout_ms = 90000");
+    });
+
+    it("should skip only itself when the shared config is not valid TOML", async () => {
+      // The servers in `mcp.json` have nothing to do with `config.toml`, so a
+      // hand-broken config must not stop them being written.
+      await writeFileContent(join(testDir, ...CONFIG_PATH), "this is not = = toml");
+      const logger = createMockLogger();
+
+      const files = await KimiCodeMcp.getAuxiliaryFiles({
         outputRoot: testDir,
-        defaults: { toolTimeoutMs: 90000 },
+        global: true,
+        rulesyncMcp: rulesyncMcp({ mcpServers: {}, "kimi-code": { startupTimeoutMs: 45000 } }),
+        logger,
       });
 
-      expect(file.getFileContent()).toContain('event = "SessionStart"');
-      expect(file.getFileContent()).toContain('pattern = "Bash(rm *)"');
-      expect(file.getFileContent()).toContain("tool_timeout_ms = 90000");
+      expect(files).toEqual([]);
+      expect(
+        logger.warn.mock.calls.some(([message]) => String(message).includes("not valid TOML")),
+      ).toBe(true);
     });
   });
 

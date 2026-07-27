@@ -75,23 +75,33 @@ function mergeKimiCodeToolsSection({
 }: {
   existingContent: string;
   patch: Record<string, unknown>;
-}): { enabled?: string[]; disabled?: string[] } | undefined {
+}): Record<string, unknown> | undefined {
   let existing: unknown;
   try {
     existing = parseSharedConfig({ format: "toml", fileContent: existingContent }).tools;
   } catch {
     existing = undefined;
   }
-  const merged = {
+  const merged: Record<string, unknown> = {
     ...(isRecord(existing) ? existing : {}),
     ...(isRecord(patch.tools) ? patch.tools : {}),
   };
-  const enabled = toNonEmptyStringList(merged.enabled);
-  const disabled = toNonEmptyStringList(merged.disabled);
-  if (!enabled && !disabled) {
-    return undefined;
+  // Keep everything the user (or a future Kimi release) put in the section, and
+  // normalize only the two lists rulesync manages. A list that normalizes to
+  // nothing is dropped; a value of some other type is left exactly as authored
+  // rather than silently deleted.
+  for (const key of ["enabled", "disabled"] as const) {
+    if (!(key in merged)) {
+      continue;
+    }
+    const list = toNonEmptyStringList(merged[key]);
+    if (list) {
+      merged[key] = list;
+    } else if (Array.isArray(merged[key])) {
+      delete merged[key];
+    }
   }
-  return { ...(enabled && { enabled }), ...(disabled && { disabled }) };
+  return Object.keys(merged).length > 0 ? merged : undefined;
 }
 
 /** String entries of a list, or `undefined` when there are none to write. */

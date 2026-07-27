@@ -18,7 +18,7 @@ import {
   getKimiCodeRelativeDirPath,
   getKimiCodeRulesyncOutputRoot,
 } from "../../utils/kimi-code.js";
-import type { Logger } from "../../utils/logger.js";
+import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
@@ -185,25 +185,33 @@ function kimiCodeConfigRelativePath(): { relativeDirPath: string; relativeFilePa
  * no defaults rather than failing the import: this file belongs to three
  * features plus the user.
  */
-async function readKimiCodeMcpSection({
+type KimiCodeConfigRead =
+  | { readonly parsed: true; readonly content: string; readonly mcp: Record<string, unknown> }
+  | { readonly parsed: false; readonly content: string };
+
+/**
+ * Read the shared user `config.toml` once and report whether it parsed. Both
+ * the generate and import paths need the raw content *and* the `[mcp]` table,
+ * and they must agree about a file that does not parse — reading it twice with
+ * different error policies is what let a hand-broken config abort work that had
+ * nothing to do with it.
+ */
+async function readKimiCodeConfig({
   outputRoot,
 }: {
   outputRoot: string;
-}): Promise<Record<string, unknown>> {
+}): Promise<KimiCodeConfigRead> {
   const paths = kimiCodeConfigRelativePath();
-  const content = await readFileContentOrNull(
-    join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
-  );
-  if (content === null) {
-    return {};
-  }
-  let mcp: unknown;
+  const content =
+    (await readFileContentOrNull(
+      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
+    )) ?? "";
   try {
-    mcp = parseSharedConfig({ format: "toml", fileContent: content }).mcp;
+    const mcp = parseSharedConfig({ format: "toml", fileContent: content }).mcp;
+    return { parsed: true, content, mcp: isRecord(mcp) ? mcp : {} };
   } catch {
-    return {};
+    return { parsed: false, content };
   }
-  return isRecord(mcp) ? mcp : {};
 }
 
 async function readKimiCodeMcpDefaults({
@@ -211,12 +219,17 @@ async function readKimiCodeMcpDefaults({
 }: {
   outputRoot: string;
 }): Promise<KimiCodeMcpDefaults> {
-  const mcp = await readKimiCodeMcpSection({ outputRoot });
+  const config = await readKimiCodeConfig({ outputRoot });
+  if (!config.parsed) {
+    return {};
+  }
   return {
-    ...(typeof mcp.startup_timeout_ms === "number" && {
-      startupTimeoutMs: mcp.startup_timeout_ms,
+    ...(typeof config.mcp.startup_timeout_ms === "number" && {
+      startupTimeoutMs: config.mcp.startup_timeout_ms,
     }),
-    ...(typeof mcp.tool_timeout_ms === "number" && { toolTimeoutMs: mcp.tool_timeout_ms }),
+    ...(typeof config.mcp.tool_timeout_ms === "number" && {
+      toolTimeoutMs: config.mcp.tool_timeout_ms,
+    }),
   };
 }
 
@@ -248,18 +261,19 @@ export class KimiCodeMcpConfigToml extends ToolFile {
     return { success: true, error: null };
   }
 
-  static async fromDefaults({
+  static fromDefaults({
     outputRoot,
     defaults,
+    existing,
   }: {
     outputRoot: string;
     defaults: KimiCodeMcpDefaults;
-  }): Promise<KimiCodeMcpConfigToml> {
+    existing: Extract<KimiCodeConfigRead, { parsed: true }>;
+  }): KimiCodeMcpConfigToml {
     const paths = kimiCodeConfigRelativePath();
     const relativeConfigPath = join(paths.relativeDirPath, paths.relativeFilePath);
-    const configPath = join(outputRoot, relativeConfigPath);
-    const existingContent = (await readFileContentOrNull(configPath)) ?? "";
-    const existingSection = await readKimiCodeMcpSection({ outputRoot });
+    const existingContent = existing.content;
+    const existingSection = existing.mcp;
     const fileContent = applySharedConfigPatch({
       fileKey: KIMI_CODE_CONFIG_SHARED_FILE_KEY,
       feature: "mcp",
@@ -407,14 +421,16 @@ export class KimiCodeMcp extends ToolMcp {
    * `mcp.json`, so they are emitted as an auxiliary file. Global scope only:
    * `config.toml` has no project counterpart.
    */
-  static async getAuxiliaryFiles({
+  static override async getAuxiliaryFiles({
     outputRoot = process.cwd(),
     global = false,
     rulesyncMcp,
+    logger,
   }: {
     outputRoot?: string;
     global?: boolean;
     rulesyncMcp: RulesyncMcp;
+    logger?: Logger;
   }): Promise<ToolFile[]> {
     if (!global) {
       return [];
@@ -430,10 +446,23 @@ export class KimiCodeMcp extends ToolMcp {
       return [];
     }
 
+    const existing = await readKimiCodeConfig({ outputRoot });
+    if (!existing.parsed) {
+      // Skip only this file. The servers in `mcp.json` have nothing to do with
+      // `config.toml`, so a hand-broken config must not stop them being written.
+      const paths = kimiCodeConfigRelativePath();
+      warnWithFallback(
+        logger,
+        `Skipping the Kimi Code MCP timeout defaults: ${join(paths.relativeDirPath, paths.relativeFilePath)} is not valid TOML.`,
+      );
+      return [];
+    }
+
     return [
-      await KimiCodeMcpConfigToml.fromDefaults({
+      KimiCodeMcpConfigToml.fromDefaults({
         outputRoot,
         defaults: { startupTimeoutMs, toolTimeoutMs },
+        existing,
       }),
     ];
   }

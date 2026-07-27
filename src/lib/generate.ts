@@ -820,36 +820,25 @@ async function generateMcpCore(params: {
         continue;
       }
 
-      // One target's unreadable config must not abort every other target, the
-      // same contract `generateIgnoreCore` and `generatePermissionsCore` keep.
-      // Reachable here because some targets merge MCP settings into a shared
-      // config file the user also edits by hand.
-      try {
-        const processor = new McpProcessor({
-          outputRoot: resolveToolOutputRoot({
-            outputRoot,
-            toolTarget,
-            global: config.getGlobal(),
-          }),
-          inputRoot: config.getInputRoot(),
-          toolTarget: toolTarget,
+      const processor = new McpProcessor({
+        outputRoot: resolveToolOutputRoot({
+          outputRoot,
+          toolTarget,
           global: config.getGlobal(),
-          dryRun: config.isPreviewMode(),
-          logger,
-        });
+        }),
+        inputRoot: config.getInputRoot(),
+        toolTarget: toolTarget,
+        global: config.getGlobal(),
+        dryRun: config.isPreviewMode(),
+        logger,
+      });
 
-        const rulesyncFiles = await processor.loadRulesyncFiles();
-        const result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+      const result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
 
-        totalCount += result.count;
-        allPaths.push(...result.paths);
-        if (result.hasDiff) hasDiff = true;
-      } catch (error) {
-        logger.warn(
-          `Failed to generate ${toolTarget} MCP files for ${outputRoot}: ${formatError(error)}`,
-        );
-        continue;
-      }
+      totalCount += result.count;
+      allPaths.push(...result.paths);
+      if (result.hasDiff) hasDiff = true;
     }
   }
 
