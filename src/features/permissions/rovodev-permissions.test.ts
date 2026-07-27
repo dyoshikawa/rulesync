@@ -467,15 +467,46 @@ describe("RovodevPermissions", () => {
         }),
       );
 
+      const mockLogger = createMockLogger();
       const perms = await RovodevPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions: rulesyncPermissions({ webfetch: { "*": "deny" } }),
+        logger: mockLogger,
         global: true,
       });
 
       const tp = toolPermissionsOf(perms.getFileContent());
       expect(tp.bash).toEqual({ default: "deny" });
       expect(toolLevelsOf(perms.getFileContent())).toEqual({ create_file: "deny" });
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("nothing in the rulesync source maps to Rovo Dev"),
+      );
+    });
+
+    it("clears the owned keys when the source states no rule at all", async () => {
+      // An empty source is a deliberate clean slate, unlike one whose rules
+      // simply have no Rovo Dev counterpart.
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({
+          toolPermissions: { bash: { default: "allow" }, tools: { create_file: "allow" } },
+        }),
+      );
+      const mockLogger = createMockLogger();
+
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({}),
+        logger: mockLogger,
+        global: true,
+      });
+
+      const tp = toolPermissionsOf(perms.getFileContent());
+      expect(tp.bash).toBeUndefined();
+      expect(tp.tools).toBeUndefined();
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('"tools.create_file"'));
     });
 
     it("preserves a hand-written tool key rulesync has no category for", async () => {
