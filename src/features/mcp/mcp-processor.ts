@@ -70,6 +70,17 @@ type ToolMcpFactory = {
     fromFile(params: ToolMcpFromFileParams): Promise<ToolMcp>;
     forDeletion(params: ToolMcpForDeletionParams): ToolMcp;
     getSettablePaths(options?: { global?: boolean }): ToolMcpSettablePaths;
+    /**
+     * Extra files this tool's MCP config lives in beyond its own settable path
+     * — e.g. Kimi Code's `[mcp]` defaults, which belong to the shared user
+     * `config.toml` rather than to `mcp.json`. Mirrors the hooks processor's
+     * hook of the same name. See {@link KimiCodeMcp.getAuxiliaryFiles}.
+     */
+    getAuxiliaryFiles?(params: {
+      outputRoot?: string;
+      global?: boolean;
+      rulesyncMcp: RulesyncMcp;
+    }): ToolFile[] | Promise<ToolFile[]>;
   };
   meta: {
     /** Whether the tool supports project-level MCP configuration */
@@ -727,7 +738,13 @@ export class McpProcessor extends FeatureProcessor {
       }),
     );
 
-    return toolMcps;
+    const auxiliaryFiles = await factory.class.getAuxiliaryFiles?.({
+      outputRoot: this.outputRoot,
+      global: this.global,
+      rulesyncMcp,
+    });
+
+    return [...toolMcps, ...(auxiliaryFiles ?? [])];
   }
 
   /**

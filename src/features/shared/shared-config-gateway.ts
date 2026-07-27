@@ -554,9 +554,15 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     invalidRootPolicy: "error",
     features: {
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      // `mcp` holds the global default MCP timeouts; the servers themselves
+      // live in `mcp.json`, so this feature reaches the file as an auxiliary
+      // writer (same shape as vibe hooks above).
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp"] },
       permissions: {
         kind: "replace-owned-keys",
-        ownedKeys: ["permission", "default_permission_mode"],
+        // `tools` is Kimi's global tool allow/deny switch, a second enforcement
+        // layer alongside `permission.rules`.
+        ownedKeys: ["permission", "default_permission_mode", "tools"],
       },
     },
   },

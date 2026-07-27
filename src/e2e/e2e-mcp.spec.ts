@@ -768,6 +768,50 @@ describe("E2E: mcp (global mode)", () => {
     });
   });
 
+  it("should generate and import the Kimi Code global MCP timeout defaults", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    // `[mcp]` in the shared user config sets the default for every server,
+    // including ones rulesync did not write; per-server values still win.
+    await writeFileContent(
+      join(projectDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        mcpServers: { remote: { type: "http", url: "https://example.com/mcp" } },
+        "kimi-code": { startupTimeoutMs: 45000, toolTimeoutMs: 90000 },
+      }),
+    );
+
+    await runGenerate({
+      target: "kimi-code",
+      features: "mcp",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = smolToml.parse(
+      await readFileContent(join(homeDir, ".kimi-code", "config.toml")),
+    );
+    expect(generated.mcp).toEqual({ startup_timeout_ms: 45000, tool_timeout_ms: 90000 });
+    // The servers themselves stay in mcp.json.
+    expect(
+      JSON.parse(await readFileContent(join(homeDir, ".kimi-code", "mcp.json"))).mcpServers.remote
+        .url,
+    ).toBe("https://example.com/mcp");
+
+    await runImport({
+      target: "kimi-code",
+      features: "mcp",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = JSON.parse(
+      await readFileContent(join(homeDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
+    );
+    expect(imported["kimi-code"]).toEqual({ startupTimeoutMs: 45000, toolTimeoutMs: 90000 });
+  });
+
   it("should import Hermes OAuth and lifecycle settings into a target override", async () => {
     const homeDir = getHomeDir();
     await writeFileContent(

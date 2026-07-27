@@ -1,12 +1,17 @@
 import { join } from "node:path";
 
-import { KIMI_CODE_MCP_FILE_NAME } from "../../constants/kimi-code-paths.js";
+import {
+  KIMI_CODE_CONFIG_FILE_NAME,
+  KIMI_CODE_MCP_FILE_NAME,
+} from "../../constants/kimi-code-paths.js";
 import {
   RULESYNC_MCP_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers, type McpServers } from "../../types/mcp.js";
+import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import {
@@ -14,6 +19,12 @@ import {
   getKimiCodeRulesyncOutputRoot,
 } from "../../utils/kimi-code.js";
 import type { Logger } from "../../utils/logger.js";
+import { isRecord } from "../../utils/type-guards.js";
+import {
+  applySharedConfigPatch,
+  KIMI_CODE_CONFIG_SHARED_FILE_KEY,
+  parseSharedConfig,
+} from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -149,11 +160,119 @@ function fromKimiCodeServers(servers: McpServers): McpServers {
  *
  * @see https://moonshotai.github.io/kimi-code/en/customization/mcp.html
  */
+
+type KimiCodeMcpExtraParams = {
+  configDefaults?: { startupTimeoutMs?: number; toolTimeoutMs?: number };
+};
+
+/**
+ * Read the `[mcp]` defaults back out of the shared user `config.toml` so a
+ * generate → import round trip keeps them. Absent or unparseable content yields
+ * no defaults rather than failing the import: this file belongs to three
+ * features plus the user.
+ */
+async function readKimiCodeMcpDefaults({
+  outputRoot,
+}: {
+  outputRoot: string;
+}): Promise<{ startupTimeoutMs?: number; toolTimeoutMs?: number }> {
+  const configPath = join(
+    outputRoot,
+    getKimiCodeRelativeDirPath({ global: true }),
+    KIMI_CODE_CONFIG_FILE_NAME,
+  );
+  const content = await readFileContentOrNull(configPath);
+  if (content === null) {
+    return {};
+  }
+  let mcp: unknown;
+  try {
+    mcp = parseSharedConfig({ format: "toml", fileContent: content }).mcp;
+  } catch {
+    return {};
+  }
+  if (!isRecord(mcp)) {
+    return {};
+  }
+  return {
+    ...(typeof mcp.startup_timeout_ms === "number" && {
+      startupTimeoutMs: mcp.startup_timeout_ms,
+    }),
+    ...(typeof mcp.tool_timeout_ms === "number" && { toolTimeoutMs: mcp.tool_timeout_ms }),
+  };
+}
+
+/**
+ * Kimi's `[mcp]` section in the shared user config sets the default connect and
+ * per-tool-call timeouts for *every* MCP server, including ones rulesync did not
+ * write. Per-server values in `mcp.json` still take precedence; this only moves
+ * the floor.
+ *
+ * Written as an auxiliary file so it goes through the normal write phase and
+ * respects `--dry-run`, and merged through the shared-config gateway so the
+ * `hooks` and `permissions` sections of the same `config.toml` survive.
+ *
+ * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#mcp
+ */
+export class KimiCodeMcpConfigToml extends ToolFile {
+  override isDeletable(): boolean {
+    // Shared with the hooks and permissions features, and with the user's own
+    // settings; only the `mcp` key is rulesync-managed.
+    return false;
+  }
+
+  validate(): ValidationResult {
+    return { success: true, error: null };
+  }
+
+  static async fromDefaults({
+    outputRoot,
+    defaults,
+  }: {
+    outputRoot: string;
+    defaults: { startupTimeoutMs?: number; toolTimeoutMs?: number };
+  }): Promise<KimiCodeMcpConfigToml> {
+    const relativeDirPath = getKimiCodeRelativeDirPath({ global: true });
+    const configPath = join(outputRoot, relativeDirPath, KIMI_CODE_CONFIG_FILE_NAME);
+    const existingContent = (await readFileContentOrNull(configPath)) ?? "";
+    const fileContent = applySharedConfigPatch({
+      fileKey: KIMI_CODE_CONFIG_SHARED_FILE_KEY,
+      feature: "mcp",
+      existingContent,
+      patch: {
+        mcp: {
+          ...(defaults.startupTimeoutMs !== undefined && {
+            startup_timeout_ms: defaults.startupTimeoutMs,
+          }),
+          ...(defaults.toolTimeoutMs !== undefined && {
+            tool_timeout_ms: defaults.toolTimeoutMs,
+          }),
+        },
+      },
+      filePath: configPath,
+    });
+
+    return new KimiCodeMcpConfigToml({
+      outputRoot,
+      relativeDirPath,
+      relativeFilePath: KIMI_CODE_CONFIG_FILE_NAME,
+      fileContent,
+    });
+  }
+}
+
 export class KimiCodeMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
+  /**
+   * `[mcp]` defaults read from the shared user `config.toml`. Held on the
+   * instance because `toRulesyncMcp` is synchronous, while the defaults live in
+   * a different file that only the async `fromFile` can read.
+   */
+  private readonly configDefaults: { startupTimeoutMs?: number; toolTimeoutMs?: number };
 
-  constructor(params: ToolMcpParams) {
+  constructor(params: ToolMcpParams & KimiCodeMcpExtraParams) {
     super(params);
+    this.configDefaults = params.configDefaults ?? {};
     try {
       this.json = this.fileContent ? JSON.parse(this.fileContent) : {};
     } catch (error) {
@@ -190,6 +309,7 @@ export class KimiCodeMcp extends ToolMcp {
       fileContent,
       validate,
       global,
+      configDefaults: global ? await readKimiCodeMcpDefaults({ outputRoot }) : {},
     });
   }
 
@@ -236,6 +356,61 @@ export class KimiCodeMcp extends ToolMcp {
     });
   }
 
+  /**
+   * The `[mcp]` defaults reach the shared user `config.toml`, which the hooks
+   * and permissions features also write. Declared here so the write-order
+   * derivation sees this feature as one of that file's writers — it is not a
+   * settable path, since the servers themselves live in `mcp.json`.
+   */
+  static getExtraSharedWritePaths({
+    global = false,
+  }: { global?: boolean } = {}): SharedWritePath[] {
+    return global
+      ? [
+          {
+            relativeDirPath: getKimiCodeRelativeDirPath({ global: true }),
+            relativeFilePath: KIMI_CODE_CONFIG_FILE_NAME,
+          },
+        ]
+      : [];
+  }
+
+  /**
+   * The `[mcp]` defaults live in the shared user `config.toml`, not in
+   * `mcp.json`, so they are emitted as an auxiliary file. Global scope only:
+   * `config.toml` has no project counterpart.
+   */
+  static async getAuxiliaryFiles({
+    outputRoot = process.cwd(),
+    global = false,
+    rulesyncMcp,
+  }: {
+    outputRoot?: string;
+    global?: boolean;
+    rulesyncMcp: RulesyncMcp;
+  }): Promise<ToolFile[]> {
+    if (!global) {
+      return [];
+    }
+    const block = (rulesyncMcp.getJson() as Record<string, unknown>)["kimi-code"];
+    if (!isRecord(block)) {
+      return [];
+    }
+    const startupTimeoutMs =
+      typeof block.startupTimeoutMs === "number" ? block.startupTimeoutMs : undefined;
+    const toolTimeoutMs = typeof block.toolTimeoutMs === "number" ? block.toolTimeoutMs : undefined;
+    if (startupTimeoutMs === undefined && toolTimeoutMs === undefined) {
+      return [];
+    }
+
+    return [
+      await KimiCodeMcpConfigToml.fromDefaults({
+        outputRoot,
+        defaults: { startupTimeoutMs, toolTimeoutMs },
+      }),
+    ];
+  }
+
   toRulesyncMcp(): RulesyncMcp {
     return new RulesyncMcp({
       outputRoot: getKimiCodeRulesyncOutputRoot({
@@ -250,6 +425,9 @@ export class KimiCodeMcp extends ToolMcp {
           mcpServers: fromKimiCodeServers(
             isMcpServers(this.json.mcpServers) ? this.json.mcpServers : {},
           ),
+          ...(Object.keys(this.configDefaults).length > 0 && {
+            "kimi-code": this.configDefaults,
+          }),
         },
         null,
         2,

@@ -64,6 +64,40 @@ function buildKimiCodePattern(category: string, pattern: string): string | null 
   return pattern === "*" || pattern === "" ? tool : `${tool}(${pattern})`;
 }
 
+/** String entries of a list, or `undefined` when there are none to write. */
+function toNonEmptyStringList(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const entries = value.filter((entry): entry is string => typeof entry === "string");
+  return entries.length > 0 ? entries : undefined;
+}
+
+/**
+ * Build Kimi's `[tools]` section, dropping empty lists so an override that says
+ * nothing does not write an empty table. Entries pass through verbatim: the
+ * section uses agent-file tool syntax (exact built-in names, `mcp__server__*`
+ * globs), not the canonical category/pattern shape.
+ *
+ * Note that this section is registered in Kimi's v2 engine, so today it applies
+ * under `kimi web` and experimental `kimi -p` rather than the interactive TUI.
+ *
+ * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#tools
+ */
+function buildKimiCodeToolsSection(
+  tools: unknown,
+): { enabled?: string[]; disabled?: string[] } | undefined {
+  if (!isRecord(tools)) {
+    return undefined;
+  }
+  const enabled = toNonEmptyStringList(tools.enabled);
+  const disabled = toNonEmptyStringList(tools.disabled);
+  if (!enabled && !disabled) {
+    return undefined;
+  }
+  return { ...(enabled && { enabled }), ...(disabled && { disabled }) };
+}
+
 function canonicalToKimiCodeRules({
   config,
   logger,
@@ -281,6 +315,7 @@ export class KimiCodePermissions extends ToolPermissions {
   }: ToolPermissionsFromRulesyncPermissionsParams): KimiCodePermissions {
     const config = rulesyncPermissions.getJson();
     const defaultPermissionMode = config["kimi-code"]?.defaultPermissionMode;
+    const tools = buildKimiCodeToolsSection(config["kimi-code"]?.tools);
     return new KimiCodePermissions({
       outputRoot,
       fileContent: stringifySharedConfig({
@@ -289,6 +324,7 @@ export class KimiCodePermissions extends ToolPermissions {
           ...(defaultPermissionMode && {
             default_permission_mode: defaultPermissionMode,
           }),
+          ...(tools && { tools }),
           permission: {
             rules: canonicalToKimiCodeRules({ config, logger }),
           },
@@ -306,6 +342,7 @@ export class KimiCodePermissions extends ToolPermissions {
     const permissionConfig = isRecord(config.permission) ? config.permission : {};
     const { permission, nativeRules } = preserveKimiCodeRules(permissionConfig.rules);
     const defaultPermissionMode = config.default_permission_mode;
+    const tools = buildKimiCodeToolsSection(config.tools);
     const toolOverride = {
       ...(defaultPermissionMode === "manual" ||
       defaultPermissionMode === "yolo" ||
@@ -313,6 +350,7 @@ export class KimiCodePermissions extends ToolPermissions {
         ? { defaultPermissionMode }
         : {}),
       ...(nativeRules.length > 0 && { rules: nativeRules }),
+      ...(tools && { tools }),
     };
     return new RulesyncPermissions({
       outputRoot: getKimiCodeRulesyncOutputRoot({
