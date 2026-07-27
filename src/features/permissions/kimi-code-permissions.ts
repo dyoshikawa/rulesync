@@ -7,12 +7,13 @@ import {
 } from "../../constants/rulesync-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
+import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import {
   getKimiCodeRelativeDirPath,
   getKimiCodeRulesyncOutputRoot,
 } from "../../utils/kimi-code.js";
-import type { Logger } from "../../utils/logger.js";
+import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
@@ -91,7 +92,11 @@ function mergeKimiCodeToolsSection({
     ...(isRecord(existing) ? existing : {}),
     ...(isRecord(patch.tools) ? patch.tools : {}),
   };
-  return Object.keys(merged).length > 0 ? merged : undefined;
+  if (Object.keys(merged).length === 0) {
+    return undefined;
+  }
+  warnAboutMistypedToolLists(merged);
+  return merged;
 }
 
 /**
@@ -117,12 +122,32 @@ function buildKimiCodeToolsSection(tools: unknown): Record<string, unknown> | un
   }
   const section = Object.fromEntries(
     Object.entries(tools).filter(([key, value]) =>
-      key === "enabled" || key === "disabled"
-        ? Array.isArray(value) && value.every((entry) => typeof entry === "string")
-        : true,
+      key === "enabled" || key === "disabled" ? isStringList(value) : true,
     ),
   );
   return Object.keys(section).length > 0 ? section : undefined;
+}
+
+function isStringList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+}
+
+/**
+ * Report a `[tools]` list carried through with a type Kimi does not accept.
+ * The value is kept — deleting a user's setting to work around their typo would
+ * be worse — but Kimi validates the section as a whole, so a bad sibling value can
+ * take rulesync's own list down with it. rulesync is the only party that sees
+ * both, so it says so.
+ */
+function warnAboutMistypedToolLists(section: Record<string, unknown>): void {
+  for (const key of ["enabled", "disabled"] as const) {
+    if (key in section && !isStringList(section[key])) {
+      warnWithFallback(
+        undefined,
+        `Kimi Code permissions: \`[tools] ${key}\` in ${KIMI_CODE_CONFIG_SHARED_FILE_KEY} is not a list of strings. It is left as written, but Kimi may reject the whole \`[tools]\` section — including entries rulesync generated.`,
+      );
+    }
+  }
 }
 
 function canonicalToKimiCodeRules({
@@ -348,20 +373,32 @@ export class KimiCodePermissions extends ToolPermissions {
     const config = rulesyncPermissions.getJson();
     const defaultPermissionMode = config["kimi-code"]?.defaultPermissionMode;
     const tools = buildKimiCodeToolsSection(config["kimi-code"]?.tools);
+    const document = {
+      ...(defaultPermissionMode && {
+        default_permission_mode: defaultPermissionMode,
+      }),
+      ...(tools && { tools }),
+      permission: {
+        rules: canonicalToKimiCodeRules({ config, logger }),
+      },
+    };
+
+    let fileContent: string;
+    try {
+      fileContent = stringifySharedConfig({ format: "toml", document });
+    } catch (error) {
+      // The `kimi-code.tools` override is a passthrough block, so a value TOML
+      // cannot represent (a null inside a list, say) reaches the serializer.
+      // Name the file and the block, which the serializer's own message does not.
+      throw new Error(
+        `Failed to serialize ${KIMI_CODE_CONFIG_SHARED_FILE_KEY}; check the \`kimi-code.tools\` override for values TOML cannot represent: ${formatError(error)}`,
+        { cause: error },
+      );
+    }
+
     return new KimiCodePermissions({
       outputRoot,
-      fileContent: stringifySharedConfig({
-        format: "toml",
-        document: {
-          ...(defaultPermissionMode && {
-            default_permission_mode: defaultPermissionMode,
-          }),
-          ...(tools && { tools }),
-          permission: {
-            rules: canonicalToKimiCodeRules({ config, logger }),
-          },
-        },
-      }),
+      fileContent,
       global: true,
     });
   }

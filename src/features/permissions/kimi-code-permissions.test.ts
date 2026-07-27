@@ -116,6 +116,19 @@ describe("KimiCodePermissions [tools] section", () => {
     expect(config.tools).toEqual({ enabled: [], disabled: ["Bash"] });
   });
 
+  it("should name the file and the override when a value cannot be serialized", () => {
+    // The override is a passthrough block, so a value TOML cannot represent
+    // reaches the serializer; smol-toml's own message names neither.
+    expect(() =>
+      generate({
+        json: {
+          permission: {},
+          "kimi-code": { tools: { enabled: ["Bash"], future_list: [null] } },
+        },
+      }),
+    ).toThrow(/kimi-code\.tools/);
+  });
+
   it("should round-trip an empty allowlist rather than losing it on import", () => {
     const permissions = new KimiCodePermissions({
       outputRoot: ".",
