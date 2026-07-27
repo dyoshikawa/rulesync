@@ -1,10 +1,11 @@
-import { join } from "node:path";
+import { rm, symlink } from "node:fs/promises";
+import { basename, join, relative } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { ensureDir, findFilesByGlobs, toPosixPath, writeFileContent } from "../../utils/file.js";
 import { AgentsMdRule } from "./agentsmd-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
@@ -306,15 +307,53 @@ describe("AgentsMdRule", () => {
   });
 
   describe("nested AGENTS.md files", () => {
-    it("should glob nested files while excluding the root file, hidden dirs and node_modules", () => {
-      const globs = AgentsMdRule.getNestedFileGlobs({ outputRoot: "/project" });
+    it("should match only nested subproject files, against a real tree", async () => {
+      // Asserting on the returned patterns alone would not catch a pattern that
+      // silently matches nothing, so run them against actual files.
+      for (const relativePath of [
+        "AGENTS.md",
+        join("packages", "api", "AGENTS.md"),
+        join("packages", "api", "src", "AGENTS.md"),
+        join("node_modules", "dep", "AGENTS.md"),
+        join("vendor", "lib", "AGENTS.md"),
+        join("dist", "AGENTS.md"),
+        join(".agents", "AGENTS.md"),
+        join(".agents", "memories", "AGENTS.md"),
+      ]) {
+        await writeFileContent(join(testDir, relativePath), "# rule");
+      }
 
-      expect(globs).toEqual([
-        "/project/**/AGENTS.md",
-        "!/project/AGENTS.md",
-        "!/project/**/.*/**",
-        "!/project/**/node_modules/**",
-      ]);
+      const patterns = AgentsMdRule.getNestedFilePatterns({ outputRoot: testDir });
+      const matched = await findFilesByGlobs(patterns.include, {
+        type: "file",
+        followSymbolicLinks: false,
+        ignore: patterns.ignore,
+      });
+
+      expect(
+        matched.map((filePath) => toPosixPath(relative(testDir, filePath))).toSorted(),
+      ).toEqual(["packages/api/AGENTS.md", "packages/api/src/AGENTS.md"]);
+    });
+
+    it("should not follow symlinks out of the project", async () => {
+      // A repository can commit a symlink, so following one would copy a file
+      // from outside the project into version-controlled `.rulesync/rules/`.
+      const outsideDir = join(testDir, "..", `outside-${basename(testDir)}`);
+      await ensureDir(outsideDir);
+      await writeFileContent(join(outsideDir, "secret.md"), "SECRET");
+      await ensureDir(join(testDir, "docs"));
+      await symlink(join(outsideDir, "secret.md"), join(testDir, "docs", "AGENTS.md"));
+      await symlink(outsideDir, join(testDir, "linked"));
+
+      const patterns = AgentsMdRule.getNestedFilePatterns({ outputRoot: testDir });
+      const matched = await findFilesByGlobs(patterns.include, {
+        type: "file",
+        followSymbolicLinks: false,
+        ignore: patterns.ignore,
+      });
+
+      expect(matched).toEqual([]);
+      await rm(outsideDir, { recursive: true, force: true });
     });
 
     it("should import a nested AGENTS.md as a non-root rule scoped to its directory", async () => {

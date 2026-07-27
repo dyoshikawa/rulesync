@@ -320,9 +320,19 @@ export async function findFiles(dir: string, extension: string = ".md"): Promise
 
 export async function findFilesByGlobs(
   globs: string | string[],
-  options: { type?: "file" | "dir" | "all"; followSymbolicLinks?: boolean } = {},
+  options: {
+    type?: "file" | "dir" | "all";
+    followSymbolicLinks?: boolean;
+    /**
+     * Patterns to exclude, passed to globby's `ignore`. Prefer this over inline
+     * `!` patterns: globby rewrites a negative pattern that contains no glob
+     * metacharacter as cwd-relative, so an absolute `!/abs/path/file.md` silently
+     * matches nothing.
+     */
+    ignore?: string[];
+  } = {},
 ): Promise<string[]> {
-  const { type = "all", followSymbolicLinks = true } = options;
+  const { type = "all", followSymbolicLinks = true, ignore } = options;
   const globbyOptions =
     type === "file"
       ? { onlyFiles: true, onlyDirectories: false }
@@ -340,6 +350,7 @@ export async function findFilesByGlobs(
   const results = globbySync(normalizedGlobs, {
     absolute: true,
     followSymbolicLinks,
+    ...(ignore ? { ignore: ignore.map((pattern) => pattern.replaceAll("\\", "/")) } : {}),
     ...globbyOptions,
   });
   // Deduplicate by real path so that directory symlink cycles (which globby follows up to

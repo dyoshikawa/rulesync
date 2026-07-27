@@ -71,6 +71,7 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
+  ToolRuleNestedFilePatterns,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
 } from "./tool-rule.js";
@@ -246,14 +247,17 @@ type ToolRuleFactory = {
      */
     getExtraFixedFiles?(params: { global?: boolean }): ToolRuleExtraFixedFile[];
     /**
-     * Globs for rule files this tool discovers by pattern rather than at a fixed
+     * Patterns for rule files this tool discovers by glob rather than at a fixed
      * path, used when the tool's scoping mechanism is the same file name repeated
      * in subdirectories (the AGENTS.md standard's nested files). Import-only:
      * the matches are hand-authored files outside any rulesync-owned directory,
      * so enumerating them for `--delete` would sweep away work rulesync never
-     * wrote. See {@link AgentsMdRule.getNestedFileGlobs}.
+     * wrote. See {@link AgentsMdRule.getNestedFilePatterns}.
      */
-    getNestedFileGlobs?(params: { outputRoot: string; global?: boolean }): string[];
+    getNestedFilePatterns?(params: {
+      outputRoot: string;
+      global?: boolean;
+    }): ToolRuleNestedFilePatterns;
   };
   meta: {
     /** File extension for the rule file */
@@ -1638,17 +1642,26 @@ As this project's AI coding tool, you must follow the additional conventions bel
       // Pattern-discovered rule files (the AGENTS.md standard's nested
       // subproject files). Import only — see `getNestedFileGlobs`.
       const nestedToolRules = await (async () => {
-        const globs = factory.class.getNestedFileGlobs?.({
+        const patterns = factory.class.getNestedFilePatterns?.({
           outputRoot: this.outputRoot,
           global: this.global,
         });
-        if (forDeletion || !globs || globs.length === 0) {
+        if (forDeletion || !patterns || patterns.include.length === 0) {
           return [];
         }
 
-        const filePaths = await findFilesByGlobs(globs, { type: "file" });
+        // Symlinks are not followed. Unlike the fixed-path scans, this one walks
+        // the whole project tree, so a symlink committed to a repository could
+        // otherwise pull a file from outside the project (a key, a dotfile) into
+        // version-controlled `.rulesync/rules/`. Not following them also keeps a
+        // pair of directory symlinks from exploding the traversal.
+        const filePaths = await findFilesByGlobs(patterns.include, {
+          type: "file",
+          followSymbolicLinks: false,
+          ignore: patterns.ignore,
+        });
 
-        return await Promise.all(
+        const rules = await Promise.all(
           filePaths.map((filePath) => {
             const relativeDirPath = resolveRelativeDirPath(filePath);
             checkPathTraversal({
@@ -1663,6 +1676,26 @@ As this project's AI coding tool, you must follow the additional conventions bel
             });
           }),
         );
+
+        // Every nested file shares one file name, so the rulesync name is derived
+        // from the directory. Two directories can still derive the same name
+        // (`packages/api` and `packages-api`), and the later import would
+        // overwrite the earlier one without a word.
+        const claimedBy = new Map<string, string>();
+        for (const rule of rules) {
+          const source = join(rule.getRelativeDirPath(), rule.getRelativeFilePath());
+          const rulesyncName = rule.toRulesyncRule().getRelativeFilePath();
+          const previous = claimedBy.get(rulesyncName);
+          if (previous === undefined) {
+            claimedBy.set(rulesyncName, source);
+          } else {
+            this.logger.warn(
+              `Both ${previous} and ${source} import to ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, rulesyncName)}; only the last one is kept.`,
+            );
+          }
+        }
+
+        return rules;
       })();
       this.logger.debug(`Found ${nestedToolRules.length} nested tool rule files`);
 

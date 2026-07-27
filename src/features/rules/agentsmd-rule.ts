@@ -14,6 +14,7 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
+  ToolRuleNestedFilePatterns,
   ToolRuleSettablePaths,
   buildToolPath,
 } from "./tool-rule.js";
@@ -33,13 +34,28 @@ export type AgentsMdRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
 };
 
 /**
- * Directory names never scanned for nested `AGENTS.md` files. Hidden directories
- * are excluded wholesale because an `AGENTS.md` inside one is another tool's
- * generated output (rulesync writes several itself), not a subproject; the rest
- * are dependency and build trees whose vendored `AGENTS.md` files describe
- * somebody else's project.
+ * Directories never scanned for nested `AGENTS.md` files. Hidden directories are
+ * excluded because an `AGENTS.md` inside one is another tool's generated output
+ * (rulesync writes several itself), not a subproject. The rest are dependency,
+ * vendoring and build trees: an `AGENTS.md` there describes somebody else's
+ * project, and is usually gitignored, so importing it would move content the
+ * user deliberately kept out of the repository into version-controlled
+ * `.rulesync/rules/`.
  */
-const NESTED_SCAN_EXCLUDED_GLOBS = ["**/.*/**", "**/node_modules/**"];
+const NESTED_SCAN_EXCLUDED_DIRS = [
+  "node_modules",
+  "vendor",
+  "third_party",
+  "dist",
+  "build",
+  "out",
+  "target",
+  "coverage",
+  "tmp",
+  "temp",
+  "venv",
+  "__pycache__",
+];
 
 export class AgentsMdRule extends ToolRule {
   constructor({ fileContent, root, ...rest }: AgentsMdRuleParams) {
@@ -68,7 +84,7 @@ export class AgentsMdRule extends ToolRule {
   }
 
   /**
-   * Globs for the nested `AGENTS.md` files that are the standard's only scoping
+   * Patterns for the nested `AGENTS.md` files that are the standard's only scoping
    * mechanism — "Agents automatically read the nearest file in the directory
    * tree, so the closest one takes precedence and every subproject can ship
    * tailored instructions." The project root file is excluded because it is
@@ -80,13 +96,17 @@ export class AgentsMdRule extends ToolRule {
    *
    * @see https://agents.md/
    */
-  static getNestedFileGlobs({ outputRoot }: { outputRoot: string }): string[] {
+  static getNestedFilePatterns({ outputRoot }: { outputRoot: string }): ToolRuleNestedFilePatterns {
     const root = toPosixPath(outputRoot);
-    return [
-      `${root}/**/${AGENTSMD_RULE_FILE_NAME}`,
-      `!${root}/${AGENTSMD_RULE_FILE_NAME}`,
-      ...NESTED_SCAN_EXCLUDED_GLOBS.map((glob) => `!${root}/${glob}`),
-    ];
+    return {
+      include: [`${root}/**/${AGENTSMD_RULE_FILE_NAME}`],
+      ignore: [
+        // Enumerated separately as the root rule.
+        `${root}/${AGENTSMD_RULE_FILE_NAME}`,
+        `${root}/**/.*/**`,
+        ...NESTED_SCAN_EXCLUDED_DIRS.map((dir) => `${root}/**/${dir}/**`),
+      ],
+    };
   }
 
   /**
