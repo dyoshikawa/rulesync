@@ -19,9 +19,14 @@ import {
 const ReplitSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
-  "allowed-tools": z.optional(z.array(z.string())),
+  // The Agent Skills spec, which Replit's skills page states conformance to,
+  // types this as a space-separated string. The array form stays accepted so
+  // existing rulesync inputs keep working. https://agentskills.io/specification
+  "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
   license: z.optional(z.string()),
-  compatibility: z.optional(z.looseObject({})),
+  // The spec types this as a 1-500 character string; the object form stays
+  // accepted for back-compat.
+  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
   metadata: z.optional(z.looseObject({})),
 });
 
@@ -81,7 +86,7 @@ export class ReplitSkill extends ToolSkill {
     // `.agents/skills/` (project) and `~/.agents/skills/` (personal/global). The
     // relative path is the same; the resolution root (cwd vs. home) is supplied
     // via outputRoot by the processor.
-    // https://docs.replit.com/core-concepts/agent/skills (user-level scope)
+    // https://docs.replit.com/features/agent/skills (user-level scope)
     // https://agentskills.io/specification (`~/.agents/skills/` personal path)
     return {
       relativeDirPath: REPLIT_SKILLS_DIR_PATH,
@@ -120,10 +125,18 @@ export class ReplitSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    // Normalize back to the canonical rulesync array, mirroring
+    // `DeepagentsSkill`, so a generate → import round trip is stable.
+    const allowedTools = frontmatter["allowed-tools"];
+    const allowedToolsArray =
+      allowedTools === undefined
+        ? undefined
+        : Array.isArray(allowedTools)
+          ? allowedTools
+          : allowedTools.split(/\s+/).filter((tool) => tool.length > 0);
     const replitBlock = {
-      ...(frontmatter["allowed-tools"] !== undefined && {
-        "allowed-tools": frontmatter["allowed-tools"],
-      }),
+      ...(allowedToolsArray !== undefined &&
+        allowedToolsArray.length > 0 && { "allowed-tools": allowedToolsArray }),
       ...(frontmatter.license !== undefined && { license: frontmatter.license }),
       ...(frontmatter.compatibility !== undefined && {
         compatibility: frontmatter.compatibility,
@@ -158,10 +171,16 @@ export class ReplitSkill extends ToolSkill {
     const settablePaths = ReplitSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
+    // Replit conforms to the Agent Skills spec, which types `allowed-tools` as a
+    // space-separated string, so a canonical rulesync array is joined rather
+    // than emitted as a YAML sequence. Mirrors `DeepagentsSkill`.
+    const { "allowed-tools": allowedTools, ...replitSection } = rulesyncFrontmatter.replit ?? {};
+    const allowedToolsString = Array.isArray(allowedTools) ? allowedTools.join(" ") : allowedTools;
     const replitFrontmatter: ReplitSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...rulesyncFrontmatter.replit,
+      ...(allowedToolsString && { "allowed-tools": allowedToolsString }),
+      ...replitSection,
     };
 
     return new ReplitSkill({

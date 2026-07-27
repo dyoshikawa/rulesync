@@ -135,9 +135,13 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   ),
   replit: z.optional(
     z.looseObject({
-      "allowed-tools": z.optional(z.array(z.string())),
+      // Replit conforms to the Agent Skills spec: `allowed-tools` is a
+      // space-separated string and `compatibility` a 1-500 character string.
+      // Both legacy rulesync forms stay accepted.
+      // https://agentskills.io/specification
+      "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
       license: z.optional(z.string()),
-      compatibility: z.optional(z.looseObject({})),
+      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
       metadata: z.optional(z.looseObject({})),
     }),
   ),
@@ -290,9 +294,9 @@ export type RulesyncSkillFrontmatterInput = {
     "disable-model-invocation"?: boolean;
   };
   replit?: {
-    "allowed-tools"?: string[];
+    "allowed-tools"?: string | string[];
     license?: string;
-    compatibility?: Record<string, unknown>;
+    compatibility?: string | Record<string, unknown>;
     metadata?: Record<string, unknown>;
   };
   roo?: Record<string, unknown>;
