@@ -1,7 +1,7 @@
 import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
-import { toSpecConformantAgentSkillFields } from "./agentsskills-skill.js";
+import { AgentsSkillsSkill, toSpecConformantAgentSkillFields } from "./agentsskills-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
-import { SimulatedSkill, SimulatedSkillParams } from "./simulated-skill.js";
+import { SimulatedSkill } from "./simulated-skill.js";
 import {
   ToolSkillForDeletionParams,
   ToolSkillFromDirParams,
@@ -41,17 +41,26 @@ export class AgentsmdSkill extends SimulatedSkill {
 
   static fromRulesyncSkill(params: ToolSkillFromRulesyncSkillParams): AgentsmdSkill {
     const defaults = this.fromRulesyncSkillDefault(params);
-    const baseParams: SimulatedSkillParams = {
-      ...defaults,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      frontmatter: {
-        ...defaults.frontmatter,
-        // Same shared block, same normalization as the native target that owns
-        // this path, so the two writers cannot disagree about the file.
-        ...toSpecConformantAgentSkillFields(params.rulesyncSkill.getFrontmatter().agentsskills),
-      },
+    const relativeDirPath = this.getSettablePaths().relativeDirPath;
+    const frontmatter = {
+      ...defaults.frontmatter,
+      // Same shared block, same normalization as the native target that owns
+      // this path, so the two writers cannot disagree about the file.
+      ...toSpecConformantAgentSkillFields(params.rulesyncSkill.getFrontmatter().agentsskills),
     };
-    return new AgentsmdSkill(baseParams);
+
+    // Same file, same diagnostics: generating for this target alone must report
+    // the spec violations the native target would have reported.
+    AgentsSkillsSkill.reportSpecViolations({
+      outputRoot: params.outputRoot ?? process.cwd(),
+      relativeDirPath,
+      dirName: params.rulesyncSkill.getDirName(),
+      frontmatter,
+      sourceAllowedTools: params.rulesyncSkill.getFrontmatter().agentsskills?.["allowed-tools"],
+      logger: params.logger,
+    });
+
+    return new AgentsmdSkill({ ...defaults, relativeDirPath, frontmatter });
   }
 
   static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {

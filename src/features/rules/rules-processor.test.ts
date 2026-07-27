@@ -29,15 +29,6 @@ const globalFoldTargets = RulesProcessor.getToolTargets({ global: true }).filter
   (target) => RulesProcessor.getFactory(target)?.meta.foldsNonRootIntoRoot === true,
 );
 
-/**
- * The nested-AGENTS.md scan resolves ignore rules from the enclosing repository,
- * so a test project needs to look like its own repository root — otherwise this
- * repo's ignored `tmp/` hides the whole thing.
- */
-const asRepositoryRoot = async (dir: string): Promise<void> => {
-  await ensureDir(join(dir, ".git"));
-};
-
 describe("RulesProcessor", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -696,7 +687,6 @@ describe("RulesProcessor", () => {
     });
 
     it("should discover nested AGENTS.md files on import but never for deletion", async () => {
-      await asRepositoryRoot(testDir);
       await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
       await writeFileContent(join(testDir, "packages", "api", "AGENTS.md"), "# API");
 
@@ -719,7 +709,6 @@ describe("RulesProcessor", () => {
       // A vendored dependency's rule file is third-party content the user
       // deliberately kept untracked; importing it would copy it into
       // version-controlled `.rulesync/rules/`.
-      await asRepositoryRoot(testDir);
       await writeFileContent(join(testDir, ".gitignore"), "services/api/vendor/\n");
       await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
       await writeFileContent(join(testDir, "packages", "api", "AGENTS.md"), "# API");
@@ -741,7 +730,6 @@ describe("RulesProcessor", () => {
     it("should still find nested files when .gitignore excludes the generated file name", async () => {
       // `rulesync gitignore` writes `**/AGENTS.md` for its own output, so a
       // file-level ignore test would silently disable the whole scan.
-      await asRepositoryRoot(testDir);
       await writeFileContent(join(testDir, ".gitignore"), "services/api/vendor/\n**/AGENTS.md\n");
       await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
       await writeFileContent(join(testDir, "packages", "api", "AGENTS.md"), "# API");
@@ -760,7 +748,6 @@ describe("RulesProcessor", () => {
     });
 
     it("should warn when two rule files import to the same rulesync file name", async () => {
-      await asRepositoryRoot(testDir);
       await writeFileContent(join(testDir, "packages", "api", "AGENTS.md"), "# API");
       await writeFileContent(join(testDir, "packages-api", "AGENTS.md"), "# Also API");
 
@@ -776,7 +763,6 @@ describe("RulesProcessor", () => {
     });
 
     it("should not warn when every rule file maps to a distinct rulesync name", async () => {
-      await asRepositoryRoot(testDir);
       await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
       await writeFileContent(join(testDir, "packages", "api", "AGENTS.md"), "# API");
       await writeFileContent(join(testDir, "packages", "web", "AGENTS.md"), "# Web");
@@ -792,7 +778,6 @@ describe("RulesProcessor", () => {
     it("should keep an `Overview` subproject away from the reserved root-rule name", async () => {
       // Case-insensitive filesystems would otherwise resolve `Overview.md` and
       // the root rule's `overview.md` to the same file.
-      await asRepositoryRoot(testDir);
       await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
       await writeFileContent(join(testDir, "Overview", "AGENTS.md"), "# Overview subproject");
 

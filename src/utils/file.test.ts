@@ -386,7 +386,6 @@ describe("file utilities", () => {
     describe("filterOutPathsInGitIgnoredDirectories", () => {
       it("should drop files inside an ignored directory but keep the rest", async () => {
         await writeFileContent(join(testDir, ".gitignore"), "vendored/\n");
-        await ensureDir(join(testDir, ".git"));
         const kept = join(testDir, "packages", "api", "AGENTS.md");
         const dropped = join(testDir, "vendored", "dep", "AGENTS.md");
         await writeFileContent(kept, "keep");
@@ -401,7 +400,6 @@ describe("file utilities", () => {
         // `rulesync gitignore` writes `**/AGENTS.md` for its own output; testing
         // the files rather than their directories would disable every scan.
         await writeFileContent(join(testDir, ".gitignore"), "**/AGENTS.md\n");
-        await ensureDir(join(testDir, ".git"));
         const filePath = join(testDir, "packages", "api", "AGENTS.md");
         await writeFileContent(filePath, "keep");
 
@@ -410,8 +408,17 @@ describe("file utilities", () => {
         ).toEqual([filePath]);
       });
 
+      it("should not recurse forever for a path outside the root", () => {
+        // `dirname("/")` is `"/"`, so walking ancestors would not terminate.
+        expect(
+          filterOutPathsInGitIgnoredDirectories({
+            rootDir: join(testDir, "nested"),
+            filePaths: ["/etc/hostname"],
+          }),
+        ).toEqual(["/etc/hostname"]);
+      });
+
       it("should keep everything when the project has no ignore rules", async () => {
-        await ensureDir(join(testDir, ".git"));
         const filePath = join(testDir, "packages", "api", "AGENTS.md");
         await writeFileContent(filePath, "keep");
 

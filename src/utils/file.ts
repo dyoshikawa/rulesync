@@ -153,8 +153,9 @@ export async function ensureDir(dirPath: string): Promise<void> {
  * vendored and generated *trees*: content the project deliberately does not
  * track, which must not be copied into version-controlled rulesync sources.
  *
- * Ignore rules resolve from `rootDir` (its enclosing repository if it is inside
- * one, otherwise its own `.gitignore` files).
+ * Ignore rules come from the `.gitignore` files at and below `rootDir`; a parent
+ * repository's rules are not consulted, so running against a subdirectory of a
+ * repository only sees that subdirectory's own rules.
  */
 export function filterOutPathsInGitIgnoredDirectories({
   rootDir,
@@ -163,6 +164,12 @@ export function filterOutPathsInGitIgnoredDirectories({
   rootDir: string;
   filePaths: string[];
 }): string[] {
+  if (filePaths.length === 0) {
+    // Building the matcher scans the tree for `.gitignore` files, which is not
+    // worth doing when there is nothing to filter.
+    return filePaths;
+  }
+
   const isIgnored = isGitIgnoredSync({ cwd: rootDir });
   const resolvedRoot = resolve(rootDir);
   const cache = new Map<string, boolean>();
@@ -172,10 +179,14 @@ export function filterOutPathsInGitIgnoredDirectories({
     if (cached !== undefined) {
       return cached;
     }
-    // The trailing slash is what makes a `vendored/` rule match the directory.
+    const parent = dirname(directory);
+    // Stop at `rootDir`, and at the filesystem root for a path that never
+    // reaches it — `dirname("/")` is `"/"`, so walking up would not terminate.
     const ignored =
       directory !== resolvedRoot &&
-      (isIgnored(`${toPosixPath(directory)}/`) || isInIgnoredDirectory(dirname(directory)));
+      parent !== directory &&
+      // The trailing slash is what makes a `vendored/` rule match the directory.
+      (isIgnored(`${toPosixPath(directory)}/`) || isInIgnoredDirectory(parent));
     cache.set(directory, ignored);
     return ignored;
   };
