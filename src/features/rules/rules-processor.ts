@@ -912,23 +912,28 @@ export class RulesProcessor extends FeatureProcessor {
 
     const factory = this.getFactory(this.toolTarget);
     const { meta } = factory;
+    const sourceRuleByToolRule = new Map<ToolRule, RulesyncRule>();
 
     const toolRules = nonLocalRootRules
       .map((rulesyncRule) => {
         if (!factory.class.isTargetedByRulesyncRule(rulesyncRule)) {
           return null;
         }
-        return factory.class.fromRulesyncRule({
+        const toolRule = factory.class.fromRulesyncRule({
           outputRoot: this.outputRoot,
           rulesyncRule,
           validate: true,
           global: this.global,
         });
+        sourceRuleByToolRule.set(toolRule, rulesyncRule);
+        return toolRule;
       })
       .filter((rule): rule is ToolRule => rule !== null);
 
-    this.mergeRulesByOutputPath(toolRules, {
+    this.mergeRulesByOutputPath({
+      toolRules,
       mergeNonRootRules: meta.foldsNonRootIntoRoot === true,
+      sourceRuleByToolRule,
     });
 
     this.applyLocalRootRules({ toolRules, localRootRules, factory });
@@ -1052,6 +1057,9 @@ export class RulesProcessor extends FeatureProcessor {
     factory: ToolRuleFactory;
   }): void {
     const { meta } = factory;
+    // Fixed-root targets were collapsed by mergeRulesByOutputPath. Targets that
+    // keep multiple native paths emit those ToolRules as non-root, so at most
+    // one root rule can survive here.
     const rootRule = toolRules.find((rule) => rule.isRoot());
     if (!rootRule) {
       return;
@@ -1122,10 +1130,15 @@ export class RulesProcessor extends FeatureProcessor {
    * preserved and fragments are separated by one blank line. Mutates `toolRules`
    * in place.
    */
-  private mergeRulesByOutputPath(
-    toolRules: ToolRule[],
-    { mergeNonRootRules }: { mergeNonRootRules: boolean },
-  ): void {
+  private mergeRulesByOutputPath({
+    toolRules,
+    mergeNonRootRules,
+    sourceRuleByToolRule,
+  }: {
+    toolRules: ToolRule[];
+    mergeNonRootRules: boolean;
+    sourceRuleByToolRule: ReadonlyMap<ToolRule, RulesyncRule>;
+  }): void {
     if (toolRules.length <= 1) {
       return;
     }
@@ -1146,23 +1159,14 @@ export class RulesProcessor extends FeatureProcessor {
       }
     }
 
-    const caseFoldedPaths = new Map<string, string>();
-    for (const path of groups.keys()) {
-      const caseFoldedPath = path.normalize("NFC").toLowerCase();
-      const existingPath = caseFoldedPaths.get(caseFoldedPath);
-      if (existingPath && existingPath !== path) {
-        throw new Error(
-          `Generated rule output paths differ only by case for target '${this.toolTarget}': '${existingPath}', '${path}'`,
-        );
-      }
-      caseFoldedPaths.set(caseFoldedPath, path);
-    }
-
     const survivors = new Set<ToolRule>();
     for (const [path, group] of groups) {
       if (group.length === 1) {
         const rule = group[0];
         if (rule) {
+          if (mergeNonRootRules) {
+            rule.setFileContent(rule.getFileContent().trim());
+          }
           survivors.add(rule);
         }
         continue;
@@ -1172,8 +1176,11 @@ export class RulesProcessor extends FeatureProcessor {
       // folding tools use their first rule when no root exists.
       const rootRule = group.find((rule) => rule.isRoot());
       if (!rootRule && !mergeNonRootRules) {
+        const sourceRules = group
+          .map((rule) => sourceRuleByToolRule.get(rule))
+          .filter((rule): rule is RulesyncRule => rule !== undefined);
         throw new Error(
-          `Multiple generated rules resolve to output path '${path}' for target '${this.toolTarget}', but this target does not support composing modular rule files`,
+          `Multiple generated rules resolve to output path '${path}' for target '${this.toolTarget}', but this target does not support composing modular rule files. Source rules: ${formatRulePaths(sourceRules)}`,
         );
       }
       const target = rootRule ?? group[0];

@@ -1,4 +1,4 @@
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -924,19 +924,66 @@ globs: ["**/*"]
 
 This is a global test rule for E2E testing.
 `;
-      const additionalRuleContent = `---
-root: true
-targets: ["*"]
-description: "Additional global test rule"
----
-
-# Additional Root Fragment
-
-This is an additional global test rule for E2E testing.
-`;
       await writeFileContent(
         join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
         ruleContent,
+      );
+
+      await runGenerate({
+        target,
+        features: "rules",
+        global: true,
+        env: { HOME_DIR: homeDir },
+      });
+
+      const generatedContent = await readFileContent(join(homeDir, outputPath));
+      expect(generatedContent).toContain("Global Test Rule");
+    },
+  );
+
+  it.each([
+    {
+      target: "claudecode",
+      outputPaths: [join(".claude", "CLAUDE.md")],
+    },
+    {
+      target: "augmentcode",
+      outputPaths: [
+        join(".augment", "rules", "overview.md"),
+        join(".augment", "rules", "additional-global-rule.md"),
+      ],
+    },
+    {
+      target: "takt",
+      outputPaths: [
+        join(".takt", "facets", "policies", "overview.md"),
+        join(".takt", "facets", "policies", "additional-global-rule.md"),
+      ],
+    },
+  ] as const)(
+    "should preserve multiple global root rules for $target",
+    async ({ target, outputPaths }) => {
+      const projectDir = getProjectDir();
+      const homeDir = getHomeDir();
+      const rootRuleContent = `---
+root: true
+targets: ["*"]
+description: "Global root rule"
+---
+
+# Global Root Fragment
+`;
+      const additionalRuleContent = `---
+root: true
+targets: ["*"]
+description: "Additional global root rule"
+---
+
+# Additional Global Root Fragment
+`;
+      await writeFileContent(
+        join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+        rootRuleContent,
       );
       await writeFileContent(
         join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "additional-global-rule.md"),
@@ -950,24 +997,13 @@ This is an additional global test rule for E2E testing.
         env: { HOME_DIR: homeDir },
       });
 
-      const generatedContent = await readFileContent(join(homeDir, outputPath));
-      expect(generatedContent).toContain("Global Test Rule");
-
-      if (target === "augmentcode" || target === "takt") {
-        const additionalGeneratedContent = await readFileContent(
-          join(homeDir, dirname(outputPath), "additional-global-rule.md"),
-        );
-        expect(generatedContent).not.toContain("Additional Root Fragment");
-        expect(additionalGeneratedContent).toContain("Additional Root Fragment");
-        return;
-      }
-
-      expect(generatedContent).toContain("Additional Root Fragment");
-      expect(generatedContent.split("Global Test Rule")).toHaveLength(2);
-      expect(generatedContent.split("Additional Root Fragment")).toHaveLength(2);
-      expect(generatedContent.indexOf("Additional Root Fragment")).toBeLessThan(
-        generatedContent.indexOf("Global Test Rule"),
-      );
+      const generatedContent = (
+        await Promise.all(
+          outputPaths.map((outputPath) => readFileContent(join(homeDir, outputPath))),
+        )
+      ).join("\n");
+      expect(generatedContent.split("# Global Root Fragment")).toHaveLength(2);
+      expect(generatedContent.split("# Additional Global Root Fragment")).toHaveLength(2);
     },
   );
 

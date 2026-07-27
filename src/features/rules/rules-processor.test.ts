@@ -288,6 +288,37 @@ describe("RulesProcessor", () => {
       expect(appendRule?.getRelativeDirPath()).toBe(".pi");
     });
 
+    it("should trim singleton pi output groups", async () => {
+      const processor = new RulesProcessor({ logger, toolTarget: "pi" });
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "overview.md",
+          frontmatter: { root: true, targets: ["pi"] },
+          body: "# RootA\n\n\n",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "append.md",
+          frontmatter: { targets: ["pi"], pi: { systemPrompt: "append" } },
+          body: "# Appended\n\n\n",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const rootRule = result.find(
+        (rule) => rule instanceof PiRule && rule.getRelativeFilePath() === "AGENTS.md",
+      );
+      const appendRule = result.find(
+        (rule) => rule instanceof PiRule && rule.getRelativeFilePath() === "APPEND_SYSTEM.md",
+      );
+
+      expect(rootRule?.getFileContent()).toBe("# RootA");
+      expect(appendRule?.getFileContent()).toBe("# Appended");
+    });
+
     it("should not list APPEND_SYSTEM.md in the pi references section in explicit discovery mode", async () => {
       const processor = new RulesProcessor({
         logger,
@@ -1456,7 +1487,7 @@ Content that would fail parsing`;
           ];
 
           await expect(processor.convertRulesyncFilesToToolFiles(rulesyncRules)).rejects.toThrow(
-            `Multiple generated rules resolve to output path`,
+            `Source rules: ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "CodingGuidelines.md")}, ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "coding_guidelines.md")}`,
           );
         },
       );
@@ -1493,45 +1524,73 @@ Content that would fail parsing`;
         ];
 
         await expect(processor.convertRulesyncFilesToToolFiles(rulesyncRules)).rejects.toThrow(
-          `Multiple generated rules resolve to output path '${join(".takt", "facets", "policies", "same.md")}'`,
+          `Multiple generated rules resolve to output path '${join(".takt", "facets", "policies", "same.md")}' for target 'takt', but this target does not support composing modular rule files. Source rules: ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "first.md")}, ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "second.md")}`,
         );
       });
 
-      it("should reject generated output paths that differ only by case", async () => {
-        const processor = new RulesProcessor({
-          logger,
-          outputRoot: testDir,
-          toolTarget: "takt",
-        });
-        const rulesyncRules = [
-          new RulesyncRule({
-            outputRoot: testDir,
-            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-            relativeFilePath: "first.md",
-            frontmatter: {
-              root: true,
-              targets: ["takt"],
-              takt: { name: "Policy" },
-            },
-            body: "# Uppercase Policy",
-          }),
-          new RulesyncRule({
-            outputRoot: testDir,
-            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-            relativeFilePath: "second.md",
-            frontmatter: {
-              root: true,
-              targets: ["takt"],
-              takt: { name: "policy" },
-            },
-            body: "# Lowercase Policy",
-          }),
-        ];
+      it.each([
+        {
+          toolTarget: "cursor",
+          expectedPaths: [
+            join(".cursor", "rules", "overview.mdc"),
+            join(".cursor", "rules", "API.mdc"),
+            join(".cursor", "rules", "api.mdc"),
+          ],
+        },
+        {
+          toolTarget: "claudecode",
+          expectedPaths: [
+            "CLAUDE.md",
+            join(".claude", "rules", "API.md"),
+            join(".claude", "rules", "api.md"),
+          ],
+        },
+      ] as const)(
+        "should preserve unrelated $toolTarget output paths that differ only by case",
+        async ({ toolTarget, expectedPaths }) => {
+          const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget });
+          const rulesyncRules = [
+            new RulesyncRule({
+              outputRoot: testDir,
+              relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+              relativeFilePath: "overview.md",
+              frontmatter: { root: true, targets: [toolTarget] },
+              body: "# Overview",
+            }),
+            new RulesyncRule({
+              outputRoot: testDir,
+              relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+              relativeFilePath: "API.md",
+              frontmatter: {
+                root: false,
+                targets: [toolTarget],
+                description: "Uppercase API rule",
+                globs: ["**/*"],
+              },
+              body: "# Uppercase API",
+            }),
+            new RulesyncRule({
+              outputRoot: testDir,
+              relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+              relativeFilePath: "api.md",
+              frontmatter: {
+                root: false,
+                targets: [toolTarget],
+                description: "Lowercase API rule",
+                globs: ["src/**/*"],
+              },
+              body: "# Lowercase API",
+            }),
+          ];
 
-        await expect(processor.convertRulesyncFilesToToolFiles(rulesyncRules)).rejects.toThrow(
-          "Generated rule output paths differ only by case",
-        );
-      });
+          const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+          const outputPaths = result.map((rule) =>
+            join(rule.getRelativeDirPath(), rule.getRelativeFilePath()),
+          );
+
+          expect(outputPaths).toEqual(expectedPaths);
+        },
+      );
 
       it("should convert using global paths when global=true for codexcli", async () => {
         const processor = new RulesProcessor({
