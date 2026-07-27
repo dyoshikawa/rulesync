@@ -3,6 +3,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import {
   AgentsSkillsSkill,
   type AgentsSkillsSkillParams,
+  toAllowedToolsArray,
   toSpecConformantAgentSkillFields,
 } from "./agentsskills-skill.js";
 import { RulesyncSkill, type RulesyncSkillFrontmatterInput } from "./rulesync-skill.js";
@@ -45,27 +46,35 @@ export class HermesagentSkill extends AgentsSkillsSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     // The `agentsskills` block is the same rulesync source the native Agent
     // Skills target reads, so it goes through the same normalization: one input
-    // must not produce two different on-disk spellings.
-    const shared = toSpecConformantAgentSkillFields(rulesyncFrontmatter.agentsskills);
+    // must not produce two different on-disk spellings. `metadata` is exempt
+    // because Hermes reads structured values under `metadata.hermes`
+    // (`requires_toolsets`, `tags`, …) that string coercion would break.
+    const shared = toSpecConformantAgentSkillFields(rulesyncFrontmatter.agentsskills, {
+      coerceMetadata: false,
+    });
     const hermes = rulesyncFrontmatter.hermesagent ?? {};
+    const dirName = rulesyncSkill.getDirName();
+    const frontmatter = {
+      ...shared,
+      ...hermes,
+      name: rulesyncFrontmatter.name,
+      description: rulesyncFrontmatter.description,
+    };
 
     HermesagentSkill.reportSpecViolations({
+      outputRoot,
       relativeDirPath: HERMESAGENT_SKILLS_DIR_PATH,
-      dirName: rulesyncSkill.getDirName(),
-      rulesyncFrontmatter,
+      dirName,
+      frontmatter,
+      sourceAllowedTools: rulesyncFrontmatter.agentsskills?.["allowed-tools"],
       logger,
     });
 
     return new this({
       outputRoot,
       relativeDirPath: HERMESAGENT_SKILLS_DIR_PATH,
-      dirName: rulesyncSkill.getDirName(),
-      frontmatter: {
-        ...shared,
-        ...hermes,
-        name: rulesyncFrontmatter.name,
-        description: rulesyncFrontmatter.description,
-      },
+      dirName,
+      frontmatter,
       body: rulesyncSkill.getBody(),
       otherFiles: rulesyncSkill.getOtherFiles(),
       validate,
@@ -75,14 +84,19 @@ export class HermesagentSkill extends AgentsSkillsSkill {
 
   override toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    const allowedTools =
+      frontmatter["allowed-tools"] === undefined
+        ? undefined
+        : toAllowedToolsArray(frontmatter["allowed-tools"]);
     const agentsskills: NonNullable<RulesyncSkillFrontmatterInput["agentsskills"]> = {
       ...(frontmatter.license !== undefined && { license: frontmatter.license }),
       ...(frontmatter.compatibility !== undefined && {
         compatibility: frontmatter.compatibility,
       }),
-      ...(frontmatter["allowed-tools"] !== undefined && {
-        "allowed-tools": frontmatter["allowed-tools"],
-      }),
+      // Normalized back to the canonical rulesync array, matching the base
+      // class, so a generate → import round trip leaves the source unchanged.
+      ...(allowedTools !== undefined &&
+        allowedTools.length > 0 && { "allowed-tools": allowedTools }),
     };
     const hermesagent: Record<string, unknown> = {};
 

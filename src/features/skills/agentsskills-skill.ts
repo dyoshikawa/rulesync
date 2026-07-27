@@ -109,7 +109,7 @@ function toAllowedToolsString(value: string | string[]): string {
  * leaves `.rulesync/skills/**` in the shape it started in. Mirrors
  * `DeepagentsSkill`.
  */
-function toAllowedToolsArray(value: string | string[]): string[] {
+export function toAllowedToolsArray(value: string | string[]): string[] {
   return Array.isArray(value) ? value : value.split(/\s+/).filter((tool) => tool.length > 0);
 }
 
@@ -138,10 +138,10 @@ function toStringMetadata(metadata: Record<string, unknown>): Record<string, str
 }
 
 /** The Agent Skills fields a rulesync skill carries in its `agentsskills` block. */
-export type AgentsSkillsSharedFields = {
+type AgentsSkillsSharedFields = {
   license?: string;
   compatibility?: string;
-  metadata?: Record<string, string>;
+  metadata?: Record<string, string> | Record<string, unknown>;
   "allowed-tools"?: string;
 };
 
@@ -155,10 +155,16 @@ export type AgentsSkillsSharedFields = {
  * the spec requires `compatibility` to be 1–500 characters when present, and an
  * empty `allowed-tools` says nothing.
  *
+ * `coerceMetadata` exists for Hermes Agent, which reads structured values under
+ * `metadata.hermes` (`requires_toolsets`, `tags`, …). The spec's string→string
+ * rule governs the standard's own surface, not a tool that merely borrows the
+ * SKILL.md layout, so converting values to strings there would break working configurations.
+ *
  * @see https://agentskills.io/specification
  */
 export function toSpecConformantAgentSkillFields(
   section: RulesyncSkillFrontmatter["agentsskills"] | undefined,
+  { coerceMetadata = true }: { coerceMetadata?: boolean } = {},
 ): AgentsSkillsSharedFields {
   if (section === undefined) {
     return {};
@@ -173,7 +179,9 @@ export function toSpecConformantAgentSkillFields(
   return {
     ...(section.license !== undefined && { license: section.license }),
     ...(compatibility !== undefined && compatibility.length > 0 && { compatibility }),
-    ...(section.metadata !== undefined && { metadata: toStringMetadata(section.metadata) }),
+    ...(section.metadata !== undefined && {
+      metadata: coerceMetadata ? toStringMetadata(section.metadata) : section.metadata,
+    }),
     ...(allowedTools !== undefined && allowedTools.length > 0 && { "allowed-tools": allowedTools }),
   };
 }
@@ -186,21 +194,26 @@ export function toSpecConformantAgentSkillFields(
  * happen is emitting a skill that conformant clients silently skip without
  * saying so.
  *
+ * The checks run against `frontmatter` — the values actually being written —
+ * rather than the rulesync source, so a tool-specific override that reintroduces
+ * a non-conformant shape is caught too. `sourceAllowedTools` is the pre-join
+ * rulesync value, needed only because the whitespace problem is invisible once
+ * the entries have been joined.
+ *
  * @see https://agentskills.io/specification
  * @see https://agentskills.io/client-implementation/adding-skills-support
  */
-export function collectAgentSkillViolations({
-  name,
-  description,
+function collectAgentSkillViolations({
+  frontmatter,
   dirName,
-  section,
+  sourceAllowedTools,
 }: {
-  name: string;
-  description: string;
+  frontmatter: AgentsSkillsSkillFrontmatter;
   dirName: string;
-  section?: RulesyncSkillFrontmatter["agentsskills"];
+  sourceAllowedTools?: string | string[];
 }): string[] {
   const violations: string[] = [];
+  const { name, description } = frontmatter;
 
   if (name.length === 0) {
     violations.push("`name` is required and must not be empty");
@@ -232,16 +245,23 @@ export function collectAgentSkillViolations({
     );
   }
 
-  const { compatibility } = toSpecConformantAgentSkillFields(section);
-  if (compatibility !== undefined && compatibility.length > COMPATIBILITY_MAX_LENGTH) {
+  const { compatibility } = frontmatter;
+  if (typeof compatibility !== "string" && compatibility !== undefined) {
+    violations.push(
+      "`compatibility` must be a string; the Agent Skills spec does not allow a mapping here",
+    );
+  } else if (compatibility !== undefined && compatibility.length > COMPATIBILITY_MAX_LENGTH) {
     violations.push(
       `\`compatibility\` is ${compatibility.length} characters; the Agent Skills spec allows at most ${COMPATIBILITY_MAX_LENGTH}`,
     );
   }
 
-  const allowedTools = section?.["allowed-tools"];
-  if (Array.isArray(allowedTools)) {
-    for (const tool of allowedTools.filter((entry) => /\s/.test(entry))) {
+  if (Array.isArray(frontmatter["allowed-tools"])) {
+    violations.push(
+      "`allowed-tools` must be a space-separated string; the Agent Skills spec does not allow a list here",
+    );
+  } else if (Array.isArray(sourceAllowedTools)) {
+    for (const tool of sourceAllowedTools.filter((entry) => /\s/.test(entry))) {
       violations.push(
         `\`allowed-tools\` entry "${tool}" contains whitespace, so the space-separated form the Agent Skills spec requires will read it back as several entries`,
       );
@@ -391,9 +411,11 @@ export class AgentsSkillsSkill extends ToolSkill {
     };
 
     AgentsSkillsSkill.reportSpecViolations({
+      outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName,
-      rulesyncFrontmatter,
+      frontmatter: agentsSkillsFrontmatter,
+      sourceAllowedTools: rulesyncFrontmatter.agentsskills?.["allowed-tools"],
       logger,
     });
 
@@ -412,25 +434,30 @@ export class AgentsSkillsSkill extends ToolSkill {
   /**
    * Warn about every Agent Skills spec violation in the skill about to be
    * written. Shared with `HermesagentSkill` so both locations report the same
-   * diagnostics for the same rulesync source.
+   * diagnostics. The reported path includes `outputRoot` so a global-scope
+   * skill points at the file that actually gets written under the home
+   * directory rather than a same-named project path.
    */
   protected static reportSpecViolations({
+    outputRoot,
     relativeDirPath,
     dirName,
-    rulesyncFrontmatter,
+    frontmatter,
+    sourceAllowedTools,
     logger,
   }: {
+    outputRoot: string;
     relativeDirPath: string;
     dirName: string;
-    rulesyncFrontmatter: RulesyncSkillFrontmatter;
+    frontmatter: AgentsSkillsSkillFrontmatter;
+    sourceAllowedTools?: string | string[];
     logger?: Logger;
   }): void {
-    const skillPath = join(relativeDirPath, dirName, SKILL_FILE_NAME);
+    const skillPath = join(outputRoot, relativeDirPath, dirName, SKILL_FILE_NAME);
     for (const violation of collectAgentSkillViolations({
-      name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
+      frontmatter,
       dirName,
-      section: rulesyncFrontmatter.agentsskills,
+      sourceAllowedTools,
     })) {
       warnWithFallback(logger, `${skillPath}: ${violation}`);
     }
