@@ -40,13 +40,13 @@ describe("VibeSkill", () => {
   it("should expose primary and fallback import roots", () => {
     expect(VibeSkill.getSettablePaths()).toEqual({
       relativeDirPath: join(".vibe", "skills"),
-      alternativeSkillRoots: [join(".agents", "skills")],
+      importOnlySkillRoots: [join(".agents", "skills")],
     });
     // Vibe's `user_skills_dirs` returns `~/.vibe/skills` and `~/.agents/skills`,
     // so the shared root is a fallback at global scope too.
     expect(VibeSkill.getSettablePaths({ global: true })).toEqual({
       relativeDirPath: join(".vibe", "skills"),
-      alternativeSkillRoots: [join(".agents", "skills")],
+      importOnlySkillRoots: [join(".agents", "skills")],
     });
   });
 

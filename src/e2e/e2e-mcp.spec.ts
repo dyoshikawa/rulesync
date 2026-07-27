@@ -486,7 +486,9 @@ describe("E2E: mcp", () => {
     ]);
     expect(bash.permission).toBe("ask");
     expect(bash.allowlist).toEqual(["git *"]);
-    expect(parsed.disabled_tools).toContain("write_file");
+    // The canonical `edit` category targets Vibe's `edit` tool; `write_file` is
+    // a separate, create-only tool.
+    expect(parsed.disabled_tools).toContain("edit");
   });
 
   it("should generate Takt MCP transport allowlist into .takt/config.yaml", async () => {

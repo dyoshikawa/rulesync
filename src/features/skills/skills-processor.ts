@@ -409,9 +409,9 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
   [
     "vibe",
     {
-      // Vibe follows the Agent Skills format and discovers project skills from
-      // `.vibe/skills/` and `.agents/skills/`, with user-level skills in
-      // `~/.vibe/skills/`.
+      // Vibe follows the Agent Skills format and discovers skills from
+      // `.vibe/skills/` and `.agents/skills/` at project scope, and from
+      // `~/.vibe/skills/` and `~/.agents/skills/` at user scope.
       class: VibeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },

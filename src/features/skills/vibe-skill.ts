@@ -143,10 +143,13 @@ export class VibeSkill extends ToolSkill {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolSkillSettablePaths {
     // Vibe's `user_skills_dirs` returns both `~/.vibe/skills` and
     // `~/.agents/skills`, and its project discovery covers the matching pair, so
-    // the shared root is an alternative at either scope.
+    // the shared root is a discovery root at either scope. Import-only, like
+    // the same root on `kimi-code`: rulesync never writes there for this target,
+    // so a skill another tool put in the shared tree must not become an orphan
+    // deletion candidate — least of all under the user's home directory.
     return {
       relativeDirPath: join(".vibe", "skills"),
-      alternativeSkillRoots: [join(".agents", "skills")],
+      importOnlySkillRoots: [join(".agents", "skills")],
     };
   }
 

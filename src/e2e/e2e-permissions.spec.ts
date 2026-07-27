@@ -804,7 +804,9 @@ web_search_request = true
     expect(bash.allowlist).toEqual(["git *"]);
     expect(bash.denylist).toEqual(["rm *"]);
     expect(readFile.permission).toBe("always");
-    expect(parsed.disabled_tools).toContain("write_file");
+    // The canonical `edit` category targets Vibe's `edit` tool; `write_file` is
+    // a separate, create-only tool.
+    expect(parsed.disabled_tools).toContain("edit");
   });
 
   it("should generate reasonix permissions into reasonix.toml and preserve MCP plugins", async () => {
@@ -1292,7 +1294,7 @@ enabled = true
       join(testDir, ".vibe", "config.toml"),
       [
         'enabled_tools = ["read_file"]',
-        'disabled_tools = ["write_file"]',
+        'disabled_tools = ["edit"]',
         "",
         "[tools.bash]",
         'permission = "ask"',
@@ -2137,7 +2139,7 @@ describe("E2E: permissions (global mode)", () => {
     const bash = toTable(tools.bash);
     expect(bash.permission).toBe("ask");
     expect(bash.allowlist).toEqual(["git status"]);
-    expect(parsed.disabled_tools).toContain("write_file");
+    expect(parsed.disabled_tools).toContain("edit");
   });
 
   it("should generate rovodev permissions in home directory with --global", async () => {

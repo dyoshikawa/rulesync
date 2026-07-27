@@ -282,7 +282,7 @@ describe("E2E: hooks", () => {
     expect(JSON.stringify(parsed.hooks.subagentStop)).toContain(".rulesync/hooks/subagent-stop.sh");
   });
 
-  it("should generate vibe hooks (.vibe/hooks.toml + experimental flag)", async () => {
+  it("should generate vibe hooks into .vibe/hooks.toml without touching config.toml", async () => {
     const testDir = getTestDir();
 
     // Vibe supports pre_tool/post_tool/post_agent (← preToolUse/

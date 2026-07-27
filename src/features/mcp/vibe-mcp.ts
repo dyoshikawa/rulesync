@@ -41,8 +41,22 @@ const VIBE_MCP_SERVER_FIELDS = [
   "startup_timeout_sec",
   "tool_timeout_sec",
   // Vibe's `/mcp` panel persists these into `config.toml` when a user toggles a
-  // server or one of its tools. Without them here a whole-array rewrite of
-  // `mcp_servers` on the next generate would wipe the user's toggle.
+  // server or one of its tools. `disabled` matches the canonical field name;
+  // `disabled_tools` is handled separately because canonical spells it
+  // `disabledTools`, and `prompt` / `sampling_enabled` have no canonical
+  // equivalent so they pass through as-is.
+  "prompt",
+  "sampling_enabled",
+  "disabled",
+] as const;
+
+/**
+ * Per-server keys a user sets through Vibe's `/mcp` panel rather than through
+ * rulesync. `mcp_servers` is replaced as a whole array on each generate, so an
+ * entry rulesync writes is seeded from the on-disk server of the same name
+ * unless the rulesync source states the value itself.
+ */
+const VIBE_MCP_USER_MANAGED_FIELDS = [
   "prompt",
   "sampling_enabled",
   "disabled",
@@ -112,9 +126,15 @@ export class VibeMcp extends ToolMcp {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
+    const existingByName = new Map(
+      normalizeMcpServersArray(parseVibeConfig(existingContent).mcp_servers).map((server) => [
+        server.name,
+        server,
+      ]),
+    );
 
     const mcpServers = Object.entries(rulesyncMcp.getMcpServers()).map(([name, server]) =>
-      rulesyncMcpServerToVibe(name, server),
+      rulesyncMcpServerToVibe(name, server, existingByName.get(name)),
     );
 
     return new VibeMcp({
@@ -194,7 +214,11 @@ function normalizeMcpServersArray(value: unknown): VibeMcpServer[] {
     .filter((entry): entry is VibeMcpServer => typeof entry.name === "string");
 }
 
-function rulesyncMcpServerToVibe(name: string, server: McpServer): VibeMcpServer {
+function rulesyncMcpServerToVibe(
+  name: string,
+  server: McpServer,
+  existing?: VibeMcpServer,
+): VibeMcpServer {
   const serverRecord = server as Record<string, unknown>;
   const transport = resolveVibeTransport(server);
   const vibeServer: VibeMcpServer = {
@@ -240,12 +264,40 @@ function rulesyncMcpServerToVibe(name: string, server: McpServer): VibeMcpServer
   if (vibeServer.url === undefined && server.httpUrl !== undefined) {
     vibeServer.url = server.httpUrl;
   }
+  // Canonical `disabledTools` is Vibe's `disabled_tools` (same semantics: hide
+  // the named tools of this server), mirroring how `codexcli` renames it.
+  if (server.disabledTools !== undefined) {
+    vibeServer.disabled_tools = server.disabledTools;
+  }
 
+  return seedVibeUserManagedFields(vibeServer, existing);
+}
+
+/**
+ * Carry over what the user set through Vibe's `/mcp` panel, unless the rulesync
+ * source states it: `mcp_servers` is rewritten as a whole array, so anything not
+ * re-stated here is lost.
+ */
+function seedVibeUserManagedFields(
+  vibeServer: VibeMcpServer,
+  existing: VibeMcpServer | undefined,
+): VibeMcpServer {
+  if (!existing) {
+    return vibeServer;
+  }
+  for (const field of VIBE_MCP_USER_MANAGED_FIELDS) {
+    if (vibeServer[field] === undefined && existing[field] !== undefined) {
+      vibeServer[field] = existing[field];
+    }
+  }
   return vibeServer;
 }
 
 function vibeMcpServerToRulesync(server: VibeMcpServer): McpServer {
   const result: Record<string, unknown> = {};
+  if (server.disabled_tools !== undefined) {
+    result.disabledTools = server.disabled_tools;
+  }
   const transport = typeof server.transport === "string" ? server.transport : undefined;
   if (transport !== undefined) {
     result.transport = transport;

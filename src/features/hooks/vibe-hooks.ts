@@ -206,9 +206,6 @@ export class VibeHooks extends ToolHooks {
     return { relativeDirPath: VIBE_DIR, relativeFilePath: VIBE_HOOKS_FILE_NAME };
   }
 
-  // Vibe enables hooks by also writing `.vibe/config.toml`, a file the MCP and
-  // permissions features share. Declared here because it is not a settable path.
-
   static async fromFile({
     outputRoot = process.cwd(),
     validate = true,
