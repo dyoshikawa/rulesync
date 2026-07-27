@@ -531,6 +531,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
           outputRoot: this.outputRoot,
           rulesyncSkill: rulesyncSkill,
           global: this.global,
+          logger: this.logger,
         });
       })
       .filter((skill): skill is ToolSkill => skill !== null);

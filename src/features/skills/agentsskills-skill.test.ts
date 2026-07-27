@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
@@ -197,6 +198,133 @@ Body.`;
         name: "Test Skill",
         description: "Test skill description",
       });
+    });
+
+    it("should serialize allowed-tools, compatibility and metadata into the spec's scalar forms", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "demo-skill",
+        frontmatter: {
+          name: "demo-skill",
+          description: "Demo skill for conformance check.",
+          agentsskills: {
+            "allowed-tools": ["Read", "Bash(git:*)"],
+            compatibility: { runtime: "node", packages: ["jq"] },
+            metadata: { version: 1, author: "example-org", tags: ["a", "b"] },
+          },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const agentsSkillsSkill = AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill });
+
+      expect(agentsSkillsSkill.getFrontmatter()).toEqual({
+        name: "demo-skill",
+        description: "Demo skill for conformance check.",
+        "allowed-tools": "Read Bash(git:*)",
+        compatibility: 'runtime: node, packages: ["jq"]',
+        metadata: { version: "1", author: "example-org", tags: '["a","b"]' },
+      });
+    });
+
+    it("should leave already-conformant scalar values untouched", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "demo-skill",
+        frontmatter: {
+          name: "demo-skill",
+          description: "Demo skill.",
+          agentsskills: {
+            "allowed-tools": "Bash(git:*) Read",
+            compatibility: "Requires Python 3.14+ and uv",
+            metadata: { version: "1.0" },
+          },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      expect(AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()).toEqual({
+        name: "demo-skill",
+        description: "Demo skill.",
+        "allowed-tools": "Bash(git:*) Read",
+        compatibility: "Requires Python 3.14+ and uv",
+        metadata: { version: "1.0" },
+      });
+    });
+
+    it("should warn about every normative name/description violation without failing", () => {
+      const logger = createMockLogger();
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "My_Bad--Name",
+        frontmatter: {
+          name: "Totally-Different-NAME--x",
+          description: "",
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const agentsSkillsSkill = AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill, logger });
+
+      // Generation still succeeds — import stays lenient per the spec's client guide.
+      expect(agentsSkillsSkill).toBeInstanceOf(AgentsSkillsSkill);
+
+      const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(warnings).toHaveLength(3);
+      expect(warnings[0]).toContain("lowercase letters, digits and single hyphens");
+      expect(warnings[1]).toContain('must match its parent directory name "My_Bad--Name"');
+      expect(warnings[2]).toContain("`description` is required and must not be empty");
+      for (const warning of warnings) {
+        expect(warning).toContain(join(".agents", "skills", "My_Bad--Name", SKILL_FILE_NAME));
+      }
+    });
+
+    it("should warn when name, description or compatibility exceed their length limits", () => {
+      const logger = createMockLogger();
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "a".repeat(65),
+        frontmatter: {
+          name: "a".repeat(65),
+          description: "d".repeat(1025),
+          agentsskills: { compatibility: "c".repeat(501) },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill, logger });
+
+      const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(warnings.some((w) => w.includes("`name` is 65 characters"))).toBe(true);
+      expect(warnings.some((w) => w.includes("`description` is 1025 characters"))).toBe(true);
+      expect(warnings.some((w) => w.includes("`compatibility` is 501 characters"))).toBe(true);
+    });
+
+    it("should not warn for a fully conformant skill", () => {
+      const logger = createMockLogger();
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "pdf-processing",
+        frontmatter: {
+          name: "pdf-processing",
+          description: "Extract PDF text. Use when handling PDFs.",
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill, logger });
+
+      expect(logger.warn).not.toHaveBeenCalled();
     });
   });
 

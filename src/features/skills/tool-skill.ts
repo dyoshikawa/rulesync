@@ -4,6 +4,7 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { AiDir } from "../../types/ai-dir.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
+import type { Logger } from "../../utils/logger.js";
 import { RulesyncSkill, SkillFile } from "./rulesync-skill.js";
 
 export type ToolSkillFromRulesyncSkillParams = {
@@ -11,6 +12,12 @@ export type ToolSkillFromRulesyncSkillParams = {
   rulesyncSkill: RulesyncSkill;
   validate?: boolean;
   global?: boolean;
+  /**
+   * Optional so subclasses that have nothing to report can ignore it. Used to
+   * surface lossy conversions and spec violations that must not fail the run
+   * (e.g. a skill name that conformant Agent Skills clients would reject).
+   */
+  logger?: Logger;
 };
 
 export type ToolSkillSettablePaths = {

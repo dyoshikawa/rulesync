@@ -30,6 +30,119 @@ const AgentsSkillsSkillFrontmatterSchema = z.looseObject({
 
 export type AgentsSkillsSkillFrontmatter = z.infer<typeof AgentsSkillsSkillFrontmatterSchema>;
 
+// Normative limits from the Agent Skills specification.
+// https://agentskills.io/specification
+const NAME_MAX_LENGTH = 64;
+const DESCRIPTION_MAX_LENGTH = 1024;
+const COMPATIBILITY_MAX_LENGTH = 500;
+
+// "Unicode lowercase alphanumeric characters (`a-z`, `0-9`) and hyphens (`-`)",
+// with no leading/trailing hyphen and no consecutive hyphens — all four rules
+// expressed as alphanumeric runs joined by single hyphens.
+const NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
+ * Render a non-string YAML value as the string the spec requires. Scalars use
+ * their natural text form (`1` → `"1"`), containers are JSON-encoded so the
+ * original structure stays readable rather than collapsing to `[object Object]`.
+ */
+function stringifyValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "object" && value !== null) {
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+
+/**
+ * The spec types `allowed-tools` as "a space-separated string of tools", so an
+ * array from a legacy rulesync input is joined rather than emitted as a YAML
+ * sequence. Mirrors `DeepagentsSkill`.
+ */
+function toAllowedToolsString(value: string | string[]): string {
+  return Array.isArray(value) ? value.join(" ") : value;
+}
+
+/**
+ * The spec types `compatibility` as a free-form string. An object from a legacy
+ * rulesync input is flattened to `key: value` pairs instead of being emitted as
+ * a YAML mapping, which conformant clients reject.
+ */
+function toCompatibilityString(value: string | Record<string, unknown>): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  return Object.entries(value)
+    .map(([key, entry]) => `${key}: ${stringifyValue(entry)}`)
+    .join(", ");
+}
+
+/**
+ * The spec types `metadata` as "a map from string keys to string values", so
+ * non-string values (e.g. a YAML number `version: 1`) are stringified.
+ */
+function toStringMetadata(metadata: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(metadata).map(([key, value]) => [key, stringifyValue(value)]),
+  );
+}
+
+/**
+ * Collect the normative `name` / `description` violations the Agent Skills spec
+ * defines. These are reported as warnings rather than errors: import stays
+ * lenient per the spec's client-implementation guide, and failing generation
+ * outright would break existing skill directories. What must not happen is
+ * emitting a skill that conformant clients silently skip without saying so.
+ *
+ * @see https://agentskills.io/specification
+ * @see https://agentskills.io/client-implementation/adding-skills-support
+ */
+function collectSpecViolations({
+  name,
+  description,
+  dirName,
+}: {
+  name: string;
+  description: string;
+  dirName: string;
+}): string[] {
+  const violations: string[] = [];
+
+  if (name.length === 0) {
+    violations.push("`name` is required and must not be empty");
+  } else {
+    if (name.length > NAME_MAX_LENGTH) {
+      violations.push(
+        `\`name\` is ${name.length} characters; the Agent Skills spec allows at most ${NAME_MAX_LENGTH}`,
+      );
+    }
+    if (!NAME_PATTERN.test(name)) {
+      violations.push(
+        `\`name\` "${name}" must contain only lowercase letters, digits and single hyphens, with no leading, trailing or consecutive hyphens`,
+      );
+    }
+    if (name !== dirName) {
+      violations.push(
+        `\`name\` "${name}" must match its parent directory name "${dirName}"; conformant clients require them to be equal`,
+      );
+    }
+  }
+
+  if (description.length === 0) {
+    violations.push(
+      "`description` is required and must not be empty; conformant clients skip a skill without one",
+    );
+  } else if (description.length > DESCRIPTION_MAX_LENGTH) {
+    violations.push(
+      `\`description\` is ${description.length} characters; the Agent Skills spec allows at most ${DESCRIPTION_MAX_LENGTH}`,
+    );
+  }
+
+  return violations;
+}
+
 export type AgentsSkillsSkillParams = {
   outputRoot?: string;
   relativeDirPath?: string;
@@ -152,25 +265,44 @@ export class AgentsSkillsSkill extends ToolSkill {
     rulesyncSkill,
     validate = true,
     global = false,
+    logger,
   }: ToolSkillFromRulesyncSkillParams): AgentsSkillsSkill {
     const settablePaths = AgentsSkillsSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     const agentsskillsSection = rulesyncFrontmatter.agentsskills;
+    const dirName = rulesyncSkill.getDirName();
+    const skillPath = join(settablePaths.relativeDirPath, dirName, SKILL_FILE_NAME);
+
+    const compatibility =
+      agentsskillsSection?.compatibility === undefined
+        ? undefined
+        : toCompatibilityString(agentsskillsSection.compatibility);
+    if (compatibility !== undefined && compatibility.length > COMPATIBILITY_MAX_LENGTH) {
+      logger?.warn(
+        `${skillPath}: \`compatibility\` is ${compatibility.length} characters; the Agent Skills spec allows at most ${COMPATIBILITY_MAX_LENGTH}`,
+      );
+    }
 
     const agentsSkillsFrontmatter: AgentsSkillsSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...(agentsskillsSection?.license !== undefined && { license: agentsskillsSection.license }),
-      ...(agentsskillsSection?.compatibility !== undefined && {
-        compatibility: agentsskillsSection.compatibility,
-      }),
+      ...(compatibility !== undefined && { compatibility }),
       ...(agentsskillsSection?.metadata !== undefined && {
-        metadata: agentsskillsSection.metadata,
+        metadata: toStringMetadata(agentsskillsSection.metadata),
       }),
       ...(agentsskillsSection?.["allowed-tools"] !== undefined && {
-        "allowed-tools": agentsskillsSection["allowed-tools"],
+        "allowed-tools": toAllowedToolsString(agentsskillsSection["allowed-tools"]),
       }),
     };
+
+    for (const violation of collectSpecViolations({
+      name: rulesyncFrontmatter.name,
+      description: rulesyncFrontmatter.description,
+      dirName,
+    })) {
+      logger?.warn(`${skillPath}: ${violation}`);
+    }
 
     return new this({
       outputRoot,
