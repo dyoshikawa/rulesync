@@ -110,7 +110,6 @@ def _register_command(ctx, command):
             {
                 "goal": description,
                 "context": "\\n\\n".join(context_parts),
-                "toolsets": ["terminal", "file", "web"],
             },
         )
 

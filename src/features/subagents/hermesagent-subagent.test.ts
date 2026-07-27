@@ -71,7 +71,8 @@ describe("HermesagentSubagent", () => {
     );
 
     const subagentSpec = files.find((file) => file.getRelativeFilePath() === `reviewer.json`);
-    expect(JSON.parse(subagentSpec?.getFileContent() ?? "{}")).toMatchObject({
+    const parsedSubagentSpec = JSON.parse(subagentSpec?.getFileContent() ?? "{}");
+    expect(parsedSubagentSpec).toMatchObject({
       slug: "reviewer",
       name: "Reviewer",
       description: "Review code changes",
@@ -81,10 +82,12 @@ describe("HermesagentSubagent", () => {
         dispatch: "delegate_task",
       },
     });
+    expect(parsedSubagentSpec).not.toHaveProperty("toolsets");
 
     const plugin = files.find((file) => file.getRelativeFilePath() === `__init__.py`);
     expect(plugin?.getFileContent()).toContain("ctx.dispatch_tool(");
     expect(plugin?.getFileContent()).toContain('"delegate_task"');
+    expect(plugin?.getFileContent()).not.toContain('"toolsets"');
     expect(plugin?.getFileContent()).toContain("ctx.register_command");
     expect(plugin?.getFileContent()).toContain(
       'Path(__file__).resolve().parents[2] / "rulesync" / "subagents"',

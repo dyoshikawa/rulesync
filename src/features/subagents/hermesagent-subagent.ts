@@ -82,7 +82,6 @@ def _register_subagent(ctx, subagent):
     name = subagent.get("name") or slug
     description = subagent.get("description") or f"Delegate work to the {name} RuleSync subagent."
     system_prompt = subagent.get("prompt") or ""
-    toolsets = subagent.get("toolsets") or ["terminal", "file", "web"]
 
     def handler(args=None, **kwargs):
         del kwargs
@@ -103,7 +102,6 @@ def _register_subagent(ctx, subagent):
             {
                 "goal": description,
                 "context": "\\n\\n".join(context_parts),
-                "toolsets": toolsets,
             },
         )
 
@@ -151,7 +149,6 @@ function getSubagentSpec(rulesyncSubagent: RulesyncSubagent): Record<string, unk
     name,
     description,
     prompt: rulesyncSubagent.getBody(),
-    toolsets: ["terminal", "file", "web"],
     hermes: {
       command: hermesCommandName(slug),
       dispatch: "delegate_task",
