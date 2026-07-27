@@ -11,7 +11,7 @@ import {
   RULESYNC_PERMISSIONS_SCHEMA_URL,
 } from "../constants/rulesync-paths.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
-import { readFileContent, writeFileContent } from "../utils/file.js";
+import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -87,6 +87,30 @@ describe("E2E: permissions", () => {
       testedTargets: permissionsGenerateTargets,
     });
   });
+
+  it.each([
+    { target: "antigravity-ide", relativePath: [".antigravity", "settings.json"] },
+    { target: "factorydroid", relativePath: [".factory", "settings.json"] },
+    { target: "copilot", relativePath: [".vscode", "settings.json"] },
+  ])(
+    "should not create the shared $target config file when the permissions payload is empty",
+    async ({ target, relativePath }) => {
+      const testDir = getTestDir();
+
+      // A permissions file whose categories map to nothing this tool models, so
+      // the merge payload for the shared config file comes out empty. These
+      // paths are deliberately not gitignored, so creating them would leave
+      // untracked files with no content behind after every generate.
+      await writeFileContent(
+        join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+        JSON.stringify({ permission: {} }, null, 2),
+      );
+
+      await runGenerate({ target, features: "permissions" });
+
+      expect(await fileExists(join(testDir, ...relativePath))).toBe(false);
+    },
+  );
 
   it("should generate claudecode permissions into .claude/settings.json", async () => {
     const testDir = getTestDir();

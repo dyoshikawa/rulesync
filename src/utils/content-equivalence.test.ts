@@ -229,4 +229,52 @@ describe("fileContentIsEmptyPayload", () => {
       false,
     );
   });
+
+  it("treats a comment-only YAML document as empty", () => {
+    // `loadYaml` legitimately returns `undefined` here, which must not be
+    // confused with a parse failure.
+    expect(fileContentIsEmptyPayload({ filePath: "/x/config.yaml", content: "# comment\n" })).toBe(
+      true,
+    );
+  });
+
+  it("treats a null document and empty containers as empty", () => {
+    expect(fileContentIsEmptyPayload({ filePath: "/x/settings.json", content: "null" })).toBe(true);
+    expect(fileContentIsEmptyPayload({ filePath: "/x/settings.json", content: "[]" })).toBe(true);
+    expect(
+      fileContentIsEmptyPayload({ filePath: "/x/settings.jsonc", content: "// note\n{}\n" }),
+    ).toBe(true);
+  });
+
+  it("treats a non-empty array as content regardless of its elements", () => {
+    expect(fileContentIsEmptyPayload({ filePath: "/x/settings.json", content: '{"a":[{}]}' })).toBe(
+      false,
+    );
+    expect(fileContentIsEmptyPayload({ filePath: "/x/settings.json", content: "[{}]" })).toBe(
+      false,
+    );
+  });
+
+  it("treats a __proto__ entry as content instead of losing its payload", () => {
+    // jsonc-parser resolves `__proto__` by replacing the prototype, so the
+    // nested servers would be invisible to a plain own-property walk.
+    expect(
+      fileContentIsEmptyPayload({
+        filePath: "/x/settings.json",
+        content: '{"mcpServers":{"__proto__":{"evil":1}}}',
+      }),
+    ).toBe(false);
+  });
+
+  it("does not recurse forever on a self-referential YAML anchor", () => {
+    expect(
+      fileContentIsEmptyPayload({ filePath: "/x/config.yaml", content: "&r\nfoo: *r\n" }),
+    ).toBe(false);
+  });
+
+  it("treats a date-only TOML document as content", () => {
+    expect(
+      fileContentIsEmptyPayload({ filePath: "/x/config.toml", content: "updated = 2026-01-01\n" }),
+    ).toBe(false);
+  });
 });

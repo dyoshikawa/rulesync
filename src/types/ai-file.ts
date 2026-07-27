@@ -1,5 +1,6 @@
 import path, { relative, resolve } from "node:path";
 
+import { isSharedUserManagedConfigPath } from "../constants/shared-config-paths.js";
 import { toPosixPath } from "../utils/file.js";
 
 export type ValidationResult =
@@ -134,15 +135,22 @@ export abstract class AiFile {
    * Returns whether rulesync should refrain from creating this file when it does
    * not exist yet and the generated payload carries no content.
    *
-   * Defaults to the shared/user-managed config files that rulesync merges into
-   * rather than owns (the same files that `isDeletable()` protects). Those paths
-   * are deliberately not gitignored, so materializing an empty `{}` there hands
-   * the user an untracked file to manage without giving them anything in return.
-   * Files rulesync fully owns are still written, because their mere existence is
-   * part of what rulesync generates.
+   * Defaults to the shared, user-managed config files listed in
+   * `SHARED_USER_MANAGED_CONFIG_PATHS` — the same set that is deliberately kept
+   * out of `rulesync gitignore`. Because those paths stay committable,
+   * materializing an empty `{}` there hands the user an untracked file to manage
+   * without giving them anything in return.
+   *
+   * Every other file is still written, because for a file rulesync owns its mere
+   * existence is part of what rulesync generates. This deliberately does NOT key
+   * off `isDeletable()`: that flag also protects global-scope files and files the
+   * orphan sweep cannot rediscover, which are unrelated concerns.
+   *
+   * Override and return `false` for any file whose emptiness is itself
+   * meaningful (e.g. an ignore format where an empty file blocks everything).
    */
   shouldSkipCreationWhenPayloadEmpty(): boolean {
-    return !this.isDeletable();
+    return isSharedUserManagedConfigPath(this.getRelativePathFromCwd());
   }
 
   abstract validate(): ValidationResult;

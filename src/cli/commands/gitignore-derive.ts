@@ -1,3 +1,4 @@
+import { SHARED_USER_MANAGED_CONFIG_PATHS } from "../../constants/shared-config-paths.js";
 import type { ToolRuleExtraFixedFile } from "../../features/rules/tool-rule.js";
 import type { Feature } from "../../types/features.js";
 import { getProcessorRegistryEntry } from "../../types/processor-registry.js";
@@ -22,28 +23,12 @@ const TARGETS_NOT_DERIVED: ReadonlySet<string> = new Set([
 
 // Project-scope outputs that rulesync merges into rather than fully owns
 // (user-managed settings files), so they are deliberately not gitignored even
-// though a feature emits them. Most paths come straight from a tool's default
-// getSettablePaths; `.amp/settings.jsonc` (runtime probe twin of
-// `.amp/settings.json`) and `.claude/settings.local.json` (claudecode ignore
-// `fileMode: "local"` variant) are emitted only under non-default options.
-export const DERIVED_PATHS_NOT_GITIGNORED: ReadonlySet<string> = new Set([
-  "**/.amp/settings.json",
-  "**/.amp/settings.jsonc",
-  "**/.antigravity/settings.json",
-  "**/.claude/settings.json",
-  "**/.claude/settings.local.json",
-  "**/.codex/config.toml",
-  "**/.devin/config.json",
-  "**/.factory/settings.json",
-  "**/.grok/config.toml",
-  "**/.vibe/config.toml",
-  "**/reasonix.toml",
-  "**/.vscode/settings.json",
-  "**/.zed/settings.json",
-  "**/kilo.json",
-  "**/kilo.jsonc",
-  "**/opencode.json",
-]);
+// though a feature emits them. The list itself lives in
+// `src/constants/shared-config-paths.ts` because the same set also decides
+// which files must not be created just to hold an empty payload.
+export const DERIVED_PATHS_NOT_GITIGNORED: ReadonlySet<string> = new Set(
+  SHARED_USER_MANAGED_CONFIG_PATHS.map((path) => `**/${path}`),
+);
 
 const toPosix = (path: string): string => path.replace(/\\/g, "/");
 
