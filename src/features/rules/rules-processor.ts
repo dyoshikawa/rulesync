@@ -245,6 +245,15 @@ type ToolRuleFactory = {
      * are cleaned up when no rule targets them. See {@link PiRule.getExtraFixedFiles}.
      */
     getExtraFixedFiles?(params: { global?: boolean }): ToolRuleExtraFixedFile[];
+    /**
+     * Globs for rule files this tool discovers by pattern rather than at a fixed
+     * path, used when the tool's scoping mechanism is the same file name repeated
+     * in subdirectories (the AGENTS.md standard's nested files). Import-only:
+     * the matches are hand-authored files outside any rulesync-owned directory,
+     * so enumerating them for `--delete` would sweep away work rulesync never
+     * wrote. See {@link AgentsMdRule.getNestedFileGlobs}.
+     */
+    getNestedFileGlobs?(params: { outputRoot: string; global?: boolean }): string[];
   };
   meta: {
     /** File extension for the rule file */
@@ -1626,6 +1635,37 @@ As this project's AI coding tool, you must follow the additional conventions bel
       })();
       this.logger.debug(`Found ${extraFixedToolRules.length} extra fixed tool rule files`);
 
+      // Pattern-discovered rule files (the AGENTS.md standard's nested
+      // subproject files). Import only — see `getNestedFileGlobs`.
+      const nestedToolRules = await (async () => {
+        const globs = factory.class.getNestedFileGlobs?.({
+          outputRoot: this.outputRoot,
+          global: this.global,
+        });
+        if (forDeletion || !globs || globs.length === 0) {
+          return [];
+        }
+
+        const filePaths = await findFilesByGlobs(globs, { type: "file" });
+
+        return await Promise.all(
+          filePaths.map((filePath) => {
+            const relativeDirPath = resolveRelativeDirPath(filePath);
+            checkPathTraversal({
+              relativePath: relativeDirPath,
+              intendedRootDir: this.outputRoot,
+            });
+            return factory.class.fromFile({
+              outputRoot: this.outputRoot,
+              relativeDirPath,
+              relativeFilePath: basename(filePath),
+              global: this.global,
+            });
+          }),
+        );
+      })();
+      this.logger.debug(`Found ${nestedToolRules.length} nested tool rule files`);
+
       const nonRootToolRules = await (async () => {
         if (!settablePaths.nonRoot) {
           return [];
@@ -1697,6 +1737,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
         ...localRootToolRules,
         ...rootMirrorDeletionRules,
         ...extraFixedToolRules,
+        ...nestedToolRules,
         ...nonRootToolRules,
       ];
     } catch (error) {

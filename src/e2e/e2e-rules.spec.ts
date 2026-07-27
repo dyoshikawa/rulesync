@@ -774,6 +774,36 @@ This is a test project for E2E testing.
     const importedContent = await readFileContent(importedRulePath);
     expect(importedContent).toContain("Project Overview");
   });
+
+  // Nested `AGENTS.md` files are the AGENTS.md standard's only scoping
+  // mechanism ("agents automatically read the nearest file in the directory
+  // tree"). https://agents.md/
+  it("should import nested agentsmd rules and round-trip their subproject scope", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(join(testDir, "AGENTS.md"), "# Project Overview\n");
+    await writeFileContent(join(testDir, "packages", "api", "AGENTS.md"), "# API Instructions\n");
+    // Vendored and generated trees must stay out of the scan.
+    await writeFileContent(join(testDir, "node_modules", "dep", "AGENTS.md"), "# Vendored\n");
+    await writeFileContent(join(testDir, ".agents", "AGENTS.md"), "# Tool output\n");
+
+    await runImport({ target: "agentsmd", features: "rules" });
+
+    const importedNested = await readFileContent(
+      join(testDir, ".rulesync", "rules", "packages-api.md"),
+    );
+    expect(importedNested).toContain("API Instructions");
+    expect(importedNested).toContain("subprojectPath: packages/api");
+    expect(await fileExists(join(testDir, ".rulesync", "rules", "node_modules-dep.md"))).toBe(
+      false,
+    );
+
+    await runGenerate({ target: "agentsmd", features: "rules" });
+
+    expect(await readFileContent(join(testDir, "packages", "api", "AGENTS.md"))).toContain(
+      "API Instructions",
+    );
+  });
 });
 
 const rulesGlobalTargets = [
