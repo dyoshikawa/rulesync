@@ -22,8 +22,10 @@ sudo chown -R node:node /workspace-worktrees 2>/dev/null || true
 # Set up the git credential helper before the slower steps below, so a failure
 # there cannot leave it unconfigured. `gh auth setup-git` errors out when no
 # GitHub credentials are present (GITHUB_TOKEN is optional for contributors), and
-# that must not fail container creation.
-if gh auth status >/dev/null 2>&1; then
+# that must not fail container creation. `gh auth token` is the guard rather than
+# `gh auth status` because it resolves locally, so a network hiccup cannot make us
+# skip the setup while reporting missing credentials.
+if gh auth token >/dev/null 2>&1; then
   gh auth setup-git
 else
   echo "init.sh: no GitHub credentials found, skipping 'gh auth setup-git'" >&2
