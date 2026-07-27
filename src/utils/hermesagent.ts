@@ -1,4 +1,4 @@
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { HERMESAGENT_GLOBAL_DIR } from "../constants/hermesagent-paths.js";
 import { getHomeDirectory } from "./file.js";
@@ -25,9 +25,15 @@ export function getHermesagentRelativeDirPath({
   global: boolean;
   relativeDirPath: string;
 }): string {
-  return global && getHermesagentHome()
-    ? relative(HERMESAGENT_GLOBAL_DIR, relativeDirPath)
-    : relativeDirPath;
+  if (!global || !getHermesagentHome()) return relativeDirPath;
+
+  const relativePath = relative(HERMESAGENT_GLOBAL_DIR, relativeDirPath);
+  if (relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
+    throw new Error(
+      `Hermes Agent global path must be within ${HERMESAGENT_GLOBAL_DIR}: ${relativeDirPath}`,
+    );
+  }
+  return relativePath;
 }
 
 export function getHermesagentRelativeFilePath({

@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { CLAUDECODE_COMMANDS_DIR_PATH } from "../constants/claudecode-paths.js";
 import {
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
@@ -11,7 +12,36 @@ import {
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
-import { runGenerate, runImport, useGlobalTestDirectories } from "./e2e-helper.js";
+import {
+  execFileAsync,
+  rulesyncArgs,
+  rulesyncCmd,
+  runGenerate,
+  runImport,
+  useGlobalTestDirectories,
+} from "./e2e-helper.js";
+
+async function runGlobalHermesCommandConvert({
+  env,
+}: {
+  env: Record<string, string>;
+}): Promise<void> {
+  await execFileAsync(
+    rulesyncCmd,
+    [
+      ...rulesyncArgs,
+      "convert",
+      "--from",
+      "claudecode",
+      "--to",
+      "hermesagent",
+      "--features",
+      "commands",
+      "--global",
+    ],
+    { env: { ...process.env, ...env } },
+  );
+}
 
 describe("E2E: HERMES_HOME", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
@@ -135,6 +165,47 @@ describe("E2E: HERMES_HOME", () => {
     expect(configAfterDelete).not.toContain("rulesync-commands");
     expect(configAfterDelete).toContain("rulesync-subagents");
     expect(configAfterDelete).toContain("generated-session-start");
+  });
+
+  it("converts global commands into the custom profile without touching HOME config", async () => {
+    const homeDir = getHomeDir();
+    const hermesHome = join(homeDir, "custom-hermes");
+    const env = { HOME_DIR: homeDir, HERMES_HOME: hermesHome };
+    const homeConfigContent = [
+      "# Preserve this comment and formatting.",
+      "unrelated:",
+      "  formatting: preserved",
+      "",
+    ].join("\n");
+
+    await writeFileContent(
+      join(homeDir, CLAUDECODE_COMMANDS_DIR_PATH, "review-pr.md"),
+      "Review the pull request.",
+    );
+    await writeFileContent(join(homeDir, "config.yaml"), homeConfigContent);
+
+    await runGlobalHermesCommandConvert({ env });
+
+    expect(
+      await readFileContent(join(hermesHome, "rulesync", "commands", "review-pr.json")),
+    ).toContain("Review the pull request.");
+    expect(await fileExists(join(hermesHome, "plugins", "rulesync-commands", "plugin.yaml"))).toBe(
+      true,
+    );
+    expect(await fileExists(join(hermesHome, "plugins", "rulesync-commands", "__init__.py"))).toBe(
+      true,
+    );
+    expect(
+      await fileExists(join(hermesHome, "plugins", "rulesync-commands", ".rulesync-owned")),
+    ).toBe(true);
+    expect(await readFileContent(join(hermesHome, "config.yaml"))).toContain("rulesync-commands");
+
+    expect(await readFileContent(join(homeDir, "config.yaml"))).toBe(homeConfigContent);
+    expect(await fileExists(join(homeDir, "rulesync", "commands", "review-pr.json"))).toBe(false);
+    expect(await fileExists(join(homeDir, "plugins", "rulesync-commands", "plugin.yaml"))).toBe(
+      false,
+    );
+    expect(await fileExists(join(homeDir, ".hermes", "config.yaml"))).toBe(false);
   });
 
   it("imports every global feature from the custom profile into the global RuleSync root", async () => {

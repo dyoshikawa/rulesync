@@ -53,6 +53,17 @@ describe("Hermes Agent profile paths", () => {
     ).toBe("config.yaml");
   });
 
+  it("rejects paths outside .hermes when stripping the global profile prefix", () => {
+    process.env.HERMES_HOME = "/custom-hermes";
+
+    expect(() =>
+      getHermesagentRelativeDirPath({ global: true, relativeDirPath: "outside" }),
+    ).toThrow("Hermes Agent global path must be within .hermes");
+    expect(() =>
+      getHermesagentRelativeFilePath({ global: true, relativeFilePath: "config.yaml" }),
+    ).toThrow("Hermes Agent global path must be within .hermes");
+  });
+
   it("keeps project paths and the global RuleSync source root separate", () => {
     process.env.HERMES_HOME = "/custom-hermes";
     process.env.HOME_DIR = "/rulesync-home";

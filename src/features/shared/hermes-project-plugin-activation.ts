@@ -11,10 +11,7 @@ import {
   readFileContentOrNull,
   writeFileContent,
 } from "../../utils/file.js";
-import {
-  getHermesagentRelativeFilePath,
-  resolveHermesagentOutputRoot,
-} from "../../utils/hermesagent.js";
+import { getHermesagentHome, getHermesagentRelativeFilePath } from "../../utils/hermesagent.js";
 import type { Logger } from "../../utils/logger.js";
 import type { FeatureGenerateResult } from "../../utils/result.js";
 import { isPlainObject } from "../../utils/type-guards.js";
@@ -117,10 +114,7 @@ export async function activateHermesProjectPlugins({
     return { count: 0, paths: [], hasDiff: false };
   }
 
-  const configRoot = resolveHermesagentOutputRoot({
-    outputRoot: getHomeDirectory(),
-    global: true,
-  });
+  const configRoot = getHermesagentHome() ?? getHomeDirectory();
   const relativeConfigPath = getHermesagentRelativeFilePath({
     global: true,
     relativeFilePath: HERMESAGENT_CONFIG_FILE_PATH,

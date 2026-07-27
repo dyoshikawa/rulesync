@@ -110,7 +110,7 @@ describe("Hermes project plugin activation", () => {
   it("writes activation to the active HERMES_HOME profile", async () => {
     const { testDir, cleanup } = await setupTestDirectory({ home: true });
     const profileDir = join(testDir, "profiles", "reviewer");
-    process.env.HOME_DIR = testDir;
+    delete process.env.HOME_DIR;
     process.env.HERMES_HOME = profileDir;
     try {
       const result = await activateHermesProjectPlugins({

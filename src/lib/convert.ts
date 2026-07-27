@@ -277,7 +277,7 @@ function buildCommandsStrategy(ctx: ConvertContext) {
     allTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
       new CommandsProcessor({
-        outputRoot,
+        outputRoot: resolveToolOutputRoot({ outputRoot, toolTarget, global }),
         toolTarget,
         global,
         dryRun,
@@ -426,7 +426,13 @@ function buildChecksStrategy(ctx: ConvertContext) {
     itemLabel: "check file(s)",
     allTargets,
     createProcessor: ({ toolTarget, dryRun }) =>
-      new ChecksProcessor({ outputRoot, toolTarget, global, dryRun, logger }),
+      new ChecksProcessor({
+        outputRoot: resolveToolOutputRoot({ outputRoot, toolTarget, global }),
+        toolTarget,
+        global,
+        dryRun,
+        logger,
+      }),
     loadSource: (p) => p.loadToolFiles(),
     toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
     fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
