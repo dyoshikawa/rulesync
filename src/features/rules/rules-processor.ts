@@ -277,6 +277,8 @@ type ToolRuleFactory = {
      * read only one root `AGENTS.md` and never scan a non-root directory.
      */
     foldsNonRootIntoRoot?: boolean;
+    /** Whether colliding non-root outputs are plain Markdown that can be composed safely. */
+    composesSamePathNonRootRules?: boolean;
     /**
      * MCP feature that registers non-root rule paths into its shared config's
      * `instructions` key (project scope only); set when the tool does not
@@ -303,6 +305,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: false,
         ruleDiscoveryMode: "toon",
+        composesSamePathNonRootRules: true,
         additionalConventions: {
           commands: { commandClass: AgentsmdCommand },
           subagents: { subagentClass: AgentsmdSubagent },
@@ -335,6 +338,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
+        composesSamePathNonRootRules: true,
       },
     },
   ],
@@ -507,6 +511,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
+        composesSamePathNonRootRules: true,
       },
     },
   ],
@@ -582,6 +587,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
         mcpInstructionsRegistrar: KiloMcp,
+        composesSamePathNonRootRules: true,
       },
     },
   ],
@@ -641,6 +647,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
         mcpInstructionsRegistrar: OpencodeMcp,
+        composesSamePathNonRootRules: true,
       },
     },
   ],
@@ -933,6 +940,7 @@ export class RulesProcessor extends FeatureProcessor {
     this.mergeRulesByOutputPath({
       toolRules,
       mergeNonRootRules: meta.foldsNonRootIntoRoot === true,
+      composeSamePathNonRootRules: meta.composesSamePathNonRootRules === true,
       sourceRuleByToolRule,
     });
 
@@ -1121,9 +1129,9 @@ export class RulesProcessor extends FeatureProcessor {
    *
    * Project and global modes can compose multiple root rules into one target
    * file. This is also used for tools whose rules engine reads only one root file and therefore
-   * folds non-root rule bodies into it. Modular non-root files cannot be safely
-   * concatenated after rendering because their metadata formats may conflict,
-   * so collisions between those files are rejected.
+   * folds non-root rule bodies into it. Adapters whose colliding modular outputs
+   * are plain Markdown opt into composition; other modular collisions are rejected
+   * because their rendered metadata formats may conflict.
    *
    * The root rule becomes the merge target for root groups. Explicitly folding
    * tools use the first rule when no root exists. Source discovery order is
@@ -1133,10 +1141,12 @@ export class RulesProcessor extends FeatureProcessor {
   private mergeRulesByOutputPath({
     toolRules,
     mergeNonRootRules,
+    composeSamePathNonRootRules,
     sourceRuleByToolRule,
   }: {
     toolRules: ToolRule[];
     mergeNonRootRules: boolean;
+    composeSamePathNonRootRules: boolean;
     sourceRuleByToolRule: ReadonlyMap<ToolRule, RulesyncRule>;
   }): void {
     if (toolRules.length <= 1) {
@@ -1173,14 +1183,17 @@ export class RulesProcessor extends FeatureProcessor {
       }
 
       // Root-path groups prefer the root rule as their merge target. Explicitly
-      // folding tools use their first rule when no root exists.
+      // folding tools use their first rule when no root exists. Root fragments are
+      // composable, while adapters must explicitly declare colliding non-root
+      // outputs safe because their metadata formats vary by target.
       const rootRule = group.find((rule) => rule.isRoot());
-      if (!rootRule && !mergeNonRootRules) {
+      const hasNonRootRule = group.some((rule) => !rule.isRoot());
+      if (!mergeNonRootRules && !composeSamePathNonRootRules && hasNonRootRule) {
         const sourceRules = group
           .map((rule) => sourceRuleByToolRule.get(rule))
           .filter((rule): rule is RulesyncRule => rule !== undefined);
         throw new Error(
-          `Multiple generated rules resolve to output path '${path}' for target '${this.toolTarget}', but this target does not support composing modular rule files. Source rules: ${formatRulePaths(sourceRules)}`,
+          `Multiple generated rules resolve to output path '${path}' for target '${this.toolTarget}', but this target cannot safely compose colliding modular rule files. Source rules: ${formatRulePaths(sourceRules)}`,
         );
       }
       const target = rootRule ?? group[0];

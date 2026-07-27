@@ -48,5 +48,5 @@ Currently, supports rules generation for Claude Code, GitHub Copilot, and OpenCo
 > Currently, when in the directory enabled global mode:
 >
 > - `rulesync.jsonc` only supports `global`, `features`, `delete` and `verbose`. `Features` can be set `"rules"` and `"commands"`. Other parameters are ignored.
-> - Multiple `root: true` files can target the same tool in project and global modes. Compatible root or single-file outputs are combined in lexicographic source file path order with a blank line between files, so filename prefixes can control composition order. Distinct native paths remain separate, and exact modular path collisions fail explicitly.
+> - Multiple `root: true` files can target the same tool in project and global modes. Compatible root or plain-Markdown single-file outputs are combined with a blank line between files. Local rules are composed first in lexicographic source file path order, followed by non-overridden `.curated/` rules in lexicographic order, so filename prefixes control composition order within each set. Distinct native paths remain separate; plain-Markdown modular path collisions are combined, while targets whose modular format carries metadata reject such collisions explicitly.
 > - Only Claude Code is supported for global mode commands.

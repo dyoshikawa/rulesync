@@ -1492,6 +1492,81 @@ Content that would fail parsing`;
         },
       );
 
+      it("should reject root collisions with metadata-bearing modular rules", async () => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "kiro",
+          global: true,
+        });
+        const rulesyncRules = [
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "overview.md",
+            frontmatter: { root: true, targets: ["kiro"] },
+            body: "# Root Body",
+          }),
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "product.md",
+            frontmatter: {
+              root: false,
+              targets: ["kiro"],
+              globs: ["src/**/*.ts"],
+            },
+            body: "# Non Root Body",
+          }),
+        ];
+
+        await expect(processor.convertRulesyncFilesToToolFiles(rulesyncRules)).rejects.toThrow(
+          `Multiple generated rules resolve to output path '${join(".kiro", "steering", "product.md")}' for target 'kiro', but this target cannot safely compose colliding modular rule files. Source rules: ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "overview.md")}, ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "product.md")}`,
+        );
+      });
+
+      it("should compose plain Markdown modular rules with the same output path", async () => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "agentsmd",
+        });
+        const rulesyncRules = [
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "first.md",
+            frontmatter: {
+              root: false,
+              targets: ["agentsmd"],
+              agentsmd: { subprojectPath: "packages/app" },
+            },
+            body: "# First Subproject Rule",
+          }),
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "second.md",
+            frontmatter: {
+              root: false,
+              targets: ["agentsmd"],
+              agentsmd: { subprojectPath: "packages/app" },
+            },
+            body: "# Second Subproject Rule",
+          }),
+        ];
+
+        const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+        expect(result).toHaveLength(1);
+        expect(result[0]).toBeInstanceOf(AgentsMdRule);
+        expect(result[0]?.getRelativeDirPath()).toBe(join("packages", "app"));
+        expect(result[0]?.getRelativeFilePath()).toBe("AGENTS.md");
+        expect(result[0]?.getFileContent()).toBe(
+          "# First Subproject Rule\n\n# Second Subproject Rule",
+        );
+      });
+
       it("should reject Takt rules with the same overridden output name", async () => {
         const processor = new RulesProcessor({
           logger,
@@ -1524,7 +1599,7 @@ Content that would fail parsing`;
         ];
 
         await expect(processor.convertRulesyncFilesToToolFiles(rulesyncRules)).rejects.toThrow(
-          `Multiple generated rules resolve to output path '${join(".takt", "facets", "policies", "same.md")}' for target 'takt', but this target does not support composing modular rule files. Source rules: ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "first.md")}, ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "second.md")}`,
+          `Multiple generated rules resolve to output path '${join(".takt", "facets", "policies", "same.md")}' for target 'takt', but this target cannot safely compose colliding modular rule files. Source rules: ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "first.md")}, ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "second.md")}`,
         );
       });
 
