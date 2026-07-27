@@ -27,10 +27,15 @@ import {
 const PiSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
-  "allowed-tools": z.optional(z.array(z.string())),
+  // Pi implements the Agent Skills spec, which types this as a space-delimited
+  // string; the array form stays accepted for existing rulesync inputs.
+  // https://agentskills.io/specification
+  "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
   "disable-model-invocation": z.optional(z.boolean()),
   license: z.optional(z.string()),
-  compatibility: z.optional(z.looseObject({})),
+  // The spec types this as a 1-500 character string; the object form stays
+  // accepted for back-compat.
+  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
   metadata: z.optional(z.looseObject({})),
 });
 
@@ -129,10 +134,18 @@ export class PiSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    const allowedTools = frontmatter["allowed-tools"];
+    const allowedToolsArray =
+      allowedTools === undefined
+        ? undefined
+        : Array.isArray(allowedTools)
+          ? allowedTools
+          : allowedTools.split(/\s+/).filter((tool) => tool.length > 0);
     const piBlock = {
-      ...(frontmatter["allowed-tools"] !== undefined && {
-        "allowed-tools": frontmatter["allowed-tools"],
-      }),
+      // Normalized back to the canonical rulesync array, mirroring
+      // `DeepagentsSkill`, so a generate → import round trip is stable.
+      ...(allowedToolsArray !== undefined &&
+        allowedToolsArray.length > 0 && { "allowed-tools": allowedToolsArray }),
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
@@ -175,13 +188,20 @@ export class PiSkill extends ToolSkill {
       section: piSection,
     });
 
+    // Pi implements the Agent Skills spec, which types `allowed-tools` as a
+    // space-delimited string, so a canonical rulesync list is joined rather than
+    // emitted as a YAML sequence. Mirrors `DeepagentsSkill`.
+    const { "allowed-tools": allowedTools, ...piSectionRest } = piSection ?? {};
+    const allowedToolsString = Array.isArray(allowedTools) ? allowedTools.join(" ") : allowedTools;
+
     const piFrontmatter: PiSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...(allowedToolsString && { "allowed-tools": allowedToolsString }),
       // Spread the section first to carry over any tool-specific keys, then
       // re-apply the resolved `disable-model-invocation` so the root default is
       // honored when the section omits the key.
-      ...piSection,
+      ...piSectionRest,
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,
       }),

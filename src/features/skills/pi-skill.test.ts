@@ -256,12 +256,87 @@ Body`,
       expect(skill.getFrontmatter()).toEqual({
         name: "demo",
         description: "Demo",
-        "allowed-tools": ["read", "write"],
+        // Joined into the space-delimited form the Agent Skills spec requires.
+        "allowed-tools": "read write",
         "disable-model-invocation": true,
         license: "MIT",
         compatibility: { "pi-version": ">=0.75.0" },
         metadata: { author: "rulesync" },
       });
+    });
+
+    it("should accept the spec's string forms and keep them as-is", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "spec-skill",
+        frontmatter: {
+          name: "spec-skill",
+          description: "Spec-conformant skill",
+          targets: ["*"],
+          pi: {
+            "allowed-tools": "Bash(git:*) Read",
+            compatibility: "Requires git and jq",
+          },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      expect(
+        PiSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill }).getFrontmatter(),
+      ).toEqual({
+        name: "spec-skill",
+        description: "Spec-conformant skill",
+        "allowed-tools": "Bash(git:*) Read",
+        compatibility: "Requires git and jq",
+      });
+    });
+
+    it("should round-trip a canonical list through generate and import", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "round-trip",
+        frontmatter: {
+          name: "round-trip",
+          description: "Round trip",
+          targets: ["*"],
+          pi: { "allowed-tools": ["Bash", "Read"], license: "MIT" },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const emitted = PiSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill });
+      expect(emitted.getFrontmatter()["allowed-tools"]).toBe("Bash Read");
+      expect(emitted.toRulesyncSkill().getFrontmatter().pi).toEqual({
+        "allowed-tools": ["Bash", "Read"],
+        license: "MIT",
+      });
+    });
+
+    it("should import a spec-conformant SKILL.md from disk", async () => {
+      // The path the issue reproduces: `fromDir` re-parses the frontmatter, so
+      // the widened schema has to hold there and not only in the constructor.
+      const skillDir = join(testDir, ".pi", "skills", "spec-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---
+name: spec-skill
+description: Spec-conformant skill
+allowed-tools: Bash(git:*) Read
+compatibility: Requires git and jq
+---
+
+Body.`,
+      );
+
+      const skill = await PiSkill.fromDir({ outputRoot: testDir, dirName: "spec-skill" });
+
+      expect(skill.getFrontmatter()["allowed-tools"]).toBe("Bash(git:*) Read");
+      expect(skill.getFrontmatter().compatibility).toBe("Requires git and jq");
     });
 
     it("should pick up root-level disable-model-invocation when pi section omits it", () => {

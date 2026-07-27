@@ -293,6 +293,7 @@ export const PI_HOOK_EVENTS: readonly HookEvent[] = [
   "beforeSubmitPrompt",
   "stop",
   "preCompact",
+  "postCompact",
 ];
 
 /**
@@ -1056,6 +1057,9 @@ export const CANONICAL_TO_PI_EVENT_NAMES: Record<string, string> = {
   beforeSubmitPrompt: "input",
   stop: "agent_end",
   preCompact: "session_before_compact",
+  // Pi documents `session_compact` alongside `session_before_compact`, and
+  // v0.79.10 gave both the same `reason` / `willRetry` metadata.
+  postCompact: "session_compact",
 };
 
 /** Map canonical hook events to Amp Plugin API events. */

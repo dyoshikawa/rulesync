@@ -121,10 +121,14 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   ),
   pi: z.optional(
     z.looseObject({
-      "allowed-tools": z.optional(z.array(z.string())),
+      // Pi implements the Agent Skills spec: `allowed-tools` is a
+      // space-delimited string and `compatibility` a 1-500 character string.
+      // Both legacy rulesync forms stay accepted.
+      // https://agentskills.io/specification
+      "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
       "disable-model-invocation": z.optional(z.boolean()),
       license: z.optional(z.string()),
-      compatibility: z.optional(z.looseObject({})),
+      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
       metadata: z.optional(z.looseObject({})),
     }),
   ),
@@ -284,10 +288,10 @@ export type RulesyncSkillFrontmatterInput = {
     "argument-hint"?: string;
   };
   pi?: {
-    "allowed-tools"?: string[];
+    "allowed-tools"?: string | string[];
     "disable-model-invocation"?: boolean;
     license?: string;
-    compatibility?: Record<string, unknown>;
+    compatibility?: string | Record<string, unknown>;
     metadata?: Record<string, unknown>;
   };
   zed?: {
