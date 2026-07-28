@@ -26,7 +26,6 @@ const ignoreGenerateTargets = [
     format: "json" as const,
   },
   { target: "antigravity-cli", outputPath: ".geminiignore", format: "plaintext" as const },
-  { target: "goose", outputPath: ".gooseignore", format: "plaintext" as const },
   {
     target: "hermesagent",
     outputPath: join(".hermes", "plugins", "rulesync-ignore", "patterns.gitignore"),
@@ -149,7 +148,6 @@ credentials/
     { target: "cursor", orphanPath: ".cursorignore" },
     // claudecode uses settings.json (isDeletable=false) — excluded
     { target: "antigravity-cli", orphanPath: ".geminiignore" },
-    { target: "goose", orphanPath: ".gooseignore" },
     { target: "cline", orphanPath: ".clineignore" },
     { target: "kilo", orphanPath: ".kilocodeignore" },
     { target: "roo", orphanPath: ".rooignore" },
@@ -217,7 +215,6 @@ describe("E2E: ignore (import)", () => {
   it.each([
     { target: "cursor", sourcePath: ".cursorignore" },
     { target: "antigravity-cli", sourcePath: ".geminiignore" },
-    { target: "goose", sourcePath: ".gooseignore" },
     {
       target: "hermesagent",
       sourcePath: join(".hermes", "plugins", "rulesync-ignore", "patterns.gitignore"),

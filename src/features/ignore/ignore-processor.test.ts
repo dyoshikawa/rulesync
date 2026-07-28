@@ -418,7 +418,6 @@ describe("IgnoreProcessor", () => {
         "claudecode-legacy",
         "cline",
         "cursor",
-        "goose",
         "hermesagent",
         "junie",
         "kilo",

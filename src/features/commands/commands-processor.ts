@@ -330,7 +330,7 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsGlobal: true,
         isSimulated: false,
         // Non-recursive: project recipes live flat in `.goose/recipes/`, while
-        // subagent sub-recipes live in `.goose/recipes/subagents/` and must not
+        // legacy subagent sub-recipes of earlier rulesync versions may remain in `.goose/recipes/subagents/` and must not
         // be picked up by the command importer.
         supportsSubdirectory: false,
       },

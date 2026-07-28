@@ -256,7 +256,10 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     "goose",
     {
       class: GooseSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.yaml" },
+      // Custom agents are Markdown files under .goose/agents/ (project) and
+      // ~/.config/goose/agents/ (global); the old sub-recipe YAML surface was
+      // never read by Goose's agent discovery.
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
     },
   ],
   [

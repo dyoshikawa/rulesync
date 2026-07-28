@@ -156,6 +156,10 @@ describe("registry derivation", () => {
       "augmentcode::rules::**/.augment-guidelines",
       "devin::commands::**/.devin/workflows/",
       "junie::rules::**/.junie/memories/",
+      // Legacy outputs of earlier versions (issue #2404): the retired
+      // .gooseignore and the inert sub-recipe subagents directory.
+      "goose::ignore::**/.gooseignore",
+      "goose::subagents::**/.goose/recipes/subagents/",
       // The allowlist is user-scope only; earlier versions wrote a project
       // `.junie/allowlist.json` Junie never reads (issue #2411).
       "junie::permissions::**/.junie/allowlist.json",

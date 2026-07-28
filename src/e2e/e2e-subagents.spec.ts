@@ -109,7 +109,7 @@ const subagentsGenerateTargets = [
   },
   {
     target: "goose",
-    outputPath: join(".goose", "recipes", "subagents", "planner.yaml"),
+    outputPath: join(".goose", "agents", "planner.md"),
   },
   {
     target: "reasonix",
@@ -155,7 +155,7 @@ const subagentsGlobalTargets = [
   { target: "vibe", outputPath: join(".vibe", "agents", "planner.toml") },
   {
     target: "goose",
-    outputPath: join(".config", "goose", "recipes", "subagents", "planner.yaml"),
+    outputPath: join(".config", "goose", "agents", "planner.md"),
   },
   {
     target: "reasonix",
@@ -347,7 +347,7 @@ You are a subagent-only helper.
     { target: "factorydroid", orphanPath: join(".factory", "droids", "orphan.md") },
     { target: "cline", orphanPath: join(".cline", "agents", "orphan.yaml") },
     { target: "vibe", orphanPath: join(".vibe", "agents", "orphan.toml") },
-    { target: "goose", orphanPath: join(".goose", "recipes", "subagents", "orphan.yaml") },
+    { target: "goose", orphanPath: join(".goose", "agents", "orphan.md") },
   ])(
     "should fail in check mode when delete would remove an orphan $target subagent file",
     async ({ target, orphanPath }) => {
@@ -605,19 +605,18 @@ Break down tasks into steps.
     expect(await readFileContent(protectedFile)).toBe("Protected notes.\n");
   });
 
-  it("should import goose subagents (sub-recipe YAML)", async () => {
+  it("should import goose subagents (custom-agent Markdown)", async () => {
     const testDir = getTestDir();
 
-    const recipeContent = [
-      "version: 1.0.0",
-      "title: planner",
+    const agentContent = [
+      "---",
+      "name: planner",
       "description: Plans tasks",
-      "instructions: Break down tasks into steps.",
+      "---",
+      "",
+      "Break down tasks into steps.",
     ].join("\n");
-    await writeFileContent(
-      join(testDir, ".goose", "recipes", "subagents", "planner.yaml"),
-      recipeContent,
-    );
+    await writeFileContent(join(testDir, ".goose", "agents", "planner.md"), agentContent);
 
     await runImport({ target: "goose", features: "subagents" });
 

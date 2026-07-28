@@ -929,14 +929,11 @@ Goose configures MCP servers in two locations depending on scope:
 
 See the [Goose extensions docs](https://block.github.io/goose/docs/getting-started/using-extensions/) and [open-plugins MCP PR #9471](https://github.com/block/goose/pull/9471).
 
-### Goose-specific: commands and subagents as recipes
+### Goose-specific: commands as recipes, subagents as custom agents
 
-Goose [recipes](https://block.github.io/goose/docs/guides/recipes/recipe-reference/) are reusable YAML workflow files (`version`, `title`, `description`, plus at least one of `instructions` / `prompt`, and optional `extensions`, `parameters`, `sub_recipes`, …). Rulesync maps:
+Goose [recipes](https://block.github.io/goose/docs/guides/recipes/recipe-reference/) are reusable YAML workflow files. **Commands** map to top-level recipes at `.goose/recipes/<name>.yaml` (project) and `~/.config/goose/recipes/<name>.yaml` (global); the command body becomes the recipe `prompt`, `title` defaults to the file name and `description` to the rulesync `description` (falling back to `title`), `version` defaults to `1.0.0`, and any other recipe field round-trips through the rulesync `goose` section of a command.
 
-- **commands → top-level recipes** at `.goose/recipes/<name>.yaml` (project) and `~/.config/goose/recipes/<name>.yaml` (global). The command body becomes the recipe `prompt`.
-- **subagents → sub-recipes** at `.goose/recipes/subagents/<name>.yaml` (project) and `~/.config/goose/recipes/subagents/<name>.yaml` (global), referenced from a parent recipe's `sub_recipes` list by relative `path`. The subagent body becomes the recipe `instructions`.
-
-Subagents live in the `subagents/` subdirectory so the command-recipe and subagent-recipe file sets stay disjoint (import and orphan deletion never cross over). `title` defaults to the file name and `description` to the rulesync `description` (falling back to `title`) since recipes require both; `version` defaults to `1.0.0`. Any other recipe field round-trips through the rulesync `goose` section of a command/subagent.
+**Subagents** map to Goose's [custom agents](https://block.github.io/goose/docs/guides/context-engineering/custom-agents/) (v1.34.0+): Markdown files with `name` (required) / `description` / `model` frontmatter whose body is the agent instructions, invocable via `@name` or delegation. They are emitted to the goose-specific discovery dirs `.goose/agents/<name>.md` (project) and `~/.config/goose/agents/<name>.md` (global), so the output cannot collide with a future shared `.agents/agents/` target; `model` and unknown future fields round-trip through the rulesync `goose` subagent section. Earlier rulesync versions emitted subagents as sub-recipe YAML under `.goose/recipes/subagents/` — a location Goose's agent discovery never scans, so those files were inert; they are no longer generated (stale outputs stay gitignored but are not cleaned up automatically).
 
 ### Vibe-specific: stdio `cwd` and MCP `[auth]` block
 
@@ -995,6 +992,8 @@ read a separate ignore file, so Rulesync writes the deny list into Claude
 Code's settings file as `permissions.deny` entries (`Read(<pattern>)`).
 
 Kiro reads `.kiroignore` in project scope and `~/.kiro/settings/kiroignore` in user scope. The `kiro`, `kiro-cli`, and `kiro-ide` targets therefore support `--global` for the deprecated ignore feature even though other ignore targets remain project-only.
+
+Goose retired `.gooseignore` upstream ("removed some time ago in favour of other ignore things like gitignore etc" — [goose#10343](https://github.com/aaif-goose/goose/issues/10343)), so rulesync no longer generates it; the replacement guidance is `.gitignore` plus tool permissions. Stale `.gooseignore` files from earlier versions stay gitignored but are not cleaned up automatically.
 
 Cline's `.clineignore` is still emitted, but its own docs now title it "deprecate soon" and state it is not a security or access-control boundary — upstream's replacement direction is a Cline plugin enforcing via a `beforeTool` hook. Treat the matrix ✅ as a deprecated surface.
 
