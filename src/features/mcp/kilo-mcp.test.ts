@@ -8,6 +8,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { KiloMcp } from "./kilo-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
@@ -2640,9 +2641,31 @@ describe("KiloMcp toggle entries", () => {
     });
   });
 
+  it("writes a server carrying only httpUrl as remote, not as an empty local one", async () => {
+    // The shape the Gemini CLI adapter imports. Written as a local server with
+    // an empty command, Kilo could not start it and this adapter threw reading
+    // it back — the same failure the toggle fix was about.
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: ".rulesync",
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: { gemini: { httpUrl: "https://example.com/mcp" } },
+      }),
+    });
+
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({ rulesyncMcp });
+
+    expect(JSON.parse(kiloMcp.getFileContent()).mcp.gemini).toEqual({
+      type: "remote",
+      url: "https://example.com/mcp",
+      enabled: true,
+    });
+  });
+
   it("still rejects a malformed server that happens to carry enabled", () => {
-    // The toggle arm is strict so it cannot absorb this: a string `command`
-    // would otherwise be read character by character and written back that way.
+    // The toggle arm refuses any entry carrying a transport key, so it cannot
+    // absorb this: a string `command` would otherwise be read character by
+    // character and written back that way.
     expect(
       () =>
         new KiloMcp({
@@ -2664,5 +2687,37 @@ describe("KiloMcp toggle entries", () => {
 
     const imported = JSON.parse(kiloMcp.toRulesyncMcp().getFileContent());
     expect(imported.mcpServers.toggled).toEqual({});
+  });
+
+  it("warns when a transport-less server carries fields a toggle cannot keep", async () => {
+    const mockLogger = { warn: vi.fn() } as unknown as Logger;
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: ".rulesync",
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: { half: { args: ["--port", "1"], env: { TOKEN: "x" } } },
+      }),
+    });
+
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({ rulesyncMcp, logger: mockLogger });
+
+    expect(JSON.parse(kiloMcp.getFileContent()).mcp.half).toEqual({ enabled: true });
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("args, env"));
+  });
+
+  it("accepts a toggle entry carrying a key this adapter does not know", () => {
+    // Kilo keeps adding per-server keys, and `kilo.jsonc` is also where the
+    // rules feature writes. A toggle arm that rejected unknown keys would abort
+    // the whole `--targets kilo` run over one key added upstream.
+    const kiloMcp = new KiloMcp({
+      relativeDirPath: ".",
+      relativeFilePath: "kilo.jsonc",
+      fileContent: JSON.stringify({
+        mcp: { toggled: { enabled: false, source: "marketplace" } },
+      }),
+    });
+
+    const imported = JSON.parse(kiloMcp.toRulesyncMcp().getFileContent());
+    expect(imported.mcpServers.toggled).toEqual({ disabled: true });
   });
 });
