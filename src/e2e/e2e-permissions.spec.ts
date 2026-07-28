@@ -34,7 +34,6 @@ const permissionsGenerateTargets = [
   "amp",
   "devin",
   "codexcli",
-  "junie",
   "cursor",
   "copilot",
   "kiro",
@@ -441,43 +440,6 @@ web_search_request = true
     expect(table.model).toBe("gpt-5");
     expect(toTable(table.features).web_search_request).toBe(true);
     expect(table.permissions).toBeUndefined();
-  });
-
-  it("should generate junie permissions into .junie/allowlist.json", async () => {
-    const testDir = getTestDir();
-
-    await writeFileContent(
-      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
-      JSON.stringify(
-        {
-          permission: {
-            bash: { "git ": "allow", "rm *": "deny" },
-            edit: { "src/**": "allow" },
-            read: { "/etc/**": "deny" },
-            mcp: { search: "ask" },
-          },
-        },
-        null,
-        2,
-      ),
-    );
-
-    await runGenerate({ target: "junie", features: "permissions" });
-
-    const content = JSON.parse(await readFileContent(join(testDir, ".junie", "allowlist.json")));
-    // Literal patterns become `prefix`; glob patterns become `pattern`. Junie
-    // has no `deny`, so canonical deny rules are downgraded to `ask`.
-    expect(content.rules.executables).toEqual([
-      { prefix: "git ", action: "allow" },
-      { pattern: "rm *", action: "ask" },
-    ]);
-    expect(content.rules.fileEditing).toEqual([{ pattern: "src/**", action: "allow" }]);
-    expect(content.rules.readOutsideProject).toEqual([{ pattern: "/etc/**", action: "ask" }]);
-    expect(content.rules.mcpTools).toEqual([{ prefix: "search", action: "ask" }]);
-    // defaultBehavior is not fabricated on a fresh generate (Junie's own
-    // default is "ask"); it is only written when authored via the junie
-    // override or pre-existing in the file.
-    expect(content.defaultBehavior).toBeUndefined();
   });
 
   it("should generate cursor permissions into .cursor/cli.json", async () => {
@@ -1390,6 +1352,52 @@ describe("E2E: permissions (global mode)", () => {
       expect(generated).toContain("rm *");
     },
   );
+
+  it("should generate junie permissions as AllowListRuleSet objects (global-only)", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git ": "allow", "rm *": "deny" },
+            edit: { "src/**": "allow" },
+          },
+          junie: {
+            ruleDefaults: { executables: "ask" },
+            readSecretFile: { rules: [{ pattern: "**/.env", action: "ask" }] },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "junie",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const content = JSON.parse(await readFileContent(join(homeDir, ".junie", "allowlist.json")));
+    // Every rule group is Junie's AllowListRuleSet object ({ default?, rules }),
+    // never a bare array — Junie rejects the array form for the whole file.
+    // Canonical deny downgrades to ask (Junie has no deny).
+    expect(content.rules.executables).toEqual({
+      default: "ask",
+      rules: [
+        { prefix: "git ", action: "allow" },
+        { pattern: "rm *", action: "ask" },
+      ],
+    });
+    expect(content.rules.fileEditing).toEqual({ rules: [{ pattern: "src/**", action: "allow" }] });
+    expect(content.rules.readSecretFile).toEqual({
+      rules: [{ pattern: "**/.env", action: "ask" }],
+    });
+  });
 
   it("should generate Kimi Code permissions in the shared user config", async () => {
     const projectDir = getProjectDir();
