@@ -127,10 +127,13 @@ function toPermissionsTable(value: unknown): Record<string, unknown> {
 // whole `[sandbox]` table is a dedicated security surface, so it round-trips in
 // full; `[agent]` also holds unrelated settings, so only the plan-mode read-only
 // trust lists are extracted on import.
-const REASONIX_OVERRIDE_AGENT_KEYS = [
-  "plan_mode_allowed_tools",
-  "plan_mode_read_only_commands",
-] as const;
+// `plan_mode_allowed_tools` left the documented config surface in v1.17.18 —
+// plan-mode tool access is the permissions layer's job now — so it is no longer
+// authorable. `plan_mode_read_only_commands` survives, but upstream labels it
+// "legacy compatibility only; Plan bash now uses Permissions", so it is kept
+// only for round-tripping a file that already has it.
+// https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
+const REASONIX_OVERRIDE_AGENT_KEYS = ["plan_mode_read_only_commands"] as const;
 
 function asReasonixRecord(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)

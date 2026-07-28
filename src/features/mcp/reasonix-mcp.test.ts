@@ -128,7 +128,7 @@ describe("ReasonixMcp", () => {
     expect(parsed.plugins[0]).toMatchObject({ name: "local", type: "stdio", command: "node" });
   });
 
-  it("should collapse the deprecated sse transport onto http", async () => {
+  it("should write the sse transport verbatim, since Reasonix implements it", async () => {
     const rulesyncMcp = new RulesyncMcp({
       outputRoot: testDir,
       relativeDirPath: ".rulesync",
@@ -142,7 +142,9 @@ describe("ReasonixMcp", () => {
 
     const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
     const parsed = smolToml.parse(reasonixMcp.getFileContent()) as any;
-    expect(parsed.plugins[0].type).toBe("http");
+    // Collapsing it onto `http` pointed Reasonix at Streamable HTTP, and the
+    // server could not connect; v1.17.18 re-implemented the legacy transport.
+    expect(parsed.plugins[0].type).toBe("sse");
   });
 
   it("should write the global config to .reasonix/config.toml", () => {
@@ -167,7 +169,7 @@ describe("ReasonixMcp", () => {
   });
 
   describe("trusted_read_only_tools round-trip", () => {
-    it("should preserve trusted_read_only_tools when exporting rulesync MCP servers", async () => {
+    it("should not write the retired trusted_read_only_tools back out", async () => {
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
         relativeDirPath: ".rulesync",
@@ -186,11 +188,13 @@ describe("ReasonixMcp", () => {
       const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
       const parsed = smolToml.parse(reasonixMcp.getFileContent()) as any;
 
+      // Retired in v1.17.18: Reasonix ignores it and strips it on its next
+      // save, so re-emitting it only makes the two writers churn.
       expect(parsed.plugins[0]).toMatchObject({
         name: "search",
         command: "reasonix-plugin-search",
-        trusted_read_only_tools: ["search"],
       });
+      expect(parsed.plugins[0].trusted_read_only_tools).toBeUndefined();
     });
 
     it("should import trusted_read_only_tools from an existing [[plugins]] entry", () => {
@@ -213,7 +217,7 @@ describe("ReasonixMcp", () => {
       expect(parsed.mcpServers.search.trusted_read_only_tools).toEqual(["search"]);
     });
 
-    it("should round-trip trusted_read_only_tools through export then import unchanged", async () => {
+    it("should drop the retired key on a generate, leaving nothing to import", async () => {
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
         relativeDirPath: ".rulesync",
@@ -231,10 +235,10 @@ describe("ReasonixMcp", () => {
       const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
       const roundTripped = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
 
-      expect(roundTripped.mcpServers.example.trusted_read_only_tools).toEqual([
-        "search",
-        "list_files",
-      ]);
+      // Import still reads it out of a file that has it — see the test above —
+      // but a generate no longer puts it back, so this round trip loses it by
+      // design rather than re-writing a key Reasonix ignores.
+      expect(roundTripped.mcpServers.example.trusted_read_only_tools).toBeUndefined();
     });
 
     it("should not emit trusted_read_only_tools when absent from the source", async () => {

@@ -34,11 +34,12 @@ type ReasonixPlugin = Record<string, unknown> & {
 // Reasonix declares an external stdio/http plugin (MCP server) as a `[[plugins]]`
 // array-of-tables entry. `type` selects the transport (`stdio` default, `http`
 // a.k.a. `streamable-http`); the remaining fields mirror the standard MCP schema.
-// `trusted_read_only_tools` is Reasonix-specific: an optional pre-seeded list of
-// raw MCP tool names trusted for planner/read-only use (plan-mode trust, not a
-// per-tool allow/deny list). There is no clean canonical rulesync equivalent, so
-// it round-trips as a passthrough field on the canonical McpServer (a loose
-// zod object, so unknown keys survive), mirroring how other MCP adapters
+// `trusted_read_only_tools` is read but never written: v1.17.18 retired it along
+// with `default_tools_approval_mode`, `tools.<raw>.approval_mode` and
+// `approvals_reviewer` — installing a server is now the authorization decision,
+// and Reasonix strips the key the next time it saves that entry. Importing it
+// keeps an older file's intent visible in the canonical config (a loose zod
+// object, so unknown keys survive), mirroring how other MCP adapters
 // preserve server-specific extra fields they don't deeply model.
 // `call_timeout_seconds` (per-server MCP call timeout) and `tool_timeout_seconds`
 // (a per-tool inline table keyed by raw MCP tool name) are likewise Reasonix-only
@@ -52,10 +53,17 @@ const REASONIX_PLUGIN_FIELDS = [
   "env",
   "url",
   "headers",
-  "trusted_read_only_tools",
   "call_timeout_seconds",
   "tool_timeout_seconds",
 ] as const;
+
+/**
+ * Fields an older `reasonix.toml` may still carry that Reasonix no longer reads.
+ * Imported so the intent stays visible in the canonical config, never written
+ * back — Reasonix strips them itself on its next save, and re-emitting one only
+ * makes the two writers churn against each other.
+ */
+const REASONIX_RETIRED_PLUGIN_FIELDS = ["trusted_read_only_tools"] as const;
 
 export class ReasonixMcp extends ToolMcp {
   private readonly toml: ReasonixConfig;
@@ -253,7 +261,7 @@ function reasonixPluginToRulesync(plugin: ReasonixPlugin): McpServer {
     result.type = type;
   }
 
-  for (const field of REASONIX_PLUGIN_FIELDS) {
+  for (const field of [...REASONIX_PLUGIN_FIELDS, ...REASONIX_RETIRED_PLUGIN_FIELDS]) {
     if (field === "type") {
       continue;
     }
@@ -266,12 +274,15 @@ function reasonixPluginToRulesync(plugin: ReasonixPlugin): McpServer {
 }
 
 function resolveReasonixType(server: McpServer): string | undefined {
-  // Reasonix transports: `stdio` (default), `http` (a.k.a. `streamable-http`).
-  // `sse` is deprecated upstream, so collapse it onto `http`; `local` is the
-  // rulesync alias for `stdio`.
+  // Reasonix transports: `stdio` (default), `http` (a.k.a. `streamable-http`),
+  // and `sse` — the legacy 2024-11-05 HTTP+SSE transport, which v1.17.18
+  // re-implemented rather than deferred. Collapsing it onto `http` would point
+  // Reasonix at Streamable HTTP and the server would not connect, so it is
+  // emitted verbatim. `local` is the rulesync alias for `stdio`.
+  // https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
   const candidate = server.type ?? server.transport;
   if (candidate) {
-    if (candidate === "sse" || candidate === "streamable-http") {
+    if (candidate === "streamable-http") {
       return "http";
     }
     if (candidate === "local") {
