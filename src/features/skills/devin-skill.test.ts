@@ -389,6 +389,11 @@ Global skill body content.`;
         "user",
       ]);
       expect(makeGatedSkillFrontmatter({ "user-invocable": false }).triggers).toEqual(["model"]);
+      // Both flags off: an empty triggers list states "never invoked" outright.
+      expect(
+        makeGatedSkillFrontmatter({ "disable-model-invocation": true, "user-invocable": false })
+          .triggers,
+      ).toEqual([]);
       // An explicit section triggers value wins over the flags.
       expect(
         makeGatedSkillFrontmatter({

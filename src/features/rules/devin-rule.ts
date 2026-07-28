@@ -317,7 +317,8 @@ export class DevinRule extends ToolRule {
 
     super({
       ...rest,
-      // Global rules are a single plain-markdown file (no frontmatter);
+      // The global AGENTS.md and the project-root AGENTS.md are plain
+      // markdown (no frontmatter);
       // project rules carry Devin trigger frontmatter.
       fileContent: rest.root ? body : stringifyFrontmatter(body, frontmatter),
     });
