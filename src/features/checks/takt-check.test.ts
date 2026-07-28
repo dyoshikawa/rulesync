@@ -141,17 +141,47 @@ describe("TaktCheck", () => {
       });
     });
 
-    it("turns on quality_gates_edit_only when any check asks for it", async () => {
-      const content = await generate([
-        rulesyncCheck({ name: "a", body: "A." }),
-        rulesyncCheck({
-          name: "b",
-          body: "B.",
-          frontmatter: { takt: { quality_gates_edit_only: true } },
-        }),
-      ]);
+    it("turns on quality_gates_edit_only when any check asks for it, and says so", async () => {
+      // It narrows where the *other* checks' gates run, so the reach change is
+      // not left to be discovered in Takt.
+      const logger = createMockLogger();
+      const [toolCheck] = await TaktCheck.fromRulesyncChecks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_CHECKS_RELATIVE_DIR_PATH,
+        rulesyncChecks: [
+          rulesyncCheck({ name: "a", body: "A." }),
+          rulesyncCheck({
+            name: "b",
+            body: "B.",
+            frontmatter: { takt: { quality_gates_edit_only: true } },
+          }),
+        ],
+        logger,
+      });
 
-      expect(workflowOverridesOf(content).quality_gates_edit_only).toBe(true);
+      expect(workflowOverridesOf(toolCheck?.getFileContent() ?? "").quality_gates_edit_only).toBe(
+        true,
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("property of the whole quality-gate block"),
+      );
+    });
+
+    it("warns and falls back to a string gate for a takt block that is not a mapping", async () => {
+      const logger = createMockLogger();
+      const [toolCheck] = await TaktCheck.fromRulesyncChecks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_CHECKS_RELATIVE_DIR_PATH,
+        rulesyncChecks: [
+          rulesyncCheck({ name: "odd", body: "Gate.", frontmatter: { takt: "command: ./x.sh" } }),
+        ],
+        logger,
+      });
+
+      expect(workflowOverridesOf(toolCheck?.getFileContent() ?? "").quality_gates).toEqual([
+        "Gate.",
+      ]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("expected a mapping"));
     });
 
     it("rejects a takt block Takt itself would refuse", async () => {
@@ -186,9 +216,11 @@ describe("TaktCheck", () => {
       expect(workflowOverridesOf(content).quality_gates).toEqual(["The only gate."]);
     });
 
-    it("retracts a block a previous generate wrote when the last Takt check is deleted", async () => {
-      // Otherwise deleting the only Takt check leaves its gates — a command gate
-      // among them — running after every step, with nothing left to edit.
+    it("retracts a block a previous generate wrote when every remaining check names another tool", async () => {
+      // Ownership: the gates were derived from `.rulesync/checks/`, so once no
+      // check there targets Takt they are rulesync's to remove. (Emptying the
+      // directory entirely is a different path — the feature never runs, so the
+      // gates stay; `docs/reference/file-formats.md` says so.)
       const dirPath = join(testDir, ".takt");
       await ensureDir(dirPath);
       await writeFileContent(

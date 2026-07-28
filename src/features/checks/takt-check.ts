@@ -63,13 +63,13 @@ type TaktCheckOverride = z.infer<typeof TaktCheckOverrideSchema>;
 type TaktQualityGate = string | Record<string, unknown>;
 
 function parseOverride(raw: unknown, filePath: string, logger?: Logger): TaktCheckOverride {
-  if (raw !== undefined && !isPlainObject(raw)) {
-    // An invalid block throws below; one of the wrong shape entirely would
-    // otherwise silently produce a string gate where a command was intended.
-    logger?.warn(`Ignoring the \`takt\` block in ${filePath}: expected a mapping.`);
+  if (raw === undefined) {
     return {};
   }
   if (!isPlainObject(raw)) {
+    // An invalid block throws below; one of the wrong shape entirely would
+    // otherwise silently produce a string gate where a command was intended.
+    logger?.warn(`Ignoring the \`takt\` block in ${filePath}: expected a mapping.`);
     return {};
   }
   const result = TaktCheckOverrideSchema.safeParse(raw);
@@ -119,6 +119,7 @@ function stemOf(rulesyncCheck: RulesyncCheck): string {
  */
 function buildWorkflowOverrides(
   entries: { gate: TaktQualityGate; override: TaktCheckOverride }[],
+  logger?: Logger,
 ): Record<string, unknown> {
   const topLevel: TaktQualityGate[] = [];
   // Null-prototype: a step literally named `__proto__` would otherwise resolve
@@ -142,8 +143,15 @@ function buildWorkflowOverrides(
   }
 
   // `quality_gates_edit_only` is a property of the whole block, not of one gate,
-  // so any check asking for it turns it on for all of them.
+  // so any check asking for it turns it on for all of them — including gates
+  // from checks that said nothing about it, whose reach it narrows.
   const editOnly = entries.some(({ override }) => override.quality_gates_edit_only === true);
+  if (editOnly && entries.length > 1) {
+    logger?.warn(
+      `Takt checks: \`quality_gates_edit_only\` is a property of the whole quality-gate block, so ` +
+        `every gate now runs only on steps that may edit files, not just the check that set it.`,
+    );
+  }
 
   return {
     ...(topLevel.length > 0 && { quality_gates: topLevel }),
@@ -320,16 +328,32 @@ export class TaktCheck extends ToolCheck {
     logger,
   }: ToolCheckFromRulesyncChecksParams): Promise<TaktCheck[]> {
     const paths = TaktCheck.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, TAKT_CONFIG_FILE_NAME);
+    const configFileName = paths.relativeFilePath ?? TAKT_CONFIG_FILE_NAME;
+    const filePath = join(outputRoot, paths.relativeDirPath, configFileName);
     // Read without initializing so a dry-run does not create the user's
     // config.yaml as a side effect (mirrors the Takt MCP/permissions adapters).
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
 
+    const buildConfigFile = (patch: Record<string, unknown>): TaktCheck =>
+      new TaktCheck({
+        outputRoot,
+        relativeDirPath: paths.relativeDirPath,
+        relativeFilePath: configFileName,
+        fileContent: applySharedConfigPatch({
+          fileKey: TAKT_CONFIG_SHARED_FILE_KEY,
+          feature: "checks",
+          existingContent,
+          patch,
+          filePath,
+        }),
+        global,
+      });
+
     if (rulesyncChecks.length === 0) {
       // Checks exist but none name Takt. There is no block to write, so a
       // project without a config.yaml does not get one — but a block a previous
-      // generate left behind is still ours to retract, or removing the last Takt
-      // check would leave its gates running forever.
+      // generate left behind is still rulesync's to retract, or removing the
+      // last Takt check would leave its gates running forever.
       const existing = parseSharedConfig({
         format: "yaml",
         fileContent: existingContent,
@@ -340,23 +364,10 @@ export class TaktCheck extends ToolCheck {
         return [];
       }
       logger?.warn(
-        `Takt checks: removing the quality gates in ${filePath} because no check targets Takt.`,
+        `Takt checks: no check targets Takt, so the rulesync-owned quality gates in ${filePath} ` +
+          `are being removed.`,
       );
-      return [
-        new TaktCheck({
-          outputRoot,
-          relativeDirPath: paths.relativeDirPath,
-          relativeFilePath: TAKT_CONFIG_FILE_NAME,
-          fileContent: applySharedConfigPatch({
-            fileKey: TAKT_CONFIG_SHARED_FILE_KEY,
-            feature: "checks",
-            existingContent,
-            patch: { [TAKT_WORKFLOW_OVERRIDES_KEY]: undefined },
-            filePath,
-          }),
-          global,
-        }),
-      ];
+      return [buildConfigFile({ [TAKT_WORKFLOW_OVERRIDES_KEY]: undefined })];
     }
 
     const entries = rulesyncChecks.map((rulesyncCheck) => {
@@ -369,19 +380,7 @@ export class TaktCheck extends ToolCheck {
     });
 
     return [
-      new TaktCheck({
-        outputRoot,
-        relativeDirPath: paths.relativeDirPath,
-        relativeFilePath: TAKT_CONFIG_FILE_NAME,
-        fileContent: applySharedConfigPatch({
-          fileKey: TAKT_CONFIG_SHARED_FILE_KEY,
-          feature: "checks",
-          existingContent,
-          patch: { [TAKT_WORKFLOW_OVERRIDES_KEY]: buildWorkflowOverrides(entries) },
-          filePath,
-        }),
-        global,
-      }),
+      buildConfigFile({ [TAKT_WORKFLOW_OVERRIDES_KEY]: buildWorkflowOverrides(entries, logger) }),
     ];
   }
 
@@ -390,11 +389,12 @@ export class TaktCheck extends ToolCheck {
     global = false,
   }: ToolCheckFromFileParams): Promise<TaktCheck> {
     const paths = TaktCheck.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, TAKT_CONFIG_FILE_NAME);
+    const configFileName = paths.relativeFilePath ?? TAKT_CONFIG_FILE_NAME;
+    const filePath = join(outputRoot, paths.relativeDirPath, configFileName);
     return new TaktCheck({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: TAKT_CONFIG_FILE_NAME,
+      relativeFilePath: configFileName,
       fileContent: (await readFileContentOrNull(filePath)) ?? "",
       global,
     });
