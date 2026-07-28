@@ -1,6 +1,7 @@
 import { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
+import type { Logger } from "../../utils/logger.js";
 import { RulesyncCheck } from "./rulesync-check.js";
 
 export type ToolCheckFromRulesyncCheckParams = Omit<
@@ -45,6 +46,7 @@ export type ToolCheckFromRulesyncChecksParams = {
   outputRoot?: string;
   relativeDirPath: string;
   global?: boolean;
+  logger?: Logger;
 };
 
 export abstract class ToolCheck extends ToolFile {

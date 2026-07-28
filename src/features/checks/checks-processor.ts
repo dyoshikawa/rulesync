@@ -170,6 +170,7 @@ export class ChecksProcessor extends FeatureProcessor {
           relativeDirPath: RulesyncCheck.getSettablePaths().relativeDirPath,
           rulesyncChecks: targeted,
           global: this.global,
+          logger: this.logger,
         })
       : targeted.map((rulesyncCheck) =>
           factory.class.fromRulesyncCheck({

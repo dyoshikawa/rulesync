@@ -10,6 +10,7 @@ import {
 } from "../../constants/takt-paths.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
@@ -60,7 +61,13 @@ type TaktCheckOverride = z.infer<typeof TaktCheckOverrideSchema>;
 /** A `quality_gates` entry: an AI completion directive, or a command gate. */
 type TaktQualityGate = string | Record<string, unknown>;
 
-function parseOverride(raw: unknown, filePath: string): TaktCheckOverride {
+function parseOverride(raw: unknown, filePath: string, logger?: Logger): TaktCheckOverride {
+  if (raw !== undefined && !isPlainObject(raw)) {
+    // An invalid block throws below; one of the wrong shape entirely would
+    // otherwise silently produce a string gate where a command was intended.
+    logger?.warn(`Ignoring the \`takt\` block in ${filePath}: expected a mapping.`);
+    return {};
+  }
   if (!isPlainObject(raw)) {
     return {};
   }
@@ -293,18 +300,6 @@ export class TaktCheck extends ToolCheck {
     return { relativeDirPath: TAKT_DIR, relativeFilePath: TAKT_CONFIG_FILE_NAME };
   }
 
-  /**
-   * `config.yaml` is written by the MCP and permissions features too, so it has
-   * to appear in the shared-write ordering even though `getSettablePaths` names
-   * only the directory.
-   */
-  static getExtraSharedWritePaths(_options: { global?: boolean } = {}): {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  }[] {
-    return [{ relativeDirPath: TAKT_DIR, relativeFilePath: TAKT_CONFIG_FILE_NAME }];
-  }
-
   static isTargetedByRulesyncCheck(rulesyncCheck: RulesyncCheck): boolean {
     return this.isTargetedByRulesyncCheckDefault({ rulesyncCheck, toolTarget: "takt" });
   }
@@ -318,6 +313,7 @@ export class TaktCheck extends ToolCheck {
     outputRoot = process.cwd(),
     rulesyncChecks,
     global = false,
+    logger,
   }: ToolCheckFromRulesyncChecksParams): Promise<TaktCheck[]> {
     const paths = TaktCheck.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, TAKT_CONFIG_FILE_NAME);
@@ -326,16 +322,44 @@ export class TaktCheck extends ToolCheck {
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
 
     if (rulesyncChecks.length === 0) {
-      // Checks exist but none of them name Takt, so this run has nothing to say
-      // about its gates. Writing an empty block would create a config.yaml for a
-      // project that has none, and wipe gates the user wrote by hand.
-      return [];
+      // Checks exist but none name Takt. There is no block to write, so a
+      // project without a config.yaml does not get one — but a block a previous
+      // generate left behind is still ours to retract, or removing the last Takt
+      // check would leave its gates running forever.
+      const existing = parseSharedConfig({
+        format: "yaml",
+        fileContent: existingContent,
+        filePath,
+        invalidRootPolicy: "error",
+      });
+      if (existing[TAKT_WORKFLOW_OVERRIDES_KEY] === undefined) {
+        return [];
+      }
+      logger?.warn(
+        `Takt checks: removing the quality gates in ${filePath} because no check targets Takt.`,
+      );
+      return [
+        new TaktCheck({
+          outputRoot,
+          relativeDirPath: paths.relativeDirPath,
+          relativeFilePath: TAKT_CONFIG_FILE_NAME,
+          fileContent: applySharedConfigPatch({
+            fileKey: TAKT_CONFIG_SHARED_FILE_KEY,
+            feature: "checks",
+            existingContent,
+            patch: { [TAKT_WORKFLOW_OVERRIDES_KEY]: undefined },
+            filePath,
+          }),
+          global,
+        }),
+      ];
     }
 
     const entries = rulesyncChecks.map((rulesyncCheck) => {
       const override = parseOverride(
         rulesyncCheck.getFrontmatter().takt,
         join(RULESYNC_CHECKS_RELATIVE_DIR_PATH, rulesyncCheck.getRelativeFilePath()),
+        logger,
       );
       return { gate: toQualityGate(rulesyncCheck, override), override };
     });

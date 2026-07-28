@@ -4,6 +4,7 @@ import { load } from "js-yaml";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_CHECKS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { isRecord } from "../../utils/type-guards.js";
@@ -185,6 +186,52 @@ describe("TaktCheck", () => {
       expect(workflowOverridesOf(content).quality_gates).toEqual(["The only gate."]);
     });
 
+    it("retracts a block a previous generate wrote when the last Takt check is deleted", async () => {
+      // Otherwise deleting the only Takt check leaves its gates — a command gate
+      // among them — running after every step, with nothing left to edit.
+      const dirPath = join(testDir, ".takt");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yaml"),
+        [
+          "provider: claude",
+          "workflow_overrides:",
+          "  quality_gates:",
+          "    - type: command",
+          '      command: "./scripts/audit.sh"',
+          "",
+        ].join("\n"),
+      );
+      const logger = createMockLogger();
+
+      const [toolCheck] = await TaktCheck.fromRulesyncChecks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_CHECKS_RELATIVE_DIR_PATH,
+        rulesyncChecks: [],
+        logger,
+      });
+
+      const parsed = load(toolCheck?.getFileContent() ?? "");
+      if (!isRecord(parsed)) throw new Error("expected object");
+      expect(parsed.workflow_overrides).toBeUndefined();
+      expect(parsed.provider).toBe("claude");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("no check targets Takt"));
+    });
+
+    it("groups a step named __proto__ without crashing", async () => {
+      const content = await generate([
+        rulesyncCheck({
+          name: "odd",
+          body: "Gate.",
+          frontmatter: { takt: { steps: ["__proto__"] } },
+        }),
+      ]);
+
+      // The key itself is dropped on the way into the document, but the run
+      // completes rather than throwing on `Object.prototype`.
+      expect(workflowOverridesOf(content).steps).toEqual({});
+    });
+
     it("leaves config.yaml alone when no check targets Takt", async () => {
       // Checks exist but name other tools, so this run has nothing to say about
       // Takt's gates: writing an empty block would create a config.yaml for a
@@ -195,6 +242,7 @@ describe("TaktCheck", () => {
         rulesyncChecks: [],
       });
 
+      // No config.yaml on disk, so there is nothing of ours to retract either.
       expect(toolChecks).toEqual([]);
     });
   });
