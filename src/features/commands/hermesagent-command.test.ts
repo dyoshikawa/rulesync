@@ -73,6 +73,8 @@ describe("HermesagentCommand", () => {
 
     expect(init?.getFileContent()).toContain("ctx.register_command(slug, handler, description)");
     expect(init?.getFileContent()).toContain('ctx.dispatch_tool(\n            "delegate_task"');
+    // delegate_task takes no model-facing "toolsets" argument (issue #2414).
+    expect(init?.getFileContent()).not.toContain('"toolsets":');
     expect(init?.getFileContent()).toContain(
       'Path(__file__).resolve().parents[2] / "rulesync" / "commands"',
     );
