@@ -83,6 +83,31 @@ describe("GooseSubagent", () => {
       expect(frontmatter.futureField).toBe("kept");
     });
 
+    it("strips recipe-only keys of the retired sub-recipe surface", () => {
+      const subagent = GooseSubagent.fromRulesyncSubagent({
+        relativeDirPath: join(".goose", "agents"),
+        rulesyncSubagent: buildRulesyncSubagent({
+          goose: {
+            version: "1.0.0",
+            title: "planner",
+            instructions: "old override",
+            extensions: [{ name: "dev" }],
+            model: "fast",
+          },
+        }),
+      }) as GooseSubagent;
+
+      const frontmatter = subagent.getFrontmatter() as Record<string, unknown>;
+      // Recipe fields have no meaning on a custom-agent file; the old
+      // goose.instructions body override is gone by design.
+      expect(frontmatter.version).toBeUndefined();
+      expect(frontmatter.title).toBeUndefined();
+      expect(frontmatter.instructions).toBeUndefined();
+      expect(frontmatter.extensions).toBeUndefined();
+      expect(frontmatter.model).toBe("fast");
+      expect(subagent.getBody()).toBe("Break down tasks into steps.");
+    });
+
     it("writes to the global custom-agents dir when global is set", () => {
       const subagent = GooseSubagent.fromRulesyncSubagent({
         relativeDirPath: join(".config", "goose", "agents"),
