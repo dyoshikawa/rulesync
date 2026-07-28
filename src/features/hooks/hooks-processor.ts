@@ -360,7 +360,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsImport: true,
       },
       supportedEvents: FACTORYDROID_HOOK_EVENTS,
-      supportedHookTypes: ["command", "prompt"],
+      // Droid's hooks reference states "Currently only \"command\" is
+      // supported" — a prompt-type entry in hooks.json is inert.
+      supportedHookTypes: ["command"],
       supportsMatcher: true,
     },
   ],
