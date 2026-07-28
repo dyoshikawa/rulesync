@@ -151,6 +151,20 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   ),
   cline: z.optional(z.looseObject({})),
   roo: z.optional(z.looseObject({})),
+  qwencode: z.optional(
+    z.looseObject({
+      priority: z.optional(z.number()),
+      // Qwen Code's parser requires an array; a scalar is coerced on emit.
+      paths: z.optional(z.union([z.string(), z.array(z.string())])),
+      "user-invocable": z.optional(z.boolean()),
+      "disable-model-invocation": z.optional(z.boolean()),
+      allowedTools: z.optional(z.array(z.string())),
+      model: z.optional(z.string()),
+      hooks: z.optional(z.looseObject({})),
+      when_to_use: z.optional(z.string()),
+      "argument-hint": z.optional(z.string()),
+    }),
+  ),
   rovodev: z.optional(
     z.looseObject({
       "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
@@ -317,6 +331,17 @@ export type RulesyncSkillFrontmatterInput = {
   };
   roo?: Record<string, unknown>;
   cline?: Record<string, unknown>;
+  qwencode?: {
+    priority?: number;
+    paths?: string | string[];
+    "user-invocable"?: boolean;
+    "disable-model-invocation"?: boolean;
+    allowedTools?: string[];
+    model?: string;
+    hooks?: Record<string, unknown>;
+    when_to_use?: string;
+    "argument-hint"?: string;
+  };
   rovodev?: {
     "allowed-tools"?: string | string[];
     license?: string;
