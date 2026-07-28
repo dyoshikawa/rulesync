@@ -22,6 +22,7 @@ import {
   orphanMcpToolFiltersToRulesync,
   resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
+  splitMcpServersByTransport,
   warnAndSkipMcpServer,
 } from "./mcp-transport.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -693,8 +694,19 @@ export class KiloMcp extends ToolMcp {
 
   toRulesyncMcp(): RulesyncMcp {
     const convertedMcpServers = convertFromKiloFormat(this.json.mcp ?? {}, this.json.tools);
+    // A transport-less server is a Kilo idea — a toggle for a server another
+    // config layer defines, or a filter for one — so it goes in the block only
+    // Kilo reads rather than into the shared map every other tool writes out.
+    const { shared, toolOnly } = splitMcpServersByTransport(convertedMcpServers);
     return this.toRulesyncMcpDefault({
-      fileContent: JSON.stringify({ mcpServers: convertedMcpServers }, null, 2),
+      fileContent: JSON.stringify(
+        {
+          mcpServers: shared,
+          ...(Object.keys(toolOnly).length > 0 && { kilo: { mcpServers: toolOnly } }),
+        },
+        null,
+        2,
+      ),
     });
   }
 

@@ -1443,7 +1443,9 @@ describe("KiloMcp", () => {
       });
 
       const imported = JSON.parse(kiloMcp.toRulesyncMcp().getFileContent());
-      expect(imported.mcpServers["empty-command-server"]).toEqual({ disabled: true });
+      // Transport-less, so it lands in the block only Kilo reads.
+      expect(imported.mcpServers).toEqual({});
+      expect(imported.kilo.mcpServers["empty-command-server"]).toEqual({ disabled: true });
     });
 
     it("should convert tools map to enabledTools per server (strip prefix)", () => {
@@ -1596,10 +1598,15 @@ describe("KiloMcp", () => {
             args: ["b.js"],
             enabledTools: ["list"],
           },
-          // Named by no entry of `mcp`, so it filters a server another config
-          // layer defines; it comes back as a server with only the filter.
-          unrelated: {
-            disabledTools: ["tool"],
+        },
+        // Named by no entry of `mcp`, so it filters a server another config
+        // layer defines: it comes back as a transport-less server under the
+        // block only Kilo reads.
+        kilo: {
+          mcpServers: {
+            unrelated: {
+              disabledTools: ["tool"],
+            },
           },
         },
       });
@@ -2627,8 +2634,9 @@ describe("KiloMcp toggle entries", () => {
 
     const imported = JSON.parse(kiloMcp.toRulesyncMcp().getFileContent());
     // No transport of its own: it names a server another config layer defines,
-    // so only its disabled state crosses over.
-    expect(imported.mcpServers.toggled).toEqual({ disabled: true });
+    // so only its disabled state crosses over, under the Kilo-only block —
+    // nothing else can express a server with no transport.
+    expect(imported.kilo.mcpServers.toggled).toEqual({ disabled: true });
   });
 
   it("writes a toggle entry back as a toggle, not a local server that cannot start", async () => {
@@ -2678,7 +2686,9 @@ describe("KiloMcp toggle entries", () => {
 
     const roundTripped = await KiloMcp.fromRulesyncMcp({
       outputRoot: testDir,
-      rulesyncMcp: kiloMcp.toRulesyncMcp(),
+      // Resolved the way the processor resolves it, so the Kilo-only block is
+      // overlaid on the shared servers.
+      rulesyncMcp: kiloMcp.toRulesyncMcp().forTarget({ toolTarget: "kilo" }),
     });
 
     expect(JSON.parse(roundTripped.getFileContent()).mcp).toEqual({
@@ -2733,7 +2743,7 @@ describe("KiloMcp toggle entries", () => {
     });
 
     const imported = JSON.parse(kiloMcp.toRulesyncMcp().getFileContent());
-    expect(imported.mcpServers.toggled).toEqual({ disabled: false });
+    expect(imported.kilo.mcpServers.toggled).toEqual({ disabled: false });
   });
 
   it("warns when a transport-less server carries fields a toggle cannot keep", async () => {
@@ -2769,7 +2779,7 @@ describe("KiloMcp toggle entries", () => {
     });
 
     const imported = JSON.parse(kiloMcp.toRulesyncMcp().getFileContent());
-    expect(imported.mcpServers.toggled).toEqual({ disabled: true });
+    expect(imported.kilo.mcpServers.toggled).toEqual({ disabled: true });
   });
 
   it("still rejects a broken remote entry whose only surviving key is a header", () => {
@@ -2811,6 +2821,30 @@ describe("KiloMcp toggle entries", () => {
     const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
 
     expect(JSON.parse(kiloMcp.getFileContent()).mcp).toEqual({ marketplace: { enabled: false } });
+  });
+
+  it("keeps a transport-less server out of the map every other tool writes", async () => {
+    // Written to .mcp.json or .cursor/mcp.json, an entry with no command and no
+    // url is a server none of those tools can start.
+    const kiloMcp = new KiloMcp({
+      relativeDirPath: ".",
+      relativeFilePath: "kilo.jsonc",
+      fileContent: JSON.stringify({
+        mcp: {
+          toggled: { enabled: false },
+          real: { type: "local", command: ["npx", "srv"], enabled: true },
+        },
+        tools: { ghost_delete: false },
+      }),
+    });
+
+    const imported = JSON.parse(kiloMcp.toRulesyncMcp().getFileContent());
+
+    expect(Object.keys(imported.mcpServers)).toEqual(["real"]);
+    expect(imported.kilo.mcpServers).toEqual({
+      toggled: { disabled: true },
+      ghost: { disabledTools: ["delete"] },
+    });
   });
 
   it("keeps a toggle even when a sibling entry in the file is malformed", async () => {
@@ -2892,7 +2926,9 @@ describe("KiloMcp toggle entries", () => {
 
     const roundTripped = await KiloMcp.fromRulesyncMcp({
       outputRoot: testDir,
-      rulesyncMcp: kiloMcp.toRulesyncMcp(),
+      // Resolved the way the processor resolves it, so the Kilo-only block is
+      // overlaid on the shared servers.
+      rulesyncMcp: kiloMcp.toRulesyncMcp().forTarget({ toolTarget: "kilo" }),
     });
 
     expect(JSON.parse(roundTripped.getFileContent()).mcp).toEqual({});

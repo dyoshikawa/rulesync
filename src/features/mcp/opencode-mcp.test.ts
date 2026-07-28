@@ -1424,7 +1424,9 @@ describe("OpencodeMcp", () => {
       });
 
       const imported = JSON.parse(opencodeMcp.toRulesyncMcp().getFileContent());
-      expect(imported.mcpServers["empty-command-server"]).toEqual({ disabled: true });
+      // Transport-less, so it lands in the block only OpenCode reads.
+      expect(imported.mcpServers).toEqual({});
+      expect(imported.opencode.mcpServers["empty-command-server"]).toEqual({ disabled: true });
     });
 
     it("should convert tools map to enabledTools per server (strip prefix)", () => {
@@ -1577,10 +1579,15 @@ describe("OpencodeMcp", () => {
             args: ["b.js"],
             enabledTools: ["list"],
           },
-          // Named by no entry of `mcp`, so it filters a server another config
-          // layer defines; it comes back as a server with only the filter.
-          unrelated: {
-            disabledTools: ["tool"],
+        },
+        // Named by no entry of `mcp`, so it filters a server another config
+        // layer defines: it comes back as a transport-less server under the
+        // block only OpenCode reads.
+        opencode: {
+          mcpServers: {
+            unrelated: {
+              disabledTools: ["tool"],
+            },
           },
         },
       });

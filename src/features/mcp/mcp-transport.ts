@@ -113,13 +113,44 @@ export function orphanMcpToolFiltersToRulesync(
     }
     const serverName = toolName.slice(0, separator);
     const toolSuffix = toolName.slice(separator + 1);
-    const server = (orphans[serverName] ??= {});
+    // Own properties only: `orphans.constructor` is truthy on a plain object,
+    // so `??=` would leave the filter unwritten and assign onto `Object`.
+    if (!Object.hasOwn(orphans, serverName)) {
+      orphans[serverName] = {};
+    }
+    const server = orphans[serverName] as { enabledTools?: string[]; disabledTools?: string[] };
     if (enabled) {
-      (server.enabledTools ??= []).push(toolSuffix);
+      server.enabledTools = [...(server.enabledTools ?? []), toolSuffix];
     } else {
-      (server.disabledTools ??= []).push(toolSuffix);
+      server.disabledTools = [...(server.disabledTools ?? []), toolSuffix];
     }
   }
 
   return orphans;
+}
+
+/**
+ * Split imported servers into the ones every tool can use and the ones only the
+ * importing tool can. A server with no transport is a Kilo/OpenCode idea — a
+ * switch for a server another config layer defines, or a filter for one — and
+ * nothing else knows what to do with it: written to `.mcp.json` and the rest,
+ * it is an entry no tool can start. It goes into the tool-scoped
+ * `{tool}.mcpServers` block instead, which only that tool reads.
+ */
+export function splitMcpServersByTransport(servers: McpServers): {
+  shared: McpServers;
+  toolOnly: McpServers;
+} {
+  const shared: McpServers = {};
+  const toolOnly: McpServers = {};
+
+  for (const [serverName, serverConfig] of Object.entries(servers)) {
+    if (declaresNoTransport(serverConfig)) {
+      toolOnly[serverName] = serverConfig;
+    } else {
+      shared[serverName] = serverConfig;
+    }
+  }
+
+  return { shared, toolOnly };
 }

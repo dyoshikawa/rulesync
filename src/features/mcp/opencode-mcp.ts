@@ -24,6 +24,7 @@ import {
   orphanMcpToolFiltersToRulesync,
   resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
+  splitMcpServersByTransport,
   warnAndSkipMcpServer,
 } from "./mcp-transport.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -519,8 +520,19 @@ export class OpencodeMcp extends ToolMcp {
       mcpServers: convertedMcpServers,
       pattern: OPENCODE_ENV_VAR_PATTERN,
     });
+    // A transport-less server is an OpenCode idea — a filter for a server
+    // another config layer defines — so it goes in the block only OpenCode
+    // reads rather than into the shared map every other tool writes out.
+    const { shared, toolOnly } = splitMcpServersByTransport(transformedServers);
     return this.toRulesyncMcpDefault({
-      fileContent: JSON.stringify({ mcpServers: transformedServers }, null, 2),
+      fileContent: JSON.stringify(
+        {
+          mcpServers: shared,
+          ...(Object.keys(toolOnly).length > 0 && { opencode: { mcpServers: toolOnly } }),
+        },
+        null,
+        2,
+      ),
     });
   }
 
