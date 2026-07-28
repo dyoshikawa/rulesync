@@ -1,4 +1,4 @@
-import { basename, join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -82,6 +82,7 @@ type ToolCommandFactory = {
     loadAdditionalImportFiles?(params: {
       outputRoot: string;
       global: boolean;
+      logger?: Logger;
     }): Promise<ToolCommand[]>;
     /**
      * Optional hook for tools that need a shared/aggregate file alongside the
@@ -123,6 +124,15 @@ type ToolCommandFactory = {
      */
     skipToolFileScan?: boolean;
     failOnFlattenCollision?: boolean;
+    /**
+     * When true, a command from `loadAdditionalImportFiles` is treated as a
+     * duplicate of an already-loaded one whose *basename* matches, not just its
+     * whole path. Set it when the secondary source is another directory root
+     * that may hold the same command flattened; leave it off when the secondary
+     * source is an inline block, where a nested file and a same-named entry are
+     * genuinely two commands.
+     */
+    matchAdditionalImportsByBasename?: boolean;
   };
 };
 
@@ -192,7 +202,13 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsProject: true,
         supportsGlobal: true,
         isSimulated: false,
-        supportsSubdirectory: false,
+        // Auggie namespaces a nested command by its directory:
+        // `.augment/commands/frontend/component.md` is `/frontend:component`.
+        // https://docs.augmentcode.com/cli/custom-commands
+        supportsSubdirectory: true,
+        // The secondary root is `.agents/commands/`, which rulesync writes for
+        // `agentsmd` with namespaces flattened.
+        matchAdditionalImportsByBasename: true,
       },
     },
   ],
@@ -725,7 +741,13 @@ export class CommandsProcessor extends FeatureProcessor {
     const globPattern = factory.meta.supportsSubdirectory
       ? join(outputRootFull, "**", `*.${factory.meta.extension}`)
       : join(outputRootFull, `*.${factory.meta.extension}`);
-    const commandFilePaths = await findFilesByGlobs(globPattern);
+    // Never follow a symlink while collecting deletion candidates: a
+    // `.augment/commands/team -> ../../shared-prompts` link would otherwise put
+    // files outside the project on the orphan list. Matches the subagents,
+    // skills and rules processors.
+    const commandFilePaths = await findFilesByGlobs(globPattern, {
+      followSymbolicLinks: !forDeletion,
+    });
 
     if (forDeletion) {
       const toolCommands = commandFilePaths
@@ -774,21 +796,43 @@ export class CommandsProcessor extends FeatureProcessor {
     // (e.g. OpenCode's inline `command` block in `opencode.json`). A standalone
     // Markdown file with the same relative path takes precedence.
     if (factory.class.loadAdditionalImportFiles) {
-      const seen = new Set(toolCommands.map((command) => command.getRelativeFilePath()));
+      // `matchAdditionalImportsByBasename` tools also compare basenames: a
+      // command this tool namespaces by directory (`git/commit.md`) can be the
+      // same command another writer put in the shared root flattened
+      // (`commit.md`), and importing both would quietly double the user's set.
+      // Tools whose secondary source is an inline block (OpenCode) must not do
+      // this — there, a nested file and a same-named inline entry really are
+      // two commands.
+      const matchByBasename = factory.meta.matchAdditionalImportsByBasename === true;
+      // Only a *flat* secondary command can be the flattened twin of a nested
+      // one. Matching a nested secondary by basename would drop a real command:
+      // `.agents/commands/docs/commit.md` is `/docs:commit`, not a copy of
+      // `/git:commit`.
+      const keysOf = (command: ToolCommand, flatOnly = false): string[] => {
+        const key = command.getRelativeFilePath();
+        if (!matchByBasename || (flatOnly && dirname(key) !== ".")) {
+          return [key];
+        }
+        return [key, basename(key)];
+      };
+      const seen = new Set(toolCommands.flatMap((command) => keysOf(command)));
       const additionalCommands = await factory.class.loadAdditionalImportFiles({
         outputRoot: this.outputRoot,
         global: this.global,
+        logger: this.logger,
       });
       for (const command of additionalCommands) {
         const key = command.getRelativeFilePath();
-        if (seen.has(key)) {
+        if (keysOf(command, true).some((candidate) => seen.has(candidate))) {
           this.logger.warn(
-            `Duplicate ${this.toolTarget} command "${key}" defined inline; ` +
-              `keeping the standalone file and ignoring the inline copy.`,
+            `Duplicate ${this.toolTarget} command "${key}" from a secondary source; ` +
+              `keeping the one already loaded.`,
           );
           continue;
         }
-        seen.add(key);
+        for (const candidate of keysOf(command)) {
+          seen.add(candidate);
+        }
         toolCommands.push(command);
       }
     }

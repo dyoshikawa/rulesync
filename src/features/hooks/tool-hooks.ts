@@ -14,6 +14,12 @@ export type ToolHooksFromRulesyncHooksParams = Omit<
   "fileContent" | "relativeFilePath" | "relativeDirPath"
 > & {
   rulesyncHooks: RulesyncHooks;
+  /**
+   * Adapters warn through this about what a conversion cannot represent. The
+   * processor passes its own logger, so a warning an adapter emits reaches the
+   * user rather than only the tests that construct one.
+   */
+  logger?: Logger;
 };
 
 export type ToolHooksFromFileParams = Pick<

@@ -39,6 +39,10 @@ const AUGMENTCODE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
   "sessionEnd",
   "stop",
   "notification",
+  // `PromptSubmit` fires once per submitted prompt, so it carries no matcher
+  // either — the shipped CLI (`@augmentcode/auggie` 0.33.0, `augment.mjs`) lists
+  // it in the same matcher-less enum as the four above.
+  "beforeSubmitPrompt",
 ]);
 
 // `projectDirVar` is intentionally empty: Auggie exposes `AUGMENT_PROJECT_DIR`
@@ -51,6 +55,14 @@ const AUGMENTCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   projectDirVar: "",
   noMatcherEvents: AUGMENTCODE_NO_MATCHER_EVENTS,
   supportedHookTypes: new Set(["command"]),
+  // `metadata` is documented at https://docs.augmentcode.com/cli/hooks; `args`
+  // appears only in the shipped CLI's validator (`@augmentcode/auggie` 0.33.0,
+  // `augment.mjs`), which accepts it on a command hook. Both were previously
+  // dropped on import and — because the `hooks` key is owned in the shared
+  // settings file — erased from a hand-written settings.json on the next
+  // generate.
+  arrayPassthroughFields: [{ canonical: "args", tool: "args" }],
+  groupPassthroughFields: [{ canonical: "metadata", tool: "metadata" }],
 };
 
 /**
@@ -146,7 +158,7 @@ export class AugmentcodeHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     let settings: { hooks?: unknown };
     try {
       settings = JSON.parse(this.getFileContent());
@@ -159,6 +171,7 @@ export class AugmentcodeHooks extends ToolHooks {
       );
     }
     const hooks = toolHooksToCanonical({
+      logger,
       hooks: settings.hooks,
       converterConfig: AUGMENTCODE_CONVERTER_CONFIG,
     });

@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { stringifyFrontmatter } from "../../utils/frontmatter.js";
@@ -313,5 +314,89 @@ describe("AugmentcodeCommand", () => {
       expect(command.getBody()).toBe("");
       expect(command.getFrontmatter()).toEqual({ description: "" });
     });
+  });
+});
+
+describe("AugmentcodeCommand .agents/commands import root", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("reads the commands Auggie also discovers under .agents/commands", async () => {
+    // Auggie resolves commands over `.augment`, `.claude` and `.agents`; only
+    // the first was read, so these were invisible to import.
+    await ensureDir(join(testDir, ".agents", "commands", "git"));
+    await writeFileContent(
+      join(testDir, ".agents", "commands", "review.md"),
+      ["---", "description: Review the diff", "---", "", "Review it.", ""].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".agents", "commands", "git", "commit.md"),
+      ["---", "description: Commit", "---", "", "Commit it.", ""].join("\n"),
+    );
+
+    const commands = await AugmentcodeCommand.loadAdditionalImportFiles({ outputRoot: testDir });
+
+    expect(commands.map((command) => command.getRelativeFilePath()).toSorted()).toEqual([
+      "git/commit.md",
+      "review.md",
+    ]);
+    // The rulesync-side identity is the path under the commands root, so a
+    // command found here is indistinguishable from one under `.augment`.
+    expect(commands[0]?.getRelativeDirPath()).toBe(join(".augment", "commands"));
+  });
+
+  it("skips a file whose frontmatter belongs to another tool", async () => {
+    // `.agents/commands/` is shared: Claude Code writes `argument-hint` as a
+    // list, which is not AugmentCode's shape. One such file must not take the
+    // whole import down.
+    await ensureDir(join(testDir, ".agents", "commands"));
+    await writeFileContent(
+      join(testDir, ".agents", "commands", "foreign.md"),
+      ["---", "argument-hint: [message]", "---", "", "Body.", ""].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".agents", "commands", "ours.md"),
+      ["---", "description: Ours", "---", "", "Body.", ""].join("\n"),
+    );
+    const logger = createMockLogger();
+
+    const commands = await AugmentcodeCommand.loadAdditionalImportFiles({
+      outputRoot: testDir,
+      logger,
+    });
+
+    expect(commands.map((command) => command.getRelativeFilePath())).toEqual(["ours.md"]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("foreign.md"));
+  });
+
+  it("writes a nested command with its namespace intact", async () => {
+    // Auggie reads `.augment/commands/git/commit.md` as `/git:commit`, so the
+    // nesting is the command's identity rather than an arrangement detail.
+    const command = AugmentcodeCommand.fromRulesyncCommand({
+      outputRoot: testDir,
+      rulesyncCommand: new RulesyncCommand({
+        relativeDirPath: ".rulesync/commands",
+        relativeFilePath: join("git", "commit.md"),
+        frontmatter: { targets: ["*"], description: "Commit" },
+        body: "Commit it.",
+        fileContent: "",
+      }),
+    });
+
+    expect(command.getRelativeFilePath()).toBe(join("git", "commit.md"));
+  });
+
+  it("returns nothing when the root does not exist", async () => {
+    expect(await AugmentcodeCommand.loadAdditionalImportFiles({ outputRoot: testDir })).toEqual([]);
   });
 });

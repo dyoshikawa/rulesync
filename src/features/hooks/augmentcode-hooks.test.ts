@@ -454,3 +454,232 @@ describe("AugmentcodeHooks", () => {
     });
   });
 });
+
+describe("AugmentcodeHooks upstream additions", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  async function generate(config: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const hooks = await AugmentcodeHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks: new RulesyncHooks({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "hooks.jsonc",
+        fileContent: JSON.stringify(config),
+      }),
+    });
+    const parsed = JSON.parse(hooks.getFileContent());
+    return parsed.hooks ?? {};
+  }
+
+  it("writes a beforeSubmitPrompt hook as PromptSubmit", async () => {
+    // Added in auggie 0.27.0; previously filtered out as unsupported.
+    const events = await generate({
+      version: 1,
+      hooks: { beforeSubmitPrompt: [{ type: "command", command: "./check.sh" }] },
+    });
+
+    expect(events.PromptSubmit).toEqual([{ hooks: [{ type: "command", command: "./check.sh" }] }]);
+  });
+
+  it("drops a matcher on PromptSubmit, which takes none", async () => {
+    const events = await generate({
+      version: 1,
+      hooks: { beforeSubmitPrompt: [{ type: "command", command: "./check.sh", matcher: "Bash" }] },
+    });
+
+    expect(events.PromptSubmit).toEqual([{ hooks: [{ type: "command", command: "./check.sh" }] }]);
+  });
+
+  it("carries a hook's args and the group's metadata through generate", async () => {
+    // The `hooks` key is owned in the shared settings file, so anything not
+    // written here is erased from a hand-written settings.json.
+    const events = await generate({
+      version: 1,
+      hooks: {
+        preToolUse: [
+          {
+            type: "command",
+            command: "./audit.sh",
+            args: ["--strict", "--json"],
+            matcher: "Bash",
+            metadata: { includeUserContext: true },
+          },
+        ],
+      },
+    });
+
+    expect(events.PreToolUse).toEqual([
+      {
+        matcher: "Bash",
+        hooks: [{ type: "command", command: "./audit.sh", args: ["--strict", "--json"] }],
+        metadata: { includeUserContext: true },
+      },
+    ]);
+  });
+
+  it("reads args and metadata back on import", () => {
+    const hooks = new AugmentcodeHooks({
+      outputRoot: testDir,
+      relativeDirPath: ".augment",
+      relativeFilePath: "settings.json",
+      fileContent: JSON.stringify({
+        hooks: {
+          PromptSubmit: [
+            {
+              hooks: [{ type: "command", command: "./check.sh", args: ["--strict"] }],
+              metadata: { includeUserContext: true },
+            },
+          ],
+        },
+      }),
+    });
+
+    const imported = JSON.parse(hooks.toRulesyncHooks().getFileContent());
+    expect(imported.hooks.beforeSubmitPrompt).toEqual([
+      {
+        type: "command",
+        command: "./check.sh",
+        args: ["--strict"],
+        metadata: { includeUserContext: true },
+      },
+    ]);
+  });
+
+  it("warns and keeps the first metadata when a group disagrees", async () => {
+    // One value per group upstream, so the payload a script receives must not
+    // hinge on which hook was authored first without saying so.
+    const mockLogger = createMockLogger();
+    const hooks = await AugmentcodeHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks: new RulesyncHooks({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "hooks.jsonc",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [
+              {
+                type: "command",
+                command: "./a.sh",
+                matcher: "Bash",
+                metadata: { includeMCPMetadata: true },
+              },
+              {
+                type: "command",
+                command: "./b.sh",
+                matcher: "Bash",
+                metadata: { includeUserContext: true },
+              },
+            ],
+          },
+        }),
+      }),
+      logger: mockLogger,
+    });
+
+    const events = JSON.parse(hooks.getFileContent()).hooks;
+    expect(events.PreToolUse[0].metadata).toEqual({ includeMCPMetadata: true });
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("belongs to the whole matcher group"),
+    );
+  });
+
+  it("warns when a hook that asked for no metadata inherits the group's", async () => {
+    // Two groups for a matcher-less event collapse into one, so a hook that
+    // carried nothing starts receiving whatever its new group asks for.
+    const mockLogger = createMockLogger();
+    await AugmentcodeHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks: new RulesyncHooks({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "hooks.jsonc",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            stop: [
+              { type: "command", command: "./third-party.sh" },
+              {
+                type: "command",
+                command: "./mine.sh",
+                metadata: { includeConversationData: true },
+              },
+            ],
+          },
+        }),
+      }),
+      logger: mockLogger,
+    });
+
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("or for nothing"));
+  });
+
+  it("does not let a hook it cannot express decide the group's metadata", async () => {
+    // Only command hooks reach Auggie, so an http hook's metadata must not
+    // override the one on the hook actually written.
+    const events = await generate({
+      version: 1,
+      hooks: {
+        preToolUse: [
+          {
+            type: "http",
+            url: "https://example.com/hook",
+            matcher: "Bash",
+            metadata: { includeMCPMetadata: true },
+          },
+          {
+            type: "command",
+            command: "./b.sh",
+            matcher: "Bash",
+            metadata: { includeUserContext: true },
+          },
+        ],
+      },
+    });
+
+    expect((events.PreToolUse as Record<string, unknown>[])[0]?.metadata).toEqual({
+      includeUserContext: true,
+    });
+  });
+
+  it("ignores an args entry carrying a control character on import", async () => {
+    // The canonical field forbids them, so importing one would write a
+    // .rulesync/hooks.jsonc the next generate refuses to read.
+    const hooks = new AugmentcodeHooks({
+      outputRoot: testDir,
+      relativeDirPath: ".augment",
+      relativeFilePath: "settings.json",
+      fileContent: JSON.stringify({
+        hooks: {
+          Stop: [{ hooks: [{ type: "command", command: "./x.sh", args: ["ok\nnope"] }] }],
+        },
+      }),
+    });
+
+    const mockLogger = createMockLogger();
+    const imported = JSON.parse(hooks.toRulesyncHooks({ logger: mockLogger }).getFileContent());
+    expect(imported.hooks.stop).toEqual([{ type: "command", command: "./x.sh" }]);
+    // The `hooks` key is owned in the settings file, so the dropped value would
+    // disappear from it on the next generate; that must not be silent.
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('Dropping "args"'));
+  });
+
+  it("ignores an args value that is not a list of strings", async () => {
+    const events = await generate({
+      version: 1,
+      hooks: { stop: [{ type: "command", command: "./x.sh", args: ["ok", 3] }] },
+    });
+
+    expect(events.Stop).toEqual([{ hooks: [{ type: "command", command: "./x.sh" }] }]);
+  });
+});

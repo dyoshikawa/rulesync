@@ -779,6 +779,7 @@ export class HooksProcessor extends FeatureProcessor {
       rulesyncHooks,
       validate: true,
       global: this.global,
+      logger: this.logger,
     });
 
     const result: ToolFile[] = [toolHooks];
@@ -795,7 +796,7 @@ export class HooksProcessor extends FeatureProcessor {
 
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
     const hooks = toolFiles.filter((f): f is ToolHooks => f instanceof ToolHooks);
-    return hooks.map((h) => h.toRulesyncHooks());
+    return hooks.map((h) => h.toRulesyncHooks({ logger: this.logger }));
   }
 
   static getToolTargets({
