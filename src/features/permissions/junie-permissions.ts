@@ -23,21 +23,32 @@ import {
  * JetBrains Junie CLI Action Allowlist (`allowlist.json`).
  *
  * Junie gates actions through an allowlist evaluated top-to-bottom (first match
- * wins). Project scope lives in `.junie/allowlist.json`; user scope lives in
- * `~/.junie/allowlist.json`.
+ * wins). The allowlist is **user-scope only**: Junie CLI resolves exactly one
+ * path, `~/.junie/allowlist.json` (`AgentActionsWhitelistImpl` computes it from
+ * `junieHome`; verified against release `2383.10` — no doc, CLI flag, or
+ * `config.json` field names a project-scope allowlist), so this feature is
+ * global-only, mirroring the Junie hooks surface.
  *
  * ```json
  * {
  *   "defaultBehavior": "ask",
  *   "allowReadonlyCommands": true,
  *   "rules": {
- *     "executables":       [ { "prefix": "git ", "action": "allow" } ],
- *     "fileEditing":       [ { "pattern": "src/**", "action": "allow" } ],
- *     "mcpTools":          [ { "prefix": "search", "action": "allow" } ],
- *     "readOutsideProject":[ { "pattern": "/etc/**", "action": "ask" } ]
+ *     "executables":        { "rules": [ { "prefix": "git ", "action": "allow" } ] },
+ *     "fileEditing":        { "rules": [ { "pattern": "src/**", "action": "allow" } ] },
+ *     "mcpTools":           { "rules": [ { "prefix": "search", "action": "allow" } ] },
+ *     "readOutsideProject": { "rules": [ { "pattern": "/etc/**", "action": "ask" } ] },
+ *     "readSecretFile":     { "rules": [ { "pattern": "**\/.env", "action": "ask" } ] }
  *   }
  * }
  * ```
+ *
+ * Every rule group is an `AllowListRuleSet` **object** (`{ "default"?: …,
+ * "rules": [ … ] }`), never a bare array: Junie's `AllowListParser` (verified
+ * against release `2383.10`) rejects the array form for the whole file, and
+ * Junie then discards and overwrites `allowlist.json`. Earlier rulesync
+ * versions emitted the array form; it is still tolerated on import so those
+ * files read back, but only the object form is ever written.
  *
  * Each rule carries a literal `prefix` (matches commands that start with it) or
  * a glob `pattern` (`*`, `**`, `?`, `[abc]`, `[!abc]`) plus an `action`. Junie
@@ -66,20 +77,50 @@ import {
 const JUNIE_RULE_GROUPS = ["executables", "fileEditing", "mcpTools", "readOutsideProject"] as const;
 type JunieRuleGroup = (typeof JUNIE_RULE_GROUPS)[number];
 
+/**
+ * `readSecretFile` is the fifth group of Junie's `AllowListRules` (release
+ * `2383.10`; absent from the public docs page). It has no canonical category —
+ * `read` is already taken by `readOutsideProject` — so it is authored whole
+ * through the `junie` override rather than mapped.
+ */
+const JUNIE_SECRET_FILE_GROUP = "readSecretFile";
+
+type JunieAllowlistAction = "allow" | "ask";
+
 type JunieRule = {
   prefix?: string;
   pattern?: string;
-  action: PermissionAction;
+  action: JunieAllowlistAction;
+};
+
+/** Junie's `AllowListRuleSet`: a per-group fallback plus its rules. */
+type JunieRuleSet = {
+  default?: JunieAllowlistAction;
+  rules?: JunieRule[];
 };
 
 type JunieAllowlist = {
-  // Junie documents only `allow`/`ask`, but the value is kept as a bare string
-  // so a forward-compat value authored via the `junie` override round-trips.
+  // Junie's `AllowListDecision` accepts only `allow`/`ask` (enforced by the
+  // `junie` override schema on authoring); kept as a bare string here so a
+  // hand-written file with another value still parses for inspection.
   defaultBehavior?: string;
   allowReadonlyCommands?: boolean;
-  rules?: Partial<Record<JunieRuleGroup, JunieRule[]>>;
+  // Object form is what Junie parses; the bare-array form is what earlier
+  // rulesync versions wrote and is tolerated on read only.
+  rules?: Record<string, JunieRuleSet | JunieRule[]>;
   [key: string]: unknown;
 };
+
+/** Normalize a rule group read from disk: legacy bare array → `{ rules }`. */
+function toRuleSet(value: JunieRuleSet | JunieRule[] | undefined): JunieRuleSet | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (Array.isArray(value)) {
+    return { rules: value };
+  }
+  return typeof value === "object" && value !== null ? value : undefined;
+}
 
 const CANONICAL_TO_JUNIE_GROUP: Record<string, JunieRuleGroup> = {
   bash: "executables",
@@ -125,8 +166,8 @@ export class JuniePermissions extends ToolPermissions {
   }
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
-    // Project: `.junie/allowlist.json`; global: `~/.junie/allowlist.json`
-    // (the home directory is resolved by the processor through outputRoot).
+    // Global-only: `~/.junie/allowlist.json` (the home directory is resolved
+    // by the processor through outputRoot).
     return {
       relativeDirPath: JUNIE_DIR,
       relativeFilePath: JUNIE_PERMISSIONS_FILE_NAME,
@@ -175,20 +216,41 @@ export class JuniePermissions extends ToolPermissions {
     }
 
     const config = rulesyncPermissions.getJson();
-    const rules = convertRulesyncToJunieRules({ config, logger });
 
     // The `junie` override authors the top-level autonomy knobs
-    // (allowReadonlyCommands, defaultBehavior). Overlay it (the override wins),
-    // then rulesync owns the four rule groups; every other existing top-level
-    // key is preserved verbatim. `defaultBehavior`/`allowReadonlyCommands` flow
-    // through the spreads only when authored or pre-existing — the documented
-    // default is not fabricated, so a fresh generate does not leak a spurious
-    // `junie` override back on re-import.
+    // (allowReadonlyCommands, defaultBehavior) plus the group-shaped settings
+    // handled below (readSecretFile, ruleDefaults). Overlay the scalar knobs
+    // (the override wins), then rulesync owns the `rules` object; every other
+    // existing top-level key is preserved verbatim. Nothing is fabricated, so
+    // a fresh generate does not leak a spurious `junie` override on re-import.
     const override = config.junie;
-    const overrideObj = override !== undefined && typeof override === "object" ? override : {};
+    const {
+      permission: _overridePermission,
+      readSecretFile: overrideSecretFile,
+      ruleDefaults: overrideRuleDefaults,
+      ...topLevelOverrides
+    } = (override !== undefined && typeof override === "object" ? override : {}) as {
+      permission?: unknown;
+      readSecretFile?: JunieRuleSet;
+      ruleDefaults?: Partial<Record<JunieRuleGroup, JunieAllowlistAction>>;
+      [key: string]: unknown;
+    };
+
+    const existingRules =
+      existing.rules && typeof existing.rules === "object" && !Array.isArray(existing.rules)
+        ? existing.rules
+        : {};
+    const rules = convertRulesyncToJunieRules({
+      config,
+      logger,
+      existingRules,
+      overrideSecretFile,
+      overrideRuleDefaults,
+    });
+
     const merged: JunieAllowlist = {
       ...existing,
-      ...overrideObj,
+      ...topLevelOverrides,
       rules,
     };
 
@@ -216,16 +278,28 @@ export class JuniePermissions extends ToolPermissions {
       );
     }
 
-    const config = convertJunieToRulesyncPermissions({ allowlist });
+    const { config, ruleDefaults, readSecretFile } = convertJunieToRulesyncPermissions({
+      allowlist,
+    });
 
-    // Lift Junie's top-level autonomy knobs into the `junie` override so they
-    // are authorable and portable instead of only round-trip-preserved.
+    // Lift Junie's top-level autonomy knobs and group-shaped settings into the
+    // `junie` override so they are authorable and portable instead of only
+    // round-trip-preserved.
     const junieOverride: Record<string, unknown> = {};
     if (typeof allowlist.allowReadonlyCommands === "boolean") {
       junieOverride.allowReadonlyCommands = allowlist.allowReadonlyCommands;
     }
-    if (typeof allowlist.defaultBehavior === "string") {
+    // Junie's AllowListDecision accepts only allow/ask (a stray value fails
+    // the whole-file parse on Junie's side); lift only what the override
+    // schema can hold — an invalid value stays untouched in the target file.
+    if (allowlist.defaultBehavior === "allow" || allowlist.defaultBehavior === "ask") {
       junieOverride.defaultBehavior = allowlist.defaultBehavior;
+    }
+    if (Object.keys(ruleDefaults).length > 0) {
+      junieOverride.ruleDefaults = ruleDefaults;
+    }
+    if (readSecretFile !== undefined) {
+      junieOverride.readSecretFile = readSecretFile;
     }
 
     const result: Record<string, unknown> = { ...config };
@@ -260,18 +334,32 @@ export class JuniePermissions extends ToolPermissions {
 }
 
 /**
- * Convert rulesync permissions config into Junie's `rules` object. Categories
- * with no Junie rule group (e.g. `webfetch`) are skipped, with a warning when
- * they carry any rule so the gap is surfaced.
+ * Convert rulesync permissions config into Junie's `rules` object, where every
+ * group is an `AllowListRuleSet` object (`{ default?, rules }`) — the only
+ * shape Junie's parser accepts. Categories with no Junie rule group (e.g.
+ * `webfetch`) are skipped, with a warning when they carry any rule so the gap
+ * is surfaced.
+ *
+ * Per-group `default` comes from the `junie` override's `ruleDefaults`, or —
+ * when not authored there — is preserved from the existing file. The
+ * `readSecretFile` group is likewise authored whole via the override or
+ * preserved from the existing file: it restricts what Junie may read, so a
+ * generate must never silently wipe it.
  */
 function convertRulesyncToJunieRules({
   config,
   logger,
+  existingRules,
+  overrideSecretFile,
+  overrideRuleDefaults,
 }: {
   config: PermissionsConfig;
   logger?: Logger;
-}): Partial<Record<JunieRuleGroup, JunieRule[]>> {
-  const rules: Partial<Record<JunieRuleGroup, JunieRule[]>> = {};
+  existingRules: Record<string, JunieRuleSet | JunieRule[]>;
+  overrideSecretFile?: JunieRuleSet;
+  overrideRuleDefaults?: Partial<Record<JunieRuleGroup, JunieAllowlistAction>>;
+}): Record<string, JunieRuleSet> {
+  const ruleLists: Partial<Record<JunieRuleGroup, JunieRule[]>> = {};
 
   for (const [category, patterns] of Object.entries(config.permission)) {
     const group = CANONICAL_TO_JUNIE_GROUP[category];
@@ -291,8 +379,29 @@ function convertRulesyncToJunieRules({
       const rule: JunieRule = isGlobPattern(pattern)
         ? { pattern, action: junieAction }
         : { prefix: pattern, action: junieAction };
-      (rules[group] ??= []).push(rule);
+      (ruleLists[group] ??= []).push(rule);
     }
+  }
+
+  const rules: Record<string, JunieRuleSet> = {};
+  for (const group of JUNIE_RULE_GROUPS) {
+    const list = ruleLists[group];
+    const groupDefault = overrideRuleDefaults?.[group] ?? toRuleSet(existingRules[group])?.default;
+    if (list === undefined && groupDefault === undefined) {
+      continue;
+    }
+    rules[group] = {
+      ...(groupDefault !== undefined && { default: groupDefault }),
+      rules: list ?? [],
+    };
+  }
+
+  const secretFile = overrideSecretFile ?? toRuleSet(existingRules[JUNIE_SECRET_FILE_GROUP]);
+  if (secretFile !== undefined) {
+    rules[JUNIE_SECRET_FILE_GROUP] = {
+      ...(secretFile.default !== undefined && { default: secretFile.default }),
+      rules: secretFile.rules ?? [],
+    };
   }
 
   return rules;
@@ -321,42 +430,58 @@ function toJunieAction(
 }
 
 /**
- * Convert a Junie allowlist back into rulesync permissions config. The
- * top-level `defaultBehavior` / `allowReadonlyCommands` settings have no
- * canonical equivalent and are not imported.
+ * Convert a Junie allowlist back into rulesync permissions config plus the
+ * group-shaped `junie` override fields. Each group may be Junie's object form
+ * (`{ default?, rules }`) or the legacy bare array earlier rulesync versions
+ * wrote; both are read. Per-group defaults come back as `ruleDefaults` and the
+ * `readSecretFile` group comes back whole, so they survive the round-trip.
  */
-function convertJunieToRulesyncPermissions({
-  allowlist,
-}: {
-  allowlist: JunieAllowlist;
-}): PermissionsConfig {
+function convertJunieToRulesyncPermissions({ allowlist }: { allowlist: JunieAllowlist }): {
+  config: PermissionsConfig;
+  ruleDefaults: Partial<Record<JunieRuleGroup, JunieAllowlistAction>>;
+  readSecretFile?: JunieRuleSet;
+} {
   const permission: PermissionsConfig["permission"] = {};
-  const rules = allowlist.rules;
+  const ruleDefaults: Partial<Record<JunieRuleGroup, JunieAllowlistAction>> = {};
+  let readSecretFile: JunieRuleSet | undefined;
+  const rules =
+    allowlist.rules && typeof allowlist.rules === "object" && !Array.isArray(allowlist.rules)
+      ? allowlist.rules
+      : {};
 
-  if (rules && typeof rules === "object") {
-    for (const group of JUNIE_RULE_GROUPS) {
-      const list = rules[group];
-      if (!Array.isArray(list)) {
+  for (const group of JUNIE_RULE_GROUPS) {
+    const ruleSet = toRuleSet(rules[group]);
+    if (ruleSet === undefined) {
+      continue;
+    }
+    if (ruleSet.default === "allow" || ruleSet.default === "ask") {
+      ruleDefaults[group] = ruleSet.default;
+    }
+    const category = JUNIE_GROUP_TO_CANONICAL[group];
+    for (const rule of Array.isArray(ruleSet.rules) ? ruleSet.rules : []) {
+      if (!rule || typeof rule !== "object") {
         continue;
       }
-      const category = JUNIE_GROUP_TO_CANONICAL[group];
-      for (const rule of list) {
-        if (!rule || typeof rule !== "object") {
-          continue;
-        }
-        const pattern =
-          typeof rule.pattern === "string"
-            ? rule.pattern
-            : typeof rule.prefix === "string"
-              ? rule.prefix
-              : undefined;
-        if (pattern === undefined || !isPermissionAction(rule.action)) {
-          continue;
-        }
-        (permission[category] ??= {})[pattern] = rule.action;
+      const pattern =
+        typeof rule.pattern === "string"
+          ? rule.pattern
+          : typeof rule.prefix === "string"
+            ? rule.prefix
+            : undefined;
+      if (pattern === undefined || !isPermissionAction(rule.action)) {
+        continue;
       }
+      (permission[category] ??= {})[pattern] = rule.action;
     }
   }
 
-  return { permission };
+  const secretFileSet = toRuleSet(rules[JUNIE_SECRET_FILE_GROUP]);
+  if (secretFileSet !== undefined) {
+    readSecretFile = {
+      ...(secretFileSet.default !== undefined && { default: secretFileSet.default }),
+      rules: Array.isArray(secretFileSet.rules) ? secretFileSet.rules : [],
+    };
+  }
+
+  return { config: { permission }, ruleDefaults, readSecretFile };
 }

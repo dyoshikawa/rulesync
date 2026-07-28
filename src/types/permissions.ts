@@ -321,25 +321,65 @@ const WarpPermissionsOverrideSchema = z.looseObject({
 export type WarpPermissionsOverride = z.infer<typeof WarpPermissionsOverrideSchema>;
 
 /**
+ * The actions Junie's allowlist accepts. Verified against the shipped Junie
+ * CLI release `2383.10` (26.7.20): `AllowListDecision` contains exactly
+ * `allow` and `ask`, and a `deny` value fails the whole-file parse — which
+ * makes Junie discard and overwrite `allowlist.json` — so the schema rejects
+ * it up front instead of emitting a file Junie destroys.
+ */
+const JunieAllowlistActionSchema = z.enum(["allow", "ask"]);
+
+/**
+ * One Junie allowlist rule: a literal `prefix` or glob `pattern` plus the
+ * action taken on match.
+ */
+const JunieAllowlistRuleSchema = z.looseObject({
+  prefix: z.optional(z.string()),
+  pattern: z.optional(z.string()),
+  action: JunieAllowlistActionSchema,
+});
+
+/**
+ * One Junie rule group (`AllowListRuleSet`): an optional per-group fallback
+ * `default` plus its ordered `rules`.
+ */
+const JunieAllowlistRuleSetSchema = z.looseObject({
+  default: z.optional(JunieAllowlistActionSchema),
+  rules: z.optional(z.array(JunieAllowlistRuleSchema)),
+});
+
+/**
  * Tool-scoped override block for JetBrains Junie. Junie's `allowlist.json` has
- * two top-level autonomy knobs with no canonical per-glob slot:
- * `allowReadonlyCommands` (a boolean auto-allowing read-only commands) and
- * `defaultBehavior` (the fallback action applied when no rule matches — Junie
- * documents only `allow`/`ask`). Fields placed here are merged onto the
- * top level of `allowlist.json`, while the shared `permission` block continues
- * to drive the per-category `rules` groups.
+ * top-level autonomy knobs and per-group settings with no canonical per-glob
+ * slot: `allowReadonlyCommands` (a boolean auto-allowing read-only commands),
+ * `defaultBehavior` (the fallback action applied when no rule matches),
+ * `readSecretFile` (the secret-file rule group — canonical `read` is already
+ * taken by `readOutsideProject`, so this group is authored whole), and
+ * `ruleDefaults` (each canonical-mapped group's own fallback action). Fields
+ * placed here are merged into `allowlist.json`, while the shared `permission`
+ * block continues to drive the rule lists of the four canonical-mapped groups.
  *
  * @example
- * { "allowReadonlyCommands": true, "defaultBehavior": "ask" }
+ * {
+ *   "allowReadonlyCommands": true,
+ *   "defaultBehavior": "ask",
+ *   "readSecretFile": { "rules": [{ "pattern": "**\/.env", "action": "ask" }] },
+ *   "ruleDefaults": { "executables": "ask" }
+ * }
  */
 const JuniePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   allowReadonlyCommands: z.optional(z.boolean()),
-  // Deliberately NOT an enum: Junie's allowlist docs only show `ask` in
-  // examples and never enumerate the accepted values (`deny` appears only in
-  // third-party material and `allow` is unconfirmed), so the bounds are
-  // undocumented. Do not "helpfully" enum this without an official value list.
-  defaultBehavior: z.optional(z.string()),
+  defaultBehavior: z.optional(JunieAllowlistActionSchema),
+  readSecretFile: z.optional(JunieAllowlistRuleSetSchema),
+  ruleDefaults: z.optional(
+    z.looseObject({
+      executables: z.optional(JunieAllowlistActionSchema),
+      fileEditing: z.optional(JunieAllowlistActionSchema),
+      mcpTools: z.optional(JunieAllowlistActionSchema),
+      readOutsideProject: z.optional(JunieAllowlistActionSchema),
+    }),
+  ),
 });
 export type JuniePermissionsOverride = z.infer<typeof JuniePermissionsOverrideSchema>;
 

@@ -79,13 +79,17 @@ describe("JuniePermissions", () => {
       const json = JSON.parse(instance.getFileContent());
       // Literal patterns become `prefix`; glob patterns become `pattern`.
       // Junie has no `deny`, so canonical deny is downgraded to `ask` + warned.
-      expect(json.rules.executables).toEqual([
-        { prefix: "git ", action: "allow" },
-        { pattern: "rm *", action: "ask" },
-      ]);
-      expect(json.rules.fileEditing).toEqual([{ pattern: "src/**", action: "allow" }]);
-      expect(json.rules.readOutsideProject).toEqual([{ pattern: "/etc/**", action: "ask" }]);
-      expect(json.rules.mcpTools).toEqual([{ prefix: "search", action: "ask" }]);
+      expect(json.rules.executables).toEqual({
+        rules: [
+          { prefix: "git ", action: "allow" },
+          { pattern: "rm *", action: "ask" },
+        ],
+      });
+      expect(json.rules.fileEditing).toEqual({ rules: [{ pattern: "src/**", action: "allow" }] });
+      expect(json.rules.readOutsideProject).toEqual({
+        rules: [{ pattern: "/etc/**", action: "ask" }],
+      });
+      expect(json.rules.mcpTools).toEqual({ rules: [{ prefix: "search", action: "ask" }] });
       // defaultBehavior is not fabricated when neither the override nor an
       // existing file supplies it (Junie's own default is already "ask").
       expect(json.defaultBehavior).toBeUndefined();
@@ -107,10 +111,12 @@ describe("JuniePermissions", () => {
 
       const json = JSON.parse(instance.getFileContent());
       // `write` deny also downgrades to `ask` (Junie has no `deny`).
-      expect(json.rules.fileEditing).toEqual([
-        { pattern: "src/**", action: "allow" },
-        { pattern: "dist/**", action: "ask" },
-      ]);
+      expect(json.rules.fileEditing).toEqual({
+        rules: [
+          { pattern: "src/**", action: "allow" },
+          { pattern: "dist/**", action: "ask" },
+        ],
+      });
     });
 
     it("should overlay the junie override's top-level autonomy knobs", async () => {
@@ -127,7 +133,7 @@ describe("JuniePermissions", () => {
       const json = JSON.parse(instance.getFileContent());
       expect(json.allowReadonlyCommands).toBe(true);
       expect(json.defaultBehavior).toBe("allow");
-      expect(json.rules.executables).toEqual([{ prefix: "git ", action: "allow" }]);
+      expect(json.rules.executables).toEqual({ rules: [{ prefix: "git ", action: "allow" }] });
     });
 
     it("should let the junie override win over an existing top-level value", async () => {
@@ -177,7 +183,7 @@ describe("JuniePermissions", () => {
       // Top-level settings preserved; rules replaced by rulesync-managed groups.
       expect(json.defaultBehavior).toBe("deny");
       expect(json.allowReadonlyCommands).toBe(true);
-      expect(json.rules.executables).toEqual([{ prefix: "git ", action: "allow" }]);
+      expect(json.rules.executables).toEqual({ rules: [{ prefix: "git ", action: "allow" }] });
     });
 
     it("should warn and skip categories Junie cannot represent", async () => {
@@ -196,9 +202,94 @@ describe("JuniePermissions", () => {
       });
 
       const json = JSON.parse(instance.getFileContent());
-      expect(json.rules.executables).toEqual([{ prefix: "ls", action: "allow" }]);
+      expect(json.rules.executables).toEqual({ rules: [{ prefix: "ls", action: "allow" }] });
       expect(json.rules.readOutsideProject).toBeUndefined();
       expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("webfetch"));
+    });
+  });
+
+  describe("AllowListRuleSet shape (issue #2411)", () => {
+    it("should author per-group defaults and readSecretFile via the junie override", async () => {
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: { bash: { "git ": "allow" } },
+        junie: {
+          ruleDefaults: { executables: "ask" },
+          readSecretFile: { default: "ask", rules: [{ pattern: "**/.env", action: "ask" }] },
+        },
+      });
+
+      const instance = await JuniePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(instance.getFileContent());
+      expect(json.rules.executables).toEqual({
+        default: "ask",
+        rules: [{ prefix: "git ", action: "allow" }],
+      });
+      expect(json.rules.readSecretFile).toEqual({
+        default: "ask",
+        rules: [{ pattern: "**/.env", action: "ask" }],
+      });
+      // The group-shaped override fields must not leak onto the top level.
+      expect(json.ruleDefaults).toBeUndefined();
+      expect(json.readSecretFile).toBeUndefined();
+    });
+
+    it("should preserve an existing readSecretFile group and group default on generate", async () => {
+      const dir = join(testDir, ".junie");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "allowlist.json"),
+        JSON.stringify({
+          rules: {
+            executables: { default: "ask", rules: [{ prefix: "old", action: "allow" }] },
+            readSecretFile: { rules: [{ pattern: "**/secrets/**", action: "ask" }] },
+          },
+        }),
+      );
+
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: { bash: { "git ": "allow" } },
+      });
+
+      const instance = await JuniePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(instance.getFileContent());
+      // Rules are rulesync-owned (replaced), but the group's own default and
+      // the whole secret-file group — which restricts what Junie may read —
+      // survive a generate that does not author them.
+      expect(json.rules.executables).toEqual({
+        default: "ask",
+        rules: [{ prefix: "git ", action: "allow" }],
+      });
+      expect(json.rules.readSecretFile).toEqual({
+        rules: [{ pattern: "**/secrets/**", action: "ask" }],
+      });
+    });
+
+    it("should import object-form groups, lifting default and readSecretFile into the override", () => {
+      const instance = new JuniePermissions({
+        relativeDirPath: ".junie",
+        relativeFilePath: "allowlist.json",
+        fileContent: JSON.stringify({
+          rules: {
+            executables: { default: "ask", rules: [{ prefix: "git ", action: "allow" }] },
+            readSecretFile: { rules: [{ pattern: "**/.env", action: "ask" }] },
+          },
+        }),
+      });
+
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+      expect(config.permission.bash).toEqual({ "git ": "allow" });
+      expect(config.junie).toEqual({
+        ruleDefaults: { executables: "ask" },
+        readSecretFile: { rules: [{ pattern: "**/.env", action: "ask" }] },
+      });
     });
   });
 

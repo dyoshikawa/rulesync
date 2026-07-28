@@ -239,6 +239,7 @@ rulesync.local.jsonc
 **/.augment-guidelines
 **/.devin/workflows/
 **/.junie/memories/
+**/.junie/allowlist.json
 **/.agents/skills/
 **/.rovodev/prompts.yml
 **/.config/devin/skills/
@@ -384,7 +385,6 @@ rulesync.local.jsonc
 **/.grok/hooks/rulesync.json
 **/.cline/command-permissions.json
 **/.cursor/cli.json
-**/.junie/allowlist.json
 **/.aiignore
 **/.geminiignore
 **/.augmentignore

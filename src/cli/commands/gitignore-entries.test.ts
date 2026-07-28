@@ -156,6 +156,9 @@ describe("registry derivation", () => {
       "augmentcode::rules::**/.augment-guidelines",
       "devin::commands::**/.devin/workflows/",
       "junie::rules::**/.junie/memories/",
+      // The allowlist is user-scope only; earlier versions wrote a project
+      // `.junie/allowlist.json` Junie never reads (issue #2411).
+      "junie::permissions::**/.junie/allowlist.json",
       "roo::subagents::**/.roomodes",
       "codexcli::ignore::**/.codexignore",
       // Codex CLI's `.codex/rules/rulesync.rules` bash-permission file is written

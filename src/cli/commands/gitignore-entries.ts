@@ -99,6 +99,12 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
   // rulesync versions may still exist there, so keep them gitignored.
   { target: "junie", feature: "rules", entry: "**/.junie/memories/" },
 
+  // Junie's allowlist is user-scope only (`~/.junie/allowlist.json`), so the
+  // project path left getSettablePaths — but earlier rulesync versions wrote a
+  // project `.junie/allowlist.json` Junie never reads, so keep those stale
+  // outputs gitignored.
+  { target: "junie", feature: "permissions", entry: "**/.junie/allowlist.json" },
+
   // Shared trees and global-scope outputs not produced via project getSettablePaths.
   { target: "rovodev", feature: "skills", entry: "**/.agents/skills/" },
   // The `prompts.yml` manifest is produced via `RovodevCommand.getAuxiliaryFiles`,
