@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, MockedFunction, vi } from 
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { findFilesByGlobs } from "../../utils/file.js";
+import { ensureDir, findFilesByGlobs, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
 import { ClineCommand } from "./cline-command.js";
 import { CommandsProcessor, CommandsProcessorToolTarget } from "./commands-processor.js";
@@ -1413,5 +1413,46 @@ describe("CommandsProcessor", () => {
       const toolFiles = await processor.loadToolFiles({ forDeletion: false });
       expect(toolFiles).toHaveLength(2);
     });
+  });
+});
+
+describe("CommandsProcessor secondary import roots", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("does not import a command twice when the shared root holds a flattened copy", async () => {
+    // `.agents/commands/` is where rulesync writes the `agentsmd` target, which
+    // flattens a namespace. Keyed only by path, `git/commit.md` and
+    // `commit.md` look like two commands and the user's set silently doubles.
+    const mockLogger = createMockLogger();
+    await ensureDir(join(testDir, ".augment", "commands", "git"));
+    await ensureDir(join(testDir, ".agents", "commands"));
+    const body = ["---", "description: Commit", "---", "", "Commit it.", ""].join("\n");
+    await writeFileContent(join(testDir, ".augment", "commands", "git", "commit.md"), body);
+    await writeFileContent(join(testDir, ".agents", "commands", "commit.md"), body);
+
+    // This suite mocks the glob helper, so drive it with the real listing.
+    const actualFile =
+      await vi.importActual<typeof import("../../utils/file.js")>("../../utils/file.js");
+    vi.mocked(findFilesByGlobs).mockImplementation(actualFile.findFilesByGlobs);
+
+    const processor = new CommandsProcessor({
+      outputRoot: testDir,
+      toolTarget: "augmentcode",
+      logger: mockLogger,
+    });
+    const loaded = await processor.loadToolFiles();
+
+    expect(loaded.map((file) => file.getRelativeFilePath())).toEqual([join("git", "commit.md")]);
   });
 });

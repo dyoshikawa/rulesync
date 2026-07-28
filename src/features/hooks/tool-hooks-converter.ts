@@ -278,12 +278,25 @@ function emitArrayPassthroughFields({
 function importArrayPassthroughFields({
   h,
   converterConfig,
+  logger,
 }: {
   h: Record<string, unknown>;
   converterConfig: ToolHooksConverterConfig;
+  logger?: Logger;
 }): Record<string, string[]> {
+  const fields = converterConfig.arrayPassthroughFields ?? [];
+  for (const { tool } of fields) {
+    if (h[tool] !== undefined && !isSafeStringArray(h[tool])) {
+      // The `hooks` key is owned in some tools' shared config, so a dropped
+      // value disappears from the file on the next generate.
+      logger?.warn(
+        `Dropping "${tool}" while importing a hook: it must be a list of strings without ` +
+          `newline, carriage return or NUL characters.`,
+      );
+    }
+  }
   return Object.fromEntries(
-    (converterConfig.arrayPassthroughFields ?? [])
+    fields
       .filter(({ tool }) => isSafeStringArray(h[tool]))
       .map(({ canonical, tool }) => [canonical, h[tool] as string[]]),
   );
@@ -315,8 +328,9 @@ function emitGroupPassthroughFields({
     // own — and a hook that asked for nothing still receives whatever the group
     // ends up with. Say so, rather than let the payload a script gets widen on
     // the strength of who else happens to share its matcher.
+    const firstStable = stableJson(first);
     const agrees = (value: unknown): boolean =>
-      isPlainObject(value) && JSON.stringify(value) === JSON.stringify(first);
+      isPlainObject(value) && stableJson(value) === firstStable;
     if (!carried.every(agrees)) {
       logger?.warn(
         `"${tool}" belongs to the whole matcher group on "${eventName}" hooks, so every hook in ` +
@@ -550,6 +564,13 @@ function isStringArray(value: unknown): value is string[] {
  * validation on a file this import itself wrote — and the hooks feature is
  * skipped wholesale when that read fails.
  */
+/** Compare object values without letting key order decide the answer. */
+function stableJson(value: Record<string, unknown>): string {
+  return JSON.stringify(
+    Object.fromEntries(Object.entries(value).toSorted(([a], [b]) => a.localeCompare(b))),
+  );
+}
+
 function isSafeStringArray(value: unknown): value is string[] {
   return (
     isStringArray(value) &&
@@ -597,10 +618,12 @@ function toolHookToCanonical({
   h,
   rawEntry,
   converterConfig,
+  logger,
 }: {
   h: Record<string, unknown>;
   rawEntry: ToolMatcherEntry;
   converterConfig: ToolHooksConverterConfig;
+  logger?: Logger;
 }): HooksConfig["hooks"][string][number] {
   const command = stripCommandPrefix({ command: h.command, converterConfig });
   const hookType = isImportedHookType(h.type) ? h.type : "command";
@@ -621,7 +644,7 @@ function toolHookToCanonical({
       typeof h.description === "string" && { description: h.description }),
     ...importBooleanPassthroughFields({ h, converterConfig }),
     ...importStringPassthroughFields({ h, converterConfig }),
-    ...importArrayPassthroughFields({ h, converterConfig }),
+    ...importArrayPassthroughFields({ h, converterConfig, logger }),
     ...importGroupPassthroughFields({ rawEntry, converterConfig }),
     ...(rawEntry.matcher !== undefined &&
       rawEntry.matcher !== null &&
@@ -635,12 +658,14 @@ function toolHookToCanonical({
 function toolMatcherEntryToCanonical({
   rawEntry,
   converterConfig,
+  logger,
 }: {
   rawEntry: ToolMatcherEntry;
   converterConfig: ToolHooksConverterConfig;
+  logger?: Logger;
 }): HooksConfig["hooks"][string] {
   const hookDefs = rawEntry.hooks ?? [];
-  return hookDefs.map((h) => toolHookToCanonical({ h, rawEntry, converterConfig }));
+  return hookDefs.map((h) => toolHookToCanonical({ h, rawEntry, converterConfig, logger }));
 }
 
 /**
@@ -689,9 +714,11 @@ export function buildImportedHooksConfig({
 export function toolHooksToCanonical({
   hooks,
   converterConfig,
+  logger,
 }: {
   hooks: unknown;
   converterConfig: ToolHooksConverterConfig;
+  logger?: Logger;
 }): HooksConfig["hooks"] {
   if (hooks === null || hooks === undefined || typeof hooks !== "object") {
     return {};
@@ -703,7 +730,7 @@ export function toolHooksToCanonical({
     const defs: HooksConfig["hooks"][string] = [];
     for (const rawEntry of matcherEntries) {
       if (!isToolMatcherEntry(rawEntry)) continue;
-      defs.push(...toolMatcherEntryToCanonical({ rawEntry, converterConfig }));
+      defs.push(...toolMatcherEntryToCanonical({ rawEntry, converterConfig, logger }));
     }
     if (defs.length > 0) {
       canonical[eventName] = defs;

@@ -778,7 +778,16 @@ export class CommandsProcessor extends FeatureProcessor {
     // (e.g. OpenCode's inline `command` block in `opencode.json`). A standalone
     // Markdown file with the same relative path takes precedence.
     if (factory.class.loadAdditionalImportFiles) {
-      const seen = new Set(toolCommands.map((command) => command.getRelativeFilePath()));
+      // Both the exact path and the basename: a command this tool namespaces by
+      // directory (`git/commit.md`) can be the same command another writer put
+      // in the shared root flattened (`commit.md`), and importing both would
+      // quietly double the user's command set.
+      const seen = new Set(
+        toolCommands.flatMap((command) => {
+          const key = command.getRelativeFilePath();
+          return [key, basename(key)];
+        }),
+      );
       const additionalCommands = await factory.class.loadAdditionalImportFiles({
         outputRoot: this.outputRoot,
         global: this.global,
@@ -786,7 +795,7 @@ export class CommandsProcessor extends FeatureProcessor {
       });
       for (const command of additionalCommands) {
         const key = command.getRelativeFilePath();
-        if (seen.has(key)) {
+        if (seen.has(key) || seen.has(basename(key))) {
           this.logger.warn(
             `Duplicate ${this.toolTarget} command "${key}" from a secondary source; ` +
               `keeping the one under ${paths.relativeDirPath}.`,
@@ -794,6 +803,7 @@ export class CommandsProcessor extends FeatureProcessor {
           continue;
         }
         seen.add(key);
+        seen.add(basename(key));
         toolCommands.push(command);
       }
     }

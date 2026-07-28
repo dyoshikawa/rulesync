@@ -206,16 +206,6 @@ export class AugmentcodeCommand extends ToolCommand {
   } = {}): Promise<AugmentcodeCommand[]> {
     const rootDir = join(outputRoot, AUGMENTCODE_AGENTS_COMMANDS_DIR_PATH);
     const filePaths = await findFilesByGlobs(join(rootDir, "**", "*.md"));
-    if (filePaths.length > 0) {
-      // `.agents/commands/` is a cross-tool root — rulesync writes it for
-      // `agentsmd` too — so say where these came from: importing one makes it a
-      // rulesync command targeting every tool.
-      logger?.warn(
-        `Importing ${filePaths.length} AugmentCode command(s) from the shared ` +
-          `${AUGMENTCODE_AGENTS_COMMANDS_DIR_PATH} root; they will be written for every target ` +
-          `on the next generate.`,
-      );
-    }
 
     const commands = await Promise.all(
       filePaths.map(async (filePath) => {
@@ -254,7 +244,19 @@ export class AugmentcodeCommand extends ToolCommand {
         });
       }),
     );
-    return commands.filter((command) => command !== undefined);
+    const imported = commands.filter((command) => command !== undefined);
+    if (imported.length > 0) {
+      // `.agents/commands/` is a cross-tool root — rulesync writes it for
+      // `agentsmd` too — so say where these came from: importing one makes it a
+      // rulesync command written for every target on the next generate. Counted
+      // after the skips above, so the number is what was actually taken.
+      logger?.warn(
+        `Importing ${imported.length} AugmentCode command(s) from the shared ` +
+          `${AUGMENTCODE_AGENTS_COMMANDS_DIR_PATH} root; they will be written for every target ` +
+          `on the next generate.`,
+      );
+    }
+    return imported;
   }
 
   static forDeletion({

@@ -686,3 +686,50 @@ describe("HooksProcessor", () => {
     expect(warnings).not.toContain("Skipped hook event(s) for hermesagent");
   });
 });
+
+describe("HooksProcessor logger plumbing", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("passes its logger to the adapter, so an adapter warning reaches the user", async () => {
+    // The adapters warn about what a conversion cannot represent; without this
+    // the warnings only ever fired in tests that constructed a logger.
+    const mockLogger = createMockLogger();
+    const processor = new HooksProcessor({
+      outputRoot: testDir,
+      inputRoot: testDir,
+      toolTarget: "augmentcode",
+      logger: mockLogger,
+    });
+
+    await processor.convertRulesyncFilesToToolFiles([
+      new RulesyncHooks({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "hooks.jsonc",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            stop: [
+              { type: "command", command: "./third-party.sh" },
+              { type: "command", command: "./mine.sh", metadata: { includeUserContext: true } },
+            ],
+          },
+        }),
+      }),
+    ]);
+
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("belongs to the whole matcher group"),
+    );
+  });
+});
