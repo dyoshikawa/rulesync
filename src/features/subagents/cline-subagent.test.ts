@@ -234,4 +234,94 @@ Review carefully.`;
       expect(subagent.isDeletable()).toBe(true);
     });
   });
+
+  describe("upstream agent contract (issue #2405)", () => {
+    it("should fall back to a generated description when the canonical one is missing", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "helper.md",
+        frontmatter: { targets: ["cline"], name: "helper" },
+        body: "Help.",
+        validate: true,
+      });
+
+      const subagent = ClineSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: join(".cline", "agents"),
+        rulesyncSubagent,
+        validate: true,
+      }) as ClineSubagent;
+
+      // Cline refuses to load an agent without a non-empty description.
+      expect(subagent.getFrontmatter().description).toBe("helper subagent");
+    });
+
+    it("should carry the typed optional fields through the cline section", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "reviewer.md",
+        frontmatter: {
+          targets: ["cline"],
+          name: "reviewer",
+          description: "Reviews code",
+          cline: {
+            tools: ["read", "search"],
+            skills: "review-skill",
+            providerId: "anthropic",
+            modelId: "claude-sonnet-5",
+            maxIterations: 5,
+          },
+        },
+        body: "Review.",
+        validate: true,
+      });
+
+      const subagent = ClineSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: join(".cline", "agents"),
+        rulesyncSubagent,
+        validate: true,
+      }) as ClineSubagent;
+
+      const frontmatter = subagent.getFrontmatter();
+      expect(frontmatter.tools).toEqual(["read", "search"]);
+      expect(frontmatter.skills).toBe("review-skill");
+      expect(frontmatter.providerId).toBe("anthropic");
+      expect(frontmatter.modelId).toBe("claude-sonnet-5");
+      expect(frontmatter.maxIterations).toBe(5);
+    });
+
+    it("should reject an empty description on import (Cline skips such agents)", async () => {
+      await writeFileContent(
+        join(testDir, ".cline", "agents", "bad.yaml"),
+        "---\nname: bad\ndescription: ''\n---\n\nBody.",
+      );
+
+      await expect(
+        ClineSubagent.fromFile({
+          outputRoot: testDir,
+          relativeFilePath: "bad.yaml",
+          validate: true,
+        }),
+      ).rejects.toThrow(/Invalid frontmatter/);
+    });
+
+    it("should load a .yml agent file (Cline's isYamlFile accepts both extensions)", async () => {
+      await writeFileContent(
+        join(testDir, ".cline", "agents", "reviewer.yml"),
+        "---\nname: reviewer\ndescription: Reviews code\n---\n\nReview.",
+      );
+
+      const subagent = await ClineSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "reviewer.yml",
+        validate: true,
+      });
+      expect(subagent.getFrontmatter().name).toBe("reviewer");
+      // The canonical file name keeps the .md conversion for .yml too.
+      expect(subagent.toRulesyncSubagent().getRelativeFilePath()).toBe("reviewer.md");
+    });
+  });
 });

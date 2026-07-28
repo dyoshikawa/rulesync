@@ -777,4 +777,26 @@ alwaysApply: true
       expect(ClineRule.isTargetedByRulesyncRule(rulesyncRule)).toBe(true);
     });
   });
+
+  describe("global non-root import (issue #2405)", () => {
+    it("should import a global rule from ~/Documents/Cline/Rules", async () => {
+      const rulesDir = join(testDir, "Documents", "Cline", "Rules");
+      await ensureDir(rulesDir);
+      await writeFileContent(
+        join(rulesDir, "detail.md"),
+        "---\npaths:\n  - src/**/*.ts\n---\n# Detail",
+      );
+
+      const rule = await ClineRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "detail.md",
+        global: true,
+      });
+
+      expect(rule.isRoot()).toBe(false);
+      expect(rule.getRelativeDirPath()).toBe(join("Documents", "Cline", "Rules"));
+      const rulesync = rule.toRulesyncRule();
+      expect(rulesync.getFrontmatter().globs).toEqual(["src/**/*.ts"]);
+    });
+  });
 });
