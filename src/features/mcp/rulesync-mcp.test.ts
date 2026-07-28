@@ -852,6 +852,57 @@ describe("RulesyncMcp", () => {
     });
   });
 
+  describe("enabled generation filter (issue #2433)", () => {
+    it("emits a server unless enabled is explicitly false", () => {
+      const instance = makeInstance({
+        mcpServers: {
+          implicit: { command: "node" },
+          explicit: { command: "deno", enabled: true },
+          off: { command: "bun", enabled: false },
+        },
+      });
+
+      const servers = instance.getMcpServers();
+      expect(Object.keys(servers).toSorted()).toEqual(["explicit", "implicit"]);
+      // The filter field never reaches tool output — OpenCode/Kilo/Grok/Goose
+      // have a NATIVE enabled field with different semantics.
+      expect(servers.explicit).toEqual({ command: "deno" });
+    });
+
+    it("keeps the pass-through disabled field on servers that are still emitted", () => {
+      const instance = makeInstance({
+        mcpServers: {
+          off: { command: "node", disabled: true },
+          gone: { command: "deno", disabled: true, enabled: false },
+        },
+      });
+
+      const servers = instance.getMcpServers();
+      // enabled: false wins and drops the server entirely; disabled only
+      // matters for servers still emitted.
+      expect(Object.keys(servers)).toEqual(["off"]);
+      expect(servers.off).toEqual({ command: "node", disabled: true });
+    });
+
+    it("filters enabled: false inside a tool-scoped block too", () => {
+      const instance = makeInstance({
+        mcpServers: { shared: { command: "node" } },
+        claudecode: { mcpServers: { extra: { command: "uvx", enabled: false } } },
+      });
+
+      const forClaudecode = instance.forTarget({ toolTarget: "claudecode" });
+      expect(Object.keys(forClaudecode.getMcpServers())).toEqual(["shared"]);
+    });
+
+    it("produces an empty map when every server is filtered out", () => {
+      const instance = makeInstance({
+        mcpServers: { a: { command: "node", enabled: false } },
+      });
+
+      expect(instance.getMcpServers()).toEqual({});
+    });
+  });
+
   describe("forTarget", () => {
     it("should return the same instance when no tool block or targets exist", () => {
       const instance = makeInstance({ mcpServers: { shared: { command: "node" } } });
