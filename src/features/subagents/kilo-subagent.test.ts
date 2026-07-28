@@ -447,7 +447,7 @@ Agent body`,
       variant: "extended",
       prompt: "Think carefully",
       options: { key: "value" },
-      steps: [{ name: "step1" }],
+      steps: 30,
       disable: false,
     });
 
@@ -456,7 +456,9 @@ Agent body`,
       expect(result.data.displayName).toBe("My Agent");
       expect(result.data.deprecated).toBe(true);
       expect(result.data.top_p).toBe(0.8);
-      expect(result.data.steps).toEqual([{ name: "step1" }]);
+      // Upstream: "Maximum number of agentic iterations before forcing a
+      // text-only response" — a number, not a list of step objects.
+      expect(result.data.steps).toBe(30);
       expect(result.data.options).toEqual({ key: "value" });
     }
   });
@@ -495,7 +497,7 @@ Agent body`,
         description: "Agent with options/steps",
         kilo: {
           options: { temperature: 0.2 },
-          steps: [{ name: "step1" }, { name: "step2" }],
+          steps: 30,
         },
       },
       body: "Body",
@@ -510,7 +512,7 @@ Agent body`,
       }) as KiloSubagent
     ).getFrontmatter();
     expect(fm.options).toEqual({ temperature: 0.2 });
-    expect(fm.steps).toEqual([{ name: "step1" }, { name: "step2" }]);
+    expect(fm.steps).toBe(30);
   });
 
   describe("forDeletion", () => {

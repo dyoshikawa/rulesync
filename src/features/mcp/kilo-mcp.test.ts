@@ -2598,3 +2598,31 @@ describe("KiloMcp", () => {
     });
   });
 });
+
+describe("KiloMcp toggle entries", () => {
+  it("accepts a bare { enabled: false } entry instead of failing the whole run", () => {
+    // `kilo.jsonc` is the file the rules feature writes too, so rejecting this
+    // documented form aborted every `--targets kilo` run, not just MCP.
+    const kiloMcp = new KiloMcp({
+      relativeDirPath: ".",
+      relativeFilePath: "kilo.jsonc",
+      fileContent: JSON.stringify({ mcp: { toggled: { enabled: false } } }),
+    });
+
+    const imported = JSON.parse(kiloMcp.toRulesyncMcp().getFileContent());
+    // No transport of its own: it names a server another config layer defines,
+    // so only its disabled state crosses over.
+    expect(imported.mcpServers.toggled).toEqual({ disabled: true });
+  });
+
+  it("keeps an enabled toggle entry as an ordinary enabled server", () => {
+    const kiloMcp = new KiloMcp({
+      relativeDirPath: ".",
+      relativeFilePath: "kilo.jsonc",
+      fileContent: JSON.stringify({ mcp: { toggled: { enabled: true } } }),
+    });
+
+    const imported = JSON.parse(kiloMcp.toRulesyncMcp().getFileContent());
+    expect(imported.mcpServers.toggled).toEqual({});
+  });
+});

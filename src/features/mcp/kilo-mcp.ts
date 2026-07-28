@@ -59,8 +59,25 @@ const KiloMcpRemoteServerSchema = z.object({
   oauth: z.optional(KiloMcpOAuthSchema),
 });
 
-// Kilo MCP server schema (local or remote)
-const KiloMcpServerSchema = z.union([KiloMcpLocalServerSchema, KiloMcpRemoteServerSchema]);
+/**
+ * A bare toggle entry: `{"enabled": false}` with no transport of its own,
+ * disabling a server another config layer defines — the global config, a
+ * marketplace, or a VS Code import. Kilo's own type is
+ * `Record<string, Info | { enabled: boolean }>`; without this arm the union
+ * rejects the entry and, because `kilo.jsonc` is the file the rules feature
+ * writes too, the whole `--targets kilo` run aborts rather than just MCP.
+ * @see https://github.com/Kilo-Org/kilocode/blob/main/packages/core/src/v1/config/config.ts
+ */
+const KiloMcpToggleSchema = z.looseObject({
+  enabled: z.boolean(),
+});
+
+// Kilo MCP server schema (local, remote, or a toggle for a server defined elsewhere)
+const KiloMcpServerSchema = z.union([
+  KiloMcpLocalServerSchema,
+  KiloMcpRemoteServerSchema,
+  KiloMcpToggleSchema,
+]);
 
 // Use looseObject to allow additional properties like model, provider, agent,
 // etc.
@@ -93,69 +110,106 @@ type KiloMcpServer = z.infer<typeof KiloMcpServerSchema>;
  * - enabled -> disabled (inverted)
  * - top-level tools map -> per-server enabledTools/disabledTools (strip server prefix)
  */
+/** The three union arms differ only by `type`, so read them through one shape. */
+type KiloMcpServerShape = {
+  type?: "local" | "remote";
+  command?: string[];
+  environment?: Record<string, string>;
+  cwd?: string;
+  url?: string;
+  headers?: Record<string, string>;
+  oauth?: unknown;
+  enabled?: boolean;
+  timeout?: number;
+};
+
+/** Split the shared top-level `tools` map into this server's own two lists. */
+function splitKiloServerTools(
+  serverName: string,
+  tools: Record<string, boolean> | undefined,
+): { enabledTools: string[]; disabledTools: string[] } {
+  const enabledTools: string[] = [];
+  const disabledTools: string[] = [];
+  const prefix = `${serverName}_`;
+
+  for (const [toolName, enabled] of Object.entries(tools ?? {})) {
+    if (!toolName.startsWith(prefix)) {
+      continue;
+    }
+    const toolSuffix = toolName.slice(prefix.length);
+    (enabled ? enabledTools : disabledTools).push(toolSuffix);
+  }
+  return { enabledTools, disabledTools };
+}
+
+function kiloServerToRulesync(
+  serverName: string,
+  server: KiloMcpServerShape,
+  { enabledTools, disabledTools }: { enabledTools: string[]; disabledTools: string[] },
+): McpServers[string] {
+  const shared = {
+    ...(server.enabled === false && { disabled: true }),
+    ...(server.timeout !== undefined && { timeout: server.timeout }),
+    ...(enabledTools.length > 0 && { enabledTools }),
+    ...(disabledTools.length > 0 && { disabledTools }),
+  };
+
+  if (server.type !== "local" && server.type !== "remote") {
+    // A toggle entry names a server another config layer defines, so there is
+    // no transport to import — only its disabled state crosses over. Writing it
+    // back keeps that layer switched off.
+    const { timeout: _timeout, ...toggle } = shared;
+    return toggle;
+  }
+
+  if (server.type === "remote") {
+    return {
+      // Kilo's `remote` transport is transport-agnostic; SSE is deprecated by
+      // the MCP spec (2025-03-26) in favor of Streamable HTTP, so import as
+      // `http` rather than the legacy `sse`.
+      type: "http" as const,
+      url: server.url ?? "",
+      ...(server.headers && { headers: server.headers }),
+      ...(server.oauth !== undefined && { oauth: server.oauth }),
+      ...shared,
+    };
+  }
+
+  const [command, ...args] = server.command ?? [];
+  if (!command) {
+    throw new Error(`Server "${serverName}" has an empty command array`);
+  }
+  return {
+    type: "stdio" as const,
+    command,
+    ...(args.length > 0 && { args }),
+    ...(server.environment && { env: server.environment }),
+    ...(server.cwd && { cwd: server.cwd }),
+    ...shared,
+  };
+}
+
+/**
+ * Convert Kilo native format back to standard MCP format
+ * - type: "local" -> "stdio", "remote" -> "http"
+ * - command (array) -> command (first element) + args (rest)
+ * - environment -> env
+ * - enabled -> disabled (inverted)
+ * - top-level tools map -> per-server enabledTools/disabledTools (strip server prefix)
+ */
 function convertFromKiloFormat(
   kiloMcp: Record<string, KiloMcpServer>,
   tools?: Record<string, boolean>,
 ): McpServers {
   return Object.fromEntries(
-    Object.entries(kiloMcp).map(([serverName, serverConfig]) => {
-      // Extract enabledTools and disabledTools from top-level tools map
-      const enabledTools: string[] = [];
-      const disabledTools: string[] = [];
-      const prefix = `${serverName}_`;
-
-      if (tools) {
-        for (const [toolName, enabled] of Object.entries(tools)) {
-          if (toolName.startsWith(prefix)) {
-            const toolSuffix = toolName.slice(prefix.length);
-            if (enabled) {
-              enabledTools.push(toolSuffix);
-            } else {
-              disabledTools.push(toolSuffix);
-            }
-          }
-        }
-      }
-
-      if (serverConfig.type === "remote") {
-        return [
-          serverName,
-          {
-            // Kilo's `remote` transport is transport-agnostic; SSE is deprecated
-            // by the MCP spec (2025-03-26) in favor of Streamable HTTP, so import
-            // as `http` rather than the legacy `sse`.
-            type: "http" as const,
-            url: serverConfig.url,
-            ...(serverConfig.enabled === false && { disabled: true }),
-            ...(serverConfig.headers && { headers: serverConfig.headers }),
-            ...(serverConfig.timeout !== undefined && { timeout: serverConfig.timeout }),
-            ...(serverConfig.oauth !== undefined && { oauth: serverConfig.oauth }),
-            ...(enabledTools.length > 0 && { enabledTools }),
-            ...(disabledTools.length > 0 && { disabledTools }),
-          },
-        ];
-      }
-
-      // local server -> stdio
-      const [command, ...args] = serverConfig.command;
-      if (!command) {
-        throw new Error(`Server "${serverName}" has an empty command array`);
-      }
-      return [
+    Object.entries(kiloMcp).map(([serverName, serverConfig]) => [
+      serverName,
+      kiloServerToRulesync(
         serverName,
-        {
-          type: "stdio" as const,
-          command,
-          ...(args.length > 0 && { args }),
-          ...(serverConfig.enabled === false && { disabled: true }),
-          ...(serverConfig.environment && { env: serverConfig.environment }),
-          ...(serverConfig.cwd && { cwd: serverConfig.cwd }),
-          ...(serverConfig.timeout !== undefined && { timeout: serverConfig.timeout }),
-          ...(enabledTools.length > 0 && { enabledTools }),
-          ...(disabledTools.length > 0 && { disabledTools }),
-        },
-      ];
-    }),
+        serverConfig as KiloMcpServerShape,
+        splitKiloServerTools(serverName, tools),
+      ),
+    ]),
   );
 }
 
