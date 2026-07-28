@@ -26,7 +26,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Kimi Code                 | kimi-code          | ✅ 🌏 |        | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  |  🌏   |     🌏      |        |
 | Roo Code                  | roo                | ✅ 🌏 |   ✅   |    ✅    |    ✅    |    ✅     | ✅ 🌏  |       |             |        |
 | Rovodev (Atlassian)       | rovodev            | ✅ 🌏 |        |    🌏    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |     🌏      |        |
-| Takt                      | takt               | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |    ✅ 🌏    |        |
+| Takt                      | takt               | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |    ✅ 🌏    | ✅ 🌏  |
 | Vibe Code                 | vibe               | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Qwen Code                 | qwencode           | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Reasonix                  | reasonix           | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |

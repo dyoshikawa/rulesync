@@ -484,7 +484,7 @@ Review the diff for injection vulnerabilities, hardcoded secrets, and unsafe
 deserialization. Report each finding with a file and line reference.
 ```
 
-Amp and Hermes Agent consume checks. Amp receives one Markdown file per check:
+Amp, Hermes Agent and Takt consume checks. Amp receives one Markdown file per check:
 
 - **Project scope:** `.agents/checks/<name>.md`
 - **Global scope** (`--global`): `~/.config/amp/checks/<name>.md`
@@ -496,6 +496,21 @@ HERMES_ENABLE_PROJECT_PLUGINS=1 hermes
 ```
 
 Rulesync adds `rulesync-checks` to `plugins.enabled` in `$HERMES_HOME/config.yaml` but deliberately leaves `$HERMES_HOME/.env` unchanged, preserving Hermes's global trust boundary. Existing plugin configuration is preserved; an explicit `plugins.disabled` conflict fails generation.
+
+For Takt, checks are **quality gates**, and they live in the `workflow_overrides` block of the shared `.takt/config.yaml` (project) / `~/.takt/config.yaml` (global) rather than in files of their own — so every check targeting Takt collapses into that one file. A check becomes one gate: by default a **string gate**, the body text, which Takt injects into the agent step prompt as a completion directive (the `description` is used when the body is empty, and the file stem when neither is set); with `command` in the check's `takt` frontmatter block, a **command gate** (`{type: command, name, command, cwd, timeout_ms}`), which Takt runs after the step and fails on a non-zero exit code. `name` defaults to the file stem so Takt's logs identify the gate. `steps` and `personas` in that block scope a gate to named workflow steps or personas (`workflow_overrides.steps.<step>.quality_gates`); an unscoped gate applies everywhere, and a gate naming both is written to both. `quality_gates_edit_only` is a property of the block as a whole, so one check setting it turns it on for all of them. Takt merges quality gates additively and dedupes them (project over global over the workflow YAML's own gates). Example:
+
+```md
+---
+targets: ["takt"]
+takt:
+  command: ./.takt/quality-gates/check.sh # omit for a string gate
+  timeout_ms: 300000
+  steps: ["review"] # (optional) scope to named workflow steps
+  personas: ["coder"] # (optional) scope to named personas
+---
+```
+
+`workflow_overrides` is owned by the checks feature: it is rewritten from `.rulesync/checks/` on every generate, so a gate deleted there disappears from `config.yaml` too, while every other key of the file is preserved and the file is never deleted. On import, each gate becomes its own check file, named from the gate text or the command gate's `name`. The default-deny `workflow_command_gates.custom_scripts` policy is **not** written here — Takt validates it against gates declared in workflow YAML, not against these, and it is authorable through the `takt` block of `.rulesync/permissions.*`, which owns the security policies. See the [Takt workflows docs](https://github.com/nrslib/takt/blob/main/docs/workflows.md).
 
 The emitted Amp frontmatter is derived from the source as follows:
 
@@ -1245,7 +1260,7 @@ For Vibe (mistral-vibe), this generates per-tool `[tools.<tool>]` tables in the 
 > }
 > ```
 
-For Takt, this generates the `default_permission_mode` under `provider_profiles.<provider>` in the shared `.takt/config.yaml` (project mode) or `~/.takt/config.yaml` (global mode). Takt does not have per-tool / per-pattern rules; tool gating is a single coarse mode per provider profile, ordered `readonly` < `edit` < `full` (`readonly` may only read, `edit` may also edit/write files, `full` may also run shell commands). The active provider is named by the top-level `provider:` key (defaulting to `claude`). The mapping is therefore **lossy**: on generate, a single mode is derived with this precedence — (1) any `deny` rule anywhere ⇒ `readonly` (conservative — keep the narrowest mode whenever the user expressed any restriction); (2) else any `edit`/`write` category `allow` rule ⇒ `edit`; (3) else any `bash` category `allow` rule ⇒ `full`; (4) else ⇒ `readonly` (safe default). On import, `full` ⇄ `bash: { "*": "allow" }`, `edit` ⇄ `edit: { "*": "allow" }`, and `readonly` (or an unset/unknown mode) ⇄ `bash: { "*": "deny" }`. `config.yaml` is shared with other Takt settings, so the mode is merged in place — every other provider profile and all other top-level keys are preserved — and the file is never deleted.
+For Takt, this generates the `default_permission_mode` under `provider_profiles.<provider>` in the shared `.takt/config.yaml` (project mode) or `~/.takt/config.yaml` (global mode). Takt does not have per-tool / per-pattern rules; tool gating is a single coarse mode per provider profile, ordered `readonly` < `edit` < `full` (`readonly` may only read, `edit` may also edit/write files, `full` may also run shell commands). The active provider is named by the top-level `provider:` key (defaulting to `claude`). The mapping is therefore **lossy**: on generate, a single mode is derived with this precedence — (1) any `deny` rule anywhere ⇒ `readonly` (conservative — keep the narrowest mode whenever the user expressed any restriction); (2) else any `edit`/`write` category `allow` rule ⇒ `edit`; (3) else any `bash` category `allow` rule ⇒ `full`; (4) else ⇒ `readonly` (safe default). On import, `full` ⇄ `bash: { "*": "allow" }`, `edit` ⇄ `edit: { "*": "allow" }`, and `readonly` (or an unset/unknown mode) ⇄ `bash: { "*": "deny" }`. `config.yaml` is shared with other Takt settings, so the mode is merged in place — every other provider profile and all other top-level keys are preserved — and the file is never deleted. Takt's default-deny **workflow security policies** — `workflow_arpeggio` (`custom_data_source_modules`, `custom_merge_inline_js`, `custom_merge_files`), `workflow_runtime_prepare.custom_scripts`, `workflow_command_gates.custom_scripts`, `sync_conflict_resolver.auto_approve_tools`, and the `allow_git_hooks` / `allow_git_filters` booleans — have no canonical permission category, so they are authored through the `takt` override block of `.rulesync/permissions.*` and round-trip on import. Each admits one class of user-supplied code, so only the boolean shapes Takt itself accepts are written: a value of any other type is dropped rather than passed through, since Takt's loader rejects the file outright on a type mismatch. `workflow_mcp_servers` stays with the MCP feature, which derives it from the transports in use.
 
 Two Takt-specific surfaces with no canonical category can be authored (and round-trip) through an optional `takt` override block in `.rulesync/permissions.jsonc`: `step_permission_overrides` (a per-workflow-step map `<step>` ⇒ `readonly`/`edit`/`full`, written inside the active provider profile and layered by Takt on top of `default_permission_mode`) and `provider_options` (a top-level, per-provider table of sandbox/network knobs orthogonal to the mode, e.g. `codex.network_access`, `claude.sandbox.allow_unsandboxed_commands`, `opencode.allowed_tools`). Example: `{ "permission": { … }, "takt": { "step_permission_overrides": { "ai_review": "readonly" }, "provider_options": { "codex": { "network_access": true } } } }`. Note the workflow-step `required_permission_mode` floor is a field of the **workflow YAML**, not `config.yaml`, so it is intentionally out of scope (Takt's config loader hard-rejects unknown top-level keys). See the [Takt configuration docs](https://github.com/nrslib/takt/blob/main/docs/configuration.md).
 

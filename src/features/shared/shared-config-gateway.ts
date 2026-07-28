@@ -8,7 +8,10 @@ import {
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 
 import { CODEXCLI_OVERRIDE_KEYS } from "../../constants/codexcli-paths.js";
-import { TAKT_WORKFLOW_MCP_SERVERS_KEY } from "../../constants/takt-paths.js";
+import {
+  TAKT_WORKFLOW_MCP_SERVERS_KEY,
+  TAKT_WORKFLOW_OVERRIDES_KEY,
+} from "../../constants/takt-paths.js";
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { Feature } from "../../types/features.js";
 import { formatError } from "../../utils/error.js";
@@ -322,6 +325,10 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     invalidRootPolicy: "error",
     features: {
       mcp: { kind: "replace-owned-keys", ownedKeys: [TAKT_WORKFLOW_MCP_SERVERS_KEY] },
+      // The whole `workflow_overrides` block is derived from `.rulesync/checks/`,
+      // so it is replaced rather than merged: a gate deleted there must not
+      // survive in config.yaml.
+      checks: { kind: "replace-owned-keys", ownedKeys: [TAKT_WORKFLOW_OVERRIDES_KEY] },
       // provider_profiles.<provider>.default_permission_mode plus the takt
       // override's step/provider tables merge into user config at depth;
       // deep-merge preserves nested sibling keys by construction.

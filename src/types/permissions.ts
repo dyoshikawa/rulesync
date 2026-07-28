@@ -364,13 +364,29 @@ export type JuniePermissionsOverride = z.infer<typeof JuniePermissionsOverrideSc
  * of scope for this override.
  *
  * @example
- * { "step_permission_overrides": { "ai_review": "readonly" }, "provider_options": { "codex": { "network_access": true } } }
+ * { "step_permission_overrides": { "ai_review": "readonly" }, "provider_options": { "codex": { "network_access": true } }, "allow_git_hooks": true }
  */
 const TaktPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   // @see https://github.com/nrslib/takt/blob/main/docs/configuration.md
   step_permission_overrides: z.optional(z.record(z.string(), z.enum(["readonly", "edit", "full"]))),
   provider_options: z.optional(z.looseObject({})),
+  // Takt's default-deny "workflow security policies". Each admits one class of
+  // user-supplied code a workflow may otherwise not run, so they are modelled
+  // key by key rather than left to passthrough: a typo in one of these silently
+  // leaves the capability denied.
+  workflow_arpeggio: z.optional(
+    z.object({
+      custom_data_source_modules: z.optional(z.boolean()),
+      custom_merge_inline_js: z.optional(z.boolean()),
+      custom_merge_files: z.optional(z.boolean()),
+    }),
+  ),
+  workflow_runtime_prepare: z.optional(z.object({ custom_scripts: z.optional(z.boolean()) })),
+  workflow_command_gates: z.optional(z.object({ custom_scripts: z.optional(z.boolean()) })),
+  sync_conflict_resolver: z.optional(z.object({ auto_approve_tools: z.optional(z.boolean()) })),
+  allow_git_hooks: z.optional(z.boolean()),
+  allow_git_filters: z.optional(z.boolean()),
 });
 export type TaktPermissionsOverride = z.infer<typeof TaktPermissionsOverrideSchema>;
 

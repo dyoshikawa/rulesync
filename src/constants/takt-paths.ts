@@ -26,3 +26,12 @@ export const TAKT_CONFIG_FILE_NAME = "config.yaml";
  * @see https://github.com/nrslib/takt/blob/main/docs/configuration.md
  */
 export const TAKT_WORKFLOW_MCP_SERVERS_KEY = "workflow_mcp_servers";
+
+/**
+ * Top-level key in Takt's `config.yaml` holding the quality-gate overrides
+ * (`quality_gates`, `quality_gates_edit_only`, and the `steps` / `personas`
+ * scoped blocks). Takt merges project over global over the workflow YAML's own
+ * gates, additively and deduped.
+ * @see https://github.com/nrslib/takt/blob/main/docs/workflows.md
+ */
+export const TAKT_WORKFLOW_OVERRIDES_KEY = "workflow_overrides";

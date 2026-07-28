@@ -400,5 +400,6 @@ rulesync.local.jsonc
 **/.warpindexingignore
 **/.agents/checks/
 **/.hermes/plugins/rulesync-checks/checks/
+**/.takt/
 !.rulesync/.aiignore
 # End of Rulesync

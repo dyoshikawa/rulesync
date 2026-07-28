@@ -2,6 +2,7 @@ import { join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
+import { TAKT_CONFIG_FILE_NAME } from "../../constants/takt-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
@@ -13,11 +14,13 @@ import type { Logger } from "../../utils/logger.js";
 import { AmpCheck } from "./amp-check.js";
 import { HermesagentCheck } from "./hermesagent-check.js";
 import { RulesyncCheck } from "./rulesync-check.js";
+import { TaktCheck } from "./takt-check.js";
 import {
   ToolCheck,
   ToolCheckForDeletionParams,
   ToolCheckFromFileParams,
   ToolCheckFromRulesyncCheckParams,
+  ToolCheckFromRulesyncChecksParams,
   ToolCheckSettablePaths,
 } from "./tool-check.js";
 
@@ -29,6 +32,8 @@ type ToolCheckFactory = {
   class: {
     isTargetedByRulesyncCheck(rulesyncCheck: RulesyncCheck): boolean;
     fromRulesyncCheck(params: ToolCheckFromRulesyncCheckParams): ToolCheck;
+    /** Set instead of `fromRulesyncCheck` when checks share one output file. */
+    fromRulesyncChecks?(params: ToolCheckFromRulesyncChecksParams): Promise<ToolCheck[]>;
     fromFile(params: ToolCheckFromFileParams): Promise<ToolCheck>;
     forDeletion(params: ToolCheckForDeletionParams): ToolCheck;
     getSettablePaths(options?: { global?: boolean }): ToolCheckSettablePaths;
@@ -76,6 +81,16 @@ export const toolCheckFactories = new Map<ChecksProcessorToolTarget, ToolCheckFa
     {
       class: HermesagentCheck,
       meta: { supportsGlobal: false, filePattern: "*.json" },
+    },
+  ],
+  [
+    "takt",
+    {
+      // Takt's quality gates live in the `workflow_overrides` block of the
+      // shared `.takt/config.yaml`, so every check collapses into that one file.
+      // https://github.com/nrslib/takt/blob/main/docs/workflows.md
+      class: TaktCheck,
+      meta: { supportsGlobal: true, filePattern: TAKT_CONFIG_FILE_NAME },
     },
   ],
 ]);
@@ -149,14 +164,21 @@ export class ChecksProcessor extends FeatureProcessor {
       factory.class.isTargetedByRulesyncCheck(rulesyncCheck),
     );
 
-    const toolChecks = targeted.map((rulesyncCheck) =>
-      factory.class.fromRulesyncCheck({
-        outputRoot: this.outputRoot,
-        relativeDirPath: RulesyncCheck.getSettablePaths().relativeDirPath,
-        rulesyncCheck,
-        global: this.global,
-      }),
-    );
+    const toolChecks = factory.class.fromRulesyncChecks
+      ? await factory.class.fromRulesyncChecks({
+          outputRoot: this.outputRoot,
+          relativeDirPath: RulesyncCheck.getSettablePaths().relativeDirPath,
+          rulesyncChecks: targeted,
+          global: this.global,
+        })
+      : targeted.map((rulesyncCheck) =>
+          factory.class.fromRulesyncCheck({
+            outputRoot: this.outputRoot,
+            relativeDirPath: RulesyncCheck.getSettablePaths().relativeDirPath,
+            rulesyncCheck,
+            global: this.global,
+          }),
+        );
     const auxiliaryFiles = await factory.class.getAuxiliaryFiles?.({
       toolChecks,
       outputRoot: this.outputRoot,
@@ -168,7 +190,7 @@ export class ChecksProcessor extends FeatureProcessor {
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
     const toolChecks = toolFiles.filter((file): file is ToolCheck => file instanceof ToolCheck);
 
-    return toolChecks.map((toolCheck) => toolCheck.toRulesyncCheck());
+    return toolChecks.flatMap((toolCheck) => toolCheck.toRulesyncChecks());
   }
 
   /**

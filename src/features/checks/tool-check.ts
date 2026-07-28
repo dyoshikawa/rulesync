@@ -26,6 +26,20 @@ export type ToolCheckForDeletionParams = {
   global?: boolean;
 };
 
+/**
+ * Params of the optional `fromRulesyncChecks` static. A tool whose checks
+ * collapse into a single shared file implements that instead of
+ * {@link ToolCheck.fromRulesyncCheck}, because one output cannot be produced
+ * from one check in isolation. It is deliberately absent from the base class so
+ * the processor can detect which tools have it.
+ */
+export type ToolCheckFromRulesyncChecksParams = {
+  rulesyncChecks: RulesyncCheck[];
+  outputRoot?: string;
+  relativeDirPath: string;
+  global?: boolean;
+};
+
 export abstract class ToolCheck extends ToolFile {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCheckSettablePaths {
     throw new Error("Please implement this method in the subclass.");
@@ -57,6 +71,14 @@ export abstract class ToolCheck extends ToolFile {
   }
 
   abstract toRulesyncCheck(): RulesyncCheck;
+
+  /**
+   * Import direction of {@link fromRulesyncChecks}: one shared file can hold
+   * many checks, so the default one-to-one mapping is widened here.
+   */
+  toRulesyncChecks(): RulesyncCheck[] {
+    return [this.toRulesyncCheck()];
+  }
 
   static isTargetedByRulesyncCheck(_rulesyncCheck: RulesyncCheck): boolean {
     throw new Error("Please implement this method in the subclass.");

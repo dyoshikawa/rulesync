@@ -31,6 +31,22 @@ const TAKT_STEP_PERMISSION_OVERRIDES_KEY = "step_permission_overrides";
 // `takt` override.
 const TAKT_PROVIDER_OPTIONS_KEY = "provider_options";
 
+// Takt's default-deny "workflow security policies": each admits one class of
+// user-supplied code (an Arpeggio module, a runtime-prepare script, a
+// workflow-declared command gate, a sync-conflict tool) or re-enables git hooks
+// and filters during Takt-managed commits. All are top-level keys of
+// `config.yaml` in both scopes, and all are routed through the `takt` override
+// because none maps onto a canonical permission category.
+// https://github.com/nrslib/takt/blob/main/docs/configuration.md
+const TAKT_SECURITY_POLICY_KEYS = [
+  "workflow_arpeggio",
+  "workflow_runtime_prepare",
+  "workflow_command_gates",
+  "sync_conflict_resolver",
+  "allow_git_hooks",
+  "allow_git_filters",
+] as const;
+
 // Takt's three coarse permission modes, ordered readonly < edit < full.
 type TaktPermissionMode = "readonly" | "edit" | "full";
 
@@ -166,6 +182,7 @@ export class TaktPermissions extends ToolPermissions {
       ...(overrideProviderOptions !== undefined && {
         [TAKT_PROVIDER_OPTIONS_KEY]: overrideProviderOptions,
       }),
+      ...pickSecurityPolicies(override),
     };
 
     return new TaktPermissions({
@@ -217,6 +234,7 @@ export class TaktPermissions extends ToolPermissions {
     if (providerOptions && Object.keys(providerOptions).length > 0) {
       taktOverride[TAKT_PROVIDER_OPTIONS_KEY] = providerOptions;
     }
+    Object.assign(taktOverride, pickSecurityPolicies(config));
 
     const result: Record<string, unknown> = { ...rulesyncConfig };
     if (Object.keys(taktOverride).length > 0) {
@@ -316,4 +334,36 @@ function taktModeToRulesyncConfig(mode: unknown): PermissionsConfig {
       // `readonly` and any unset/unknown mode.
       return { permission: { bash: { [CATCH_ALL_PATTERN]: "deny" } } };
   }
+}
+
+/**
+ * Lift Takt's security-policy keys out of a source object, keeping only the
+ * shapes Takt itself accepts (a boolean, or a table of booleans). Used in both
+ * directions: from the `takt` override on generate, and from `config.yaml` on
+ * import.
+ */
+function pickSecurityPolicies(
+  source: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  if (!source) {
+    return {};
+  }
+  const picked: Record<string, unknown> = {};
+  for (const key of TAKT_SECURITY_POLICY_KEYS) {
+    const value = source[key];
+    if (typeof value === "boolean") {
+      picked[key] = value;
+      continue;
+    }
+    if (!isPlainObject(value)) {
+      continue;
+    }
+    const flags = Object.fromEntries(
+      Object.entries(value).filter(([, flag]) => typeof flag === "boolean"),
+    );
+    if (Object.keys(flags).length > 0) {
+      picked[key] = flags;
+    }
+  }
+  return picked;
 }

@@ -31,6 +31,11 @@ export const SHARED_WRITE_FEATURE_ORDER = [
   "subagents",
   "mcp",
   "hooks",
+  // `checks` only reaches a shared file for Takt, where it owns
+  // `workflow_overrides` outright — no other feature writes that key — so its
+  // position here is not a conflict decision. It sits next to the other
+  // blocks that shape how the agent runs rather than at either end.
+  "checks",
   "permissions",
   "rules",
 ] as const satisfies readonly Feature[];
@@ -42,7 +47,6 @@ export const SHARED_WRITE_FEATURE_ORDER = [
  *
  * - `commands`: standalone per-command files (e.g. `.claude/commands/*.md`).
  * - `skills`: standalone per-skill directories (e.g. `.claude/skills/<name>/`).
- * - `checks`: standalone per-check files (e.g. `.agents/checks/<name>.md`).
  *
  * Kept as an explicit list — not an implicit "everything not in
  * {@link SHARED_WRITE_FEATURE_ORDER}" — so that adding a new `Feature` forces a
@@ -51,7 +55,7 @@ export const SHARED_WRITE_FEATURE_ORDER = [
  * this list or `SHARED_WRITE_FEATURE_ORDER`. That closes the drift where a
  * feature which later starts writing a shared file is silently forgotten.
  */
-export const NON_SHARED_WRITE_FEATURES = ["skills", "checks"] as const satisfies readonly Feature[];
+export const NON_SHARED_WRITE_FEATURES = ["skills"] as const satisfies readonly Feature[];
 
 // Deprecated aliases; a guard for the day one diverges from its canonical
 // target's paths. A no-op today since they reuse the canonical class and paths.
