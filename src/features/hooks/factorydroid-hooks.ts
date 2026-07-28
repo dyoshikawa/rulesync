@@ -36,7 +36,10 @@ const FACTORYDROID_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   toolToCanonicalEventNames: FACTORYDROID_TO_CANONICAL_EVENT_NAMES,
   projectDirVar: "$FACTORY_PROJECT_DIR",
   prefixDotRelativeCommandsOnly: true,
-  supportedHookTypes: new Set(["command", "prompt"]),
+  // Droid's hooks reference states "Currently only \"command\" is supported".
+  // Filtering prompt-type hooks here (instead of accepting them) surfaces the
+  // processor's skipped-type warning rather than writing an inert entry.
+  supportedHookTypes: new Set(["command"]),
 };
 
 export class FactorydroidHooks extends ToolHooks {

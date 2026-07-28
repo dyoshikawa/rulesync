@@ -463,14 +463,14 @@ describe("FactorydroidHooks", () => {
       expect(editEntry.hooks).toHaveLength(1);
     });
 
-    it("should include timeout and prompt fields when present", async () => {
+    it("should include the timeout field on a command hook", async () => {
       await ensureDir(join(testDir, ".factory"));
       await writeFileContent(join(testDir, ".factory", "settings.json"), JSON.stringify({}));
 
       const config = {
         version: 1,
         hooks: {
-          preToolUse: [{ type: "prompt", prompt: "Check this tool call", timeout: 30000 }],
+          preToolUse: [{ type: "command", command: "./check.sh", timeout: 30000 }],
         },
       };
       const rulesyncHooks = new RulesyncHooks({
@@ -490,19 +490,24 @@ describe("FactorydroidHooks", () => {
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
       const hookDef = parsed.hooks.PreToolUse[0].hooks[0];
-      expect(hookDef.type).toBe("prompt");
-      expect(hookDef.prompt).toBe("Check this tool call");
+      expect(hookDef.type).toBe("command");
       expect(hookDef.timeout).toBe(30000);
     });
 
-    it("should not emit the canonical model field (undocumented for Factory Droid)", async () => {
+    it("should skip prompt-type hooks, which Droid cannot execute (issue #2412)", async () => {
       await ensureDir(join(testDir, ".factory"));
       await writeFileContent(join(testDir, ".factory", "settings.json"), JSON.stringify({}));
 
+      // Droid's hooks reference: "Currently only \"command\" is supported".
+      // A prompt-type canonical hook must be filtered out, not written as an
+      // inert entry with no command field.
       const config = {
         version: 1,
         hooks: {
-          preToolUse: [{ type: "prompt", prompt: "Check this tool call", model: "haiku" }],
+          preToolUse: [
+            { type: "prompt", prompt: "Check this tool call" },
+            { type: "command", command: "./check.sh" },
+          ],
         },
       };
       const rulesyncHooks = new RulesyncHooks({
@@ -520,9 +525,10 @@ describe("FactorydroidHooks", () => {
       });
 
       const parsed = JSON.parse(factorydroidHooks.getFileContent());
-      const hookDef = parsed.hooks.PreToolUse[0].hooks[0];
-      expect(hookDef.prompt).toBe("Check this tool call");
-      expect(hookDef.model).toBeUndefined();
+      const entries = parsed.hooks.PreToolUse[0].hooks;
+      expect(entries).toHaveLength(1);
+      expect(entries[0].type).toBe("command");
+      expect(JSON.stringify(parsed)).not.toContain("prompt");
     });
   });
 
@@ -539,6 +545,30 @@ describe("FactorydroidHooks", () => {
       expect(() => factorydroidHooks.toRulesyncHooks()).toThrow(
         /Failed to parse Factory Droid hooks content/,
       );
+    });
+
+    it("should still import a legacy prompt entry from hooks.json (issue #2412)", () => {
+      // Generation filters prompt-type hooks (Droid runs only command hooks),
+      // but a hooks.json that already carries one — written by an earlier
+      // rulesync or by hand — must import without crashing or dropping it, so
+      // the canonical model keeps the user's intent for tools that can run it.
+      const factorydroidHooks = new FactorydroidHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".factory",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PreToolUse: [{ hooks: [{ type: "prompt", prompt: "Check this tool call" }] }],
+          },
+        }),
+        validate: false,
+      });
+
+      const parsed = JSON.parse(factorydroidHooks.toRulesyncHooks().getFileContent());
+      expect(parsed.hooks.preToolUse[0]).toMatchObject({
+        type: "prompt",
+        prompt: "Check this tool call",
+      });
     });
 
     it("should convert Factory Droid PascalCase hooks to canonical camelCase", () => {
