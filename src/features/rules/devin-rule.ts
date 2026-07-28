@@ -286,10 +286,11 @@ const STRATEGIES: TriggerStrategy[] = [
 /**
  * Rule generator for Devin (Cascade memories, now Devin Desktop).
  *
- * - Project scope: one file per rule under `.devin/rules/*.md` with YAML
+ * - Project scope: the root rule goes to the project-root `AGENTS.md` (plain
+ *   markdown — the file Devin CLI / Devin Local reads); non-root rules are one
+ *   file per rule under `.devin/rules/*.md` (Devin Desktop Cascade) with YAML
  *   frontmatter carrying a `trigger` (always_on | glob | manual | model_decision)
- *   plus companion `globs`/`description` fields. (`.devin/rules/` is the
- *   pre-rebrand legacy location the tool still reads.)
+ *   plus companion `globs`/`description` fields.
  * - Global scope: a single plain-markdown, always-on file (no frontmatter) at
  *   `~/.config/devin/AGENTS.md` (Devin Local global always-on rules).
  *
@@ -476,7 +477,8 @@ export class DevinRule extends ToolRule {
 
     const frontmatter = strategy.generateFrontmatter(normalized, rulesyncFrontmatter);
 
-    // Both root and non-root rules are placed in the .devin/rules directory.
+    // Non-root rules are placed in the .devin/rules directory (the root rule
+    // returned above went to the project-root AGENTS.md).
     const kebabCaseFilename = toKebabCaseFilename(rulesyncRule.getRelativeFilePath());
 
     return new DevinRule({
@@ -492,7 +494,7 @@ export class DevinRule extends ToolRule {
 
   toRulesyncRule(): RulesyncRule {
     if (this.root) {
-      // The global AGENTS.md round-trips as a plain root rule.
+      // The global and project-root AGENTS.md round-trip as a plain root rule.
       return this.toRulesyncRuleDefault();
     }
 
