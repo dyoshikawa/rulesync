@@ -121,6 +121,42 @@ describe("AmpRule", () => {
       expect(rule.getRelativeFilePath()).toBe("ts.md");
       expect(rule.isRoot()).toBe(false);
       expect(rule.getGlobs()).toEqual(["src/**/*.ts"]);
+      // Amp's native conditional loading is driven by `globs:` YAML
+      // frontmatter on the file itself — the TOON `applyTo` value is advisory
+      // prose Amp never enforces (issue #2410).
+      expect(rule.getFileContent()).toBe("---\nglobs:\n  - src/**/*.ts\n---\n# TS\n");
+    });
+
+    it("emits no frontmatter for a non-root rule without globs", () => {
+      const rulesyncRule = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "always.md",
+        frontmatter: { root: false, targets: ["*"], globs: [] },
+        body: "# Always",
+      });
+
+      const rule = AmpRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule });
+
+      // Without globs, an @-mentioned file is always included — no gate to
+      // write, and no stray empty frontmatter block.
+      expect(rule.getFileContent()).toBe("# Always");
+    });
+
+    it("restores globs frontmatter from a memories file on import", async () => {
+      const memoriesDir = join(testDir, ".agents", "memories");
+      await ensureDir(memoriesDir);
+      await writeFileContent(
+        join(memoriesDir, "ts.md"),
+        "---\nglobs:\n  - src/**/*.ts\n---\n# TS\n",
+      );
+
+      const rule = await AmpRule.fromFile({ outputRoot: testDir, relativeFilePath: "ts.md" });
+      expect(rule.getGlobs()).toEqual(["src/**/*.ts"]);
+
+      const roundTripped = rule.toRulesyncRule();
+      expect(roundTripped.getFrontmatter().globs).toEqual(["src/**/*.ts"]);
+      expect(roundTripped.getBody()).toBe("# TS");
     });
 
     it("uses the global root path when global=true", () => {
