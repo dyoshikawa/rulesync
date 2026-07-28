@@ -216,8 +216,10 @@ export class TaktPermissions extends ToolPermissions {
     if (removedPolicies.length > 0) {
       logger?.warn(
         `Takt permissions: removing ${removedPolicies.map((key) => `"${key}"`).join(", ")} from ` +
-          `${filePath} because the \`takt\` block of the rulesync source does not state them; ` +
-          `author these workflow security policies there rather than in config.yaml.`,
+          `${filePath} because the \`takt\` block of the rulesync source no longer states them. ` +
+          `That is the revocation if you removed them there; if you added them to config.yaml by ` +
+          `hand, author them in the rulesync source instead — these keys are rewritten on every ` +
+          `generate.`,
       );
     }
 
