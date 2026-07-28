@@ -10,6 +10,7 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { McpServerSchema, type McpServer, type McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { declaresNoTransport, warnAndSkipMcpServer } from "./mcp-transport.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -45,21 +46,6 @@ const resolveCopilotcliServerType = (server: McpServer): CopilotcliServerType =>
 };
 
 /**
- * A server that names no transport at all: the shape a Kilo `{"enabled": …}`
- * toggle imports as, which switches off a server some other config layer
- * defines. Copilot CLI has no equivalent — every entry in `mcp-config.json`
- * defines a server — so it is skipped with a warning rather than thrown over.
- * Throwing would abort the whole `generate` run, every target and feature of
- * it, over one entry that was never meant for Copilot CLI.
- */
-const declaresNoTransport = (server: McpServer): boolean =>
-  server.type === undefined &&
-  server.transport === undefined &&
-  server.command === undefined &&
-  server.url === undefined &&
-  server.httpUrl === undefined;
-
-/**
  * Resolves and sets the transport type for each MCP server config.
  * GitHub Copilot CLI requires the "type" field for each server.
  * @throws Error if a stdio/local server doesn't have a command
@@ -70,10 +56,19 @@ function addTypeField(mcpServers: McpServers, logger?: Logger): CopilotcliMcpCon
 
   for (const [name, server] of Object.entries(mcpServers)) {
     const parsed = McpServerSchema.parse(server);
+    // A server that names no transport at all is the shape a Kilo
+    // `{"enabled": …}` toggle imports as, which switches off a server some
+    // other config layer defines. Copilot CLI has no equivalent — every entry
+    // in its config defines a server — and throwing here would abort the whole
+    // generate run, every target and feature of it, over one entry that was
+    // never meant for Copilot CLI.
     if (declaresNoTransport(parsed)) {
-      logger?.warn(
-        `GitHub Copilot CLI MCP: skipping "${name}" because it declares no transport; mcp-config.json has no way to express a server it does not define.`,
-      );
+      warnAndSkipMcpServer({
+        toolName: "GitHub Copilot CLI",
+        serverName: name,
+        reason: "no transport at all",
+        logger,
+      });
       continue;
     }
     const type = resolveCopilotcliServerType(parsed);

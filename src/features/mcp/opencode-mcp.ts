@@ -11,11 +11,20 @@ import {
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import {
   convertEnvVarRefsFromToolFormat,
   convertEnvVarRefsToToolFormat,
 } from "./mcp-env-var-format.js";
+import {
+  declaresNoTransport,
+  isRemoteMcpServer,
+  type McpServerConfig,
+  resolveLocalMcpCommand,
+  resolveRemoteMcpUrl,
+  warnAndSkipMcpServer,
+} from "./mcp-transport.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -191,73 +200,99 @@ const OPENCODE_PASSTHROUGH_SERVER_FIELDS = ["timeout", "oauth"] as const;
  * - enabledTools/disabledTools -> top-level tools map (with server name prefix)
  * - OpenCode-supported extras (timeout, oauth) -> passed through verbatim
  */
-function convertToOpencodeFormat(mcpServers: McpServers): {
+function convertServerToOpencodeFormat(
+  serverName: string,
+  serverConfig: McpServerConfig,
+  logger?: Logger,
+): OpencodeMcpServer | null {
+  // Preserve OpenCode-supported extras (e.g. timeout, oauth) on export so a
+  // round-trip keeps them. Spread first so derived fields below always win.
+  const serverRecord = serverConfig as Record<string, unknown>;
+  const passthrough: Record<string, unknown> = {};
+  for (const key of OPENCODE_PASSTHROUGH_SERVER_FIELDS) {
+    if (serverRecord[key] !== undefined) {
+      passthrough[key] = serverRecord[key];
+    }
+  }
+
+  const enabled = serverConfig.disabled !== undefined ? !serverConfig.disabled : true;
+
+  if (isRemoteMcpServer(serverConfig)) {
+    const url = resolveRemoteMcpUrl(serverConfig);
+    if (url === undefined) {
+      return warnAndSkipMcpServer({
+        toolName: "OpenCode",
+        serverName,
+        reason: "a remote transport but no url",
+        logger,
+      });
+    }
+    return {
+      ...passthrough,
+      type: "remote",
+      url,
+      enabled,
+      ...(serverConfig.headers && { headers: serverConfig.headers }),
+    };
+  }
+
+  const commandArray = resolveLocalMcpCommand(serverConfig);
+  if (commandArray.length === 0) {
+    // `{type: "local", command: []}` is a server OpenCode cannot start, and
+    // this adapter throws on reading it back — so the file this generate
+    // wrote would break the next import.
+    return warnAndSkipMcpServer({
+      toolName: "OpenCode",
+      serverName,
+      reason: declaresNoTransport(serverConfig)
+        ? "no transport at all"
+        : "a local transport but no command",
+      logger,
+    });
+  }
+
+  return {
+    ...passthrough,
+    type: "local",
+    command: commandArray,
+    enabled,
+    ...(serverConfig.env && { environment: serverConfig.env }),
+    ...(serverConfig.cwd && { cwd: serverConfig.cwd }),
+  };
+}
+
+function convertToOpencodeFormat(
+  mcpServers: McpServers,
+  logger?: Logger,
+): {
   mcp: Record<string, OpencodeMcpServer>;
   tools: Record<string, boolean>;
 } {
   const tools: Record<string, boolean> = {};
 
   const mcp = Object.fromEntries(
-    Object.entries(mcpServers).map(([serverName, serverConfig]) => {
-      const isRemote =
-        serverConfig.type === "sse" || serverConfig.type === "http" || serverConfig.url;
-
-      // Collect enabledTools/disabledTools into the top-level tools map
-      if (serverConfig.enabledTools) {
-        for (const tool of serverConfig.enabledTools) {
-          tools[`${serverName}_${tool}`] = true;
+    Object.entries(mcpServers)
+      .map(([serverName, serverConfig]) => {
+        const converted = convertServerToOpencodeFormat(serverName, serverConfig, logger);
+        if (converted === null) {
+          return null;
         }
-      }
-      if (serverConfig.disabledTools) {
-        for (const tool of serverConfig.disabledTools) {
-          tools[`${serverName}_${tool}`] = false;
+
+        // Only after the server itself survives: a skipped server must not
+        // leave its tool filters behind in the shared `tools` map.
+        if (serverConfig.enabledTools) {
+          for (const tool of serverConfig.enabledTools) {
+            tools[`${serverName}_${tool}`] = true;
+          }
         }
-      }
-
-      // Preserve OpenCode-supported extras (e.g. timeout, oauth) on export so a
-      // round-trip keeps them. Spread first so derived fields below always win.
-      const serverRecord = serverConfig as Record<string, unknown>;
-      const passthrough: Record<string, unknown> = {};
-      for (const key of OPENCODE_PASSTHROUGH_SERVER_FIELDS) {
-        if (serverRecord[key] !== undefined) {
-          passthrough[key] = serverRecord[key];
+        if (serverConfig.disabledTools) {
+          for (const tool of serverConfig.disabledTools) {
+            tools[`${serverName}_${tool}`] = false;
+          }
         }
-      }
-
-      if (isRemote) {
-        const remoteServer: OpencodeMcpServer = {
-          ...passthrough,
-          type: "remote",
-          url: serverConfig.url ?? serverConfig.httpUrl ?? "",
-          enabled: serverConfig.disabled !== undefined ? !serverConfig.disabled : true,
-          ...(serverConfig.headers && { headers: serverConfig.headers }),
-        };
-        return [serverName, remoteServer];
-      }
-
-      // Build command array: merge command and args
-      const commandArray: string[] = [];
-      if (serverConfig.command) {
-        if (Array.isArray(serverConfig.command)) {
-          commandArray.push(...serverConfig.command);
-        } else {
-          commandArray.push(serverConfig.command);
-        }
-      }
-      if (serverConfig.args) {
-        commandArray.push(...serverConfig.args);
-      }
-
-      const localServer: OpencodeMcpServer = {
-        ...passthrough,
-        type: "local",
-        command: commandArray,
-        enabled: serverConfig.disabled !== undefined ? !serverConfig.disabled : true,
-        ...(serverConfig.env && { environment: serverConfig.env }),
-        ...(serverConfig.cwd && { cwd: serverConfig.cwd }),
-      };
-      return [serverName, localServer];
-    }),
+        return [serverName, converted] as const;
+      })
+      .filter((entry) => entry !== null),
   );
 
   return { mcp, tools };
@@ -336,6 +371,7 @@ export class OpencodeMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
     global = false,
+    logger,
   }: ToolMcpFromRulesyncMcpParams): Promise<OpencodeMcp> {
     const basePaths = this.getSettablePaths({ global });
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
@@ -360,7 +396,10 @@ export class OpencodeMcp extends ToolMcp {
       mcpServers,
       replacement: "{env:$1}",
     });
-    const { mcp: convertedMcp, tools: mcpTools } = convertToOpencodeFormat(transformedServers);
+    const { mcp: convertedMcp, tools: mcpTools } = convertToOpencodeFormat(
+      transformedServers,
+      logger,
+    );
 
     return new OpencodeMcp({
       outputRoot,

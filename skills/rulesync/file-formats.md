@@ -468,6 +468,8 @@ Besides `mode`, the `kilo` subagent block accepts these optional fields (all pre
 | `steps`       | positive integer | Maximum agentic iterations before a text-only response is forced (an explicit `null` is accepted and round-trips as-is, so a file that already carries one still imports; earlier Rulesync versions took a list of step objects here, which Kilo never accepted) |
 | `options`     | object           | Free-form key/value options                                                                                                                                                                                                                                      |
 
+> **Migration note (`steps`):** earlier Rulesync versions typed `steps` as a list of step objects, which Kilo never accepted — a subagent authored that way produced a file Kilo ignored. It is now the iteration count Kilo documents, so a `kilo` block (or a `.kilo/agents/*.md` file) still carrying the list form fails validation with the offending file named, and the run stops rather than writing a file that would not work. Replace the list with the number of iterations you want, or drop the field.
+
 > **Hermes Agent note:** Project generation writes subagent JSON specs under `.hermes/rulesync/subagents/` and installs `.hermes/plugins/rulesync-subagents/`. The plugin resolves specs relative to its own installation, so the same code works in project and global scope. For project scope, Rulesync also enables `rulesync-subagents` in `$HERMES_HOME/config.yaml`. Run Hermes from the trusted project root with `HERMES_ENABLE_PROJECT_PLUGINS=true`; Rulesync deliberately does not persist that global trust gate.
 
 ## `.rulesync/checks/*.md`

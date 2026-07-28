@@ -8,6 +8,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
@@ -2616,6 +2617,63 @@ describe("OpencodeMcp", () => {
       expect((opencodeMcp.getJson() as any).instructions).toEqual([
         ".opencode/memories/overview.md",
       ]);
+    });
+  });
+
+  describe("servers OpenCode cannot express", () => {
+    it("should skip a server with no reachable transport instead of writing an empty command", async () => {
+      // `{type: "local", command: []}` is a server OpenCode cannot start, and
+      // this adapter throws reading it back — so the file one generate wrote
+      // would break the next import. The first entry is the shape a Kilo
+      // `{"enabled": false}` toggle imports as.
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            toggled: { disabled: true, enabledTools: ["read"] },
+            headless: { type: "stdio" },
+            noUrl: { type: "http" },
+            fine: { command: "npx", args: ["-y", "server"] },
+          },
+        }),
+      });
+
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        logger: mockLogger,
+      });
+      const json = opencodeMcp.getJson() as any;
+
+      expect(Object.keys(json.mcp)).toEqual(["fine"]);
+      // A skipped server leaves no tool filters behind either.
+      expect(json.tools).toBeUndefined();
+      for (const name of ["toggled", "headless", "noUrl"]) {
+        expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining(`skipping "${name}"`));
+      }
+    });
+
+    it("should write a server carrying only httpUrl as remote", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { gemini: { httpUrl: "https://example.com/mcp" } },
+        }),
+      });
+
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+      });
+
+      expect((opencodeMcp.getJson() as any).mcp.gemini).toEqual({
+        type: "remote",
+        url: "https://example.com/mcp",
+        enabled: true,
+      });
     });
   });
 });
