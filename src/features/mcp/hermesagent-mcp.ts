@@ -117,6 +117,25 @@ function copyHermesAdvancedFields(
       copied = true;
     }
   }
+  // TLS verification: `true`/`false` or a PEM CA-bundle path. Landed in the
+  // same upstream mTLS PR as `client_cert`/`client_key` but was missed when
+  // those were added, so a hand-written value was destroyed on regenerate.
+  if (typeof source.ssl_verify === "boolean" || typeof source.ssl_verify === "string") {
+    target.ssl_verify = source.ssl_verify;
+    copied = true;
+  }
+  // Bypasses the fail-fast content-type probe for HTTP servers (v0.19.0).
+  if (typeof source.skip_preflight === "boolean") {
+    target.skip_preflight = source.skip_preflight;
+    copied = true;
+  }
+  // Server-initiated LLM request policy (`enabled`, `model`, `max_tokens_cap`,
+  // …). Copied as an opaque mapping so new sub-keys keep working; cloned so no
+  // reference is shared with the source, with pollution keys dropped.
+  if (isPlainObject(source.sampling)) {
+    target.sampling = omitPrototypePollutionKeys(structuredClone(source.sampling));
+    copied = true;
+  }
   return copied;
 }
 

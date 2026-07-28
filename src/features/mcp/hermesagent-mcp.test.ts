@@ -367,6 +367,55 @@ describe("HermesagentMcp", () => {
       });
     });
 
+    it("passes through ssl_verify, skip_preflight and the sampling mapping (issue #2414)", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        // Raw JSON so the literal "__proto__" key actually reaches the parser
+        // as an own property (an object-literal __proto__ would not survive
+        // JSON.stringify).
+        fileContent: `{
+          "mcpServers": {
+            "remote": {
+              "url": "https://example.com/mcp",
+              "ssl_verify": "~/certs/ca.pem",
+              "skip_preflight": true,
+              "sampling": {
+                "enabled": true,
+                "model": "claude-sonnet-5",
+                "max_tokens_cap": 4096,
+                "allowed_models": ["claude-sonnet-5"],
+                "__proto__": "polluted"
+              }
+            },
+            "local": {
+              "command": "uvx",
+              "args": ["server"],
+              "ssl_verify": false
+            }
+          }
+        }`,
+      });
+
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const servers = getMcpServers(mcp.getFileContent());
+
+      expect(servers.remote?.ssl_verify).toBe("~/certs/ca.pem");
+      expect(servers.remote?.skip_preflight).toBe(true);
+      // Pollution keys are dropped; legitimate sub-keys survive verbatim.
+      expect(servers.remote?.sampling).toEqual({
+        enabled: true,
+        model: "claude-sonnet-5",
+        max_tokens_cap: 4096,
+        allowed_models: ["claude-sonnet-5"],
+      });
+      expect(servers.local?.ssl_verify).toBe(false);
+    });
+
     it("maps promptsEnabled/resourcesEnabled to Hermes's boolean tools.prompts/resources (issue #2236)", async () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: ".rulesync",
@@ -498,6 +547,11 @@ describe("HermesagentMcp", () => {
           "    supports_parallel_tool_calls: true",
           "    idle_timeout_seconds: 300",
           "    max_lifetime_seconds: 3600",
+          "    ssl_verify: ~/secrets/ca.pem",
+          "    skip_preflight: true",
+          "    sampling:",
+          "      enabled: true",
+          "      max_tokens_cap: 4096",
           "    oauth:",
           "      redirect_uri: http://localhost:8080/callback",
           "      redirect_host: 127.0.0.1",
@@ -538,6 +592,9 @@ describe("HermesagentMcp", () => {
         supports_parallel_tool_calls: true,
         idle_timeout_seconds: 300,
         max_lifetime_seconds: 3600,
+        ssl_verify: "~/secrets/ca.pem",
+        skip_preflight: true,
+        sampling: { enabled: true, max_tokens_cap: 4096 },
         oauth: {
           redirect_uri: "http://localhost:8080/callback",
           redirect_host: "127.0.0.1",
@@ -582,6 +639,9 @@ describe("HermesagentMcp", () => {
         supports_parallel_tool_calls: true,
         idle_timeout_seconds: 300,
         max_lifetime_seconds: 3600,
+        ssl_verify: "~/secrets/ca.pem",
+        skip_preflight: true,
+        sampling: { enabled: true, max_tokens_cap: 4096 },
         oauth: {
           redirect_uri: "http://localhost:8080/callback",
           redirect_host: "127.0.0.1",

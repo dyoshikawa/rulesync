@@ -82,9 +82,14 @@ describe("HermesagentSubagent", () => {
       },
     });
 
+    // delegate_task takes no model-facing "toolsets" argument (issue #2414),
+    // so neither the spec nor the dispatch payload may advertise one.
+    expect(subagentSpec?.getFileContent()).not.toContain("toolsets");
+
     const plugin = files.find((file) => file.getRelativeFilePath() === `__init__.py`);
     expect(plugin?.getFileContent()).toContain("ctx.dispatch_tool(");
     expect(plugin?.getFileContent()).toContain('"delegate_task"');
+    expect(plugin?.getFileContent()).not.toContain('"toolsets":');
     expect(plugin?.getFileContent()).toContain("ctx.register_command");
     expect(plugin?.getFileContent()).toContain(
       'Path(__file__).resolve().parents[2] / "rulesync" / "subagents"',
