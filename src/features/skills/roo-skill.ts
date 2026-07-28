@@ -124,11 +124,16 @@ export class RooSkill extends ToolSkill {
   }
 
   toRulesyncSkill(): RulesyncSkill {
-    const frontmatter = this.getFrontmatter();
+    // Keys beyond name/description — Roo's `modeSlugs` mode targeting, the
+    // legacy single `mode`, and anything Roo's frozen final release accepts —
+    // are lifted into the `roo` section so they survive the round-trip
+    // (mirrors how claudecode-skill.ts consumes its section).
+    const { name, description, ...rooSection } = this.getFrontmatter();
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
-      name: frontmatter.name,
-      description: frontmatter.description,
+      name,
+      description,
       targets: ["*"],
+      ...(Object.keys(rooSection).length > 0 && { roo: rooSection }),
     };
 
     return new RulesyncSkill({
@@ -152,7 +157,16 @@ export class RooSkill extends ToolSkill {
     const settablePaths = RooSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
+    // The `roo` section carries Roo-specific frontmatter (`modeSlugs` mode
+    // targeting, etc.); canonical name/description always win over a stray
+    // same-named key in the section.
+    const {
+      name: _sectionName,
+      description: _sectionDescription,
+      ...rooSection
+    } = rulesyncFrontmatter.roo ?? {};
     const rooFrontmatter: RooSkillFrontmatter = {
+      ...rooSection,
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
     };

@@ -1304,6 +1304,7 @@ describe("CommandsProcessor", () => {
           "pi",
           "qwencode",
           "reasonix",
+          "roo",
           "rovodev",
           "takt",
           "devin",

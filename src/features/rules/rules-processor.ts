@@ -718,6 +718,12 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
+        // Roo loads `AGENTS.local.md` from the workspace root for personal,
+        // gitignored overrides (v3.47.0; verified at the final v3.54.0 tag),
+        // so a localRoot rule gets its own file instead of being folded into
+        // the checked-in AGENTS.md — mirrors the rovodev entry below.
+        localRootMode: "separate-local-file",
+        localRootFileName: "AGENTS.local.md",
       },
     },
   ],
@@ -1235,6 +1241,16 @@ export class RulesProcessor extends FeatureProcessor {
     }
     if (factory.class === RovodevRule) {
       return new RovodevRule({
+        outputRoot: this.outputRoot,
+        relativeDirPath: ".",
+        relativeFilePath: fileName,
+        fileContent: body,
+        validate: true,
+        root: true,
+      });
+    }
+    if (factory.class === RooRule) {
+      return new RooRule({
         outputRoot: this.outputRoot,
         relativeDirPath: ".",
         relativeFilePath: fileName,

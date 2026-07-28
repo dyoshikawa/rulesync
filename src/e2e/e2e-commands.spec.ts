@@ -73,6 +73,7 @@ const commandsGlobalTargets = [
   { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
   { target: "goose", outputPath: join(".config", "goose", "recipes", "review-pr.yaml") },
   { target: "qwencode", outputPath: join(".qwen", "commands", "review-pr.md") },
+  { target: "roo", outputPath: join(".roo", "commands", "review-pr.md") },
   // Hermes commands are global plugin-backed slash commands, separate from skills.
   {
     target: "hermesagent",

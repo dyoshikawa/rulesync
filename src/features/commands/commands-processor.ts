@@ -482,9 +482,12 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     {
       class: RooCommand,
       meta: {
+        // Roo reads project `.roo/commands/` and global `~/.roo/commands/`
+        // (project wins on a name collision), same relative dir at both
+        // scopes. Verified at the final v3.54.0 tag.
         extension: "md",
         supportsProject: true,
-        supportsGlobal: false,
+        supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: true,
       },

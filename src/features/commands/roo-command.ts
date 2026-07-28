@@ -39,7 +39,11 @@ export class RooCommand extends ToolCommand {
   private readonly frontmatter: RooCommandFrontmatter;
   private readonly body: string;
 
-  static getSettablePaths(): RooCommandSettablePaths {
+  static getSettablePaths(_options: { global?: boolean } = {}): RooCommandSettablePaths {
+    // Project `.roo/commands/` and global `~/.roo/commands/` share the same
+    // relative dir (the global root resolves under the home directory) — the
+    // same no-branch approach RooRule and RooSkill use.
+    // @see https://roocodeinc.github.io/Roo-Code/features/slash-commands
     return {
       relativeDirPath: ROO_COMMANDS_DIR_PATH,
     };
