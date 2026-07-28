@@ -212,6 +212,27 @@ describe("ZedPermissions", () => {
       expect(json.agent.tool_permissions.tools.custom_tool.default).toBe("allow");
     });
 
+    it("should preserve a user-set global default when the canonical config has no * category", async () => {
+      await writeFileContent(
+        join(testDir, ".zed", "settings.json"),
+        JSON.stringify({
+          agent: { tool_permissions: { default: "deny" } },
+        }),
+      );
+
+      const rulesyncPermissions = createRulesyncPermissions({
+        bash: { "*": "ask" },
+      });
+
+      const permissions = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.agent.tool_permissions.default).toBe("deny");
+    });
+
     it("should map canonical write onto Zed's write_file tool", async () => {
       const rulesyncPermissions = createRulesyncPermissions({
         write: { "*": "deny" },
@@ -276,6 +297,45 @@ describe("ZedPermissions", () => {
 
       expect(json.permission.bash).toEqual({ "*": "ask", "git *": "allow", "rm *": "deny" });
       expect(json.permission.read).toEqual({ secret: "ask" });
+    });
+
+    it("should let the enforced default win over a stale tools['*'] entry on import", async () => {
+      await writeFileContent(
+        join(testDir, ".zed", "settings.json"),
+        JSON.stringify({
+          agent: {
+            tool_permissions: {
+              default: "deny",
+              tools: { "*": { default: "allow" } },
+            },
+          },
+        }),
+      );
+
+      const permissions = await ZedPermissions.fromFile({ outputRoot: testDir });
+      const json = JSON.parse(permissions.toRulesyncPermissions().getFileContent());
+
+      // Zed enforces the top-level default and ignores tools["*"]; the value
+      // Zed acts on must not lose to the one it ignores.
+      expect(json.permission["*"]).toEqual({ "*": "deny" });
+    });
+
+    it("should recover a stale tools['*'] default when no enforced default exists", async () => {
+      await writeFileContent(
+        join(testDir, ".zed", "settings.json"),
+        JSON.stringify({
+          agent: {
+            tool_permissions: {
+              tools: { "*": { default: "confirm" } },
+            },
+          },
+        }),
+      );
+
+      const permissions = await ZedPermissions.fromFile({ outputRoot: testDir });
+      const json = JSON.parse(permissions.toRulesyncPermissions().getFileContent());
+
+      expect(json.permission["*"]).toEqual({ "*": "ask" });
     });
 
     it("should return an empty permission object when no tool permissions exist", async () => {

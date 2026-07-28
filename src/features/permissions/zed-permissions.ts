@@ -343,6 +343,17 @@ export class ZedPermissions extends ToolPermissions {
     }
 
     for (const [zedToolName, toolPermission] of Object.entries(tools)) {
+      // `*` is not a Zed tool name, so a `tools["*"]` entry (written by an
+      // earlier rulesync version) is one Zed ignores. It maps to the same
+      // canonical slot as the top-level `default` above, so it is read only
+      // when no enforced default exists — the value Zed actually enforces
+      // must not lose to the one it ignores.
+      if (zedToolName === "*") {
+        if (globalDefault === undefined && toolPermission.default !== undefined) {
+          ensure("*")["*"] = ZED_TO_CANONICAL_ACTION[toolPermission.default];
+        }
+        continue;
+      }
       const category = toCanonicalToolName(zedToolName);
       if (toolPermission.default !== undefined) {
         ensure(category)["*"] = ZED_TO_CANONICAL_ACTION[toolPermission.default];

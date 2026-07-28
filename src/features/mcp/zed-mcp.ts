@@ -83,8 +83,18 @@ function convertServerToZedFormat({
 
   // No transport at all: Zed's extension variant is exactly a server the entry
   // itself does not define, so the entry is written as one (typically carrying
-  // a passed-through `settings` object) instead of being skipped.
+  // a passed-through `settings` object) instead of being skipped. Canonical
+  // fields have no place on that variant, so any beyond `disabled` are dropped
+  // out loud (mirroring the Kilo toggle convention).
   if (declaresNoTransport(serverConfig)) {
+    const droppedKeys = Object.keys(serverConfig).filter(
+      (key) => CANONICAL_MCP_SERVER_KEYS.has(key) && key !== "disabled",
+    );
+    if (droppedKeys.length > 0) {
+      logger?.warn(
+        `Zed MCP: "${serverName}" declares no transport, so it is written as an extension-provided server without these fields: ${droppedKeys.join(", ")}.`,
+      );
+    }
     return { ...passthrough, ...disabledEntry };
   }
 
@@ -147,8 +157,15 @@ function convertServersToZedFormat(servers: McpServers, logger?: Logger): Record
   return converted;
 }
 
-/** The inverse: a `context_servers` entry back to a canonical server. */
+/**
+ * The inverse: a `context_servers` entry back to a canonical server. Only a
+ * boolean `enabled` is translated; any other value is not a state Zed defines,
+ * so it stays in place rather than having a disablement intent silently erased.
+ */
 function convertServerFromZedFormat(zedServer: Record<string, unknown>): McpServerConfig {
+  if (typeof zedServer.enabled !== "boolean") {
+    return zedServer;
+  }
   const { enabled, ...rest } = zedServer;
   return enabled === false ? { ...rest, disabled: true } : rest;
 }
@@ -254,6 +271,11 @@ export class ZedMcp extends ToolMcp {
     const converted: McpServers = {};
     if (isMcpServers(contextServers)) {
       for (const [serverName, zedServer] of Object.entries(contextServers)) {
+        // `isMcpServers` only guards the outer map; a hand-written file can
+        // still hold a null or array entry, which is no server at all.
+        if (zedServer === null || typeof zedServer !== "object" || Array.isArray(zedServer)) {
+          continue;
+        }
         converted[serverName] = convertServerFromZedFormat(zedServer);
       }
     }

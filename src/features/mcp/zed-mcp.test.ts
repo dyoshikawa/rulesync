@@ -8,6 +8,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import { ZedMcp } from "./zed-mcp.js";
 
@@ -274,6 +275,26 @@ describe("ZedMcp", () => {
       });
     });
 
+    it("should warn about canonical fields a transport-less server cannot keep", async () => {
+      const warn = vi.fn();
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { toggle: { args: ["--port"], env: { A: "b" }, disabled: true } },
+        }),
+      });
+
+      const mcp = await ZedMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        logger: { warn } as unknown as Logger,
+      });
+      const json = mcp.getJson() as { context_servers: Record<string, unknown> };
+      expect(json.context_servers.toggle).toEqual({ enabled: false });
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("args, env"));
+    });
+
     it.each([
       ["sse", { type: "sse", url: "https://example.com/sse" }],
       ["ws", { type: "ws", url: "wss://example.com" }],
@@ -328,6 +349,32 @@ describe("ZedMcp", () => {
 
       const exported = JSON.parse(mcp.toRulesyncMcp().getFileContent());
       expect(exported.mcpServers.off).toEqual({ command: "node", disabled: true });
+    });
+
+    it("should skip a null or array context_servers entry instead of crashing", () => {
+      const mcp = new ZedMcp({
+        relativeDirPath: ".zed",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          context_servers: { broken: null, listed: [], kept: { command: "node" } },
+        }),
+      });
+
+      const exported = JSON.parse(mcp.toRulesyncMcp().getFileContent());
+      expect(exported.mcpServers).toEqual({ kept: { command: "node" } });
+    });
+
+    it("should leave a non-boolean enabled value in place instead of erasing it", () => {
+      const mcp = new ZedMcp({
+        relativeDirPath: ".zed",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          context_servers: { odd: { command: "node", enabled: "false" } },
+        }),
+      });
+
+      const exported = JSON.parse(mcp.toRulesyncMcp().getFileContent());
+      expect(exported.mcpServers.odd).toEqual({ command: "node", enabled: "false" });
     });
 
     it("should import an extension-provided server into the zed-only block", () => {
