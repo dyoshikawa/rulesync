@@ -3,6 +3,7 @@ import { join } from "node:path";
 import * as smolToml from "smol-toml";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { ReasonixMcp } from "./reasonix-mcp.js";
@@ -147,6 +148,52 @@ describe("ReasonixMcp", () => {
     expect(parsed.plugins[0].type).toBe("sse");
   });
 
+  it("should skip a server whose transport Reasonix does not implement", async () => {
+    // Reasonix implements stdio/http/sse; writing `ws` would produce a `type`
+    // its loader rejects.
+    const logger = createMockLogger();
+    const rulesyncMcp = new RulesyncMcp({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: {
+          socket: { type: "ws", url: "wss://example.com/mcp" },
+          kept: { type: "sse", url: "https://example.com/sse" },
+        },
+      }),
+    });
+
+    const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp,
+      logger,
+    });
+    const parsed = smolToml.parse(reasonixMcp.getFileContent()) as any;
+
+    expect(parsed.plugins.map((plugin: any) => plugin.name)).toEqual(["kept"]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"ws" transport'));
+  });
+
+  it("should round-trip the sse transport through generate then import", async () => {
+    const rulesyncMcp = new RulesyncMcp({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: { legacy: { type: "sse", url: "https://example.com/sse" } },
+      }),
+    });
+
+    const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+    const imported = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
+
+    expect(imported.mcpServers.legacy).toMatchObject({
+      type: "sse",
+      url: "https://example.com/sse",
+    });
+  });
+
   it("should write the global config to .reasonix/config.toml", () => {
     expect(ReasonixMcp.getSettablePaths({ global: true })).toEqual({
       relativeDirPath: ".reasonix",
@@ -197,7 +244,7 @@ describe("ReasonixMcp", () => {
       expect(parsed.plugins[0].trusted_read_only_tools).toBeUndefined();
     });
 
-    it("should import trusted_read_only_tools from an existing [[plugins]] entry", () => {
+    it("should leave the retired trusted_read_only_tools out of the canonical config", () => {
       const fileContent = [
         "[[plugins]]",
         'name = "search"',
@@ -214,7 +261,11 @@ describe("ReasonixMcp", () => {
 
       const parsed = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
 
-      expect(parsed.mcpServers.search.trusted_read_only_tools).toEqual(["search"]);
+      // The canonical `mcpServers` is shared by every MCP target, so importing a
+      // Reasonix-only dead key would put it into .mcp.json, .cursor/mcp.json and
+      // the rest. It stays in reasonix.toml until Reasonix rewrites the entry.
+      expect(parsed.mcpServers.search.trusted_read_only_tools).toBeUndefined();
+      expect(parsed.mcpServers.search.command).toBe("reasonix-plugin-search");
     });
 
     it("should drop the retired key on a generate, leaving nothing to import", async () => {

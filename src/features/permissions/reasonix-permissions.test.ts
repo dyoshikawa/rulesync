@@ -316,7 +316,9 @@ describe("ReasonixPermissions", () => {
     it("preserves unrelated [agent] keys while the override sets plan-mode lists", async () => {
       await writeFileContent(
         join(testDir, "reasonix.toml"),
-        smolToml.stringify({ agent: { model: "reasonix-pro", plan_mode_allowed_tools: ["old"] } }),
+        smolToml.stringify({
+          agent: { model: "reasonix-pro", plan_mode_read_only_commands: ["old"] },
+        }),
       );
 
       const instance = await ReasonixPermissions.fromRulesyncPermissions({
@@ -326,23 +328,66 @@ describe("ReasonixPermissions", () => {
           relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
           fileContent: JSON.stringify({
             permission: { bash: { "git *": "allow" } },
-            reasonix: { agent: { plan_mode_allowed_tools: ["custom_reader"] } },
+            reasonix: { agent: { plan_mode_read_only_commands: ["gh issue view"] } },
           }),
         }),
       });
 
       const parsed = smolToml.parse(instance.getFileContent()) as any;
-      // Unrelated `model` preserved; plan_mode_allowed_tools overridden.
+      // Unrelated `model` preserved; the authored list overridden.
       expect(parsed.agent).toEqual({
         model: "reasonix-pro",
-        plan_mode_allowed_tools: ["custom_reader"],
+        plan_mode_read_only_commands: ["gh issue view"],
       });
+    });
+
+    it("does not write a retired [agent] key the override still carries", async () => {
+      // v1.17.18 removed `plan_mode_allowed_tools` from the config surface, so
+      // writing it means stamping a key Reasonix ignores into the user's file.
+      const logger = createMockLogger();
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            reasonix: {
+              agent: {
+                plan_mode_allowed_tools: ["custom_reader"],
+                plan_mode_read_only_commands: ["gh issue view"],
+              },
+            },
+          }),
+        }),
+        logger,
+      });
+
+      const parsed = smolToml.parse(instance.getFileContent()) as any;
+      expect(parsed.agent).toEqual({ plan_mode_read_only_commands: ["gh issue view"] });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"plan_mode_allowed_tools"'),
+      );
+    });
+
+    it("still lifts a retired [agent] key on import, so it is not lost silently", () => {
+      // The `reasonix` override is tool-scoped, so an imported value cannot leak
+      // into another tool's config the way a canonical MCP field would.
+      const instance = new ReasonixPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent: smolToml.stringify({ agent: { plan_mode_allowed_tools: ["old"] } }),
+      });
+
+      const imported = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+      expect(imported.reasonix.agent).toEqual({ plan_mode_allowed_tools: ["old"] });
     });
 
     it("clears an existing plan-mode list when the override supplies an empty array", async () => {
       await writeFileContent(
         join(testDir, "reasonix.toml"),
-        smolToml.stringify({ agent: { plan_mode_allowed_tools: ["old"] } }),
+        smolToml.stringify({ agent: { plan_mode_read_only_commands: ["old"] } }),
       );
 
       const instance = await ReasonixPermissions.fromRulesyncPermissions({
@@ -352,13 +397,13 @@ describe("ReasonixPermissions", () => {
           relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
           fileContent: JSON.stringify({
             permission: { bash: { "git *": "allow" } },
-            reasonix: { agent: { plan_mode_allowed_tools: [] } },
+            reasonix: { agent: { plan_mode_read_only_commands: [] } },
           }),
         }),
       });
 
       const parsed = smolToml.parse(instance.getFileContent()) as any;
-      expect(parsed.agent.plan_mode_allowed_tools).toEqual([]);
+      expect(parsed.agent.plan_mode_read_only_commands).toEqual([]);
     });
 
     it("routes sandbox and agent plan-mode lists back into the reasonix override on import", () => {
