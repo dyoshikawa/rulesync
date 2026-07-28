@@ -96,6 +96,16 @@ export const HookDefinitionSchema = z.looseObject({
   // (defaults to a fast model when omitted). Qwen Code documents the same
   // field on prompt hooks, but the qwencode adapter does not forward it yet.
   model: z.optional(safeString),
+  // AugmentCode command hooks: extra argv appended to `command` by the runner,
+  // so a hook can pass arguments without quoting them into the command string.
+  // https://docs.augmentcode.com/cli/hooks
+  args: z.optional(z.array(safeString)),
+  // AugmentCode matcher-group options selecting what the runner puts in the
+  // JSON payload the hook script receives (`includeConversationData`,
+  // `includeMCPMetadata`, `includeUserContext`). Group-level upstream; stored
+  // per definition here, like `sequential`, since the canonical model is a flat
+  // list. https://docs.augmentcode.com/cli/hooks
+  metadata: z.optional(z.looseObject({})),
   // Claude Code tool events (PreToolUse/PostToolUse/PostToolUseFailure/
   // PermissionRequest/PermissionDenied): `if` filters a hook by tool arguments,
   // holding a single permission rule with the same syntax as settings.json
@@ -510,6 +520,9 @@ export const AUGMENTCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionEnd",
   "stop",
   "notification",
+  // `PromptSubmit`, added in auggie 0.27.0 (2026-05-14).
+  // https://www.augmentcode.com/changelog/auggie-cli-0-27-0-release-notes
+  "beforeSubmitPrompt",
 ];
 
 /**
@@ -931,6 +944,7 @@ export const CANONICAL_TO_AUGMENTCODE_EVENT_NAMES: Record<string, string> = {
   sessionEnd: "SessionEnd",
   stop: "Stop",
   notification: "Notification",
+  beforeSubmitPrompt: "PromptSubmit",
 };
 
 /**

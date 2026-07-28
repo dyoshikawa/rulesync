@@ -3,6 +3,7 @@ import { posix, win32 } from "node:path";
 import { type HookEvent, type HookType, type HooksConfig, isHookEvent } from "../../types/hooks.js";
 import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
+import { isPlainObject } from "../../utils/type-guards.js";
 
 type ToolMatcherEntry = {
   matcher?: string;
@@ -49,6 +50,26 @@ export type ToolHooksConverterConfig = {
    */
   stringPassthroughFields?: ReadonlyArray<{
     readonly canonical: "if";
+    readonly tool: string;
+  }>;
+  /**
+   * Per-hook string-array fields to carry through the round-trip. Only arrays
+   * whose entries are all strings are emitted and imported, so a malformed
+   * value cannot leak into a config the tool would reject.
+   */
+  arrayPassthroughFields?: ReadonlyArray<{
+    readonly canonical: "args";
+    readonly tool: string;
+  }>;
+  /**
+   * Fields that live on the *matcher group* rather than on a hook. They are
+   * stored per definition canonically (the canonical model is a flat list), so
+   * export reads the first definition of the group that carries one and import
+   * puts it back on every definition of that group. Only plain objects are
+   * carried through.
+   */
+  groupPassthroughFields?: ReadonlyArray<{
+    readonly canonical: "metadata";
     readonly tool: string;
   }>;
   /**
@@ -228,6 +249,81 @@ function importStringPassthroughFields({
 }
 
 /**
+ * Emit the configured string-array passthrough fields on the tool side.
+ */
+function emitArrayPassthroughFields({
+  def,
+  converterConfig,
+}: {
+  def: HooksConfig["hooks"][string][number];
+  converterConfig: ToolHooksConverterConfig;
+}): Record<string, string[]> {
+  return Object.fromEntries(
+    (converterConfig.arrayPassthroughFields ?? [])
+      .filter(({ canonical }) => isStringArray(def[canonical]))
+      .map(({ canonical, tool }) => [tool, def[canonical] as string[]]),
+  );
+}
+
+/**
+ * Import the configured string-array passthrough fields, reversing
+ * {@link emitArrayPassthroughFields}.
+ */
+function importArrayPassthroughFields({
+  h,
+  converterConfig,
+}: {
+  h: Record<string, unknown>;
+  converterConfig: ToolHooksConverterConfig;
+}): Record<string, string[]> {
+  return Object.fromEntries(
+    (converterConfig.arrayPassthroughFields ?? [])
+      .filter(({ tool }) => isStringArray(h[tool]))
+      .map(({ canonical, tool }) => [canonical, h[tool] as string[]]),
+  );
+}
+
+/**
+ * Emit the configured group-level passthrough fields, taken from the first
+ * definition of the group that carries one.
+ */
+function emitGroupPassthroughFields({
+  defs,
+  converterConfig,
+}: {
+  defs: HooksConfig["hooks"][string];
+  converterConfig: ToolHooksConverterConfig;
+}): Record<string, Record<string, unknown>> {
+  const emitted: Record<string, Record<string, unknown>> = {};
+  for (const { canonical, tool } of converterConfig.groupPassthroughFields ?? []) {
+    const carrier = defs.find((def) => isPlainObject(def[canonical]));
+    if (carrier) {
+      emitted[tool] = carrier[canonical] as Record<string, unknown>;
+    }
+  }
+  return emitted;
+}
+
+/**
+ * Import the configured group-level passthrough fields onto a definition,
+ * reversing {@link emitGroupPassthroughFields}.
+ */
+function importGroupPassthroughFields({
+  rawEntry,
+  converterConfig,
+}: {
+  rawEntry: ToolMatcherEntry;
+  converterConfig: ToolHooksConverterConfig;
+}): Record<string, Record<string, unknown>> {
+  const entry = rawEntry as unknown as Record<string, unknown>;
+  return Object.fromEntries(
+    (converterConfig.groupPassthroughFields ?? [])
+      .filter(({ tool }) => isPlainObject(entry[tool]))
+      .map(({ canonical, tool }) => [canonical, entry[tool] as Record<string, unknown>]),
+  );
+}
+
+/**
  * Emit the payload fields specific to a hook type — `url`/`headers`/
  * `allowedEnvVars` for http, `server`/`tool`/`input` for mcp_tool, `model`
  * for prompt/agent. https://code.claude.com/docs/en/hooks
@@ -277,6 +373,7 @@ function buildToolHooks({
       // name (e.g. mapping onto "type"/"command") can never silently shadow them.
       ...emitBooleanPassthroughFields({ def, converterConfig }),
       ...emitStringPassthroughFields({ def, converterConfig }),
+      ...emitArrayPassthroughFields({ def, converterConfig }),
       type: hookType,
       ...(command !== undefined && command !== null && { command }),
       ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
@@ -335,7 +432,10 @@ export function canonicalToToolHooks({
         continue;
       }
       const includeMatcher = matcherKey && !isNoMatcherEvent;
-      entries.push(includeMatcher ? { matcher: matcherKey, hooks } : { hooks });
+      const groupFields = emitGroupPassthroughFields({ defs, converterConfig });
+      entries.push(
+        includeMatcher ? { matcher: matcherKey, hooks, ...groupFields } : { hooks, ...groupFields },
+      );
     }
     if (entries.length > 0) {
       result[toolEventName] = entries;
@@ -463,6 +563,8 @@ function toolHookToCanonical({
       typeof h.description === "string" && { description: h.description }),
     ...importBooleanPassthroughFields({ h, converterConfig }),
     ...importStringPassthroughFields({ h, converterConfig }),
+    ...importArrayPassthroughFields({ h, converterConfig }),
+    ...importGroupPassthroughFields({ rawEntry, converterConfig }),
     ...(rawEntry.matcher !== undefined &&
       rawEntry.matcher !== null &&
       rawEntry.matcher !== "" && { matcher: rawEntry.matcher }),

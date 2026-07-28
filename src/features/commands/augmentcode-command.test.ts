@@ -315,3 +315,46 @@ describe("AugmentcodeCommand", () => {
     });
   });
 });
+
+describe("AugmentcodeCommand .agents/commands import root", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("reads the commands Auggie also discovers under .agents/commands", async () => {
+    // Auggie resolves commands over `.augment`, `.claude` and `.agents`; only
+    // the first was read, so these were invisible to import.
+    await ensureDir(join(testDir, ".agents", "commands", "git"));
+    await writeFileContent(
+      join(testDir, ".agents", "commands", "review.md"),
+      ["---", "description: Review the diff", "---", "", "Review it.", ""].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".agents", "commands", "git", "commit.md"),
+      ["---", "description: Commit", "---", "", "Commit it.", ""].join("\n"),
+    );
+
+    const commands = await AugmentcodeCommand.loadAdditionalImportFiles({ outputRoot: testDir });
+
+    expect(commands.map((command) => command.getRelativeFilePath()).toSorted()).toEqual([
+      "git/commit.md",
+      "review.md",
+    ]);
+    // The rulesync-side identity is the path under the commands root, so a
+    // command found here is indistinguishable from one under `.augment`.
+    expect(commands[0]?.getRelativeDirPath()).toBe(join(".augment", "commands"));
+  });
+
+  it("returns nothing when the root does not exist", async () => {
+    expect(await AugmentcodeCommand.loadAdditionalImportFiles({ outputRoot: testDir })).toEqual([]);
+  });
+});

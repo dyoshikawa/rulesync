@@ -2,6 +2,15 @@ import { join } from "node:path";
 
 export const AUGMENTCODE_DIR = ".augment";
 export const AUGMENTCODE_COMMANDS_DIR_PATH = join(AUGMENTCODE_DIR, "commands");
+
+/**
+ * The cross-tool `.agents/commands/` root Auggie also discovers commands from.
+ * Auggie resolves commands over `.augment`, `.claude` and `.agents` in both the
+ * workspace and the home directory; rulesync writes to its own `.augment` root
+ * and reads this one as well, mirroring how skills treat `.agents/skills`.
+ * @see https://docs.augmentcode.com/cli/custom-commands
+ */
+export const AUGMENTCODE_AGENTS_COMMANDS_DIR_PATH = join(".agents", "commands");
 export const AUGMENTCODE_SKILLS_DIR_PATH = join(AUGMENTCODE_DIR, "skills");
 export const AUGMENTCODE_AGENTS_DIR_PATH = join(AUGMENTCODE_DIR, "agents");
 // Auggie CLI 0.16.0+ also discovers subagents and skills from the cross-tool

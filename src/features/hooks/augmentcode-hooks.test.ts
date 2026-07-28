@@ -454,3 +454,114 @@ describe("AugmentcodeHooks", () => {
     });
   });
 });
+
+describe("AugmentcodeHooks upstream additions", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  async function generate(config: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const hooks = await AugmentcodeHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks: new RulesyncHooks({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "hooks.jsonc",
+        fileContent: JSON.stringify(config),
+      }),
+    });
+    const parsed = JSON.parse(hooks.getFileContent());
+    return parsed.hooks ?? {};
+  }
+
+  it("writes a beforeSubmitPrompt hook as PromptSubmit", async () => {
+    // Added in auggie 0.27.0; previously filtered out as unsupported.
+    const events = await generate({
+      version: 1,
+      hooks: { beforeSubmitPrompt: [{ type: "command", command: "./check.sh" }] },
+    });
+
+    expect(events.PromptSubmit).toEqual([{ hooks: [{ type: "command", command: "./check.sh" }] }]);
+  });
+
+  it("drops a matcher on PromptSubmit, which takes none", async () => {
+    const events = await generate({
+      version: 1,
+      hooks: { beforeSubmitPrompt: [{ type: "command", command: "./check.sh", matcher: "Bash" }] },
+    });
+
+    expect(events.PromptSubmit).toEqual([{ hooks: [{ type: "command", command: "./check.sh" }] }]);
+  });
+
+  it("carries a hook's args and the group's metadata through generate", async () => {
+    // The `hooks` key is owned in the shared settings file, so anything not
+    // written here is erased from a hand-written settings.json.
+    const events = await generate({
+      version: 1,
+      hooks: {
+        preToolUse: [
+          {
+            type: "command",
+            command: "./audit.sh",
+            args: ["--strict", "--json"],
+            matcher: "Bash",
+            metadata: { includeUserContext: true },
+          },
+        ],
+      },
+    });
+
+    expect(events.PreToolUse).toEqual([
+      {
+        matcher: "Bash",
+        hooks: [{ type: "command", command: "./audit.sh", args: ["--strict", "--json"] }],
+        metadata: { includeUserContext: true },
+      },
+    ]);
+  });
+
+  it("reads args and metadata back on import", () => {
+    const hooks = new AugmentcodeHooks({
+      outputRoot: testDir,
+      relativeDirPath: ".augment",
+      relativeFilePath: "settings.json",
+      fileContent: JSON.stringify({
+        hooks: {
+          PromptSubmit: [
+            {
+              hooks: [{ type: "command", command: "./check.sh", args: ["--strict"] }],
+              metadata: { includeConversationData: true },
+            },
+          ],
+        },
+      }),
+    });
+
+    const imported = JSON.parse(hooks.toRulesyncHooks().getFileContent());
+    expect(imported.hooks.beforeSubmitPrompt).toEqual([
+      {
+        type: "command",
+        command: "./check.sh",
+        args: ["--strict"],
+        metadata: { includeConversationData: true },
+      },
+    ]);
+  });
+
+  it("ignores an args value that is not a list of strings", async () => {
+    const events = await generate({
+      version: 1,
+      hooks: { stop: [{ type: "command", command: "./x.sh", args: ["ok", 3] }] },
+    });
+
+    expect(events.Stop).toEqual([{ hooks: [{ type: "command", command: "./x.sh" }] }]);
+  });
+});

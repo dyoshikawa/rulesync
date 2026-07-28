@@ -1,11 +1,14 @@
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
-import { AUGMENTCODE_COMMANDS_DIR_PATH } from "../../constants/augmentcode-paths.js";
+import {
+  AUGMENTCODE_AGENTS_COMMANDS_DIR_PATH,
+  AUGMENTCODE_COMMANDS_DIR_PATH,
+} from "../../constants/augmentcode-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
+import { findFilesByGlobs, readFileContent, toPosixPath } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
@@ -181,6 +184,47 @@ export class AugmentcodeCommand extends ToolCommand {
       body: content.trim(),
       validate,
     });
+  }
+
+  /**
+   * Import-only: the commands Auggie also loads from the cross-tool
+   * `.agents/commands/` root. Generation stays on `.augment/commands/`, so this
+   * root is read but never written to — and never swept for orphans, since the
+   * files there may belong to another tool.
+   *
+   * @see https://docs.augmentcode.com/cli/custom-commands
+   */
+  static async loadAdditionalImportFiles({
+    outputRoot = process.cwd(),
+    global = false,
+  }: {
+    outputRoot?: string;
+    global?: boolean;
+  } = {}): Promise<AugmentcodeCommand[]> {
+    const rootDir = join(outputRoot, AUGMENTCODE_AGENTS_COMMANDS_DIR_PATH);
+    const filePaths = await findFilesByGlobs(join(rootDir, "**", "*.md"));
+
+    const commands = await Promise.all(
+      filePaths.map(async (filePath) => {
+        const fileContent = await readFileContent(filePath);
+        const { frontmatter, body } = parseFrontmatter(fileContent, filePath);
+        const result = AugmentcodeCommandFrontmatterSchema.safeParse(frontmatter);
+        if (!result.success) {
+          throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
+        }
+        return new AugmentcodeCommand({
+          outputRoot,
+          // The rulesync-side path is the same either way: the command's name is
+          // its path under the commands root, whichever root it came from.
+          relativeDirPath: AUGMENTCODE_COMMANDS_DIR_PATH,
+          relativeFilePath: toPosixPath(relative(rootDir, filePath)),
+          frontmatter: result.data,
+          body: body.trim(),
+          global,
+        });
+      }),
+    );
+    return commands;
   }
 
   static forDeletion({
