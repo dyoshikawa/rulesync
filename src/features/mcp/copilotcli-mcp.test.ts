@@ -9,6 +9,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { CopilotcliMcp } from "./copilotcli-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
@@ -394,10 +395,17 @@ describe("CopilotcliMcp", () => {
       });
     });
 
-    it("should throw error when server has no command", async () => {
+    it("should skip a server that declares no transport instead of failing the run", async () => {
+      // The shape a Kilo `{"enabled": false}` toggle imports as. Copilot CLI
+      // cannot express a server it does not define, and throwing here would
+      // abort every other target of the same `generate`.
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
       const inputMcpServers = {
-        "no-command-server": {
-          // No command provided
+        "no-transport-server": {
+          disabled: true,
+        },
+        "real-server": {
+          command: "npx",
         },
       };
       const rulesyncMcp = new RulesyncMcp({
@@ -406,11 +414,15 @@ describe("CopilotcliMcp", () => {
         fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
       });
 
-      await expect(
-        CopilotcliMcp.fromRulesyncMcp({
-          rulesyncMcp,
-        }),
-      ).rejects.toThrow('MCP server "no-command-server" is missing a command');
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
+        rulesyncMcp,
+        logger: mockLogger,
+      });
+
+      expect(Object.keys(copilotCliMcp.getJson().mcpServers ?? {})).toEqual(["real-server"]);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('skipping "no-transport-server"'),
+      );
     });
 
     it("should throw error when stdio server has unknown fields but no command", async () => {

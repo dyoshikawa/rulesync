@@ -463,6 +463,31 @@ Agent body`,
     }
   });
 
+  it("should bound steps to a positive integer, and accept null as a clear", () => {
+    // `steps` is an iteration count, so the values Kilo cannot act on are
+    // rejected here rather than written into `.kilo/agents/*.md`.
+    for (const steps of [0, -1, 2.5]) {
+      expect(KiloSubagentFrontmatterSchema.safeParse({ name: "agent", steps }).success).toBe(false);
+    }
+
+    const cleared = KiloSubagentFrontmatterSchema.safeParse({ name: "agent", steps: null });
+    expect(cleared.success).toBe(true);
+    if (cleared.success) {
+      expect(cleared.data.steps).toBeNull();
+    }
+  });
+
+  it("should reject the list-of-step-objects shape earlier Rulesync versions took", () => {
+    // Intentionally breaking: Kilo never accepted a list here, so a subagent
+    // authored against the old typing produced a file Kilo ignored. Failing
+    // loudly is what tells the author to convert it to an iteration count.
+    const result = KiloSubagentFrontmatterSchema.safeParse({
+      name: "agent",
+      steps: [{ name: "step1" }],
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("should accept a per-tool permission object as well as a string", () => {
     const stringResult = KiloSubagentFrontmatterSchema.safeParse({
       name: "agent",

@@ -9,6 +9,7 @@ import {
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServerSchema, type McpServer, type McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -44,16 +45,37 @@ const resolveCopilotcliServerType = (server: McpServer): CopilotcliServerType =>
 };
 
 /**
+ * A server that names no transport at all: the shape a Kilo `{"enabled": …}`
+ * toggle imports as, which switches off a server some other config layer
+ * defines. Copilot CLI has no equivalent — every entry in `mcp-config.json`
+ * defines a server — so it is skipped with a warning rather than thrown over.
+ * Throwing would abort the whole `generate` run, every target and feature of
+ * it, over one entry that was never meant for Copilot CLI.
+ */
+const declaresNoTransport = (server: McpServer): boolean =>
+  server.type === undefined &&
+  server.transport === undefined &&
+  server.command === undefined &&
+  server.url === undefined &&
+  server.httpUrl === undefined;
+
+/**
  * Resolves and sets the transport type for each MCP server config.
  * GitHub Copilot CLI requires the "type" field for each server.
  * @throws Error if a stdio/local server doesn't have a command
  * @throws Error if an http/sse server doesn't have a url or httpUrl
  */
-function addTypeField(mcpServers: McpServers): CopilotcliMcpConfig["mcpServers"] {
+function addTypeField(mcpServers: McpServers, logger?: Logger): CopilotcliMcpConfig["mcpServers"] {
   const result: NonNullable<CopilotcliMcpConfig["mcpServers"]> = {};
 
   for (const [name, server] of Object.entries(mcpServers)) {
     const parsed = McpServerSchema.parse(server);
+    if (declaresNoTransport(parsed)) {
+      logger?.warn(
+        `GitHub Copilot CLI MCP: skipping "${name}" because it declares no transport; mcp-config.json has no way to express a server it does not define.`,
+      );
+      continue;
+    }
     const type = resolveCopilotcliServerType(parsed);
 
     if (isRemoteServerType(type)) {
@@ -192,6 +214,7 @@ export class CopilotcliMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
     global = false,
+    logger,
   }: ToolMcpFromRulesyncMcpParams): Promise<CopilotcliMcp> {
     const paths = this.getSettablePaths({ global });
 
@@ -202,7 +225,7 @@ export class CopilotcliMcp extends ToolMcp {
     const json = JSON.parse(fileContent);
 
     // Convert rulesync format to Copilot CLI format (add "type": "stdio")
-    const copilotCliMcpServers = addTypeField(rulesyncMcp.getMcpServers());
+    const copilotCliMcpServers = addTypeField(rulesyncMcp.getMcpServers(), logger);
     const mcpJson = { ...json, mcpServers: copilotCliMcpServers };
 
     return new CopilotcliMcp({

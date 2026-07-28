@@ -60,6 +60,19 @@ const KiloMcpRemoteServerSchema = z.object({
   oauth: z.optional(KiloMcpOAuthSchema),
 });
 
+// Every field of the two transport schemas except `enabled`, which a toggle is
+// made of. Keep in sync when either schema gains a field.
+const KILO_MCP_TRANSPORT_KEYS = [
+  "type",
+  "command",
+  "url",
+  "headers",
+  "environment",
+  "cwd",
+  "timeout",
+  "oauth",
+] as const;
+
 /**
  * A bare toggle entry: `{"enabled": <bool>}` with no transport of its own,
  * disabling a server another config layer defines — the global config, a
@@ -68,15 +81,14 @@ const KiloMcpRemoteServerSchema = z.object({
  * rejects the entry and, because `kilo.jsonc` is the file the rules feature
  * writes too, the whole `--targets kilo` run aborts rather than just MCP.
  *
- * Loose like every other schema here, so an unknown key on a toggle does not
- * bring that abort back — but refined to reject anything carrying a transport
- * key. A plain loose arm would sit under a malformed `local` or `remote` entry
- * that happens to carry `enabled` and swallow it, dropping its command or URL
- * without a word instead of failing the way it does today.
+ * Loose like every other schema here, so a key Kilo adds later does not bring
+ * that abort back — but refined to reject anything carrying a key only a
+ * transport entry has. A plain loose arm would sit under a malformed `local` or
+ * `remote` entry that happens to carry `enabled` and swallow it, dropping its
+ * command, URL, headers, or OAuth secrets without a word instead of failing the
+ * way it does today.
  * @see https://github.com/Kilo-Org/kilocode/blob/main/packages/core/src/v1/config/config.ts
  */
-const KILO_MCP_TRANSPORT_KEYS = ["type", "command", "url"] as const;
-
 const KiloMcpToggleSchema = z
   .looseObject({
     enabled: z.boolean(),
@@ -84,7 +96,7 @@ const KiloMcpToggleSchema = z
   .check(
     refine(
       (entry) => KILO_MCP_TRANSPORT_KEYS.every((key) => !(key in entry)),
-      "a bare MCP toggle entry must not carry a transport",
+      "a bare MCP toggle entry must not carry any field of a local or remote server",
     ),
   );
 
@@ -293,6 +305,18 @@ function warnAboutToggleDroppedKeys(
 }
 
 /**
+ * A server that names a transport but carries nothing to reach it — a `type`
+ * with no `command`, an `http` with no `url` — has no Kilo form. Writing
+ * `{type: "local", command: []}` for it would give Kilo a server it cannot
+ * start and this adapter a file it cannot read back, so it is skipped out loud
+ * instead, the way the other adapters skip a server they cannot express.
+ */
+function warnAndSkipServer(serverName: string, reason: string, logger?: Logger): null {
+  logger?.warn(`Kilo MCP: skipping "${serverName}" because it declares ${reason}.`);
+  return null;
+}
+
+/**
  * Convert a single rulesync MCP server into its Kilo native form (local, remote,
  * or a bare toggle for a server another config layer defines).
  */
@@ -300,7 +324,7 @@ function convertServerToKiloFormat(
   serverName: string,
   serverConfig: McpServerConfig,
   logger?: Logger,
-): KiloMcpServer {
+): KiloMcpServer | null {
   if (hasNoTransport(serverConfig)) {
     warnAboutToggleDroppedKeys(serverName, serverConfig, logger);
     return { enabled: serverConfig.disabled !== true };
@@ -317,13 +341,17 @@ function convertServerToKiloFormat(
     serverConfig.httpUrl !== undefined;
 
   if (isRemote) {
+    const url = serverConfig.url ?? serverConfig.httpUrl;
+    if (url === undefined) {
+      return warnAndSkipServer(serverName, "an http/sse transport but no url", logger);
+    }
     // `oauth` is Kilo-specific (object | false) and carried through via the
     // rulesync MCP server's looseObject passthrough; it is not a declared
     // field on McpServerSchema.
     const oauth = (serverConfig as { oauth?: unknown }).oauth;
     return {
       type: "remote",
-      url: serverConfig.url ?? serverConfig.httpUrl ?? "",
+      url,
       enabled: serverConfig.disabled !== undefined ? !serverConfig.disabled : true,
       ...(serverConfig.headers && { headers: serverConfig.headers }),
       ...(serverConfig.timeout !== undefined && { timeout: serverConfig.timeout }),
@@ -342,6 +370,10 @@ function convertServerToKiloFormat(
   }
   if (serverConfig.args) {
     commandArray.push(...serverConfig.args);
+  }
+
+  if (commandArray.length === 0) {
+    return warnAndSkipServer(serverName, "a stdio transport but no command", logger);
   }
 
   return {
@@ -364,10 +396,18 @@ function convertToKiloFormat(
   const tools: Record<string, boolean> = {};
 
   const mcp = Object.fromEntries(
-    Object.entries(mcpServers).map(([serverName, serverConfig]) => {
-      collectKiloServerTools(tools, serverName, serverConfig);
-      return [serverName, convertServerToKiloFormat(serverName, serverConfig, logger)];
-    }),
+    Object.entries(mcpServers)
+      .map(([serverName, serverConfig]) => {
+        const converted = convertServerToKiloFormat(serverName, serverConfig, logger);
+        if (converted === null) {
+          return null;
+        }
+        // Only after the server itself survives: a skipped server must not
+        // leave its tool filters behind in the shared `tools` map.
+        collectKiloServerTools(tools, serverName, serverConfig);
+        return [serverName, converted] as const;
+      })
+      .filter((entry) => entry !== null),
   );
 
   return { mcp, tools };

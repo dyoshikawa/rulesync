@@ -2595,6 +2595,19 @@ describe("KiloMcp", () => {
 });
 
 describe("KiloMcp toggle entries", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
   it("accepts a bare { enabled: false } entry instead of failing the whole run", () => {
     // `kilo.jsonc` is the file the rules feature writes too, so rejecting this
     // documented form aborted every `--targets kilo` run, not just MCP.
@@ -2621,7 +2634,7 @@ describe("KiloMcp toggle entries", () => {
       }),
     });
 
-    const kiloMcp = await KiloMcp.fromRulesyncMcp({ rulesyncMcp });
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
     const written = JSON.parse(kiloMcp.getFileContent()).mcp;
 
     expect(written).toEqual({ toggled: { enabled: false }, on: { enabled: true } });
@@ -2634,7 +2647,10 @@ describe("KiloMcp toggle entries", () => {
       fileContent: JSON.stringify({ mcp: { toggled: { enabled: false } } }),
     });
 
-    const roundTripped = await KiloMcp.fromRulesyncMcp({ rulesyncMcp: kiloMcp.toRulesyncMcp() });
+    const roundTripped = await KiloMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: kiloMcp.toRulesyncMcp(),
+    });
 
     expect(JSON.parse(roundTripped.getFileContent()).mcp).toEqual({
       toggled: { enabled: false },
@@ -2653,7 +2669,7 @@ describe("KiloMcp toggle entries", () => {
       }),
     });
 
-    const kiloMcp = await KiloMcp.fromRulesyncMcp({ rulesyncMcp });
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
 
     expect(JSON.parse(kiloMcp.getFileContent()).mcp.gemini).toEqual({
       type: "remote",
@@ -2699,7 +2715,11 @@ describe("KiloMcp toggle entries", () => {
       }),
     });
 
-    const kiloMcp = await KiloMcp.fromRulesyncMcp({ rulesyncMcp, logger: mockLogger });
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp,
+      logger: mockLogger,
+    });
 
     expect(JSON.parse(kiloMcp.getFileContent()).mcp.half).toEqual({ enabled: true });
     expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("args, env"));
@@ -2719,5 +2739,58 @@ describe("KiloMcp toggle entries", () => {
 
     const imported = JSON.parse(kiloMcp.toRulesyncMcp().getFileContent());
     expect(imported.mcpServers.toggled).toEqual({ disabled: true });
+  });
+
+  it("still rejects a broken remote entry whose only surviving key is a header", () => {
+    // No transport key, but `headers` and `oauth` belong to a remote server.
+    // Read as a toggle, the next generate would write back `{enabled: true}`
+    // and take the Authorization header and the OAuth secrets with it.
+    expect(
+      () =>
+        new KiloMcp({
+          relativeDirPath: ".",
+          relativeFilePath: "kilo.jsonc",
+          fileContent: JSON.stringify({
+            mcp: {
+              broken: {
+                enabled: true,
+                headers: { Authorization: "Bearer token" },
+                oauth: { clientId: "id" },
+              },
+            },
+          }),
+        }),
+    ).toThrow();
+  });
+
+  it("skips a server that names a transport it cannot reach", async () => {
+    // `{type: "stdio"}` with no command used to be written as
+    // `{type: "local", command: []}`: impossible for Kilo to start, and this adapter
+    // threw on reading it back, so generate succeeded and the next import died.
+    const mockLogger = { warn: vi.fn() } as unknown as Logger;
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: ".rulesync",
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: {
+          headless: { type: "stdio", enabledTools: ["a"] },
+          noUrl: { type: "http" },
+          fine: { command: "npx" },
+        },
+      }),
+    });
+
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp,
+      logger: mockLogger,
+    });
+    const written = JSON.parse(kiloMcp.getFileContent());
+
+    expect(Object.keys(written.mcp)).toEqual(["fine"]);
+    // A skipped server leaves no tool filters behind either.
+    expect(written.tools).toBeUndefined();
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "headless"'));
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "noUrl"'));
   });
 });
