@@ -33,11 +33,14 @@ type CopilotcliMcpConfig = {
 
 type CopilotcliServerType = NonNullable<McpServer["type"]>;
 
+/** Reached over WebSocket, which Copilot CLI has no transport for. */
+const isWebSocketServer = (server: McpServer): boolean =>
+  server.type === "ws" || server.transport === "ws";
+
 /**
- * Copilot CLI knows `stdio`, `local`, `http` and `sse`. The canonical config
- * also has `streamable-http` (the MCP spec's name for HTTP) and `ws`, which
- * Copilot CLI has no transport for; both resolve to `http` rather than falling
- * through to `stdio`, where they used to be reported as a server missing its
+ * Copilot CLI knows `stdio`, `local`, `http` and `sse`. `streamable-http` is
+ * the MCP spec's name for HTTP and resolves to `http` rather than falling
+ * through to `stdio`, where it used to be reported as a server missing its
  * command. A server that states no transport is read from what it carries: a
  * command makes it `stdio`, a url makes it `http`.
  */
@@ -48,7 +51,6 @@ const resolveCopilotcliServerType = (server: McpServer): CopilotcliServerType =>
       return "sse";
     case "http":
     case "streamable-http":
-    case "ws":
       return "http";
     case "stdio":
     case "local":
@@ -88,6 +90,19 @@ function addTypeField(mcpServers: McpServers, logger?: Logger): CopilotcliMcpCon
       continue;
     }
 
+    // Writing it as `http` would leave a `wss://` url under a transport
+    // Copilot CLI speaks HTTP to, so it is skipped the way the Kimi Code
+    // adapter skips one over the same missing transport.
+    if (isWebSocketServer(parsed)) {
+      warnAndSkipMcpServer({
+        toolName: "GitHub Copilot CLI",
+        serverName: name,
+        reason: "a WebSocket transport, which it does not support",
+        logger,
+      });
+      continue;
+    }
+
     const type = resolveCopilotcliServerType(parsed);
 
     if (type === "http" || type === "sse") {
@@ -102,7 +117,10 @@ function addTypeField(mcpServers: McpServers, logger?: Logger): CopilotcliMcpCon
         continue;
       }
 
-      result[name] = { ...parsed, type };
+      // `httpUrl` is a canonical-only alias; Copilot CLI reads `url`, so the
+      // resolved value is written there and the alias does not go out.
+      const { httpUrl: _httpUrl, ...rest } = parsed;
+      result[name] = { ...rest, type, url };
       continue;
     }
 

@@ -582,6 +582,48 @@ describe("CopilotcliMcp", () => {
       );
     });
 
+    it("should normalize httpUrl to url and resolve streamable-http to http", async () => {
+      // Copilot CLI reads `url`; `httpUrl` is a canonical-only alias, so a
+      // server carrying just that used to resolve to stdio and be rejected for
+      // having no command.
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "httpurl-only": { httpUrl: "https://example.com/mcp" },
+            streamable: { type: "streamable-http", url: "https://example.com/s" },
+          },
+        }),
+      });
+
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({ rulesyncMcp });
+
+      expect(copilotCliMcp.getJson().mcpServers).toEqual({
+        "httpurl-only": { type: "http", url: "https://example.com/mcp" },
+        streamable: { type: "http", url: "https://example.com/s" },
+      });
+    });
+
+    it("should skip a WebSocket server, which Copilot CLI has no transport for", async () => {
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { socket: { type: "ws", url: "wss://example.com/mcp" } },
+        }),
+      });
+
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
+        rulesyncMcp,
+        logger: mockLogger,
+      });
+
+      expect(copilotCliMcp.getJson().mcpServers).toEqual({});
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "socket"'));
+    });
+
     it("should skip a local server that has no command", async () => {
       const mockLogger = { warn: vi.fn() } as unknown as Logger;
       const inputMcpServers = {

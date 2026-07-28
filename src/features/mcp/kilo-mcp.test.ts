@@ -2633,7 +2633,7 @@ describe("KiloMcp toggle entries", () => {
       relativeDirPath: ".rulesync",
       relativeFilePath: ".mcp.json",
       fileContent: JSON.stringify({
-        mcpServers: { toggled: { disabled: true }, on: {} },
+        mcpServers: { toggled: { disabled: true }, on: { disabled: false } },
       }),
     });
 
@@ -2641,6 +2641,27 @@ describe("KiloMcp toggle entries", () => {
     const written = JSON.parse(kiloMcp.getFileContent()).mcp;
 
     expect(written).toEqual({ toggled: { enabled: false }, on: { enabled: true } });
+  });
+
+  it("refuses to switch on a transport-less server the config never enabled", async () => {
+    // A toggle overrides the layer that defines the server, so writing
+    // `enabled: true` for a server that states nothing would turn back on what
+    // the user switched off in the global config or a marketplace.
+    const mockLogger = { warn: vi.fn() } as unknown as Logger;
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: ".rulesync",
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({ mcpServers: { ghost: {} } }),
+    });
+
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp,
+      logger: mockLogger,
+    });
+
+    expect(JSON.parse(kiloMcp.getFileContent()).mcp).toEqual({});
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "ghost"'));
   });
 
   it("round-trips a toggle entry through generate and back", async () => {
@@ -2697,7 +2718,9 @@ describe("KiloMcp toggle entries", () => {
     ).toThrow();
   });
 
-  it("keeps an enabled toggle entry as an ordinary enabled server", () => {
+  it("imports an enabled toggle as an explicitly enabled server", () => {
+    // `disabled: false` rather than nothing: the write side only emits a
+    // toggle for a server whose enabled state the config states outright.
     const kiloMcp = new KiloMcp({
       relativeDirPath: ".",
       relativeFilePath: "kilo.jsonc",
@@ -2705,7 +2728,7 @@ describe("KiloMcp toggle entries", () => {
     });
 
     const imported = JSON.parse(kiloMcp.toRulesyncMcp().getFileContent());
-    expect(imported.mcpServers.toggled).toEqual({});
+    expect(imported.mcpServers.toggled).toEqual({ disabled: false });
   });
 
   it("warns when a transport-less server carries fields a toggle cannot keep", async () => {
@@ -2714,7 +2737,7 @@ describe("KiloMcp toggle entries", () => {
       relativeDirPath: ".rulesync",
       relativeFilePath: ".mcp.json",
       fileContent: JSON.stringify({
-        mcpServers: { half: { args: ["--port", "1"], env: { TOKEN: "x" } } },
+        mcpServers: { half: { disabled: false, args: ["--port", "1"], env: { TOKEN: "x" } } },
       }),
     });
 
