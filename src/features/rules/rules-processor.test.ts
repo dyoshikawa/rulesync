@@ -1671,6 +1671,37 @@ targets: ["*"]
       expect(localRule?.getRelativeDirPath()).toBe(".");
     });
 
+    it("should generate AGENTS.local.md for roo localRoot rule (issue #2409)", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "roo" });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: { root: true, targets: ["roo"] },
+          body: "# Root",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "local.md",
+          frontmatter: { localRoot: true, targets: ["roo"] },
+          body: "# Local overrides",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      // Roo loads AGENTS.local.md for personal, gitignored overrides — the
+      // localRoot rule must get its own file, not be folded into AGENTS.md.
+      const localRule = result.find((r) => r.getRelativeFilePath() === "AGENTS.local.md");
+      expect(localRule).toBeDefined();
+      expect(localRule?.getFileContent()).toBe("# Local overrides");
+      const rootRule = result.find((r) => r.getRelativeFilePath() === "AGENTS.md");
+      expect(rootRule?.getFileContent()).not.toContain("# Local overrides");
+    });
+
     it("should append localRoot content to root file for other tools", async () => {
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "copilot" });
 

@@ -220,4 +220,62 @@ Follow PDF extraction steps.`;
       expect(skill.getRelativeDirPath()).toBe(join(".roo", "skills"));
     });
   });
+
+  describe("roo section round-trip (issue #2409)", () => {
+    it("should emit modeSlugs from the roo section into the SKILL.md frontmatter", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "deploy",
+        frontmatter: {
+          name: "deploy",
+          description: "Deploy the app",
+          targets: ["roo"],
+          roo: { modeSlugs: ["code", "architect"], name: "ignored", description: "ignored" },
+        },
+        body: "Deploy.",
+        validate: false,
+      });
+
+      const skill = RooSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill });
+      const frontmatter = skill.getFrontmatter() as Record<string, unknown>;
+
+      expect(frontmatter.modeSlugs).toEqual(["code", "architect"]);
+      // Canonical name/description win over stray same-named section keys.
+      expect(frontmatter.name).toBe("deploy");
+      expect(frontmatter.description).toBe("Deploy the app");
+    });
+
+    it("should lift extra frontmatter keys back into the roo section on import", () => {
+      const skill = new RooSkill({
+        outputRoot: testDir,
+        dirName: "deploy",
+        frontmatter: {
+          name: "deploy",
+          description: "Deploy the app",
+          modeSlugs: ["code"],
+        } as never,
+        body: "Deploy.",
+        validate: false,
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      const frontmatter = rulesyncSkill.getFrontmatter();
+
+      expect(frontmatter.roo).toEqual({ modeSlugs: ["code"] });
+      expect(frontmatter.name).toBe("deploy");
+    });
+
+    it("should omit the roo section when no extra keys exist", () => {
+      const skill = new RooSkill({
+        outputRoot: testDir,
+        dirName: "plain",
+        frontmatter: { name: "plain", description: "Plain skill" },
+        body: "Body.",
+        validate: false,
+      });
+
+      expect(skill.toRulesyncSkill().getFrontmatter().roo).toBeUndefined();
+    });
+  });
 });
