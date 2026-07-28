@@ -23,6 +23,35 @@ function parseAmpGlobs(value: unknown): string[] | undefined {
     : undefined;
 }
 
+/**
+ * Read a memories file's `globs:` gate. The gate is the ONLY thing treated as
+ * frontmatter: a leading `---` block without a valid `globs` list — a markdown
+ * horizontal rule, a hand-written block of something else, or YAML that does
+ * not parse at all — is rule content and is returned untouched, because
+ * stripping it would silently destroy the body on import.
+ */
+function parseAmpRuleFile(
+  fileContent: string,
+  filePath: string,
+): { globs?: string[]; description?: string; body: string } {
+  try {
+    const { frontmatter, body } = parseFrontmatter(fileContent, filePath);
+    const globs = parseAmpGlobs(frontmatter.globs);
+    if (globs === undefined) {
+      return { body: fileContent };
+    }
+    return {
+      globs,
+      ...(typeof frontmatter.description === "string" && {
+        description: frontmatter.description,
+      }),
+      body: body.trim(),
+    };
+  } catch {
+    return { body: fileContent };
+  }
+}
+
 export type AmpRuleSettablePaths = ToolRuleSettablePaths & {
   root: {
     relativeDirPath: string;
@@ -105,8 +134,8 @@ export class AmpRule extends ToolRule {
     // A memories file may carry Amp's `globs:` frontmatter (the native
     // conditional-loading gate); restore it into the canonical globs so the
     // round-trip keeps the condition instead of flattening it into an
-    // always-loaded rule. A file without frontmatter parses as-is.
-    const { frontmatter } = parseFrontmatter(fileContent, join(outputRoot, relativePath));
+    // always-loaded rule. A file without the gate parses as-is.
+    const parsed = parseAmpRuleFile(fileContent, join(outputRoot, relativePath));
     return new AmpRule({
       outputRoot,
       relativeDirPath: paths.nonRoot.relativeDirPath,
@@ -114,7 +143,8 @@ export class AmpRule extends ToolRule {
       fileContent,
       validate,
       root: false,
-      globs: parseAmpGlobs(frontmatter.globs),
+      globs: parsed.globs,
+      description: parsed.description,
     });
   }
 
@@ -150,8 +180,9 @@ export class AmpRule extends ToolRule {
     }
     // A non-root file's `globs:` frontmatter is Amp's native conditional-load
     // gate, not rule content: strip it from the body and restore it into the
-    // canonical globs so the condition round-trips.
-    const { frontmatter, body } = parseFrontmatter(this.getFileContent(), this.getFilePath());
+    // canonical globs so the condition round-trips. A leading `---` block that
+    // is not the gate stays in the body untouched.
+    const parsed = parseAmpRuleFile(this.getFileContent(), this.getFilePath());
     return new RulesyncRule({
       outputRoot: process.cwd(),
       relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -159,10 +190,10 @@ export class AmpRule extends ToolRule {
       frontmatter: {
         root: false,
         targets: ["*"],
-        description: this.getDescription(),
-        globs: this.getGlobs() ?? parseAmpGlobs(frontmatter.globs) ?? [],
+        description: this.getDescription() ?? parsed.description,
+        globs: this.getGlobs() ?? parsed.globs ?? [],
       },
-      body: body.trim(),
+      body: parsed.body,
     });
   }
 

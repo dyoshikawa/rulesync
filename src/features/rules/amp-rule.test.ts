@@ -143,6 +143,42 @@ describe("AmpRule", () => {
       expect(rule.getFileContent()).toBe("# Always");
     });
 
+    it("emits globs frontmatter on a subtree AGENTS.md via agentsmd.subprojectPath", () => {
+      const rulesyncRule = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "api.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          globs: ["api/**/*.ts"],
+          agentsmd: { subprojectPath: "api" },
+        },
+        body: "# API",
+      });
+
+      const rule = AmpRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule });
+
+      expect(rule.getRelativeDirPath()).toBe("api");
+      expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(rule.getFileContent()).toBe("---\nglobs:\n  - api/**/*.ts\n---\n# API\n");
+    });
+
+    it("keeps a body-leading --- that is not the globs gate untouched on import", async () => {
+      const memoriesDir = join(testDir, ".agents", "memories");
+      await ensureDir(memoriesDir);
+      // A markdown horizontal rule at the top of the file, not frontmatter.
+      const content = "---\n\n# Title\n\nBody.\n";
+      await writeFileContent(join(memoriesDir, "hr.md"), content);
+
+      const rule = await AmpRule.fromFile({ outputRoot: testDir, relativeFilePath: "hr.md" });
+      expect(rule.getGlobs()).toBeUndefined();
+
+      const roundTripped = rule.toRulesyncRule();
+      expect(roundTripped.getBody()).toBe(content);
+      expect(roundTripped.getFrontmatter().globs).toEqual([]);
+    });
+
     it("restores globs frontmatter from a memories file on import", async () => {
       const memoriesDir = join(testDir, ".agents", "memories");
       await ensureDir(memoriesDir);
