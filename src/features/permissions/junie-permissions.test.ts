@@ -272,6 +272,112 @@ describe("JuniePermissions", () => {
       });
     });
 
+    it("should let an authored ruleDefault win over an existing group default", async () => {
+      const dir = join(testDir, ".junie");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "allowlist.json"),
+        JSON.stringify({
+          rules: { executables: { default: "allow", rules: [] } },
+        }),
+      );
+
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: { bash: { "git ": "allow" } },
+        junie: { ruleDefaults: { executables: "ask" } },
+      });
+
+      const instance = await JuniePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(instance.getFileContent());
+      expect(json.rules.executables.default).toBe("ask");
+    });
+
+    it("should not write back an existing group default outside allow/ask", async () => {
+      const dir = join(testDir, ".junie");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "allowlist.json"),
+        JSON.stringify({
+          rules: { executables: { default: "deny", rules: [] } },
+        }),
+      );
+
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: { bash: { "git ": "allow" } },
+      });
+
+      const instance = await JuniePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(instance.getFileContent());
+      // A hand-written "deny" fails Junie's whole-file parse; writing it back
+      // would hand Junie a file it destroys.
+      expect(json.rules.executables).toEqual({ rules: [{ prefix: "git ", action: "allow" }] });
+    });
+
+    it("should sanitize a broken readSecretFile group on import so the canonical file stays valid", () => {
+      const instance = new JuniePermissions({
+        relativeDirPath: ".junie",
+        relativeFilePath: "allowlist.json",
+        fileContent: JSON.stringify({
+          rules: {
+            readSecretFile: {
+              default: "deny",
+              rules: [
+                { pattern: "**/.env", action: "deny" },
+                { pattern: "**/.aws/**" },
+                "junk",
+                { action: "allow" },
+              ],
+            },
+          },
+        }),
+      });
+
+      const canonical = instance.toRulesyncPermissions();
+      const config = JSON.parse(canonical.getFileContent());
+      // Restrictive entries survive with the nearest valid action (ask) rather
+      // than being dropped — these rules restrict what Junie may read. The
+      // invalid default and pattern-less entries are dropped.
+      expect(config.junie.readSecretFile).toEqual({
+        rules: [
+          { pattern: "**/.env", action: "ask" },
+          { pattern: "**/.aws/**", action: "ask" },
+        ],
+      });
+      // The lifted value must satisfy the canonical schema, or every later
+      // generate would fail on it.
+      expect(
+        () =>
+          new RulesyncPermissions({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+            fileContent: canonical.getFileContent(),
+            validate: true,
+          }),
+      ).not.toThrow();
+    });
+
+    it("should not lift a defaultBehavior outside allow/ask into the override", () => {
+      const instance = new JuniePermissions({
+        relativeDirPath: ".junie",
+        relativeFilePath: "allowlist.json",
+        fileContent: JSON.stringify({
+          defaultBehavior: "deny",
+          rules: { executables: { rules: [{ prefix: "git ", action: "allow" }] } },
+        }),
+      });
+
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+      expect(config.junie).toBeUndefined();
+    });
+
     it("should import object-form groups, lifting default and readSecretFile into the override", () => {
       const instance = new JuniePermissions({
         relativeDirPath: ".junie",

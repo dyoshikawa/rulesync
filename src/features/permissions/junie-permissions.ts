@@ -122,6 +122,45 @@ function toRuleSet(value: JunieRuleSet | JunieRule[] | undefined): JunieRuleSet 
   return typeof value === "object" && value !== null ? value : undefined;
 }
 
+/** Only `allow`/`ask` exist in Junie's `AllowListDecision` (release `2383.10`). */
+function toAllowlistAction(value: unknown): JunieAllowlistAction | undefined {
+  return value === "allow" || value === "ask" ? value : undefined;
+}
+
+/**
+ * Sanitize a rule set read from disk into the shape both Junie's parser and
+ * the `junie` override schema accept — a hand-written file may carry anything.
+ * An entry without a `prefix`/`pattern` is dropped; an entry with an invalid
+ * action (e.g. a hand-written `deny`, which fails Junie's whole-file parse) is
+ * kept with `ask`, the restrictive action nearest the author's intent, rather
+ * than being dropped — these sets restrict what Junie may do, so losing an
+ * entry would fail open. Used on both the import lift (so the canonical file
+ * always validates, keeping later generates working) and the generate-side
+ * preservation (so rulesync never writes back a value Junie would reject and
+ * destroy the file over).
+ */
+function sanitizeRuleSet(set: JunieRuleSet): JunieRuleSet {
+  const rules = (Array.isArray(set.rules) ? set.rules : []).flatMap((rule): JunieRule[] => {
+    if (!rule || typeof rule !== "object") {
+      return [];
+    }
+    const prefix = typeof rule.prefix === "string" ? rule.prefix : undefined;
+    const pattern = typeof rule.pattern === "string" ? rule.pattern : undefined;
+    if (prefix === undefined && pattern === undefined) {
+      return [];
+    }
+    return [
+      {
+        ...(prefix !== undefined && { prefix }),
+        ...(pattern !== undefined && { pattern }),
+        action: toAllowlistAction(rule.action) ?? "ask",
+      },
+    ];
+  });
+  const setDefault = toAllowlistAction(set.default);
+  return { ...(setDefault !== undefined && { default: setDefault }), rules };
+}
+
 const CANONICAL_TO_JUNIE_GROUP: Record<string, JunieRuleGroup> = {
   bash: "executables",
   edit: "fileEditing",
@@ -386,7 +425,10 @@ function convertRulesyncToJunieRules({
   const rules: Record<string, JunieRuleSet> = {};
   for (const group of JUNIE_RULE_GROUPS) {
     const list = ruleLists[group];
-    const groupDefault = overrideRuleDefaults?.[group] ?? toRuleSet(existingRules[group])?.default;
+    // A hand-written existing default outside allow/ask would fail Junie's
+    // whole-file parse if written back, so only a valid one is preserved.
+    const groupDefault =
+      overrideRuleDefaults?.[group] ?? toAllowlistAction(toRuleSet(existingRules[group])?.default);
     if (list === undefined && groupDefault === undefined) {
       continue;
     }
@@ -398,10 +440,7 @@ function convertRulesyncToJunieRules({
 
   const secretFile = overrideSecretFile ?? toRuleSet(existingRules[JUNIE_SECRET_FILE_GROUP]);
   if (secretFile !== undefined) {
-    rules[JUNIE_SECRET_FILE_GROUP] = {
-      ...(secretFile.default !== undefined && { default: secretFile.default }),
-      rules: secretFile.rules ?? [],
-    };
+    rules[JUNIE_SECRET_FILE_GROUP] = sanitizeRuleSet(secretFile);
   }
 
   return rules;
@@ -475,12 +514,12 @@ function convertJunieToRulesyncPermissions({ allowlist }: { allowlist: JunieAllo
     }
   }
 
+  // Sanitized so the lifted value always satisfies the `junie` override
+  // schema: an unvalidated lift would write a canonical permissions file that
+  // fails validation on every later generate.
   const secretFileSet = toRuleSet(rules[JUNIE_SECRET_FILE_GROUP]);
   if (secretFileSet !== undefined) {
-    readSecretFile = {
-      ...(secretFileSet.default !== undefined && { default: secretFileSet.default }),
-      rules: Array.isArray(secretFileSet.rules) ? secretFileSet.rules : [],
-    };
+    readSecretFile = sanitizeRuleSet(secretFileSet);
   }
 
   return { config: { permission }, ruleDefaults, readSecretFile };
