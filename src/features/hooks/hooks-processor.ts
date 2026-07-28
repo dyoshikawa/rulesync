@@ -605,9 +605,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsImport: true,
       },
       supportedEvents: GROKCLI_HOOK_EVENTS,
-      // Grok also supports `http` hooks natively, but the shared Claude-style
-      // converter only round-trips `command` hooks.
-      supportedHookTypes: ["command"],
+      // Grok's `HookHandlerType` is `command | http`, and the shared converter
+      // round-trips both, so neither is reported as skipped.
+      supportedHookTypes: ["command", "http"],
       // Tool-name events honor `matcher`; the adapter drops it (with a warning)
       // on the matcher-less lifecycle events.
       supportsMatcher: true,

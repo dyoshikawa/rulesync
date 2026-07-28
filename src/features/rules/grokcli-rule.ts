@@ -2,7 +2,6 @@ import { join } from "node:path";
 
 import {
   GROKCLI_DIR,
-  GROKCLI_GLOBAL_RULES_DIR_NAME,
   GROKCLI_RULE_FILE_NAME,
   GROKCLI_RULES_DIR_PATH,
 } from "../../constants/grokcli-paths.js";
@@ -71,13 +70,11 @@ export class GrokcliRule extends ToolRule {
         relativeDirPath: global ? GROKCLI_DIR : ".",
         relativeFilePath: GROKCLI_RULE_FILE_NAME,
       },
-      // Project: `.grok/rules/`. Global: `rules/` directly under the home root,
-      // which the processor resolves relative to `~/.grok`.
-      nonRoot: {
-        relativeDirPath: global
-          ? join(GROKCLI_DIR, GROKCLI_GLOBAL_RULES_DIR_NAME)
-          : GROKCLI_RULES_DIR_PATH,
-      },
+      // `.grok/rules/` in both scopes: upstream calls the home one "a plain
+      // `rules/` directly under the vendor-qualified home-scope root", which is
+      // the same path once the processor resolves `outputRoot` to the home
+      // directory.
+      nonRoot: { relativeDirPath: GROKCLI_RULES_DIR_PATH },
     };
   }
 
@@ -86,10 +83,18 @@ export class GrokcliRule extends ToolRule {
     relativeFilePath,
     validate = true,
     global = false,
+    relativeDirPath: overrideDirPath,
   }: ToolRuleFromFileParams): Promise<GrokcliRule> {
     const { root, nonRoot } = this.getSettablePaths({ global });
-    const isRoot = relativeFilePath === root.relativeFilePath;
-    const relativeDirPath = isRoot ? root.relativeDirPath : nonRoot.relativeDirPath;
+    // The directory decides, not the name alone: `.grok/rules/AGENTS.md` is a
+    // topic rule, and treating it as the root one would read a different file
+    // and lose this one. `forDeletion` already checks both.
+    const isRoot =
+      relativeFilePath === root.relativeFilePath &&
+      (overrideDirPath ?? root.relativeDirPath) === root.relativeDirPath;
+    const relativeDirPath = isRoot
+      ? (overrideDirPath ?? root.relativeDirPath)
+      : nonRoot.relativeDirPath;
     const fileContent = await readFileContent(join(outputRoot, relativeDirPath, relativeFilePath));
 
     return new GrokcliRule({

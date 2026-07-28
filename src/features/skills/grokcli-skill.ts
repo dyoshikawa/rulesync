@@ -8,6 +8,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -29,6 +30,12 @@ const GrokcliSkillFrontmatterSchema = z.looseObject({
 });
 
 export type GrokcliSkillFrontmatter = z.infer<typeof GrokcliSkillFrontmatterSchema>;
+
+/** The `grokcli` block of a rulesync skill, which may override the shared flags. */
+type GrokcliRulesyncSection = {
+  "user-invocable"?: boolean;
+  "disable-model-invocation"?: boolean;
+};
 
 export type GrokcliSkillParams = {
   outputRoot?: string;
@@ -165,14 +172,22 @@ export class GrokcliSkill extends ToolSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     const settablePaths = GrokcliSkill.getSettablePaths({ global });
 
+    const grokcliSection = (rulesyncFrontmatter as { grokcli?: GrokcliRulesyncSection }).grokcli;
+    const resolvedUserInvocable = resolveUserInvocable({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: grokcliSection,
+    });
+    const resolvedDisableModelInvocation = resolveDisableModelInvocation({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: grokcliSection,
+    });
+
     const grokcliFrontmatter: GrokcliSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...(rulesyncFrontmatter["user-invocable"] !== undefined && {
-        "user-invocable": rulesyncFrontmatter["user-invocable"],
-      }),
-      ...(rulesyncFrontmatter["disable-model-invocation"] !== undefined && {
-        "disable-model-invocation": rulesyncFrontmatter["disable-model-invocation"],
+      ...(resolvedUserInvocable !== undefined && { "user-invocable": resolvedUserInvocable }),
+      ...(resolvedDisableModelInvocation !== undefined && {
+        "disable-model-invocation": resolvedDisableModelInvocation,
       }),
     };
 

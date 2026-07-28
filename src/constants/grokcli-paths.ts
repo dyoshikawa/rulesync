@@ -65,4 +65,3 @@ export const GROKCLI_RULE_FILE_NAME = "AGENTS.md";
  * @see https://docs.x.ai/build/overview
  */
 export const GROKCLI_RULES_DIR_PATH = join(GROKCLI_DIR, "rules");
-export const GROKCLI_GLOBAL_RULES_DIR_NAME = "rules";

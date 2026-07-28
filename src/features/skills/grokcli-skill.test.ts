@@ -172,3 +172,61 @@ describe("GrokcliSkill", () => {
     });
   });
 });
+
+function buildGrokcliSkill(frontmatter: Record<string, unknown>): GrokcliSkill {
+  return GrokcliSkill.fromRulesyncSkill({
+    rulesyncSkill: new RulesyncSkill({
+      relativeDirPath: ".rulesync/skills",
+      dirName: "sample",
+      frontmatter: { name: "sample", description: "Sample", targets: ["*"], ...frontmatter },
+      body: "Body.",
+    }),
+  });
+}
+
+describe("GrokcliSkill invocation flags", () => {
+  it("carries the shared flags Grok honours", () => {
+    // A skill with `user-invocable: false` is hidden from the skill tool, and
+    // `disable-model-invocation: true` blocks auto-invocation.
+    const frontmatter = buildGrokcliSkill({
+      "user-invocable": false,
+      "disable-model-invocation": true,
+    }).getFrontmatter();
+
+    expect(frontmatter["user-invocable"]).toBe(false);
+    expect(frontmatter["disable-model-invocation"]).toBe(true);
+  });
+
+  it("lets the grokcli section override the shared default", () => {
+    const frontmatter = buildGrokcliSkill({
+      "disable-model-invocation": true,
+      grokcli: { "disable-model-invocation": false },
+    }).getFrontmatter();
+
+    expect(frontmatter["disable-model-invocation"]).toBe(false);
+  });
+
+  it("omits both when neither is set", () => {
+    const frontmatter = buildGrokcliSkill({}).getFrontmatter();
+
+    expect(frontmatter["user-invocable"]).toBeUndefined();
+    expect(frontmatter["disable-model-invocation"]).toBeUndefined();
+  });
+
+  it("reads both back on import", () => {
+    const skill = new GrokcliSkill({
+      dirName: "sample",
+      frontmatter: {
+        name: "sample",
+        description: "Sample",
+        "user-invocable": false,
+        "disable-model-invocation": true,
+      },
+      body: "Body.",
+    });
+
+    const imported = skill.toRulesyncSkill().getFrontmatter();
+    expect(imported["user-invocable"]).toBe(false);
+    expect(imported["disable-model-invocation"]).toBe(true);
+  });
+});
