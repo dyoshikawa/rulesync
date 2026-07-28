@@ -547,6 +547,30 @@ describe("FactorydroidHooks", () => {
       );
     });
 
+    it("should still import a legacy prompt entry from hooks.json (issue #2412)", () => {
+      // Generation filters prompt-type hooks (Droid runs only command hooks),
+      // but a hooks.json that already carries one — written by an earlier
+      // rulesync or by hand — must import without crashing or dropping it, so
+      // the canonical model keeps the user's intent for tools that can run it.
+      const factorydroidHooks = new FactorydroidHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".factory",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PreToolUse: [{ hooks: [{ type: "prompt", prompt: "Check this tool call" }] }],
+          },
+        }),
+        validate: false,
+      });
+
+      const parsed = JSON.parse(factorydroidHooks.toRulesyncHooks().getFileContent());
+      expect(parsed.hooks.preToolUse[0]).toMatchObject({
+        type: "prompt",
+        prompt: "Check this tool call",
+      });
+    });
+
     it("should convert Factory Droid PascalCase hooks to canonical camelCase", () => {
       const factorydroidHooks = new FactorydroidHooks({
         outputRoot: testDir,
