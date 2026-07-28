@@ -30,7 +30,8 @@ import {
 /**
  * The `type: command` gate shape Takt accepts inside `quality_gates`. Mirrors
  * upstream's `CommandQualityGateInputSchema`, which is `.strict()` — an unknown
- * key there fails Takt's own config load, so the schema is closed here too.
+ * key there fails Takt's own config load, so only these fields are read out of
+ * the block and written into the gate.
  *
  * @see https://github.com/nrslib/takt/blob/main/src/core/models/schema-base.ts
  */
@@ -186,7 +187,10 @@ function toRulesyncCheckFromGate({
       relativeDirPath: RULESYNC_CHECKS_RELATIVE_DIR_PATH,
       relativeFilePath: `${slugForGate({ gate, index, scope })}.md`,
       frontmatter: {
-        targets: ["takt"],
+        // Plain prose applies to any tool, so this imports like an Amp or Hermes
+        // check does. A command gate below does not: its body is empty, which
+        // would generate an empty check everywhere else.
+        targets: ["*"],
         ...(Object.keys(scopeOverride).length > 0 && { takt: scopeOverride }),
       },
       body: gate,

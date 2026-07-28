@@ -280,6 +280,10 @@ describe("TaktCheck", () => {
         "review-no-security-vulnerabilities-3.md",
       ]);
       expect(checks[0]?.getBody()).toBe("All tests pass");
+      // Prose applies anywhere, so it imports like an Amp check; the command
+      // gate stays Takt-only because its body is empty.
+      expect(checks[0]?.getFrontmatter().targets).toEqual(["*"]);
+      expect(checks[1]?.getFrontmatter().targets).toEqual(["takt"]);
       expect(checks[1]?.getFrontmatter().takt).toEqual({
         name: "quality-check",
         command: "./check.sh",
