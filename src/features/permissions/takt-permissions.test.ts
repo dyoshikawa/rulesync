@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { load } from "js-yaml";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -324,6 +325,22 @@ describe("TaktPermissions", () => {
 
       const parsed = toRecord(load(permissions.getFileContent()));
       expect(parsed.workflow_arpeggio).toEqual({ custom_data_source_modules: true });
+    });
+
+    it("says what it dropped, since the capability stays denied", async () => {
+      const mockLogger = createMockLogger();
+      await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: {},
+          takt: { workflow_arpeggio: { custom_merge_file: true } },
+        }),
+        logger: mockLogger,
+      });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"workflow_arpeggio.custom_merge_file"'),
+      );
     });
 
     it("drops a sub-key Takt's strict schema does not declare", async () => {

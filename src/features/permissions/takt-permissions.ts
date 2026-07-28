@@ -4,6 +4,7 @@ import { TAKT_CONFIG_FILE_NAME, TAKT_DIR } from "../../constants/takt-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionsConfig } from "../../types/permissions.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
@@ -148,6 +149,7 @@ export class TaktPermissions extends ToolPermissions {
     outputRoot = process.cwd(),
     rulesyncPermissions,
     global = false,
+    logger,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<TaktPermissions> {
     const paths = TaktPermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
@@ -178,7 +180,11 @@ export class TaktPermissions extends ToolPermissions {
       ? override[TAKT_PROVIDER_OPTIONS_KEY]
       : undefined;
 
-    const authoredPolicies = pickSecurityPolicies(override);
+    const authoredPolicies = pickSecurityPolicies(override, {
+      filePath,
+      logger,
+      source: "the `takt` override block",
+    });
     const patch: Record<string, unknown> = {
       [TAKT_PROVIDER_PROFILES_KEY]: {
         [provider]: {
@@ -358,20 +364,28 @@ function taktModeToRulesyncConfig(mode: unknown): PermissionsConfig {
  */
 function pickSecurityPolicies(
   source: Record<string, unknown> | undefined,
+  report?: { filePath: string; logger?: Logger; source: string },
 ): Record<string, unknown> {
   if (!source) {
     return {};
   }
   const picked: Record<string, unknown> = {};
+  const dropped: string[] = [];
   for (const [key, subKeys] of Object.entries(TAKT_SECURITY_POLICIES)) {
     const value = source[key];
+    if (value === undefined) {
+      continue;
+    }
     if (subKeys === null) {
       if (typeof value === "boolean") {
         picked[key] = value;
+      } else {
+        dropped.push(key);
       }
       continue;
     }
     if (!isPlainObject(value)) {
+      dropped.push(key);
       continue;
     }
     const flags = Object.fromEntries(
@@ -379,9 +393,24 @@ function pickSecurityPolicies(
         .filter((subKey) => typeof value[subKey] === "boolean")
         .map((subKey) => [subKey, value[subKey]]),
     );
+    dropped.push(
+      ...Object.keys(value)
+        .filter((subKey) => flags[subKey] === undefined)
+        .map((subKey) => `${key}.${subKey}`),
+    );
     if (Object.keys(flags).length > 0) {
       picked[key] = flags;
     }
+  }
+  // Dropping keeps Takt loadable — its schemas reject the whole file on an
+  // unknown key — but a capability the user meant to grant stays denied, which
+  // is worth saying out loud.
+  if (dropped.length > 0 && report) {
+    report.logger?.warn(
+      `Takt permissions: ignoring ${dropped.map((key) => `"${key}"`).join(", ")} from ` +
+        `${report.source}; Takt declares no such workflow security policy, or not with that ` +
+        `type, and writing it would make it reject ${report.filePath}.`,
+    );
   }
   return picked;
 }

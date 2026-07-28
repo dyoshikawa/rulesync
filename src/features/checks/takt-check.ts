@@ -143,13 +143,18 @@ function buildWorkflowOverrides(
   }
 
   // `quality_gates_edit_only` is a property of the whole block, not of one gate,
-  // so any check asking for it turns it on for all of them — including gates
-  // from checks that said nothing about it, whose reach it narrows.
+  // so any check asking for it turns it on for all of them. Upstream applies it
+  // to the unscoped gates only — a gate under `steps` or `personas` runs either
+  // way — so the reach it narrows is exactly the other checks' top-level gates.
   const editOnly = entries.some(({ override }) => override.quality_gates_edit_only === true);
-  if (editOnly && entries.length > 1) {
+  const narrowsOthers = entries.some(
+    ({ gate, override }) => override.quality_gates_edit_only !== true && topLevel.includes(gate),
+  );
+  if (editOnly && narrowsOthers) {
     logger?.warn(
       `Takt checks: \`quality_gates_edit_only\` is a property of the whole quality-gate block, so ` +
-        `every gate now runs only on steps that may edit files, not just the check that set it.`,
+        `every gate without a \`steps\` or \`personas\` scope now runs only on steps that may edit ` +
+        `files, not just the check that set it. Scoped gates are unaffected.`,
     );
   }
 
@@ -233,11 +238,16 @@ function toRulesyncCheckFromGate({
 }
 
 function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
+  return (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48)
+      // Again after the slice, so a cut landing on a separator does not leave a
+      // name like `foo--1.md`.
+      .replace(/-+$/, "")
+  );
 }
 
 function slugForGate({
@@ -285,7 +295,8 @@ function slugForGate({
  * `steps` / `personas` in that block scope a gate to named workflow steps or
  * personas (`workflow_overrides.steps.<step>.quality_gates`); an unscoped gate
  * applies everywhere. `quality_gates_edit_only` is a property of the block as a
- * whole, so one check setting it turns it on for all of them.
+ * whole, so one check setting it turns it on for all of them — but it reaches
+ * only the unscoped gates, since Takt runs a scoped gate either way.
  *
  * `workflow_command_gates.custom_scripts` — the default-deny policy that admits
  * command gates declared in *workflow YAML* — is deliberately not written here.
