@@ -205,6 +205,22 @@ export class TaktPermissions extends ToolPermissions {
       ...Object.fromEntries(TAKT_SECURITY_POLICY_KEYS.map((key) => [key, authoredPolicies[key]])),
     };
 
+    // These keys are owned, so one the source does not state is removed even if
+    // rulesync never wrote it. The checks adapter announces the same kind of
+    // removal, and without this a user who adds a policy by hand — after Takt
+    // refused to run something — watches it disappear on the next generate with
+    // no idea why.
+    const removedPolicies = TAKT_SECURITY_POLICY_KEYS.filter(
+      (key) => config[key] !== undefined && authoredPolicies[key] === undefined,
+    );
+    if (removedPolicies.length > 0) {
+      logger?.warn(
+        `Takt permissions: removing ${removedPolicies.map((key) => `"${key}"`).join(", ")} from ` +
+          `${filePath} because the \`takt\` block of the rulesync source does not state them; ` +
+          `author these workflow security policies there rather than in config.yaml.`,
+      );
+    }
+
     return new TaktPermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
@@ -373,7 +389,8 @@ function pickSecurityPolicies(
   const dropped: string[] = [];
   for (const [key, subKeys] of Object.entries(TAKT_SECURITY_POLICIES)) {
     const value = source[key];
-    if (value === undefined) {
+    // `null` reads as "not set" rather than as a value of the wrong type.
+    if (value === undefined || value === null) {
       continue;
     }
     if (subKeys === null) {
@@ -394,8 +411,10 @@ function pickSecurityPolicies(
         .map((subKey) => [subKey, value[subKey]]),
     );
     dropped.push(
+      // Own-property check: a sub-key named `toString` would otherwise resolve
+      // to something off `Object.prototype` and go unreported.
       ...Object.keys(value)
-        .filter((subKey) => flags[subKey] === undefined)
+        .filter((subKey) => !Object.hasOwn(flags, subKey))
         .map((subKey) => `${key}.${subKey}`),
     );
     if (Object.keys(flags).length > 0) {

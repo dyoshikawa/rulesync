@@ -127,11 +127,13 @@ function buildWorkflowOverrides(
   const steps: Record<string, TaktQualityGate[]> = Object.create(null);
   const personas: Record<string, TaktQualityGate[]> = Object.create(null);
 
-  for (const { gate, override } of entries) {
+  const unscoped = new Set<number>();
+  for (const [index, { gate, override }] of entries.entries()) {
     const scopedSteps = override.steps ?? [];
     const scopedPersonas = override.personas ?? [];
     if (scopedSteps.length === 0 && scopedPersonas.length === 0) {
       topLevel.push(gate);
+      unscoped.add(index);
       continue;
     }
     for (const step of scopedSteps) {
@@ -147,8 +149,9 @@ function buildWorkflowOverrides(
   // to the unscoped gates only — a gate under `steps` or `personas` runs either
   // way — so the reach it narrows is exactly the other checks' top-level gates.
   const editOnly = entries.some(({ override }) => override.quality_gates_edit_only === true);
+  // By position, not by gate value: two checks can carry the same directive text.
   const narrowsOthers = entries.some(
-    ({ gate, override }) => override.quality_gates_edit_only !== true && topLevel.includes(gate),
+    ({ override }, index) => override.quality_gates_edit_only !== true && unscoped.has(index),
   );
   if (editOnly && narrowsOthers) {
     logger?.warn(

@@ -309,6 +309,24 @@ describe("TaktPermissions", () => {
       expect(parsed.provider).toBe("claude");
     });
 
+    it("says which policy it is removing, hand-written or not", async () => {
+      await writeFileContent(
+        join(testDir, ".takt", "config.yaml"),
+        ["allow_git_hooks: true", ""].join("\n"),
+      );
+      const mockLogger = createMockLogger();
+
+      await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({ permission: {} }),
+        logger: mockLogger,
+      });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('removing "allow_git_hooks"'),
+      );
+    });
+
     it("replaces a policy table rather than merging into the old one", async () => {
       await writeFileContent(
         join(testDir, ".takt", "config.yaml"),
