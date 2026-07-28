@@ -1075,6 +1075,50 @@ globs: ["src/**/*.ts"]
     expect(nonRootContent).toContain("src/**/*.ts");
   });
 
+  it("should generate cline non-root rules into ~/Documents/Cline/Rules in global mode", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["*"]
+---
+
+# Root Rule Content
+`,
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "coding-guidelines.md"),
+      `---
+targets: ["*"]
+globs: ["src/**/*.ts"]
+---
+
+# Global Non-Root Rule
+`,
+    );
+
+    await runGenerate({
+      target: "cline",
+      features: "rules",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // Root memory file -> ~/.agents/AGENTS.md
+    const rootContent = await readFileContent(join(homeDir, ".agents", "AGENTS.md"));
+    expect(rootContent).toContain("Root Rule Content");
+
+    // Non-root rule -> ~/Documents/Cline/Rules/*.md with `paths` frontmatter
+    const nonRootContent = await readFileContent(
+      join(homeDir, "Documents", "Cline", "Rules", "coding-guidelines.md"),
+    );
+    expect(nonRootContent).toContain("Global Non-Root Rule");
+    expect(nonRootContent).toContain("src/**/*.ts");
+  });
+
   it("should generate roo non-root rules into ~/.roo/rules in global mode", async () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
