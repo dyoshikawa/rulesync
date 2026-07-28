@@ -125,8 +125,8 @@ function toPermissionsTable(value: unknown): Record<string, unknown> {
 
 // The `[agent]` sub-keys the `reasonix` override authors and round-trips. The
 // whole `[sandbox]` table is a dedicated security surface, so it round-trips in
-// full; `[agent]` also holds unrelated settings, so only the plan-mode read-only
-// plan-mode keys are extracted on import.
+// full; `[agent]` also holds unrelated settings, so only the plan-mode keys are
+// extracted on import.
 // `plan_mode_read_only_commands` survives upstream, though labelled "legacy
 // compatibility only; Plan bash now uses Permissions", so it stays authorable.
 // https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md

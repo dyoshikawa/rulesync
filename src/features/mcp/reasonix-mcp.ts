@@ -218,6 +218,37 @@ function normalizePluginsArray(value: unknown): ReasonixPlugin[] {
 // https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
 const REASONIX_TRANSPORTS: ReadonlySet<string> = new Set(["stdio", "http", "sse"]);
 
+/**
+ * Fields an older `reasonix.toml` may carry that v1.17.18 retired. Neither
+ * written nor imported; named here only so a canonical config still holding one
+ * can say what it is dropping.
+ */
+const REASONIX_RETIRED_PLUGIN_FIELDS = ["trusted_read_only_tools"] as const;
+
+/**
+ * Only reachable from a canonical config an older rulesync imported into, since
+ * this adapter no longer imports the field. Rulesync owns `plugins`, so staying
+ * silent would take it out of the user's file without a word.
+ */
+function warnAboutRetiredFields({
+  name,
+  serverRecord,
+  logger,
+}: {
+  name: string;
+  serverRecord: Record<string, unknown>;
+  logger?: Logger;
+}): void {
+  for (const field of REASONIX_RETIRED_PLUGIN_FIELDS) {
+    if (serverRecord[field] !== undefined) {
+      logger?.warn(
+        `Reasonix MCP: dropping "${field}" from "${name}"; Reasonix retired the field in ` +
+          `v1.17.18 and ignores it, so it is no longer written.`,
+      );
+    }
+  }
+}
+
 function rulesyncMcpServerToReasonix(
   name: string,
   server: McpServer,
@@ -263,6 +294,7 @@ function rulesyncMcpServerToReasonix(
       plugin[field] = serverRecord[field];
     }
   }
+  warnAboutRetiredFields({ name, serverRecord, logger });
   if (plugin.url === undefined && server.httpUrl !== undefined) {
     plugin.url = server.httpUrl;
   }
@@ -311,13 +343,12 @@ function resolveReasonixType(server: McpServer): string | undefined {
   }
   const url = server.url ?? server.httpUrl;
   if (typeof url === "string") {
-    // A `ws://`/`wss://` URL is a WebSocket server whatever the missing `type`
-    // says, so it takes the same unsupported path rather than being guessed at
-    // as `http` and written as a config that cannot connect.
+    // With no `type` to go on, the URL scheme decides: a `ws://`/`wss://` server
+    // takes the same unsupported path rather than being guessed at as `http`
+    // and written as a config that cannot connect. An explicit `type` is taken
+    // at its word above, so a stated `http` with a `wss://` URL still goes
+    // through — the author said what they meant.
     return /^wss?:\/\//i.test(url) ? "ws" : "http";
-  }
-  if (url !== undefined) {
-    return "http";
   }
   return undefined;
 }

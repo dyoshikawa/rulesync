@@ -254,7 +254,7 @@ export type QwencodePermissionsOverride = z.infer<typeof QwencodePermissionsOver
  * to per-tool allow/ask/deny with no canonical category — the `[sandbox]`
  * enforcement table (`workspace_root`, `allow_write`, `forbid_read`, `bash`,
  * `network`) and plan-mode read-only trust lists under `[agent]`
- * (`plan_mode_read_only_commands`; its sibling `plan_mode_allowed_tools` left the config surface in v1.17.18, so it is lifted on import but stripped before anything is written). Fields placed here
+ * (`plan_mode_read_only_commands`; its sibling `plan_mode_allowed_tools` left the config surface in v1.17.18, so it is lifted on import but stripped from `[agent]` whenever this override writes that table). Fields placed here
  * are merged into the matching `reasonix.toml` table and emitted only for
  * Reasonix, while the shared `permission` block continues to drive
  * `[permissions].allow`/`ask`/`deny`. Kept `looseObject` (verbatim passthrough).

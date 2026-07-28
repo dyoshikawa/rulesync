@@ -267,6 +267,29 @@ describe("ReasonixMcp", () => {
       expect(parsed.plugins[0].trusted_read_only_tools).toBeUndefined();
     });
 
+    it("should say so when a canonical config still carries the retired field", async () => {
+      // Reachable when an older rulesync imported it before this adapter
+      // stopped. Rulesync owns `plugins`, so staying silent would take it out of
+      // the user's file without a word.
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            search: { command: "reasonix-plugin-search", trusted_read_only_tools: ["search"] },
+          },
+        }),
+      });
+
+      await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('dropping "trusted_read_only_tools"'),
+      );
+    });
+
     it("should leave the retired trusted_read_only_tools out of the canonical config", () => {
       const fileContent = [
         "[[plugins]]",
@@ -310,28 +333,9 @@ describe("ReasonixMcp", () => {
       const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
       const roundTripped = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
 
-      // Import still reads it out of a file that has it — see the test above —
-      // but a generate no longer puts it back, so this round trip loses it by
-      // design rather than re-writing a key Reasonix ignores.
+      // Neither direction carries it, so the round trip loses it by design
+      // rather than re-writing a key Reasonix ignores.
       expect(roundTripped.mcpServers.example.trusted_read_only_tools).toBeUndefined();
-    });
-
-    it("should not emit trusted_read_only_tools when absent from the source", async () => {
-      const rulesyncMcp = new RulesyncMcp({
-        outputRoot: testDir,
-        relativeDirPath: ".rulesync",
-        relativeFilePath: "mcp.json",
-        fileContent: JSON.stringify({
-          mcpServers: {
-            plain: { command: "reasonix-plugin-plain" },
-          },
-        }),
-      });
-
-      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
-      const parsed = smolToml.parse(reasonixMcp.getFileContent()) as any;
-
-      expect(parsed.plugins[0].trusted_read_only_tools).toBeUndefined();
     });
   });
 
