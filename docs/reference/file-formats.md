@@ -87,6 +87,8 @@ This is Rulesync, a Node.js CLI tool that automatically generates configuration 
 >
 > See the [Pi usage docs](https://pi.dev/docs/latest/usage).
 
+> **Devin note:** The root rule is emitted to the project-root `AGENTS.md` — the file [Devin CLI / Devin Local actually reads](https://docs.devin.ai/cli/extensibility/rules) (its rules page does not list `.devin/rules/` among its sources) — as plain markdown, while non-root rules keep going to `.devin/rules/*.md`, the Devin Desktop Cascade directory whose `trigger` activation modes (`always_on`, `glob`, `manual`, `model_decision`) are driven by the `devin` frontmatter block. Global mode is unchanged (`~/.config/devin/AGENTS.md`).
+
 > **Amp note:** Amp gates an @-mentioned guidance file on `globs:` YAML frontmatter — the file is loaded only after Amp has read a file matching one of the globs, and **without** the frontmatter it is always loaded. Rulesync therefore emits each non-root rule's `globs` as that frontmatter on the generated `.agents/memories/*.md` file (in addition to the advisory `applyTo` value in the root file's TOON table, which Amp does not enforce), and restores it into the canonical `globs` on import. Amp implicitly prefixes each glob with `**/` unless it starts with `./` or `../`, so canonical globs pass through verbatim. See [Globs in AGENTS.md](https://ampcode.com/news/globs-in-AGENTS.md).
 
 > **Junie note:** Junie CLI resolves project guidelines **first-match-wins** — `.junie/AGENTS.md` → root `AGENTS.md` → the legacy `.junie/guidelines.md` / `.junie/guidelines/` — and documents no file-inclusion mechanism, so Rulesync writes the root rule to `.junie/AGENTS.md` (project) / `~/.junie/AGENTS.md` (global, via `--global`) and folds non-root rules into that single file. The legacy `.junie/guidelines.md` is still accepted as an import fallback. Earlier Rulesync versions emitted non-root rules to `.junie/memories/*.md`, which is not a documented Junie read path; those files are no longer generated (stale outputs stay gitignored but are not cleaned up automatically). See the [Junie guidelines docs](https://junie.jetbrains.com/docs/guidelines-and-memory.html).
@@ -686,6 +688,15 @@ factorydroid: # for Factory Droid-specific parameters (optional)
 takt: # takt specific parameters (optional; emitted under .takt/facets/knowledge/ — frontmatter is dropped on emit)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
   extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
+devin: # for Devin-specific parameters (optional; project .devin/skills/, global ~/.config/devin/skills/)
+  argument-hint: "[environment]" # (optional) hint shown after the slash-command name
+  model: "fast" # (optional) model override while the skill runs
+  subagent: true # (optional) run the skill in a subagent (string or boolean per Devin's docs)
+  agent: "deployer" # (optional) named agent profile to run the skill with
+  allowed-tools: # (optional) tools available while the skill runs (string or list)
+    - "Bash(git status:*)"
+  permissions: {} # (optional) auto-approval rules applied while the skill runs (load-bearing since Devin CLI v3000.1.23)
+  triggers: ["user"] # (optional) invocation gating; omitted = user + model. The shared disable-model-invocation / user-invocable flags map onto this when unset.
 qwencode: # for Qwen Code-specific parameters (optional; project .qwen/skills/, global ~/.qwen/skills/)
   priority: 10 # (optional) higher values appear earlier in /skills listings
   paths: # (optional) glob patterns gating model discovery to matching files (a scalar is coerced to the array Qwen Code requires)

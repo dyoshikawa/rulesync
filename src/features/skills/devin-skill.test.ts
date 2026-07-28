@@ -9,6 +9,22 @@ import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { DevinSkill } from "./devin-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 
+const makeGatedSkillFrontmatter = (flags: Record<string, unknown>) =>
+  DevinSkill.fromRulesyncSkill({
+    rulesyncSkill: new RulesyncSkill({
+      relativeDirPath: ".rulesync/skills",
+      dirName: "gated",
+      frontmatter: {
+        name: "gated",
+        description: "Gated skill",
+        targets: ["devin"],
+        ...flags,
+      },
+      body: "Body.",
+      validate: false,
+    }),
+  }).getFrontmatter() as Record<string, unknown>;
+
 describe("DevinSkill", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -332,6 +348,72 @@ Global skill body content.`;
 
       expect(skill.getRelativeDirPath()).toBe(join(".config", "devin", "skills"));
       expect(skill.getGlobal()).toBe(true);
+    });
+  });
+
+  describe("devin section round-trip (issue #2406)", () => {
+    const sectionFields = {
+      "argument-hint": "[environment]",
+      model: "fast",
+      agent: "deployer",
+      "allowed-tools": ["Bash(git status:*)"],
+      permissions: { Exec: { "git status *": "allow" } },
+    };
+
+    it("should emit the devin section fields into the SKILL.md frontmatter", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        relativeDirPath: ".rulesync/skills",
+        dirName: "deploy",
+        frontmatter: {
+          name: "deploy",
+          description: "Deploy the app",
+          targets: ["devin"],
+          devin: sectionFields,
+        },
+        body: "Deploy.",
+        validate: false,
+      });
+
+      const skill = DevinSkill.fromRulesyncSkill({ rulesyncSkill });
+      const frontmatter = skill.getFrontmatter() as Record<string, unknown>;
+      expect(frontmatter["argument-hint"]).toBe("[environment]");
+      expect(frontmatter.model).toBe("fast");
+      expect(frontmatter.agent).toBe("deployer");
+      expect(frontmatter["allowed-tools"]).toEqual(["Bash(git status:*)"]);
+      expect(frontmatter.permissions).toEqual({ Exec: { "git status *": "allow" } });
+      expect(frontmatter.triggers).toBeUndefined();
+    });
+
+    it("should map the canonical invocation flags onto triggers", () => {
+      expect(makeGatedSkillFrontmatter({ "disable-model-invocation": true }).triggers).toEqual([
+        "user",
+      ]);
+      expect(makeGatedSkillFrontmatter({ "user-invocable": false }).triggers).toEqual(["model"]);
+      // An explicit section triggers value wins over the flags.
+      expect(
+        makeGatedSkillFrontmatter({
+          "disable-model-invocation": true,
+          devin: { triggers: ["user", "model"] },
+        }).triggers,
+      ).toEqual(["user", "model"]);
+      expect(makeGatedSkillFrontmatter({}).triggers).toBeUndefined();
+    });
+
+    it("should lift the fields back into the devin section on import", () => {
+      const skill = new DevinSkill({
+        dirName: "deploy",
+        frontmatter: {
+          name: "deploy",
+          description: "Deploy the app",
+          triggers: ["user"],
+          ...sectionFields,
+        },
+        body: "Deploy.",
+        validate: false,
+      });
+
+      const config = skill.toRulesyncSkill().getFrontmatter();
+      expect(config.devin).toEqual({ ...sectionFields, triggers: ["user"] });
     });
   });
 });

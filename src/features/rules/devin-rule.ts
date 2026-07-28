@@ -62,7 +62,11 @@ export type DevinRuleParams = Omit<ToolRuleParams, "fileContent"> & {
   body: string;
 };
 
-export type DevinRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+export type DevinRuleSettablePaths = ToolRuleSettablePaths & {
+  root: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
   nonRoot: {
     relativeDirPath: string;
   };
@@ -344,6 +348,15 @@ export class DevinRule extends ToolRule {
       };
     }
     return {
+      // Devin CLI / Devin Local reads project rules from the root `AGENTS.md`
+      // (its rules page does not list `.devin/rules/` among its sources);
+      // `.devin/rules/*.md` remains the Devin Desktop Cascade directory for
+      // non-root rules with activation modes.
+      // @see https://docs.devin.ai/cli/extensibility/rules
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
+      },
       nonRoot: {
         relativeDirPath: buildToolPath(DEVIN_DIR, "rules", excludeToolDir),
       },
@@ -366,6 +379,20 @@ export class DevinRule extends ToolRule {
         outputRoot,
         relativeDirPath: rootPath.relativeDirPath,
         relativeFilePath: rootPath.relativeFilePath,
+        frontmatter: {},
+        body: fileContent,
+        validate,
+        root: true,
+      });
+    }
+
+    if (relativeFilePath === "AGENTS.md") {
+      // The project-root AGENTS.md is plain markdown without Cascade frontmatter.
+      const fileContent = await readFileContent(join(outputRoot, relativeFilePath));
+      return new DevinRule({
+        outputRoot,
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
         frontmatter: {},
         body: fileContent,
         validate,
@@ -422,6 +449,20 @@ export class DevinRule extends ToolRule {
     }
 
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
+
+    if (rulesyncFrontmatter.root) {
+      // The root rule goes to the project-root AGENTS.md Devin CLI / Devin
+      // Local actually reads, as plain markdown without Cascade frontmatter.
+      return new DevinRule({
+        outputRoot,
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
+        frontmatter: {},
+        body: rulesyncRule.getBody(),
+        validate,
+        root: true,
+      });
+    }
 
     const storedDevin = rulesyncFrontmatter.devin;
     const normalized = normalizeStoredDevin(storedDevin);

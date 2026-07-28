@@ -99,7 +99,12 @@ This is a test rule.`);
     it("should return nonRoot path under .devin/rules for project scope", () => {
       const paths = DevinRule.getSettablePaths();
 
-      expect("root" in paths).toBe(false);
+      // The root rule goes to the project-root AGENTS.md Devin CLI/Local
+      // reads (issue #2406); Cascade's .devin/rules/ holds non-root rules.
+      expect((paths as { root: { relativeFilePath: string } }).root).toEqual({
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
+      });
       const nonRoot = (paths as { nonRoot: { relativeDirPath: string } }).nonRoot;
       expect(nonRoot.relativeDirPath).toBe(join(".devin", "rules"));
     });
@@ -620,6 +625,40 @@ This is a test rule.`);
       if (result.success) {
         expect(result.data.trigger).toBe("custom-trigger");
         expect((result.data as any).extraField).toBe("value");
+      }
+    });
+  });
+
+  describe("project-root AGENTS.md (issue #2406)", () => {
+    it("should emit the root rule to ./AGENTS.md as plain markdown", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "overview.md",
+        frontmatter: { root: true, targets: ["devin"] },
+        body: "# Overview",
+      });
+
+      const rule = DevinRule.fromRulesyncRule({ rulesyncRule });
+      expect(rule.isRoot()).toBe(true);
+      expect(rule.getRelativeDirPath()).toBe(".");
+      expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
+      // Devin CLI/Local reads plain markdown here - no Cascade frontmatter.
+      expect(rule.getFileContent()).toBe("# Overview");
+    });
+
+    it("should import the project-root AGENTS.md as the root rule", async () => {
+      const { testDir: rootTestDir, cleanup: rootCleanup } = await setupTestDirectory();
+      try {
+        await writeFileContent(join(rootTestDir, "AGENTS.md"), "# Overview");
+
+        const rule = await DevinRule.fromFile({
+          outputRoot: rootTestDir,
+          relativeFilePath: "AGENTS.md",
+        });
+        expect(rule.isRoot()).toBe(true);
+        expect(rule.toRulesyncRule().getFrontmatter().root).toBe(true);
+      } finally {
+        await rootCleanup();
       }
     });
   });

@@ -43,6 +43,9 @@ const rulesRootTargets = [
   { target: "qwencode", outputPath: "QWEN.md" },
   { target: "junie", outputPath: join(".junie", "AGENTS.md") },
   { target: "warp", outputPath: "AGENTS.md" },
+  // The root rule goes to the project-root AGENTS.md Devin CLI/Local reads
+  // (issue #2406); .devin/rules/ holds non-root Cascade rules.
+  { target: "devin", outputPath: "AGENTS.md" },
   { target: "replit", outputPath: "replit.md" },
   { target: "pi", outputPath: "AGENTS.md" },
   { target: "zed", outputPath: ".rules" },
