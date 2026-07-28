@@ -125,12 +125,21 @@ function toPermissionsTable(value: unknown): Record<string, unknown> {
 
 // The `[agent]` sub-keys the `reasonix` override authors and round-trips. The
 // whole `[sandbox]` table is a dedicated security surface, so it round-trips in
-// full; `[agent]` also holds unrelated settings, so only the plan-mode read-only
-// trust lists are extracted on import.
-const REASONIX_OVERRIDE_AGENT_KEYS = [
-  "plan_mode_allowed_tools",
-  "plan_mode_read_only_commands",
-] as const;
+// full; `[agent]` also holds unrelated settings, so only the plan-mode keys are
+// extracted on import.
+// `plan_mode_read_only_commands` survives upstream, though labelled "legacy
+// compatibility only; Plan bash now uses Permissions", so it stays authorable.
+// https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
+const REASONIX_OVERRIDE_AGENT_KEYS = ["plan_mode_read_only_commands"] as const;
+
+/**
+ * `[agent]` keys an older `reasonix.toml` may carry that left the documented
+ * config surface in v1.17.18 — plan-mode tool access is the permissions layer's
+ * job now. Still lifted on import, so the value stays visible in the
+ * tool-scoped `reasonix` override rather than vanishing, but stripped before
+ * anything is written: authoring a key Reasonix ignores helps nobody.
+ */
+const REASONIX_RETIRED_AGENT_KEYS = ["plan_mode_allowed_tools"] as const;
 
 function asReasonixRecord(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -278,7 +287,25 @@ export class ReasonixPermissions extends ToolPermissions {
       };
     }
     if (override?.agent !== undefined) {
-      patch.agent = { ...asReasonixRecord(parsed.agent), ...asReasonixRecord(override.agent) };
+      const mergedAgent = {
+        ...asReasonixRecord(parsed.agent),
+        ...asReasonixRecord(override.agent),
+      };
+      // Strip from the merged table, not just from what was authored: dropping
+      // only the authored value would leave a wider list already in the file
+      // untouched, so narrowing one would be the single edit that never lands.
+      const retired = REASONIX_RETIRED_AGENT_KEYS.filter((key) => mergedAgent[key] !== undefined);
+      for (const key of retired) {
+        delete mergedAgent[key];
+      }
+      if (retired.length > 0) {
+        logger?.warn(
+          `Reasonix permissions: removing ${retired.map((key) => `"${key}"`).join(", ")} from ` +
+            `[agent] in ${filePath}; Reasonix took the key off its config surface in v1.17.18, ` +
+            `so what it used to express now belongs in the shared \`permission\` block.`,
+        );
+      }
+      patch.agent = mergedAgent;
     }
 
     return new ReasonixPermissions({
@@ -306,13 +333,16 @@ export class ReasonixPermissions extends ToolPermissions {
 
     // Route Reasonix's security tables into the `reasonix` override — they have
     // no canonical category. The `[sandbox]` table is dedicated, so it
-    // round-trips in full; only the plan-mode trust lists are lifted from
+    // round-trips in full; only the plan-mode keys are lifted from
     // `[agent]` (which also carries unrelated settings). Note the merge is
     // shallow on generate but the extract is whole-table for `[sandbox]`, so an
     // existing `[sandbox]` key the override did not author is pulled into the
     // override on the next import.
     const sandbox = asReasonixRecord(this.toml.sandbox);
-    const agentPlanMode = pickReasonixKeys(this.toml.agent, REASONIX_OVERRIDE_AGENT_KEYS);
+    const agentPlanMode = pickReasonixKeys(this.toml.agent, [
+      ...REASONIX_OVERRIDE_AGENT_KEYS,
+      ...REASONIX_RETIRED_AGENT_KEYS,
+    ]);
     const reasonixOverride: Record<string, unknown> = {};
     if (Object.keys(sandbox).length > 0) reasonixOverride.sandbox = sandbox;
     if (Object.keys(agentPlanMode).length > 0) reasonixOverride.agent = agentPlanMode;
