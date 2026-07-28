@@ -605,6 +605,48 @@ describe("CopilotcliMcp", () => {
       });
     });
 
+    it("should skip a wss:// server that names no transport, in any letter case", async () => {
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            bare: { url: "wss://example.com/mcp" },
+            upperCase: { httpUrl: "WSS://example.com/mcp" },
+          },
+        }),
+      });
+
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
+        rulesyncMcp,
+        logger: mockLogger,
+      });
+
+      // Written as `http`, the url scheme would sit under a transport Copilot
+      // CLI speaks HTTP to.
+      expect(copilotCliMcp.getJson().mcpServers).toEqual({});
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "bare"'));
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "upperCase"'));
+    });
+
+    it("should keep the httpUrl alias out of a stdio server too", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { odd: { type: "stdio", command: "node", httpUrl: "https://example.com" } },
+        }),
+      });
+
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({ rulesyncMcp });
+
+      expect(copilotCliMcp.getJson().mcpServers!.odd).toEqual({
+        type: "stdio",
+        command: "node",
+      });
+    });
+
     it("should skip a WebSocket server, which Copilot CLI has no transport for", async () => {
       const mockLogger = { warn: vi.fn() } as unknown as Logger;
       const rulesyncMcp = new RulesyncMcp({

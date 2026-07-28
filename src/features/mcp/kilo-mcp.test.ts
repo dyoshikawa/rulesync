@@ -1596,6 +1596,11 @@ describe("KiloMcp", () => {
             args: ["b.js"],
             enabledTools: ["list"],
           },
+          // Named by no entry of `mcp`, so it filters a server another config
+          // layer defines; it comes back as a server with only the filter.
+          unrelated: {
+            disabledTools: ["tool"],
+          },
         },
       });
     });
@@ -2808,6 +2813,50 @@ describe("KiloMcp toggle entries", () => {
     expect(JSON.parse(kiloMcp.getFileContent()).mcp).toEqual({ marketplace: { enabled: false } });
   });
 
+  it("keeps a toggle even when a sibling entry in the file is malformed", async () => {
+    // The file is read entry by entry: one server this adapter cannot parse
+    // must not decide that every other server stays switched on.
+    await writeFileContent(
+      join(testDir, "kilo.jsonc"),
+      JSON.stringify({
+        mcp: {
+          marketplace: { enabled: false },
+          handwritten: { type: "local", command: "npx -y srv" },
+        },
+      }),
+    );
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: ".rulesync",
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({ mcpServers: { marketplace: {} } }),
+    });
+
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+    expect(JSON.parse(kiloMcp.getFileContent()).mcp).toEqual({ marketplace: { enabled: false } });
+  });
+
+  it("does not mistake a server named after an Object.prototype member for a toggle", async () => {
+    // `toString` reaches this adapter (only the prototype-pollution keys are
+    // stripped upstream), and looking it up on the map of existing entries
+    // without an own-property check would answer with a function.
+    const mockLogger = { warn: vi.fn() } as unknown as Logger;
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: ".rulesync",
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({ mcpServers: { toString: {} } }),
+    });
+
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp,
+      logger: mockLogger,
+    });
+
+    expect(JSON.parse(kiloMcp.getFileContent()).mcp).toEqual({});
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "toString"'));
+  });
+
   it("keeps the tool filters of a transport-less server it does not write", async () => {
     // Kilo's `tools` map is keyed by server name and reaches servers `mcp` does
     // not list, so a filter switching off a dangerous tool of a server another
@@ -2827,8 +2876,9 @@ describe("KiloMcp toggle entries", () => {
     const written = JSON.parse(kiloMcp.getFileContent());
 
     expect(written.mcp).toEqual({});
-    // The broken one takes its filters with it; the transport-less one does not.
-    expect(written.tools).toEqual({ gh_delete_repo: false });
+    // Both survive: the map is independent of `mcp`, so dropping a filter with
+    // the entry would re-enable a tool on whichever layer defines the server.
+    expect(written.tools).toEqual({ gh_delete_repo: false, broken_wipe: false });
   });
 
   it("drops an enabled server that older Rulesync versions wrote with no command", async () => {
@@ -2873,8 +2923,9 @@ describe("KiloMcp toggle entries", () => {
     const written = JSON.parse(kiloMcp.getFileContent());
 
     expect(Object.keys(written.mcp)).toEqual(["fine"]);
-    // A skipped server leaves no tool filters behind either.
-    expect(written.tools).toBeUndefined();
+    // The filters of a skipped server stay: the map reaches servers `mcp` does
+    // not list, so they are not this entry's to take away.
+    expect(written.tools).toEqual({ headless_a: true });
     expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "headless"'));
     expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "noUrl"'));
   });

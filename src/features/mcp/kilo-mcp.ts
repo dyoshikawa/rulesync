@@ -13,11 +13,13 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import {
   declaresNoTransport,
   isRemoteMcpServer,
   type McpServerConfig,
+  orphanMcpToolFiltersToRulesync,
   resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
   warnAndSkipMcpServer,
@@ -244,12 +246,15 @@ function convertFromKiloFormat(
   kiloMcp: Record<string, KiloMcpServer>,
   tools?: Record<string, boolean>,
 ): McpServers {
-  return Object.fromEntries(
-    Object.entries(kiloMcp).map(([serverName, serverConfig]) => [
-      serverName,
-      kiloServerToRulesync(serverName, serverConfig, splitKiloServerTools(serverName, tools)),
-    ]),
-  );
+  return {
+    ...Object.fromEntries(
+      Object.entries(kiloMcp).map(([serverName, serverConfig]) => [
+        serverName,
+        kiloServerToRulesync(serverName, serverConfig, splitKiloServerTools(serverName, tools)),
+      ]),
+    ),
+    ...orphanMcpToolFiltersToRulesync(kiloMcp, tools),
+  };
 }
 
 /**
@@ -326,6 +331,7 @@ function convertServerToKiloFormat(
         // Dropping the entry would switch the server back on just as surely,
         // since Rulesync rewrites the whole `mcp` key. Leave the toggle the
         // file already carries exactly as it is.
+        warnAboutToggleDroppedKeys(serverName, serverConfig, logger);
         return existingEntry;
       }
       return warnAndSkipMcpServer({
@@ -391,6 +397,28 @@ function convertServerToKiloFormat(
   };
 }
 
+/**
+ * The `mcp` entries of an on-disk `kilo.jsonc` that this adapter can read. Each
+ * is parsed on its own so a malformed sibling costs only itself, and a file
+ * that is not an object at all costs nothing.
+ */
+function readExistingKiloMcpEntries(fileContent: string | null): Record<string, KiloMcpServer> {
+  const parsed = parseJsonc(fileContent || "{}");
+  const mcp = (parsed as { mcp?: unknown } | null)?.mcp;
+  if (!isRecord(mcp)) {
+    return {};
+  }
+
+  const entries: Record<string, KiloMcpServer> = {};
+  for (const [serverName, entry] of Object.entries(mcp)) {
+    const result = KiloMcpServerSchema.safeParse(entry);
+    if (result.success) {
+      entries[serverName] = result.data;
+    }
+  }
+  return entries;
+}
+
 function convertToKiloFormat(
   mcpServers: McpServers,
   existingMcp: Record<string, KiloMcpServer>,
@@ -407,17 +435,18 @@ function convertToKiloFormat(
         const converted = convertServerToKiloFormat(
           serverName,
           serverConfig,
-          existingMcp[serverName],
+          // Own properties only: a server named `constructor` would otherwise
+          // resolve to something off `Object.prototype` and be mistaken for a
+          // toggle already in the file.
+          Object.hasOwn(existingMcp, serverName) ? existingMcp[serverName] : undefined,
           logger,
         );
-        // A server skipped for a broken transport takes its tool filters with
-        // it. A transport-less one does not: Kilo's `tools` map is keyed by
-        // server name and reaches servers `mcp` does not list at all, so a
-        // filter turning off a dangerous tool of a server another config layer
-        // defines has to survive whether or not an entry is written here.
-        if (converted !== null || declaresNoTransport(serverConfig)) {
-          collectKiloServerTools(tools, serverName, serverConfig);
-        }
+        // Collected whether or not an entry is written: Kilo's `tools` map is
+        // keyed by server name and reaches servers `mcp` does not list at all,
+        // so a filter turning off a dangerous tool of a server another config
+        // layer defines must not be dropped along with the entry Kilo could
+        // not have used anyway.
+        collectKiloServerTools(tools, serverName, serverConfig);
         return converted === null ? null : ([serverName, converted] as const);
       })
       .filter((entry) => entry !== null),
@@ -567,11 +596,10 @@ export class KiloMcp extends ToolMcp {
     }
 
     // The `mcp` key is rewritten whole, so a toggle the canonical config states
-    // nothing about is read from here to be written back unchanged. A file this
-    // adapter cannot parse is left out of it: the constructor below reports
-    // that, and a half-read one must not decide what stays switched off.
-    const existing = KiloConfigSchema.safeParse(parseJsonc(fileContent || "{}"));
-    const existingMcp = existing.success ? (existing.data.mcp ?? {}) : {};
+    // nothing about is read from here to be written back unchanged. Entry by
+    // entry, not file at once: one sibling this adapter cannot parse must not
+    // decide that every other server stays switched on.
+    const existingMcp = readExistingKiloMcpEntries(fileContent);
 
     const { mcp: convertedMcp, tools: mcpTools } = convertToKiloFormat(
       rulesyncMcp.getMcpServers(),

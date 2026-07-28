@@ -43,8 +43,10 @@ const isWebSocketServer = (server: McpServer): boolean => {
   if ((server.type ?? server.transport) === "ws") {
     return true;
   }
-  const url = server.url ?? server.httpUrl;
-  return url !== undefined && /^wss?:\/\//.test(url);
+  // The same resolution the write side uses, so the two cannot disagree about
+  // which url is the one going out. Schemes are case-insensitive.
+  const url = resolveRemoteMcpUrl(server);
+  return url !== undefined && /^wss?:\/\//i.test(url);
 };
 
 /**

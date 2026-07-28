@@ -1577,6 +1577,11 @@ describe("OpencodeMcp", () => {
             args: ["b.js"],
             enabledTools: ["list"],
           },
+          // Named by no entry of `mcp`, so it filters a server another config
+          // layer defines; it comes back as a server with only the filter.
+          unrelated: {
+            disabledTools: ["tool"],
+          },
         },
       });
     });
@@ -2651,8 +2656,9 @@ describe("OpencodeMcp", () => {
       const json = opencodeMcp.getJson() as any;
 
       expect(Object.keys(json.mcp)).toEqual(["fine"]);
-      // A skipped server leaves no tool filters behind either.
-      expect(json.tools).toBeUndefined();
+      // The filters of a skipped server stay: the map reaches servers `mcp`
+      // does not list, so they are not this entry's to take away.
+      expect(json.tools).toEqual({ toggled_read: true });
       for (const name of ["toggled", "headless", "noUrl"]) {
         expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining(`skipping "${name}"`));
       }

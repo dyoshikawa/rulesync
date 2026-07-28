@@ -21,6 +21,7 @@ import {
   declaresNoTransport,
   isRemoteMcpServer,
   type McpServerConfig,
+  orphanMcpToolFiltersToRulesync,
   resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
   warnAndSkipMcpServer,
@@ -111,6 +112,16 @@ const OPENCODE_KNOWN_SERVER_KEYS = new Set([
 ]);
 
 function convertFromOpencodeFormat(
+  opencodeMcp: Record<string, OpencodeMcpServer>,
+  tools?: Record<string, boolean>,
+): McpServers {
+  return {
+    ...orphanMcpToolFiltersToRulesync(opencodeMcp, tools),
+    ...convertOpencodeServers(opencodeMcp, tools),
+  };
+}
+
+function convertOpencodeServers(
   opencodeMcp: Record<string, OpencodeMcpServer>,
   tools?: Record<string, boolean>,
 ): McpServers {
@@ -287,12 +298,10 @@ function convertToOpencodeFormat(
     Object.entries(mcpServers)
       .map(([serverName, serverConfig]) => {
         const converted = convertServerToOpencodeFormat(serverName, serverConfig, logger);
-        if (converted === null) {
-          return null;
-        }
 
-        // Only after the server itself survives: a skipped server must not
-        // leave its tool filters behind in the shared `tools` map.
+        // Collected whether or not an entry is written: the `tools` map is
+        // keyed by server name and reaches servers `mcp` does not list, so a
+        // filter turning off a dangerous tool is not this entry's to take away.
         if (serverConfig.enabledTools) {
           for (const tool of serverConfig.enabledTools) {
             tools[`${serverName}_${tool}`] = true;
@@ -303,7 +312,7 @@ function convertToOpencodeFormat(
             tools[`${serverName}_${tool}`] = false;
           }
         }
-        return [serverName, converted] as const;
+        return converted === null ? null : ([serverName, converted] as const);
       })
       .filter((entry) => entry !== null),
   );

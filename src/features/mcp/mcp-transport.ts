@@ -83,3 +83,43 @@ export function warnAndSkipMcpServer({
   logger?.warn(`${toolName} MCP: skipping "${serverName}" because it declares ${reason}.`);
   return null;
 }
+
+/**
+ * The `tools` map Kilo and OpenCode keep beside `mcp` is keyed `<server>_<tool>`
+ * and reaches servers `mcp` does not list — ones the global config or a
+ * marketplace defines — so entries naming no listed
+ * server are filters that would be dropped by a walk over `mcp` alone, and
+ * deleted from the file on the next generate. They come back as transport-less
+ * servers carrying nothing but the filters.
+ *
+ * The split is at the first `_`, which is where the write side joined them. A
+ * server whose own name contains one is reconstructed under a shorter name, but
+ * the key it is written back as is character-for-character the one that was
+ * read, so Kilo sees exactly what it saw before.
+ */
+export function orphanMcpToolFiltersToRulesync(
+  servers: Record<string, unknown>,
+  tools: Record<string, boolean> | undefined,
+): McpServers {
+  const orphans: McpServers = {};
+
+  for (const [toolName, enabled] of Object.entries(tools ?? {})) {
+    if (Object.keys(servers).some((serverName) => toolName.startsWith(`${serverName}_`))) {
+      continue;
+    }
+    const separator = toolName.indexOf("_");
+    if (separator <= 0 || separator === toolName.length - 1) {
+      continue;
+    }
+    const serverName = toolName.slice(0, separator);
+    const toolSuffix = toolName.slice(separator + 1);
+    const server = (orphans[serverName] ??= {});
+    if (enabled) {
+      (server.enabledTools ??= []).push(toolSuffix);
+    } else {
+      (server.disabledTools ??= []).push(toolSuffix);
+    }
+  }
+
+  return orphans;
+}

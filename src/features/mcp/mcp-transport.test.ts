@@ -4,6 +4,7 @@ import type { Logger } from "../../utils/logger.js";
 import {
   declaresNoTransport,
   isRemoteMcpServer,
+  orphanMcpToolFiltersToRulesync,
   resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
   warnAndSkipMcpServer,
@@ -105,5 +106,38 @@ describe("warnAndSkipMcpServer", () => {
     expect(
       warnAndSkipMcpServer({ toolName: "Kilo", serverName: "broken", reason: "nothing" }),
     ).toBeNull();
+  });
+});
+
+describe("orphanMcpToolFiltersToRulesync", () => {
+  it("rebuilds a server for a filter no listed server claims", () => {
+    expect(
+      orphanMcpToolFiltersToRulesync({ known: {} }, { known_a: true, ghost_b: false }),
+    ).toEqual({ ghost: { disabledTools: ["b"] } });
+  });
+
+  it("groups several filters of the same absent server", () => {
+    expect(orphanMcpToolFiltersToRulesync({}, { gh_read: true, gh_delete_repo: false })).toEqual({
+      gh: { enabledTools: ["read"], disabledTools: ["delete_repo"] },
+    });
+  });
+
+  it("splits at the first underscore, which is where the write side joined", () => {
+    // A server whose own name carries one comes back under a shorter name, but
+    // the key written out of it is the one that was read, so the tool sees no
+    // difference.
+    expect(orphanMcpToolFiltersToRulesync({}, { my_server_tool: false })).toEqual({
+      my: { disabledTools: ["server_tool"] },
+    });
+  });
+
+  it("ignores a key that names no tool", () => {
+    expect(
+      orphanMcpToolFiltersToRulesync({}, { plain: true, trailing_: true, _lead: true }),
+    ).toEqual({});
+  });
+
+  it("returns nothing when there is no tools map", () => {
+    expect(orphanMcpToolFiltersToRulesync({ a: {} }, undefined)).toEqual({});
   });
 });
