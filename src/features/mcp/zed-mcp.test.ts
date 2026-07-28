@@ -11,6 +11,9 @@ import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.j
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import { ZedMcp } from "./zed-mcp.js";
 
+const expectedZedGlobalDir =
+  process.platform === "win32" ? join("AppData", "Roaming", "Zed") : join(".config", "zed");
+
 describe("ZedMcp", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -32,9 +35,9 @@ describe("ZedMcp", () => {
       expect(paths.relativeFilePath).toBe("settings.json");
     });
 
-    it("should return ~/.config/zed/settings.json for global mode", () => {
+    it("should return the platform's global Zed dir for global mode", () => {
       const paths = ZedMcp.getSettablePaths({ global: true });
-      expect(paths.relativeDirPath).toBe(join(".config", "zed"));
+      expect(paths.relativeDirPath).toBe(expectedZedGlobalDir);
       expect(paths.relativeFilePath).toBe("settings.json");
     });
   });
@@ -153,7 +156,142 @@ describe("ZedMcp", () => {
       });
 
       const mcp = await ZedMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, global: true });
-      expect(mcp.getFilePath()).toBe(join(testDir, ".config", "zed", "settings.json"));
+      expect(mcp.getFilePath()).toBe(join(testDir, expectedZedGlobalDir, "settings.json"));
+    });
+
+    it("should write a disabled server as enabled: false, not as a disabled key Zed ignores", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { off: { command: "node", disabled: true } },
+        }),
+      });
+
+      const mcp = await ZedMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const json = mcp.getJson() as { context_servers: Record<string, unknown> };
+      expect(json.context_servers.off).toEqual({ command: "node", enabled: false });
+    });
+
+    it("should normalize httpUrl to the url Zed reads", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            remote: { httpUrl: "https://example.com/mcp", headers: { Authorization: "Bearer x" } },
+          },
+        }),
+      });
+
+      const mcp = await ZedMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const json = mcp.getJson() as { context_servers: Record<string, unknown> };
+      expect(json.context_servers.remote).toEqual({
+        url: "https://example.com/mcp",
+        headers: { Authorization: "Bearer x" },
+      });
+    });
+
+    it("should flatten an array command into Zed's string command plus args", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { local: { command: ["npx", "-y"], args: ["pkg"] } },
+        }),
+      });
+
+      const mcp = await ZedMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const json = mcp.getJson() as { context_servers: Record<string, unknown> };
+      expect(json.context_servers.local).toEqual({ command: "npx", args: ["-y", "pkg"] });
+    });
+
+    it("should drop canonical-only fields Zed does not read", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            local: {
+              type: "stdio",
+              command: "node",
+              trust: true,
+              cwd: "/tmp",
+              networkTimeout: 5,
+              alwaysAllow: ["read"],
+              kiroAutoApprove: ["read"],
+            },
+          },
+        }),
+      });
+
+      const mcp = await ZedMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const json = mcp.getJson() as { context_servers: Record<string, unknown> };
+      expect(json.context_servers.local).toEqual({ command: "node" });
+    });
+
+    it("should pass through fields rulesync does not model, like a remote oauth block", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            remote: { url: "https://example.com/mcp", oauth: { scopes: ["mcp"] } },
+          },
+        }),
+      });
+
+      const mcp = await ZedMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const json = mcp.getJson() as { context_servers: Record<string, unknown> };
+      expect(json.context_servers.remote).toEqual({
+        url: "https://example.com/mcp",
+        oauth: { scopes: ["mcp"] },
+      });
+    });
+
+    it("should write a transport-less server as Zed's extension-provided variant", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          zed: {
+            mcpServers: {
+              "extension-server": { settings: { database: "main" }, disabled: true },
+            },
+          },
+          mcpServers: {},
+        }),
+      });
+
+      const mcp = await ZedMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: rulesyncMcp.forTarget({ toolTarget: "zed" }),
+      });
+      const json = mcp.getJson() as { context_servers: Record<string, unknown> };
+      expect(json.context_servers["extension-server"]).toEqual({
+        settings: { database: "main" },
+        enabled: false,
+      });
+    });
+
+    it.each([
+      ["sse", { type: "sse", url: "https://example.com/sse" }],
+      ["ws", { type: "ws", url: "wss://example.com" }],
+      ["url-less remote", { type: "http" }],
+      ["command-less local", { type: "stdio" }],
+    ])("should skip a server Zed cannot start: %s", async (_label, server) => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { broken: server, kept: { command: "node" } },
+        }),
+      });
+
+      const mcp = await ZedMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const json = mcp.getJson() as { context_servers: Record<string, unknown> };
+      expect(json.context_servers.broken).toBeUndefined();
+      expect(json.context_servers.kept).toEqual({ command: "node" });
     });
   });
 
@@ -177,6 +315,38 @@ describe("ZedMcp", () => {
       // private_files must not leak into the rulesync MCP output.
       expect(exported.private_files).toBeUndefined();
       expect(exported.context_servers).toBeUndefined();
+    });
+
+    it("should import enabled: false back as the canonical disabled: true", () => {
+      const mcp = new ZedMcp({
+        relativeDirPath: ".zed",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          context_servers: { off: { command: "node", enabled: false } },
+        }),
+      });
+
+      const exported = JSON.parse(mcp.toRulesyncMcp().getFileContent());
+      expect(exported.mcpServers.off).toEqual({ command: "node", disabled: true });
+    });
+
+    it("should import an extension-provided server into the zed-only block", () => {
+      const mcp = new ZedMcp({
+        relativeDirPath: ".zed",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          context_servers: {
+            "extension-server": { settings: { database: "main" } },
+            local: { command: "node" },
+          },
+        }),
+      });
+
+      const exported = JSON.parse(mcp.toRulesyncMcp().getFileContent());
+      expect(exported.mcpServers).toEqual({ local: { command: "node" } });
+      expect(exported.zed).toEqual({
+        mcpServers: { "extension-server": { settings: { database: "main" } } },
+      });
     });
 
     it("should produce empty mcpServers when no context_servers are present", () => {

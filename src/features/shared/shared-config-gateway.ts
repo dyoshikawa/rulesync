@@ -376,6 +376,15 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
     },
   },
+  // The same global Zed settings under the Windows user config dir
+  // (`%APPDATA%\Zed`), which `getZedGlobalDir()` resolves to on win32.
+  "AppData/Roaming/Zed/settings.json": {
+    format: "json",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["context_servers"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
+    },
+  },
   // VS Code workspace settings (`.vscode/settings.json`): a general-purpose
   // user/project settings file. Copilot permissions owns only the single flat
   // dotted key `chat.tools.terminal.autoApprove` (VS Code stores dotted setting

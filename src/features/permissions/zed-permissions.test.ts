@@ -4,8 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { ZedPermissions } from "./zed-permissions.js";
+
+const expectedZedGlobalDir =
+  process.platform === "win32" ? join("AppData", "Roaming", "Zed") : join(".config", "zed");
 
 function createRulesyncPermissions(permission: Record<string, Record<string, string>>) {
   return new RulesyncPermissions({
@@ -39,7 +43,7 @@ describe("ZedPermissions", () => {
 
     it("should return the global settings path when global is true", () => {
       const paths = ZedPermissions.getSettablePaths({ global: true });
-      expect(paths.relativeDirPath).toBe(join(".config", "zed"));
+      expect(paths.relativeDirPath).toBe(expectedZedGlobalDir);
       expect(paths.relativeFilePath).toBe("settings.json");
     });
   });
@@ -142,6 +146,87 @@ describe("ZedPermissions", () => {
       expect(json.agent.tool_permissions.tools.terminal.default).toBe("allow");
     });
 
+    it("should map the canonical * category's catch-all onto the global default", async () => {
+      const rulesyncPermissions = createRulesyncPermissions({
+        "*": { "*": "allow" },
+        bash: { "rm *": "deny" },
+      });
+
+      const permissions = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.agent.tool_permissions.default).toBe("allow");
+      // `*` is not a Zed tool name, so no inert tools entry may be written.
+      expect(json.agent.tool_permissions.tools["*"]).toBeUndefined();
+      expect(json.agent.tool_permissions.tools.terminal.always_deny).toEqual([
+        { pattern: "rm *", case_sensitive: false },
+      ]);
+    });
+
+    it("should drop a pattern-scoped * category rule with a warning instead of writing inert config", async () => {
+      const warn = vi.fn();
+      const rulesyncPermissions = createRulesyncPermissions({
+        "*": { "*": "deny", "src/**": "allow" },
+      });
+
+      const permissions = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: { warn } as unknown as Logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.agent.tool_permissions.default).toBe("deny");
+      expect(json.agent.tool_permissions.tools["*"]).toBeUndefined();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('pattern "src/**"'));
+    });
+
+    it("should replace the stale tools['*'] entry older versions wrote for the * category", async () => {
+      await writeFileContent(
+        join(testDir, ".zed", "settings.json"),
+        JSON.stringify({
+          agent: {
+            tool_permissions: {
+              tools: { "*": { default: "allow" }, custom_tool: { default: "allow" } },
+            },
+          },
+        }),
+      );
+
+      const rulesyncPermissions = createRulesyncPermissions({
+        "*": { "*": "ask" },
+      });
+
+      const permissions = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.agent.tool_permissions.default).toBe("confirm");
+      expect(json.agent.tool_permissions.tools["*"]).toBeUndefined();
+      // A hand-written entry for an unmanaged tool still survives.
+      expect(json.agent.tool_permissions.tools.custom_tool.default).toBe("allow");
+    });
+
+    it("should map canonical write onto Zed's write_file tool", async () => {
+      const rulesyncPermissions = createRulesyncPermissions({
+        write: { "*": "deny" },
+      });
+
+      const permissions = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.agent.tool_permissions.tools.write_file.default).toBe("deny");
+      expect(json.agent.tool_permissions.tools.write).toBeUndefined();
+    });
+
     it("should throw on a malformed existing settings.json instead of overwriting it", async () => {
       await writeFileContent(join(testDir, ".zed", "settings.json"), "{ not valid json");
 
@@ -224,6 +309,40 @@ describe("ZedPermissions", () => {
 
       expect(json.permission.bash).toEqual({ "*": "ask", "git *": "allow" });
       expect(json.permission.webfetch).toEqual({ "domain:github.com": "allow" });
+    });
+
+    it("should round-trip the * category through agent.tool_permissions.default", async () => {
+      const rulesyncPermissions = createRulesyncPermissions({
+        "*": { "*": "deny" },
+      });
+
+      const generated = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+      await writeFileContent(join(testDir, ".zed", "settings.json"), generated.getFileContent());
+
+      const imported = await ZedPermissions.fromFile({ outputRoot: testDir });
+      const json = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+
+      expect(json.permission["*"]).toEqual({ "*": "deny" });
+    });
+
+    it("should round-trip write via Zed's write_file tool name", async () => {
+      const rulesyncPermissions = createRulesyncPermissions({
+        write: { "*": "ask", "docs/**": "allow" },
+      });
+
+      const generated = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+      await writeFileContent(join(testDir, ".zed", "settings.json"), generated.getFileContent());
+
+      const imported = await ZedPermissions.fromFile({ outputRoot: testDir });
+      const json = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+
+      expect(json.permission.write).toEqual({ "*": "ask", "docs/**": "allow" });
     });
 
     it("should round-trip websearch via Zed's search_web tool name", async () => {
