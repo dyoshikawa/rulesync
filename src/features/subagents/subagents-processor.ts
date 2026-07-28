@@ -171,7 +171,8 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // stored under `.cline/agents/` (project) and `~/.cline/agents/` (global).
       // https://github.com/cline/cline/blob/main/apps/vscode/src/core/task/tools/subagent/AgentConfigLoader.ts
       class: ClineSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.yaml" },
+      // isYamlFile() upstream accepts .yml alongside .yaml, so import scans both.
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.{yaml,yml}" },
     },
   ],
   [

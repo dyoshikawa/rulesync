@@ -2541,14 +2541,14 @@ targets: ["${toolTarget}"]
         join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
         `---
 root: true
-targets: ["cline"]
+targets: ["amp"]
 ---
 # Global root`,
       );
       await writeFileContent(
         join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "detail.md"),
         `---
-targets: ["cline"]
+targets: ["amp"]
 ---
 # Global detail`,
       );
@@ -2557,7 +2557,7 @@ targets: ["cline"]
       const processor = new RulesProcessor({
         logger,
         outputRoot: testDir,
-        toolTarget: "cline",
+        toolTarget: "amp",
         global: true,
       });
 

@@ -84,6 +84,11 @@ describe("ClineRule", () => {
           relativeDirPath: ".agents",
           relativeFilePath: "AGENTS.md",
         },
+        // Global modular rules (issue #2405): read by the VS Code extension
+        // and the SDK/CLI alike.
+        nonRoot: {
+          relativeDirPath: join("Documents", "Cline", "Rules"),
+        },
       });
     });
   });
@@ -334,7 +339,7 @@ describe("ClineRule", () => {
       expect(clineRule.getFileContent()).toContain("# Global Cline Rule");
     });
 
-    it("should throw for a non-root rule in global mode", () => {
+    it("should emit a non-root global rule to ~/Documents/Cline/Rules (issue #2405)", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: ".",
         relativeFilePath: "detail.md",
@@ -342,17 +347,20 @@ describe("ClineRule", () => {
           root: false,
           targets: ["*"],
           description: "Detail rule",
-          globs: [],
+          globs: ["src/**/*.ts"],
         },
         body: "# Detail",
       });
 
-      expect(() =>
-        ClineRule.fromRulesyncRule({
-          rulesyncRule,
-          global: true,
-        }),
-      ).toThrow(/does not support non-root rules in global mode/);
+      const rule = ClineRule.fromRulesyncRule({
+        rulesyncRule,
+        global: true,
+      });
+      expect(rule.getRelativeDirPath()).toBe(join("Documents", "Cline", "Rules"));
+      expect(rule.getRelativeFilePath()).toBe("detail.md");
+      expect(rule.isRoot()).toBe(false);
+      // The same conditional frontmatter conversion project rules get.
+      expect(rule.getFileContent()).toContain("paths:");
     });
   });
 

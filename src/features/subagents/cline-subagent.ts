@@ -29,8 +29,18 @@ import {
 //      `~/.cline/agents` global)
 // looseObject preserves unknown keys so future fields round-trip cleanly.
 const ClineSubagentFrontmatterSchema = z.looseObject({
-  name: z.string(),
-  description: z.optional(z.string()),
+  name: z.string().check(z.minLength(1)),
+  // Cline's ConfiguredAgentFrontmatterSchema requires a non-empty description
+  // (cli-v3.0.23+): a missing or empty value makes parseConfiguredAgentConfig
+  // throw and the agent is silently skipped, so the schema matches upstream.
+  description: z.string().check(z.minLength(1)),
+  // Typed optional fields of the same upstream schema (unknown future keys
+  // still pass through the looseObject).
+  tools: z.optional(z.union([z.string(), z.array(z.string())])),
+  skills: z.optional(z.union([z.string(), z.array(z.string())])),
+  providerId: z.optional(z.string()),
+  modelId: z.optional(z.string()),
+  maxIterations: z.optional(z.number().check(z.int(), z.positive())),
 });
 
 type ClineSubagentFrontmatter = z.infer<typeof ClineSubagentFrontmatterSchema>;
@@ -121,7 +131,10 @@ export class ClineSubagent extends ToolSubagent {
 
     const clineFrontmatter: ClineSubagentFrontmatter = {
       name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
+      // Cline refuses to load an agent without a non-empty description, so a
+      // canonical subagent that omits one gets a minimal fallback rather than
+      // a file Cline cannot load.
+      description: rulesyncFrontmatter.description || `${rulesyncFrontmatter.name} subagent`,
       ...clineSection,
     };
 
