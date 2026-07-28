@@ -1113,9 +1113,7 @@ describe("KiloMcp", () => {
       // Should have both the new server from rulesyncMcp and preserve other properties
       const newServer = kiloMcp.getJson().mcp?.["new-server"];
       expect(newServer).toBeDefined();
-      if (newServer?.type === "local") {
-        expect(newServer.type).toBe("local");
-      }
+      expect(newServer).toMatchObject({ type: "local" });
       // Note: existing server is replaced because we're updating mcp section
       // This is expected behavior as we're regenerating the mcp config
     });
@@ -2487,11 +2485,7 @@ describe("KiloMcp", () => {
       });
 
       const exampleServer = kiloMcp.getJson().mcp?.exampleServer;
-      expect(exampleServer).toBeDefined();
-      if (exampleServer?.type === "local") {
-        expect(exampleServer.type).toBe("local");
-        expect((exampleServer as any).command).toEqual(["npx", "example"]);
-      }
+      expect(exampleServer).toMatchObject({ type: "local", command: ["npx", "example"] });
     });
 
     it("should prefer kilo.jsonc over kilo.json when both exist", async () => {
@@ -2613,6 +2607,52 @@ describe("KiloMcp toggle entries", () => {
     // No transport of its own: it names a server another config layer defines,
     // so only its disabled state crosses over.
     expect(imported.mcpServers.toggled).toEqual({ disabled: true });
+  });
+
+  it("writes a toggle entry back as a toggle, not a local server that cannot start", async () => {
+    // `{type: "local", command: []}` would shadow the definition the other
+    // layer holds with one that cannot start, and re-importing it threw.
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: ".rulesync",
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: { toggled: { disabled: true }, on: {} },
+      }),
+    });
+
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({ rulesyncMcp });
+    const written = JSON.parse(kiloMcp.getFileContent()).mcp;
+
+    expect(written).toEqual({ toggled: { enabled: false }, on: { enabled: true } });
+  });
+
+  it("round-trips a toggle entry through generate and back", async () => {
+    const kiloMcp = new KiloMcp({
+      relativeDirPath: ".",
+      relativeFilePath: "kilo.jsonc",
+      fileContent: JSON.stringify({ mcp: { toggled: { enabled: false } } }),
+    });
+
+    const roundTripped = await KiloMcp.fromRulesyncMcp({ rulesyncMcp: kiloMcp.toRulesyncMcp() });
+
+    expect(JSON.parse(roundTripped.getFileContent()).mcp).toEqual({
+      toggled: { enabled: false },
+    });
+  });
+
+  it("still rejects a malformed server that happens to carry enabled", () => {
+    // The toggle arm is strict so it cannot absorb this: a string `command`
+    // would otherwise be read character by character and written back that way.
+    expect(
+      () =>
+        new KiloMcp({
+          relativeDirPath: ".",
+          relativeFilePath: "kilo.jsonc",
+          fileContent: JSON.stringify({
+            mcp: { broken: { type: "local", command: "npx -y foo", enabled: true } },
+          }),
+        }),
+    ).toThrow();
   });
 
   it("keeps an enabled toggle entry as an ordinary enabled server", () => {

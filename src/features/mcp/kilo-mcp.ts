@@ -60,15 +60,19 @@ const KiloMcpRemoteServerSchema = z.object({
 });
 
 /**
- * A bare toggle entry: `{"enabled": false}` with no transport of its own,
+ * A bare toggle entry: exactly `{"enabled": <bool>}` and nothing else,
  * disabling a server another config layer defines — the global config, a
  * marketplace, or a VS Code import. Kilo's own type is
  * `Record<string, Info | { enabled: boolean }>`; without this arm the union
  * rejects the entry and, because `kilo.jsonc` is the file the rules feature
  * writes too, the whole `--targets kilo` run aborts rather than just MCP.
+ *
+ * Strict on purpose: a loose arm would also swallow a malformed `local` or
+ * `remote` entry that happens to carry `enabled`, dropping its command or URL
+ * without a word instead of failing the way it does today.
  * @see https://github.com/Kilo-Org/kilocode/blob/main/packages/core/src/v1/config/config.ts
  */
-const KiloMcpToggleSchema = z.looseObject({
+const KiloMcpToggleSchema = z.strictObject({
   enabled: z.boolean(),
 });
 
@@ -102,14 +106,6 @@ const KiloConfigSchema = z.looseObject({
 type KiloConfig = z.infer<typeof KiloConfigSchema>;
 type KiloMcpServer = z.infer<typeof KiloMcpServerSchema>;
 
-/**
- * Convert Kilo native format back to standard MCP format
- * - type: "local" -> "stdio", "remote" -> "http"
- * - command (array) -> command (first element) + args (rest)
- * - environment -> env
- * - enabled -> disabled (inverted)
- * - top-level tools map -> per-server enabledTools/disabledTools (strip server prefix)
- */
 /** The three union arms differ only by `type`, so read them through one shape. */
 type KiloMcpServerShape = {
   type?: "local" | "remote";
@@ -154,7 +150,7 @@ function kiloServerToRulesync(
     ...(disabledTools.length > 0 && { disabledTools }),
   };
 
-  if (server.type !== "local" && server.type !== "remote") {
+  if (!("type" in server)) {
     // A toggle entry names a server another config layer defines, so there is
     // no transport to import — only its disabled state crosses over. Writing it
     // back keeps that layer switched off.
@@ -245,9 +241,29 @@ function collectKiloServerTools(
 }
 
 /**
- * Convert a single rulesync MCP server into its Kilo native form (local or remote).
+ * No transport of any kind: the server came from a Kilo toggle entry, which
+ * names a server another config layer defines. Writing it back as
+ * `{type: "local", command: []}` would shadow that definition with one that
+ * cannot start, so it goes back out as the toggle it was.
+ */
+function hasNoTransport(serverConfig: McpServerConfig): boolean {
+  return (
+    serverConfig.type === undefined &&
+    serverConfig.command === undefined &&
+    serverConfig.url === undefined &&
+    serverConfig.httpUrl === undefined
+  );
+}
+
+/**
+ * Convert a single rulesync MCP server into its Kilo native form (local, remote,
+ * or a bare toggle for a server another config layer defines).
  */
 function convertServerToKiloFormat(serverConfig: McpServerConfig): KiloMcpServer {
+  if (hasNoTransport(serverConfig)) {
+    return { enabled: serverConfig.disabled !== true };
+  }
+
   const isRemote = serverConfig.type === "sse" || serverConfig.type === "http" || serverConfig.url;
 
   if (isRemote) {
