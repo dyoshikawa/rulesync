@@ -61,6 +61,7 @@ import {
   ToolCommandFromRulesyncCommandParams,
   ToolCommandSettablePaths,
 } from "./tool-command.js";
+import { WarpCommand } from "./warp-command.js";
 
 /**
  * Factory entry for each tool command class.
@@ -533,6 +534,26 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         // `~/.config/devin/skills/<slug>/SKILL.md` (global). The skills
         // feature owns that tree, so import and generate-delete never scan
         // it — mirrors the Hermes Agent commands target.
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
+        skipToolFileScan: true,
+      },
+    },
+  ],
+  [
+    "warp",
+    {
+      class: WarpCommand,
+      meta: {
+        // Warp's custom slash-command surface is skills (`/{skill-name}` with
+        // `$ARGUMENTS` substitution), so commands are emitted as
+        // `.warp/skills/<slug>/SKILL.md` (project) and
+        // `~/.warp/skills/<slug>/SKILL.md` (global). The skills feature owns
+        // that tree, so import and generate-delete never scan it — mirrors
+        // the Devin and Hermes Agent commands targets.
         extension: "md",
         supportsProject: true,
         supportsGlobal: true,

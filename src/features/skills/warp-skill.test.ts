@@ -188,4 +188,31 @@ It can be multiline.`;
       expect(WarpSkillFrontmatterSchema.safeParse({ name: "x" }).success).toBe(false);
     });
   });
+
+  describe("isDirOwned", () => {
+    it("should disown a directory matching a rulesync command slug (WarpCommand owns it)", async () => {
+      await ensureDir(join(testDir, ".rulesync", "commands"));
+      await writeFileContent(
+        join(testDir, ".rulesync", "commands", "review-pr.md"),
+        "---\ndescription: Review\n---\nReview.",
+      );
+
+      await expect(
+        WarpSkill.isDirOwned({
+          outputRoot: testDir,
+          relativeDirPath: join(".warp", "skills"),
+          dirName: "review-pr",
+          inputRoot: testDir,
+        }),
+      ).resolves.toBe(false);
+      await expect(
+        WarpSkill.isDirOwned({
+          outputRoot: testDir,
+          relativeDirPath: join(".warp", "skills"),
+          dirName: "a-real-skill",
+          inputRoot: testDir,
+        }),
+      ).resolves.toBe(true);
+    });
+  });
 });
