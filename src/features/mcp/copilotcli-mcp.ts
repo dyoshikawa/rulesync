@@ -33,9 +33,19 @@ type CopilotcliMcpConfig = {
 
 type CopilotcliServerType = NonNullable<McpServer["type"]>;
 
-/** Reached over WebSocket, which Copilot CLI has no transport for. */
-const isWebSocketServer = (server: McpServer): boolean =>
-  server.type === "ws" || server.transport === "ws";
+/**
+ * Reached over WebSocket, which Copilot CLI has no transport for. The url is
+ * read as well as the declared transport: a `wss://` server that names no
+ * transport would otherwise be written as `http`, which is the state the
+ * declared-`ws` skip exists to avoid.
+ */
+const isWebSocketServer = (server: McpServer): boolean => {
+  if ((server.type ?? server.transport) === "ws") {
+    return true;
+  }
+  const url = server.url ?? server.httpUrl;
+  return url !== undefined && /^wss?:\/\//.test(url);
+};
 
 /**
  * Copilot CLI knows `stdio`, `local`, `http` and `sse`. `streamable-http` is
@@ -124,6 +134,9 @@ function addTypeField(mcpServers: McpServers, logger?: Logger): CopilotcliMcpCon
       continue;
     }
 
+    // `httpUrl` is a canonical-only alias and does not go out on this branch
+    // either, even though a local server has no business carrying one.
+    const { httpUrl: _localHttpUrl, ...local } = parsed;
     const command = resolveLocalMcpCommand(parsed);
     const [head, ...tail] = command;
     if (head === undefined) {
@@ -137,7 +150,7 @@ function addTypeField(mcpServers: McpServers, logger?: Logger): CopilotcliMcpCon
     }
 
     result[name] = {
-      ...parsed,
+      ...local,
       type,
       command: head,
       ...(tail.length > 0 && { args: tail }),

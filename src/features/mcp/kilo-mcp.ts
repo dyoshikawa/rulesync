@@ -312,6 +312,7 @@ function warnAboutToggleDroppedKeys(
 function convertServerToKiloFormat(
   serverName: string,
   serverConfig: McpServerConfig,
+  existingEntry: KiloMcpServer | undefined,
   logger?: Logger,
 ): KiloMcpServer | null {
   if (declaresNoTransport(serverConfig)) {
@@ -321,6 +322,12 @@ function convertServerToKiloFormat(
       // true` for a server that never asked to be enabled would switch back on
       // what the user turned off in that other layer. Only an explicit
       // `disabled` — which is what importing a toggle produces — is carried.
+      if (existingEntry !== undefined && !isKiloTransportServer(existingEntry)) {
+        // Dropping the entry would switch the server back on just as surely,
+        // since Rulesync rewrites the whole `mcp` key. Leave the toggle the
+        // file already carries exactly as it is.
+        return existingEntry;
+      }
       return warnAndSkipMcpServer({
         toolName: "Kilo",
         serverName,
@@ -347,8 +354,9 @@ function convertServerToKiloFormat(
     // on McpServerSchema. Parse rather than cast: a value of another shape
     // would be written out and then rejected by this adapter's own constructor
     // as it re-reads the file, failing the generate it is part of.
-    const oauth = KiloMcpOAuthSchema.safeParse((serverConfig as { oauth?: unknown }).oauth);
-    if (!oauth.success && (serverConfig as { oauth?: unknown }).oauth !== undefined) {
+    const rawOauth = (serverConfig as { oauth?: unknown }).oauth;
+    const oauth = KiloMcpOAuthSchema.safeParse(rawOauth);
+    if (!oauth.success && rawOauth !== undefined) {
       logger?.warn(
         `Kilo MCP: dropping the oauth field of "${serverName}" because Kilo takes an object or false there.`,
       );
@@ -356,7 +364,7 @@ function convertServerToKiloFormat(
     return {
       type: "remote",
       url,
-      enabled: serverConfig.disabled !== undefined ? !serverConfig.disabled : true,
+      enabled: !serverConfig.disabled,
       ...(serverConfig.headers && { headers: serverConfig.headers }),
       ...(serverConfig.timeout !== undefined && { timeout: serverConfig.timeout }),
       ...(oauth.success && { oauth: oauth.data }),
@@ -376,7 +384,7 @@ function convertServerToKiloFormat(
   return {
     type: "local",
     command: commandArray,
-    enabled: serverConfig.disabled !== undefined ? !serverConfig.disabled : true,
+    enabled: !serverConfig.disabled,
     ...(serverConfig.env && { environment: serverConfig.env }),
     ...(serverConfig.cwd && { cwd: serverConfig.cwd }),
     ...(serverConfig.timeout !== undefined && { timeout: serverConfig.timeout }),
@@ -385,6 +393,7 @@ function convertServerToKiloFormat(
 
 function convertToKiloFormat(
   mcpServers: McpServers,
+  existingMcp: Record<string, KiloMcpServer>,
   logger?: Logger,
 ): {
   mcp: Record<string, KiloMcpServer>;
@@ -395,14 +404,21 @@ function convertToKiloFormat(
   const mcp = Object.fromEntries(
     Object.entries(mcpServers)
       .map(([serverName, serverConfig]) => {
-        const converted = convertServerToKiloFormat(serverName, serverConfig, logger);
-        if (converted === null) {
-          return null;
+        const converted = convertServerToKiloFormat(
+          serverName,
+          serverConfig,
+          existingMcp[serverName],
+          logger,
+        );
+        // A server skipped for a broken transport takes its tool filters with
+        // it. A transport-less one does not: Kilo's `tools` map is keyed by
+        // server name and reaches servers `mcp` does not list at all, so a
+        // filter turning off a dangerous tool of a server another config layer
+        // defines has to survive whether or not an entry is written here.
+        if (converted !== null || declaresNoTransport(serverConfig)) {
+          collectKiloServerTools(tools, serverName, serverConfig);
         }
-        // Only after the server itself survives: a skipped server must not
-        // leave its tool filters behind in the shared `tools` map.
-        collectKiloServerTools(tools, serverName, serverConfig);
-        return [serverName, converted] as const;
+        return converted === null ? null : ([serverName, converted] as const);
       })
       .filter((entry) => entry !== null),
   );
@@ -550,8 +566,16 @@ export class KiloMcp extends ToolMcp {
       }
     }
 
+    // The `mcp` key is rewritten whole, so a toggle the canonical config states
+    // nothing about is read from here to be written back unchanged. A file this
+    // adapter cannot parse is left out of it: the constructor below reports
+    // that, and a half-read one must not decide what stays switched off.
+    const existing = KiloConfigSchema.safeParse(parseJsonc(fileContent || "{}"));
+    const existingMcp = existing.success ? (existing.data.mcp ?? {}) : {};
+
     const { mcp: convertedMcp, tools: mcpTools } = convertToKiloFormat(
       rulesyncMcp.getMcpServers(),
+      existingMcp,
       logger,
     );
 

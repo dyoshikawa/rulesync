@@ -2789,6 +2789,65 @@ describe("KiloMcp toggle entries", () => {
     ).toThrow();
   });
 
+  it("leaves the toggle already in the file alone when the config states nothing", async () => {
+    // Rewriting `mcp` whole means dropping the entry switches the server back
+    // on just as surely as writing `enabled: true` would.
+    const jsonDir = join(testDir, ".");
+    await writeFileContent(
+      join(jsonDir, "kilo.jsonc"),
+      JSON.stringify({ mcp: { marketplace: { enabled: false } } }),
+    );
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: ".rulesync",
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({ mcpServers: { marketplace: {} } }),
+    });
+
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+    expect(JSON.parse(kiloMcp.getFileContent()).mcp).toEqual({ marketplace: { enabled: false } });
+  });
+
+  it("keeps the tool filters of a transport-less server it does not write", async () => {
+    // Kilo's `tools` map is keyed by server name and reaches servers `mcp` does
+    // not list, so a filter switching off a dangerous tool of a server another
+    // layer defines must outlive the entry.
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: ".rulesync",
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: {
+          gh: { disabledTools: ["delete_repo"] },
+          broken: { type: "stdio", disabledTools: ["wipe"] },
+        },
+      }),
+    });
+
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+    const written = JSON.parse(kiloMcp.getFileContent());
+
+    expect(written.mcp).toEqual({});
+    // The broken one takes its filters with it; the transport-less one does not.
+    expect(written.tools).toEqual({ gh_delete_repo: false });
+  });
+
+  it("drops an enabled server that older Rulesync versions wrote with no command", async () => {
+    const kiloMcp = new KiloMcp({
+      relativeDirPath: ".",
+      relativeFilePath: "kilo.jsonc",
+      fileContent: JSON.stringify({
+        mcp: { legacy: { type: "local", command: [], enabled: true } },
+      }),
+    });
+
+    const roundTripped = await KiloMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: kiloMcp.toRulesyncMcp(),
+    });
+
+    expect(JSON.parse(roundTripped.getFileContent()).mcp).toEqual({});
+  });
+
   it("skips a server that names a transport it cannot reach", async () => {
     // `{type: "stdio"}` with no command used to be written as
     // `{type: "local", command: []}`: impossible for Kilo to start, and this adapter
