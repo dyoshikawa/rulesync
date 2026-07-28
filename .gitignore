@@ -239,6 +239,8 @@ rulesync.local.jsonc
 **/.augment-guidelines
 **/.devin/workflows/
 **/.junie/memories/
+**/.gooseignore
+**/.goose/recipes/subagents/
 **/.junie/allowlist.json
 **/.agents/skills/
 **/.rovodev/prompts.yml
@@ -338,7 +340,7 @@ rulesync.local.jsonc
 **/.deepagents/agents/
 **/.devin/agents/
 **/.factory/droids/
-**/.goose/recipes/subagents/
+**/.goose/agents/
 **/.hermes/rulesync/subagents/
 **/.grok/agents/
 **/.junie/agents/
@@ -390,7 +392,6 @@ rulesync.local.jsonc
 **/.augmentignore
 **/.clineignore
 **/.cursorignore
-**/.gooseignore
 **/.hermes/plugins/rulesync-ignore/patterns.gitignore
 **/.kilocodeignore
 **/.kiroignore

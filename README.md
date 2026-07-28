@@ -94,7 +94,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Codex CLI                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | GitHub Copilot            |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | GitHub Copilot CLI        |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |        |
-| Goose                     |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Goose                     |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Hermes Agent              |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
 | Grok CLI                  |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Cursor                    |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |

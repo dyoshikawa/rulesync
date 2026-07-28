@@ -1,17 +1,16 @@
-import { basename, join } from "node:path";
+import { join } from "node:path";
 
-import { dump } from "js-yaml";
 import { z } from "zod/mini";
 
 import {
-  GOOSE_GLOBAL_RECIPES_SUBAGENTS_DIR_PATH,
-  GOOSE_RECIPES_SUBAGENTS_DIR_PATH,
+  GOOSE_AGENTS_DIR_PATH,
+  GOOSE_GLOBAL_AGENTS_DIR_PATH,
 } from "../../constants/goose-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { loadYaml } from "../../utils/yaml.js";
+import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
@@ -21,98 +20,91 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
-const RECIPE_VERSION = "1.0.0";
-
 /**
- * Goose sub-recipes are ordinary recipe files referenced from a parent recipe's
- * `sub_recipes` list to run a specialized task. rulesync maps a subagent to such
- * a recipe whose `instructions` is the subagent body, written under
- * `.goose/recipes/subagents/` (project) and `~/.config/goose/recipes/subagents/`
- * (global). Keeping them in a subdirectory makes the command-recipe and
- * subagent-recipe file sets disjoint so import/orphan-deletion never overlap.
+ * Goose custom agents (v1.34.0+) are Markdown files with YAML frontmatter —
+ * `name` (required), `description` and `model` (optional) — whose body is the
+ * agent's instructions; agents are invocable via `@name` or delegation.
+ * `looseObject` keeps unknown future fields round-tripping.
  *
- * The whole file is a YAML recipe mapping. Beyond the canonical
- * `version`/`title`/`description`/`instructions`, any extra recipe field
- * (`parameters`, `extensions`, `sub_recipes`, …) round-trips through the
- * rulesync `goose` subagent section.
+ * Earlier rulesync versions emitted subagents as sub-recipe YAML under
+ * `.goose/recipes/subagents/`, a location Goose's filesystem agent discovery
+ * never scans (a sub-recipe is only reachable from a parent recipe's
+ * `sub_recipes` list, which rulesync never wrote) — so those files were inert.
+ * The custom-agent surface is the one Goose actually reads.
  *
- * @see https://block.github.io/goose/docs/guides/recipes/sub-recipes/
+ * @see https://block.github.io/goose/docs/guides/context-engineering/custom-agents/
  */
-const GooseSubagentRecipeSchema = z.looseObject({
-  version: z.optional(z.string()),
-  title: z.optional(z.string()),
+export const GooseSubagentFrontmatterSchema = z.looseObject({
+  name: z.string(),
   description: z.optional(z.string()),
-  instructions: z.optional(z.string()),
-  prompt: z.optional(z.string()),
+  model: z.optional(z.string()),
 });
 
-export type GooseSubagentRecipe = z.infer<typeof GooseSubagentRecipeSchema>;
+export type GooseSubagentFrontmatter = z.infer<typeof GooseSubagentFrontmatterSchema>;
 
 export type GooseSubagentParams = {
-  recipe: GooseSubagentRecipe;
-} & AiFileParams;
+  frontmatter: GooseSubagentFrontmatter;
+  body: string;
+} & Omit<AiFileParams, "fileContent"> & { fileContent?: string };
 
 export class GooseSubagent extends ToolSubagent {
-  private readonly recipe: GooseSubagentRecipe;
+  private readonly frontmatter: GooseSubagentFrontmatter;
+  private readonly body: string;
 
-  constructor({ recipe, ...rest }: GooseSubagentParams) {
+  constructor({ frontmatter, body, fileContent, ...rest }: GooseSubagentParams) {
     if (rest.validate !== false) {
-      const result = GooseSubagentRecipeSchema.safeParse(recipe);
+      const result = GooseSubagentFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         throw new Error(
-          `Invalid Goose recipe in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
+          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
         );
       }
     }
-    super({ ...rest });
-    this.recipe = recipe;
+
+    super({
+      ...rest,
+      fileContent: fileContent ?? stringifyFrontmatter(body, frontmatter),
+    });
+    this.frontmatter = frontmatter;
+    this.body = body;
   }
 
   static getSettablePaths({
     global = false,
   }: { global?: boolean } = {}): ToolSubagentSettablePaths {
+    // Project `.goose/agents/` and global `~/.config/goose/agents/` — the
+    // goose-specific compatibility dirs of Goose's agent discovery, so the
+    // output cannot collide with a future shared `.agents/agents/` target.
     return {
-      relativeDirPath: global
-        ? GOOSE_GLOBAL_RECIPES_SUBAGENTS_DIR_PATH
-        : GOOSE_RECIPES_SUBAGENTS_DIR_PATH,
+      relativeDirPath: global ? GOOSE_GLOBAL_AGENTS_DIR_PATH : GOOSE_AGENTS_DIR_PATH,
     };
   }
 
-  getBody(): string {
-    return this.recipe.instructions ?? this.recipe.prompt ?? "";
+  getFrontmatter(): GooseSubagentFrontmatter {
+    return this.frontmatter;
   }
 
-  getRecipe(): GooseSubagentRecipe {
-    return this.recipe;
+  getBody(): string {
+    return this.body;
   }
 
   toRulesyncSubagent(): RulesyncSubagent {
-    // Both body fields (`instructions`, falling back to `prompt`) are excluded
-    // from the goose section so the body is never duplicated back into the
-    // recipe on regeneration.
-    const {
-      instructions: _instructions,
-      prompt: _prompt,
-      title,
-      description,
-      ...restFields
-    } = this.recipe;
-
-    const gooseSection: Record<string, unknown> = { ...restFields };
+    const { name, description, ...restFields } = this.frontmatter;
 
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
       targets: ["*"] as const,
-      name: title ?? basename(this.getRelativeFilePath()).replace(/\.ya?ml$/, ""),
-      description: description ?? "",
-      ...(Object.keys(gooseSection).length > 0 && { goose: gooseSection }),
+      name,
+      description,
+      // `model` and any future field round-trip through the goose section.
+      ...(Object.keys(restFields).length > 0 && { goose: restFields }),
     };
 
     return new RulesyncSubagent({
       outputRoot: ".",
       frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
+      body: this.body,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-      relativeFilePath: this.getRelativeFilePath().replace(/\.ya?ml$/, ".md"),
+      relativeFilePath: this.getRelativeFilePath(),
       validate: true,
     });
   }
@@ -122,65 +114,56 @@ export class GooseSubagent extends ToolSubagent {
     rulesyncSubagent,
     validate = true,
     global = false,
-  }: ToolSubagentFromRulesyncSubagentParams): GooseSubagent {
+  }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
-    const gooseSection: Record<string, unknown> = {
-      ...this.filterToolSpecificSection(rulesyncFrontmatter.goose ?? {}, ["name", "description"]),
+    const gooseSection = this.filterToolSpecificSection(rulesyncFrontmatter.goose ?? {}, [
+      "name",
+      "description",
+    ]);
+
+    const rawFrontmatter = {
+      name: rulesyncFrontmatter.name,
+      description: rulesyncFrontmatter.description,
+      ...gooseSection,
     };
 
-    const relativeFilePath = rulesyncSubagent.getRelativeFilePath().replace(/\.md$/, ".yaml");
-    const title =
-      typeof gooseSection.title === "string"
-        ? gooseSection.title
-        : rulesyncFrontmatter.name || basename(relativeFilePath).replace(/\.ya?ml$/, "");
-    const description =
-      typeof gooseSection.description === "string"
-        ? gooseSection.description
-        : (rulesyncFrontmatter.description ?? title);
-    const version =
-      typeof gooseSection.version === "string" ? gooseSection.version : RECIPE_VERSION;
-    const instructions =
-      typeof gooseSection.instructions === "string"
-        ? gooseSection.instructions
-        : rulesyncSubagent.getBody();
+    const result = GooseSubagentFrontmatterSchema.safeParse(rawFrontmatter);
+    if (!result.success) {
+      throw new Error(
+        `Invalid goose subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(result.error)}`,
+      );
+    }
 
-    const {
-      title: _t,
-      description: _d,
-      version: _v,
-      instructions: _i,
-      ...extraFields
-    } = gooseSection;
-    const recipe: GooseSubagentRecipe = {
-      version,
-      title,
-      description,
-      instructions,
-      ...extraFields,
-    };
-
+    const gooseFrontmatter = result.data;
+    const body = rulesyncSubagent.getBody();
+    const fileContent = stringifyFrontmatter(body, gooseFrontmatter);
     const paths = this.getSettablePaths({ global });
 
     return new GooseSubagent({
       outputRoot,
-      recipe,
+      frontmatter: gooseFrontmatter,
+      body,
       relativeDirPath: paths.relativeDirPath,
-      relativeFilePath,
-      fileContent: dump(recipe, { lineWidth: -1, noRefs: true }),
+      relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
+      fileContent,
       validate,
       global,
     });
   }
 
   validate(): ValidationResult {
-    const result = GooseSubagentRecipeSchema.safeParse(this.recipe);
+    if (!this.frontmatter) {
+      return { success: true, error: null };
+    }
+
+    const result = GooseSubagentFrontmatterSchema.safeParse(this.frontmatter);
     if (result.success) {
       return { success: true, error: null };
     }
     return {
       success: false,
       error: new Error(
-        `Invalid Goose recipe in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
+        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
       ),
     };
   }
@@ -194,34 +177,26 @@ export class GooseSubagent extends ToolSubagent {
 
   static async fromFile({
     outputRoot = process.cwd(),
-    relativeDirPath,
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolSubagentFromFileParams): Promise<GooseSubagent> {
-    const dirPath = relativeDirPath ?? this.getSettablePaths({ global }).relativeDirPath;
-    const filePath = join(outputRoot, dirPath, relativeFilePath);
+    const paths = this.getSettablePaths({ global });
+    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
+    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
-    let parsed: unknown;
-    try {
-      parsed = loadYaml(fileContent);
-    } catch (error) {
-      throw new Error(`Failed to parse Goose recipe (${filePath}): ${formatError(error)}`, {
-        cause: error,
-      });
-    }
-    const candidate = parsed === undefined || parsed === null ? {} : parsed;
-    const result = GooseSubagentRecipeSchema.safeParse(candidate);
+    const result = GooseSubagentFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
-      throw new Error(`Invalid Goose recipe in ${filePath}: ${formatError(result.error)}`);
+      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
     return new GooseSubagent({
       outputRoot,
-      recipe: result.data,
-      relativeDirPath: dirPath,
+      relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
+      frontmatter: result.data,
+      body: content.trim(),
       fileContent,
       validate,
       global,
@@ -235,9 +210,10 @@ export class GooseSubagent extends ToolSubagent {
   }: ToolSubagentForDeletionParams): GooseSubagent {
     return new GooseSubagent({
       outputRoot,
-      recipe: { version: RECIPE_VERSION, title: "", description: "", instructions: "" },
       relativeDirPath,
       relativeFilePath,
+      frontmatter: { name: "" },
+      body: "",
       fileContent: "",
       validate: false,
     });

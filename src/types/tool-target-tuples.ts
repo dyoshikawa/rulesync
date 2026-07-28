@@ -51,7 +51,6 @@ export const ignoreProcessorToolTargetTuple = [
   "claudecode-legacy",
   "cline",
   "cursor",
-  "goose",
   "hermesagent",
   "junie",
   "kilo",
