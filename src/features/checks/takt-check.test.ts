@@ -167,6 +167,31 @@ describe("TaktCheck", () => {
       );
     });
 
+    it("stays quiet about edit-only when the scoped gate repeats the unscoped one's text", async () => {
+      // Two checks can carry the same directive, so the decision is by position:
+      // the scoped one's reach does not change even though its text matches.
+      const logger = createMockLogger();
+      await TaktCheck.fromRulesyncChecks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_CHECKS_RELATIVE_DIR_PATH,
+        rulesyncChecks: [
+          rulesyncCheck({
+            name: "scoped",
+            body: "A.",
+            frontmatter: { takt: { steps: ["review"] } },
+          }),
+          rulesyncCheck({
+            name: "unscoped",
+            body: "A.",
+            frontmatter: { takt: { quality_gates_edit_only: true } },
+          }),
+        ],
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
     it("stays quiet about edit-only when every other gate is scoped", async () => {
       // Takt applies the flag to the unscoped gates only, so a scoped gate's
       // reach does not change and there is nothing to report.

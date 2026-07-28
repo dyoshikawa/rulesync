@@ -205,6 +205,13 @@ export function mergeSharedConfigDeep({
   const result: SharedConfigDocument = { ...base };
   for (const [key, patchValue] of Object.entries(patch)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+    if (patchValue === undefined) {
+      // Retraction, spelled the same way `replace-owned-keys` spells it. Leaving
+      // the key with an `undefined` value happens to disappear from YAML and
+      // JSON output, but `smol-toml` throws on it.
+      delete result[key];
+      continue;
+    }
     const baseValue = result[key];
     if (isPlainObject(baseValue) && isPlainObject(patchValue)) {
       result[key] = mergeSharedConfigDeep({ base: baseValue, patch: patchValue });

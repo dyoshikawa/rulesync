@@ -210,13 +210,29 @@ export class TaktPermissions extends ToolPermissions {
     // removal, and without this a user who adds a policy by hand — after Takt
     // refused to run something — watches it disappear on the next generate with
     // no idea why.
-    const removedPolicies = TAKT_SECURITY_POLICY_KEYS.filter(
-      (key) => config[key] !== undefined && authoredPolicies[key] === undefined,
-    );
+    // Sub-key granularity: a table is replaced wholesale, so a flag the user set
+    // by hand beside the authored one goes too and is worth naming on its own.
+    const existingPolicies = pickSecurityPolicies(config);
+    const removedPolicies = TAKT_SECURITY_POLICY_KEYS.flatMap((key) => {
+      const existing = existingPolicies[key];
+      if (existing === undefined) {
+        return [];
+      }
+      const authored = authoredPolicies[key];
+      if (authored === undefined) {
+        return [key];
+      }
+      if (!isPlainObject(existing) || !isPlainObject(authored)) {
+        return [];
+      }
+      return Object.keys(existing)
+        .filter((subKey) => authored[subKey] === undefined)
+        .map((subKey) => `${key}.${subKey}`);
+    });
     if (removedPolicies.length > 0) {
       logger?.warn(
         `Takt permissions: removing ${removedPolicies.map((key) => `"${key}"`).join(", ")} from ` +
-          `${filePath} because the \`takt\` block of the rulesync source no longer states them. ` +
+          `${filePath} because the \`takt\` block of the rulesync source does not state them. ` +
           `That is the revocation if you removed them there; if you added them to config.yaml by ` +
           `hand, author them in the rulesync source instead — these keys are rewritten on every ` +
           `generate.`,

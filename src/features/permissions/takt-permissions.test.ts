@@ -327,6 +327,62 @@ describe("TaktPermissions", () => {
       );
     });
 
+    it("names a sub-key the replacement drops, not just the whole table", async () => {
+      await writeFileContent(
+        join(testDir, ".takt", "config.yaml"),
+        ["workflow_arpeggio:", "  custom_merge_files: true", ""].join("\n"),
+      );
+      const mockLogger = createMockLogger();
+
+      await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: {},
+          takt: { workflow_arpeggio: { custom_data_source_modules: true } },
+        }),
+        logger: mockLogger,
+      });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"workflow_arpeggio.custom_merge_files"'),
+      );
+    });
+
+    it("reports a sub-key that collides with an Object.prototype member", async () => {
+      // `flags.toString` resolves to a function, so a presence check by value
+      // would leave this out of the report.
+      const mockLogger = createMockLogger();
+      await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: {},
+          takt: { workflow_arpeggio: { toString: true, custom_merge_files: true } },
+        }),
+        logger: mockLogger,
+      });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"workflow_arpeggio.toString"'),
+      );
+    });
+
+    it("reads an explicit null as unset rather than as a wrong-typed value", async () => {
+      const mockLogger = createMockLogger();
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: {},
+          takt: { allow_git_hooks: null },
+        }),
+        logger: mockLogger,
+      });
+
+      expect(toRecord(load(permissions.getFileContent())).allow_git_hooks).toBeUndefined();
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("no such workflow security policy"),
+      );
+    });
+
     it("replaces a policy table rather than merging into the old one", async () => {
       await writeFileContent(
         join(testDir, ".takt", "config.yaml"),
