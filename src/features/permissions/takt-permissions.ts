@@ -4,6 +4,7 @@ import { TAKT_CONFIG_FILE_NAME, TAKT_DIR } from "../../constants/takt-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionsConfig } from "../../types/permissions.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
@@ -30,6 +31,30 @@ const TAKT_STEP_PERMISSION_OVERRIDES_KEY = "step_permission_overrides";
 // Top-level, per-provider sandbox/network options table; routed through the
 // `takt` override.
 const TAKT_PROVIDER_OPTIONS_KEY = "provider_options";
+
+// Takt's default-deny "workflow security policies": each admits one class of
+// user-supplied code (an Arpeggio module, a runtime-prepare script, a
+// workflow-declared command gate, a sync-conflict tool) or re-enables git hooks
+// and filters during Takt-managed commits. All are top-level keys of
+// `config.yaml` in both scopes, and all are routed through the `takt` override
+// because none maps onto a canonical permission category.
+// https://github.com/nrslib/takt/blob/main/docs/configuration.md
+// Each entry names the sub-keys Takt's own schema declares, or `null` for the
+// two plain booleans. The sub-keys are checked rather than passed through:
+// Takt's schemas are `.strict()`, so one misspelled flag makes it reject the
+// whole config.yaml — a typo in `.rulesync/permissions.*` would take the user's
+// Takt install down rather than leave one capability denied.
+// https://github.com/nrslib/takt/blob/main/docs/configuration.md
+const TAKT_SECURITY_POLICIES: Record<string, readonly string[] | null> = {
+  workflow_arpeggio: ["custom_data_source_modules", "custom_merge_inline_js", "custom_merge_files"],
+  workflow_runtime_prepare: ["custom_scripts"],
+  workflow_command_gates: ["custom_scripts"],
+  sync_conflict_resolver: ["auto_approve_tools"],
+  allow_git_hooks: null,
+  allow_git_filters: null,
+};
+
+const TAKT_SECURITY_POLICY_KEYS = Object.keys(TAKT_SECURITY_POLICIES);
 
 // Takt's three coarse permission modes, ordered readonly < edit < full.
 type TaktPermissionMode = "readonly" | "edit" | "full";
@@ -124,6 +149,7 @@ export class TaktPermissions extends ToolPermissions {
     outputRoot = process.cwd(),
     rulesyncPermissions,
     global = false,
+    logger,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<TaktPermissions> {
     const paths = TaktPermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
@@ -154,6 +180,11 @@ export class TaktPermissions extends ToolPermissions {
       ? override[TAKT_PROVIDER_OPTIONS_KEY]
       : undefined;
 
+    const authoredPolicies = pickSecurityPolicies(override, {
+      filePath,
+      logger,
+      source: "the `takt` override block",
+    });
     const patch: Record<string, unknown> = {
       [TAKT_PROVIDER_PROFILES_KEY]: {
         [provider]: {
@@ -166,7 +197,47 @@ export class TaktPermissions extends ToolPermissions {
       ...(overrideProviderOptions !== undefined && {
         [TAKT_PROVIDER_OPTIONS_KEY]: overrideProviderOptions,
       }),
+      // Every policy key is present in the patch — an authored value, or
+      // `undefined` for one the source no longer states. The gateway replaces
+      // these keys wholesale and an `undefined` drops out of the written
+      // document, so revoking a capability in `.rulesync/permissions.*` revokes
+      // it in config.yaml instead of leaving the old `true` behind.
+      ...Object.fromEntries(TAKT_SECURITY_POLICY_KEYS.map((key) => [key, authoredPolicies[key]])),
     };
+
+    // These keys are owned, so one the source does not state is removed even if
+    // rulesync never wrote it. The checks adapter announces the same kind of
+    // removal, and without this a user who adds a policy by hand — after Takt
+    // refused to run something — watches it disappear on the next generate with
+    // no idea why.
+    // Sub-key granularity: a table is replaced wholesale, so a flag the user set
+    // by hand beside the authored one goes too and is worth naming on its own.
+    const existingPolicies = pickSecurityPolicies(config);
+    const removedPolicies = TAKT_SECURITY_POLICY_KEYS.flatMap((key) => {
+      const existing = existingPolicies[key];
+      if (existing === undefined) {
+        return [];
+      }
+      const authored = authoredPolicies[key];
+      if (authored === undefined) {
+        return [key];
+      }
+      if (!isPlainObject(existing) || !isPlainObject(authored)) {
+        return [];
+      }
+      return Object.keys(existing)
+        .filter((subKey) => authored[subKey] === undefined)
+        .map((subKey) => `${key}.${subKey}`);
+    });
+    if (removedPolicies.length > 0) {
+      logger?.warn(
+        `Takt permissions: removing ${removedPolicies.map((key) => `"${key}"`).join(", ")} from ` +
+          `${filePath} because the \`takt\` block of the rulesync source does not state them. ` +
+          `That is the revocation if you removed them there; if you added them to config.yaml by ` +
+          `hand, author them in the rulesync source instead — these keys are rewritten on every ` +
+          `generate.`,
+      );
+    }
 
     return new TaktPermissions({
       outputRoot,
@@ -217,6 +288,7 @@ export class TaktPermissions extends ToolPermissions {
     if (providerOptions && Object.keys(providerOptions).length > 0) {
       taktOverride[TAKT_PROVIDER_OPTIONS_KEY] = providerOptions;
     }
+    Object.assign(taktOverride, pickSecurityPolicies(config));
 
     const result: Record<string, unknown> = { ...rulesyncConfig };
     if (Object.keys(taktOverride).length > 0) {
@@ -316,4 +388,66 @@ function taktModeToRulesyncConfig(mode: unknown): PermissionsConfig {
       // `readonly` and any unset/unknown mode.
       return { permission: { bash: { [CATCH_ALL_PATTERN]: "deny" } } };
   }
+}
+
+/**
+ * Lift Takt's security-policy keys out of a source object, keeping only the
+ * shapes Takt itself accepts (a boolean, or a table of booleans). Used in both
+ * directions: from the `takt` override on generate, and from `config.yaml` on
+ * import.
+ */
+function pickSecurityPolicies(
+  source: Record<string, unknown> | undefined,
+  report?: { filePath: string; logger?: Logger; source: string },
+): Record<string, unknown> {
+  if (!source) {
+    return {};
+  }
+  const picked: Record<string, unknown> = {};
+  const dropped: string[] = [];
+  for (const [key, subKeys] of Object.entries(TAKT_SECURITY_POLICIES)) {
+    const value = source[key];
+    // `null` reads as "not set" rather than as a value of the wrong type.
+    if (value === undefined || value === null) {
+      continue;
+    }
+    if (subKeys === null) {
+      if (typeof value === "boolean") {
+        picked[key] = value;
+      } else {
+        dropped.push(key);
+      }
+      continue;
+    }
+    if (!isPlainObject(value)) {
+      dropped.push(key);
+      continue;
+    }
+    const flags = Object.fromEntries(
+      subKeys
+        .filter((subKey) => typeof value[subKey] === "boolean")
+        .map((subKey) => [subKey, value[subKey]]),
+    );
+    dropped.push(
+      // Own-property check: a sub-key named `toString` would otherwise resolve
+      // to something off `Object.prototype` and go unreported.
+      ...Object.keys(value)
+        .filter((subKey) => !Object.hasOwn(flags, subKey))
+        .map((subKey) => `${key}.${subKey}`),
+    );
+    if (Object.keys(flags).length > 0) {
+      picked[key] = flags;
+    }
+  }
+  // Dropping keeps Takt loadable — its schemas reject the whole file on an
+  // unknown key — but a capability the user meant to grant stays denied, which
+  // is worth saying out loud.
+  if (dropped.length > 0 && report) {
+    report.logger?.warn(
+      `Takt permissions: ignoring ${dropped.map((key) => `"${key}"`).join(", ")} from ` +
+        `${report.source}; Takt declares no such workflow security policy, or not with that ` +
+        `type, and writing it would make it reject ${report.filePath}.`,
+    );
+  }
+  return picked;
 }

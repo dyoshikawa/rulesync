@@ -46,10 +46,24 @@ Rulesync therefore emits **only** this allowlist into the shared `.takt/config.y
 
 **Lossiness:** the per-server names, commands, env, URLs, and headers are not representable in `config.yaml` and are intentionally not written — you still declare the concrete servers in your workflow YAML steps; Rulesync only opens the transport gate that permits them. Because of this, reverse import cannot reconstruct server definitions and yields an empty `mcpServers` map.
 
+## Checks — quality gates
+
+`.rulesync/checks/*.md` become TAKT **quality gates** in the `workflow_overrides` block of the shared `config.yaml`. A check's body is a string gate — a completion directive TAKT injects into the agent step prompt — unless the check's `takt` frontmatter block names a `command`, which makes it a command gate TAKT runs after the step, failing the gate on a non-zero exit.
+
+**A command gate runs unconditionally.** TAKT's default-deny `workflow_command_gates.custom_scripts` policy applies to gates declared in workflow YAML, not to gates coming from `workflow_overrides`, so a `takt.command` in a check is executed after every step it applies to with no further gating. Read the frontmatter of any check you obtain with `rulesync fetch` before generating.
+
+**Lossiness:** TAKT gates carry no severity or tool allowlist, so a check's `severity` and `tools` fields are not written and do not come back on import.
+
+`quality_gates_edit_only` in a check's `takt` block applies to the whole block, and reaches only the gates with no `steps` / `personas` scope — TAKT runs a scoped gate whether or not the step may edit files.
+
+The block is owned by the checks feature: it is rewritten from `.rulesync/checks/` on every generate, and retracted when checks remain but none target TAKT. Emptying `.rulesync/checks/` altogether leaves the gates in place — the feature has no source to generate from — so delete them by hand in that case. See [file formats](../reference/file-formats.md) for the frontmatter reference.
+
 ## Scope
 
 Both project mode (`.takt/facets/...`, `.takt/config.yaml`) and global mode (`~/.takt/facets/...`, `~/.takt/config.yaml`) are supported.
 
 ## Importing existing TAKT files into rulesync
 
-Reverse import (`rulesync import --targets takt`) is **not supported**. TAKT facet files are plain Markdown with no frontmatter, so the original skill / command / subagent metadata cannot be recovered. Attempting to import a TAKT skill raises a clear error rather than silently producing a stub that round-trips badly.
+Importing the **facet** features (rules, commands, subagents, skills) is **not supported**. TAKT facet files are plain Markdown with no frontmatter, so the original skill / command / subagent metadata cannot be recovered. Attempting to import a TAKT skill raises a clear error rather than silently producing a stub that round-trips badly.
+
+The `config.yaml` features do import: `rulesync import --targets takt --features checks` reads the quality gates back into `.rulesync/checks/`, and `--features permissions` reads the permission mode and the Takt-specific override keys. MCP is the exception noted above — the allowlist carries no server definitions to reconstruct.

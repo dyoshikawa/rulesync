@@ -186,6 +186,7 @@ describe("shared-file write derivation", () => {
           "permissions",
         ],
         ".takt/config.yaml": [
+          "checks",
           "mcp",
           "permissions",
         ],

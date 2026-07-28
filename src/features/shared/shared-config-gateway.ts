@@ -8,7 +8,10 @@ import {
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 
 import { CODEXCLI_OVERRIDE_KEYS } from "../../constants/codexcli-paths.js";
-import { TAKT_WORKFLOW_MCP_SERVERS_KEY } from "../../constants/takt-paths.js";
+import {
+  TAKT_WORKFLOW_MCP_SERVERS_KEY,
+  TAKT_WORKFLOW_OVERRIDES_KEY,
+} from "../../constants/takt-paths.js";
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { Feature } from "../../types/features.js";
 import { formatError } from "../../utils/error.js";
@@ -202,6 +205,13 @@ export function mergeSharedConfigDeep({
   const result: SharedConfigDocument = { ...base };
   for (const [key, patchValue] of Object.entries(patch)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+    if (patchValue === undefined) {
+      // Retraction, spelled the same way `replace-owned-keys` spells it. Leaving
+      // the key with an `undefined` value happens to disappear from YAML and
+      // JSON output, but `smol-toml` throws on it.
+      delete result[key];
+      continue;
+    }
     const baseValue = result[key];
     if (isPlainObject(baseValue) && isPlainObject(patchValue)) {
       result[key] = mergeSharedConfigDeep({ base: baseValue, patch: patchValue });
@@ -322,10 +332,27 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     invalidRootPolicy: "error",
     features: {
       mcp: { kind: "replace-owned-keys", ownedKeys: [TAKT_WORKFLOW_MCP_SERVERS_KEY] },
+      // The whole `workflow_overrides` block is derived from `.rulesync/checks/`,
+      // so it is replaced rather than merged: a gate deleted there must not
+      // survive in config.yaml.
+      checks: { kind: "replace-owned-keys", ownedKeys: [TAKT_WORKFLOW_OVERRIDES_KEY] },
       // provider_profiles.<provider>.default_permission_mode plus the takt
       // override's step/provider tables merge into user config at depth;
       // deep-merge preserves nested sibling keys by construction.
-      permissions: { kind: "deep-merge" },
+      // The workflow security policies are authoritative snapshots of what the
+      // rulesync source states: deep-merging them would keep a default-deny
+      // capability switched on after the user revoked it.
+      permissions: {
+        kind: "deep-merge",
+        replaceKeys: [
+          "workflow_arpeggio",
+          "workflow_runtime_prepare",
+          "workflow_command_gates",
+          "sync_conflict_resolver",
+          "allow_git_hooks",
+          "allow_git_filters",
+        ],
+      },
     },
   },
   // Zed settings: each feature holds an exclusive top-level key. Blocks whose

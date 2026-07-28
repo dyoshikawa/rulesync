@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { load } from "js-yaml";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -232,6 +233,224 @@ describe("TaktPermissions", () => {
       const tool = await TaktPermissions.fromFile({ outputRoot: testDir });
       const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
       expect(json.takt).toBeUndefined();
+    });
+  });
+
+  describe("workflow security policies", () => {
+    it("writes the default-deny toggles the takt override authors", async () => {
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: {},
+          takt: {
+            workflow_arpeggio: { custom_merge_files: true, custom_merge_inline_js: false },
+            workflow_runtime_prepare: { custom_scripts: true },
+            workflow_command_gates: { custom_scripts: true },
+            sync_conflict_resolver: { auto_approve_tools: false },
+            allow_git_hooks: true,
+            allow_git_filters: false,
+          },
+        }),
+      });
+
+      const parsed = toRecord(load(permissions.getFileContent()));
+      expect(parsed.workflow_arpeggio).toEqual({
+        custom_merge_files: true,
+        custom_merge_inline_js: false,
+      });
+      expect(parsed.workflow_runtime_prepare).toEqual({ custom_scripts: true });
+      expect(parsed.workflow_command_gates).toEqual({ custom_scripts: true });
+      expect(parsed.sync_conflict_resolver).toEqual({ auto_approve_tools: false });
+      expect(parsed.allow_git_hooks).toBe(true);
+      expect(parsed.allow_git_filters).toBe(false);
+    });
+
+    it("drops a value whose shape Takt would reject", async () => {
+      // Takt's loader hard-rejects unknown top-level keys and wrong types, so a
+      // non-boolean flag must not reach config.yaml.
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: {},
+          takt: {
+            allow_git_hooks: "yes",
+            workflow_arpeggio: { custom_merge_files: "true", custom_merge_inline_js: true },
+          },
+        }),
+      });
+
+      const parsed = toRecord(load(permissions.getFileContent()));
+      expect(parsed.allow_git_hooks).toBeUndefined();
+      expect(parsed.workflow_arpeggio).toEqual({ custom_merge_inline_js: true });
+    });
+
+    it("removes a toggle the source no longer states", async () => {
+      // A default-deny capability must not stay switched on after the user
+      // revokes it; deep-merging the key would leave the old `true` behind.
+      await writeFileContent(
+        join(testDir, ".takt", "config.yaml"),
+        [
+          "provider: claude",
+          "allow_git_hooks: true",
+          "workflow_arpeggio:",
+          "  custom_merge_files: true",
+          "",
+        ].join("\n"),
+      );
+
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({ permission: {}, takt: {} }),
+      });
+
+      const parsed = toRecord(load(permissions.getFileContent()));
+      expect(parsed.allow_git_hooks).toBeUndefined();
+      expect(parsed.workflow_arpeggio).toBeUndefined();
+      expect(parsed.provider).toBe("claude");
+    });
+
+    it("says which policy it is removing, hand-written or not", async () => {
+      await writeFileContent(
+        join(testDir, ".takt", "config.yaml"),
+        ["allow_git_hooks: true", ""].join("\n"),
+      );
+      const mockLogger = createMockLogger();
+
+      await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({ permission: {} }),
+        logger: mockLogger,
+      });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('removing "allow_git_hooks"'),
+      );
+    });
+
+    it("names a sub-key the replacement drops, not just the whole table", async () => {
+      await writeFileContent(
+        join(testDir, ".takt", "config.yaml"),
+        ["workflow_arpeggio:", "  custom_merge_files: true", ""].join("\n"),
+      );
+      const mockLogger = createMockLogger();
+
+      await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: {},
+          takt: { workflow_arpeggio: { custom_data_source_modules: true } },
+        }),
+        logger: mockLogger,
+      });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"workflow_arpeggio.custom_merge_files"'),
+      );
+    });
+
+    it("reports a sub-key that collides with an Object.prototype member", async () => {
+      // `flags.toString` resolves to a function, so a presence check by value
+      // would leave this out of the report.
+      const mockLogger = createMockLogger();
+      await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: {},
+          takt: { workflow_arpeggio: { toString: true, custom_merge_files: true } },
+        }),
+        logger: mockLogger,
+      });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"workflow_arpeggio.toString"'),
+      );
+    });
+
+    it("reads an explicit null as unset rather than as a wrong-typed value", async () => {
+      const mockLogger = createMockLogger();
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: {},
+          takt: { allow_git_hooks: null },
+        }),
+        logger: mockLogger,
+      });
+
+      expect(toRecord(load(permissions.getFileContent())).allow_git_hooks).toBeUndefined();
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("no such workflow security policy"),
+      );
+    });
+
+    it("replaces a policy table rather than merging into the old one", async () => {
+      await writeFileContent(
+        join(testDir, ".takt", "config.yaml"),
+        ["workflow_arpeggio:", "  custom_merge_files: true", ""].join("\n"),
+      );
+
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: {},
+          takt: { workflow_arpeggio: { custom_data_source_modules: true } },
+        }),
+      });
+
+      const parsed = toRecord(load(permissions.getFileContent()));
+      expect(parsed.workflow_arpeggio).toEqual({ custom_data_source_modules: true });
+    });
+
+    it("says what it dropped, since the capability stays denied", async () => {
+      const mockLogger = createMockLogger();
+      await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: {},
+          takt: { workflow_arpeggio: { custom_merge_file: true } },
+        }),
+        logger: mockLogger,
+      });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"workflow_arpeggio.custom_merge_file"'),
+      );
+    });
+
+    it("drops a sub-key Takt's strict schema does not declare", async () => {
+      // Takt rejects the whole config.yaml on an unknown key, so a typo here
+      // must not reach the file.
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: {},
+          takt: { workflow_arpeggio: { custom_merge_file: true, custom_merge_files: true } },
+        }),
+      });
+
+      const parsed = toRecord(load(permissions.getFileContent()));
+      expect(parsed.workflow_arpeggio).toEqual({ custom_merge_files: true });
+    });
+
+    it("round-trips the toggles back into the takt override on import", async () => {
+      const permissions = new TaktPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".takt",
+        relativeFilePath: "config.yaml",
+        fileContent: [
+          "provider: claude",
+          "allow_git_hooks: true",
+          "workflow_runtime_prepare:",
+          "  custom_scripts: true",
+          "",
+        ].join("\n"),
+      });
+
+      const imported = JSON.parse(permissions.toRulesyncPermissions().getFileContent());
+      expect(imported.takt).toEqual({
+        allow_git_hooks: true,
+        workflow_runtime_prepare: { custom_scripts: true },
+      });
     });
   });
 

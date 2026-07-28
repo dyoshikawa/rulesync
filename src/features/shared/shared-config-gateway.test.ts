@@ -152,6 +152,18 @@ describe("mergeSharedConfigDeep", () => {
     expect(merged).toEqual({ list: [3], flag: false });
   });
 
+  it("retracts a key whose patch value is undefined", () => {
+    // Same spelling as `replace-owned-keys`. Leaving the key present with an
+    // `undefined` value disappears from YAML and JSON output but makes the TOML
+    // serializer throw.
+    const merged = mergeSharedConfigDeep({
+      base: { keep: 1, drop: true },
+      patch: { drop: undefined },
+    });
+    expect(merged).toEqual({ keep: 1 });
+    expect(Object.hasOwn(merged, "drop")).toBe(false);
+  });
+
   it("drops prototype-pollution keys from the patch", () => {
     const merged = mergeSharedConfigDeep({
       base: {},

@@ -22,12 +22,21 @@ const checksGenerateTargets = [
     target: "hermesagent",
     outputPath: join(".hermes", "plugins", "rulesync-checks", "checks", "security.json"),
   },
+  {
+    // Takt's gates live in the shared config rather than in per-check files.
+    target: "takt",
+    outputPath: join(".takt", "config.yaml"),
+  },
 ] as const;
 
 const checksGlobalTargets = [
   {
     target: "amp",
     outputPath: join(".config", "amp", "checks", "security.md"),
+  },
+  {
+    target: "takt",
+    outputPath: join(".takt", "config.yaml"),
   },
 ] as const;
 
@@ -67,6 +76,13 @@ Look for injection vulnerabilities.
       });
 
       const generatedContent = await readFileContent(join(testDir, outputPath));
+      if (target === "takt") {
+        // One quality gate per check, in the shared config's owned block.
+        expect(generatedContent).toContain("workflow_overrides:");
+        expect(generatedContent).toContain("quality_gates:");
+        expect(generatedContent).toContain("Look for injection vulnerabilities.");
+        return;
+      }
       if (target === "amp") {
         // Amp requires the `name` field, derived from the source file basename.
         expect(generatedContent).toContain("name: security");
@@ -152,7 +168,11 @@ Look for injection vulnerabilities.
       });
 
       const generatedContent = await readFileContent(join(homeDir, outputPath));
-      expect(generatedContent).toContain("name: security");
+      if (target === "takt") {
+        expect(generatedContent).toContain("workflow_overrides:");
+      } else {
+        expect(generatedContent).toContain("name: security");
+      }
       expect(generatedContent).toContain("Look for injection vulnerabilities.");
     },
   );

@@ -270,7 +270,7 @@ export const permissionsProcessorToolTargetTuple = [
   "zed",
 ] as const;
 
-export const checksProcessorToolTargetTuple = ["amp", "hermesagent"] as const;
+export const checksProcessorToolTargetTuple = ["amp", "hermesagent", "takt"] as const;
 
 export const ALL_TOOL_TARGET_TUPLES = [
   rulesProcessorToolTargetTuple,

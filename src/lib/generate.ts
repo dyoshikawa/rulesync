@@ -364,8 +364,11 @@ export const GENERATION_STEP_GRAPH: readonly GenerationStepMeta[] = [
   { id: "subagents", ...sharedWriteMeta("subagents") },
   { id: "skills" },
   { id: "hooks", ...sharedWriteMeta("hooks") },
+  // Checks reach a shared file only for Takt (`workflow_overrides` in
+  // `.takt/config.yaml`), so this step carries shared-write metadata like the
+  // rest and must run before the features that write the same file.
+  { id: "checks", ...sharedWriteMeta("checks") },
   { id: "permissions", ...sharedWriteMeta("permissions") },
-  { id: "checks" },
   {
     id: "rules",
     ...sharedWriteMeta("rules"),

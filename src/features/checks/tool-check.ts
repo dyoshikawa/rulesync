@@ -1,6 +1,7 @@
 import { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
+import type { Logger } from "../../utils/logger.js";
 import { RulesyncCheck } from "./rulesync-check.js";
 
 export type ToolCheckFromRulesyncCheckParams = Omit<
@@ -13,6 +14,13 @@ export type ToolCheckFromRulesyncCheckParams = Omit<
 
 export type ToolCheckSettablePaths = {
   relativeDirPath: string;
+  /**
+   * Set when a tool's checks all live in one file rather than in a directory of
+   * per-check files. Consumers that would otherwise assume the whole directory
+   * is rulesync's — the gitignore derivation, for one — use it to narrow to that
+   * single file.
+   */
+  relativeFilePath?: string;
 };
 
 export type ToolCheckFromFileParams = AiFileFromFileParams & {
@@ -24,6 +32,21 @@ export type ToolCheckForDeletionParams = {
   relativeDirPath: string;
   relativeFilePath: string;
   global?: boolean;
+};
+
+/**
+ * Params of the optional `fromRulesyncChecks` static. A tool whose checks
+ * collapse into a single shared file implements that instead of
+ * {@link ToolCheck.fromRulesyncCheck}, because one output cannot be produced
+ * from one check in isolation. It is deliberately absent from the base class so
+ * the processor can detect which tools have it.
+ */
+export type ToolCheckFromRulesyncChecksParams = {
+  rulesyncChecks: RulesyncCheck[];
+  outputRoot?: string;
+  relativeDirPath: string;
+  global?: boolean;
+  logger?: Logger;
 };
 
 export abstract class ToolCheck extends ToolFile {
@@ -57,6 +80,14 @@ export abstract class ToolCheck extends ToolFile {
   }
 
   abstract toRulesyncCheck(): RulesyncCheck;
+
+  /**
+   * Import direction of {@link fromRulesyncChecks}: one shared file can hold
+   * many checks, so the default one-to-one mapping is widened here.
+   */
+  toRulesyncChecks(): RulesyncCheck[] {
+    return [this.toRulesyncCheck()];
+  }
 
   static isTargetedByRulesyncCheck(_rulesyncCheck: RulesyncCheck): boolean {
     throw new Error("Please implement this method in the subclass.");
