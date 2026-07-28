@@ -51,7 +51,7 @@ export type PiRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
  * rulesync's topic-based non-root rules therefore have no project subdirectory
  * to map onto; their bodies are folded into the single root `AGENTS.md` by the
  * RulesProcessor (there is no separate non-root output location — `nonRoot` is
- * `undefined`). This mirrors the codexcli, grokcli, warp, and deepagents targets.
+ * `undefined`). This mirrors the codexcli, warp and deepagents targets.
  *
  * Pi also loads two system-prompt instruction files. `.pi/APPEND_SYSTEM.md`
  * (global `~/.pi/agent/APPEND_SYSTEM.md`) *appends* to the default system prompt,

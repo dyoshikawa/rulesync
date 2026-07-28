@@ -39,7 +39,7 @@ export type JunieRuleSettablePaths = {
  * first match is loaded, it documents no `@`-reference or file-inclusion
  * mechanism, and no `.junie/memories/` read path exists — so non-root rules
  * are folded into the single root `.junie/AGENTS.md` by the RulesProcessor
- * (`nonRoot` is `undefined`, mirroring the grokcli / warp / deepagents
+ * (`nonRoot` is `undefined`, mirroring the warp / deepagents
  * targets; decision recorded in issue #2211). The legacy
  * `.junie/guidelines.md` is still accepted as an import fallback, but
  * generation always targets `.junie/AGENTS.md`. Junie uses plain markdown

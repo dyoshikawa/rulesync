@@ -57,3 +57,11 @@ export const GROKCLI_AGENTS_DIR_PATH = join(GROKCLI_DIR, "agents");
  * MCP/skills/subagents adapters).
  */
 export const GROKCLI_RULE_FILE_NAME = "AGENTS.md";
+
+/**
+ * Non-root rules directory. Grok scans `*.md` here — flat, sorted by name —
+ * alongside the AGENTS.md family: `.grok/rules/` in each project directory it
+ * walks, and `~/.grok/rules/` in the home scope.
+ * @see https://docs.x.ai/build/overview
+ */
+export const GROKCLI_RULES_DIR_PATH = join(GROKCLI_DIR, "rules");

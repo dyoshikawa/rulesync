@@ -518,7 +518,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       // touches) but never the `.goose/memories/` tree, which belongs to the
       // separate Memory extension and is not auto-loaded as session context.
       // Non-root rules are therefore folded into the single root `.goosehints`
-      // below (same handling as grokcli / warp / deepagents).
+      // below (same handling as warp / deepagents).
       class: GooseRule,
       meta: {
         extension: "md",
@@ -544,15 +544,15 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     "grokcli",
     {
       // Grok Build reads the AGENTS.md instruction-file family natively
-      // (root/subdir AGENTS.md + global ~/.grok/AGENTS.md) but never a
-      // `.grok/memories/` directory, so non-root rules are folded into the
-      // single root AGENTS.md below (same handling as warp / deepagents).
+      // (root/subdir AGENTS.md + global ~/.grok/AGENTS.md) and scans a rules
+      // directory beside it — `.grok/rules/` per project directory and
+      // `~/.grok/rules/` in the home scope — so a topic rule keeps its own file
+      // rather than being folded into the root one.
       class: GrokcliRule,
       meta: {
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
-        foldsNonRootIntoRoot: true,
       },
     },
   ],
@@ -563,7 +563,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       // (`.junie/AGENTS.md` → root `AGENTS.md` → legacy guidelines), reads no
       // `.junie/memories/` directory, and documents no `@`-reference
       // mechanism, so non-root rules are folded into the single root
-      // `.junie/AGENTS.md` (same handling as grokcli / warp / deepagents).
+      // `.junie/AGENTS.md` (same handling as warp / deepagents).
       class: JunieRule,
       meta: {
         extension: "md",

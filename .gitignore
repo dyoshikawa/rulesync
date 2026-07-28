@@ -267,6 +267,7 @@ rulesync.local.jsonc
 **/.factory/rules/
 **/.goosehints
 **/.hermes.md
+**/.grok/rules/
 **/.junie/AGENTS.md
 **/.junie/guidelines.md
 **/.kilo/rules/

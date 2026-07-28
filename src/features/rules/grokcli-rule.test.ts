@@ -65,9 +65,15 @@ describe("GrokcliRule", () => {
       expect(paths.root.relativeFilePath).toBe("AGENTS.md");
     });
 
-    it("should not expose a nonRoot path (.grok/memories/ is not read by Grok)", () => {
-      const paths = GrokcliRule.getSettablePaths();
-      expect(paths.nonRoot).toBeUndefined();
+    it("should expose the .grok/rules non-root directory Grok scans", () => {
+      // grok 0.2.112 scans `.grok/rules/*.md` alongside the AGENTS.md family;
+      // 0.2.54, the release the old handling was verified against, did not.
+      expect(GrokcliRule.getSettablePaths().nonRoot).toEqual({
+        relativeDirPath: join(".grok", "rules"),
+      });
+      expect(GrokcliRule.getSettablePaths({ global: true }).nonRoot).toEqual({
+        relativeDirPath: join(".grok", "rules"),
+      });
     });
 
     it("should return the user-level ~/.grok/AGENTS.md path for global mode", () => {
@@ -93,9 +99,10 @@ describe("GrokcliRule", () => {
       expect(rule.isRoot()).toBe(true);
     });
 
-    it("should read the root AGENTS.md even when given a non-root relativeFilePath", async () => {
-      const content = "# Single Source of Truth";
-      await writeFileContent(join(testDir, "AGENTS.md"), content);
+    it("should read a non-root rule from the .grok/rules directory", async () => {
+      const content = "# Topic";
+      await ensureDir(join(testDir, ".grok", "rules"));
+      await writeFileContent(join(testDir, ".grok", "rules", "some-topic.md"), content);
 
       const rule = await GrokcliRule.fromFile({
         outputRoot: testDir,
@@ -103,14 +110,14 @@ describe("GrokcliRule", () => {
       });
 
       expect(rule.getFileContent()).toBe(content);
-      expect(rule.getRelativeDirPath()).toBe(".");
-      expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
-      expect(rule.isRoot()).toBe(true);
+      expect(rule.getRelativeDirPath()).toBe(join(".grok", "rules"));
+      expect(rule.getRelativeFilePath()).toBe("some-topic.md");
+      expect(rule.isRoot()).toBe(false);
     });
   });
 
   describe("fromRulesyncRule", () => {
-    it("should route a non-root RulesyncRule to the single root AGENTS.md", () => {
+    it("should write a non-root RulesyncRule into .grok/rules", () => {
       const rulesyncRule = new RulesyncRule({
         outputRoot: testDir,
         relativeDirPath: ".rulesync/rules",
@@ -122,10 +129,10 @@ describe("GrokcliRule", () => {
       const rule = GrokcliRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule });
 
       expect(rule.getFileContent()).toBe("# Agent Config\n\nContent.");
-      // Non-root rules are folded into the root `AGENTS.md`; they are never
-      // written to a `.grok/memories/` directory (Grok does not read it).
-      expect(rule.getRelativeDirPath()).toBe(".");
-      expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
+      // Grok scans this directory alongside the AGENTS.md family, so a topic
+      // rule keeps its own file instead of being folded into the root one.
+      expect(rule.getRelativeDirPath()).toBe(join(".grok", "rules"));
+      expect(rule.getRelativeFilePath()).toBe("test.md");
       expect(rule.isRoot()).toBe(false);
     });
 

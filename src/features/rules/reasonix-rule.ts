@@ -23,7 +23,7 @@ export type ReasonixRuleParams = AiFileParams & {
  * vendor-specific `REASONIX.md` (alongside the cross-tool `AGENTS.md`/`CLAUDE.md`)
  * discovered by walking user-home → ancestors → project root/local. rulesync
  * emits the vendor `REASONIX.md` at the project root (project scope) and
- * `~/.reasonix/REASONIX.md` (global scope). Like codexcli/grokcli/warp, there is
+ * `~/.reasonix/REASONIX.md` (global scope). Like codexcli/warp, there is
  * no non-root instruction directory to map rulesync's topic rules onto, so their
  * bodies are folded into the single root `REASONIX.md` by the RulesProcessor
  * (`nonRoot` is `undefined`).

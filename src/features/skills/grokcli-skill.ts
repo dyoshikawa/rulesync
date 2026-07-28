@@ -8,6 +8,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -19,6 +20,13 @@ import {
 const GrokcliSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
+  // Invocation control Grok honours: a skill with `user-invocable: false` is
+  // hidden from the skill tool, and `disable-model-invocation: true` stops the
+  // model reaching for it on its own. Both are canonical fields other adapters
+  // already emit, so dropping them here made the flags silently target-specific.
+  // https://docs.x.ai/build/features/skills-plugins-marketplaces
+  "user-invocable": z.optional(z.boolean()),
+  "disable-model-invocation": z.optional(z.boolean()),
 });
 
 export type GrokcliSkillFrontmatter = z.infer<typeof GrokcliSkillFrontmatterSchema>;
@@ -125,9 +133,21 @@ export class GrokcliSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    // Into the `grokcli` section, not the root: the root value is the shared
+    // default for every tool that honours these flags, so importing one tool's
+    // setting there would apply it to Claude Code, Cursor, Zed and the rest.
+    const grokcliSection = {
+      ...(frontmatter["user-invocable"] !== undefined && {
+        "user-invocable": frontmatter["user-invocable"],
+      }),
+      ...(frontmatter["disable-model-invocation"] !== undefined && {
+        "disable-model-invocation": frontmatter["disable-model-invocation"],
+      }),
+    };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
+      ...(Object.keys(grokcliSection).length > 0 && { grokcli: grokcliSection }),
       targets: ["*"],
     };
 
@@ -152,9 +172,23 @@ export class GrokcliSkill extends ToolSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     const settablePaths = GrokcliSkill.getSettablePaths({ global });
 
+    const grokcliSection = rulesyncFrontmatter.grokcli;
+    const resolvedUserInvocable = resolveUserInvocable({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: grokcliSection,
+    });
+    const resolvedDisableModelInvocation = resolveDisableModelInvocation({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: grokcliSection,
+    });
+
     const grokcliFrontmatter: GrokcliSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...(resolvedUserInvocable !== undefined && { "user-invocable": resolvedUserInvocable }),
+      ...(resolvedDisableModelInvocation !== undefined && {
+        "disable-model-invocation": resolvedDisableModelInvocation,
+      }),
     };
 
     return new GrokcliSkill({

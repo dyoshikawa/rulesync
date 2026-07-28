@@ -14,10 +14,10 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   name: z.string(),
   description: z.string(),
   targets: z._default(RulesyncTargetsSchema, ["*"]),
-  // Default for tools that support the flag (claudecode, cursor, zed, pi, qwencode, factorydroid).
+  // Default for tools that support the flag (claudecode, cursor, zed, pi, qwencode, grokcli, factorydroid).
   // A target-section value of the same key overrides this default.
   "disable-model-invocation": z.optional(z.boolean()),
-  // Default for tools that support the flag (claudecode, qwencode, vibe, factorydroid).
+  // Default for tools that support the flag (claudecode, qwencode, vibe, grokcli, factorydroid).
   // A target-section value of the same key overrides this default.
   "user-invocable": z.optional(z.boolean()),
   claudecode: z.optional(
@@ -174,6 +174,14 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       "user-invocable": z.optional(z.boolean()),
     }),
   ),
+  // Grok honours both flags: `user-invocable: false` hides a skill from the
+  // skill tool, `disable-model-invocation: true` blocks auto-invocation.
+  grokcli: z.optional(
+    z.looseObject({
+      "disable-model-invocation": z.optional(z.boolean()),
+      "user-invocable": z.optional(z.boolean()),
+    }),
+  ),
   "kimi-code": z.optional(
     z.looseObject({
       type: z.optional(z.enum(["prompt", "inline", "flow"])),
@@ -239,6 +247,10 @@ export type RulesyncSkillFrontmatterInput = {
     "user-invocable"?: boolean;
     "scheduled-task"?: boolean;
     paths?: string | string[];
+  };
+  grokcli?: {
+    "disable-model-invocation"?: boolean;
+    "user-invocable"?: boolean;
   };
   codexcli?: {
     "short-description"?: string;
