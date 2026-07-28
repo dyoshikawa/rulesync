@@ -116,9 +116,23 @@ export class GooseSubagent extends ToolSubagent {
     global = false,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
+    // Recipe-only keys from the retired sub-recipe surface (or from a canonical
+    // file imported by an earlier rulesync version, which always carried
+    // `version`) are stripped: they have no meaning on a custom-agent file and
+    // would land in its frontmatter as inert noise. In particular, the old
+    // `goose.instructions` used to override the emitted body — on the
+    // custom-agent surface the body IS the instructions, so the override is
+    // gone by design.
     const gooseSection = this.filterToolSpecificSection(rulesyncFrontmatter.goose ?? {}, [
       "name",
       "description",
+      "version",
+      "title",
+      "instructions",
+      "prompt",
+      "extensions",
+      "parameters",
+      "sub_recipes",
     ]);
 
     const rawFrontmatter = {
