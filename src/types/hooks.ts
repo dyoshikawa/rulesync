@@ -98,7 +98,8 @@ export const HookDefinitionSchema = z.looseObject({
   model: z.optional(safeString),
   // AugmentCode command hooks: extra argv appended to `command` by the runner,
   // so a hook can pass arguments without quoting them into the command string.
-  // https://docs.augmentcode.com/cli/hooks
+  // Accepted by the shipped CLI's validator (`@augmentcode/auggie` 0.33.0),
+  // though the docs page does not list it.
   args: z.optional(z.array(safeString)),
   // AugmentCode matcher-group options selecting what the runner puts in the
   // JSON payload the hook script receives (`includeConversationData`,

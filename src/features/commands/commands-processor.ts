@@ -82,6 +82,7 @@ type ToolCommandFactory = {
     loadAdditionalImportFiles?(params: {
       outputRoot: string;
       global: boolean;
+      logger?: Logger;
     }): Promise<ToolCommand[]>;
     /**
      * Optional hook for tools that need a shared/aggregate file alongside the
@@ -192,7 +193,10 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsProject: true,
         supportsGlobal: true,
         isSimulated: false,
-        supportsSubdirectory: false,
+        // Auggie namespaces a nested command by its directory:
+        // `.augment/commands/frontend/component.md` is `/frontend:component`.
+        // https://docs.augmentcode.com/cli/custom-commands
+        supportsSubdirectory: true,
       },
     },
   ],
@@ -778,13 +782,14 @@ export class CommandsProcessor extends FeatureProcessor {
       const additionalCommands = await factory.class.loadAdditionalImportFiles({
         outputRoot: this.outputRoot,
         global: this.global,
+        logger: this.logger,
       });
       for (const command of additionalCommands) {
         const key = command.getRelativeFilePath();
         if (seen.has(key)) {
           this.logger.warn(
-            `Duplicate ${this.toolTarget} command "${key}" defined inline; ` +
-              `keeping the standalone file and ignoring the inline copy.`,
+            `Duplicate ${this.toolTarget} command "${key}" from a secondary source; ` +
+              `keeping the one under ${paths.relativeDirPath}.`,
           );
           continue;
         }

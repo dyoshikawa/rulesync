@@ -40,7 +40,8 @@ const AUGMENTCODE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
   "stop",
   "notification",
   // `PromptSubmit` fires once per submitted prompt, so it carries no matcher
-  // either — auggie lists it in the same matcher-less set as the four above.
+  // either — the shipped CLI (`@augmentcode/auggie` 0.33.0, `augment.mjs`) lists
+  // it in the same matcher-less enum as the four above.
   "beforeSubmitPrompt",
 ]);
 
@@ -54,11 +55,12 @@ const AUGMENTCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   projectDirVar: "",
   noMatcherEvents: AUGMENTCODE_NO_MATCHER_EVENTS,
   supportedHookTypes: new Set(["command"]),
-  // Auggie's own validator accepts `args` on a command hook and `metadata` on
-  // the matcher group. Both were previously dropped on import and — because the
-  // `hooks` key is owned in the shared settings file — erased from a
-  // hand-written settings.json on the next generate.
-  // https://docs.augmentcode.com/cli/hooks
+  // `metadata` is documented at https://docs.augmentcode.com/cli/hooks; `args`
+  // appears only in the shipped CLI's validator (`@augmentcode/auggie` 0.33.0,
+  // `augment.mjs`), which accepts it on a command hook. Both were previously
+  // dropped on import and — because the `hooks` key is owned in the shared
+  // settings file — erased from a hand-written settings.json on the next
+  // generate.
   arrayPassthroughFields: [{ canonical: "args", tool: "args" }],
   groupPassthroughFields: [{ canonical: "metadata", tool: "metadata" }],
 };

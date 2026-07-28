@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { stringifyFrontmatter } from "../../utils/frontmatter.js";
@@ -352,6 +353,30 @@ describe("AugmentcodeCommand .agents/commands import root", () => {
     // The rulesync-side identity is the path under the commands root, so a
     // command found here is indistinguishable from one under `.augment`.
     expect(commands[0]?.getRelativeDirPath()).toBe(join(".augment", "commands"));
+  });
+
+  it("skips a file whose frontmatter belongs to another tool", async () => {
+    // `.agents/commands/` is shared: Claude Code writes `argument-hint` as a
+    // list, which is not AugmentCode's shape. One such file must not take the
+    // whole import down.
+    await ensureDir(join(testDir, ".agents", "commands"));
+    await writeFileContent(
+      join(testDir, ".agents", "commands", "foreign.md"),
+      ["---", "argument-hint: [message]", "---", "", "Body.", ""].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".agents", "commands", "ours.md"),
+      ["---", "description: Ours", "---", "", "Body.", ""].join("\n"),
+    );
+    const logger = createMockLogger();
+
+    const commands = await AugmentcodeCommand.loadAdditionalImportFiles({
+      outputRoot: testDir,
+      logger,
+    });
+
+    expect(commands.map((command) => command.getRelativeFilePath())).toEqual(["ours.md"]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("foreign.md"));
   });
 
   it("returns nothing when the root does not exist", async () => {

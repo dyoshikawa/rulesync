@@ -1,6 +1,12 @@
 import { posix, win32 } from "node:path";
 
-import { type HookEvent, type HookType, type HooksConfig, isHookEvent } from "../../types/hooks.js";
+import {
+  CONTROL_CHARS,
+  type HookEvent,
+  type HookType,
+  type HooksConfig,
+  isHookEvent,
+} from "../../types/hooks.js";
 import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
 import { isPlainObject } from "../../utils/type-guards.js";
@@ -278,7 +284,7 @@ function importArrayPassthroughFields({
 }): Record<string, string[]> {
   return Object.fromEntries(
     (converterConfig.arrayPassthroughFields ?? [])
-      .filter(({ tool }) => isStringArray(h[tool]))
+      .filter(({ tool }) => isSafeStringArray(h[tool]))
       .map(({ canonical, tool }) => [canonical, h[tool] as string[]]),
   );
 }
@@ -289,17 +295,36 @@ function importArrayPassthroughFields({
  */
 function emitGroupPassthroughFields({
   defs,
+  eventName,
   converterConfig,
+  logger,
 }: {
   defs: HooksConfig["hooks"][string];
+  eventName: string;
   converterConfig: ToolHooksConverterConfig;
+  logger?: Logger;
 }): Record<string, Record<string, unknown>> {
   const emitted: Record<string, Record<string, unknown>> = {};
   for (const { canonical, tool } of converterConfig.groupPassthroughFields ?? []) {
-    const carrier = defs.find((def) => isPlainObject(def[canonical]));
-    if (carrier) {
-      emitted[tool] = carrier[canonical] as Record<string, unknown>;
+    const carried = defs.map((def) => def[canonical]);
+    const first = carried.find((value): value is Record<string, unknown> => isPlainObject(value));
+    if (first === undefined) {
+      continue;
     }
+    // One value per group, so hooks sharing a matcher cannot each keep their
+    // own — and a hook that asked for nothing still receives whatever the group
+    // ends up with. Say so, rather than let the payload a script gets widen on
+    // the strength of who else happens to share its matcher.
+    const agrees = (value: unknown): boolean =>
+      isPlainObject(value) && JSON.stringify(value) === JSON.stringify(first);
+    if (!carried.every(agrees)) {
+      logger?.warn(
+        `"${tool}" belongs to the whole matcher group on "${eventName}" hooks, so every hook in ` +
+          `this group gets ${JSON.stringify(first)} — including any that asked for something ` +
+          `else, or for nothing.`,
+      );
+    }
+    emitted[tool] = first;
   }
   return emitted;
 }
@@ -353,6 +378,16 @@ function emitTypePayloadFields({
  * Convert the definitions of a single matcher group into tool hook entries,
  * honoring supported hook types and passthrough fields.
  */
+function isSupportedHookType({
+  type,
+  converterConfig,
+}: {
+  type: HookType | undefined;
+  converterConfig: ToolHooksConverterConfig;
+}): boolean {
+  return converterConfig.supportedHookTypes?.has(type ?? "command") ?? true;
+}
+
 function buildToolHooks({
   defs,
   converterConfig,
@@ -363,7 +398,7 @@ function buildToolHooks({
   const hooks: Array<Record<string, unknown>> = [];
   for (const def of defs) {
     const hookType = def.type ?? "command";
-    if (converterConfig.supportedHookTypes && !converterConfig.supportedHookTypes.has(hookType)) {
+    if (!isSupportedHookType({ type: hookType, converterConfig })) {
       continue;
     }
     const command = applyCommandPrefix({ def, converterConfig });
@@ -432,9 +467,19 @@ export function canonicalToToolHooks({
         continue;
       }
       const includeMatcher = matcherKey && !isNoMatcherEvent;
-      const groupFields = emitGroupPassthroughFields({ defs, converterConfig });
+      const groupFields = emitGroupPassthroughFields({
+        // Only the definitions that survived the hook-type filter: a hook this
+        // tool cannot express must not decide a field for the ones it does.
+        defs: defs.filter(({ type }) => isSupportedHookType({ type, converterConfig })),
+        eventName,
+        converterConfig,
+        logger,
+      });
+      // Group fields first, so a tool-side name colliding with `matcher` or
+      // `hooks` could never shadow them — the ordering each per-hook
+      // passthrough field already uses.
       entries.push(
-        includeMatcher ? { matcher: matcherKey, hooks, ...groupFields } : { hooks, ...groupFields },
+        includeMatcher ? { ...groupFields, matcher: matcherKey, hooks } : { ...groupFields, hooks },
       );
     }
     if (entries.length > 0) {
@@ -497,6 +542,19 @@ function isStringRecord(value: unknown): value is Record<string, string> {
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((v) => typeof v === "string");
+}
+
+/**
+ * Control characters cannot ride from an existing tool config into a canonical
+ * field the schema guards with `safeString`, or the next generate fails
+ * validation on a file this import itself wrote — and the hooks feature is
+ * skipped wholesale when that read fails.
+ */
+function isSafeStringArray(value: unknown): value is string[] {
+  return (
+    isStringArray(value) &&
+    value.every((entry) => !CONTROL_CHARS.some((char) => entry.includes(char)))
+  );
 }
 
 /**

@@ -1,4 +1,4 @@
-import { join, relative } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -8,8 +8,9 @@ import {
 } from "../../constants/augmentcode-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
-import { findFilesByGlobs, readFileContent, toPosixPath } from "../../utils/file.js";
+import { findFilesByGlobs, readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import type { Logger } from "../../utils/logger.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -197,34 +198,63 @@ export class AugmentcodeCommand extends ToolCommand {
   static async loadAdditionalImportFiles({
     outputRoot = process.cwd(),
     global = false,
+    logger,
   }: {
     outputRoot?: string;
     global?: boolean;
+    logger?: Logger;
   } = {}): Promise<AugmentcodeCommand[]> {
     const rootDir = join(outputRoot, AUGMENTCODE_AGENTS_COMMANDS_DIR_PATH);
     const filePaths = await findFilesByGlobs(join(rootDir, "**", "*.md"));
+    if (filePaths.length > 0) {
+      // `.agents/commands/` is a cross-tool root — rulesync writes it for
+      // `agentsmd` too — so say where these came from: importing one makes it a
+      // rulesync command targeting every tool.
+      logger?.warn(
+        `Importing ${filePaths.length} AugmentCode command(s) from the shared ` +
+          `${AUGMENTCODE_AGENTS_COMMANDS_DIR_PATH} root; they will be written for every target ` +
+          `on the next generate.`,
+      );
+    }
 
     const commands = await Promise.all(
       filePaths.map(async (filePath) => {
+        const relativePath = relative(rootDir, filePath);
+        // Same guard the processor applies to its own root: a project path
+        // holding glob metacharacters can make globby match a sibling tree.
+        if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
+          logger?.warn(`Skipping ${filePath}: it resolves outside ${rootDir}.`);
+          return undefined;
+        }
         const fileContent = await readFileContent(filePath);
         const { frontmatter, body } = parseFrontmatter(fileContent, filePath);
         const result = AugmentcodeCommandFrontmatterSchema.safeParse(frontmatter);
         if (!result.success) {
-          throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
+          // This root is shared with other tools, whose frontmatter conventions
+          // differ (Claude Code writes `argument-hint: [message]`, a list). One
+          // such file must not take the whole import down.
+          logger?.warn(
+            `Skipping ${filePath}: it does not carry AugmentCode command frontmatter ` +
+              `(${formatError(result.error)}).`,
+          );
+          return undefined;
         }
         return new AugmentcodeCommand({
           outputRoot,
           // The rulesync-side path is the same either way: the command's name is
           // its path under the commands root, whichever root it came from.
           relativeDirPath: AUGMENTCODE_COMMANDS_DIR_PATH,
-          relativeFilePath: toPosixPath(relative(rootDir, filePath)),
+          // Native separators, matching what the processor's own loader
+          // produces — the duplicate check compares these strings, and a posix
+          // path would miss a collision on Windows.
+          relativeFilePath: relativePath,
           frontmatter: result.data,
           body: body.trim(),
           global,
         });
       }),
     );
-    return commands;
+    return commands.filter((command) => command !== undefined);
   }
 
   static forDeletion({
