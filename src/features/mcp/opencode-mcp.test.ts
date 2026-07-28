@@ -1402,13 +1402,17 @@ describe("OpencodeMcp", () => {
       });
     });
 
-    it("should throw error when command array is empty", () => {
+    it("should import a server with an empty command array as one with no transport", () => {
+      // Rulesync itself used to write this for a server that named no
+      // transport, so it sits in real projects. Throwing took the whole
+      // `import` run down — every later feature of it — over one entry with
+      // nothing to import.
       const jsonData = {
         mcp: {
           "empty-command-server": {
             type: "local",
             command: [],
-            enabled: true,
+            enabled: false,
           },
         },
       };
@@ -1419,9 +1423,8 @@ describe("OpencodeMcp", () => {
         validate: false,
       });
 
-      expect(() => opencodeMcp.toRulesyncMcp()).toThrow(
-        'Server "empty-command-server" has an empty command array',
-      );
+      const imported = JSON.parse(opencodeMcp.toRulesyncMcp().getFileContent());
+      expect(imported.mcpServers["empty-command-server"]).toEqual({ disabled: true });
     });
 
     it("should convert tools map to enabledTools per server (strip prefix)", () => {

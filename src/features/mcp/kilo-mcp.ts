@@ -207,7 +207,12 @@ function kiloServerToRulesync(
 
   const [command, ...args] = server.command;
   if (!command) {
-    throw new Error(`Server "${serverName}" has an empty command array`);
+    // `{type: "local", command: []}` is what Rulesync used to write for a
+    // server that named no transport, so it is on disk in real projects.
+    // Throwing here took the whole `import` run down — every later feature of
+    // it — over an entry with nothing to import. Read it as the transport-less
+    // server it is; the write side turns that back into a toggle.
+    return withTimeout;
   }
   return {
     type: "stdio" as const,

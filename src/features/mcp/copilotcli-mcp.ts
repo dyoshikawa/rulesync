@@ -10,7 +10,13 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { McpServerSchema, type McpServer, type McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { declaresNoTransport, warnAndSkipMcpServer } from "./mcp-transport.js";
+import {
+  declaresNoTransport,
+  isRemoteMcpServer,
+  resolveLocalMcpCommand,
+  resolveRemoteMcpUrl,
+  warnAndSkipMcpServer,
+} from "./mcp-transport.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -27,41 +33,51 @@ type CopilotcliMcpConfig = {
 
 type CopilotcliServerType = NonNullable<McpServer["type"]>;
 
-const isRemoteServerType = (
-  type: CopilotcliServerType,
-): type is Extract<CopilotcliServerType, "http" | "sse"> => {
-  return type === "http" || type === "sse";
-};
-
+/**
+ * Copilot CLI knows `stdio`, `local`, `http` and `sse`. The canonical config
+ * also has `streamable-http` (the MCP spec's name for HTTP) and `ws`, which
+ * Copilot CLI has no transport for; both resolve to `http` rather than falling
+ * through to `stdio`, where they used to be reported as a server missing its
+ * command. A server that states no transport is read from what it carries: a
+ * command makes it `stdio`, a url makes it `http`.
+ */
 const resolveCopilotcliServerType = (server: McpServer): CopilotcliServerType => {
-  if (server.type) {
-    return server.type;
+  const declared = server.type ?? server.transport;
+  switch (declared) {
+    case "sse":
+      return "sse";
+    case "http":
+    case "streamable-http":
+    case "ws":
+      return "http";
+    case "stdio":
+    case "local":
+      return declared;
+    default:
+      break;
   }
 
-  if (server.transport === "http" || server.transport === "sse" || server.transport === "local") {
-    return server.transport;
+  if (server.command !== undefined) {
+    return "stdio";
   }
-
-  return "stdio";
+  return isRemoteMcpServer(server) ? "http" : "stdio";
 };
 
 /**
  * Resolves and sets the transport type for each MCP server config.
- * GitHub Copilot CLI requires the "type" field for each server.
- * @throws Error if a stdio/local server doesn't have a command
- * @throws Error if an http/sse server doesn't have a url or httpUrl
+ * GitHub Copilot CLI requires the "type" field for each server. A server it
+ * cannot express — one that names no transport, or names one it carries no way
+ * to reach — is skipped with a warning: every entry in `mcp-config.json`
+ * defines a server, and throwing would abort the whole generate run, every
+ * target and feature of it, over a single entry.
  */
 function addTypeField(mcpServers: McpServers, logger?: Logger): CopilotcliMcpConfig["mcpServers"] {
   const result: NonNullable<CopilotcliMcpConfig["mcpServers"]> = {};
 
   for (const [name, server] of Object.entries(mcpServers)) {
     const parsed = McpServerSchema.parse(server);
-    // A server that names no transport at all is the shape a Kilo
-    // `{"enabled": …}` toggle imports as, which switches off a server some
-    // other config layer defines. Copilot CLI has no equivalent — every entry
-    // in its config defines a server — and throwing here would abort the whole
-    // generate run, every target and feature of it, over one entry that was
-    // never meant for Copilot CLI.
+    // The shape a Kilo `{"enabled": …}` toggle imports as, which switches off a
+    // server some other config layer defines. Copilot CLI has no equivalent.
     if (declaresNoTransport(parsed)) {
       warnAndSkipMcpServer({
         toolName: "GitHub Copilot CLI",
@@ -71,48 +87,42 @@ function addTypeField(mcpServers: McpServers, logger?: Logger): CopilotcliMcpCon
       });
       continue;
     }
+
     const type = resolveCopilotcliServerType(parsed);
 
-    if (isRemoteServerType(type)) {
-      if (!parsed.url && !parsed.httpUrl) {
-        throw new Error(
-          `MCP server "${name}" is missing a url or httpUrl. GitHub Copilot CLI ${type} servers require a non-empty url or httpUrl.`,
-        );
+    if (type === "http" || type === "sse") {
+      const url = resolveRemoteMcpUrl(parsed);
+      if (url === undefined) {
+        warnAndSkipMcpServer({
+          toolName: "GitHub Copilot CLI",
+          serverName: name,
+          reason: "a remote transport but no url",
+          logger,
+        });
+        continue;
       }
 
-      result[name] = {
-        ...parsed,
-        type,
-      };
+      result[name] = { ...parsed, type };
       continue;
     }
 
-    if (!parsed.command) {
-      throw new Error(
-        `MCP server "${name}" is missing a command. GitHub Copilot CLI ${type} servers require a non-empty command.`,
-      );
-    }
-
-    let command: string;
-    let args: string[] | undefined;
-
-    if (typeof parsed.command === "string") {
-      command = parsed.command;
-      args = parsed.args;
-    } else {
-      const [cmd, ...cmdArgs] = parsed.command;
-      if (!cmd) {
-        throw new Error(`MCP server "${name}" has an empty command array.`);
-      }
-      command = cmd;
-      args = cmdArgs.length > 0 ? [...cmdArgs, ...(parsed.args ?? [])] : parsed.args;
+    const command = resolveLocalMcpCommand(parsed);
+    const [head, ...tail] = command;
+    if (head === undefined) {
+      warnAndSkipMcpServer({
+        toolName: "GitHub Copilot CLI",
+        serverName: name,
+        reason: "a local transport but no command",
+        logger,
+      });
+      continue;
     }
 
     result[name] = {
       ...parsed,
       type,
-      command,
-      ...(args && { args }),
+      command: head,
+      ...(tail.length > 0 && { args: tail }),
     };
   }
 

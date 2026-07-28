@@ -159,7 +159,20 @@ function convertFromOpencodeFormat(
       // local server -> stdio
       const [command, ...args] = serverConfig.command;
       if (!command) {
-        throw new Error(`Server "${serverName}" has an empty command array`);
+        // `{type: "local", command: []}` is what Rulesync used to write for a
+        // server that named no transport, so it is on disk in real projects.
+        // Throwing here took the whole `import` run down — every later feature
+        // of it — over an entry with nothing to import. Read it as the
+        // transport-less server it is; the write side then skips it.
+        return [
+          serverName,
+          {
+            ...extraFields,
+            ...(serverConfig.enabled === false && { disabled: true }),
+            ...(enabledTools.length > 0 && { enabledTools }),
+            ...(disabledTools.length > 0 && { disabledTools }),
+          },
+        ];
       }
       return [
         serverName,

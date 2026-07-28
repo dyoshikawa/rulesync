@@ -425,9 +425,11 @@ describe("CopilotcliMcp", () => {
       );
     });
 
-    it("should throw error when stdio server has unknown fields but no command", async () => {
+    it("should write a server that states only a url as an http server", async () => {
+      // It used to resolve to stdio and be rejected for missing a command,
+      // which is not what an entry carrying a url and headers is.
       const inputMcpServers = {
-        "unknown-fields-no-command": {
+        "url-only": {
           url: "http://localhost:3000/mcp",
           headers: {
             Authorization: "Bearer test-token",
@@ -441,11 +443,12 @@ describe("CopilotcliMcp", () => {
         fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
       });
 
-      await expect(
-        CopilotcliMcp.fromRulesyncMcp({
-          rulesyncMcp,
-        }),
-      ).rejects.toThrow('MCP server "unknown-fields-no-command" is missing a command');
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({ rulesyncMcp });
+
+      expect(copilotCliMcp.getJson().mcpServers!["url-only"]).toEqual({
+        ...inputMcpServers["url-only"],
+        type: "http",
+      });
     });
 
     it("should handle command as array and merge remaining elements into args", async () => {
@@ -550,7 +553,10 @@ describe("CopilotcliMcp", () => {
       });
     });
 
-    it("should throw error when remote server has no url or httpUrl", async () => {
+    it("should skip a remote server that has no url or httpUrl", async () => {
+      // One entry with nothing to connect to must not take the whole generate
+      // run — every other target and feature of it — down with it.
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
       const inputMcpServers = {
         "remote-server": {
           type: "http" as const,
@@ -565,14 +571,19 @@ describe("CopilotcliMcp", () => {
         fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
       });
 
-      await expect(
-        CopilotcliMcp.fromRulesyncMcp({
-          rulesyncMcp,
-        }),
-      ).rejects.toThrow('MCP server "remote-server" is missing a url or httpUrl');
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
+        rulesyncMcp,
+        logger: mockLogger,
+      });
+
+      expect(copilotCliMcp.getJson().mcpServers).toEqual({});
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('skipping "remote-server"'),
+      );
     });
 
-    it("should require command for local type servers", async () => {
+    it("should skip a local server that has no command", async () => {
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
       const inputMcpServers = {
         "local-server": {
           type: "local" as const,
@@ -585,11 +596,15 @@ describe("CopilotcliMcp", () => {
         fileContent: JSON.stringify({ mcpServers: inputMcpServers }),
       });
 
-      await expect(
-        CopilotcliMcp.fromRulesyncMcp({
-          rulesyncMcp,
-        }),
-      ).rejects.toThrow('MCP server "local-server" is missing a command');
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
+        rulesyncMcp,
+        logger: mockLogger,
+      });
+
+      expect(copilotCliMcp.getJson().mcpServers).toEqual({});
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('skipping "local-server"'),
+      );
     });
 
     it("should preserve existing non-stdio type when converting", async () => {

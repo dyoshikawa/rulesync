@@ -4,11 +4,11 @@ import type { Logger } from "../../utils/logger.js";
 export type McpServerConfig = McpServers[string];
 
 /**
- * A server that names no way to be reached at all. Kilo and OpenCode use this
- * shape for a bare `{"enabled": <bool>}` entry — a switch for a server another
- * config layer defines — so it is what such an entry imports as. Every other
- * tool's config defines the servers it lists, so there the entry has no
- * equivalent and must be skipped rather than written as an empty server.
+ * A server that names no way to be reached at all. It is what a Kilo bare
+ * `{"enabled": <bool>}` entry imports as — a switch for a server another config
+ * layer defines, which only Kilo's config spells this way. Every other tool's
+ * config defines the servers it lists, so there the entry has no equivalent and
+ * must be skipped rather than written as a server with an empty command.
  */
 export function declaresNoTransport(serverConfig: McpServerConfig): boolean {
   return (
@@ -20,13 +20,17 @@ export function declaresNoTransport(serverConfig: McpServerConfig): boolean {
   );
 }
 
-const REMOTE_TRANSPORTS = new Set(["sse", "http", "streamable-http"]);
+// `ws` is here because it is reached by URL like the rest, even though no
+// adapter using this module speaks WebSocket; classifying it as local would
+// have such a server skipped for "no command", which is not why it cannot be
+// written.
+const REMOTE_TRANSPORTS = new Set(["sse", "http", "streamable-http", "ws"]);
 
 /**
  * Whether the server speaks over the network rather than over a spawned
- * process. `httpUrl` counts as much as `url` does — it is the field the Gemini
- * CLI adapter imports — and so does `transport`, the alias `type` has
- * everywhere else in the canonical config.
+ * process. `httpUrl`, the Claude-specific alias several adapters accept, counts
+ * as much as `url` does, and so does `transport`, the alias `type` has
+ * everywhere in the canonical config.
  */
 export function isRemoteMcpServer(serverConfig: McpServerConfig): boolean {
   return (
