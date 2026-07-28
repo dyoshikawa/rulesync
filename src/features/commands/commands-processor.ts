@@ -1,4 +1,4 @@
-import { basename, join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -804,9 +804,16 @@ export class CommandsProcessor extends FeatureProcessor {
       // this — there, a nested file and a same-named inline entry really are
       // two commands.
       const matchByBasename = factory.meta.matchAdditionalImportsByBasename === true;
-      const keysOf = (command: ToolCommand): string[] => {
+      // Only a *flat* secondary command can be the flattened twin of a nested
+      // one. Matching a nested secondary by basename would drop a real command:
+      // `.agents/commands/docs/commit.md` is `/docs:commit`, not a copy of
+      // `/git:commit`.
+      const keysOf = (command: ToolCommand, flatOnly = false): string[] => {
         const key = command.getRelativeFilePath();
-        return matchByBasename ? [key, basename(key)] : [key];
+        if (!matchByBasename || (flatOnly && dirname(key) !== ".")) {
+          return [key];
+        }
+        return [key, basename(key)];
       };
       const seen = new Set(toolCommands.flatMap((command) => keysOf(command)));
       const additionalCommands = await factory.class.loadAdditionalImportFiles({
@@ -816,7 +823,7 @@ export class CommandsProcessor extends FeatureProcessor {
       });
       for (const command of additionalCommands) {
         const key = command.getRelativeFilePath();
-        if (keysOf(command).some((candidate) => seen.has(candidate))) {
+        if (keysOf(command, true).some((candidate) => seen.has(candidate))) {
           this.logger.warn(
             `Duplicate ${this.toolTarget} command "${key}" from a secondary source; ` +
               `keeping the one already loaded.`,

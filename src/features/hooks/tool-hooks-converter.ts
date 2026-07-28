@@ -558,12 +558,6 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((v) => typeof v === "string");
 }
 
-/**
- * Control characters cannot ride from an existing tool config into a canonical
- * field the schema guards with `safeString`, or the next generate fails
- * validation on a file this import itself wrote — and the hooks feature is
- * skipped wholesale when that read fails.
- */
 /** Compare object values without letting key order decide the answer. */
 function stableJson(value: Record<string, unknown>): string {
   return JSON.stringify(
@@ -571,6 +565,12 @@ function stableJson(value: Record<string, unknown>): string {
   );
 }
 
+/**
+ * Control characters cannot ride from an existing tool config into a canonical
+ * field the schema guards with `safeString`, or the next generate fails
+ * validation on a file this import itself wrote — and the hooks feature is
+ * skipped wholesale when that read fails.
+ */
 function isSafeStringArray(value: unknown): value is string[] {
   return (
     isStringArray(value) &&

@@ -248,10 +248,11 @@ export class AugmentcodeCommand extends ToolCommand {
     if (imported.length > 0) {
       // `.agents/commands/` is a cross-tool root — rulesync writes it for
       // `agentsmd` too — so say where these came from: importing one makes it a
-      // rulesync command written for every target on the next generate. Counted
-      // after the skips above, so the number is what was actually taken.
+      // rulesync command written for every target on the next generate. The
+      // count is what this root offered; the processor drops any that duplicate
+      // a command already loaded from `.augment/commands/`, saying so as it goes.
       logger?.warn(
-        `Importing ${imported.length} AugmentCode command(s) from the shared ` +
+        `Found ${imported.length} AugmentCode command(s) in the shared ` +
           `${AUGMENTCODE_AGENTS_COMMANDS_DIR_PATH} root; they will be written for every target ` +
           `on the next generate.`,
       );

@@ -1460,5 +1460,31 @@ describe("CommandsProcessor secondary import roots", () => {
     const loaded = await processor.loadToolFiles();
 
     expect(loaded.map((file) => file.getRelativeFilePath())).toEqual([join("git", "commit.md")]);
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("Duplicate augmentcode"));
+  });
+
+  it("keeps a nested command from the shared root that only shares a basename", async () => {
+    // `.agents/commands/docs/commit.md` is `/docs:commit` — a different command
+    // from `/git:commit`, not the flattened twin the basename match is for.
+    const actualFile =
+      await vi.importActual<typeof import("../../utils/file.js")>("../../utils/file.js");
+    vi.mocked(findFilesByGlobs).mockImplementation(actualFile.findFilesByGlobs);
+    await ensureDir(join(testDir, ".augment", "commands", "git"));
+    await ensureDir(join(testDir, ".agents", "commands", "docs"));
+    const body = ["---", "description: Commit", "---", "", "Commit it.", ""].join("\n");
+    await writeFileContent(join(testDir, ".augment", "commands", "git", "commit.md"), body);
+    await writeFileContent(join(testDir, ".agents", "commands", "docs", "commit.md"), body);
+
+    const processor = new CommandsProcessor({
+      outputRoot: testDir,
+      toolTarget: "augmentcode",
+      logger: createMockLogger(),
+    });
+    const loaded = await processor.loadToolFiles();
+
+    expect(loaded.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+      join("docs", "commit.md"),
+      join("git", "commit.md"),
+    ]);
   });
 });

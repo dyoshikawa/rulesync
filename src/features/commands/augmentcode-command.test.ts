@@ -379,6 +379,23 @@ describe("AugmentcodeCommand .agents/commands import root", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("foreign.md"));
   });
 
+  it("writes a nested command with its namespace intact", async () => {
+    // Auggie reads `.augment/commands/git/commit.md` as `/git:commit`, so the
+    // nesting is the command's identity rather than an arrangement detail.
+    const command = AugmentcodeCommand.fromRulesyncCommand({
+      outputRoot: testDir,
+      rulesyncCommand: new RulesyncCommand({
+        relativeDirPath: ".rulesync/commands",
+        relativeFilePath: join("git", "commit.md"),
+        frontmatter: { targets: ["*"], description: "Commit" },
+        body: "Commit it.",
+        fileContent: "",
+      }),
+    });
+
+    expect(command.getRelativeFilePath()).toBe(join("git", "commit.md"));
+  });
+
   it("returns nothing when the root does not exist", async () => {
     expect(await AugmentcodeCommand.loadAdditionalImportFiles({ outputRoot: testDir })).toEqual([]);
   });
