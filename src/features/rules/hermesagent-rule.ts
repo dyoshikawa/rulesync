@@ -35,8 +35,8 @@ export type HermesagentRuleParams = AiFileParams & {
  * `AGENTS.md` files would require inventing placement semantics no other
  * adapter has. Their bodies are instead folded into the single root
  * `.hermes.md` by the RulesProcessor; there is no separate non-root output
- * location (`nonRoot` is `undefined`). This mirrors the grokcli / warp /
- * deepagents targets (decision recorded in issue #2214).
+ * location (`nonRoot` is `undefined`). This mirrors the warp / deepagents
+ * targets (decision recorded in issue #2214).
  */
 export type HermesagentRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
   root: {

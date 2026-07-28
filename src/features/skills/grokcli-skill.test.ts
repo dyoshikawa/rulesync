@@ -206,6 +206,16 @@ describe("GrokcliSkill invocation flags", () => {
     expect(frontmatter["disable-model-invocation"]).toBe(false);
   });
 
+  it("takes a restriction stated only in the grokcli section", () => {
+    // The direction that matters: the section is the only place the flag is set,
+    // so reading the root alone would drop the restriction entirely.
+    const frontmatter = buildGrokcliSkill({
+      grokcli: { "user-invocable": false },
+    }).getFrontmatter();
+
+    expect(frontmatter["user-invocable"]).toBe(false);
+  });
+
   it("omits both when neither is set", () => {
     const frontmatter = buildGrokcliSkill({}).getFrontmatter();
 
@@ -226,7 +236,14 @@ describe("GrokcliSkill invocation flags", () => {
     });
 
     const imported = skill.toRulesyncSkill().getFrontmatter();
-    expect(imported["user-invocable"]).toBe(false);
-    expect(imported["disable-model-invocation"]).toBe(true);
+    // Into the `grokcli` section: the root is the shared default for every tool
+    // that honours these flags, so importing there would apply Grok's setting
+    // to Claude Code, Cursor, Zed and the rest.
+    expect(imported.grokcli).toEqual({
+      "user-invocable": false,
+      "disable-model-invocation": true,
+    });
+    expect(imported["user-invocable"]).toBeUndefined();
+    expect(imported["disable-model-invocation"]).toBeUndefined();
   });
 });

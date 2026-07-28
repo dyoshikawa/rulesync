@@ -40,7 +40,7 @@ export type GooseRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  * so writing them under `.goose/memories/` made them effectively invisible to
  * Goose. Their bodies are instead folded into the single root `.goosehints` by
  * the RulesProcessor (there is no separate non-root output location — `nonRoot`
- * is `undefined`). This mirrors the grokcli, warp, and deepagents targets.
+ * is `undefined`). This mirrors the warp and deepagents targets.
  *
  * Goose uses plain markdown files (.goosehints) without frontmatter.
  *

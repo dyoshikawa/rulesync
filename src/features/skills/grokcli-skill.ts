@@ -31,12 +31,6 @@ const GrokcliSkillFrontmatterSchema = z.looseObject({
 
 export type GrokcliSkillFrontmatter = z.infer<typeof GrokcliSkillFrontmatterSchema>;
 
-/** The `grokcli` block of a rulesync skill, which may override the shared flags. */
-type GrokcliRulesyncSection = {
-  "user-invocable"?: boolean;
-  "disable-model-invocation"?: boolean;
-};
-
 export type GrokcliSkillParams = {
   outputRoot?: string;
   relativeDirPath?: string;
@@ -139,15 +133,21 @@ export class GrokcliSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
-    const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
-      name: frontmatter.name,
-      description: frontmatter.description,
+    // Into the `grokcli` section, not the root: the root value is the shared
+    // default for every tool that honours these flags, so importing one tool's
+    // setting there would apply it to Claude Code, Cursor, Zed and the rest.
+    const grokcliSection = {
       ...(frontmatter["user-invocable"] !== undefined && {
         "user-invocable": frontmatter["user-invocable"],
       }),
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
+    };
+    const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
+      name: frontmatter.name,
+      description: frontmatter.description,
+      ...(Object.keys(grokcliSection).length > 0 && { grokcli: grokcliSection }),
       targets: ["*"],
     };
 
@@ -172,7 +172,7 @@ export class GrokcliSkill extends ToolSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     const settablePaths = GrokcliSkill.getSettablePaths({ global });
 
-    const grokcliSection = (rulesyncFrontmatter as { grokcli?: GrokcliRulesyncSection }).grokcli;
+    const grokcliSection = rulesyncFrontmatter.grokcli;
     const resolvedUserInvocable = resolveUserInvocable({
       rootFrontmatter: rulesyncFrontmatter,
       section: grokcliSection,

@@ -518,7 +518,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       // touches) but never the `.goose/memories/` tree, which belongs to the
       // separate Memory extension and is not auto-loaded as session context.
       // Non-root rules are therefore folded into the single root `.goosehints`
-      // below (same handling as grokcli / warp / deepagents).
+      // below (same handling as warp / deepagents).
       class: GooseRule,
       meta: {
         extension: "md",
@@ -563,7 +563,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       // (`.junie/AGENTS.md` → root `AGENTS.md` → legacy guidelines), reads no
       // `.junie/memories/` directory, and documents no `@`-reference
       // mechanism, so non-root rules are folded into the single root
-      // `.junie/AGENTS.md` (same handling as grokcli / warp / deepagents).
+      // `.junie/AGENTS.md` (same handling as warp / deepagents).
       class: JunieRule,
       meta: {
         extension: "md",

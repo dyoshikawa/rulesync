@@ -274,3 +274,46 @@ describe("GrokcliHooks", () => {
     });
   });
 });
+
+describe("GrokcliHooks handler types", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("writes an http hook alongside a command one, and drops a type Grok has no handler for", async () => {
+    // Grok's HookHandlerType is `command | http`; the adapter used to declare
+    // only `command` on the stale premise that the converter could not do more.
+    const hooks = await GrokcliHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks: new RulesyncHooks({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "hooks.jsonc",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            stop: [
+              { type: "command", command: "./notify.sh" },
+              { type: "http", url: "https://example.com/hook", timeout: 5 },
+              { type: "prompt", prompt: "Summarize" },
+            ],
+          },
+        }),
+      }),
+    });
+
+    const written = JSON.parse(hooks.getFileContent()).hooks.Stop[0].hooks;
+    expect(written).toEqual([
+      { type: "command", command: "./notify.sh" },
+      { type: "http", url: "https://example.com/hook", timeout: 5 },
+    ]);
+  });
+});

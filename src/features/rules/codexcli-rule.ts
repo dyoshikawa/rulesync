@@ -30,7 +30,7 @@ export type CodexcliRuleParams = AiFileParams & {
  * rulesync's topic-based non-root rules have no project subdirectory to map
  * onto, so their bodies are folded into the single root `AGENTS.md` by the
  * RulesProcessor; there is no separate non-root output location (`nonRoot` is
- * `undefined`). This mirrors the grokcli, warp, and deepagents targets.
+ * `undefined`). This mirrors the warp and deepagents targets.
  */
 export type CodexcliRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
   root: {
