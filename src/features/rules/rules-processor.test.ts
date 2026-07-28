@@ -26,7 +26,7 @@ import { WarpRule } from "./warp-rule.js";
 const logger = createMockLogger();
 
 const globalFoldTargets = RulesProcessor.getToolTargets({ global: true }).filter(
-  (target) => RulesProcessor.getFactory(target)?.meta.foldsNonRootIntoRoot === true,
+  (target) => RulesProcessor.getFactory(target)?.meta.collisionPolicy === "fold",
 );
 
 describe("RulesProcessor", () => {
@@ -1450,86 +1450,96 @@ Content that would fail parsing`;
           }
         },
       );
+    });
+  });
 
-      it.each(["devin", "antigravity-ide"] as const)(
-        "should reject metadata-bearing project rules normalized to the same $toolTarget path",
-        async (toolTarget) => {
-          const processor = new RulesProcessor({
-            logger,
-            outputRoot: testDir,
-            toolTarget,
-          });
-          const rulesyncRules = [
-            new RulesyncRule({
-              outputRoot: testDir,
-              relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-              relativeFilePath: "CodingGuidelines.md",
-              frontmatter: {
-                root: false,
-                targets: [toolTarget],
-                description: "First normalized rule",
-                globs: ["**/*"],
-              },
-              body: "# First Normalized Rule",
-            }),
-            new RulesyncRule({
-              outputRoot: testDir,
-              relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-              relativeFilePath: "coding_guidelines.md",
-              frontmatter: {
-                root: false,
-                targets: [toolTarget],
-                description: "Second normalized rule",
-                globs: ["src/**/*"],
-              },
-              body: "# Second Normalized Rule",
-            }),
-          ];
-
-          await expect(processor.convertRulesyncFilesToToolFiles(rulesyncRules)).rejects.toThrow(
-            `Source rules: ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "CodingGuidelines.md")}, ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "coding_guidelines.md")}`,
-          );
-        },
-      );
-
-      it("should reject root collisions with metadata-bearing modular rules", async () => {
+  describe("convertRulesyncFilesToToolFiles collision handling", () => {
+    it.each(["devin", "antigravity-ide"] as const)(
+      "should warn for metadata-bearing project rules normalized to the same %s path",
+      async (toolTarget) => {
         const processor = new RulesProcessor({
           logger,
           outputRoot: testDir,
-          toolTarget: "kiro",
-          global: true,
+          toolTarget,
         });
         const rulesyncRules = [
           new RulesyncRule({
             outputRoot: testDir,
             relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-            relativeFilePath: "overview.md",
-            frontmatter: { root: true, targets: ["kiro"] },
-            body: "# Root Body",
+            relativeFilePath: "CodingGuidelines.md",
+            frontmatter: {
+              root: false,
+              targets: [toolTarget],
+              description: "First normalized rule",
+              globs: ["**/*"],
+            },
+            body: "# First Normalized Rule",
           }),
           new RulesyncRule({
             outputRoot: testDir,
             relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-            relativeFilePath: "product.md",
+            relativeFilePath: "coding_guidelines.md",
             frontmatter: {
               root: false,
-              targets: ["kiro"],
-              globs: ["src/**/*.ts"],
+              targets: [toolTarget],
+              description: "Second normalized rule",
+              globs: ["src/**/*"],
             },
-            body: "# Non Root Body",
+            body: "# Second Normalized Rule",
           }),
         ];
 
-        await expect(processor.convertRulesyncFilesToToolFiles(rulesyncRules)).rejects.toThrow(
-          `Multiple generated rules resolve to output path '${join(".kiro", "steering", "product.md")}' for target 'kiro', but this target cannot safely compose colliding modular rule files. Source rules: ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "overview.md")}, ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "product.md")}`,
-        );
-      });
+        const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
 
-      it("should compose plain Markdown modular rules with the same output path", async () => {
+        expect(result).toHaveLength(2);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(
+            "(compared case-insensitively, as on macOS and Windows); the last one wins wherever they collide.",
+          ),
+        );
+      },
+    );
+
+    it("should reject root collisions with metadata-bearing modular rules", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "kiro",
+        global: true,
+      });
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "overview.md",
+          frontmatter: { root: true, targets: ["kiro"] },
+          body: "# Root Body",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "product.md",
+          frontmatter: {
+            root: false,
+            targets: ["kiro"],
+            globs: ["src/**/*.ts"],
+          },
+          body: "# Non Root Body",
+        }),
+      ];
+
+      await expect(processor.convertRulesyncFilesToToolFiles(rulesyncRules)).rejects.toThrow(
+        `Multiple generated rules resolve to output path '${join(".kiro", "steering", "product.md")}' for target 'kiro', but this target cannot safely compose a collision involving a root rule. Source rules: ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "overview.md")}, ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "product.md")}`,
+      );
+    });
+
+    it.each(["agentsmd", "amp", "factorydroid", "kilo", "opencode"] as const)(
+      "should compose plain Markdown %s modular rules with the same output path",
+      async (toolTarget) => {
         const processor = new RulesProcessor({
           logger,
           outputRoot: testDir,
-          toolTarget: "agentsmd",
+          toolTarget,
         });
         const rulesyncRules = [
           new RulesyncRule({
@@ -1538,7 +1548,7 @@ Content that would fail parsing`;
             relativeFilePath: "first.md",
             frontmatter: {
               root: false,
-              targets: ["agentsmd"],
+              targets: [toolTarget],
               agentsmd: { subprojectPath: "packages/app" },
             },
             body: "# First Subproject Rule",
@@ -1549,7 +1559,7 @@ Content that would fail parsing`;
             relativeFilePath: "second.md",
             frontmatter: {
               root: false,
-              targets: ["agentsmd"],
+              targets: [toolTarget],
               agentsmd: { subprojectPath: "packages/app" },
             },
             body: "# Second Subproject Rule",
@@ -1557,116 +1567,125 @@ Content that would fail parsing`;
         ];
 
         const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+        const composedRules = result.filter(
+          (file) => file.getRelativeDirPath() === join("packages", "app"),
+        );
 
-        expect(result).toHaveLength(1);
-        expect(result[0]).toBeInstanceOf(AgentsMdRule);
-        expect(result[0]?.getRelativeDirPath()).toBe(join("packages", "app"));
-        expect(result[0]?.getRelativeFilePath()).toBe("AGENTS.md");
-        expect(result[0]?.getFileContent()).toBe(
+        expect(composedRules).toHaveLength(1);
+        expect(composedRules[0]?.getFileContent()).toBe(
           "# First Subproject Rule\n\n# Second Subproject Rule",
         );
-      });
+      },
+    );
 
-      it("should reject Takt rules with the same overridden output name", async () => {
-        const processor = new RulesProcessor({
-          logger,
+    it("should reject Takt rules with the same overridden output name", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "takt",
+      });
+      const rulesyncRules = [
+        new RulesyncRule({
           outputRoot: testDir,
-          toolTarget: "takt",
-        });
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "first.md",
+          frontmatter: {
+            root: true,
+            targets: ["takt"],
+            takt: { name: "same", extends: "base-one" },
+          },
+          body: "# First Takt Rule",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "second.md",
+          frontmatter: {
+            root: true,
+            targets: ["takt"],
+            takt: { name: "same", extends: "base-two" },
+          },
+          body: "# Second Takt Rule",
+        }),
+      ];
+
+      await expect(processor.convertRulesyncFilesToToolFiles(rulesyncRules)).rejects.toThrow(
+        `Multiple generated rules resolve to output path '${join(".takt", "facets", "policies", "same.md")}' for target 'takt', but this target cannot safely compose a collision involving a root rule. Source rules: ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "first.md")}, ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "second.md")}`,
+      );
+    });
+
+    it.each([
+      {
+        toolTarget: "cursor",
+        expectedPaths: [
+          join(".cursor", "rules", "overview.mdc"),
+          join(".cursor", "rules", "API.mdc"),
+          join(".cursor", "rules", "api.mdc"),
+        ],
+      },
+      {
+        toolTarget: "claudecode",
+        expectedPaths: [
+          "CLAUDE.md",
+          join(".claude", "rules", "API.md"),
+          join(".claude", "rules", "api.md"),
+        ],
+      },
+    ] as const)(
+      "should preserve unrelated $toolTarget output paths that differ only by case",
+      async ({ toolTarget, expectedPaths }) => {
+        const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget });
         const rulesyncRules = [
           new RulesyncRule({
             outputRoot: testDir,
             relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-            relativeFilePath: "first.md",
-            frontmatter: {
-              root: true,
-              targets: ["takt"],
-              takt: { name: "same", extends: "base-one" },
-            },
-            body: "# First Takt Rule",
+            relativeFilePath: "overview.md",
+            frontmatter: { root: true, targets: [toolTarget] },
+            body: "# Overview",
           }),
           new RulesyncRule({
             outputRoot: testDir,
             relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-            relativeFilePath: "second.md",
+            relativeFilePath: "API.md",
             frontmatter: {
-              root: true,
-              targets: ["takt"],
-              takt: { name: "same", extends: "base-two" },
+              root: false,
+              targets: [toolTarget],
+              description: "Uppercase API rule",
+              globs: ["**/*"],
             },
-            body: "# Second Takt Rule",
+            body: "# Uppercase API",
+          }),
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "api.md",
+            frontmatter: {
+              root: false,
+              targets: [toolTarget],
+              description: "Lowercase API rule",
+              globs: ["src/**/*"],
+            },
+            body: "# Lowercase API",
           }),
         ];
 
-        await expect(processor.convertRulesyncFilesToToolFiles(rulesyncRules)).rejects.toThrow(
-          `Multiple generated rules resolve to output path '${join(".takt", "facets", "policies", "same.md")}' for target 'takt', but this target cannot safely compose colliding modular rule files. Source rules: ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "first.md")}, ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "second.md")}`,
+        const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+        const outputPaths = result.map((rule) =>
+          join(rule.getRelativeDirPath(), rule.getRelativeFilePath()),
         );
-      });
 
-      it.each([
-        {
-          toolTarget: "cursor",
-          expectedPaths: [
-            join(".cursor", "rules", "overview.mdc"),
-            join(".cursor", "rules", "API.mdc"),
-            join(".cursor", "rules", "api.mdc"),
-          ],
-        },
-        {
-          toolTarget: "claudecode",
-          expectedPaths: [
-            "CLAUDE.md",
-            join(".claude", "rules", "API.md"),
-            join(".claude", "rules", "api.md"),
-          ],
-        },
-      ] as const)(
-        "should preserve unrelated $toolTarget output paths that differ only by case",
-        async ({ toolTarget, expectedPaths }) => {
-          const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget });
-          const rulesyncRules = [
-            new RulesyncRule({
-              outputRoot: testDir,
-              relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-              relativeFilePath: "overview.md",
-              frontmatter: { root: true, targets: [toolTarget] },
-              body: "# Overview",
-            }),
-            new RulesyncRule({
-              outputRoot: testDir,
-              relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-              relativeFilePath: "API.md",
-              frontmatter: {
-                root: false,
-                targets: [toolTarget],
-                description: "Uppercase API rule",
-                globs: ["**/*"],
-              },
-              body: "# Uppercase API",
-            }),
-            new RulesyncRule({
-              outputRoot: testDir,
-              relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-              relativeFilePath: "api.md",
-              frontmatter: {
-                root: false,
-                targets: [toolTarget],
-                description: "Lowercase API rule",
-                globs: ["src/**/*"],
-              },
-              body: "# Lowercase API",
-            }),
-          ];
+        expect(outputPaths).toEqual(expectedPaths);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(
+            "(compared case-insensitively, as on macOS and Windows); the last one wins wherever they collide.",
+          ),
+        );
+      },
+    );
+  });
 
-          const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
-          const outputPaths = result.map((rule) =>
-            join(rule.getRelativeDirPath(), rule.getRelativeFilePath()),
-          );
-
-          expect(outputPaths).toEqual(expectedPaths);
-        },
-      );
-
+  describe("RulesProcessor with global flag", () => {
+    describe("convertRulesyncFilesToToolFiles in global mode", () => {
       it("should convert using global paths when global=true for codexcli", async () => {
         const processor = new RulesProcessor({
           logger,
@@ -2355,6 +2374,30 @@ targets: ["opencode", "agentsmd"]
   });
 
   describe("loadRulesyncFiles with curated rules", () => {
+    it("should compose local root fragments before curated root fragments", async () => {
+      const frontmatter = "---\nroot: true\ntargets:\n  - claudecode\n---\n";
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "20-local.md"),
+        `${frontmatter}# Local Root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "05-curated.md"),
+        `${frontmatter}# Curated Root`,
+      );
+      const processor = new RulesProcessor({
+        logger,
+        inputRoot: testDir,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+      const [toolRule] = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+      const content = toolRule?.getFileContent() ?? "";
+
+      expect(content.indexOf("# Local Root")).toBeLessThan(content.indexOf("# Curated Root"));
+    });
+
     it("should load curated rules while preferring a same-path local rule", async () => {
       const frontmatter = "---\ntargets:\n  - '*'\n---\n";
       await writeFileContent(
