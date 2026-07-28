@@ -158,7 +158,7 @@ export class AugmentcodeHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     let settings: { hooks?: unknown };
     try {
       settings = JSON.parse(this.getFileContent());
@@ -171,6 +171,7 @@ export class AugmentcodeHooks extends ToolHooks {
       );
     }
     const hooks = toolHooksToCanonical({
+      logger,
       hooks: settings.hooks,
       converterConfig: AUGMENTCODE_CONVERTER_CONFIG,
     });

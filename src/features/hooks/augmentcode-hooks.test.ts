@@ -666,8 +666,12 @@ describe("AugmentcodeHooks upstream additions", () => {
       }),
     });
 
-    const imported = JSON.parse(hooks.toRulesyncHooks().getFileContent());
+    const mockLogger = createMockLogger();
+    const imported = JSON.parse(hooks.toRulesyncHooks({ logger: mockLogger }).getFileContent());
     expect(imported.hooks.stop).toEqual([{ type: "command", command: "./x.sh" }]);
+    // The `hooks` key is owned in the settings file, so the dropped value would
+    // disappear from it on the next generate; that must not be silent.
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('Dropping "args"'));
   });
 
   it("ignores an args value that is not a list of strings", async () => {

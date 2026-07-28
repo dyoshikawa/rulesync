@@ -955,6 +955,8 @@ describe("CommandsProcessor", () => {
 
       expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
         expect.stringContaining(join(".claude", "commands", "**", "*.md")),
+        // Loading follows symlinks; collecting deletion candidates does not.
+        { followSymbolicLinks: true },
       );
       expect(ClaudecodeCommand.fromFile).toHaveBeenCalledWith({
         outputRoot: testDir,
@@ -1187,6 +1189,8 @@ describe("CommandsProcessor", () => {
 
       expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
         expect.stringContaining(join(".cursor", "commands", "*.md")),
+        // Loading follows symlinks; collecting deletion candidates does not.
+        { followSymbolicLinks: true },
       );
       // Should NOT contain "**" in the glob pattern
       const calledGlob = mockFindFilesByGlobs.mock.calls[0]![0] as string;
@@ -1202,6 +1206,8 @@ describe("CommandsProcessor", () => {
 
       expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
         expect.stringContaining(join(".claude", "commands", "**", "*.md")),
+        // Loading follows symlinks; collecting deletion candidates does not.
+        { followSymbolicLinks: true },
       );
     });
   });
