@@ -244,6 +244,31 @@ describe("QwencodeHooks", () => {
       expect(canonical.hooks).toEqual(config.hooks);
     });
 
+    it("should round-trip the MessageDisplay event (issue #2407)", async () => {
+      const config = {
+        hooks: {
+          messageDisplay: [{ type: "command", command: "echo displayed" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({ fileContent: JSON.stringify(config) }),
+      );
+
+      const qwencodeHooks = await QwencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      // v0.19.10 added hooks.MessageDisplay; the event must no longer be
+      // filtered out on generate nor left as raw PascalCase on import.
+      const parsed = JSON.parse(qwencodeHooks.getFileContent());
+      expect(parsed.hooks.MessageDisplay[0].hooks[0].command).toBe("echo displayed");
+
+      const canonical = JSON.parse(qwencodeHooks.toRulesyncHooks().getFileContent());
+      expect(canonical.hooks).toEqual(config.hooks);
+    });
+
     it("should preserve the http hook type and its url", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({

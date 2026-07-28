@@ -122,6 +122,10 @@ const QWEN_OVERRIDE_TOOLS_KEYS = [
   "sandbox",
   "sandboxImage",
   "disabled",
+  // Deferred tool names made visible at startup without tool_search (union
+  // merge across scopes) — the counterpart of the `disabled` registry control.
+  // Added in Qwen Code v0.19.7. https://github.com/QwenLM/qwen-code/pull/6372
+  "visible",
 ] as const;
 const QWEN_OVERRIDE_SECURITY_KEYS = ["folderTrust"] as const;
 // The `permissions` sub-keys the `qwencode` override authors. `autoMode` (the

@@ -232,6 +232,32 @@ describe("QwencodePermissions", () => {
       expect(content.permissions.allow).toContain("Bash(git *)");
     });
 
+    it("authors and imports tools.visible through the qwencode override (issue #2407)", async () => {
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { visible: ["WebSearch", "TodoWrite"] } },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.tools).toEqual({ visible: ["WebSearch", "TodoWrite"] });
+
+      // And the import direction lifts it back into the override.
+      const imported = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { visible: ["WebSearch"] } }),
+      });
+      const config = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+      expect(config.qwencode.tools).toEqual({ visible: ["WebSearch"] });
+    });
+
     it("preserves unrelated tools keys while the override sets its own", async () => {
       const settingsDir = join(testDir, ".qwen");
       await ensureDir(settingsDir);

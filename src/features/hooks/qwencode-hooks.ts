@@ -65,8 +65,9 @@ function canonicalDefToQwencodeHook(
  * Filters shared hooks to QWENCODE_HOOK_EVENTS, merges config.qwencode?.hooks,
  * then converts to PascalCase and Qwen Code matcher/hooks structure.
  *
- * Qwen Code does not document a `$GEMINI_PROJECT_DIR`-style variable, so commands
- * are passed through verbatim without any prefixing.
+ * Qwen Code documents `$QWEN_PROJECT_DIR` for hook commands, so no prefixing
+ * is needed here — commands are passed through verbatim and any such variable
+ * reference stays intact for Qwen Code to expand.
  */
 function canonicalToQwencodeHooks(config: HooksConfig): Record<string, unknown[]> {
   const qwencodeSupported: Set<string> = new Set(QWENCODE_HOOK_EVENTS);

@@ -594,4 +594,74 @@ Invalid frontmatter.`;
       ).toBe(true);
     });
   });
+
+  describe("upstream frontmatter fields (issue #2407)", () => {
+    const extraFields = {
+      allowedTools: ["ReadFile", "Shell(git status:*)"],
+      model: "fast",
+      hooks: { PreToolUse: [{ hooks: [{ type: "command", command: "echo hi" }] }] },
+      when_to_use: "Use when deploying",
+      "argument-hint": "[environment]",
+    };
+
+    it("should emit allowedTools/model/hooks/when_to_use/argument-hint from the qwencode section", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        relativeDirPath: ".rulesync/skills",
+        dirName: "deploy",
+        frontmatter: {
+          name: "deploy",
+          description: "Deploy the app",
+          targets: ["qwencode"],
+          qwencode: extraFields,
+        },
+        body: "Deploy.",
+        validate: false,
+      });
+
+      const skill = QwencodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      const frontmatter = skill.getFrontmatter() as Record<string, unknown>;
+
+      expect(frontmatter.allowedTools).toEqual(extraFields.allowedTools);
+      expect(frontmatter.model).toBe("fast");
+      expect(frontmatter.hooks).toEqual(extraFields.hooks);
+      expect(frontmatter.when_to_use).toBe("Use when deploying");
+      expect(frontmatter["argument-hint"]).toBe("[environment]");
+    });
+
+    it("should lift the fields back into the qwencode section on import", () => {
+      const skill = new QwencodeSkill({
+        dirName: "deploy",
+        frontmatter: {
+          name: "deploy",
+          description: "Deploy the app",
+          ...extraFields,
+        },
+        body: "Deploy.",
+        validate: false,
+      });
+
+      const config = skill.toRulesyncSkill().getFrontmatter();
+      expect(config.qwencode).toEqual(extraFields);
+    });
+
+    it("should coerce a scalar paths value to the array Qwen Code requires", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        relativeDirPath: ".rulesync/skills",
+        dirName: "tsx-help",
+        frontmatter: {
+          name: "tsx-help",
+          description: "TSX helper",
+          targets: ["qwencode"],
+          qwencode: { paths: "src/**/*.tsx" },
+        },
+        body: "Help.",
+        validate: false,
+      });
+
+      const skill = QwencodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      // Qwen Code's parsePathsField throws for a non-array value and the throw
+      // drops the whole skill at load time.
+      expect((skill.getFrontmatter() as Record<string, unknown>).paths).toEqual(["src/**/*.tsx"]);
+    });
+  });
 });

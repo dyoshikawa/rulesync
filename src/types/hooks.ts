@@ -605,6 +605,9 @@ export const QWENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "instructionsLoaded",
   "todoCreated",
   "todoCompleted",
+  // `hooks.MessageDisplay` landed in Qwen Code v0.19.10 (PR #6489): fires
+  // repeatedly as the reply streams (payload message_id/displayed_text/is_final).
+  "messageDisplay",
 ];
 
 /**
@@ -1331,6 +1334,7 @@ export const CANONICAL_TO_QWENCODE_EVENT_NAMES: Record<string, string> = {
   instructionsLoaded: "InstructionsLoaded",
   todoCreated: "TodoCreated",
   todoCompleted: "TodoCompleted",
+  messageDisplay: "MessageDisplay",
 };
 
 /**

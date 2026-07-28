@@ -147,6 +147,43 @@ describe("QwencodeCommand", () => {
       expect(fileContent).toContain("Sync command body");
     });
 
+    it("should round-trip the typed upstream fields and reject wrong types (issue #2407)", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "deploy.md",
+        frontmatter: {
+          targets: ["*"],
+          description: "Deploy",
+          qwencode: {
+            when_to_use: "Use when deploying",
+            "argument-hint": "[environment]",
+            "disable-model-invocation": true,
+          },
+        },
+        body: "Deploy.",
+        fileContent: "",
+      });
+
+      const qwencodeCommand = QwencodeCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand,
+      });
+      const frontmatter = qwencodeCommand.getFrontmatter() as Record<string, unknown>;
+      expect(frontmatter.when_to_use).toBe("Use when deploying");
+      expect(frontmatter["argument-hint"]).toBe("[environment]");
+      expect(frontmatter["disable-model-invocation"]).toBe(true);
+
+      // Typing means a wrong-typed value is now rejected instead of passing
+      // through the looseObject silently.
+      expect(
+        QwencodeCommandFrontmatterSchema.safeParse({
+          description: "x",
+          "disable-model-invocation": "true",
+        }).success,
+      ).toBe(false);
+    });
+
     it("should preserve qwencode-specific fields", () => {
       const rulesyncCommand = new RulesyncCommand({
         outputRoot: testDir,
