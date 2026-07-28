@@ -248,6 +248,10 @@ export type RulesyncSkillFrontmatterInput = {
     "scheduled-task"?: boolean;
     paths?: string | string[];
   };
+  grokcli?: {
+    "disable-model-invocation"?: boolean;
+    "user-invocable"?: boolean;
+  };
   codexcli?: {
     "short-description"?: string;
     interface?: {
