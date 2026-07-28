@@ -13,6 +13,7 @@ import { CopilotMcp } from "./copilot-mcp.js";
 import { CopilotcliMcp } from "./copilotcli-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { HermesagentMcp } from "./hermesagent-mcp.js";
+import { KiloMcp } from "./kilo-mcp.js";
 import { KiroMcp } from "./kiro-mcp.js";
 import {
   McpProcessor,
@@ -948,6 +949,30 @@ describe("McpProcessor", () => {
         logger: createMockLogger(),
         outputRoot: testDir,
         toolTarget: "opencode",
+      });
+
+      await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+      expect(rulesyncMcp.stripMcpServerFields).toHaveBeenCalledWith([]);
+    });
+
+    it("should not strip enabledTools and disabledTools for kilo", async () => {
+      // Kilo's `tools` map is the same surface OpenCode's is, and the Kilo
+      // adapter has always imported it; stripping the fields left it unable to
+      // write back a filter it had just read.
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      vi.spyOn(KiloMcp, "fromRulesyncMcp").mockResolvedValue({} as KiloMcp);
+
+      const processor = new McpProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "kilo",
       });
 
       await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
