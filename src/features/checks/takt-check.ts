@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -99,7 +99,8 @@ function toQualityGate(rulesyncCheck: RulesyncCheck, override: TaktCheckOverride
 }
 
 function stemOf(rulesyncCheck: RulesyncCheck): string {
-  return rulesyncCheck.getRelativeFilePath().replace(/\.md$/, "");
+  // basename, so a check in a subdirectory does not name its gate `dir/name`.
+  return basename(rulesyncCheck.getRelativeFilePath(), ".md");
 }
 
 /**
@@ -112,8 +113,10 @@ function buildWorkflowOverrides(
   entries: { gate: TaktQualityGate; override: TaktCheckOverride }[],
 ): Record<string, unknown> {
   const topLevel: TaktQualityGate[] = [];
-  const steps: Record<string, TaktQualityGate[]> = {};
-  const personas: Record<string, TaktQualityGate[]> = {};
+  // Null-prototype: a step literally named `__proto__` would otherwise resolve
+  // to `Object.prototype` and make the `??=` below skip its own assignment.
+  const steps: Record<string, TaktQualityGate[]> = Object.create(null);
+  const personas: Record<string, TaktQualityGate[]> = Object.create(null);
 
   for (const { gate, override } of entries) {
     const scopedSteps = override.steps ?? [];
@@ -155,12 +158,20 @@ function toRulesyncCheckFromGate({
   gate,
   index,
   scope,
+  editOnly,
 }: {
   gate: TaktQualityGate;
   index: number;
   scope?: { key: "steps" | "personas"; name: string };
+  editOnly: boolean;
 }): RulesyncCheck | undefined {
-  const scopeOverride = scope ? { [scope.key]: [scope.name] } : {};
+  // `quality_gates_edit_only` is block-level on the Takt side, so it is restored
+  // onto every check: generate turns it on when *any* check asks for it, which
+  // round-trips the block back to the same value.
+  const scopeOverride = {
+    ...(scope && { [scope.key]: [scope.name] }),
+    ...(editOnly && { quality_gates_edit_only: true }),
+  };
 
   if (typeof gate === "string") {
     return new RulesyncCheck({
@@ -169,7 +180,7 @@ function toRulesyncCheckFromGate({
       relativeFilePath: `${slugForGate({ gate, index, scope })}.md`,
       frontmatter: {
         targets: ["takt"],
-        ...(scope && { takt: scopeOverride }),
+        ...(Object.keys(scopeOverride).length > 0 && { takt: scopeOverride }),
       },
       body: gate,
     });
@@ -181,7 +192,15 @@ function toRulesyncCheckFromGate({
     return undefined;
   }
 
-  const { type: _type, ...commandFields } = gate;
+  const { type: _type, ...rest } = gate;
+  // A hand-edited gate can carry a field of the wrong type. Importing it would
+  // write a check the next generate refuses to convert, taking the whole
+  // generate down, so the gate stays in config.yaml instead.
+  const commandResult = TaktCommandGateSchema.safeParse(rest);
+  if (!commandResult.success) {
+    return undefined;
+  }
+  const commandFields = commandResult.data;
   return new RulesyncCheck({
     outputRoot: ".",
     relativeDirPath: RULESYNC_CHECKS_RELATIVE_DIR_PATH,
@@ -192,6 +211,14 @@ function toRulesyncCheckFromGate({
     },
     body: "",
   });
+}
+
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
 }
 
 function slugForGate({
@@ -211,12 +238,11 @@ function slugForGate({
         : typeof gate.command === "string"
           ? gate.command
           : "";
-  const slug = source
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-  const prefix = scope ? `${scope.name}-` : "";
+  const slug = slugify(source);
+  // The scope name comes from someone else's config.yaml on import, so it goes
+  // through the same slug rules as the gate text: a raw `feature/review` would
+  // write a nested file the loader (a flat listing) never reads back.
+  const prefix = scope ? `${slugify(scope.name)}-` : "";
   // The index keeps two gates that slugify the same from overwriting each other.
   return `${prefix}${slug.length > 0 ? slug : "quality-gate"}-${index + 1}`;
 }
@@ -261,9 +287,10 @@ export class TaktCheck extends ToolCheck {
   }
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCheckSettablePaths {
-    // Directory only: the checks processor globs this directory for the config
-    // file on import, and `getExtraSharedWritePaths` declares the file itself.
-    return { relativeDirPath: TAKT_DIR };
+    // The directory drives the processor's import glob; naming the file keeps
+    // consumers that would otherwise claim the whole `.takt/` tree — which the
+    // user fills with workflows and facets — narrowed to the one file written.
+    return { relativeDirPath: TAKT_DIR, relativeFilePath: TAKT_CONFIG_FILE_NAME };
   }
 
   /**
@@ -297,6 +324,13 @@ export class TaktCheck extends ToolCheck {
     // Read without initializing so a dry-run does not create the user's
     // config.yaml as a side effect (mirrors the Takt MCP/permissions adapters).
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
+
+    if (rulesyncChecks.length === 0) {
+      // Checks exist but none of them name Takt, so this run has nothing to say
+      // about its gates. Writing an empty block would create a config.yaml for a
+      // project that has none, and wipe gates the user wrote by hand.
+      return [];
+    }
 
     const entries = rulesyncChecks.map((rulesyncCheck) => {
       const override = parseOverride(
@@ -385,12 +419,13 @@ export class TaktCheck extends ToolCheck {
     // Counts every gate seen, not just the importable ones, so two gates that
     // slugify the same never collide on one file name.
     let seen = 0;
+    const editOnly = overrides.quality_gates_edit_only === true;
     const collect = (gates: unknown, scope?: { key: "steps" | "personas"; name: string }): void => {
       if (!Array.isArray(gates)) {
         return;
       }
       for (const gate of gates) {
-        const check = toRulesyncCheckFromGate({ gate, index: seen, scope });
+        const check = toRulesyncCheckFromGate({ gate, index: seen, scope, editOnly });
         seen += 1;
         if (check) {
           checks.push(check);

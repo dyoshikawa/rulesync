@@ -38,14 +38,22 @@ const TAKT_PROVIDER_OPTIONS_KEY = "provider_options";
 // `config.yaml` in both scopes, and all are routed through the `takt` override
 // because none maps onto a canonical permission category.
 // https://github.com/nrslib/takt/blob/main/docs/configuration.md
-const TAKT_SECURITY_POLICY_KEYS = [
-  "workflow_arpeggio",
-  "workflow_runtime_prepare",
-  "workflow_command_gates",
-  "sync_conflict_resolver",
-  "allow_git_hooks",
-  "allow_git_filters",
-] as const;
+// Each entry names the sub-keys Takt's own schema declares, or `null` for the
+// two plain booleans. The sub-keys are checked rather than passed through:
+// Takt's schemas are `.strict()`, so one misspelled flag makes it reject the
+// whole config.yaml — a typo in `.rulesync/permissions.*` would take the user's
+// Takt install down rather than leave one capability denied.
+// https://github.com/nrslib/takt/blob/main/docs/configuration.md
+const TAKT_SECURITY_POLICIES: Record<string, readonly string[] | null> = {
+  workflow_arpeggio: ["custom_data_source_modules", "custom_merge_inline_js", "custom_merge_files"],
+  workflow_runtime_prepare: ["custom_scripts"],
+  workflow_command_gates: ["custom_scripts"],
+  sync_conflict_resolver: ["auto_approve_tools"],
+  allow_git_hooks: null,
+  allow_git_filters: null,
+};
+
+const TAKT_SECURITY_POLICY_KEYS = Object.keys(TAKT_SECURITY_POLICIES);
 
 // Takt's three coarse permission modes, ordered readonly < edit < full.
 type TaktPermissionMode = "readonly" | "edit" | "full";
@@ -170,6 +178,7 @@ export class TaktPermissions extends ToolPermissions {
       ? override[TAKT_PROVIDER_OPTIONS_KEY]
       : undefined;
 
+    const authoredPolicies = pickSecurityPolicies(override);
     const patch: Record<string, unknown> = {
       [TAKT_PROVIDER_PROFILES_KEY]: {
         [provider]: {
@@ -182,7 +191,12 @@ export class TaktPermissions extends ToolPermissions {
       ...(overrideProviderOptions !== undefined && {
         [TAKT_PROVIDER_OPTIONS_KEY]: overrideProviderOptions,
       }),
-      ...pickSecurityPolicies(override),
+      // Every policy key is present in the patch — an authored value, or
+      // `undefined` for one the source no longer states. The gateway replaces
+      // these keys wholesale and an `undefined` drops out of the written
+      // document, so revoking a capability in `.rulesync/permissions.*` revokes
+      // it in config.yaml instead of leaving the old `true` behind.
+      ...Object.fromEntries(TAKT_SECURITY_POLICY_KEYS.map((key) => [key, authoredPolicies[key]])),
     };
 
     return new TaktPermissions({
@@ -349,17 +363,21 @@ function pickSecurityPolicies(
     return {};
   }
   const picked: Record<string, unknown> = {};
-  for (const key of TAKT_SECURITY_POLICY_KEYS) {
+  for (const [key, subKeys] of Object.entries(TAKT_SECURITY_POLICIES)) {
     const value = source[key];
-    if (typeof value === "boolean") {
-      picked[key] = value;
+    if (subKeys === null) {
+      if (typeof value === "boolean") {
+        picked[key] = value;
+      }
       continue;
     }
     if (!isPlainObject(value)) {
       continue;
     }
     const flags = Object.fromEntries(
-      Object.entries(value).filter(([, flag]) => typeof flag === "boolean"),
+      subKeys
+        .filter((subKey) => typeof value[subKey] === "boolean")
+        .map((subKey) => [subKey, value[subKey]]),
     );
     if (Object.keys(flags).length > 0) {
       picked[key] = flags;

@@ -13,6 +13,13 @@ export type ToolCheckFromRulesyncCheckParams = Omit<
 
 export type ToolCheckSettablePaths = {
   relativeDirPath: string;
+  /**
+   * Set when a tool's checks all live in one file rather than in a directory of
+   * per-check files. Consumers that would otherwise assume the whole directory
+   * is rulesync's — the gitignore derivation, for one — use it to narrow to that
+   * single file.
+   */
+  relativeFilePath?: string;
 };
 
 export type ToolCheckFromFileParams = AiFileFromFileParams & {

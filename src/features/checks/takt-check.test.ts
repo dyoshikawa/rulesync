@@ -185,10 +185,17 @@ describe("TaktCheck", () => {
       expect(workflowOverridesOf(content).quality_gates).toEqual(["The only gate."]);
     });
 
-    it("writes an empty block when no check targets Takt", async () => {
-      const content = await generate([]);
+    it("leaves config.yaml alone when no check targets Takt", async () => {
+      // Checks exist but name other tools, so this run has nothing to say about
+      // Takt's gates: writing an empty block would create a config.yaml for a
+      // project that has none, and wipe gates the user wrote by hand.
+      const toolChecks = await TaktCheck.fromRulesyncChecks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_CHECKS_RELATIVE_DIR_PATH,
+        rulesyncChecks: [],
+      });
 
-      expect(workflowOverridesOf(content)).toEqual({});
+      expect(toolChecks).toEqual([]);
     });
   });
 
@@ -241,6 +248,55 @@ describe("TaktCheck", () => {
         ["workflow_overrides:", "  quality_gates:", "    - type: unknown", "      x: 1", ""].join(
           "\n",
         ),
+      );
+
+      expect(checks).toEqual([]);
+    });
+
+    it("restores quality_gates_edit_only onto every imported check", async () => {
+      // Block-level upstream, and generate turns it on when any check asks for
+      // it, so putting it back on each check round-trips the block.
+      const checks = imported(
+        [
+          "workflow_overrides:",
+          "  quality_gates_edit_only: true",
+          "  quality_gates:",
+          '    - "All tests pass"',
+          "",
+        ].join("\n"),
+      );
+
+      expect(checks[0]?.getFrontmatter().takt).toEqual({ quality_gates_edit_only: true });
+    });
+
+    it("applies the slug rules to a scope name from someone else's config", () => {
+      // A raw `feature/review` would write a nested file the flat loader never
+      // reads back.
+      const checks = imported(
+        [
+          "workflow_overrides:",
+          "  steps:",
+          '    "feature/review":',
+          "      quality_gates:",
+          '        - "Gate"',
+          "",
+        ].join("\n"),
+      );
+
+      expect(checks[0]?.getRelativeFilePath()).toBe("feature-review-gate-1.md");
+    });
+
+    it("skips a command gate carrying a field of the wrong type", () => {
+      // Importing it would write a check the next generate refuses to convert.
+      const checks = imported(
+        [
+          "workflow_overrides:",
+          "  quality_gates:",
+          "    - type: command",
+          '      command: "./check.sh"',
+          "      cwd: 3",
+          "",
+        ].join("\n"),
       );
 
       expect(checks).toEqual([]);

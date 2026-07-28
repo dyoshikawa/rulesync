@@ -283,6 +283,64 @@ describe("TaktPermissions", () => {
       expect(parsed.workflow_arpeggio).toEqual({ custom_merge_inline_js: true });
     });
 
+    it("removes a toggle the source no longer states", async () => {
+      // A default-deny capability must not stay switched on after the user
+      // revokes it; deep-merging the key would leave the old `true` behind.
+      await writeFileContent(
+        join(testDir, ".takt", "config.yaml"),
+        [
+          "provider: claude",
+          "allow_git_hooks: true",
+          "workflow_arpeggio:",
+          "  custom_merge_files: true",
+          "",
+        ].join("\n"),
+      );
+
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({ permission: {}, takt: {} }),
+      });
+
+      const parsed = toRecord(load(permissions.getFileContent()));
+      expect(parsed.allow_git_hooks).toBeUndefined();
+      expect(parsed.workflow_arpeggio).toBeUndefined();
+      expect(parsed.provider).toBe("claude");
+    });
+
+    it("replaces a policy table rather than merging into the old one", async () => {
+      await writeFileContent(
+        join(testDir, ".takt", "config.yaml"),
+        ["workflow_arpeggio:", "  custom_merge_files: true", ""].join("\n"),
+      );
+
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: {},
+          takt: { workflow_arpeggio: { custom_data_source_modules: true } },
+        }),
+      });
+
+      const parsed = toRecord(load(permissions.getFileContent()));
+      expect(parsed.workflow_arpeggio).toEqual({ custom_data_source_modules: true });
+    });
+
+    it("drops a sub-key Takt's strict schema does not declare", async () => {
+      // Takt rejects the whole config.yaml on an unknown key, so a typo here
+      // must not reach the file.
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: {},
+          takt: { workflow_arpeggio: { custom_merge_file: true, custom_merge_files: true } },
+        }),
+      });
+
+      const parsed = toRecord(load(permissions.getFileContent()));
+      expect(parsed.workflow_arpeggio).toEqual({ custom_merge_files: true });
+    });
+
     it("round-trips the toggles back into the takt override on import", async () => {
       const permissions = new TaktPermissions({
         outputRoot: testDir,

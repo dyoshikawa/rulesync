@@ -332,7 +332,20 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       // provider_profiles.<provider>.default_permission_mode plus the takt
       // override's step/provider tables merge into user config at depth;
       // deep-merge preserves nested sibling keys by construction.
-      permissions: { kind: "deep-merge" },
+      // The workflow security policies are authoritative snapshots of what the
+      // rulesync source states: deep-merging them would keep a default-deny
+      // capability switched on after the user revoked it.
+      permissions: {
+        kind: "deep-merge",
+        replaceKeys: [
+          "workflow_arpeggio",
+          "workflow_runtime_prepare",
+          "workflow_command_gates",
+          "sync_conflict_resolver",
+          "allow_git_hooks",
+          "allow_git_filters",
+        ],
+      },
     },
   },
   // Zed settings: each feature holds an exclusive top-level key. Blocks whose

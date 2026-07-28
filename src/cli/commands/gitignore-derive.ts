@@ -67,9 +67,20 @@ const deriveDirEntries = (factories: FactoryMap, feature: Feature): GitignoreEnt
   for (const [target, factory] of factories) {
     if (TARGETS_NOT_DERIVED.has(target)) continue;
     if (!supportsProject(factory)) continue;
-    const paths = getProjectPaths(factory) as { relativeDirPath?: string };
+    const paths = getProjectPaths(factory) as {
+      relativeDirPath?: string;
+      relativeFilePath?: string;
+    };
     const dir = paths.relativeDirPath;
     if (!dir || dir === ".") continue;
+    // A tool that names a single file writes only that file, even though the
+    // feature usually emits a directory tree. Ignoring the whole directory would
+    // swallow the files the user hand-maintains beside it — and git cannot
+    // un-ignore a path inside an ignored directory.
+    if (paths.relativeFilePath) {
+      pushEntry(entries, target, feature, fileToGlob(dir, paths.relativeFilePath));
+      continue;
+    }
     pushEntry(entries, target, feature, dirToGlob(dir));
   }
   return entries;
