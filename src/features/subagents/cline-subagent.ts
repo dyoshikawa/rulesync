@@ -94,6 +94,16 @@ export class ClineSubagent extends ToolSubagent {
     return this.frontmatter;
   }
 
+  /**
+   * `reviewer.yaml` and `reviewer.yml` both convert to the canonical
+   * `reviewer.md`, so they must share one import identity — otherwise the pair
+   * passes the duplicate check and the later one silently overwrites the
+   * earlier in `.rulesync/subagents/` (mirrors KimiCodeSubagent).
+   */
+  override getImportIdentity(): string {
+    return this.getRelativeFilePath().replace(/\.ya?ml$/, "");
+  }
+
   getBody(): string {
     return this.body;
   }
@@ -192,6 +202,20 @@ export class ClineSubagent extends ToolSubagent {
     const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
+
+    // Import leniency: earlier rulesync versions emitted agents without a
+    // description (Cline skips them, so nothing is lost by repairing). Filling
+    // the same fallback the generate side uses keeps one legacy file from
+    // aborting the whole import run, and the next generate writes a loadable
+    // file. A missing/empty name is still a hard error - there is nothing to
+    // repair it from.
+    if (
+      typeof frontmatter.name === "string" &&
+      frontmatter.name.length > 0 &&
+      (typeof frontmatter.description !== "string" || frontmatter.description.length === 0)
+    ) {
+      frontmatter.description = `${frontmatter.name} subagent`;
+    }
 
     const result = ClineSubagentFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {

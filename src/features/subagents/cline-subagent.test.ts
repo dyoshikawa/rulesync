@@ -293,10 +293,27 @@ Review carefully.`;
       expect(frontmatter.maxIterations).toBe(5);
     });
 
-    it("should reject an empty description on import (Cline skips such agents)", async () => {
+    it("should repair a legacy description-less agent on import instead of aborting", async () => {
+      // Earlier rulesync versions emitted agents without a description; one
+      // such file must not abort the whole import run (Cline itself just
+      // skips it, so repairing loses nothing).
+      await writeFileContent(
+        join(testDir, ".cline", "agents", "legacy.yaml"),
+        "---\nname: legacy\n---\n\nBody.",
+      );
+
+      const subagent = await ClineSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "legacy.yaml",
+        validate: true,
+      });
+      expect(subagent.getFrontmatter().description).toBe("legacy subagent");
+    });
+
+    it("should still reject an agent with no name on import", async () => {
       await writeFileContent(
         join(testDir, ".cline", "agents", "bad.yaml"),
-        "---\nname: bad\ndescription: ''\n---\n\nBody.",
+        "---\ndescription: No name\n---\n\nBody.",
       );
 
       await expect(

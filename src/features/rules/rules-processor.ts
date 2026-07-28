@@ -429,8 +429,9 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     {
       class: ClineRule,
       meta: {
-        // Project scope writes `.clinerules/*.md`; global scope writes a single
-        // cross-tool `~/.agents/AGENTS.md` (Cline CLI v3.0.15+).
+        // Project scope writes `.clinerules/*.md`; global scope writes the
+        // cross-tool `~/.agents/AGENTS.md` root (Cline CLI v3.0.15+) plus
+        // non-root modular rules under `~/Documents/Cline/Rules/`.
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
