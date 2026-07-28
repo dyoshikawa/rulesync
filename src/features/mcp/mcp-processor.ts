@@ -380,8 +380,12 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         // identical native MCP schema, so global parity with opencode
         // is the natural state.
         supportsGlobal: true,
-        supportsEnabledTools: false,
-        supportsDisabledTools: false,
+        // Kilo's `tools` map is the same per-tool allow/deny surface OpenCode
+        // has, and this adapter has always imported it. Leaving these off left
+        // the write side unable to see the fields it converts, so a filter read
+        // out of `kilo.jsonc` was deleted from it on the next generate.
+        supportsEnabledTools: true,
+        supportsDisabledTools: true,
       },
     },
   ],

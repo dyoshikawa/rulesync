@@ -40,7 +40,12 @@ export const KiloSubagentFrontmatterSchema = z.looseObject({
   variant: z.optional(z.string()),
   prompt: z.optional(z.string()),
   options: z.optional(z.record(z.string(), z.unknown())),
-  steps: z.optional(z.array(z.record(z.string(), z.unknown()))),
+  // Maximum agentic iterations before Kilo forces a text-only response — a
+  // positive integer, not a list of step objects. Kilo's deprecated `maxSteps`
+  // alias is neither modeled nor normalized: it passes through this looseObject
+  // untouched, so a file that uses it keeps using it.
+  // https://kilo.ai/docs/customize/custom-subagents
+  steps: z.optional(z.nullable(z.number().check(z.int(), z.gte(1)))),
   disable: z.optional(z.boolean()),
 });
 export type KiloSubagentFrontmatter = z.infer<typeof KiloSubagentFrontmatterSchema>;

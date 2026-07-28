@@ -447,7 +447,7 @@ Agent body`,
       variant: "extended",
       prompt: "Think carefully",
       options: { key: "value" },
-      steps: [{ name: "step1" }],
+      steps: 30,
       disable: false,
     });
 
@@ -456,9 +456,36 @@ Agent body`,
       expect(result.data.displayName).toBe("My Agent");
       expect(result.data.deprecated).toBe(true);
       expect(result.data.top_p).toBe(0.8);
-      expect(result.data.steps).toEqual([{ name: "step1" }]);
+      // Upstream: "Maximum number of agentic iterations before forcing a
+      // text-only response" — a number, not a list of step objects.
+      expect(result.data.steps).toBe(30);
       expect(result.data.options).toEqual({ key: "value" });
     }
+  });
+
+  it("should bound steps to a positive integer, and accept null as a clear", () => {
+    // `steps` is an iteration count, so the values Kilo cannot act on are
+    // rejected here rather than written into `.kilo/agents/*.md`.
+    for (const steps of [0, -1, 2.5]) {
+      expect(KiloSubagentFrontmatterSchema.safeParse({ name: "agent", steps }).success).toBe(false);
+    }
+
+    const cleared = KiloSubagentFrontmatterSchema.safeParse({ name: "agent", steps: null });
+    expect(cleared.success).toBe(true);
+    if (cleared.success) {
+      expect(cleared.data.steps).toBeNull();
+    }
+  });
+
+  it("should reject the list-of-step-objects shape earlier Rulesync versions took", () => {
+    // Intentionally breaking: Kilo never accepted a list here, so a subagent
+    // authored against the old typing produced a file Kilo ignored. Failing
+    // loudly is what tells the author to convert it to an iteration count.
+    const result = KiloSubagentFrontmatterSchema.safeParse({
+      name: "agent",
+      steps: [{ name: "step1" }],
+    });
+    expect(result.success).toBe(false);
   });
 
   it("should accept a per-tool permission object as well as a string", () => {
@@ -495,7 +522,7 @@ Agent body`,
         description: "Agent with options/steps",
         kilo: {
           options: { temperature: 0.2 },
-          steps: [{ name: "step1" }, { name: "step2" }],
+          steps: 30,
         },
       },
       body: "Body",
@@ -510,7 +537,7 @@ Agent body`,
       }) as KiloSubagent
     ).getFrontmatter();
     expect(fm.options).toEqual({ temperature: 0.2 });
-    expect(fm.steps).toEqual([{ name: "step1" }, { name: "step2" }]);
+    expect(fm.steps).toBe(30);
   });
 
   describe("forDeletion", () => {

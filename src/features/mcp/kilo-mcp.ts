@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { parse as parseJsonc } from "jsonc-parser";
-import { z } from "zod/mini";
+import { refine, z } from "zod/mini";
 
 import {
   KILO_DIR,
@@ -12,7 +12,19 @@ import {
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
+import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import {
+  declaresNoTransport,
+  isRemoteMcpServer,
+  type McpServerConfig,
+  orphanMcpToolFiltersToRulesync,
+  resolveLocalMcpCommand,
+  resolveRemoteMcpUrl,
+  splitMcpServersByTransport,
+  warnAndSkipMcpServer,
+} from "./mcp-transport.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -34,7 +46,11 @@ import {
 // looseObject so future fields round-trip unchanged.
 const KiloMcpOAuthSchema = z.union([z.looseObject({}), z.literal(false)]);
 
-// Kilo native format for local servers
+// Kilo native format for local servers. `z.object`, not `looseObject`: an
+// unmodeled key would be stripped on import and, since `mcp` is a key Rulesync
+// owns and rewrites whole, deleted from kilo.jsonc on the next generate either
+// way. Carrying such keys through both directions needs a namespaced
+// passthrough like the OpenCode adapter's, which is its own change.
 const KiloMcpLocalServerSchema = z.object({
   type: z.literal("local"),
   command: z.array(z.string()),
@@ -47,7 +63,8 @@ const KiloMcpLocalServerSchema = z.object({
   timeout: z.optional(z.number()),
 });
 
-// Kilo native format for remote servers
+// Kilo native format for remote servers. `z.object` for the same reason as the
+// local schema above.
 const KiloMcpRemoteServerSchema = z.object({
   type: z.literal("remote"),
   url: z.string(),
@@ -59,8 +76,52 @@ const KiloMcpRemoteServerSchema = z.object({
   oauth: z.optional(KiloMcpOAuthSchema),
 });
 
-// Kilo MCP server schema (local or remote)
-const KiloMcpServerSchema = z.union([KiloMcpLocalServerSchema, KiloMcpRemoteServerSchema]);
+// Every field of the two transport schemas except `enabled`, which is what a
+// toggle is made of. Derived rather than listed: a field added to either schema
+// and forgotten here would let a malformed entry carrying it be read as a
+// toggle and written back stripped of that field.
+const KILO_MCP_TRANSPORT_KEYS = [
+  ...new Set([
+    ...Object.keys(KiloMcpLocalServerSchema.def.shape),
+    ...Object.keys(KiloMcpRemoteServerSchema.def.shape),
+  ]),
+].filter((key) => key !== "enabled");
+
+/**
+ * A bare toggle entry: `{"enabled": <bool>}` with no transport of its own,
+ * disabling a server another config layer defines — the global config, a
+ * marketplace, or a VS Code import. Kilo's own type is
+ * `Record<string, Info | { enabled: boolean }>`; without this arm the union
+ * rejects the entry and, because `kilo.jsonc` is the file the rules feature
+ * writes too, the whole `--targets kilo` run aborts rather than just MCP.
+ *
+ * Loose, unlike the two transport arms, so a key Kilo adds to a toggle later
+ * does not bring that abort back — but refined to reject anything carrying a
+ * key only a transport entry has. A plain loose arm would sit under a malformed `local` or
+ * `remote` entry that happens to carry `enabled` and swallow it, dropping its
+ * command, URL, headers, or OAuth secrets without a word instead of failing the
+ * way it does today.
+ * @see https://github.com/Kilo-Org/kilocode/blob/main/packages/core/src/v1/config/config.ts
+ */
+const KiloMcpToggleSchema = z
+  .looseObject({
+    enabled: z.boolean(),
+  })
+  .check(
+    refine(
+      (entry) => KILO_MCP_TRANSPORT_KEYS.every((key) => !(key in entry)),
+      'not a valid Kilo MCP server: expected a local server ({type: "local", command: [...]}), ' +
+        'a remote server ({type: "remote", url: "..."}), or a bare toggle ({enabled: <bool>}) ' +
+        "carrying no field of either",
+    ),
+  );
+
+// Kilo MCP server schema (local, remote, or a toggle for a server defined elsewhere)
+const KiloMcpServerSchema = z.union([
+  KiloMcpLocalServerSchema,
+  KiloMcpRemoteServerSchema,
+  KiloMcpToggleSchema,
+]);
 
 // Use looseObject to allow additional properties like model, provider, agent,
 // etc.
@@ -84,6 +145,95 @@ const KiloConfigSchema = z.looseObject({
 
 type KiloConfig = z.infer<typeof KiloConfigSchema>;
 type KiloMcpServer = z.infer<typeof KiloMcpServerSchema>;
+type KiloMcpTransportServer =
+  | z.infer<typeof KiloMcpLocalServerSchema>
+  | z.infer<typeof KiloMcpRemoteServerSchema>;
+
+/**
+ * Tell the two transport arms from a toggle entry. Both carry a `type` literal
+ * and a toggle never does — the schema refuses one that tries — but the toggle
+ * arm is loose, so its index signature hides that from `in` narrowing.
+ */
+function isKiloTransportServer(server: KiloMcpServer): server is KiloMcpTransportServer {
+  return server.type === "local" || server.type === "remote";
+}
+
+/** Split the shared top-level `tools` map into this server's own two lists. */
+function splitKiloServerTools(
+  serverName: string,
+  tools: Record<string, boolean> | undefined,
+): { enabledTools: string[]; disabledTools: string[] } {
+  const enabledTools: string[] = [];
+  const disabledTools: string[] = [];
+  const prefix = `${serverName}_`;
+
+  for (const [toolName, enabled] of Object.entries(tools ?? {})) {
+    if (!toolName.startsWith(prefix)) {
+      continue;
+    }
+    const toolSuffix = toolName.slice(prefix.length);
+    (enabled ? enabledTools : disabledTools).push(toolSuffix);
+  }
+  return { enabledTools, disabledTools };
+}
+
+function kiloServerToRulesync(
+  serverName: string,
+  server: KiloMcpServer,
+  { enabledTools, disabledTools }: { enabledTools: string[]; disabledTools: string[] },
+): McpServers[string] {
+  // Everything but `timeout`, which only the two transport arms carry — reading
+  // it here would defeat the narrowing below and force a cast.
+  const shared = {
+    ...(server.enabled === false && { disabled: true }),
+    ...(enabledTools.length > 0 && { enabledTools }),
+    ...(disabledTools.length > 0 && { disabledTools }),
+  };
+
+  if (!isKiloTransportServer(server)) {
+    // A toggle entry names a server another config layer defines, so there is
+    // no transport to import — only its enabled state crosses over, and it
+    // crosses over explicitly in both directions: the write side refuses to
+    // switch a server on unless the canonical config says so in as many words.
+    return { ...shared, disabled: server.enabled === false };
+  }
+
+  const withTimeout = {
+    ...shared,
+    ...(server.timeout !== undefined && { timeout: server.timeout }),
+  };
+
+  if (server.type === "remote") {
+    return {
+      // Kilo's `remote` transport is transport-agnostic; SSE is deprecated by
+      // the MCP spec (2025-03-26) in favor of Streamable HTTP, so import as
+      // `http` rather than the legacy `sse`.
+      type: "http" as const,
+      url: server.url,
+      ...(server.headers && { headers: server.headers }),
+      ...(server.oauth !== undefined && { oauth: server.oauth }),
+      ...withTimeout,
+    };
+  }
+
+  const [command, ...args] = server.command;
+  if (!command) {
+    // `{type: "local", command: []}` is what Rulesync used to write for a
+    // server that named no transport, so it is on disk in real projects.
+    // Throwing here took the whole `import` run down — every later feature of
+    // it — over an entry with nothing to import. Read it as the transport-less
+    // server it is; the write side turns that back into a toggle.
+    return withTimeout;
+  }
+  return {
+    type: "stdio" as const,
+    command,
+    ...(args.length > 0 && { args }),
+    ...(server.environment && { env: server.environment }),
+    ...(server.cwd && { cwd: server.cwd }),
+    ...withTimeout,
+  };
+}
 
 /**
  * Convert Kilo native format back to standard MCP format
@@ -97,66 +247,15 @@ function convertFromKiloFormat(
   kiloMcp: Record<string, KiloMcpServer>,
   tools?: Record<string, boolean>,
 ): McpServers {
-  return Object.fromEntries(
-    Object.entries(kiloMcp).map(([serverName, serverConfig]) => {
-      // Extract enabledTools and disabledTools from top-level tools map
-      const enabledTools: string[] = [];
-      const disabledTools: string[] = [];
-      const prefix = `${serverName}_`;
-
-      if (tools) {
-        for (const [toolName, enabled] of Object.entries(tools)) {
-          if (toolName.startsWith(prefix)) {
-            const toolSuffix = toolName.slice(prefix.length);
-            if (enabled) {
-              enabledTools.push(toolSuffix);
-            } else {
-              disabledTools.push(toolSuffix);
-            }
-          }
-        }
-      }
-
-      if (serverConfig.type === "remote") {
-        return [
-          serverName,
-          {
-            // Kilo's `remote` transport is transport-agnostic; SSE is deprecated
-            // by the MCP spec (2025-03-26) in favor of Streamable HTTP, so import
-            // as `http` rather than the legacy `sse`.
-            type: "http" as const,
-            url: serverConfig.url,
-            ...(serverConfig.enabled === false && { disabled: true }),
-            ...(serverConfig.headers && { headers: serverConfig.headers }),
-            ...(serverConfig.timeout !== undefined && { timeout: serverConfig.timeout }),
-            ...(serverConfig.oauth !== undefined && { oauth: serverConfig.oauth }),
-            ...(enabledTools.length > 0 && { enabledTools }),
-            ...(disabledTools.length > 0 && { disabledTools }),
-          },
-        ];
-      }
-
-      // local server -> stdio
-      const [command, ...args] = serverConfig.command;
-      if (!command) {
-        throw new Error(`Server "${serverName}" has an empty command array`);
-      }
-      return [
+  return {
+    ...Object.fromEntries(
+      Object.entries(kiloMcp).map(([serverName, serverConfig]) => [
         serverName,
-        {
-          type: "stdio" as const,
-          command,
-          ...(args.length > 0 && { args }),
-          ...(serverConfig.enabled === false && { disabled: true }),
-          ...(serverConfig.environment && { env: serverConfig.environment }),
-          ...(serverConfig.cwd && { cwd: serverConfig.cwd }),
-          ...(serverConfig.timeout !== undefined && { timeout: serverConfig.timeout }),
-          ...(enabledTools.length > 0 && { enabledTools }),
-          ...(disabledTools.length > 0 && { disabledTools }),
-        },
-      ];
-    }),
-  );
+        kiloServerToRulesync(serverName, serverConfig, splitKiloServerTools(serverName, tools)),
+      ]),
+    ),
+    ...orphanMcpToolFiltersToRulesync(kiloMcp, tools),
+  };
 }
 
 /**
@@ -167,8 +266,6 @@ function convertFromKiloFormat(
  * - disabled -> enabled (inverted)
  * - enabledTools/disabledTools -> top-level tools map (with server name prefix)
  */
-type McpServerConfig = McpServers[string];
-
 /**
  * Collect a server's enabledTools/disabledTools into the shared top-level tools
  * map, prefixing each tool name with the server name. Mutates `tools` in place.
@@ -190,61 +287,170 @@ function collectKiloServerTools(
   }
 }
 
-/**
- * Convert a single rulesync MCP server into its Kilo native form (local or remote).
- */
-function convertServerToKiloFormat(serverConfig: McpServerConfig): KiloMcpServer {
-  const isRemote = serverConfig.type === "sse" || serverConfig.type === "http" || serverConfig.url;
+/** The only fields a bare toggle carries over; everything else needs a transport. */
+const KILO_TOGGLE_KEPT_KEYS = new Set(["disabled", "enabledTools", "disabledTools"]);
 
-  if (isRemote) {
+/**
+ * A toggle keeps nothing but its enabled state, so a transport-less server that
+ * still carries `args`, `env`, or `headers` loses them here. Such an entry is
+ * impossible to start — no command, no URL — so it is written as the toggle it
+ * resembles rather than dropped, but the loss is said out loud.
+ */
+function warnAboutToggleDroppedKeys(
+  serverName: string,
+  serverConfig: McpServerConfig,
+  logger?: Logger,
+): void {
+  const dropped = Object.keys(serverConfig).filter((key) => !KILO_TOGGLE_KEPT_KEYS.has(key));
+  if (dropped.length === 0) {
+    return;
+  }
+  logger?.warn(
+    `Kilo MCP: "${serverName}" declares no transport, so it is written as a toggle entry and ` +
+      `${dropped.toSorted().join(", ")} ${dropped.length === 1 ? "is" : "are"} dropped.`,
+  );
+}
+
+/**
+ * Convert a single rulesync MCP server into its Kilo native form (local, remote,
+ * or a bare toggle for a server another config layer defines).
+ */
+function convertServerToKiloFormat(
+  serverName: string,
+  serverConfig: McpServerConfig,
+  existingEntry: KiloMcpServer | undefined,
+  logger?: Logger,
+): KiloMcpServer | null {
+  if (declaresNoTransport(serverConfig)) {
+    if (serverConfig.disabled === undefined) {
+      // A toggle overrides whatever the global config, a marketplace, or a VS
+      // Code import says about a server of this name, so writing `enabled:
+      // true` for a server that never asked to be enabled would switch back on
+      // what the user turned off in that other layer. Only an explicit
+      // `disabled` — which is what importing a toggle produces — is carried.
+      if (existingEntry !== undefined && !isKiloTransportServer(existingEntry)) {
+        // Dropping the entry would switch the server back on just as surely,
+        // since Rulesync rewrites the whole `mcp` key. Leave the toggle the
+        // file already carries exactly as it is.
+        warnAboutToggleDroppedKeys(serverName, serverConfig, logger);
+        return existingEntry;
+      }
+      return warnAndSkipMcpServer({
+        toolName: "Kilo",
+        serverName,
+        reason: "no transport and no enabled state, so there is nothing to toggle",
+        logger,
+      });
+    }
+    warnAboutToggleDroppedKeys(serverName, serverConfig, logger);
+    return { enabled: !serverConfig.disabled };
+  }
+
+  if (isRemoteMcpServer(serverConfig)) {
+    const url = resolveRemoteMcpUrl(serverConfig);
+    if (url === undefined) {
+      return warnAndSkipMcpServer({
+        toolName: "Kilo",
+        serverName,
+        reason: "a remote transport but no url",
+        logger,
+      });
+    }
     // `oauth` is Kilo-specific (object | false) and carried through via the
-    // rulesync MCP server's looseObject passthrough; it is not a declared
-    // field on McpServerSchema.
-    const oauth = (serverConfig as { oauth?: unknown }).oauth;
+    // rulesync MCP server's looseObject passthrough; it is not a declared field
+    // on McpServerSchema. Parse rather than cast: a value of another shape
+    // would be written out and then rejected by this adapter's own constructor
+    // as it re-reads the file, failing the generate it is part of.
+    const rawOauth = (serverConfig as { oauth?: unknown }).oauth;
+    const oauth = KiloMcpOAuthSchema.safeParse(rawOauth);
+    if (!oauth.success && rawOauth !== undefined) {
+      logger?.warn(
+        `Kilo MCP: dropping the oauth field of "${serverName}" because Kilo takes an object or false there.`,
+      );
+    }
     return {
       type: "remote",
-      url: serverConfig.url ?? serverConfig.httpUrl ?? "",
-      enabled: serverConfig.disabled !== undefined ? !serverConfig.disabled : true,
+      url,
+      enabled: !serverConfig.disabled,
       ...(serverConfig.headers && { headers: serverConfig.headers }),
       ...(serverConfig.timeout !== undefined && { timeout: serverConfig.timeout }),
-      ...(oauth !== undefined && { oauth: oauth as z.infer<typeof KiloMcpOAuthSchema> }),
+      ...(oauth.success && { oauth: oauth.data }),
     };
   }
 
-  // Build command array: merge command and args
-  const commandArray: string[] = [];
-  if (serverConfig.command) {
-    if (Array.isArray(serverConfig.command)) {
-      commandArray.push(...serverConfig.command);
-    } else {
-      commandArray.push(serverConfig.command);
-    }
-  }
-  if (serverConfig.args) {
-    commandArray.push(...serverConfig.args);
+  const commandArray = resolveLocalMcpCommand(serverConfig);
+  if (commandArray.length === 0) {
+    return warnAndSkipMcpServer({
+      toolName: "Kilo",
+      serverName,
+      reason: "a local transport but no command",
+      logger,
+    });
   }
 
   return {
     type: "local",
     command: commandArray,
-    enabled: serverConfig.disabled !== undefined ? !serverConfig.disabled : true,
+    enabled: !serverConfig.disabled,
     ...(serverConfig.env && { environment: serverConfig.env }),
     ...(serverConfig.cwd && { cwd: serverConfig.cwd }),
     ...(serverConfig.timeout !== undefined && { timeout: serverConfig.timeout }),
   };
 }
 
-function convertToKiloFormat(mcpServers: McpServers): {
+/**
+ * The `mcp` entries of an on-disk `kilo.jsonc` that this adapter can read. Each
+ * is parsed on its own so a malformed sibling costs only itself, and a file
+ * that is not an object at all costs nothing.
+ */
+function readExistingKiloMcpEntries(fileContent: string | null): Record<string, KiloMcpServer> {
+  const parsed = parseJsonc(fileContent || "{}");
+  const mcp = (parsed as { mcp?: unknown } | null)?.mcp;
+  if (!isRecord(mcp)) {
+    return {};
+  }
+
+  const entries: Record<string, KiloMcpServer> = {};
+  for (const [serverName, entry] of Object.entries(mcp)) {
+    const result = KiloMcpServerSchema.safeParse(entry);
+    if (result.success) {
+      entries[serverName] = result.data;
+    }
+  }
+  return entries;
+}
+
+function convertToKiloFormat(
+  mcpServers: McpServers,
+  existingMcp: Record<string, KiloMcpServer>,
+  logger?: Logger,
+): {
   mcp: Record<string, KiloMcpServer>;
   tools: Record<string, boolean>;
 } {
   const tools: Record<string, boolean> = {};
 
   const mcp = Object.fromEntries(
-    Object.entries(mcpServers).map(([serverName, serverConfig]) => {
-      collectKiloServerTools(tools, serverName, serverConfig);
-      return [serverName, convertServerToKiloFormat(serverConfig)];
-    }),
+    Object.entries(mcpServers)
+      .map(([serverName, serverConfig]) => {
+        const converted = convertServerToKiloFormat(
+          serverName,
+          serverConfig,
+          // Own properties only: a server named `constructor` would otherwise
+          // resolve to something off `Object.prototype` and be mistaken for a
+          // toggle already in the file.
+          Object.hasOwn(existingMcp, serverName) ? existingMcp[serverName] : undefined,
+          logger,
+        );
+        // Collected whether or not an entry is written: Kilo's `tools` map is
+        // keyed by server name and reaches servers `mcp` does not list at all,
+        // so a filter turning off a dangerous tool of a server another config
+        // layer defines must not be dropped along with the entry Kilo could
+        // not have used anyway.
+        collectKiloServerTools(tools, serverName, serverConfig);
+        return converted === null ? null : ([serverName, converted] as const);
+      })
+      .filter((entry) => entry !== null),
   );
 
   return { mcp, tools };
@@ -370,6 +576,7 @@ export class KiloMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
     global = false,
+    logger,
   }: ToolMcpFromRulesyncMcpParams): Promise<KiloMcp> {
     const basePaths = this.getSettablePaths({ global });
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
@@ -389,7 +596,17 @@ export class KiloMcp extends ToolMcp {
       }
     }
 
-    const { mcp: convertedMcp, tools: mcpTools } = convertToKiloFormat(rulesyncMcp.getMcpServers());
+    // The `mcp` key is rewritten whole, so a toggle the canonical config states
+    // nothing about is read from here to be written back unchanged. Entry by
+    // entry, not file at once: one sibling this adapter cannot parse must not
+    // decide that every other server stays switched on.
+    const existingMcp = readExistingKiloMcpEntries(fileContent);
+
+    const { mcp: convertedMcp, tools: mcpTools } = convertToKiloFormat(
+      rulesyncMcp.getMcpServers(),
+      existingMcp,
+      logger,
+    );
 
     return new KiloMcp({
       outputRoot,
@@ -477,8 +694,19 @@ export class KiloMcp extends ToolMcp {
 
   toRulesyncMcp(): RulesyncMcp {
     const convertedMcpServers = convertFromKiloFormat(this.json.mcp ?? {}, this.json.tools);
+    // A transport-less server is a Kilo idea — a toggle for a server another
+    // config layer defines, or a filter for one — so it goes in the block only
+    // Kilo reads rather than into the shared map every other tool writes out.
+    const { shared, toolOnly } = splitMcpServersByTransport(convertedMcpServers);
     return this.toRulesyncMcpDefault({
-      fileContent: JSON.stringify({ mcpServers: convertedMcpServers }, null, 2),
+      fileContent: JSON.stringify(
+        {
+          mcpServers: shared,
+          ...(Object.keys(toolOnly).length > 0 && { kilo: { mcpServers: toolOnly } }),
+        },
+        null,
+        2,
+      ),
     });
   }
 

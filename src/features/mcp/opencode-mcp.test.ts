@@ -8,6 +8,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
@@ -1401,13 +1402,17 @@ describe("OpencodeMcp", () => {
       });
     });
 
-    it("should throw error when command array is empty", () => {
+    it("should import a server with an empty command array as one with no transport", () => {
+      // Rulesync itself used to write this for a server that named no
+      // transport, so it sits in real projects. Throwing took the whole
+      // `import` run down — every later feature of it — over one entry with
+      // nothing to import.
       const jsonData = {
         mcp: {
           "empty-command-server": {
             type: "local",
             command: [],
-            enabled: true,
+            enabled: false,
           },
         },
       };
@@ -1418,9 +1423,10 @@ describe("OpencodeMcp", () => {
         validate: false,
       });
 
-      expect(() => opencodeMcp.toRulesyncMcp()).toThrow(
-        'Server "empty-command-server" has an empty command array',
-      );
+      const imported = JSON.parse(opencodeMcp.toRulesyncMcp().getFileContent());
+      // Transport-less, so it lands in the block only OpenCode reads.
+      expect(imported.mcpServers).toEqual({});
+      expect(imported.opencode.mcpServers["empty-command-server"]).toEqual({ disabled: true });
     });
 
     it("should convert tools map to enabledTools per server (strip prefix)", () => {
@@ -1572,6 +1578,16 @@ describe("OpencodeMcp", () => {
             command: "node",
             args: ["b.js"],
             enabledTools: ["list"],
+          },
+        },
+        // Named by no entry of `mcp`, so it filters a server another config
+        // layer defines: it comes back as a transport-less server under the
+        // block only OpenCode reads.
+        opencode: {
+          mcpServers: {
+            unrelated: {
+              disabledTools: ["tool"],
+            },
           },
         },
       });
@@ -2616,6 +2632,64 @@ describe("OpencodeMcp", () => {
       expect((opencodeMcp.getJson() as any).instructions).toEqual([
         ".opencode/memories/overview.md",
       ]);
+    });
+  });
+
+  describe("servers OpenCode cannot express", () => {
+    it("should skip a server with no reachable transport instead of writing an empty command", async () => {
+      // `{type: "local", command: []}` is a server OpenCode cannot start, and
+      // this adapter throws reading it back — so the file one generate wrote
+      // would break the next import. The first entry is the shape a Kilo
+      // `{"enabled": false}` toggle imports as.
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            toggled: { disabled: true, enabledTools: ["read"] },
+            headless: { type: "stdio" },
+            noUrl: { type: "http" },
+            fine: { command: "npx", args: ["-y", "server"] },
+          },
+        }),
+      });
+
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        logger: mockLogger,
+      });
+      const json = opencodeMcp.getJson() as any;
+
+      expect(Object.keys(json.mcp)).toEqual(["fine"]);
+      // The filters of a skipped server stay: the map reaches servers `mcp`
+      // does not list, so they are not this entry's to take away.
+      expect(json.tools).toEqual({ toggled_read: true });
+      for (const name of ["toggled", "headless", "noUrl"]) {
+        expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining(`skipping "${name}"`));
+      }
+    });
+
+    it("should write a server carrying only httpUrl as remote", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { gemini: { httpUrl: "https://example.com/mcp" } },
+        }),
+      });
+
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+      });
+
+      expect((opencodeMcp.getJson() as any).mcp.gemini).toEqual({
+        type: "remote",
+        url: "https://example.com/mcp",
+        enabled: true,
+      });
     });
   });
 });
