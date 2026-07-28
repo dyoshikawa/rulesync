@@ -790,7 +790,9 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       class: DevinRule,
       meta: {
         extension: "md",
-        // Project rules live under `.devin/rules/*.md`; global always-on rules
+        // The root rule goes to the project-root `AGENTS.md` (the file Devin
+        // CLI/Local reads); non-root rules live under `.devin/rules/*.md`
+        // (Devin Desktop Cascade); global always-on rules
         // are a single plain `~/.config/devin/AGENTS.md` file.
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",

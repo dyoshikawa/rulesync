@@ -20,11 +20,36 @@ type DevinCommandParams = AiFileParams & {
   slug?: string;
 };
 
+/**
+ * Devin SKILL.md frontmatter keys a command may author through its `devin:`
+ * section (`argument-hint`, `model`, `agent`, …).
+ * @see https://docs.devin.ai/cli/extensibility/skills/creating-skills
+ */
+const DEVIN_COMMAND_SECTION_KEYS = [
+  "argument-hint",
+  "model",
+  "subagent",
+  "agent",
+  "allowed-tools",
+  "permissions",
+  "triggers",
+] as const;
+
 function commandSkillContent(rulesyncCommand: RulesyncCommand): string {
   const slug = commandSlug(rulesyncCommand.getRelativeFilePath());
-  const description = rulesyncCommand.getFrontmatter().description ?? `${slug} command`;
+  const frontmatter = rulesyncCommand.getFrontmatter();
+  const description = frontmatter.description ?? `${slug} command`;
+
+  const devinSection = frontmatter.devin ?? {};
+  const extras: Record<string, unknown> = {};
+  for (const key of DEVIN_COMMAND_SECTION_KEYS) {
+    if (devinSection[key] !== undefined) {
+      extras[key] = devinSection[key];
+    }
+  }
 
   return stringifyFrontmatter(rulesyncCommand.getBody().trim(), {
+    ...extras,
     name: slug,
     description,
   });

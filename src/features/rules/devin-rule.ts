@@ -62,7 +62,11 @@ export type DevinRuleParams = Omit<ToolRuleParams, "fileContent"> & {
   body: string;
 };
 
-export type DevinRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+export type DevinRuleSettablePaths = ToolRuleSettablePaths & {
+  root: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
   nonRoot: {
     relativeDirPath: string;
   };
@@ -282,10 +286,11 @@ const STRATEGIES: TriggerStrategy[] = [
 /**
  * Rule generator for Devin (Cascade memories, now Devin Desktop).
  *
- * - Project scope: one file per rule under `.devin/rules/*.md` with YAML
+ * - Project scope: the root rule goes to the project-root `AGENTS.md` (plain
+ *   markdown — the file Devin CLI / Devin Local reads); non-root rules are one
+ *   file per rule under `.devin/rules/*.md` (Devin Desktop Cascade) with YAML
  *   frontmatter carrying a `trigger` (always_on | glob | manual | model_decision)
- *   plus companion `globs`/`description` fields. (`.devin/rules/` is the
- *   pre-rebrand legacy location the tool still reads.)
+ *   plus companion `globs`/`description` fields.
  * - Global scope: a single plain-markdown, always-on file (no frontmatter) at
  *   `~/.config/devin/AGENTS.md` (Devin Local global always-on rules).
  *
@@ -313,7 +318,8 @@ export class DevinRule extends ToolRule {
 
     super({
       ...rest,
-      // Global rules are a single plain-markdown file (no frontmatter);
+      // The global AGENTS.md and the project-root AGENTS.md are plain
+      // markdown (no frontmatter);
       // project rules carry Devin trigger frontmatter.
       fileContent: rest.root ? body : stringifyFrontmatter(body, frontmatter),
     });
@@ -344,6 +350,15 @@ export class DevinRule extends ToolRule {
       };
     }
     return {
+      // Devin CLI / Devin Local reads project rules from the root `AGENTS.md`
+      // (its rules page does not list `.devin/rules/` among its sources);
+      // `.devin/rules/*.md` remains the Devin Desktop Cascade directory for
+      // non-root rules with activation modes.
+      // @see https://docs.devin.ai/cli/extensibility/rules
+      root: {
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
+      },
       nonRoot: {
         relativeDirPath: buildToolPath(DEVIN_DIR, "rules", excludeToolDir),
       },
@@ -366,6 +381,20 @@ export class DevinRule extends ToolRule {
         outputRoot,
         relativeDirPath: rootPath.relativeDirPath,
         relativeFilePath: rootPath.relativeFilePath,
+        frontmatter: {},
+        body: fileContent,
+        validate,
+        root: true,
+      });
+    }
+
+    if (relativeFilePath === "AGENTS.md") {
+      // The project-root AGENTS.md is plain markdown without Cascade frontmatter.
+      const fileContent = await readFileContent(join(outputRoot, relativeFilePath));
+      return new DevinRule({
+        outputRoot,
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
         frontmatter: {},
         body: fileContent,
         validate,
@@ -423,6 +452,20 @@ export class DevinRule extends ToolRule {
 
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
 
+    if (rulesyncFrontmatter.root) {
+      // The root rule goes to the project-root AGENTS.md Devin CLI / Devin
+      // Local actually reads, as plain markdown without Cascade frontmatter.
+      return new DevinRule({
+        outputRoot,
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
+        frontmatter: {},
+        body: rulesyncRule.getBody(),
+        validate,
+        root: true,
+      });
+    }
+
     const storedDevin = rulesyncFrontmatter.devin;
     const normalized = normalizeStoredDevin(storedDevin);
     const storedTrigger = storedDevin?.trigger;
@@ -434,7 +477,8 @@ export class DevinRule extends ToolRule {
 
     const frontmatter = strategy.generateFrontmatter(normalized, rulesyncFrontmatter);
 
-    // Both root and non-root rules are placed in the .devin/rules directory.
+    // Non-root rules are placed in the .devin/rules directory (the root rule
+    // returned above went to the project-root AGENTS.md).
     const kebabCaseFilename = toKebabCaseFilename(rulesyncRule.getRelativeFilePath());
 
     return new DevinRule({
@@ -450,7 +494,7 @@ export class DevinRule extends ToolRule {
 
   toRulesyncRule(): RulesyncRule {
     if (this.root) {
-      // The global AGENTS.md round-trips as a plain root rule.
+      // The global and project-root AGENTS.md round-trip as a plain root rule.
       return this.toRulesyncRuleDefault();
     }
 

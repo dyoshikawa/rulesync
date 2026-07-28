@@ -20,10 +20,75 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
+/**
+ * The SKILL.md frontmatter fields Devin documents beyond name/description:
+ * `argument-hint`, `model`, `subagent`, `agent`, `allowed-tools`,
+ * `permissions` (load-bearing for auto-approvals since CLI v3000.1.23 /
+ * Desktop v3.4.22), and `triggers` (`user` / `model` invocation gating).
+ * @see https://docs.devin.ai/cli/extensibility/skills/creating-skills
+ */
 const DevinSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
+  "argument-hint": z.optional(z.string()),
+  model: z.optional(z.string()),
+  subagent: z.optional(z.union([z.string(), z.boolean()])),
+  agent: z.optional(z.string()),
+  "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+  permissions: z.optional(z.record(z.string(), z.unknown())),
+  triggers: z.optional(z.array(z.enum(["user", "model"]))),
 });
+
+/** The `devin` tool section of the canonical skill frontmatter. */
+type DevinRulesyncSection = {
+  "argument-hint"?: string;
+  model?: string;
+  subagent?: string | boolean;
+  agent?: string;
+  "allowed-tools"?: string | string[];
+  permissions?: Record<string, unknown>;
+  triggers?: ("user" | "model")[];
+};
+
+const DEVIN_SECTION_KEYS = [
+  "argument-hint",
+  "model",
+  "subagent",
+  "agent",
+  "allowed-tools",
+  "permissions",
+  "triggers",
+] as const;
+
+/**
+ * Resolve Devin's `triggers` from the canonical invocation flags when the
+ * section does not state it outright: `disable-model-invocation: true` leaves
+ * only the `user` trigger, `user-invocable: false` only the `model` trigger.
+ * With neither flag set, `triggers` is omitted (Devin's default is both).
+ */
+function resolveDevinTriggers({
+  section,
+  disableModelInvocation,
+  userInvocable,
+}: {
+  section: DevinRulesyncSection | undefined;
+  disableModelInvocation: boolean | undefined;
+  userInvocable: boolean | undefined;
+}): ("user" | "model")[] | undefined {
+  if (section?.triggers !== undefined) {
+    return section.triggers;
+  }
+  if (disableModelInvocation === true && userInvocable === false) {
+    return [];
+  }
+  if (disableModelInvocation === true) {
+    return ["user"];
+  }
+  if (userInvocable === false) {
+    return ["model"];
+  }
+  return undefined;
+}
 
 export type DevinSkillFrontmatter = z.infer<typeof DevinSkillFrontmatterSchema>;
 
@@ -125,10 +190,18 @@ export class DevinSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    const devinSection: DevinRulesyncSection = {};
+    for (const key of DEVIN_SECTION_KEYS) {
+      const value = frontmatter[key];
+      if (value !== undefined) {
+        (devinSection as Record<string, unknown>)[key] = value;
+      }
+    }
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
+      ...(Object.keys(devinSection).length > 0 && { devin: devinSection }),
     };
 
     return new RulesyncSkill({
@@ -151,10 +224,27 @@ export class DevinSkill extends ToolSkill {
   }: ToolSkillFromRulesyncSkillParams): DevinSkill {
     const settablePaths = DevinSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+    const devinSection = (rulesyncFrontmatter as { devin?: DevinRulesyncSection }).devin;
+    const triggers = resolveDevinTriggers({
+      section: devinSection,
+      disableModelInvocation: rulesyncFrontmatter["disable-model-invocation"],
+      userInvocable: rulesyncFrontmatter["user-invocable"],
+    });
 
     const devinFrontmatter: DevinSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...(devinSection?.["argument-hint"] !== undefined && {
+        "argument-hint": devinSection["argument-hint"],
+      }),
+      ...(devinSection?.model !== undefined && { model: devinSection.model }),
+      ...(devinSection?.subagent !== undefined && { subagent: devinSection.subagent }),
+      ...(devinSection?.agent !== undefined && { agent: devinSection.agent }),
+      ...(devinSection?.["allowed-tools"] !== undefined && {
+        "allowed-tools": devinSection["allowed-tools"],
+      }),
+      ...(devinSection?.permissions !== undefined && { permissions: devinSection.permissions }),
+      ...(triggers !== undefined && { triggers }),
     };
 
     return new DevinSkill({

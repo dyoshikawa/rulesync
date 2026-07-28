@@ -151,6 +151,20 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   ),
   cline: z.optional(z.looseObject({})),
   roo: z.optional(z.looseObject({})),
+  devin: z.optional(
+    z.looseObject({
+      "argument-hint": z.optional(z.string()),
+      model: z.optional(z.string()),
+      subagent: z.optional(z.union([z.string(), z.boolean()])),
+      agent: z.optional(z.string()),
+      "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+      // Load-bearing for auto-approvals since Devin CLI v3000.1.23.
+      permissions: z.optional(z.looseObject({})),
+      // Omitted = both; the canonical disable-model-invocation/user-invocable
+      // flags map onto this when the section does not state it outright.
+      triggers: z.optional(z.array(z.enum(["user", "model"]))),
+    }),
+  ),
   qwencode: z.optional(
     z.looseObject({
       priority: z.optional(z.number()),
@@ -331,6 +345,15 @@ export type RulesyncSkillFrontmatterInput = {
   };
   roo?: Record<string, unknown>;
   cline?: Record<string, unknown>;
+  devin?: {
+    "argument-hint"?: string;
+    model?: string;
+    subagent?: string | boolean;
+    agent?: string;
+    "allowed-tools"?: string | string[];
+    permissions?: Record<string, unknown>;
+    triggers?: ("user" | "model")[];
+  };
   qwencode?: {
     priority?: number;
     paths?: string | string[];
