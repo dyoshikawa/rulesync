@@ -544,15 +544,15 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     "grokcli",
     {
       // Grok Build reads the AGENTS.md instruction-file family natively
-      // (root/subdir AGENTS.md + global ~/.grok/AGENTS.md) but never a
-      // `.grok/memories/` directory, so non-root rules are folded into the
-      // single root AGENTS.md below (same handling as warp / deepagents).
+      // (root/subdir AGENTS.md + global ~/.grok/AGENTS.md) and scans a rules
+      // directory beside it — `.grok/rules/` per project directory and
+      // `~/.grok/rules/` in the home scope — so a topic rule keeps its own file
+      // rather than being folded into the root one.
       class: GrokcliRule,
       meta: {
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
-        foldsNonRootIntoRoot: true,
       },
     },
   ],

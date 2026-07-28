@@ -2435,7 +2435,7 @@ targets: ["claudecode"]
         "codexcli",
         "deepagents",
         "goose",
-        "grokcli",
+        // `grokcli` left this list when it gained `.grok/rules/`.
         "junie",
         "kimi-code",
         "pi",

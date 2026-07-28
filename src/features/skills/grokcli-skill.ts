@@ -19,6 +19,13 @@ import {
 const GrokcliSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
+  // Invocation control Grok honours: a skill with `user-invocable: false` is
+  // hidden from the skill tool, and `disable-model-invocation: true` stops the
+  // model reaching for it on its own. Both are canonical fields other adapters
+  // already emit, so dropping them here made the flags silently target-specific.
+  // https://docs.x.ai/build/features/skills-plugins-marketplaces
+  "user-invocable": z.optional(z.boolean()),
+  "disable-model-invocation": z.optional(z.boolean()),
 });
 
 export type GrokcliSkillFrontmatter = z.infer<typeof GrokcliSkillFrontmatterSchema>;
@@ -128,6 +135,12 @@ export class GrokcliSkill extends ToolSkill {
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
+      ...(frontmatter["user-invocable"] !== undefined && {
+        "user-invocable": frontmatter["user-invocable"],
+      }),
+      ...(frontmatter["disable-model-invocation"] !== undefined && {
+        "disable-model-invocation": frontmatter["disable-model-invocation"],
+      }),
       targets: ["*"],
     };
 
@@ -155,6 +168,12 @@ export class GrokcliSkill extends ToolSkill {
     const grokcliFrontmatter: GrokcliSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...(rulesyncFrontmatter["user-invocable"] !== undefined && {
+        "user-invocable": rulesyncFrontmatter["user-invocable"],
+      }),
+      ...(rulesyncFrontmatter["disable-model-invocation"] !== undefined && {
+        "disable-model-invocation": rulesyncFrontmatter["disable-model-invocation"],
+      }),
     };
 
     return new GrokcliSkill({

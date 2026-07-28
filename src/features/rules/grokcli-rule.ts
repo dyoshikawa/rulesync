@@ -1,6 +1,11 @@
 import { join } from "node:path";
 
-import { GROKCLI_DIR, GROKCLI_RULE_FILE_NAME } from "../../constants/grokcli-paths.js";
+import {
+  GROKCLI_DIR,
+  GROKCLI_GLOBAL_RULES_DIR_NAME,
+  GROKCLI_RULE_FILE_NAME,
+  GROKCLI_RULES_DIR_PATH,
+} from "../../constants/grokcli-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -19,20 +24,17 @@ export type GrokcliRuleParams = AiFileParams & {
 /**
  * Rule generator for xAI Grok Build CLI.
  *
- * Grok Build loads project instructions only from the AGENTS.md family — the
- * global `~/.grok/AGENTS.md`, then the git-root/CWD `AGENTS.md`, plus nested
- * per-directory `AGENTS.md`/`AGENTS.override.md` files. It does NOT scan a
- * `.grok/memories/` directory and does not follow `@`-style references out of a
- * rules file. (Verified against `grok` 0.2.54: with a git project containing
- * `AGENTS.md`, `.grok/memories/extra.md`, and `.grok/AGENTS.md`, `grok inspect`
- * lists only the root `AGENTS.md` under `projectInstructions`; the
- * `.grok/memories/*` and `.grok/AGENTS.md` files never appear. From a
- * subdirectory it additionally lists that directory's nested `AGENTS.md`.)
+ * Grok Build reads the AGENTS.md family — the global `~/.grok/AGENTS.md`, then
+ * the git-root/CWD `AGENTS.md`, plus nested per-directory `AGENTS.md` /
+ * `AGENTS.override.md` files — and, alongside it, a flat `*.md` scan of a rules
+ * directory: `.grok/rules/` in each project directory it walks up to the git
+ * root, and `~/.grok/rules/` in the home scope. Files there are sorted by name.
+ * It does NOT scan `.grok/memories/`, and does not follow `@`-style references
+ * out of a rules file.
  *
- * rulesync's topic-based non-root rules have no project subdirectory to map
- * onto, so their bodies are folded into the single root `AGENTS.md` by the
- * RulesProcessor; there is no separate non-root output location (`nonRoot` is
- * `undefined`). This mirrors the warp and deepagents targets.
+ * The rules directory is why non-root rules have a home of their own here.
+ * Earlier Rulesync folded every topic rule into the single root `AGENTS.md`,
+ * which was right for grok 0.2.54 but not for 0.2.112.
  *
  * @see https://docs.x.ai/build/overview
  */
@@ -41,7 +43,9 @@ export type GrokcliRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
     relativeDirPath: string;
     relativeFilePath: string;
   };
-  nonRoot?: undefined;
+  nonRoot: {
+    relativeDirPath: string;
+  };
 };
 
 export class GrokcliRule extends ToolRule {
@@ -67,28 +71,34 @@ export class GrokcliRule extends ToolRule {
         relativeDirPath: global ? GROKCLI_DIR : ".",
         relativeFilePath: GROKCLI_RULE_FILE_NAME,
       },
+      // Project: `.grok/rules/`. Global: `rules/` directly under the home root,
+      // which the processor resolves relative to `~/.grok`.
+      nonRoot: {
+        relativeDirPath: global
+          ? join(GROKCLI_DIR, GROKCLI_GLOBAL_RULES_DIR_NAME)
+          : GROKCLI_RULES_DIR_PATH,
+      },
     };
   }
 
   static async fromFile({
     outputRoot = process.cwd(),
-    // Grok reads rules only from the root `AGENTS.md`, so the incoming
-    // `relativeFilePath` is ignored and the root file is read.
-    relativeFilePath: _relativeFilePath,
+    relativeFilePath,
     validate = true,
     global = false,
   }: ToolRuleFromFileParams): Promise<GrokcliRule> {
-    const { root } = this.getSettablePaths({ global });
-    const relativePath = join(root.relativeDirPath, root.relativeFilePath);
-    const fileContent = await readFileContent(join(outputRoot, relativePath));
+    const { root, nonRoot } = this.getSettablePaths({ global });
+    const isRoot = relativeFilePath === root.relativeFilePath;
+    const relativeDirPath = isRoot ? root.relativeDirPath : nonRoot.relativeDirPath;
+    const fileContent = await readFileContent(join(outputRoot, relativeDirPath, relativeFilePath));
 
     return new GrokcliRule({
       outputRoot,
-      relativeDirPath: root.relativeDirPath,
-      relativeFilePath: root.relativeFilePath,
+      relativeDirPath,
+      relativeFilePath,
       fileContent,
       validate,
-      root: true,
+      root: isRoot,
     });
   }
 
@@ -98,16 +108,13 @@ export class GrokcliRule extends ToolRule {
     validate = true,
     global = false,
   }: ToolRuleFromRulesyncRuleParams): GrokcliRule {
-    const { root } = this.getSettablePaths({ global });
+    const { root, nonRoot } = this.getSettablePaths({ global });
     const isRoot = rulesyncRule.getFrontmatter().root ?? false;
 
-    // Both root and non-root rules target the single root `AGENTS.md`; the
-    // RulesProcessor folds the non-root bodies (`root: false`) into the root
-    // rule and drops the redundant non-root instances before writing.
     return new GrokcliRule({
       outputRoot,
-      relativeDirPath: root.relativeDirPath,
-      relativeFilePath: root.relativeFilePath,
+      relativeDirPath: isRoot ? root.relativeDirPath : nonRoot.relativeDirPath,
+      relativeFilePath: isRoot ? root.relativeFilePath : rulesyncRule.getRelativeFilePath(),
       fileContent: rulesyncRule.getBody(),
       validate,
       root: isRoot,

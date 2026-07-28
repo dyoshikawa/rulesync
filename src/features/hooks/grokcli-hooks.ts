@@ -61,10 +61,12 @@ const GROKCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // commands are emitted verbatim.
   projectDirVar: "",
   // Grok natively supports `command` and `http` hook types (not `prompt`).
-  // The shared Claude-style converter only round-trips `command` hooks, so
-  // http hooks are not emitted; declaring `command` keeps other types from
-  // leaking through as malformed entries.
-  supportedHookTypes: new Set(["command"]),
+  // Grok's `HookHandlerType` is `command | http` (an http handler POSTs to
+  // `url`), and the shared converter round-trips both — Claude Code has
+  // declared `http` here for a while. Declaring exactly these two keeps the
+  // other canonical types from leaking through as entries Grok cannot read.
+  // https://docs.x.ai/build/features/hooks
+  supportedHookTypes: new Set(["command", "http"]),
   noMatcherEvents: GROKCLI_NO_MATCHER_EVENTS,
 };
 
