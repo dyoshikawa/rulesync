@@ -35,6 +35,14 @@ const RulesyncMcpServerSchema = z.extend(McpServerSchema, {
   targets: z.optional(RulesyncTargetsSchema),
   description: z.optional(z.string()),
   exposed: z.optional(z.boolean()),
+  // Rulesync-source-only generation filter: a server with `enabled: false` is
+  // kept in the source file but emitted to NO tool config at all. Distinct
+  // from the canonical `disabled`, which is a pass-through field the tools
+  // read (written as `disabled: true`, or translated to `enabled: false` for
+  // tools that spell it that way) — `enabled: false` wins and drops the
+  // server entirely; `disabled` only matters for servers still emitted.
+  // Omitted = enabled, so existing configs keep generating everything.
+  enabled: z.optional(z.boolean()),
 });
 
 const RulesyncMcpConfigSchema = z.object({
@@ -212,12 +220,23 @@ export class RulesyncMcp extends RulesyncFile {
     const entries = Object.entries(mcpServers);
 
     return Object.fromEntries(
-      entries.map(([serverName, serverConfig]) => {
-        // `envVars` is codex-specific: the codex generator reads it directly
-        // from the unfiltered source JSON. Strip here so it does not leak
-        // into other tools' outputs.
-        return [serverName, omit(serverConfig, ["targets", "description", "exposed", "envVars"])];
-      }),
+      entries
+        // `enabled: false` is the rulesync-source-only generation filter: the
+        // definition stays in the source file and produces no output. This
+        // also covers tool-scoped `{toolname}.mcpServers` entries, which
+        // `forTarget()` merges into the shared map before this runs.
+        .filter(([, serverConfig]) => serverConfig.enabled !== false)
+        .map(([serverName, serverConfig]) => {
+          // `envVars` is codex-specific: the codex generator reads it directly
+          // from the unfiltered source JSON. Strip here so it does not leak
+          // into other tools' outputs. `enabled` is stripped because OpenCode,
+          // Kilo, Grok CLI and Goose have a NATIVE `enabled` field with
+          // different semantics a leaked value would silently collide with.
+          return [
+            serverName,
+            omit(serverConfig, ["targets", "description", "exposed", "envVars", "enabled"]),
+          ];
+        }),
     );
   }
 
