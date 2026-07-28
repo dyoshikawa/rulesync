@@ -32,19 +32,20 @@ type ReasonixPlugin = Record<string, unknown> & {
   type?: string;
 };
 
-// Reasonix declares an external stdio/http plugin (MCP server) as a `[[plugins]]`
-// array-of-tables entry. `type` selects the transport (`stdio` default, `http`
-// a.k.a. `streamable-http`); the remaining fields mirror the standard MCP schema.
+// Reasonix declares an external plugin (MCP server) as a `[[plugins]]`
+// array-of-tables entry. `type` selects the transport — `stdio` (default),
+// `http` (a.k.a. `streamable-http`) or `sse` (the legacy HTTP+SSE transport);
+// the remaining fields mirror the standard MCP schema.
 // `trusted_read_only_tools` is neither written nor imported: v1.17.18 retired it
 // along with `default_tools_approval_mode`, `tools.<raw>.approval_mode` and
-// `approvals_reviewer` — installing a server is now the authorization decision.
-// Writing it makes the two writers churn, since Reasonix strips the key the next
-// time it saves that entry, and importing it would put a Reasonix-only dead key
-// into the canonical `mcpServers` that every MCP target writes out. It stays in
-// `reasonix.toml` until Reasonix rewrites the entry. The remaining fields have no
-// deep canonical mapping and round-trip as passthrough fields on the canonical
-// McpServer (a loose zod object, so unknown keys survive), mirroring how other
-// MCP adapters
+// `approvals_reviewer` — installing a server is now the authorization decision,
+// and Reasonix ignores the key on load. Importing it would put a Reasonix-only
+// dead key into the canonical `mcpServers` that every MCP target writes out, so
+// it would surface in `.mcp.json` and the rest. Rulesync owns `plugins`, so the
+// next generate drops it from an older file too — which loses nothing Reasonix
+// still reads. The remaining fields have no deep canonical mapping and
+// round-trip as passthrough fields on the canonical McpServer (a loose zod
+// object, so unknown keys survive), mirroring how other MCP adapters
 // preserve server-specific extra fields they don't deeply model.
 // `call_timeout_seconds` (per-server MCP call timeout) and `tool_timeout_seconds`
 // (a per-tool inline table keyed by raw MCP tool name) are likewise Reasonix-only
@@ -211,6 +212,12 @@ function normalizePluginsArray(value: unknown): ReasonixPlugin[] {
     .filter((entry): entry is ReasonixPlugin => typeof entry.name === "string");
 }
 
+// The transports Reasonix implements. Anything else — `ws`, or a value a future
+// rulesync alias introduces — would be written as a `type` its loader rejects, so the
+// server is skipped instead.
+// https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
+const REASONIX_TRANSPORTS: ReadonlySet<string> = new Set(["stdio", "http", "sse"]);
+
 function rulesyncMcpServerToReasonix(
   name: string,
   server: McpServer,
@@ -282,12 +289,6 @@ function reasonixPluginToRulesync(plugin: ReasonixPlugin): McpServer {
   return result as McpServer;
 }
 
-// The transports Reasonix implements. Anything else — `ws`, or a value a future
-// rulesync alias introduces — would be written as a `type` its loader rejects, so the
-// server is skipped instead.
-// https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
-const REASONIX_TRANSPORTS: ReadonlySet<string> = new Set(["stdio", "http", "sse"]);
-
 function resolveReasonixType(server: McpServer): string | undefined {
   // Reasonix transports: `stdio` (default), `http` (a.k.a. `streamable-http`),
   // and `sse` — the legacy 2024-11-05 HTTP+SSE transport, which v1.17.18
@@ -308,7 +309,14 @@ function resolveReasonixType(server: McpServer): string | undefined {
   if (server.command) {
     return "stdio";
   }
-  if (server.url || server.httpUrl) {
+  const url = server.url ?? server.httpUrl;
+  if (typeof url === "string") {
+    // A `ws://`/`wss://` URL is a WebSocket server whatever the missing `type`
+    // says, so it takes the same unsupported path rather than being guessed at
+    // as `http` and written as a config that cannot connect.
+    return /^wss?:\/\//i.test(url) ? "ws" : "http";
+  }
+  if (url !== undefined) {
     return "http";
   }
   return undefined;

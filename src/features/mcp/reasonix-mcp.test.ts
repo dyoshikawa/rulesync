@@ -175,6 +175,29 @@ describe("ReasonixMcp", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"ws" transport'));
   });
 
+  it("should skip a websocket URL that carries no explicit transport", async () => {
+    const logger = createMockLogger();
+    const rulesyncMcp = new RulesyncMcp({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: { socket: { url: "wss://example.com/mcp" } },
+      }),
+    });
+
+    const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp,
+      logger,
+    });
+    const parsed = smolToml.parse(reasonixMcp.getFileContent()) as any;
+
+    // Guessing `http` from the URL would write a config that cannot connect.
+    expect(parsed.plugins ?? []).toEqual([]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"ws" transport'));
+  });
+
   it("should round-trip the sse transport through generate then import", async () => {
     const rulesyncMcp = new RulesyncMcp({
       outputRoot: testDir,
@@ -215,7 +238,7 @@ describe("ReasonixMcp", () => {
     expect(reasonixMcp.isDeletable()).toBe(false);
   });
 
-  describe("trusted_read_only_tools round-trip", () => {
+  describe("the retired trusted_read_only_tools field", () => {
     it("should not write the retired trusted_read_only_tools back out", async () => {
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
@@ -263,7 +286,8 @@ describe("ReasonixMcp", () => {
 
       // The canonical `mcpServers` is shared by every MCP target, so importing a
       // Reasonix-only dead key would put it into .mcp.json, .cursor/mcp.json and
-      // the rest. It stays in reasonix.toml until Reasonix rewrites the entry.
+      // the rest. Rulesync owns `plugins`, so the next generate drops it from
+      // the file as well — which loses nothing Reasonix still reads.
       expect(parsed.mcpServers.search.trusted_read_only_tools).toBeUndefined();
       expect(parsed.mcpServers.search.command).toBe("reasonix-plugin-search");
     });

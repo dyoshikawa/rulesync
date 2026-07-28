@@ -287,19 +287,25 @@ export class ReasonixPermissions extends ToolPermissions {
       };
     }
     if (override?.agent !== undefined) {
-      const authoredAgent = { ...asReasonixRecord(override.agent) };
-      const retired = REASONIX_RETIRED_AGENT_KEYS.filter((key) => authoredAgent[key] !== undefined);
+      const mergedAgent = {
+        ...asReasonixRecord(parsed.agent),
+        ...asReasonixRecord(override.agent),
+      };
+      // Strip from the merged table, not just from what was authored: dropping
+      // only the authored value would leave a wider list already in the file
+      // untouched, so narrowing one would be the single edit that never lands.
+      const retired = REASONIX_RETIRED_AGENT_KEYS.filter((key) => mergedAgent[key] !== undefined);
       for (const key of retired) {
-        delete authoredAgent[key];
+        delete mergedAgent[key];
       }
       if (retired.length > 0) {
         logger?.warn(
-          `Reasonix permissions: ignoring ${retired.map((key) => `"${key}"`).join(", ")} from the ` +
-            `\`reasonix.agent\` override; Reasonix removed the key from its config surface, so ` +
-            `plan-mode tool access is expressed through the shared \`permission\` block instead.`,
+          `Reasonix permissions: removing ${retired.map((key) => `"${key}"`).join(", ")} from ` +
+            `[agent] in ${filePath}; Reasonix took the key off its config surface in v1.17.18, ` +
+            `so what it used to express now belongs in the shared \`permission\` block.`,
         );
       }
-      patch.agent = { ...asReasonixRecord(parsed.agent), ...authoredAgent };
+      patch.agent = mergedAgent;
     }
 
     return new ReasonixPermissions({
