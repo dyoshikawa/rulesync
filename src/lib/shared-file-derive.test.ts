@@ -199,6 +199,10 @@ describe("shared-file write derivation", () => {
           "mcp",
           "permissions",
         ],
+        "AppData/Roaming/Zed/settings.json": [
+          "mcp",
+          "permissions",
+        ],
         "kilo.json": [
           "mcp",
           "rules",

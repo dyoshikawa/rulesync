@@ -8,6 +8,7 @@ import {
   RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
+import { getZedGlobalDir } from "../constants/zed-paths.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
@@ -825,7 +826,7 @@ const rulesGlobalTargets = [
   { target: "rovodev", outputPath: join(".rovodev", "AGENTS.md") },
   { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
   { target: "pi", outputPath: join(".pi", "agent", "AGENTS.md") },
-  { target: "zed", outputPath: join(".config", "zed", "AGENTS.md") },
+  { target: "zed", outputPath: join(getZedGlobalDir(), "AGENTS.md") },
   { target: "vibe", outputPath: join(".vibe", "AGENTS.md") },
   { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },
   {

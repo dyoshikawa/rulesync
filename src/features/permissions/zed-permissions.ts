@@ -2,7 +2,14 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
-import { ZED_DIR, ZED_GLOBAL_DIR, ZED_SETTINGS_FILE_NAME } from "../../constants/zed-paths.js";
+import {
+  getZedGlobalDir,
+  ZED_DIR,
+  ZED_GLOBAL_DIR,
+  ZED_GLOBAL_WIN32_DIR,
+  ZED_SETTINGS_FILE_NAME,
+} from "../../constants/zed-paths.js";
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
@@ -54,6 +61,7 @@ const CANONICAL_TO_ZED_TOOL_NAMES: Record<string, string> = {
   bash: "terminal",
   read: "read_file",
   edit: "edit_file",
+  write: "write_file",
   webfetch: "fetch",
   websearch: "search_web",
 };
@@ -164,8 +172,28 @@ export class ZedPermissions extends ToolPermissions {
     global = false,
   }: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return global
-      ? { relativeDirPath: ZED_GLOBAL_DIR, relativeFilePath: ZED_SETTINGS_FILE_NAME }
+      ? { relativeDirPath: getZedGlobalDir(), relativeFilePath: ZED_SETTINGS_FILE_NAME }
       : { relativeDirPath: ZED_DIR, relativeFilePath: ZED_SETTINGS_FILE_NAME };
+  }
+
+  /**
+   * The global settings file of the OTHER platform: `getSettablePaths` resolves
+   * `~/.config/zed` vs `%APPDATA%\Zed` per platform, but the shared-write
+   * derivation (and the gateway ownership table it is checked against) must
+   * know both spellings on every platform.
+   */
+  static getExtraSharedWritePaths({
+    global = false,
+  }: { global?: boolean } = {}): SharedWritePath[] {
+    if (!global) {
+      return [];
+    }
+    return [
+      {
+        relativeDirPath: process.platform === "win32" ? ZED_GLOBAL_DIR : ZED_GLOBAL_WIN32_DIR,
+        relativeFilePath: ZED_SETTINGS_FILE_NAME,
+      },
+    ];
   }
 
   static async fromFile({
@@ -189,6 +217,7 @@ export class ZedPermissions extends ToolPermissions {
     outputRoot = process.cwd(),
     rulesyncPermissions,
     global = false,
+    logger,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<ZedPermissions> {
     const paths = ZedPermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
@@ -214,8 +243,28 @@ export class ZedPermissions extends ToolPermissions {
     const toolPermissions = asRecord(agent.tool_permissions);
     const existingTools = asRecord(toolPermissions.tools);
 
+    // The canonical `*` category is the all-tools catch-all. Zed's counterpart
+    // is `agent.tool_permissions.default` (rung 6 of its precedence ladder),
+    // not a `tools["*"]` entry — `*` is not a Zed tool name, so writing one
+    // produces a rule Zed silently ignores. Only the category's own `*`
+    // pattern can be expressed there: Zed's global default carries no pattern
+    // list, so pattern-scoped rules in the `*` category are dropped with a
+    // warning instead of being emitted as inert config.
+    let managedDefault: ZedPermissionAction | undefined;
     const managedTools: Record<string, ZedToolPermission> = {};
     for (const [category, rules] of Object.entries(config.permission)) {
+      if (category === "*") {
+        for (const [pattern, action] of Object.entries(rules)) {
+          if (pattern === "*") {
+            managedDefault = CANONICAL_TO_ZED_ACTION[action];
+          } else {
+            logger?.warn(
+              `Zed permissions: dropping the "*" category rule for pattern "${pattern}" — Zed's global tool-permission default takes no patterns; scope the rule to a tool category instead.`,
+            );
+          }
+        }
+        continue;
+      }
       const tool = buildZedToolPermission(rules);
       if (tool) {
         managedTools[toZedToolName(category)] = tool;
@@ -224,7 +273,12 @@ export class ZedPermissions extends ToolPermissions {
 
     // Only tools rulesync actually rewrites are "managed" — a category that
     // yields no usable rules must not silently drop an existing user entry.
+    // A canonical `*` category also claims the inert `tools["*"]` entry older
+    // rulesync versions wrote for it, so the stale spelling is cleaned up.
     const managedToolNames = new Set(Object.keys(managedTools));
+    if ("*" in config.permission) {
+      managedToolNames.add("*");
+    }
     const preservedTools = Object.fromEntries(
       Object.entries(existingTools).filter(([toolName]) => !managedToolNames.has(toolName)),
     );
@@ -242,6 +296,9 @@ export class ZedPermissions extends ToolPermissions {
             ...agent,
             tool_permissions: {
               ...toolPermissions,
+              // Canonical `*` sets the global default; when canonical says
+              // nothing, an existing user-set default survives via the spread.
+              ...(managedDefault !== undefined && { default: managedDefault }),
               tools: { ...preservedTools, ...managedTools },
             },
           },
@@ -266,6 +323,7 @@ export class ZedPermissions extends ToolPermissions {
     const toolPermissionsRaw = asRecord(settings.agent).tool_permissions;
     const parsed = ZedToolPermissionsSchema.safeParse(toolPermissionsRaw ?? {});
     const tools = parsed.success ? (parsed.data.tools ?? {}) : {};
+    const globalDefault = parsed.success ? parsed.data.default : undefined;
 
     const permission: Record<string, Record<string, PermissionAction>> = {};
     const ensure = (category: string): Record<string, PermissionAction> => {
@@ -278,7 +336,24 @@ export class ZedPermissions extends ToolPermissions {
       return created;
     };
 
+    // The write-side inverse: `agent.tool_permissions.default` is the
+    // canonical `*` category's own `*` rule.
+    if (globalDefault !== undefined) {
+      ensure("*")["*"] = ZED_TO_CANONICAL_ACTION[globalDefault];
+    }
+
     for (const [zedToolName, toolPermission] of Object.entries(tools)) {
+      // `*` is not a Zed tool name, so a `tools["*"]` entry (written by an
+      // earlier rulesync version) is one Zed ignores. It maps to the same
+      // canonical slot as the top-level `default` above, so it is read only
+      // when no enforced default exists — the value Zed actually enforces
+      // must not lose to the one it ignores.
+      if (zedToolName === "*") {
+        if (globalDefault === undefined && toolPermission.default !== undefined) {
+          ensure("*")["*"] = ZED_TO_CANONICAL_ACTION[toolPermission.default];
+        }
+        continue;
+      }
       const category = toCanonicalToolName(zedToolName);
       if (toolPermission.default !== undefined) {
         ensure(category)["*"] = ZED_TO_CANONICAL_ACTION[toolPermission.default];

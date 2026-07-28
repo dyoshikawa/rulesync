@@ -10,6 +10,7 @@ import {
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_SCHEMA_URL,
 } from "../constants/rulesync-paths.js";
+import { getZedGlobalDir } from "../constants/zed-paths.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
@@ -2026,7 +2027,7 @@ describe("E2E: permissions (global mode)", () => {
     // Pre-seed the shared global settings with unrelated user config to verify
     // the non-destructive merge into `~/.config/zed/settings.json`.
     await writeFileContent(
-      join(homeDir, ".config", "zed", "settings.json"),
+      join(homeDir, getZedGlobalDir(), "settings.json"),
       JSON.stringify(
         {
           theme: "One Dark",
@@ -2045,7 +2046,7 @@ describe("E2E: permissions (global mode)", () => {
     });
 
     const generated = JSON.parse(
-      await readFileContent(join(homeDir, ".config", "zed", "settings.json")),
+      await readFileContent(join(homeDir, getZedGlobalDir(), "settings.json")),
     );
     const tools = generated.agent.tool_permissions.tools;
     // `bash` → `terminal`, `*` → per-tool default, `ask` → `confirm`.

@@ -11,6 +11,9 @@ import { writeFileContent } from "../../utils/file.js";
 import { RulesyncRule, type RulesyncRuleFrontmatterInput } from "./rulesync-rule.js";
 import { ZedRule } from "./zed-rule.js";
 
+const expectedZedGlobalDir =
+  process.platform === "win32" ? join("AppData", "Roaming", "Zed") : join(".config", "zed");
+
 describe("ZedRule", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -32,10 +35,10 @@ describe("ZedRule", () => {
       expect(paths.nonRoot).toBeUndefined();
     });
 
-    it("should return ~/.config/zed/AGENTS.md for global mode", () => {
+    it("should return the platform's global Zed dir + AGENTS.md for global mode", () => {
       const paths = ZedRule.getSettablePaths({ global: true });
       expect(paths.root).toEqual({
-        relativeDirPath: join(".config", "zed"),
+        relativeDirPath: expectedZedGlobalDir,
         relativeFilePath: "AGENTS.md",
       });
     });
@@ -64,7 +67,7 @@ describe("ZedRule", () => {
 
     it("should read AGENTS.md in global mode", async () => {
       const content = "# Global Rules";
-      await writeFileContent(join(testDir, ".config", "zed", "AGENTS.md"), content);
+      await writeFileContent(join(testDir, expectedZedGlobalDir, "AGENTS.md"), content);
 
       const rule = await ZedRule.fromFile({
         outputRoot: testDir,
@@ -105,7 +108,7 @@ describe("ZedRule", () => {
       });
 
       const rule = ZedRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule, global: true });
-      expect(rule.getRelativeDirPath()).toBe(join(".config", "zed"));
+      expect(rule.getRelativeDirPath()).toBe(expectedZedGlobalDir);
       expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
     });
 
