@@ -132,6 +132,7 @@ export const commandsProcessorToolTargetTuple = [
   "rovodev",
   "takt",
   "devin",
+  "warp",
 ] as const;
 
 export const subagentsProcessorToolTargetTuple = [
