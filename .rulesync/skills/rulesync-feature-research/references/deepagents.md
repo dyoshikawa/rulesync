@@ -18,10 +18,10 @@
 
 Common adapter paths: `rulesync-source-map.md`.
 
-| Surface     | Anchor                                                                                                     |
-| ----------- | ---------------------------------------------------------------------------------------------------------- |
-| `rules`     | `.deepagents/AGENTS.md` root file and `.deepagents/memories` non-root memories in `deepagents-rule.ts`     |
-| `mcp`       | `.deepagents/.mcp.json`, `mcpServers`, and project/global handling in `deepagents-mcp.ts`                  |
-| `subagents` | `.deepagents/agents` project subagent directory in `deepagents-subagent.ts`                                |
-| `skills`    | `.deepagents/skills` project skill directory in `deepagents-skill.ts`                                      |
-| `hooks`     | `.deepagents/hooks.json`, flat hook entries, and `DEEPAGENTS_HOOK_EVENTS` mapping in `deepagents-hooks.ts` |
+| Surface     | Anchor                                                                                                               |
+| ----------- | -------------------------------------------------------------------------------------------------------------------- |
+| `rules`     | `.deepagents/AGENTS.md` (project) and `~/.deepagents/<agent>/AGENTS.md` (global), root-only, in `deepagents-rule.ts` |
+| `mcp`       | `.deepagents/.mcp.json`, `mcpServers`, and project/global handling in `deepagents-mcp.ts`                            |
+| `subagents` | `.deepagents/agents` project subagent directory in `deepagents-subagent.ts`                                          |
+| `skills`    | `.deepagents/skills` project skill directory in `deepagents-skill.ts`                                                |
+| `hooks`     | `.deepagents/hooks.json`, flat hook entries, and `DEEPAGENTS_HOOK_EVENTS` mapping in `deepagents-hooks.ts`           |
