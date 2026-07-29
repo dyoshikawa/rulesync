@@ -41,6 +41,12 @@ const CLAUDE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
   "taskCompleted",
   "teammateIdle",
   "cwdChanged",
+  "beforeSubmitPrompt",
+  "stop",
+  // Not in the docs' matcher table yet — the event is only announced in the
+  // 2.1.219 changelog. Listed here so a matcher authored on it is dropped with
+  // the usual warning rather than written into settings.json to be ignored.
+  "directoryAdded",
 ]);
 
 const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
@@ -60,7 +66,27 @@ const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // Claude Code's tool-event `if` condition (a single permission rule) is
   // Claude-Code-specific and round-trips as an opaque string.
   // https://code.claude.com/docs/en/hooks
-  stringPassthroughFields: [{ canonical: "if", tool: "if" }],
+  stringPassthroughFields: [
+    { canonical: "if", tool: "if" },
+    // Common to every handler type: the spinner label shown while it runs.
+    { canonical: "statusMessage", tool: "statusMessage" },
+    // Command hooks: the interpreter, `"bash"` or `"powershell"`.
+    { canonical: "shell", tool: "shell" },
+  ],
+  // `once` is common to every handler type (honored in skill frontmatter only,
+  // but accepted everywhere); `async` / `asyncRewake` are command-hook flags,
+  // and `continueOnBlock` feeds a blocking hook's reason back to the model.
+  // https://code.claude.com/docs/en/hooks
+  booleanPassthroughFields: [
+    { canonical: "once", tool: "once" },
+    { canonical: "async", tool: "async" },
+    { canonical: "asyncRewake", tool: "asyncRewake" },
+    { canonical: "continueOnBlock", tool: "continueOnBlock" },
+  ],
+  // Command hooks: the exec form. With `args` present, `command` is resolved as
+  // an executable and spawned directly, so no shell is involved and a path
+  // never needs quoting.
+  arrayPassthroughFields: [{ canonical: "args", tool: "args" }],
 };
 
 export class ClaudecodeHooks extends ToolHooks {

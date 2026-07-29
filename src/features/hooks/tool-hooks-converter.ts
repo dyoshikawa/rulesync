@@ -44,7 +44,7 @@ export type ToolHooksConverterConfig = {
    * any other value is ignored so a malformed field can't leak through.
    */
   booleanPassthroughFields?: ReadonlyArray<{
-    readonly canonical: "failClosed" | "async";
+    readonly canonical: "failClosed" | "async" | "once" | "asyncRewake" | "continueOnBlock";
     readonly tool: string;
   }>;
   /**
@@ -55,7 +55,7 @@ export type ToolHooksConverterConfig = {
    * for tool-specific opaque strings such as Claude Code's `if` condition.
    */
   stringPassthroughFields?: ReadonlyArray<{
-    readonly canonical: "if" | "statusMessage" | "commandWindows";
+    readonly canonical: "if" | "statusMessage" | "commandWindows" | "shell";
     readonly tool: string;
   }>;
   /**
@@ -158,11 +158,20 @@ function applyCommandPrefix({
     (posix.isAbsolute(unquotedCommand) ||
       win32.isAbsolute(unquotedCommand) ||
       unquotedCommand.startsWith("~/"));
+  // In the exec form (`args` present) the tool spawns `command` as an
+  // executable, with no shell to expand the variable or strip the quotes the
+  // prefix adds — so the prefixed string would be looked up as a literal file
+  // name and fail. Only checked for tools that actually emit `args`; for the
+  // rest `command` stays a shell string and the prefix still applies.
+  const emitsArgs =
+    converterConfig.arrayPassthroughFields?.some(({ canonical }) => canonical === "args") ?? false;
+  const isExecForm = emitsArgs && Array.isArray(def.args) && def.args.length > 0;
   const shouldPrefix =
     converterConfig.projectDirVar !== "" &&
     typeof trimmedCommand === "string" &&
     !trimmedCommand.startsWith("$") &&
     !isAbsoluteCommand &&
+    !isExecForm &&
     (!converterConfig.prefixDotRelativeCommandsOnly || isDotRelativeCommand);
 
   // Only the variable itself is quoted (not the whole command) so a project path

@@ -48,6 +48,11 @@ export const ClaudecodeSkillFrontmatterSchema = z.looseObject({
   context: z.optional(z.string()),
   // Which subagent type to use when `context: fork` is set.
   agent: z.optional(z.string()),
+  // Only applies with `context: fork`. `false` waits for the forked subagent's
+  // result in the invoking turn instead of running it in the background.
+  // Defaults to `true`, so `false` is the meaningful value to write.
+  // https://code.claude.com/docs/en/skills
+  background: z.optional(z.boolean()),
   // Hooks scoped to the skill's lifecycle (free-form per the docs).
   hooks: z.optional(z.looseObject({})),
   // Shell for `!` command blocks in the skill (`bash` default or `powershell`).
@@ -92,6 +97,9 @@ function buildClaudecodeSkillFrontmatter({
     shell: section.shell,
   };
   const definedFields: Record<string, unknown> = {
+    // Defined rather than truthy: `background: false` is the whole point of the
+    // field, and a truthy check would drop it.
+    background: section.background,
     arguments: section.arguments,
     hooks: section.hooks,
     "disable-model-invocation": resolvedDisableModelInvocation,
@@ -219,6 +227,7 @@ export class ClaudecodeSkill extends ToolSkill {
       ...(frontmatter.arguments !== undefined && { arguments: frontmatter.arguments }),
       ...(frontmatter.context && { context: frontmatter.context }),
       ...(frontmatter.agent && { agent: frontmatter.agent }),
+      ...(frontmatter.background !== undefined && { background: frontmatter.background }),
       ...(frontmatter.hooks !== undefined && { hooks: frontmatter.hooks }),
       ...(frontmatter.shell && { shell: frontmatter.shell }),
       ...(frontmatter["disable-model-invocation"] !== undefined && {

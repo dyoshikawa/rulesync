@@ -120,6 +120,14 @@ export const HookDefinitionSchema = z.looseObject({
   // `.codex/hooks.json`, which is the file rulesync writes.
   // https://learn.chatgpt.com/docs/hooks
   commandWindows: z.optional(safeString),
+  // Claude Code command hooks: `asyncRewake` runs the hook in the background
+  // and wakes Claude on exit code 2 (it implies `async`).
+  // https://code.claude.com/docs/en/hooks
+  asyncRewake: z.optional(z.boolean()),
+  // Claude Code: feed a blocking hook's rejection reason back to the model and
+  // continue the turn instead of ending it. Added for `PostToolUse` in 2.1.139.
+  // https://code.claude.com/docs/en/hooks
+  continueOnBlock: z.optional(z.boolean()),
 });
 
 export type HookDefinition = z.infer<typeof HookDefinitionSchema>;
@@ -176,6 +184,7 @@ export const HOOK_EVENTS = [
   "configChange",
   "cwdChanged",
   "fileChanged",
+  "directoryAdded",
   "elicitation",
   "elicitationResult",
 ] as const;
@@ -243,6 +252,12 @@ export const CLAUDE_HOOK_EVENTS: readonly HookEvent[] = [
   "configChange",
   "cwdChanged",
   "fileChanged",
+  // Announced in the 2.1.219 changelog — "fires after `/add-dir` or the SDK
+  // `register_repo_root` control request registers a new working directory
+  // mid-session" — but not yet in the docs' event table, so its matcher support
+  // is unknown and it is treated as no-matcher (see CLAUDE_NO_MATCHER_EVENTS).
+  // https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
+  "directoryAdded",
   "postCompact",
   "elicitation",
   "elicitationResult",
@@ -933,6 +948,7 @@ export const CANONICAL_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
   configChange: "ConfigChange",
   cwdChanged: "CwdChanged",
   fileChanged: "FileChanged",
+  directoryAdded: "DirectoryAdded",
   postCompact: "PostCompact",
   elicitation: "Elicitation",
   elicitationResult: "ElicitationResult",

@@ -73,6 +73,91 @@ describe("ClaudecodeHooks", () => {
       expect(parsed.hooks.afterFileEdit).toBeUndefined();
     });
 
+    it("should emit the documented per-handler fields and the DirectoryAdded event", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          directoryAdded: [{ command: "on-add-dir.sh" }],
+          preToolUse: [
+            {
+              command: "node",
+              args: ["./scripts/check.js", "--strict"],
+              async: true,
+              asyncRewake: true,
+              shell: "bash",
+              statusMessage: "Checking",
+              once: true,
+              continueOnBlock: true,
+            },
+          ],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(claudecodeHooks.getFileContent());
+      expect(parsed.hooks.DirectoryAdded).toBeDefined();
+      expect(parsed.hooks.PreToolUse[0].hooks[0]).toMatchObject({
+        type: "command",
+        command: "node",
+        args: ["./scripts/check.js", "--strict"],
+        async: true,
+        asyncRewake: true,
+        shell: "bash",
+        statusMessage: "Checking",
+        once: true,
+        continueOnBlock: true,
+      });
+    });
+
+    it("should leave an exec-form command unprefixed", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [
+            // No shell to expand $CLAUDE_PROJECT_DIR or strip the quotes, so the
+            // prefixed string would be looked up as a literal file name.
+            { command: "./scripts/exec.sh", args: ["--strict"] },
+            { command: "./scripts/shell-form.sh" },
+          ],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const hooks = JSON.parse(claudecodeHooks.getFileContent()).hooks.PreToolUse[0].hooks;
+      expect(hooks[0].command).toBe("./scripts/exec.sh");
+      expect(hooks[1].command).toBe('"$CLAUDE_PROJECT_DIR"/scripts/shell-form.sh');
+    });
+
     it("should emit http/mcp_tool/agent hooks with their type-specific payload fields", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
@@ -880,6 +965,47 @@ describe("ClaudecodeHooks", () => {
       const parsed = JSON.parse(content);
       expect(parsed.hooks.MessageDisplay).toBeDefined();
       expect(parsed.hooks.MessageDisplay[0].matcher).toBeUndefined();
+    });
+
+    it("should drop a matcher on UserPromptSubmit and Stop, which take none", async () => {
+      // Both are in the docs' no-matcher table; before, a matcher authored on
+      // them was written into settings.json and silently ignored upstream.
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const config = {
+        version: 1,
+        hooks: {
+          beforeSubmitPrompt: [{ command: "prompt.sh", matcher: "*.js" }],
+          stop: [{ command: "stop.sh", matcher: "*.ts" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const parsed = JSON.parse(claudecodeHooks.getFileContent());
+      expect(parsed.hooks.UserPromptSubmit[0].matcher).toBeUndefined();
+      expect(parsed.hooks.Stop[0].matcher).toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('matcher "*.js" on "beforeSubmitPrompt" hook will be ignored'),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('matcher "*.ts" on "stop" hook will be ignored'),
+      );
     });
 
     it("should warn when matcher is defined on worktree events", async () => {

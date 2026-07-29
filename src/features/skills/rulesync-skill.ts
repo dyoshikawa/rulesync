@@ -31,6 +31,7 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       arguments: z.optional(z.union([z.string(), z.array(z.string())])),
       context: z.optional(z.string()),
       agent: z.optional(z.string()),
+      background: z.optional(z.boolean()),
       hooks: z.optional(z.looseObject({})),
       shell: z.optional(z.string()),
       "disable-model-invocation": z.optional(z.boolean()),
@@ -274,6 +275,7 @@ export type RulesyncSkillFrontmatterInput = {
     arguments?: string | string[];
     context?: string;
     agent?: string;
+    background?: boolean;
     hooks?: Record<string, unknown>;
     shell?: string;
     "disable-model-invocation"?: boolean;
