@@ -23,6 +23,9 @@ import {
 export const CopilotRuleFrontmatterSchema = z.object({
   description: z.optional(z.string()),
   applyTo: z.optional(z.string()),
+  // Display name shown in the UI; defaults to the file name when absent.
+  // https://code.visualstudio.com/docs/agent-customization/custom-instructions
+  name: z.optional(z.string()),
   // Documented values are `code-review` and `cloud-agent`; `coding-agent` is kept
   // as a deprecated alias so existing configs still import.
   // https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions
@@ -152,8 +155,11 @@ export class CopilotRule extends ToolRule {
       root: this.isRoot(),
       description: this.frontmatter.description,
       globs,
-      ...(this.frontmatter.excludeAgent && {
-        copilot: { excludeAgent: this.frontmatter.excludeAgent },
+      ...((this.frontmatter.excludeAgent || this.frontmatter.name) && {
+        copilot: {
+          ...(this.frontmatter.excludeAgent && { excludeAgent: this.frontmatter.excludeAgent }),
+          ...(this.frontmatter.name && { name: this.frontmatter.name }),
+        },
       }),
     };
 
@@ -185,6 +191,7 @@ export class CopilotRule extends ToolRule {
       description: rulesyncFrontmatter.description,
       applyTo: rulesyncFrontmatter.globs?.length ? rulesyncFrontmatter.globs.join(",") : undefined,
       excludeAgent: rulesyncFrontmatter.copilot?.excludeAgent,
+      name: rulesyncFrontmatter.copilot?.name,
     };
 
     // Generate proper file content with Copilot specific frontmatter

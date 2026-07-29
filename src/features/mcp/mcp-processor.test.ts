@@ -659,7 +659,7 @@ describe("McpProcessor", () => {
         fileContent: JSON.stringify({ servers: {} }),
       });
 
-      vi.mocked(CopilotMcp.fromRulesyncMcp).mockReturnValue(mockToolMcp);
+      vi.mocked(CopilotMcp.fromRulesyncMcp).mockResolvedValue(mockToolMcp);
 
       const processor = new McpProcessor({
         logger: createMockLogger(),

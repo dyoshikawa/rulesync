@@ -275,7 +275,10 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       class: CopilotHooks,
       meta: {
         supportsProject: true,
-        supportsGlobal: false,
+        // User-scope hooks live in `~/.copilot/hooks/`, documented for both
+        // VS Code and the coding agent.
+        // https://code.visualstudio.com/docs/agent-customization/hooks
+        supportsGlobal: true,
         supportsImport: true,
       },
       supportedEvents: COPILOT_HOOK_EVENTS,

@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { COPILOT_MCP_DIR, COPILOT_MCP_FILE_NAME } from "../../constants/copilot-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
-import { readFileContent } from "../../utils/file.js";
+import { formatError } from "../../utils/error.js";
+import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -14,13 +15,20 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
+/**
+ * `.vscode/mcp.json` has three documented top-level sections: `servers` (the
+ * one rulesync manages), `inputs` (secret prompts referenced as
+ * `${input:id}`) and `sandbox` (filesystem/network rules for sandboxed
+ * servers). Only `servers` is generated; the rest of the document is read back
+ * and preserved, since VS Code recommends committing this file and dropping an
+ * `inputs` entry would leave `${input:…}` unresolvable at startup.
+ *
+ * @see https://code.visualstudio.com/docs/agents/reference/mcp-configuration
+ */
 type CopilotMcpConfig = {
   servers?: McpServers;
+  [key: string]: unknown;
 };
-
-function convertToCopilotFormat(mcpServers: McpServers): CopilotMcpConfig {
-  return { servers: mcpServers };
-}
 
 function convertFromCopilotFormat(copilotConfig: CopilotMcpConfig): McpServers {
   return copilotConfig.servers ?? {};
@@ -65,16 +73,34 @@ export class CopilotMcp extends ToolMcp {
     });
   }
 
-  static fromRulesyncMcp({
+  static async fromRulesyncMcp({
     outputRoot = process.cwd(),
     rulesyncMcp,
     validate = true,
-  }: ToolMcpFromRulesyncMcpParams): CopilotMcp {
-    const copilotConfig = convertToCopilotFormat(rulesyncMcp.getMcpServers());
+  }: ToolMcpFromRulesyncMcpParams): Promise<CopilotMcp> {
+    const paths = this.getSettablePaths();
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
+    const existingContent = await readFileContentOrNull(filePath);
+
+    let existing: CopilotMcpConfig = {};
+    if (existingContent !== null && existingContent.trim() !== "") {
+      try {
+        existing = JSON.parse(existingContent);
+      } catch (error) {
+        // Fail loudly rather than write a file that would silently drop the
+        // user's `inputs` / `sandbox` sections.
+        throw new Error(
+          `Failed to parse existing Copilot MCP config at ${filePath}: ${formatError(error)}`,
+          { cause: error },
+        );
+      }
+    }
+
+    const copilotConfig: CopilotMcpConfig = { ...existing, servers: rulesyncMcp.getMcpServers() };
     return new CopilotMcp({
       outputRoot,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
       fileContent: JSON.stringify(copilotConfig, null, 2),
       validate,
     });

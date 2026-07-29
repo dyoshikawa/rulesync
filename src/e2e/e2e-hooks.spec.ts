@@ -656,6 +656,7 @@ const hooksGlobalTargets = [
   { target: "deepagents", outputPath: join(".deepagents", "hooks.json") },
   { target: "junie", outputPath: join(".junie", "config.json") },
   { target: "cursor", outputPath: join(".cursor", "hooks.json") },
+  { target: "copilot", outputPath: join(".copilot", "hooks", "copilot-ide-hooks.json") },
   { target: "copilotcli", outputPath: join(".copilot", "hooks", "copilot-hooks.json") },
   { target: "antigravity-ide", outputPath: join(".gemini", "config", "hooks.json") },
   { target: "antigravity-cli", outputPath: join(".gemini", "config", "hooks.json") },
@@ -734,8 +735,8 @@ describe("E2E: hooks (global mode)", () => {
         expect(generatedContent).toContain('pi.on("agent_end"');
         expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
         expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
-      } else if (target === "copilotcli") {
-        // Copilot CLI does not support the `stop` hook event, so audit.sh is
+      } else if (target === "copilot" || target === "copilotcli") {
+        // Neither Copilot target supports the `stop` hook event, so audit.sh is
         // intentionally dropped during generation.
         const parsed = JSON.parse(generatedContent);
         expect(parsed.hooks.sessionStart).toBeDefined();

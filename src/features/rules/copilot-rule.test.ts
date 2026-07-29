@@ -1316,4 +1316,29 @@ description: "Test trimming"
       expect(CopilotRule.isTargetedByRulesyncRule(rulesyncRule)).toBe(true);
     });
   });
+  describe("name frontmatter", () => {
+    it("carries the display name in both directions", () => {
+      const rulesyncRule = new RulesyncRule({
+        frontmatter: {
+          targets: ["*"],
+          root: false,
+          description: "Style rules",
+          globs: ["**/*.ts"],
+          copilot: { name: "TypeScript Style", excludeAgent: "code-review" },
+        },
+        body: "Body",
+        relativeDirPath: join(".rulesync", "rules"),
+        relativeFilePath: "style.md",
+      });
+
+      const copilotRule = CopilotRule.fromRulesyncRule({ rulesyncRule });
+      expect(copilotRule.getFileContent()).toContain("name: TypeScript Style");
+
+      const backToRulesync = copilotRule.toRulesyncRule().getFrontmatter();
+      expect(backToRulesync.copilot).toEqual({
+        name: "TypeScript Style",
+        excludeAgent: "code-review",
+      });
+    });
+  });
 });

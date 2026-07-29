@@ -8,6 +8,14 @@ export const COPILOT_SKILLS_DIR_PATH = join(GITHUB_DIR, "skills");
 export const COPILOT_AGENTS_DIR_PATH = join(GITHUB_DIR, "agents");
 export const COPILOT_HOOKS_DIR_PATH = join(GITHUB_DIR, "hooks");
 export const COPILOT_HOOKS_FILE_NAME = "copilot-hooks.json";
+// User-scope hooks for VS Code Copilot (and the coding agent) live in
+// `~/.copilot/hooks/`, which loads every `*.json` in the folder. The Copilot CLI
+// global hooks file already occupies `copilot-hooks.json` there, so the
+// VS Code target uses a distinct name and the two never overwrite each other.
+// https://code.visualstudio.com/docs/agent-customization/hooks
+// https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks
+export const COPILOT_GLOBAL_HOOKS_DIR_PATH = join(COPILOT_DIR, "hooks");
+export const COPILOT_GLOBAL_HOOKS_FILE_NAME = "copilot-ide-hooks.json";
 export const COPILOT_MCP_DIR = ".vscode";
 export const COPILOT_MCP_FILE_NAME = "mcp.json";
 // VS Code Copilot Chat reads its terminal auto-approval map

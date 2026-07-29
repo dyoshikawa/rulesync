@@ -386,10 +386,10 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     },
   },
   // VS Code workspace settings (`.vscode/settings.json`): a general-purpose
-  // user/project settings file. Copilot permissions owns only the single flat
-  // dotted key `chat.tools.terminal.autoApprove` (VS Code stores dotted setting
-  // keys flat at the top level); every unrelated editor setting is preserved by
-  // the shallow merge. The Copilot MCP feature writes a SEPARATE file
+  // user/project settings file. Copilot permissions owns only the three flat
+  // dotted `chat.tools.*.autoApprove` keys (VS Code stores dotted setting keys
+  // flat at the top level); every unrelated editor setting is preserved by the
+  // shallow merge. The Copilot MCP feature writes a SEPARATE file
   // (`.vscode/mcp.json`), so this file has a single writer.
   ".vscode/settings.json": {
     format: "jsonc",
@@ -402,7 +402,11 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     features: {
       permissions: {
         kind: "replace-owned-keys",
-        ownedKeys: ["chat.tools.terminal.autoApprove"],
+        ownedKeys: [
+          "chat.tools.terminal.autoApprove",
+          "chat.tools.edits.autoApprove",
+          "chat.tools.urls.autoApprove",
+        ],
       },
     },
   },

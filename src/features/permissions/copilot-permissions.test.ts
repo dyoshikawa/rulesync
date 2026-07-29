@@ -8,6 +8,8 @@ import { CopilotPermissions } from "./copilot-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
 const AUTO_APPROVE_KEY = "chat.tools.terminal.autoApprove";
+const EDITS_KEY = "chat.tools.edits.autoApprove";
+const URLS_KEY = "chat.tools.urls.autoApprove";
 
 function createRulesyncPermissions(permission: Record<string, Record<string, string>>) {
   return new RulesyncPermissions({
@@ -67,11 +69,13 @@ describe("CopilotPermissions", () => {
       expect(json[AUTO_APPROVE_KEY]).not.toHaveProperty("npm *");
     });
 
-    it("maps only the bash category and ignores non-terminal categories", async () => {
+    it("maps bash, edit and webfetch and ignores categories VS Code cannot express", async () => {
       const rulesyncPermissions = createRulesyncPermissions({
         bash: { "git *": "allow" },
+        edit: { "src/**": "allow", "**/.env": "deny" },
+        webfetch: { "https://*.example.com/*": "allow" },
         read: { ".env": "deny" },
-        edit: { "src/**": "allow" },
+        write: { "dist/**": "allow" },
       });
 
       const permissions = await CopilotPermissions.fromRulesyncPermissions({
@@ -81,8 +85,31 @@ describe("CopilotPermissions", () => {
 
       const json = JSON.parse(permissions.getFileContent());
       expect(json[AUTO_APPROVE_KEY]).toEqual({ "git *": true });
-      // read/edit have no terminal-command representation and are not emitted.
-      expect(Object.keys(json)).toEqual([AUTO_APPROVE_KEY]);
+      expect(json[EDITS_KEY]).toEqual({ "src/**": true, "**/.env": false });
+      expect(json[URLS_KEY]).toEqual({ "https://*.example.com/*": true });
+      // `read` has no approval surface, and `write` is deliberately not folded
+      // into the edits map so it stays distinguishable from `edit` on import.
+      expect(Object.keys(json)).toEqual([AUTO_APPROVE_KEY, EDITS_KEY, URLS_KEY]);
+    });
+
+    it("imports all three maps back into their canonical categories", () => {
+      const permissions = new CopilotPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".vscode",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          "editor.tabSize": 2,
+          [AUTO_APPROVE_KEY]: { "git *": true },
+          [EDITS_KEY]: { "src/**": true, "**/.env": false },
+          // The object form has no canonical action, so it is skipped.
+          [URLS_KEY]: { "https://ok.example": true, "https://x.example": { approveRequest: true } },
+        }),
+      });
+
+      const json = permissions.toRulesyncPermissions().getJson();
+      expect(json.permission.bash).toEqual({ "git *": "allow" });
+      expect(json.permission.edit).toEqual({ "src/**": "allow", "**/.env": "deny" });
+      expect(json.permission.webfetch).toEqual({ "https://ok.example": "allow" });
     });
 
     it("preserves unrelated VS Code settings when merging", async () => {
